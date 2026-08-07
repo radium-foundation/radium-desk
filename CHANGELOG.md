@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.7 — 2026-08-07 — Operations Live Performance
+
+- Optimized Operations Live full refresh to load only the bundles required for requested dashboard sections instead of rebuilding all bundles.
+- Reduced unnecessary Platform Health processing during full refresh by skipping unused payment and integration diagnostics while preserving on-demand health endpoints.
+- Reduced unnecessary bundle execution and SQL workload during full refresh with no UI or business logic changes.
+
 ## 4.0.6 — 2026-08-07 — Performance Hardening & Production Reliability
 
 ### Infrastructure

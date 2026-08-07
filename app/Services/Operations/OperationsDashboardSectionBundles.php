@@ -131,15 +131,16 @@ class OperationsDashboardSectionBundles
     ];
 
     /**
+     * Map requested sections to the exact bundles they need.
+     *
+     * Full refresh (ALL_SECTIONS) must use this path — never allBundles() —
+     * so static shells like health_status do not pull Cashfree/integration work.
+     *
      * @param  list<string>  $sections
      * @return list<string>
      */
     public static function bundlesForSections(array $sections): array
     {
-        if ($sections === OperationsDashboardLiveRenderer::ALL_SECTIONS) {
-            return self::allBundles();
-        }
-
         return collect($sections)
             ->flatMap(fn (string $section): array => self::SECTION_BUNDLES[$section] ?? [])
             ->unique()

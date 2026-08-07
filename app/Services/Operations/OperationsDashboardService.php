@@ -63,9 +63,11 @@ class OperationsDashboardService
             }
         }
 
-        $data = OperationsDashboardSectionBundles::isFullRefresh($sections)
-            ? $this->build()
-            : $this->buildForSections($sections);
+        // Always build only the bundles required by the requested sections.
+        // Full refresh used to call build()/allBundles(), which pulled Cashfree,
+        // integration, Gmail, RadiumBox, and system_health even when the UI
+        // only rendered a static Platform Health shell.
+        $data = $this->buildForSections($sections);
 
         if ($useCache) {
             Cache::put($cacheKey, $data, now()->addSeconds(self::CACHE_TTL_SECONDS));

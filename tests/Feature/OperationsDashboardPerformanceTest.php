@@ -248,7 +248,67 @@ class OperationsDashboardPerformanceTest extends TestCase
         $this->assertSame([], $data->ivrAnalytics);
         $this->assertSame([], $data->supportIntelligence);
         $this->assertSame([], $data->teamAvailability['on_duty'] ?? []);
-        $this->assertGreaterThan(0, $queries);
+        // health_status + ira_compact declare no data bundles — zero SQL is correct.
+        $this->assertSame(0, $queries);
+    }
+
+    public function test_full_refresh_sections_map_to_requested_bundles_only(): void
+    {
+        $bundles = OperationsDashboardSectionBundles::bundlesForSections(
+            OperationsDashboardLiveRenderer::ALL_SECTIONS,
+        );
+
+        $this->assertContains(OperationsDashboardSectionBundles::SUPPORT_INTELLIGENCE, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::IVR_ANALYTICS, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::QUEUE_METRICS, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::TEAM_AVAILABILITY, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::TEAM_TELEGRAM_STATUS, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::NOTIFICATION_METRICS, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::AUTOMATION_METRICS, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::CASHFREE_DEVICE_ENRICHMENT, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::MISSING_SERIAL_AUTOMATION, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::RECENT_NOTIFICATION_FAILURES, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::RECENT_AUTOMATION_ACTIVITY, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::RECENT_IRA_MESSAGES, $bundles);
+
+        // Static health_status shell must not pull these heavy / unused bundles.
+        $this->assertNotContains(OperationsDashboardSectionBundles::CASHFREE_HEALTH, $bundles);
+        $this->assertNotContains(OperationsDashboardSectionBundles::INTEGRATION_HEALTH, $bundles);
+        $this->assertNotContains(OperationsDashboardSectionBundles::RADIUMBOX_HEALTH, $bundles);
+        $this->assertNotContains(OperationsDashboardSectionBundles::GMAIL_HEALTH, $bundles);
+        $this->assertNotContains(OperationsDashboardSectionBundles::SYSTEM_HEALTH, $bundles);
+
+        $this->assertNotSame(
+            OperationsDashboardSectionBundles::allBundles(),
+            $bundles,
+            'Full refresh must not collapse to allBundles().',
+        );
+    }
+
+    public function test_full_live_refresh_skips_unrequested_health_bundles(): void
+    {
+        Cache::flush();
+
+        $service = app(OperationsDashboardService::class);
+        $sections = OperationsDashboardLiveRenderer::ALL_SECTIONS;
+
+        $legacyQueryCount = $this->queryCountFor(fn () => $service->build());
+        Cache::flush();
+        $requestedQueryCount = $this->queryCountFor(fn () => $service->dashboardDataForSections($sections, useCache: false));
+
+        $data = $service->dashboardDataForSections($sections, useCache: false);
+
+        $this->assertSame([], $data->cashfreeHealth);
+        $this->assertSame([], $data->integrationHealth);
+        $this->assertSame([], $data->gmailHealth);
+        $this->assertSame([], $data->systemHealth);
+        $this->assertNotEmpty($data->supportIntelligence);
+        $this->assertArrayHasKey('pending', $data->queueMetrics);
+        $this->assertLessThan(
+            $legacyQueryCount,
+            $requestedQueryCount,
+            'Requested-bundle full refresh should execute fewer queries than allBundles()/build().',
+        );
     }
 
     public function test_first_paint_build_includes_support_team_and_queue_bundles(): void
@@ -392,5 +452,16 @@ class OperationsDashboardPerformanceTest extends TestCase
             (int) config('operations.dashboard.audit_log_limit', 2000),
             $logs->count(),
         );
+    }
+
+    private function queryCountFor(callable $callback): int
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $callback();
+        $count = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        return $count;
     }
 }
