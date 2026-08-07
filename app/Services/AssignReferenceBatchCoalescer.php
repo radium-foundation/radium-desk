@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Log;
  * Performance-only: preserves audits, commercial gates, case closure, and
  * per-order notification / driver-guide outcomes while collapsing repeated
  * snapshot invalidations, automation dirty marks, and per-order job dispatches.
+ * Driver guides flush as ordered chunks (DRIVERGUIDE_BATCH_SIZE).
  */
 class AssignReferenceBatchCoalescer
 {
@@ -118,7 +119,10 @@ class AssignReferenceBatchCoalescer
     }
 
     /**
-     * Flush deferred notifications + one batch Driver Guide job (assignment order preserved).
+     * Flush deferred notifications + chunked Driver Guide batch jobs (assignment order preserved).
+     *
+     * Chunk size: config('communication_actions.driver_installation_guide.batch_size')
+     * / env DRIVERGUIDE_BATCH_SIZE (default 20).
      */
     public function flushCommunications(SettingService $settingService): void
     {
@@ -213,12 +217,21 @@ class AssignReferenceBatchCoalescer
         $this->pendingDriverGuides = [];
         $this->driverGuideActorId = null;
 
-        SendServiceReferenceDriverGuideBatchJob::dispatch($items, $actorId);
+        $chunkSize = max(1, (int) config('communication_actions.driver_installation_guide.batch_size', 20));
+        $chunks = array_chunk($items, $chunkSize);
 
-        Log::info('bulk_assign.driver_guide.batch_dispatched', [
-            'order_count' => count($items),
-            'actor_id' => $actorId,
-        ]);
+        foreach ($chunks as $chunkIndex => $chunk) {
+            SendServiceReferenceDriverGuideBatchJob::dispatch($chunk, $actorId);
+
+            Log::info('bulk_assign.driver_guide.batch_dispatched', [
+                'order_count' => count($chunk),
+                'chunk_index' => $chunkIndex + 1,
+                'chunk_total' => count($chunks),
+                'batch_size' => $chunkSize,
+                'total_order_count' => count($items),
+                'actor_id' => $actorId,
+            ]);
+        }
     }
 
     private function reset(): void

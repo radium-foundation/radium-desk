@@ -40,6 +40,13 @@ return [
             'COMMUNICATION_ACTION_DRIVER_RESTART_INSTRUCTIONS',
             'Restart your computer after installing the driver, then reconnect the biometric device.',
         ),
+
+        /*
+        | Max orders per SendServiceReferenceDriverGuideBatchJob chunk.
+        | Batch Assign Reference flushDriverGuides() splits in assignment order.
+        | Rollback: set DRIVERGUIDE_BATCH_SIZE to a very large value (e.g. 10000).
+        */
+        'batch_size' => max(1, (int) env('DRIVERGUIDE_BATCH_SIZE', 20)),
     ],
 
     'actions' => [
