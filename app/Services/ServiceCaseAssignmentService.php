@@ -30,6 +30,19 @@ class ServiceCaseAssignmentService
 
     public const READY_QUEUE_OWNER_PRESERVED_EVENT = 'ready_queue_owner_preserved';
 
+    /**
+     * Written only after a meaningful human serial/model edit under manual support
+     * ownership. Background validation / RadiumBox must never write this event.
+     */
+    public const MANUAL_IDENTITY_READY_REPUBLISH_EVENT = 'service_case.manual_identity_ready_republish';
+
+    /** @var list<string> */
+    public const MANUAL_IDENTITY_REPUBLISH_SOURCES = [
+        'manual_serial_entry',
+        'device_model_assigned',
+        'order_admin_edit',
+    ];
+
     /** @var array<int, bool> */
     private array $manualOwnershipReadyVisibilityMemo = [];
 
@@ -1082,20 +1095,64 @@ class ServiceCaseAssignmentService
             'activeWaitingState',
         ]);
 
-        // Manual support ownership hides Admin Ready until identity lifecycle
-        // records validation_passed AFTER that ownership began AND the case is
-        // still Ready-eligible for Service Reference.
+        // SC28000: background validation / RadiumBox / commercial sync never republish.
+        // Only a later meaningful human serial/model edit (recorded audit) may return
+        // the case to Admin Ready while ownership stays with the support engineer.
         if (! app(OperationsQueueClassifier::class)->isReadyForReferenceEntry($incident)) {
             return false;
         }
 
-        return $this->hasIdentityValidationPassAfterManualSupportOwnership($incident);
+        return $this->hasManualIdentityReadyRepublishAfterManualSupportOwnership($incident);
+    }
+
+    public function isManualIdentityRepublishSource(string $source): bool
+    {
+        return in_array($source, self::MANUAL_IDENTITY_REPUBLISH_SOURCES, true);
     }
 
     /**
-     * Refresh Admin Ready membership after identity verification succeeds.
-     * Does not change ownership or appointments — Snapshot visibility is derived
-     * from existing validation_passed audits.
+     * Record that a support engineer (or other human via allowlisted source) made a
+     * meaningful serial/model change. Does not change assignee or assignment_origin.
+     */
+    public function recordManualIdentityAdminReadyRepublish(Order $order, User $actor, string $source): void
+    {
+        $incidents = Incident::query()
+            ->where('order_id', $order->id)
+            ->where('status', '!=', IncidentStatus::Closed)
+            ->with(['assignee.roles'])
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Incident $incident): bool => $this->hasManualSupportOwnership($incident));
+
+        if ($incidents->isEmpty()) {
+            return;
+        }
+
+        foreach ($incidents as $incident) {
+            $this->auditLogService->log(
+                userId: $actor->id,
+                event: self::MANUAL_IDENTITY_READY_REPUBLISH_EVENT,
+                auditable: $incident,
+                oldValues: [
+                    'assigned_to_user_id' => $incident->assigned_to_user_id,
+                    'assignment_origin' => $incident->assignment_origin?->value,
+                ],
+                newValues: [
+                    'assigned_to_user_id' => $incident->assigned_to_user_id,
+                    'assignment_origin' => $incident->assignment_origin?->value,
+                    'source' => $source,
+                    'reason' => 'meaningful_manual_identity_change',
+                ],
+            );
+        }
+
+        $this->manualOwnershipReadyVisibilityMemo = [];
+    }
+
+    /**
+     * Re-evaluate Admin Ready membership after identity verification.
+     * Does not change ownership or appointments. Background validation alone never
+     * republishes; visibility follows isVisibleInAdminReadyQueue.
      */
     public function refreshAdminReadyMembershipAfterIdentityValidation(Order $order, User $actor): void
     {
@@ -1119,7 +1176,7 @@ class ServiceCaseAssignmentService
         }
     }
 
-    private function hasIdentityValidationPassAfterManualSupportOwnership(Incident $incident): bool
+    private function hasManualIdentityReadyRepublishAfterManualSupportOwnership(Incident $incident): bool
     {
         $incidentId = (int) $incident->id;
 
@@ -1138,18 +1195,17 @@ class ServiceCaseAssignmentService
             ->value('id');
 
         if ($manualOwnershipAuditId === null) {
-            // Fail closed: cannot prove when manual ownership started.
             return $this->manualOwnershipReadyVisibilityMemo[$incidentId] = false;
         }
 
-        $hasPassAfter = AuditLog::query()
+        $hasRepublish = AuditLog::query()
             ->where('auditable_type', $morphClass)
             ->where('auditable_id', $incidentId)
-            ->where('event', 'service_case.automation.validation_passed')
+            ->where('event', self::MANUAL_IDENTITY_READY_REPUBLISH_EVENT)
             ->where('id', '>', $manualOwnershipAuditId)
             ->exists();
 
-        return $this->manualOwnershipReadyVisibilityMemo[$incidentId] = $hasPassAfter;
+        return $this->manualOwnershipReadyVisibilityMemo[$incidentId] = $hasRepublish;
     }
 
     public function shouldRemoveFromAdminReadyQueue(Incident $incident): bool

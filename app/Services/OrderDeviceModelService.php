@@ -25,6 +25,12 @@ class OrderDeviceModelService
             ]);
         }
 
+        // Same model saved again is not a meaningful identity change.
+        if ((int) $order->device_model_id === (int) $deviceModel->id
+            && trim((string) $order->device_model) === $deviceModel->name) {
+            return $order->fresh(['deviceModel', 'deviceModelAssigner']) ?? $order;
+        }
+
         return DB::transaction(function () use ($order, $deviceModel, $actor, $isBulk): Order {
             $oldValues = [
                 'device_model_id' => $order->device_model_id,
@@ -61,6 +67,7 @@ class OrderDeviceModelService
                 order: $freshOrder,
                 actor: $actor,
                 source: $isBulk ? 'device_model_bulk_assigned' : 'device_model_assigned',
+                deviceModelChanged: true,
             );
 
             return $freshOrder;

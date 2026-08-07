@@ -1,9 +1,9 @@
 # SC28000 — Why is this case in Ready Queue after assignment?
 
 **Date:** 2026-08-07  
-**Priority:** P0 production (read-only)  
-**Status:** Root cause proven · no code or production changes made  
-**Prod HEAD:** `2c55a190`  
+**Priority:** P0 production  
+**Status:** Investigation complete · **business rule change implemented** (not a bug fix)  
+**Investigation prod HEAD:** `2c55a190`  
 **Timezone:** Asia/Kolkata (IST)  
 **Canvas:** [`sc28000-ready-queue-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/sc28000-ready-queue-investigation.canvas.tsx)
 
@@ -11,13 +11,14 @@
 
 ## Bottom line
 
-**Expected behaviour — not a bug.**
+**Investigation:** Behaviour matched then-current code (Admin Ready Identity Republish), but the **business rule was wrong** and caused production loss — another admin could Assign Service Reference while the support engineer was intentionally waiting on the customer.
 
-SC28000 is visible in Admin Ready Queue because **Admin Ready Identity Republish** deliberately re-showed it after `service_case.automation.validation_passed` at **2026-08-07 12:56:35**, while **preserving Jayram’s manual support ownership**.
+**Business changes (shipped in follow-ups):**
 
-Assignment claim “Assigned By Dileep” is **false**. Production audit shows **Avinash Jha** manually reassigned the case to **Jayram Kumar** on **2026-08-06 14:10:46**. Dileep only viewed AI workbench suggestions later.
+1. **SC28000 protection:** Background identity validation / RadiumBox / enrichment / commercial sync **must not** republish manually owned incidents into Admin Ready.
+2. **Meaningful human identity edit:** If a support engineer **actually changes** serial and/or device model, the case **may** return to Admin Ready automatically (owner + origin preserved) when Service Reference is still missing.
 
-Commercial state is **Open**. Service Reference is not assigned (`transaction_id` null) → still pending admin / Ready-eligible.
+Assignment claim “Assigned By Dileep” is **false**. Production audit shows **Avinash Jha** manually reassigned the case to **Jayram Kumar** on **2026-08-06 14:10:46**.
 
 ---
 
@@ -51,12 +52,13 @@ Commercial state is **Open**. Service Reference is not assigned (`transaction_id
 | Do Ready eligibility gates pass? | **Yes — all** | See gate table |
 | Does Admin Ready visibility pass? | **Yes** | Manual support ownership + `validation_passed` after that ownership |
 | Is this a cache / snapshot ghost? | **No** | Live DB + live classify + snapshot Ready bucket all agree |
-| Should assignment alone remove it from Ready? | **No (current product rule)** | Hide only until post-ownership `validation_passed`; then republish for Service Reference |
-| Bug or expected? | **Expected** | Matches `AdminReadyIdentityRepublishTest` / `isVisibleInAdminReadyQueue` |
+| Should assignment alone remove it from Ready? | **Yes while manual support ownership** | Stays hidden until meaningful human serial/model edit (or explicit return/requeue) |
+| Matched then-current code? | **Yes** | Old `validation_passed` republish path |
+| Business rule correct? | **No** | Caused production loss → rule changed |
 
 ---
 
-## Exact root cause
+## Exact root cause (investigation)
 
 ```text
 2026-08-06 14:10  Avinash manually assigns SC28000 → Jayram (origin=manual)
@@ -66,32 +68,36 @@ Commercial state is **Open**. Service Reference is not assigned (`transaction_id
 
 2026-08-07 12:56  RadiumBox enrichment re-runs
                   → status awaiting_product_details → open
-                  → ready_queue_owner_preserved (Jayram kept; Ready must not steal manual ownership)
-                  → validation_passed (audit 859270) — first validation_passed on this case
+                  → ready_queue_owner_preserved (Jayram kept)
+                  → validation_passed (audit 859270)
 
-                  isVisibleInAdminReadyQueue():
+                  OLD isVisibleInAdminReadyQueue():
                     hasManualSupportOwnership? yes
                     isReadyForReferenceEntry? yes
                     hasIdentityValidationPassAfterManualSupportOwnership? yes
-                  → Admin Ready REPUBLISHED (by design)
-
-                  transaction_id still null → pending admin → stays Ready until Service Reference
+                  → Admin Ready REPUBLISHED  ← wrong for business
 ```
 
-### Matching rule
-
-Ready membership is computed, not stored:
+### Matching rule (before change)
 
 ```
-isReadyForReferenceEntry() → OperationQueue::ActionRequired
-  + ServiceCaseAssignmentService::isVisibleInAdminReadyQueue()
+isReadyForReferenceEntry() → ActionRequired
+  + isVisibleInAdminReadyQueue()
       (manual support ownership hide → republish after later validation_passed)
 ```
 
-Relevant implementation comments:
+### Matching rule (after business change)
 
-- `ServiceCaseAssignmentService::isVisibleInAdminReadyQueue` — “Manual support ownership hides Admin Ready until identity lifecycle records `validation_passed` AFTER that ownership began AND the case is still Ready-eligible for Service Reference.”
-- `ready_queue_owner_preserved` — Ready must not overwrite human ownership.
+```
+isReadyForReferenceEntry() → ActionRequired (internal eligibility unchanged)
+  + isVisibleInAdminReadyQueue()
+      hasManualSupportOwnership? → always HIDDEN
+      else → visible (auto-assigned Ready unchanged)
+```
+
+Identity / enrichment / commercial sync / background jobs may still call
+`refreshAdminReadyMembershipAfterIdentityValidation` (snapshot forget + broadcast)
+but visibility stays **false** while manual support ownership exists.
 
 ---
 
@@ -107,7 +113,104 @@ Relevant implementation comments:
 | Serial + model | present | `6540662` / MFS 110 | Yes |
 | Serial validation severity | ≠ Fail | `pass` | Yes |
 | RadiumBox sync | Synced or NotSynced | `SYNCED` | Yes |
-| Admin Ready visibility | visible | republish after validation_passed | Yes |
+| Admin Ready visibility (old rule) | visible after validation_passed | true (republish) | Old: Yes |
+| Admin Ready after RadiumBox (new) | hidden | false | Protected |
+| Admin Ready after engineer serial/model edit | visible if Ready-eligible | via manual_identity_ready_republish | Allowed |
+
+---
+
+## Business rule change — deliverable
+
+### Root cause (for the loss)
+
+Admin Ready Identity Republish treated post-ownership `validation_passed` (including RadiumBox enrichment) as permission to re-list the case for Service Reference, even though a support engineer still owned it manually and was waiting on the customer.
+
+### Final workflow
+
+```text
+Admin assigns Jayram (manual support ownership)
+  → leaves Admin Ready
+
+Jayram waiting for customer
+  → RadiumBox / auto validation / background sync
+  → stay HIDDEN (SC28000)
+
+Customer provides serial/model
+Jayram edits serial and/or model (meaningful change)
+  → identity validation runs
+  → owner + origin preserved
+  → if Service Ref missing + Ready-eligible
+  → REAPPEAR in Admin Ready
+```
+
+### Before / after
+
+| Step | Old (loss) | After SC28000 block | After meaningful-edit enhancement |
+|------|------------|---------------------|-----------------------------------|
+| Admin → support engineer | Leaves Ready | Leaves Ready | Leaves Ready |
+| RadiumBox / auto validation | **Republishes** | Stays hidden | Stays hidden |
+| Engineer changes serial/model | Republished (via validation_passed) | Stayed hidden | **Republishes** (intentional) |
+| Same serial/model saved again | Could refresh | Hidden | No-op — stays hidden |
+| Customer name/phone/email edit | N/A | Hidden | Stays hidden |
+| Auto-assigned Ready + validation | Visible | Visible | Visible |
+| Assign Service Reference | Removes Ready | Removes Ready | Removes Ready |
+
+### Meaningful vs not
+
+| Change | Republish? |
+|--------|------------|
+| blank → serial / serial A → B | Yes (human sources only) |
+| blank → model / model A → B | Yes (human sources only) |
+| Same serial or same model saved again | No |
+| Customer name / phone / email / address | No |
+| RadiumBox enrichment / auto validation / background sync / commercial refresh | No |
+
+Human allowlisted sources: `manual_serial_entry`, `device_model_assigned`, `order_admin_edit`.  
+Not allowlisted: `radiumbox_enrichment`, `device_model_bulk_assigned`, `identity_repair`, etc.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `app/Services/ServiceCaseAssignmentService.php` | Visibility requires `manual_identity_ready_republish` after manual support ownership; records that event for human identity edits only |
+| `app/Services/OrderIdentityLifecycleService.php` | On meaningful human serial/model change → record republish audit; then refresh overlay |
+| `app/Services/OrderSerialService.php` | No-op when serial unchanged (no lifecycle / no republish) |
+| `app/Services/OrderDeviceModelService.php` | No-op when model unchanged; pass `deviceModelChanged` |
+| `app/Http/Controllers/OrderController.php` | Pass `deviceModelChanged` separately from product_name-only edits |
+| `tests/Feature/AdminReadyIdentityRepublishTest.php` | SC28000 RadiumBox block + blank/A→B/unchanged/customer-info regressions |
+| `tests/Feature/ManualAgentOwnershipWorkflowTest.php` | Human serial/model correction republishes Admin Ready |
+| `docs/sc28000-ready-queue-investigation.md` | This document |
+| Canvas `sc28000-ready-queue-investigation.canvas.tsx` | Updated workflow |
+
+No DB schema changes. No UI in this phase.
+
+### Republish paths reviewed
+
+| Path | Role |
+|------|------|
+| `OrderSerialService` / `OrderDeviceModelService` / `order_admin_edit` | Human meaningful change → may record `manual_identity_ready_republish` |
+| `radiumbox_enrichment` / other background sources | Never record republish event |
+| `isVisibleInAdminReadyQueue` | Manual support ownership → need Ready-eligible **and** republish audit after ownership |
+| Classifier `isReadyForReferenceEntry` | Unchanged (internal eligibility / Service Ref gate) |
+
+### Regression coverage
+
+- `test_sc28000_radiumbox_auto_update_does_not_republish_under_manual_ownership`
+- `test_blank_to_serial_republishes_under_manual_ownership`
+- `test_serial_a_to_serial_b_republishes_under_manual_ownership`
+- `test_blank_to_model_republishes_under_manual_ownership`
+- `test_model_a_to_model_b_republishes_under_manual_ownership`
+- `test_unchanged_serial_does_not_republish_under_manual_ownership`
+- `test_unchanged_model_does_not_republish_under_manual_ownership`
+- `test_customer_info_edit_does_not_republish_under_manual_ownership`
+- `test_auto_assigned_incident_still_appears_in_admin_ready_after_validation`
+
+### Rollback notes
+
+1. Revert the service/controller/test/doc changes (or revert the release commit/tag).
+2. No migrations to roll back.
+3. After full revert to pre-SC28000: old `validation_passed` republish returns (including RadiumBox).
+4. After revert of only the meaningful-edit enhancement: manual ownership stays permanently hidden from Admin Ready until explicit human return/requeue (phase-1 SC28000 behaviour).
 
 ---
 
@@ -176,7 +279,7 @@ Not a stale cache row of a non-Ready case.
 |--------|----------------------|-----|
 | After Avinash auto-own (13:09–14:10) | Would be visible if Ready-eligible (admin assignee; no support-hide) | Admin assignee path |
 | After manual → Jayram (14:10 → 12:56 next day) | **Hidden** | Manual support ownership, zero `validation_passed` after audit 831753 |
-| After `validation_passed` (12:56 → now) | **Visible** | Intentional republish for Service Reference |
+| After `validation_passed` (12:56 → investigation) | **Visible (old rule)** | Old intentional republish — now blocked by business change |
 
 ---
 
@@ -187,18 +290,18 @@ Not a stale cache row of a non-Ready case.
 | Snapshot/cache ghost | Live + snapshot + DB agree |
 | Commercial block | `open`, work allowed |
 | Queue filter bug | Admin Ready is intentionally unscoped across admins |
-| Assignment should permanently remove Ready | Product rule is temporary hide until later validation pass |
+| Assignment should permanently remove Ready | Hide under manual support ownership until meaningful human serial/model edit (or explicit return) |
 | Ready stole ownership from Jayram | Opposite — owner preserved |
 
 ---
 
-## Secondary observation (not the Ready bug)
+## Secondary observation
 
-From create until 12:56 today the case remained `awaiting_product_details` with **no** `validation_passed` despite Aug 6 enrichment applying serial + model. Today’s enrichment/identity path finally promoted it and wrote `validation_passed`. That delay explains *when* republish happened; the Ready visibility after that event is still **by design**.
+From create until 12:56 the case remained `awaiting_product_details` with **no** `validation_passed` despite Aug 6 enrichment applying serial + model. Today’s enrichment/identity path finally promoted it and wrote `validation_passed`. That delay explains *when* the old republish fired.
 
 ---
 
-## Evidence (production queries)
+## Evidence (production queries — investigation time)
 
 - `Incident` 28072 / `SC28000` — status `open`, assignee 5, origin `manual`, `transaction_id` null on order 27449
 - `AuditLog` 831753 — `service_case.reassigned` Avinash→Jayram (manual)
@@ -206,32 +309,12 @@ From create until 12:56 today the case remained `awaiting_product_details` with 
 - `AuditLog` 859246 — `ready_queue_owner_preserved`
 - `AuditLog` 859270 — `service_case.automation.validation_passed` (only one; after manual ownership)
 - CommercialStateResolver → `open`
-- Live: `in_dashboard_ready_bucket=true`, `visible_admin_ready=true`
+- Live at investigation: `in_dashboard_ready_bucket=true`, `visible_admin_ready=true` (old rule)
 
-Investigation method: read-only SSH + `php artisan tinker` via `tools/config.sh` (`desk.radiumbox.com` / `radium-desk`). No writes.
-
----
-
-## Files / services involved
-
-| File | Role |
-|------|------|
-| `app/Services/ServiceCaseAssignmentService.php` | `hasManualSupportOwnership`, `isVisibleInAdminReadyQueue`, republish refresh |
-| `app/Services/ServiceCaseAssignmentEligibilityService.php` | `isReadyForReferenceEntry` gates |
-| `app/Services/Operations/OperationsQueueClassifier.php` | Queue bucket `action_required` |
-| `app/Services/OrderIdentityLifecycleService.php` | Calls Admin Ready refresh after identity change |
-| `app/Services/Dashboard/DashboardSnapshot.php` | Ready bucket + Admin Ready filter |
-| `tests/Feature/AdminReadyIdentityRepublishTest.php` | Codifies this exact behaviour |
-| `app/Services/Commercial/CommercialStateResolver.php` | Commercial state `open` |
-
----
-
-## Operational note (no code change in this investigation)
-
-If the business intent is “manual assign to support agent permanently removes Admin Ready until Service Reference,” that would be a **product rule change** — current shipped behaviour is the opposite after a later identity `validation_passed`. Leaving Ready is accomplished by assigning Service Reference (`transaction_id`), not by support ownership alone.
+Investigation method: read-only SSH + `php artisan tinker` via `tools/config.sh`. No production writes during investigation.
 
 ---
 
 ## Conclusion
 
-SC28000 is in Ready Queue because it became Ready-eligible again today (`validation_passed` + open + no Service Ref), and Admin Ready Identity Republish correctly re-listed it while keeping Jayram as owner. **Expected behaviour.** Assignment was by Avinash, not Dileep.
+SC28000 was in Ready Queue because old Admin Ready Identity Republish re-listed it after background `validation_passed` while Jayram still held manual support ownership. **Business rules now:** (1) automation never republishes under manual support ownership; (2) a support engineer’s meaningful serial/model edit may return the case to Admin Ready with ownership preserved when Service Reference is still missing.

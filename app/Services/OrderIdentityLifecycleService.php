@@ -50,6 +50,8 @@ class OrderIdentityLifecycleService
             actor: $actor,
             source: $source,
             serialChanged: in_array('serial_number', $changedFields, true),
+            deviceModelChanged: in_array('device_model', $changedFields, true)
+                || in_array('device_model_id', $changedFields, true),
         );
     }
 
@@ -106,6 +108,7 @@ class OrderIdentityLifecycleService
         User $actor,
         string $source,
         bool $serialChanged = false,
+        bool $deviceModelChanged = false,
     ): void {
         $freshOrder = $order->fresh();
 
@@ -137,10 +140,22 @@ class OrderIdentityLifecycleService
             );
         }
 
-        // Re-evaluate Admin Ready overlay after identity change (republish on pass,
-        // drop on fail) without changing ownership or appointments.
-        app(ServiceCaseAssignmentService::class)
-            ->refreshAdminReadyMembershipAfterIdentityValidation($freshOrder, $actor);
+        $assignmentService = app(ServiceCaseAssignmentService::class);
+
+        // SC28000: background validation / RadiumBox never republish.
+        // Meaningful human serial/model edits (allowlisted sources only) may.
+        $meaningfulManualIdentityChange = ($serialChanged || $deviceModelChanged)
+            && $assignmentService->isManualIdentityRepublishSource($source);
+
+        if ($meaningfulManualIdentityChange) {
+            $assignmentService->recordManualIdentityAdminReadyRepublish(
+                order: $freshOrder,
+                actor: $actor,
+                source: $source,
+            );
+        }
+
+        $assignmentService->refreshAdminReadyMembershipAfterIdentityValidation($freshOrder, $actor);
 
         if ($serialChanged) {
             app(MissingSerialAutomationService::class)->markCompletedIfApplicable($freshOrder, $source);

@@ -336,9 +336,11 @@ class OrderController extends Controller
             }
         }
 
-        $identityFieldsChanged = $previousSerial !== $order->serial_number
-            || $previousDeviceModel !== $order->device_model
-            || $previousDeviceModelId !== $order->device_model_id
+        $serialChanged = $previousSerial !== $order->serial_number;
+        $deviceModelChanged = $previousDeviceModel !== $order->device_model
+            || $previousDeviceModelId !== $order->device_model_id;
+        $identityFieldsChanged = $serialChanged
+            || $deviceModelChanged
             || $previousProductName !== $order->product_name;
 
         if ($identityFieldsChanged) {
@@ -346,7 +348,8 @@ class OrderController extends Controller
                 order: $order,
                 actor: $request->user(),
                 source: 'order_admin_edit',
-                serialChanged: $previousSerial !== $order->serial_number,
+                serialChanged: $serialChanged,
+                deviceModelChanged: $deviceModelChanged,
             );
         }
 

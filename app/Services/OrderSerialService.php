@@ -36,6 +36,11 @@ class OrderSerialService
         $validation = $this->serialValidationService->assertValidForOrder($originalSerial, $order);
         $serialNumber = $validation->normalizedSerial;
 
+        // Same serial saved again is not a meaningful identity change.
+        if (strtoupper(trim((string) $order->serial_number)) === strtoupper($serialNumber)) {
+            return $order->fresh(['serialEnterer']) ?? $order;
+        }
+
         $serialOwner = Order::query()
             ->where('serial_number', $serialNumber)
             ->whereKeyNot($order->id)

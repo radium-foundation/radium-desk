@@ -167,7 +167,7 @@ class ManualAgentOwnershipWorkflowTest extends TestCase
         $this->assertSame($agent->id, $fresh->assigned_to_user_id);
         $this->assertSame(AssignmentOrigin::Manual, $fresh->assignment_origin);
         $this->assertSame(OperationQueue::ActionRequired, app(OperationsQueueClassifier::class)->classify($fresh));
-        // Identity validation success republishes Admin Ready while support ownership stays.
+        // Meaningful human serial edit republishes Admin Ready; ownership stays.
         $this->assertTrue($this->adminReadyQueueContains($fresh));
 
         Carbon::setTestNow();
@@ -205,7 +205,7 @@ class ManualAgentOwnershipWorkflowTest extends TestCase
         $this->assertSame($agent->id, $fresh->assigned_to_user_id);
         $this->assertSame(AssignmentOrigin::Manual, $fresh->assignment_origin);
         $this->assertSame(OperationQueue::ActionRequired, app(OperationsQueueClassifier::class)->classify($fresh));
-        // Identity validation success republishes Admin Ready while support ownership stays.
+        // Meaningful human model edit republishes Admin Ready; ownership stays.
         $this->assertTrue($this->adminReadyQueueContains($fresh));
 
         Carbon::setTestNow();

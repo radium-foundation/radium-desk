@@ -19,6 +19,7 @@ use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\IncidentReferenceService;
 use App\Services\OrderDeviceModelService;
 use App\Services\OrderSerialService;
+use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\OrderTransactionService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\ServiceCaseAssignmentService;
@@ -70,7 +71,7 @@ class AdminReadyIdentityRepublishTest extends TestCase
         $this->assertTrue($this->inAdminReady($incident));
     }
 
-    public function test_edge_1_ready_manual_assign_validation_pass_republishes(): void
+    public function test_edge_1_ready_manual_assign_meaningful_serial_republishes(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-08-03 14:00:00', 'Asia/Kolkata'));
 
@@ -93,6 +94,7 @@ class AdminReadyIdentityRepublishTest extends TestCase
 
         $fresh = $incident->fresh(['order', 'assignee.roles']);
         $this->assertSame($agent->id, $fresh->assigned_to_user_id);
+        $this->assertSame(AssignmentOrigin::Manual, $fresh->assignment_origin);
         $this->assertTrue(app(ServiceCaseAssignmentService::class)->isVisibleInAdminReadyQueue($fresh));
         $this->assertTrue($this->inAdminReady($fresh));
     }
@@ -121,7 +123,7 @@ class AdminReadyIdentityRepublishTest extends TestCase
         );
     }
 
-    public function test_edge_3_second_model_correction_keeps_ready(): void
+    public function test_edge_3_second_model_correction_keeps_ready_after_manual_identity_edit(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-08-03 14:00:00', 'Asia/Kolkata'));
 
@@ -146,7 +148,7 @@ class AdminReadyIdentityRepublishTest extends TestCase
         $this->assertTrue($this->inAdminReady($fresh));
     }
 
-    public function test_edge_4_serial_removed_validation_fails_ready_disappears(): void
+    public function test_edge_4_serial_removed_under_manual_ownership_stays_hidden(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-08-03 14:00:00', 'Asia/Kolkata'));
 
@@ -255,8 +257,290 @@ class AdminReadyIdentityRepublishTest extends TestCase
         $this->assertSame($agent->id, $fresh->assigned_to_user_id, 'Ownership unchanged');
         $this->assertSame(AssignmentOrigin::Manual, $fresh->assignment_origin);
         $this->assertTrue(app(ServiceCaseAssignmentService::class)->isVisibleInAdminReadyQueue($fresh));
-        $this->assertTrue($this->inAdminReady($fresh), 'Ready republished after identity validation');
-        $this->assertGreaterThan(0, $this->validationPassedCountAfterLatestManual($fresh));
+        $this->assertTrue($this->inAdminReady($fresh), 'Meaningful model correction republishes Admin Ready');
+    }
+
+    public function test_sc28000_radiumbox_auto_update_does_not_republish_under_manual_ownership(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-06 14:10:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('avinash-sc28000@radium.local');
+        $agent = $this->createAgent('jayram-sc28000@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $incident = $this->createReadyCase(
+            $admin,
+            assignee: $admin,
+            origin: AssignmentOrigin::Auto,
+            serial: null,
+        );
+        $model = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+        $incident->order->update([
+            'device_model_id' => $model->id,
+            'device_model' => $model->name,
+            'product_name' => $model->name,
+            'order_id' => 'RD3476656-SC28000',
+        ]);
+
+        $incident = $this->manualReassign($incident->fresh(['order']), $agent, $admin);
+        $this->assertFalse($this->inAdminReady($incident));
+        $this->assertTrue(app(ServiceCaseAssignmentService::class)->hasManualSupportOwnership($incident));
+
+        Carbon::setTestNow(Carbon::parse('2026-08-07 12:56:00', 'Asia/Kolkata'));
+
+        // Background RadiumBox path applies serial without human OrderSerialService.
+        $incident->order->update([
+            'serial_number' => '6540662',
+            'updated_by' => 1,
+        ]);
+        $this->markSynced($incident->order_id);
+
+        app(\App\Services\OrderIdentityLifecycleService::class)->afterIdentityChanged(
+            order: $incident->order->fresh(),
+            actor: $admin,
+            source: 'radiumbox_enrichment',
+            serialChanged: true,
+        );
+
+        $fresh = $incident->fresh(['order', 'assignee.roles']);
+
+        $this->assertSame($agent->id, $fresh->assigned_to_user_id, 'SC28000 owner must be preserved');
+        $this->assertSame(AssignmentOrigin::Manual, $fresh->assignment_origin);
+        $this->assertTrue(
+            app(OperationsQueueClassifier::class)->isReadyForReferenceEntry($fresh),
+            'Internal Ready eligibility may pass; Admin Ready visibility must not',
+        );
+        $this->assertFalse(app(ServiceCaseAssignmentService::class)->isVisibleInAdminReadyQueue($fresh));
+        $this->assertFalse($this->inAdminReady($fresh));
+        $this->assertTrue(app(ServiceCaseAssignmentService::class)->shouldRemoveFromAdminReadyQueue($fresh));
+        $this->assertSame(
+            0,
+            AuditLog::query()
+                ->where('auditable_type', $fresh->getMorphClass())
+                ->where('auditable_id', $fresh->id)
+                ->where('event', ServiceCaseAssignmentService::MANUAL_IDENTITY_READY_REPUBLISH_EVENT)
+                ->count(),
+        );
+    }
+
+    public function test_blank_to_serial_republishes_under_manual_ownership(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-07 12:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('blank-serial-admin@radium.local');
+        $agent = $this->createAgent('blank-serial-agent@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $incident = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: null);
+        $model = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+        $incident->order->update([
+            'device_model_id' => $model->id,
+            'device_model' => $model->name,
+            'product_name' => $model->name,
+        ]);
+        $incident = $this->manualReassign($incident->fresh(['order']), $agent, $admin);
+        $this->assertFalse($this->inAdminReady($incident));
+
+        app(OrderSerialService::class)->assignSerialNumber($incident->order->fresh(), '7881953', $agent);
+
+        $fresh = $incident->fresh(['order', 'assignee.roles']);
+        $this->assertSame($agent->id, $fresh->assigned_to_user_id);
+        $this->assertSame(AssignmentOrigin::Manual, $fresh->assignment_origin);
+        $this->assertTrue($this->inAdminReady($fresh));
+    }
+
+    public function test_serial_a_to_serial_b_republishes_under_manual_ownership(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-07 12:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('serial-ab-admin@radium.local');
+        $agent = $this->createAgent('serial-ab-agent@radium.local');
+        $agent->givePermissionTo(RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY);
+        $this->configureShiftAdmin($admin->id);
+
+        $incident = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: '7881953');
+        $incident = $this->manualReassign($incident, $agent, $admin);
+        $this->assertFalse($this->inAdminReady($incident));
+
+        $this->withHeaders(['Sec-Fetch-Site' => 'same-origin'])
+            ->actingAs($agent)
+            ->patchJson(route('incidents.workspace.correct-serial-number', $incident), [
+                'serial_number' => '9655721',
+                'reason' => 'Customer confirmed the correct serial on a verified call.',
+                'workspace_context' => 'customer',
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $fresh = $incident->fresh(['order', 'assignee.roles']);
+        $this->assertSame('9655721', $fresh->order->serial_number);
+        $this->assertSame($agent->id, $fresh->assigned_to_user_id);
+        $this->assertSame(AssignmentOrigin::Manual, $fresh->assignment_origin);
+        $this->assertTrue($this->inAdminReady($fresh));
+    }
+
+    public function test_blank_to_model_republishes_under_manual_ownership(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-07 12:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('blank-model-admin@radium.local');
+        $agent = $this->createAgent('blank-model-agent@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $incident = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: '7881953');
+        $incident->order->update([
+            'device_model_id' => null,
+            'device_model' => null,
+            'product_name' => null,
+        ]);
+        $incident = $this->manualReassign($incident->fresh(['order']), $agent, $admin);
+        $this->assertFalse($this->inAdminReady($incident));
+
+        $mfs = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+        app(OrderDeviceModelService::class)->assignDeviceModel($incident->order->fresh(), $mfs, $agent);
+
+        $fresh = $incident->fresh(['order', 'assignee.roles']);
+        $this->assertSame($agent->id, $fresh->assigned_to_user_id);
+        $this->assertTrue($this->inAdminReady($fresh));
+    }
+
+    public function test_model_a_to_model_b_republishes_under_manual_ownership(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-07 12:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('model-ab-admin@radium.local');
+        $agent = $this->createAgent('model-ab-agent@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        DeviceModel::query()->firstOrCreate(['name' => 'MIS 100'], ['is_active' => true, 'display_order' => 99]);
+        $incident = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: '7881953', modelName: 'MIS 100');
+        $incident = $this->manualReassign($incident, $agent, $admin);
+        $this->assertFalse($this->inAdminReady($incident));
+
+        $mfs = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+        app(OrderDeviceModelService::class)->correctDeviceModel($incident->order->fresh(), $mfs, $agent);
+
+        $fresh = $incident->fresh(['order', 'assignee.roles']);
+        $this->assertSame($agent->id, $fresh->assigned_to_user_id);
+        $this->assertTrue($this->inAdminReady($fresh));
+    }
+
+    public function test_unchanged_serial_does_not_republish_under_manual_ownership(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-07 12:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('same-serial-admin@radium.local');
+        $agent = $this->createAgent('same-serial-agent@radium.local');
+        $agent->givePermissionTo(RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY);
+        $this->configureShiftAdmin($admin->id);
+
+        $incident = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: '7881953');
+        $incident = $this->manualReassign($incident, $agent, $admin);
+        $this->assertFalse($this->inAdminReady($incident));
+
+        $this->withHeaders(['Sec-Fetch-Site' => 'same-origin'])
+            ->actingAs($agent)
+            ->patchJson(route('incidents.workspace.correct-serial-number', $incident), [
+                'serial_number' => '7881953',
+                'reason' => 'No actual change.',
+                'workspace_context' => 'customer',
+            ])
+            ->assertUnprocessable();
+
+        $fresh = $incident->fresh(['order', 'assignee.roles']);
+        $this->assertSame($agent->id, $fresh->assigned_to_user_id);
+        $this->assertFalse($this->inAdminReady($fresh));
+        $this->assertSame(
+            0,
+            AuditLog::query()
+                ->where('auditable_type', $fresh->getMorphClass())
+                ->where('auditable_id', $fresh->id)
+                ->where('event', ServiceCaseAssignmentService::MANUAL_IDENTITY_READY_REPUBLISH_EVENT)
+                ->count(),
+        );
+    }
+
+    public function test_unchanged_model_does_not_republish_under_manual_ownership(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-07 12:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('same-model-admin@radium.local');
+        $agent = $this->createAgent('same-model-agent@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $incident = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: '7881953');
+        $incident = $this->manualReassign($incident, $agent, $admin);
+        $this->assertFalse($this->inAdminReady($incident));
+
+        $mfs = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+        app(OrderDeviceModelService::class)->assignDeviceModel($incident->order->fresh(), $mfs, $agent);
+
+        $fresh = $incident->fresh(['order', 'assignee.roles']);
+        $this->assertSame($agent->id, $fresh->assigned_to_user_id);
+        $this->assertFalse($this->inAdminReady($fresh));
+    }
+
+    public function test_customer_info_edit_does_not_republish_under_manual_ownership(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-07 12:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('customer-edit-admin@radium.local');
+        $agent = $this->createAgent('customer-edit-agent@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $incident = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: '7881953');
+        $incident = $this->manualReassign($incident, $agent, $admin);
+        $this->assertFalse($this->inAdminReady($incident));
+
+        $incident->order->update([
+            'customer_name' => 'Updated Customer',
+            'customer_phone' => '9999999999',
+            'customer_email' => 'updated@example.com',
+            'updated_by' => $agent->id,
+        ]);
+
+        $fresh = $incident->fresh(['order', 'assignee.roles']);
+        $this->assertSame($agent->id, $fresh->assigned_to_user_id);
+        $this->assertFalse($this->inAdminReady($fresh));
+        $this->assertSame(
+            0,
+            AuditLog::query()
+                ->where('auditable_type', $fresh->getMorphClass())
+                ->where('auditable_id', $fresh->id)
+                ->where('event', ServiceCaseAssignmentService::MANUAL_IDENTITY_READY_REPUBLISH_EVENT)
+                ->count(),
+        );
+    }
+
+    public function test_auto_assigned_incident_still_appears_in_admin_ready_after_validation(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-07 12:56:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('auto-ready-admin@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $incident = $this->createReadyCase(
+            $admin,
+            assignee: $admin,
+            origin: AssignmentOrigin::Auto,
+            serial: null,
+        );
+        $model = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+        $incident->order->update([
+            'device_model_id' => $model->id,
+            'device_model' => $model->name,
+            'product_name' => $model->name,
+        ]);
+
+        app(OrderSerialService::class)->assignSerialNumber($incident->order->fresh(), '7881953', $admin);
+
+        $fresh = $incident->fresh(['order', 'assignee.roles']);
+
+        $this->assertSame($admin->id, $fresh->assigned_to_user_id);
+        $this->assertSame(AssignmentOrigin::Auto, $fresh->assignment_origin);
+        $this->assertFalse(app(ServiceCaseAssignmentService::class)->hasManualSupportOwnership($fresh));
+        $this->assertTrue(app(ServiceCaseAssignmentService::class)->isVisibleInAdminReadyQueue($fresh));
+        $this->assertTrue($this->inAdminReady($fresh));
     }
 
     public function test_assignment_notes_do_not_create_repeat_validation_audit(): void
