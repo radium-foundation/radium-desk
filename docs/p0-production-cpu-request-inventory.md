@@ -1,8 +1,8 @@
 # P0 Production CPU — Request Inventory & Attribution
 
-**Status:** Phase 1 code shipped (local); production re-measure pending deploy  
+**Status:** Phase 1 + Phase 2 code shipped (local); production re-measure pending deploy  
 **Date:** 2026-08-07  
-**Method:** Code inventory + production SSH probes (`tools/config.sh` → `desk.radiumbox.com`) + local warm-path budget test  
+**Method:** Code inventory + production SSH probes (`tools/config.sh` → `desk.radiumbox.com`) + local warm-path / webhook budget tests  
 **Canvas:** [`p0-production-cpu-request-inventory.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-production-cpu-request-inventory.canvas.tsx)  
 **Companion polling matrix:** [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md)
 
@@ -44,7 +44,7 @@ Secondary: **`/api/webhooks/interakt`** (~4.3/min) runs **synchronous unbounded 
 | Endpoint | Requests/min | Avg ms | P95 ms | DB queries | CPU impact | Business criticality | Recommended interval | Optimization priority |
 |----------|-------------:|-------:|-------:|-----------:|------------|----------------------|----------------------|-----------------------|
 | `GET /dashboard/live` | **5–15** | **1475** | **~2400** | **5089–8512** | **Critical** | Critical | Keep 60s heartbeat; fallback **30s** (not 20s) | **P0** |
-| `POST /api/webhooks/interakt` | **4.3** (peak 21) | ~20–200* | **100000+*** | 14–22+ | **High** | Critical | N/A (push) — fix sync drain | **P0** |
+| `POST /api/webhooks/interakt` | **4.3** (peak 21) | ~20–200* → **~15ms local after Phase 2** | **100000+*** (pre–Phase 2) | 14–22+ → **~3 ack** | **High → Low after Phase 2** | Critical | N/A (push) — enqueue-only + cron | **P0 done** |
 | `GET /notifications/poll` | **24** | **61** | **~62** | **7** | Medium | High | **45–60s** or pause when Echo connected | **P1** |
 | `GET /dashboard/team-activity` | 0–6 | n/m | n/m | high (≤120 in tests) | High when expanded | Medium | **60s** while expanded | **P1** |
 | `GET /dashboard/activity` | ~12 | n/m | n/m | medium | Medium | Low–Med | Merge into live / **60–120s** | **P1** |
@@ -201,7 +201,7 @@ Sibling: `POST /api/webhooks/interakt/flow` (uses `processAggregate` — better)
 
 Event mix (60m): `message_api_sent` 93, `delivered` 91, `read` 74, `failed` 2 — **~3–4 webhooks per outbound template lifecycle**.
 
-### Processing model
+### Processing model (before Phase 2)
 
 ```
 log (INFO full body) → INSERT interakt_webhook_logs
@@ -213,20 +213,20 @@ log (INFO full body) → INSERT interakt_webhook_logs
 
 | Topic | Finding |
 |-------|---------|
-| Queue vs sync | **Synchronous** in webhook HTTP; also cron `outbox:process` every minute |
+| Queue vs sync | **Was synchronous** in webhook HTTP; also cron `outbox:process` every minute |
 | External API | **None** on inbound path |
 | DB writes | webhook log, outbox claim/complete, message upsert |
 | Duplicates | New log per POST; message **idempotent** on `message_id` |
 | Retry | Outbox max 5, backoff 30/120/600/1800s; Interakt does not redeliver failures |
-| Slowest path | Unbounded global drain (can process Cashfree/Bonvoice/email/outbound WhatsApp while holding webhook) |
-| Failed outbox backlog | **2778** failed (2742 Cashfree deferred, 36 Bonvoice) — not Interakt, but lengthens FIFO when pending |
+| Slowest path | Unbounded global drain (could process Cashfree/Bonvoice/email/outbound WhatsApp while holding webhook) |
+| Failed outbox backlog | **2778** failed (2742 Cashfree deferred, 36 Bonvoice) — not Interakt, but lengthened FIFO when pending |
 
-### Latency evidence
+### Latency evidence (pre–Phase 2)
 
 - Synthetic (rolled back): store + `processAggregate` ≈ **20ms**, 14 queries.
 - Production delays: clustered bursts with **54–168s** received→processed — consistent with lock wait / CPU contention while many webhooks call `process()` concurrently.
 
-Docs claim “return 200 quickly”; **code does not** — it drains outbox before responding (`InteraktWebhookController` L45–46).
+Docs claimed “return 200 quickly”; code drained the outbox before responding until Phase 2.
 
 ---
 
@@ -246,7 +246,7 @@ Docs claim “return 200 quickly”; **code does not** — it drains outbox befo
 |----------|--------|-----------------|
 | P0 | Redis (or request memo) for `SettingService` / stop DB-cache stampede on live | Remove ~6400 queries/live |
 | P0 | Batch RadiumBox sync reads; eager-load `closeOutcomes` for row render | Remove ~777+ N+1 SELECTs/live |
-| P0 | Interakt: `processAggregate` (or ack-then-cron) instead of unbounded `process()` | Cut webhook CPU & 3s SLA risk |
+| P0 | ~~Interakt: `processAggregate` (or ack-then-cron) instead of unbounded `process()`~~ **Done (Phase 2: enqueue-only)** | Cut webhook CPU & 3s SLA risk |
 | P1 | Drop unused live aggregates (`automation_health`, unused SLA/approval splits) | Less CPU per poll for admins |
 | P1 | Pause/slow `/notifications/poll` when Ably delivers | −50–70% notification RPS |
 | P1 | Merge My Activity into live payload | −12 req/min |
@@ -311,7 +311,7 @@ Performance-only. No Redis, polling, Reverb, Ready Queue, UX, or business-rule c
 | **Production re-benchmark** | Confirm &lt;300 ms / &lt;100 queries on Hostinger after deploy |
 | **Payload size (~500 KB)** | Row HTML in JSON; needs ETag/304 or row-diff / lighter row payload (P1) |
 | **PHP walk of ~995 active incidents** | Snapshot filter/SLA classification still O(active set) CPU even with 1 settings read |
-| **Interakt `process()` unbounded sync drain** | Separate P0 — not touched in Phase 1 |
+| ~~**Interakt `process()` unbounded sync drain**~~ | **Fixed in Phase 2** (enqueue-only + cron) |
 | **`/notifications/poll` @ 20s** | Volume P1; cheap per call |
 | **Redis for cache store** | Optional later; Phase 1 memo removes the stampede without Redis |
 | **My Activity / Team Activity overlap** | Separate pollers (P1) |
@@ -324,10 +324,99 @@ Pre-existing failures (also fail on clean `main`, unrelated to Phase 1): `Dashbo
 
 ---
 
+## Phase 2 — Interakt webhook enqueue-only (implemented)
+
+Performance-only. No business-rule, UI, or new queue framework.
+
+### Root cause
+
+`InteraktWebhookController` persisted the webhook + outbox row, then called **`OutboxProcessorService::process()` with no limit**. That drained the **global** pending outbox (Cashfree deferred, Bonvoice, email, WhatsApp outbound, other Interakt items) inside the HTTP request before returning 200. Under burst this starved PHP workers and delayed `received_at→processed_at` by **54–168s**.
+
+### Architecture before
+
+```
+POST /api/webhooks/interakt
+  → validate / store interakt_webhook_logs
+  → outbox firstOrCreate (idempotent)
+  → OutboxProcessorService::process()   // unbounded global FIFO, sync
+  → 200 OK
+```
+
+Sibling `POST /api/webhooks/interakt/flow` already used `processAggregate()` (scoped sync) — safer, still in-request.
+
+### `processAggregate()` investigation
+
+| Option | Safe? | Meets &lt;100ms? | Drains unrelated? | Async? |
+|--------|-------|------------------|-------------------|--------|
+| `process()` (old) | No under load | Often no | **Yes — global** | No |
+| `processAggregate(interakt_webhook_log, id)` | **Yes** (same as flow / email) | **Yes** (~20ms synthetic) | No | No (still sync in HTTP) |
+| **Enqueue only** (chosen) | **Yes** | **Yes** (~15ms / 3 queries local) | No | **Yes** — cron `outbox:process` |
+
+`processAggregate()` would have been a correct minimal fix for unrelated-drain. Phase 2 chooses **enqueue-only** to meet “return 200 immediately” and “only enqueue” without holding the webhook worker for processor work. Existing outbox idempotency, retries, ordering (`orderBy id`), and audit/webhook logs are unchanged.
+
+### Architecture after
+
+```
+POST /api/webhooks/interakt
+  → validate / store interakt_webhook_logs (status=received)
+  → outbox firstOrCreate (pending)
+  → 200 OK immediately
+
+Cron every minute: outbox:process
+  → claim pending FIFO → InteraktWebhookProcessorService
+  → upsert interakt_messages (idempotent by message_id)
+```
+
+Flow webhook unchanged (`processAggregate` — needs sync validation/422 semantics).
+
+### Benchmarks
+
+| Metric | Before (prod / synthetic) | After (local enqueue-only) |
+|--------|---------------------------|----------------------------|
+| Webhook response time | 20ms–100s+ under burst (global drain) | **~15 ms** (`InteraktWebhookEnqueueOnlyPerformanceTest`) |
+| SQL queries (ack path) | 14+ and unbounded if drain runs | **3** |
+| Unrelated outbox drained in request | **Yes** | **No** (asserted in test) |
+| CPU on webhook workers | High during bursts | Persist + enqueue only |
+| Message processing latency | Same-request when healthy; 54–168s when contended | Up to **~60s** via `outbox:process` (existing cron) |
+
+Production re-measure pending deploy (response time + Hostinger load during Interakt bursts).
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `app/Http/Controllers/Webhooks/InteraktWebhookController.php` | Remove sync `process()`; enqueue-only then 200 |
+| `tests/Support/InteractsWithInteraktWebhooks.php` | `drainOutbox` / `postInteraktWebhookAndDrain` helpers |
+| `tests/Feature/InteraktWebhookTest.php` | Assert enqueue-then-drain; retry expectations for async |
+| `tests/Feature/InteraktWebhookSignatureTest.php` | Drain after signed ack when asserting processed |
+| `tests/Feature/WhatsAppConversationFeatureTest.php` | Drain after webhook posts |
+| `tests/Feature/InteraktWebhookEnqueueOnlyPerformanceTest.php` | &lt;100ms budget + no unrelated drain |
+
+### Rollback notes
+
+1. Restore the single call in `InteraktWebhookController::handle` after `writeProcessingJob`:
+
+   ```php
+   $this->outboxProcessorService->process();
+   ```
+
+   (re-inject `OutboxProcessorService` in the constructor).
+
+2. No migration / schema change — outbox rows already pending if unprocessed.
+
+3. Cron `outbox:process` remains the safety net either way; rollback only reintroduces in-request global drain.
+
+### Regression (local)
+
+Core Interakt + Outbox + signature + enqueue budget: **31/34** in `InteraktWebhook*` / `InteraktFlowWebhook*` / `OutboxProcessing*` (3 failures are **pre-existing** WhatsApp timeline presentation asserts — messages still persist via outbox drain). Broader Notification/Webhook filter noise includes unrelated pre-existing failures (email templates, scheduler hardening, Bonvoice C360 HTML).
+
+---
+
 ## Sources
 
 - Production SSH probes 2026-08-07 (tinker HttpKernel timing, query log grouping, Interakt counts)
 - Local Phase 1 warm budget: `tests/Feature/DashboardLivePhase1PerformanceTest.php`
+- Local Phase 2 webhook budget: `tests/Feature/InteraktWebhookEnqueueOnlyPerformanceTest.php`
 - `app/Http/Controllers/DashboardLiveController.php`
 - `app/Services/DashboardService.php`, `OperatorDashboardCache.php`
 - `app/Models/Incident.php` (`slaStatus` → `SettingService`)

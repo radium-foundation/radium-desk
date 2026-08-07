@@ -59,7 +59,7 @@ class InteraktWebhookTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        $response = $this->postJson('/api/webhooks/interakt', $this->officialIncomingMessagePayload());
+        $response = $this->postInteraktWebhookAndDrain($this->officialIncomingMessagePayload());
 
         $response->assertOk()->assertExactJson(['status' => 'ok']);
 
@@ -100,12 +100,41 @@ class InteraktWebhookTest extends TestCase
     {
         $payload = $this->officialIncomingMessagePayload();
 
-        $this->postJson('/api/webhooks/interakt', $payload)->assertOk();
-        $this->postJson('/api/webhooks/interakt', $payload)->assertOk();
+        $this->postInteraktWebhookAndDrain($payload)->assertOk();
+        $this->postInteraktWebhookAndDrain($payload)->assertOk();
 
         $this->assertSame(2, InteraktWebhookLog::query()->count());
         $this->assertSame(1, InteraktMessage::query()->count());
         $this->assertSame(2, OutboxEvent::query()->where('event_type', InteraktWebhookOutboxWriter::EVENT_TYPE)->count());
+    }
+
+    public function test_webhook_enqueues_outbox_without_processing_in_request(): void
+    {
+        $this->postJson('/api/webhooks/interakt', $this->officialIncomingMessagePayload())
+            ->assertOk()
+            ->assertExactJson(['status' => 'ok']);
+
+        $this->assertDatabaseHas('interakt_webhook_logs', [
+            'event_type' => 'message_received',
+            'processing_status' => InteraktWebhookLog::STATUS_RECEIVED,
+        ]);
+
+        $event = OutboxEvent::query()
+            ->where('event_type', InteraktWebhookOutboxWriter::EVENT_TYPE)
+            ->first();
+
+        $this->assertNotNull($event);
+        $this->assertSame(OutboxEventStatus::Pending, $event->status);
+        $this->assertSame(0, $event->attempts);
+        $this->assertSame(0, InteraktMessage::query()->count());
+
+        $this->drainOutbox();
+
+        $this->assertDatabaseHas('interakt_webhook_logs', [
+            'processing_status' => InteraktWebhookProcessorService::STATUS_PROCESSED,
+        ]);
+        $this->assertSame(1, InteraktMessage::query()->count());
+        $this->assertSame(OutboxEventStatus::Completed, $event->fresh()->status);
     }
 
     public function test_outgoing_template_send_and_status_webhooks_update_timeline(): void
@@ -141,8 +170,8 @@ class InteraktWebhookTest extends TestCase
         $this->assertTrue($result->success);
         $this->assertSame('msg-out-001', $result->messageId);
 
-        $this->postJson('/api/webhooks/interakt', $this->officialApiDeliveredPayload(messageId: 'msg-out-001'))->assertOk();
-        $this->postJson('/api/webhooks/interakt', $this->officialApiReadPayload(messageId: 'msg-out-001'))->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialApiDeliveredPayload(messageId: 'msg-out-001'))->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialApiReadPayload(messageId: 'msg-out-001'))->assertOk();
 
         $message = InteraktMessage::query()->where('message_id', 'msg-out-001')->first();
         $this->assertNotNull($message);
@@ -192,9 +221,9 @@ class InteraktWebhookTest extends TestCase
 
         $messageId = 'api-status-msg-001';
 
-        $this->postJson('/api/webhooks/interakt', $this->officialApiSentPayload($messageId))->assertOk();
-        $this->postJson('/api/webhooks/interakt', $this->officialApiDeliveredPayload($messageId))->assertOk();
-        $this->postJson('/api/webhooks/interakt', $this->officialApiReadPayload($messageId))->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialApiSentPayload($messageId))->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialApiDeliveredPayload($messageId))->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialApiReadPayload($messageId))->assertOk();
 
         $message = InteraktMessage::query()->where('message_id', $messageId)->first();
         $this->assertNotNull($message);
@@ -220,7 +249,7 @@ class InteraktWebhookTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        $this->postJson('/api/webhooks/interakt', $this->officialApiFailedPayload())->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialApiFailedPayload())->assertOk();
 
         $message = InteraktMessage::query()->first();
         $this->assertNotNull($message);
@@ -256,9 +285,9 @@ class InteraktWebhookTest extends TestCase
 
         $messageId = 'campaign-msg-001';
 
-        $this->postJson('/api/webhooks/interakt', $this->officialCampaignSentPayload($messageId))->assertOk();
-        $this->postJson('/api/webhooks/interakt', $this->officialCampaignDeliveredPayload($messageId))->assertOk();
-        $this->postJson('/api/webhooks/interakt', $this->officialCampaignReadPayload($messageId))->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialCampaignSentPayload($messageId))->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialCampaignDeliveredPayload($messageId))->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialCampaignReadPayload($messageId))->assertOk();
 
         $message = InteraktMessage::query()->where('message_id', $messageId)->first();
         $this->assertNotNull($message);
@@ -283,7 +312,7 @@ class InteraktWebhookTest extends TestCase
             'created_by' => User::factory()->create()->id,
         ]);
 
-        $this->postJson('/api/webhooks/interakt', $this->officialCampaignFailedPayload())->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialCampaignFailedPayload())->assertOk();
 
         $this->assertDatabaseHas('interakt_messages', [
             'message_id' => 'campaign-msg-failed-001',
@@ -306,7 +335,7 @@ class InteraktWebhookTest extends TestCase
             'created_by' => User::factory()->create()->id,
         ]);
 
-        $this->postJson('/api/webhooks/interakt', $this->legacyIncomingMessagePayload())->assertOk();
+        $this->postInteraktWebhookAndDrain($this->legacyIncomingMessagePayload())->assertOk();
 
         $this->assertDatabaseHas('interakt_messages', [
             'message_id' => 'msg-legacy-in-001',
@@ -328,7 +357,7 @@ class InteraktWebhookTest extends TestCase
             'created_by' => User::factory()->create()->id,
         ]);
 
-        $this->postJson('/api/webhooks/interakt', $this->officialIncomingMessagePayload(
+        $this->postInteraktWebhookAndDrain($this->officialIncomingMessagePayload(
             messageId: 'msg-in-match',
             channelPhoneNumber: '919876543210',
         ))->assertOk();
@@ -376,6 +405,15 @@ class InteraktWebhookTest extends TestCase
         $event = OutboxEvent::query()->first();
         $this->assertNotNull($event);
         $this->assertSame(OutboxEventStatus::Pending, $event->status);
+        $this->assertSame(0, $event->attempts);
+        $this->assertDatabaseHas('interakt_webhook_logs', [
+            'processing_status' => InteraktWebhookLog::STATUS_RECEIVED,
+        ]);
+
+        $this->drainOutbox();
+
+        $event->refresh();
+        $this->assertSame(OutboxEventStatus::Pending, $event->status);
         $this->assertSame(1, $event->attempts);
         $this->assertSame('processor failed', $event->last_error);
 
@@ -387,7 +425,7 @@ class InteraktWebhookTest extends TestCase
 
     public function test_outbox_retry_reprocesses_failed_webhook(): void
     {
-        $this->postJson('/api/webhooks/interakt', $this->officialIncomingMessagePayload(messageId: 'msg-retry-002'))
+        $this->postInteraktWebhookAndDrain($this->officialIncomingMessagePayload(messageId: 'msg-retry-002'))
             ->assertOk();
 
         InteraktWebhookLog::query()->update([
@@ -404,7 +442,7 @@ class InteraktWebhookTest extends TestCase
             'last_error' => 'simulated failure',
         ]);
 
-        app(OutboxProcessorService::class)->process();
+        $this->drainOutbox();
 
         $this->assertDatabaseHas('interakt_messages', [
             'message_id' => 'msg-retry-002',

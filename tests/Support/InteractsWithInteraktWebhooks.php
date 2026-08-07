@@ -2,11 +2,20 @@
 
 namespace Tests\Support;
 
+use App\Services\Outbox\OutboxProcessorService;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 trait InteractsWithInteraktWebhooks
 {
+    /**
+     * Drain pending outbox events (cron `outbox:process` equivalent for tests).
+     */
+    protected function drainOutbox(?int $limit = null): int
+    {
+        return app(OutboxProcessorService::class)->process($limit);
+    }
+
     /**
      * Official Interakt webhook secret used in tests.
      */
@@ -310,6 +319,37 @@ trait InteractsWithInteraktWebhooks
             ],
             $rawBody,
         );
+    }
+
+    /**
+     * Ack path + async outbox drain (mirrors webhook enqueue then `outbox:process`).
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected function postInteraktWebhookAndDrain(array $payload): TestResponse
+    {
+        /** @var TestCase $this */
+        $response = $this->postJson('/api/webhooks/interakt', $payload);
+
+        if ($response->isOk()) {
+            $this->drainOutbox();
+        }
+
+        return $response;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function postSignedInteraktWebhookAndDrain(array $payload, ?string $secret = null): TestResponse
+    {
+        $response = $this->postSignedInteraktWebhook($payload, $secret);
+
+        if ($response->isOk()) {
+            $this->drainOutbox();
+        }
+
+        return $response;
     }
 
     /**

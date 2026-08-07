@@ -29,7 +29,7 @@ class InteraktWebhookSignatureTest extends TestCase
 
     public function test_valid_signature_allows_webhook_processing(): void
     {
-        $response = $this->postSignedInteraktWebhook($this->officialIncomingMessagePayload());
+        $response = $this->postSignedInteraktWebhookAndDrain($this->officialIncomingMessagePayload());
 
         $response->assertOk()->assertExactJson(['status' => 'ok']);
 

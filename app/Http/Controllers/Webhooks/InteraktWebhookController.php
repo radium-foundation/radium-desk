@@ -7,7 +7,6 @@ use App\Models\InteraktWebhookLog;
 use App\Services\Interakt\InteraktWebhookOutboxWriter;
 use App\Services\Interakt\InteraktWebhookPayloadParser;
 use App\Services\Interakt\InteraktWebhookSignatureVerifier;
-use App\Services\Outbox\OutboxProcessorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -19,7 +18,6 @@ class InteraktWebhookController extends Controller
         private readonly InteraktWebhookPayloadParser $payloadParser,
         private readonly InteraktWebhookOutboxWriter $outboxWriter,
         private readonly InteraktWebhookSignatureVerifier $signatureVerifier,
-        private readonly OutboxProcessorService $outboxProcessorService,
     ) {}
 
     public function handle(Request $request): JsonResponse
@@ -42,8 +40,9 @@ class InteraktWebhookController extends Controller
                 }
             }
 
+            // Enqueue only — never drain the global outbox (or unrelated aggregates)
+            // inside the webhook HTTP request. Cron `outbox:process` continues work.
             $this->outboxWriter->writeProcessingJob($webhookLog->id);
-            $this->outboxProcessorService->process();
 
             return response()->json(['status' => 'ok'], 200);
         } catch (Throwable $exception) {

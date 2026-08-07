@@ -50,8 +50,8 @@ class WhatsAppConversationFeatureTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        $this->postJson('/api/webhooks/interakt', $this->officialIncomingMessagePayload())->assertOk();
-        $this->postJson('/api/webhooks/interakt', $this->officialIncomingMessagePayload(
+        $this->postInteraktWebhookAndDrain($this->officialIncomingMessagePayload())->assertOk();
+        $this->postInteraktWebhookAndDrain($this->officialIncomingMessagePayload(
             messageId: 'msg-in-second',
             channelPhoneNumber: '919876543210',
         ))->assertOk();
