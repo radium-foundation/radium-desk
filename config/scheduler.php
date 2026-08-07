@@ -20,6 +20,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Cadence (Phase 10 — measured production retune)
+    |--------------------------------------------------------------------------
+    |
+    | platform warm TTLs are 120–300s; appointment reminder windows are coarse;
+    | Gmail often pulls 0; Cashfree recovery is rare vs reconcile cost.
+    |
+    */
+
+    'platform_snapshots_warm_interval_minutes' => max(1, (int) env('SCHEDULER_PLATFORM_WARM_INTERVAL_MINUTES', 5)),
+
+    /*
+    |--------------------------------------------------------------------------
     | withoutOverlapping expiry (minutes)
     |--------------------------------------------------------------------------
     |

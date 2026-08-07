@@ -123,6 +123,7 @@ class QuickServiceRequestService
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,
+            'order_record_id' => $order->id,
             'reference_no' => $referenceNo ?? $this->incidentReferenceService->generate(),
             'category' => $category ?? 'General',
             'source' => $source,

@@ -1,12 +1,13 @@
 # P0 Production CPU — Request Inventory & Attribution
 
-**Status:** Phase 1–9 shipped (Phase 9 = batch Assign Reference coalescing)  
+**Status:** Phase 1–10 shipped (Phase 10 = scheduler light-tick + cadence retune)  
 **Date:** 2026-08-07  
-**Method:** Code inventory + production SSH probes (`tools/config.sh` → `desk.radiumbox.com`) + local warm-path / webhook / watchdog / JS poller / RadiumBox queue / automation snapshot / platform warm / Assign Reference batch tests  
+**Method:** Code inventory + production SSH probes (`tools/config.sh` → `desk.radiumbox.com`) + local warm-path / webhook / watchdog / JS poller / RadiumBox queue / automation snapshot / platform warm / Assign Reference batch / scheduler light-tick tests  
 **Canvas:** [`p0-production-cpu-request-inventory.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-production-cpu-request-inventory.canvas.tsx)  
 **Phase 7 canvas:** [`p0-platform-snapshots-warm-optimization.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-platform-snapshots-warm-optimization.canvas.tsx)  
 **Assign Reference investigation:** [`p0-assign-reference-cpu-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-assign-reference-cpu-investigation.canvas.tsx) · [p0-assign-reference-cpu-investigation.md](./p0-assign-reference-cpu-investigation.md)  
 **Laravel Cache investigation:** [`p0-laravel-cache-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-cache-investigation.canvas.tsx) · [radium-desk-performance-audit.md §5](./radium-desk-performance-audit.md#5-cache)  
+**Laravel Scheduler investigation:** [`p0-laravel-scheduler-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-scheduler-investigation.canvas.tsx) · [p0-laravel-scheduler-investigation.md](./p0-laravel-scheduler-investigation.md)  
 **Post-deploy remeasure:** [p0-production-remeasure-after-optimizations.md](./p0-production-remeasure-after-optimizations.md)  
 **Companion polling matrix:** [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md)
 
@@ -1080,6 +1081,121 @@ R0 confirm hot keys in prod `cache` table → R1 `CACHE_STORE=redis` → R2 rais
 
 ---
 
+## Laravel Scheduler — `schedule:run` overhead (P0 investigation)
+
+**Date:** 2026-08-07 · **Scope:** investigation only, no code changes · **Prompt:** P[07-08]-025  
+**Canvas:** [`p0-laravel-scheduler-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-scheduler-investigation.canvas.tsx)  
+**Full report:** [p0-laravel-scheduler-investigation.md](./p0-laravel-scheduler-investigation.md) · also [radium-desk-performance-audit.md §6](./radium-desk-performance-audit.md#6-background-jobs)
+
+### Verdict
+
+**Yes.** After Phases 1–9, account CPU remains cron-heavy. A natural production `schedule:run` held Hostinger flock for **12.3s**: **`platform:snapshots:warm` ~9s** + **~2.5s artisan process-spawn tax** on mostly-noop every-minute commands. Parent orchestration is negligible (~5ms). `QUEUE_WORKER_MODE=dedicated_cron` correctly keeps `queue:work` out of the tick. `automation:snapshot` light tick is **stuck** on a legacy 24h mutex (skipped every minute).
+
+### Minute timeline (compact)
+
+| | Started | Skipped | Completed | CPU |
+|--|---------|---------|-----------|-----|
+| Quiet minute | heartbeat, automation-pending, ira flush, warm, outbox, gmail(bg), presence, appt reminders | `queue:work` (gate), `automation:snapshot` (mutex) | all started except skips | warm dominates; boots ≈ noop walls |
+
+### Top scheduler waste
+
+1. `platform:snapshots:warm` @1m foreground (~9s)  
+2. Six sequential `php artisan` boots (~500ms each) for near-noop 1m jobs  
+3. Stuck `automation:snapshot` mutex  
+4. `team-telegram:send-appointment-reminders` @1m (98% zero window)  
+5. Gmail sync @1m background (often empty pull)  
+6. `withoutOverlapping` still 1440m on most events  
+
+### Recommended schedule matrix (no implementation)
+
+| Keep 1m | →2m | →5m | →10–15m | Structural |
+|---------|-----|-----|---------|------------|
+| heartbeat, outbox (+limit), automation light (after mutex clear) | presence, ira flush, automation-pending optional | **warm**, appointment reminders, gmail 2–5m | cashfree auto-recover | One light-tick dispatcher; wire `config/scheduler.php` TTLs |
+
+---
+
+## Phase 10 — Scheduler light-tick + cadence retune (implemented)
+
+**Goal:** Cut `schedule:run` CPU/wall without changing business logic, features, or UI.  
+**Investigation:** [p0-laravel-scheduler-investigation.md](./p0-laravel-scheduler-investigation.md)
+
+### What changed
+
+| Change | Before | After |
+|--------|--------|-------|
+| Light every-minute jobs | 4 separate `php artisan` children | **`schedule:light-tick`** (1 process → `Artisan::call` ×4) |
+| Steps inside light-tick | — | automation-pending → ira flush → `outbox:process --limit` → presence |
+| `platform:snapshots:warm` | every 1m | **every 5m** (`scheduler.platform_snapshots_warm_interval_minutes`) |
+| Appointment reminders | every 1m | **every 5m** |
+| Gmail sync | every 1m | **every 2m** |
+| Cashfree auto-recover | every 5m | **every 15m** |
+| Heartbeat / queue gate / automation snapshot | unchanged semantics | **preserved** (1m light + 15m reconcile, bg) |
+| Overlap TTLs | mostly 1440m | Short TTLs from `config/scheduler.php` on retuned events |
+
+Individual Artisan commands remain callable manually/admin; only the schedule registration was consolidated.
+
+### Benchmarks
+
+#### Production before (P[07-08]-025, 2026-08-07 14:42 IST)
+
+| Metric | Value |
+|--------|------:|
+| Natural `schedule:run` wall | **12 332 ms** |
+| Artisan boots (foreground children) | **6** (+1 gmail bg) |
+| Commands executed | heartbeat, pending, ira flush, warm, outbox, gmail(bg), presence, reminders |
+| Commands skipped | `queue:work` (dedicated_cron), `automation:snapshot` (stuck mutex) |
+| Warm share of wall | **~9 s (73%)** |
+| Noop boot tax | **~2.5 s (20%)** |
+
+#### Local after Phase 10 (same host as CI, quiet DB)
+
+| Metric | Separate ×4 (before model) | `schedule:light-tick` |
+|--------|---------------------------:|----------------------:|
+| Wall | **1924 ms** (485+470+483+486) | **514 ms** |
+| Artisan boots | **4** | **1** |
+| Steps executed | 4 | 4 (same commands) |
+| Business output | 0 work each | identical 0-work lines |
+
+#### Modeled production after Phase 10
+
+| Metric | Before | After (model) |
+|--------|-------:|--------------:|
+| Quiet-minute `schedule:run` wall (no warm due) | ~12.3 s (warm every min) | **~1–2 s** (heartbeat + light-tick; warm skipped 4/5 min) |
+| Warm-minute wall | ~12.3 s | **~10–11 s** (warm + light-tick) |
+| Amortized wall / min | **~12.3 s** | **~3–4 s** (~70%↓) |
+| Foreground artisan boots / quiet min | 6 | **1** (`schedule:light-tick`) |
+| Warm invocations / hour | 60 | **12** |
+| Reminder invocations / hour | 60 | **12** |
+| Gmail sync / hour | 60 | **30** |
+| Cashfree recover / hour | 12 | **4** |
+
+Production re-measure of natural `schedule:run -v` pending deploy. Clear stuck `automation:snapshot` mutex separately (ops) so light automation resumes.
+
+### Files
+
+| File | Role |
+|------|------|
+| `app/Console/Commands/ScheduleLightTickCommand.php` | Dispatcher |
+| `bootstrap/app.php` | Schedule registration |
+| `config/scheduler.php` | Warm interval + overlap TTLs |
+| `config/inbound_email.php` / `team_telegram.php` / `cashfree.php` | Cadence defaults |
+| `.env.example` | Gmail interval default 2 |
+| `tests/Feature/SchedulerHardeningTest.php` | Phase 10 schedule asserts |
+| `tests/Feature/ScheduleLightTickPhase10PerformanceTest.php` | Dispatcher behavior |
+
+### Rollback
+
+1. Restore four separate every-minute schedule entries in `bootstrap/app.php` (pending, ira flush, outbox, presence); remove `schedule:light-tick`.  
+2. Revert cadence defaults: warm 1m, reminders 1m, gmail 1m, cashfree 5m.  
+3. Optional: delete `ScheduleLightTickCommand` (safe to leave; unused if unscheduled).  
+4. No migrations. No data changes.
+
+### Regression
+
+`SchedulerHardeningTest` + `ScheduleLightTickPhase10PerformanceTest` + `SchedulerHeartbeatScheduleTest`: **9 passed**.
+
+---
+
 ## Sources
 
 - Production SSH probes 2026-08-07 (tinker HttpKernel timing, query log grouping, Interakt counts, automation:snapshot 6450ms/28073 SQL)
@@ -1102,4 +1218,4 @@ R0 confirm hot keys in prod `cache` table → R1 `CACHE_STORE=redis` → R2 rais
 - `app/Services/Platform/Warmers/PlatformSnapshotWarmingService.php`
 - `app/Jobs/RadiumBoxOrderEnrichmentJob.php`, `app/Services/RadiumBox/RadiumBoxOrderEnrichmentService.php`
 - `resources/js/live-dashboard-polling.js`, `live-notifications.js`, `polling/visibility-aware-poller.js`
-- Related: [radium-desk-performance-audit.md](./radium-desk-performance-audit.md) (§5 Cache P0 update), [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md), [p0-cpu-incident-remeasure.md](./p0-cpu-incident-remeasure.md), [radiumbox-api-success-rate-degradation-investigation.md](./radiumbox-api-success-rate-degradation-investigation.md), canvas [`p0-laravel-cache-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-cache-investigation.canvas.tsx)
+- Related: [radium-desk-performance-audit.md](./radium-desk-performance-audit.md) (§5 Cache + §6 Scheduler P0 updates), [p0-laravel-scheduler-investigation.md](./p0-laravel-scheduler-investigation.md), [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md), [p0-cpu-incident-remeasure.md](./p0-cpu-incident-remeasure.md), [radiumbox-api-success-rate-degradation-investigation.md](./radiumbox-api-success-rate-degradation-investigation.md), canvases [`p0-laravel-cache-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-cache-investigation.canvas.tsx) · [`p0-laravel-scheduler-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-scheduler-investigation.canvas.tsx)

@@ -31,7 +31,7 @@ return [
     */
     'auto_recover' => [
         'enabled' => filter_var(env('CASHFREE_AUTO_RECOVER_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
-        'schedule_interval_minutes' => max(1, (int) env('CASHFREE_AUTO_RECOVER_INTERVAL_MINUTES', 5)),
+        'schedule_interval_minutes' => max(1, (int) env('CASHFREE_AUTO_RECOVER_INTERVAL_MINUTES', 15)),
         'max_per_run' => max(1, (int) env('CASHFREE_AUTO_RECOVER_MAX_PER_RUN', 20)),
     ],
 ];

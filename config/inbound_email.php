@@ -264,7 +264,7 @@ return [
 
         'http_retry_sleep_ms' => (int) env('GMAIL_HTTP_RETRY_SLEEP_MS', 500),
 
-        'schedule_interval_minutes' => (int) env('INBOUND_EMAIL_GMAIL_SYNC_INTERVAL_MINUTES', 1),
+        'schedule_interval_minutes' => max(1, (int) env('INBOUND_EMAIL_GMAIL_SYNC_INTERVAL_MINUTES', 2)),
 
         /*
          * Hard ceiling for a single artisan sync invocation (CLI set_time_limit).

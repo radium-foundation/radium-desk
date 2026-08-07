@@ -29,6 +29,7 @@ class Incident extends Model
 
     protected $fillable = [
         'order_id',
+        'order_record_id',
         'inquiry_origin_order_id',
         'reference_no',
         'category',
@@ -61,6 +62,45 @@ class Incident extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::saving(function (Incident $incident): void {
+            $incident->syncOrderRecordIdentityColumns();
+        });
+    }
+
+    /**
+     * Keep legacy incidents.order_id and preferred incidents.order_record_id equal.
+     * Both store orders.id (internal PK), never the business orders.order_id string.
+     *
+     * When only one column is dirty on save, that write wins so updates like
+     * `update(['order_id' => $id])` do not keep a stale order_record_id.
+     */
+    public function syncOrderRecordIdentityColumns(): void
+    {
+        $recordId = $this->attributes['order_record_id'] ?? null;
+        $legacyId = $this->attributes['order_id'] ?? null;
+        $recordDirty = array_key_exists('order_record_id', $this->getDirty());
+        $legacyDirty = array_key_exists('order_id', $this->getDirty());
+
+        if ($recordDirty && ! $legacyDirty) {
+            $resolved = $recordId;
+        } elseif ($legacyDirty && ! $recordDirty) {
+            $resolved = $legacyId;
+        } else {
+            // Create, dual-write, or untouched: prefer preferred column, then legacy.
+            $resolved = $recordId ?? $legacyId;
+        }
+
+        if ($resolved === null || $resolved === '') {
+            return;
+        }
+
+        $resolvedInt = (int) $resolved;
+        $this->attributes['order_record_id'] = $resolvedInt;
+        $this->attributes['order_id'] = $resolvedInt;
+    }
+
     public function isAutomationPending(): bool
     {
         return $this->assigned_to_user_id === null
@@ -87,7 +127,7 @@ class Incident extends Model
 
     public function order(): BelongsTo
     {
-        return $this->belongsTo(Order::class);
+        return $this->belongsTo(Order::class, 'order_record_id');
     }
 
     public function inquiryOriginOrder(): BelongsTo

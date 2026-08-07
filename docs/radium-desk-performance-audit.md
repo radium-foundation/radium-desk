@@ -457,16 +457,33 @@ Redis does **not** replace Phase 6 incremental automation or Phase 7 skip-when-f
 - **No Horizon.**
 - Default queue: **database**.
 - Worker modes: scheduler `queue:work … --stop-when-empty --max-time=55` and/or dedicated cron.
+- **Production (2026-08-07):** `QUEUE_WORKER_MODE=dedicated_cron` — `queue:work` is **not** inside `schedule:run` (Cron #2).
 - Only **3** Job classes: RadiumBox enrichment, driver guide send, work-recognition scan.
 - Most async work = **scheduled Artisan commands** + **outbox processor**.
+
+### Scheduler overhead (P0 investigation → Phase 10)
+
+**Investigation:** [p0-laravel-scheduler-investigation.md](./p0-laravel-scheduler-investigation.md) · Canvas [`p0-laravel-scheduler-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-scheduler-investigation.canvas.tsx)  
+**Phase 10 implementation:** [p0-production-cpu-request-inventory.md § Phase 10](./p0-production-cpu-request-inventory.md#phase-10--scheduler-light-tick--cadence-retune-implemented)
+
+| Metric | Before (prod 2026-08-07) | After Phase 10 (model / local) |
+|--------|-------------------------:|-------------------------------:|
+| Natural `schedule:run` wall | **~12.3 s / min** | **~1–2 s** quiet min; **~3–4 s** amortized |
+| Dominant child | warm **~9 s every min** | warm **~9 s every 5 min** |
+| Light-job artisan boots | **4–6 / min** | **1 / min** (`schedule:light-tick`) |
+| Local light-job wall | **1924 ms** (4 boots) | **514 ms** (1 boot) |
+| Parent orchestration | ~5 ms | unchanged |
+
+**Phase 10 shipped:** consolidated light-tick dispatcher; warm **5m**; appointment reminders **5m**; Gmail **2m**; Cashfree recover **15m**; short overlap TTLs on retuned events; heartbeat / queue gate / automation snapshot semantics preserved.
 
 ### Scheduler highlights (`bootstrap/app.php`)
 
 | Cadence | Work |
 |---------|------|
-| Every minute | Heartbeat, queue drain (mode), automation pending, automation snapshot, platform warm, outbox, Gmail sync, presence timeouts, IRA telegram batches |
-| Every 5 min | Infra metrics, deferred smart assignment, Cashfree recover, watchdog |
-| 15 min / hourly | RadiumBox recover, missing serial, Telegram, executive snapshot, IRA risk |
+| Every minute | Heartbeat, queue drain (**only if** `QUEUE_WORKER_MODE=scheduler`), **`schedule:light-tick`** (pending + ira flush + outbox + presence), automation snapshot (bg) |
+| Every 2 min | Gmail sync (bg) |
+| Every 5 min | Platform warm, infra metrics, deferred smart assignment, appointment reminders, watchdog |
+| 15 min / hourly | Cashfree recover, RadiumBox recover, missing serial, Telegram briefings, executive snapshot, IRA risk, automation reconcile |
 | Daily | Attendance reconcile, IRA memory, Performance Intelligence snapshot, digests |
 
 ### Still on request cycle (move off where possible)

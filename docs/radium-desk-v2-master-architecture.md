@@ -44,6 +44,7 @@ It consolidates all existing product documentation into one navigable architectu
 |-------|------------------------|-------------------------|
 | Mission, vision, product principles, decision filter | [Product Constitution](product-constitution.md) | §1 |
 | Ownership, activation, immutability, corrections, dashboard policy | [Product Foundations](product-foundations.md) | §1, §4, §9, §10 |
+| Order / incident identity naming (`order_record_id` vs business `orders.order_id`) | [BR-02 §15](br-02-case-customer-context-separation.md#15-order--incident-identity-naming) | §4 |
 | Order Workspace layout, components, NBA, Customer Story, hierarchy | [Order Workspace Blueprint](order-workspace-blueprint.md) | §3, §6, §7, §8 |
 | Seven customer journeys and workspace surface matrix | [Customer Journeys](customer-journeys.md) | §5, §7 |
 | Modal action system, workspace contexts, refresh contract | [Workspace Architecture](workspace-architecture.md) | §2, §3 |
@@ -390,6 +391,8 @@ Mapping from [Product Foundations — Related concepts](product-foundations.md#r
 | Concept | Typical entity | Owned by |
 |---------|----------------|----------|
 | Order (operational view) | `orders` | Desk display; RadiumBox owns catalog truth |
+| Business order ID | `orders.order_id` (e.g. `RD…`) | External / display key — not the incident FK |
+| Order record FK on case | `incidents.order_record_id` → `orders.id` | Radium Desk (legacy `incidents.order_id` dual-written; see [BR-02 §15](br-02-case-customer-context-separation.md#15-order--incident-identity-naming)) |
 | Service Case | `incidents` | Radium Desk |
 | Transaction ID | `orders.transaction_id` | Assigned in Desk; immutability enforced by Desk |
 | Owner / Assignment event | assignee + timeline | Radium Desk |

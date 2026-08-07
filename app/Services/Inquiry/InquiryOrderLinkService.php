@@ -32,11 +32,12 @@ class InquiryOrderLinkService
         $this->assertCanLink($incident, $targetOrder);
 
         return DB::transaction(function () use ($incident, $inquiryOrder, $targetOrder, $actor): Incident {
-            $oldOrderId = $incident->order_id;
+            $oldOrderId = $incident->order_record_id ?? $incident->order_id;
             $referenceNo = $incident->reference_no;
 
             $incident->update([
                 'order_id' => $targetOrder->id,
+                'order_record_id' => $targetOrder->id,
                 'inquiry_origin_order_id' => $inquiryOrder->id,
                 'updated_by' => $actor->id,
             ]);

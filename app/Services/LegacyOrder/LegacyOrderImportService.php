@@ -119,6 +119,7 @@ class LegacyOrderImportService
 
             $incident = Incident::query()->create([
                 'order_id' => $order->id,
+                'order_record_id' => $order->id,
                 'reference_no' => $this->incidentReferenceService->generate(),
                 'category' => 'General',
                 'source' => $source,

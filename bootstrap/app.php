@@ -49,21 +49,21 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command(QueueRouting::scheduledWorkerCommand())
             ->everyMinute()
             ->when(fn (): bool => QueueWorkerMode::fromConfig()->runsViaScheduler())
-            ->withoutOverlapping()
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_minute', 2)))
             ->appendOutputTo(storage_path('logs/queue-worker.log'));
 
-        // Ready Queue promotion: run immediately after the worker had a chance to
-        // drain critical enrichment jobs in this schedule:run pass.
-        $schedule->command('service-cases:process-automation-pending')
+        // Phase 10: one in-process dispatcher for former every-minute light jobs
+        // (automation-pending, ira telegram flush, outbox, presence) — one artisan
+        // boot instead of four. Same Artisan commands / services as before.
+        $schedule->command('schedule:light-tick')
             ->everyMinute()
-            ->when(fn (): bool => (bool) config('service_case_assignment.automation_grace_period_enabled', true))
-            ->withoutOverlapping()
-            ->appendOutputTo(storage_path('logs/automation-pending-assignments.log'));
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_minute', 2)))
+            ->appendOutputTo(storage_path('logs/schedule-light-tick.log'));
 
         $schedule->command('infrastructure:metrics:collect')
             ->everyFiveMinutes()
             ->when(fn (): bool => (bool) config('infrastructure.metrics_enabled'))
-            ->withoutOverlapping();
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_five_minutes', 5)));
 
         $schedule->command('service-cases:process-deferred-smart-assignment')
             ->cron(sprintf(
@@ -72,14 +72,8 @@ return Application::configure(basePath: dirname(__DIR__))
             ))
             ->when(fn (): bool => (bool) config('smart_assignment.enabled', true)
                 && (bool) config('smart_assignment.deferred.enabled', true))
-            ->withoutOverlapping()
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_five_minutes', 5)))
             ->appendOutputTo(storage_path('logs/deferred-smart-assignment.log'));
-
-        $schedule->command('ira:flush-assignment-telegram-batches')
-            ->everyMinute()
-            ->when(fn (): bool => (bool) config('ira.communication.assignment_telegram_batch.enabled', true))
-            ->withoutOverlapping()
-            ->appendOutputTo(storage_path('logs/ira-assignment-telegram-batches.log'));
 
         // Light tick: drain dirty slices + time fields + Cashfree KPI merge.
         // Full rebuilds are event-driven (dirty Health/Validation/Repair) or
@@ -98,36 +92,30 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $schedule->command('executive:snapshot')
             ->hourly()
-            ->withoutOverlapping()
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.hourly', 55)))
             ->appendOutputTo(storage_path('logs/executive-snapshot.log'));
 
+        // Phase 10: align with zone TTLs (120–300s); default every 5 minutes.
         $schedule->command('platform:snapshots:warm')
-            ->everyMinute()
-            ->withoutOverlapping()
+            ->cron(sprintf(
+                '*/%d * * * *',
+                max(1, (int) config('scheduler.platform_snapshots_warm_interval_minutes', 5)),
+            ))
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_five_minutes', 5)))
             ->appendOutputTo(storage_path('logs/platform-snapshots-warm.log'));
-
-        $schedule->command('outbox:process')
-            ->everyMinute()
-            ->withoutOverlapping()
-            ->appendOutputTo(storage_path('logs/outbox-processor.log'));
 
         // Background is safe when Cron #1 uses bin/schedule-run.sh (drops host
         // flock FDs before PHP). Do not point Hostinger cron at bare php artisan.
         $schedule->command('inbound-email:sync-gmail')
             ->cron(sprintf(
                 '*/%d * * * *',
-                max(1, (int) config('inbound_email.gmail.schedule_interval_minutes', 1)),
+                max(1, (int) config('inbound_email.gmail.schedule_interval_minutes', 2)),
             ))
             ->when(fn (): bool => (bool) config('inbound_email.enabled')
                 && (bool) config('inbound_email.gmail.enabled'))
             ->withoutOverlapping(10)
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/inbound-email-gmail-sync.log'));
-
-        $schedule->command('presence:process-timeouts')
-            ->everyMinute()
-            ->withoutOverlapping()
-            ->appendOutputTo(storage_path('logs/presence-timeouts.log'));
 
         $schedule->call(function (): void {
             Artisan::call('attendance:reconcile-days', [
@@ -207,35 +195,35 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('team-telegram:send-appointment-reminders')
             ->cron(sprintf(
                 '*/%d * * * *',
-                max(1, (int) config('team_telegram.appointment_reminders.schedule_interval_minutes', 1)),
+                max(1, (int) config('team_telegram.appointment_reminders.schedule_interval_minutes', 5)),
             ))
             ->when(fn (): bool => (bool) config('team_telegram.enabled', true)
                 && (bool) config('team_telegram.appointment_reminders.enabled', true))
-            ->withoutOverlapping()
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_five_minutes', 5)))
             ->appendOutputTo(storage_path('logs/team-telegram-appointment-reminders.log'));
 
         $schedule->command('automation:run')
             ->hourly()
             ->when(fn (): bool => app(SystemSettingsService::class)->getBool('automation.scheduler.enabled', false))
-            ->withoutOverlapping()
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.hourly', 55)))
             ->appendOutputTo(storage_path('logs/automation-scheduler.log'));
 
         $schedule->command('radiumbox:recover-sync')
             ->cron(sprintf('*/%d * * * *', max(1, (int) config('radiumbox.recovery.schedule_interval_minutes', 15))))
             ->when(fn (): bool => (bool) config('radiumbox.recovery.enabled', true))
-            ->withoutOverlapping()
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/radiumbox-recovery.log'));
 
         $schedule->command('missing-serial:process')
             ->cron(sprintf('*/%d * * * *', max(1, (int) config('missing_serial.schedule_interval_minutes', 15))))
             ->when(fn (): bool => (bool) config('missing_serial.enabled', true))
-            ->withoutOverlapping()
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/missing-serial-automation.log'));
 
         $schedule->command('cashfree:auto-recover-missing')
-            ->cron(sprintf('*/%d * * * *', max(1, (int) config('cashfree.auto_recover.schedule_interval_minutes', 5))))
+            ->cron(sprintf('*/%d * * * *', max(1, (int) config('cashfree.auto_recover.schedule_interval_minutes', 15))))
             ->when(fn (): bool => (bool) config('cashfree.auto_recover.enabled', true))
-            ->withoutOverlapping()
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/cashfree-auto-recover.log'));
 
         // Legacy backfill remains available for manual/admin use.

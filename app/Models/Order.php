@@ -518,7 +518,7 @@ class Order extends Model
 
     public function incidents(): HasMany
     {
-        return $this->hasMany(Incident::class);
+        return $this->hasMany(Incident::class, 'order_record_id');
     }
 
     public function activeIncident(): ?Incident

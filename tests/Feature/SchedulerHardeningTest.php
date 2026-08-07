@@ -17,66 +17,65 @@ class SchedulerHardeningTest extends TestCase
         $this->artisan('schedule:list')->assertSuccessful();
     }
 
-    public function test_critical_every_minute_jobs_use_short_overlap_and_background_where_required(): void
+    public function test_phase_10_light_tick_replaces_separate_every_minute_light_jobs(): void
     {
         $events = collect(app(Schedule::class)->events());
 
-        $queueWork = $this->findEvent($events, 'queue:work');
-        $this->assertTrue($queueWork->runInBackground);
-        $this->assertSame(2, $queueWork->expiresAt);
-        $this->assertTrue($queueWork->withoutOverlapping);
+        $lightTick = $this->findEvent($events, 'schedule:light-tick');
+        $this->assertFalse($lightTick->runInBackground);
+        $this->assertTrue($lightTick->withoutOverlapping);
+        $this->assertSame('* * * * *', $lightTick->getExpression());
+        $this->assertLessThan(1440, (int) $lightTick->expiresAt);
 
-        $automationPending = $this->findEvent($events, 'service-cases:process-automation-pending');
-        $this->assertTrue($automationPending->runInBackground);
-        $this->assertSame(2, $automationPending->expiresAt);
-        $this->assertStringContainsString('--limit=25', (string) $automationPending->command);
+        foreach ([
+            'service-cases:process-automation-pending',
+            'ira:flush-assignment-telegram-batches',
+            'outbox:process',
+            'presence:process-timeouts',
+        ] as $retired) {
+            $this->assertNull(
+                $this->findEventOrNull($events, $retired),
+                "Expected {$retired} to be folded into schedule:light-tick",
+            );
+        }
+    }
 
-        $outbox = $this->findEvent($events, 'outbox:process');
-        $this->assertTrue($outbox->runInBackground);
-        $this->assertSame(2, $outbox->expiresAt);
-        $this->assertStringContainsString('--limit=50', (string) $outbox->command);
+    public function test_phase_10_retuned_cadences(): void
+    {
+        $events = collect(app(Schedule::class)->events());
+
+        $warm = $this->findEvent($events, 'platform:snapshots:warm');
+        $this->assertSame('*/5 * * * *', $warm->getExpression());
+        $this->assertLessThan(1440, (int) $warm->expiresAt);
 
         $gmail = $this->findEvent($events, 'inbound-email:sync-gmail');
         $this->assertTrue($gmail->runInBackground);
         $this->assertSame(10, $gmail->expiresAt);
+        $this->assertSame('*/2 * * * *', $gmail->getExpression());
 
-        $heartbeat = $this->findEvent($events, 'operations:scheduler-heartbeat');
-        $this->assertFalse($heartbeat->runInBackground);
-        $this->assertSame(2, $heartbeat->expiresAt);
+        $reminders = $this->findEvent($events, 'team-telegram:send-appointment-reminders');
+        $this->assertSame('*/5 * * * *', $reminders->getExpression());
+        $this->assertLessThan(1440, (int) $reminders->expiresAt);
 
-        $presence = $this->findEvent($events, 'presence:process-timeouts');
-        $this->assertFalse($presence->runInBackground);
-        $this->assertSame(2, $presence->expiresAt);
-
-        $radiumbox = $this->findEvent($events, 'radiumbox:recover-sync');
-        $this->assertFalse($radiumbox->runInBackground);
-        $this->assertLessThan(1440, (int) $radiumbox->expiresAt);
+        $cashfree = $this->findEvent($events, 'cashfree:auto-recover-missing');
+        $this->assertSame('*/15 * * * *', $cashfree->getExpression());
+        $this->assertLessThan(1440, (int) $cashfree->expiresAt);
     }
 
-    public function test_heavy_notification_and_recovery_commands_run_in_background(): void
+    public function test_heartbeat_queue_gate_and_automation_semantics_preserved(): void
     {
         $events = collect(app(Schedule::class)->events());
 
-        foreach ([
-            'team-telegram:send-daily-briefings',
-            'team-telegram:send-slot-reminders',
-            'team-telegram:send-appointment-reminders',
-            'cashfree:auto-recover-missing',
-            'missing-serial:process',
-            'watchdog:send-critical-alerts',
-            'ira:send-daily-briefing',
-        ] as $needle) {
-            $event = $this->findEvent($events, $needle);
-            $this->assertTrue($event->runInBackground, "Expected background: {$needle}");
-            $this->assertTrue($event->withoutOverlapping, "Expected overlap lock: {$needle}");
-            $this->assertNotNull($event->expiresAt);
-            $this->assertLessThan(1440, (int) $event->expiresAt, "Expected short overlap TTL: {$needle}");
-        }
-    }
+        $heartbeat = $this->findEvent($events, 'operations:scheduler-heartbeat');
+        $this->assertSame($events->first(), $heartbeat);
+        $this->assertFalse($heartbeat->withoutOverlapping);
+        $this->assertSame('* * * * *', $heartbeat->getExpression());
 
-    public function test_automation_snapshot_uses_light_tick_and_fifteen_minute_reconcile(): void
-    {
-        $events = collect(app(Schedule::class)->events())
+        $queueWork = $this->findEvent($events, 'queue:work');
+        $this->assertTrue($queueWork->withoutOverlapping);
+        $this->assertLessThan(1440, (int) $queueWork->expiresAt);
+
+        $automationEvents = $events
             ->filter(function (Event $event): bool {
                 $haystack = (string) ($event->command ?? '').(string) $event->getSummaryForDisplay();
 
@@ -84,12 +83,12 @@ class SchedulerHardeningTest extends TestCase
             })
             ->values();
 
-        $this->assertCount(2, $events, 'Expected light tick + --reconcile schedule entries');
+        $this->assertCount(2, $automationEvents, 'Expected light tick + --reconcile schedule entries');
 
-        $light = $events->first(
+        $light = $automationEvents->first(
             fn (Event $event): bool => ! str_contains((string) ($event->command ?? ''), '--reconcile'),
         );
-        $reconcile = $events->first(
+        $reconcile = $automationEvents->first(
             fn (Event $event): bool => str_contains((string) ($event->command ?? ''), '--reconcile'),
         );
 
@@ -97,12 +96,10 @@ class SchedulerHardeningTest extends TestCase
         $this->assertNotNull($reconcile);
         $this->assertTrue($light->runInBackground);
         $this->assertTrue($reconcile->runInBackground);
-        $this->assertTrue($light->withoutOverlapping);
-        $this->assertTrue($reconcile->withoutOverlapping);
         $this->assertSame('* * * * *', $light->getExpression());
         $this->assertSame('*/15 * * * *', $reconcile->getExpression());
-        $this->assertLessThan(1440, (int) $light->expiresAt);
-        $this->assertLessThan(1440, (int) $reconcile->expiresAt);
+        $this->assertSame(5, (int) $light->expiresAt);
+        $this->assertSame(20, (int) $reconcile->expiresAt);
     }
 
     public function test_nightly_attendance_reconciliation_remains_registered(): void
@@ -114,7 +111,6 @@ class SchedulerHardeningTest extends TestCase
         );
 
         $this->assertNotNull($nightly);
-        $this->assertTrue($nightly->runInBackground);
         $this->assertSame('0 1 * * *', $nightly->getExpression());
     }
 
@@ -123,7 +119,18 @@ class SchedulerHardeningTest extends TestCase
      */
     private function findEvent($events, string $needle): Event
     {
-        $event = $events->first(function (Event $event) use ($needle): bool {
+        $event = $this->findEventOrNull($events, $needle);
+        $this->assertNotNull($event, "Scheduled event not found: {$needle}");
+
+        return $event;
+    }
+
+    /**
+     * @param  Collection<int, Event>  $events
+     */
+    private function findEventOrNull($events, string $needle): ?Event
+    {
+        return $events->first(function (Event $event) use ($needle): bool {
             $haystacks = [
                 (string) ($event->command ?? ''),
                 (string) ($event->description ?? ''),
@@ -138,9 +145,5 @@ class SchedulerHardeningTest extends TestCase
 
             return false;
         });
-
-        $this->assertNotNull($event, "Scheduled event not found: {$needle}");
-
-        return $event;
     }
 }

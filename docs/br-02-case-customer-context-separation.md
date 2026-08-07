@@ -1,10 +1,10 @@
 # BR-02 — Separate Case Context from Customer Context
 
-**Status:** Architecture Decision (design only — no implementation in this document)  
+**Status:** Architecture Decision — identity naming Phase 1 implemented (dual-column + dual-write); Phase 2–3 tracked below  
 **Priority:** P1 platform integrity  
 **Audience:** Product, engineering, AI/IRA, CRM roadmap  
-**Related:** Production cross-order investigation (SC20839 / RD3465668 ↔ RD3465378), [IRA v2 Intelligence Pipeline](ira-v2-intelligence-pipeline.md), Customer 360 drawer  
-**Last updated:** 2026-07-29
+**Related:** Production cross-order investigation (SC20839 / RD3465668 ↔ RD3465378), [IRA v2 Intelligence Pipeline](ira-v2-intelligence-pipeline.md), Customer 360 drawer, [Master Architecture §4](radium-desk-v2-master-architecture.md#4--data-ownership)  
+**Last updated:** 2026-08-07
 
 ---
 
@@ -36,8 +36,8 @@ flowchart TB
 
   Route --> Resolver
 
-  Resolver --> CaseCtx["CaseContext<br/>incident_id + order_id"]
-  Resolver --> OrderCtx["OrderContext<br/>order_id"]
+  Resolver --> CaseCtx["CaseContext<br/>incident_id + order_record_id"]
+  Resolver --> OrderCtx["OrderContext<br/>business_order_id"]
   Resolver --> DeviceCtx["DeviceContext<br/>serial / device_model_id"]
   Resolver --> CustCtx["CustomerContext<br/>phone + email identity<br/>OPTIONAL / EXPLICIT"]
 
@@ -73,7 +73,7 @@ flowchart TB
 
 #### CASE SCOPE (authoritative)
 
-Contains **only** artifacts keyed by `incident_id` and/or the incident’s `order_id`:
+Contains **only** artifacts keyed by `incident_id` and/or the incident’s `order_record_id` (FK → `orders.id`):
 
 - Current order + service case
 - Current device snapshot (as attached to this order)
@@ -515,3 +515,109 @@ Do **not** start with a big-bang rewrite of `Customer360Service`. Introduce `Con
 
 **Adopt BR-02:** Case Context is authoritative; Customer Context is explicit historical reference.  
 Eliminate silent `customer_phone` / `customer_email` joins from Case/IRA paths behind flags, in the order: Timeline → Health → IRA → History panel → Inbound routing → Schema.
+
+---
+
+## 15. Order / Incident identity naming
+
+### 15.1 Problem
+
+Production investigations repeatedly confused:
+
+| Column | Meaning | Example |
+|--------|---------|---------|
+| `orders.id` | Internal PK | `29006` |
+| `orders.order_id` | Business order ID | `RD3478853` |
+| `incidents.order_id` (legacy) | **FK → `orders.id`** — not the business ID | `29006` |
+
+Bare `order_id` in code/docs/logs is ambiguous. Prefer qualified names.
+
+### 15.2 Glossary (canonical)
+
+| Preferred name | Storage | Meaning |
+|----------------|---------|---------|
+| `order_record_id` | `incidents.order_record_id` → `orders.id` | Internal order record FK |
+| `business_order_id` | `orders.order_id` | External / display ID (`RD…`, `INQ-…`) |
+| `orders.id` | PK | Same numeric value as `order_record_id` when linked |
+
+**Never** use bare `order_id` in new architecture text without saying which of the above it means.
+
+**Keep unchanged forever:** `orders.order_id` as the sole business identifier (Cashfree webhook `data.order.order_id`, RadiumBox CLI `--order=`, Customer360 display).
+
+### 15.3 Target schema (incidents)
+
+```text
+orders
+-------
+id                 (internal PK)
+order_id           (business ID — unchanged)
+
+incidents
+---------
+order_record_id    (FK → orders.id)   ← preferred
+order_id           (legacy FK, dual-written until Phase 3)
+```
+
+Child tables (`refund_requests.order_id`, email, WhatsApp, etc.) still use `order_id` as FK → `orders.id`. Same rename pattern can follow later; **out of scope for Phase 1–2**.
+
+### 15.4 Zero-downtime migration plan
+
+```mermaid
+flowchart LR
+  P1["Phase1 dual-column dual-write"]
+  P2["Phase2 app cutover batches"]
+  P3["Phase3 drop legacy column"]
+  P1 --> P2 --> P3
+```
+
+#### Phase 1 — Additive + dual-write (implemented)
+
+1. Add `incidents.order_record_id` (nullable → backfill → NOT NULL + FK CASCADE).
+2. **Keep** `incidents.order_id` and its FK.
+3. `Incident` model: `order()` uses `order_record_id`; `saving` syncs `order_id` ↔ `order_record_id`.
+4. High-traffic writers set both columns.
+5. Legacy mass-assignment `'order_id' => $order->id` continues to work.
+
+#### Phase 2 — Application cutover (follow-up PRs; not destructive)
+
+| Batch | Surfaces | Example files |
+|-------|----------|---------------|
+| 2a | Cashfree / intake | `CashfreeWebhookProcessorService`, `QuickServiceRequestService`, `InquiryOrderLinkService`, `LegacyOrderImportService` |
+| 2b | Ready Queue / assignment | `ServiceCaseAssignmentEligibilityService`, `ServiceCaseAssignmentService`, Ready Queue strategies, `OrderTransactionService` |
+| 2c | Customer360 / workspace | Customer360 presenters, `WorkspaceContextResolver`, workspace `*Request` classes |
+| 2d | Finance / Commercial / Refunds | `OrderPaymentJournalService` (incident side), `CommercialServiceRestorationService` / Controller, refund listing |
+| 2e | Raw SQL / reports | `UniversalSearchService`, `TeamActivityIncidentResolver`, `AutomationOperationsSnapshotService`, `IncidentListingQuery` (param naming) |
+| 2f | Forms / API | `StoreIncidentRequest` / `UpdateIncidentRequest` / Bonvoice CTC — accept `order_record_id` with fallback to `order_id`; emit both during deprecation |
+
+Request validation today already means **internal PK** (`exists:orders,id`). Keep that contract; prefer `order_record_id` in new code.
+
+#### Phase 3 — Drop legacy name (only when safe)
+
+Gates before `DROP COLUMN incidents.order_id`:
+
+- Code search / CI: no new writers that set only `incidents.order_id`
+- One full release with dual-write + Phase 2 read cutover green
+- Raw SQL joins updated to `order_record_id`
+
+**Do not execute Phase 3 until gates pass.**
+
+### 15.5 Risks
+
+| Risk | Mitigation |
+|------|------------|
+| Dual columns diverge | Model `saving` hook syncs both; writers dual-write |
+| Raw SQL still uses `incidents.order_id` | Safe while columns equal; migrate in batch 2e |
+| External clients send `order_id` | Keep accepting legacy request key through Phase 2 |
+| Shared-hosting ALTER | Additive nullable column + backfill before NOT NULL / FK |
+| Child-table confusion remains | Document pattern; do not mass-rename in Phase 1 |
+
+### 15.6 Rollback
+
+| Step | Action |
+|------|--------|
+| Phase 1 code | Revert model dual-write + writers; leave `order_record_id` (harmless) or drop **only** `order_record_id` |
+| Phase 1 migration `down` | Drop FK + `order_record_id`; `incidents.order_id` remains source of truth |
+| Phase 2 | Revert app PRs; dual-write still keeps columns equal |
+| Phase 3 (future) | Re-add `order_id`, backfill from `order_record_id`, restore dual-write before any drop |
+
+Never drop or rename `orders.order_id` (business ID) as part of this work.

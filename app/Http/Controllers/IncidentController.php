@@ -63,8 +63,13 @@ class IncidentController extends Controller
 
     public function store(StoreIncidentRequest $request): RedirectResponse
     {
+        $validated = $request->validated();
+        $orderRecordId = (int) ($validated['order_record_id'] ?? $validated['order_id']);
+
         $incident = Incident::query()->create([
-            ...$request->validated(),
+            ...$validated,
+            'order_id' => $orderRecordId,
+            'order_record_id' => $orderRecordId,
             'reference_no' => $this->referenceService->generate(),
             'status' => $request->enum('status', IncidentStatus::class) ?? IncidentStatus::Open,
             'created_by' => $request->user()->id,
@@ -144,10 +149,19 @@ class IncidentController extends Controller
 
     public function update(UpdateIncidentRequest $request, Incident $incident): RedirectResponse
     {
-        $incident->update([
-            ...$request->validated(),
+        $validated = $request->validated();
+        $payload = [
+            ...$validated,
             'updated_by' => $request->user()->id,
-        ]);
+        ];
+
+        if (array_key_exists('order_id', $validated) || array_key_exists('order_record_id', $validated)) {
+            $orderRecordId = (int) ($validated['order_record_id'] ?? $validated['order_id']);
+            $payload['order_id'] = $orderRecordId;
+            $payload['order_record_id'] = $orderRecordId;
+        }
+
+        $incident->update($payload);
 
         return redirect()
             ->route('incidents.show', $incident)

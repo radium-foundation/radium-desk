@@ -21,7 +21,7 @@ return [
 
     'appointment_reminders' => [
         'enabled' => (bool) env('TEAM_TELEGRAM_APPOINTMENT_REMINDERS_ENABLED', true),
-        'schedule_interval_minutes' => max(1, (int) env('TEAM_TELEGRAM_APPOINTMENT_REMINDERS_INTERVAL', 1)),
+        'schedule_interval_minutes' => max(1, (int) env('TEAM_TELEGRAM_APPOINTMENT_REMINDERS_INTERVAL', 5)),
         'role_thresholds_minutes' => [
             'default' => [30, 10, 0],
             'support_specialist' => [30, 10, 0],
