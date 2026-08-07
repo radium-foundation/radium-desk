@@ -1,12 +1,12 @@
 # P0 Assign Reference — Production CPU Investigation
 
-**Status:** Investigate only (no code changes)  
+**Status:** Investigation complete → **Phase 9 implemented** (batch coalescing)  
 **Date:** 2026-08-07  
 **Host:** `desk.radiumbox.com` via `tools/config.sh`  
-**Method:** Code path audit + production `audit_logs` + `queue-worker.log`  
+**Method:** Code path audit + production `audit_logs` + `queue-worker.log` + Phase 9 local tests  
 **Canvas:** [`p0-assign-reference-cpu-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-assign-reference-cpu-investigation.canvas.tsx)
 
-Related: [p0-production-cpu-request-inventory.md](./p0-production-cpu-request-inventory.md) · [p0-production-remeasure-after-optimizations.md](./p0-production-remeasure-after-optimizations.md)
+Related: [p0-production-cpu-request-inventory.md](./p0-production-cpu-request-inventory.md) (Phase 9) · [p0-production-remeasure-after-optimizations.md](./p0-production-remeasure-after-optimizations.md)
 
 ---
 
@@ -14,9 +14,11 @@ Related: [p0-production-cpu-request-inventory.md](./p0-production-cpu-request-in
 
 CPU spikes immediately after Assign Reference (especially batch) are **caused by this action**, not by Customer360 / RadiumBox / Bonvoice.
 
-**#1 Assign-attributable consumer:** `SendServiceReferenceDriverGuideJob` — **5–8s wall per order**, ~**1:1** with every successful assign (598 assigns → 597 driver guides in last 12h). Last 200 queue DONE lines: **119 DriverGuide (59%)**.
+**Pre–Phase 9 #1 Assign-attributable consumer:** `SendServiceReferenceDriverGuideJob` — **5–8s wall per order**, ~**1:1** with every successful assign (598 assigns → 597 driver guides in last 12h). Last 200 queue DONE lines: **119 DriverGuide (59%)**.
 
-**#2 Sync amplifier:** batch `assignTransactionId` loop closes every open case, forgets the operator dashboard snapshot on each close, dirties automation Health+Validation (full rebuild on next cron), then renders N row Blades + recomputes KPIs + fans out `ReferenceNumbersUpdated`.
+**Pre–Phase 9 #2 Sync amplifier:** batch `assignTransactionId` loop closes every open case, forgets the operator dashboard snapshot on each close, dirties automation Health+Validation (full rebuild on next cron), then renders N row Blades + recomputes KPIs + fans out `ReferenceNumbersUpdated`.
+
+**Phase 9:** Batch path now coalesces DriverGuide → **1 job**, snapshot forget → **1×**, automation dirty → **1×**, notifications → **1 flush pass** (same per-order notification count). Single-assign path unchanged. See [Phase 9 in inventory](./p0-production-cpu-request-inventory.md#phase-9--batch-assign-reference-coalescing-implemented).
 
 ---
 
@@ -250,6 +252,25 @@ No `Event::dispatch` domain event for assignment.
 
 ---
 
+## Phase 9 — Before / after (35-order batch)
+
+| Metric | Before | After (Phase 9) |
+|--------|-------:|----------------:|
+| DriverGuide queue jobs | 35 | **1** (`SendServiceReferenceDriverGuideBatchJob`) |
+| Snapshot forgets (closes) | ≈35+ | **1** (+ ≤1 broadcast) |
+| Automation dirty marks | ≈35+ | **1** |
+| Notification flush passes | 35 afterCommit | **1** (same DB notification count) |
+| HTTP responses | 1 | **1** |
+| Audits / commercial / close | — | **preserved** |
+
+Production HTTP wall remeasure pending deploy. Local: `AssignReferencePhase9PerformanceTest` (8 orders) — coalesce asserts + &lt;15s HTTP budget.
+
+### Rollback
+
+Revert Phase 9 files listed in [inventory Phase 9](./p0-production-cpu-request-inventory.md#phase-9--batch-assign-reference-coalescing-implemented). No migrations. Drain in-flight batch DriverGuide jobs if removing the job class.
+
+---
+
 ## Scope note
 
-Investigate only. No optimizations proposed or applied. Background host consumers (`platform:snapshots:warm`, `/dashboard/live`) remain; this report isolates work **caused specifically by Assign Reference**.
+Investigation originally read-only; Phase 9 optimizations applied on the batch path only. Background host consumers (`platform:snapshots:warm`, `/dashboard/live`) remain outside this action’s exclusive attribution.

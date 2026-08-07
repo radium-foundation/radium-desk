@@ -83,7 +83,7 @@ TTL ignored: cron every 60s vs P1 TTL **120s** / P3 TTL **300s**.
 | Item | Why it remains |
 |------|----------------|
 | Cold email_operations / integration_health | Many COUNT/probes when TTL expires |
-| `CACHE_STORE=database` | Cache ops are SQL |
+| `CACHE_STORE=database` | Cache ops are SQL — full inventory: [radium-desk-performance-audit.md §5](./radium-desk-performance-audit.md#5-cache), canvas [`p0-laravel-cache-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-cache-investigation.canvas.tsx) |
 | Production re-benchmark | Confirm after deploy |
 
 ---

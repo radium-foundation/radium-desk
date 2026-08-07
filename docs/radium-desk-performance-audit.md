@@ -344,39 +344,111 @@ Capture: `type`, `key`, `rows`, `Extra` (`Using filesort`, `Using temporary`, `U
 
 ## 5. Cache
 
-### Inventory
+**P0 investigation (2026-08-07):** database cache remains a major hidden MySQL/CPU contributor after Phases 1–8. Investigation only — no implementation.  
+**Canvas:** [`p0-laravel-cache-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-cache-investigation.canvas.tsx)  
+**Companion:** [p0-production-cpu-request-inventory.md](./p0-production-cpu-request-inventory.md) § Laravel Cache.
 
-| Domain | Key / mechanism | TTL | Hit pattern |
-|--------|-----------------|-----|-------------|
-| Operator dashboard | In-memory `DashboardSnapshotStore` | Request | Miss every HTTP request |
-| Email Intake widget | — | — | **Always miss** |
-| Ops CC | `operations:dashboard:latest:v2`, section hashes | 30s | Warm = 0 queries (tested) |
-| Platform Health | `platform:health:snapshot` / overview / overall | 120s | Shared across zones |
-| Operations Snapshot | `executive:metrics:snapshot:{period}:{day}` | 60s | Shared by 8 cards |
-| Platform zones | `platform:zone:{zone}:snapshot` | 120–300s | Warm: `platform:snapshots:warm` every minute |
-| IRA ops | `ira:operations:snapshot-data:{date}` | 30s | Tested warm reuse |
-| C360 SLA / Ops Health | `customer360:sla-metrics:order:{id}`, `…operations-health…` | 120s / 60s | **Unused in current drawer** |
-| Case Intelligence | PHP array | Request | No cross-request |
-| Timeline | Request cache | Request | No cross-request |
-| Performance Intelligence | DB snapshots | Daily | Good for badges |
-| Settings | `rememberForever` | Forever | Good |
-| Default store | `CACHE_STORE` default **`database`** | — | Turns cache into SQL |
+### Current architecture
 
-### Hit ratio (qualitative)
+| Setting | Production / default | Effect |
+|---------|----------------------|--------|
+| `CACHE_STORE` | **`database`** (confirmed 2026-08-07 SSH; `.env.example` default) | Every `Cache::` op = SQL on `cache` / `cache_locks` |
+| Table | `cache` (`key` PK, `value` mediumText, `expiration` index) + `cache_locks` | Large zone/HTML blobs amplify serialize CPU |
+| Prefix | `CACHE_PREFIX` / `{app}-cache-` | All keys prefixed |
+| `serializable_classes` | `false` | Eloquent graphs must not be stored (snapshot v2 is array-encoded) |
+| Policy | `PlatformCachePolicy` | Documents Redis as required for Platform ECC |
+| Call sites | **68** files under `app/` use `Cache::` | No `cache()` helper usage |
+
+### Reads / writes by surface
+
+| Surface | Hot keys | TTL | Est. cache ops | Notes |
+|---------|----------|-----|----------------|-------|
+| Dashboard / live | `operator.dashboard.snapshot:v2`, `slow_scalars:v1`, `incoming_email:dashboard_widget:*`, `app.settings.all` | 15–45s / forever | **3–8 / request** | Post–Phase 1: settings memo → ≤1 SQL for settings; warm live ~7 SQL total |
+| Assign reference | Snapshot forget + automation dirty (via coalescer) | — | **1–3 / batch** | No direct Cache reads; invalidation only |
+| Platform warmers | `platform:zone:*:snapshot`, overviews, `platform:warm:lock:*` | 120–300s / 55s lock | **20–200+ / min** | #1 cache SQL source every minute |
+| Automation snapshot | `automation.operations.snapshot[+meta/dirty]`, Cashfree reliability | 900s / dirty / 120s | **10–40 / min** | Incremental path still pays cache SQL |
+| Notifications | `operator_alert:dispatch:*` on send | 6h | ~0–1 | Poll path negligible |
+| Watchdog | fingerprints + `watchdog:uptime:{date}` | 2d | 10–30 / 5m run | Amortized low |
+| Gmail sync | token + `gmail.sync.metrics.*` increments | EOD | **10–30+ / min** | has+put+increment amplification |
+| Heartbeat / presence | `operations:scheduler:last_run_at`, presence last_* | 3600s | **8–12 / min** | Pure cache SQL every minute |
+
+### Top 20 cache offenders (by estimated SQL under database store)
+
+| # | Key / pattern | TTL | Est. SQL/min | Why |
+|---|---------------|-----|--------------|-----|
+| 1 | `platform:zone:*:snapshot` + overviews | 120–300s | 50–200+ | Every-minute warm has/get/put |
+| 2 | `platform:warm:lock:*` | 55s | 10–30 | Lock churn every warm tick |
+| 3 | `automation.operations.snapshot[+meta]` | 900s | 8–20 | Cron get/put even when incremental |
+| 4 | `automation.operations.snapshot.dirty` | 3600s | 2–6 | Checked every minute + events |
+| 5 | `cashfree:webhook:reliability:dashboard_snapshot` | 120s | 2–8 | Merged into automation tick |
+| 6 | `gmail.sync.metrics.{date}.{mailbox}.{metric}` | EOD | 10–30+ | Write amplification ×5 metrics |
+| 7 | `gmail.access_token.{sha1}` | token−60s | 2–6 | Sync path |
+| 8 | `operator.dashboard.snapshot:v2` | 15–30s | 5–20* | *scales with pollers |
+| 9 | `operator.dashboard.slow_scalars:v1` | 15–60s | 2–10* | Admin live strip |
+| 10 | `incoming_email:dashboard_widget:{date}` | 45s | 2–8* | KPI strip |
+| 11 | `operations:dashboard:latest/sections:*` | 30s | 2–15 | OCC live |
+| 12 | Ops health widgets / advisor / bonvoice | 30–60s | 4–20 | Ops hub |
+| 13 | `operations:scheduler:last_run_at` | 3600s | 2 | Heartbeat |
+| 14 | `operations:presence:last_*` | 3600s | 6–8 | 3 puts/min |
+| 15 | `ira_assignment_batch:*` + flush locks | batch | 5–15 | Every-minute flush |
+| 16 | `app.settings.all` | forever | ≤1/req | Fixed by request memo |
+| 17 | `platform:overall-health` / `health:snapshot` | 120s | 4–20 | Admin strip + warm |
+| 18 | `ira:operations:snapshot-data:{date}` | 30s | 2–10 | Short TTL churn |
+| 19 | `operations:automation-health:aggregation:{date}` | 60s | 1–6 | 60s rebuild window |
+| 20 | Cache health probe key | ephemeral | 3/rebuild | put+get+forget |
+
+### Short TTL churn (≤60s)
+
+Keys that force continuous put/get on database store: operator dashboard snapshot/scalars (15–30s), ops dashboard/sections/health widgets (30s), email widget (45s), IRA snapshot-data (30s), automation-health aggregation / briefing / executive metrics / C360 ops-health (60s).
+
+### Request-scoped vs long-lived
+
+| Prefer request-scoped (or already) | Keep long-lived / shared |
+|------------------------------------|---------------------------|
+| `SettingService` (`$resolved`) | Platform zone + overview snapshots |
+| `DashboardSnapshotStore` | `automation.operations.snapshot` (900s) |
+| `AssignReferenceBatchCoalescer` | Settings / system_settings forever |
+| Case Intelligence / RadiumBox / timeline request caches | OAuth tokens, watchdog fingerprints |
+| Repeated gets of short-TTL ops widgets within one HTTP request | Integration aggregates / daily stats |
+
+### Estimated production impact (cache store only)
+
+| Metric | Estimate | Caveat |
+|--------|----------|--------|
+| MySQL QPS from `cache` / `cache_locks` | **~20–35%** of account SQL after Phases 1–8 | Was much higher pre–SettingService memo on live |
+| Account CPU from cache I/O + serialize | **~8–18%** | Does **not** include cold zone/automation rebuild CPU |
+| Quiet minute baseline | **~15–40** pure cache SQL (heartbeat + presence + locks + skips) | Scales up sharply when zones expire |
+
+### Redis later — likely reduction (no business-logic change)
+
+| Metric | Likely reduction | Concentrates on |
+|--------|------------------|-----------------|
+| SQL | **25–40%** overall; **70–90%** on fresh-warm/skip paths; **5–15%** on cold rebuild minutes | 100% of cache-table queries removed |
+| CPU | **10–20%** account-wide | Warm-skip minutes, poll churn, metric increments |
+| Request latency | **10–25%** cache-heavy admin/ops; **5–15%** warm `/dashboard/live` | Mutations / cold rebuilds smaller gain |
+
+Redis does **not** replace Phase 6 incremental automation or Phase 7 skip-when-fresh — it removes the MySQL tax those paths still pay on hits.
+
+### Recommended roadmap (ops / follow-on — not implemented here)
+
+1. **R0** — Confirm prod `CACHE_STORE` + sample hot keys / value sizes from `cache` table.  
+2. **R1** — Introduce Redis; set `CACHE_STORE=redis` (sessions/queue can stay separate).  
+3. **R2** — After Redis, safely raise short dashboard/ops TTLs where freshness allows.  
+4. **R3** — Batch or reduce `increment` write amplification (Gmail / Cashfree / Bonvoice).  
+5. **R4** — Remeasure warm wall + MySQL QPS; validate 25–40% SQL thesis.
+
+### Hit ratio (qualitative, post Phase 1–8)
 
 | Area | Assessment |
 |------|------------|
-| Ops CC / Platform (if Redis) | Healthy short TTL + warmer |
-| Operator dashboard / Email Intake / C360 IRA | **Effectively 0% cross-request hit** |
-| Duplicate cache | Integration health probed in Ops (30s) and Platform (120s) separately |
-| Stale risk | Low on operator (always fresh); Platform 2–5 min acceptable |
-| Missing cache | Operator KPIs, Email Intake categories, Case Intelligence, communication action statuses |
-
-### Critical ops note
-
-`PlatformCachePolicy` documents: production must use **`CACHE_STORE=redis`**. Database cache makes every zone snapshot read/write SQL and undermines the Platform architecture.
+| Platform / automation (intended) | Healthy TTL + warmer — but hits are still SQL today |
+| Operator dashboard | Cross-request snapshot v2 works (array payload); short TTL → churn |
+| Settings | Forever + request memo — good |
+| Duplicate cache | Ops health (30s) vs Platform integration (120s) still separate |
+| Critical ops note | `PlatformCachePolicy`: production must use **`CACHE_STORE=redis`** |
 
 ---
+
 
 ## 6. Background jobs
 
@@ -655,7 +727,7 @@ Tooltip `position: absolute` inside `position: relative` card is correct; width 
 | Q6 | Dedupe C360 action visibility + serial state | Medium | Low | Customer360 |
 | Q7 | Drop `body_html`/`body_text` from email thread list query; SQL limit | Medium | Low | Customer360 |
 | Q8 | Audit index: cache distinct users/events or derive from users table | Medium | Low | Admin |
-| Q9 | Confirm production `CACHE_STORE=redis` | High | Medium (ops) | Platform / all caches |
+| Q9 | Production confirmed `CACHE_STORE=database` (2026-08-07); switch to Redis when available | High | Medium (ops) | Platform / all caches |
 | Q10 | Batch communication action status into 1–2 audit queries | Medium | Low | Customer360 |
 
 ### Medium (few days)

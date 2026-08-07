@@ -1,10 +1,12 @@
 # P0 Production CPU — Request Inventory & Attribution
 
-**Status:** Phase 1–8 shipped (Phase 8 = event-driven automation snapshot infrastructure)  
+**Status:** Phase 1–9 shipped (Phase 9 = batch Assign Reference coalescing)  
 **Date:** 2026-08-07  
-**Method:** Code inventory + production SSH probes (`tools/config.sh` → `desk.radiumbox.com`) + local warm-path / webhook / watchdog / JS poller / RadiumBox queue / automation snapshot / platform warm tests  
+**Method:** Code inventory + production SSH probes (`tools/config.sh` → `desk.radiumbox.com`) + local warm-path / webhook / watchdog / JS poller / RadiumBox queue / automation snapshot / platform warm / Assign Reference batch tests  
 **Canvas:** [`p0-production-cpu-request-inventory.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-production-cpu-request-inventory.canvas.tsx)  
 **Phase 7 canvas:** [`p0-platform-snapshots-warm-optimization.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-platform-snapshots-warm-optimization.canvas.tsx)  
+**Assign Reference investigation:** [`p0-assign-reference-cpu-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-assign-reference-cpu-investigation.canvas.tsx) · [p0-assign-reference-cpu-investigation.md](./p0-assign-reference-cpu-investigation.md)  
+**Laravel Cache investigation:** [`p0-laravel-cache-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-cache-investigation.canvas.tsx) · [radium-desk-performance-audit.md §5](./radium-desk-performance-audit.md#5-cache)  
 **Post-deploy remeasure:** [p0-production-remeasure-after-optimizations.md](./p0-production-remeasure-after-optimizations.md)  
 **Companion polling matrix:** [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md)
 
@@ -830,6 +832,95 @@ Every 15 min:  automation:snapshot --reconcile
 
 ---
 
+## Phase 9 — Batch Assign Reference coalescing (implemented)
+
+Performance-only. **No UI / business-rule / schema changes.** Commercial gates, audits (`service_reference.assigned`, `transaction.assigned`, case status), finance/lifecycle close behaviour, and one HTTP JSON response are unchanged. Single-order Assign Reference still dispatches `SendServiceReferenceDriverGuideJob` (backward compatible).
+
+Investigation: [p0-assign-reference-cpu-investigation.md](./p0-assign-reference-cpu-investigation.md)
+
+### Root cause
+
+Batch Assign Reference (workspace modal) called `assignTransactionId` once per order. Each order:
+
+| Side effect | Pre–Phase 9 cost |
+|-------------|------------------|
+| `SendServiceReferenceDriverGuideJob` | **1 job × order** (prod 5–8s wall each; 119/200 recent queue DONE) |
+| `DashboardSnapshotStore::forget` | **× closed incidents** (cache DELETE stampede) |
+| `markCaseOrOrderChanged` | **× closed incidents** (Health+Validation dirty → full automation rebuild) |
+| `TransactionCompletedNotification` | afterCommit **per order** (interleaved with next assign) |
+| KPI coalesce begin/flush | **per order** |
+
+Dashboard row HTML + `transactionsAssigned` were already once per batch; HTTP still paid the per-order close/invalidate/notify tax.
+
+### Architecture
+
+```
+assignTransactionIdToIncidents
+  → AssignReferenceBatchCoalescer::begin
+  → beginKpiCoalesce (once)
+  → FOR EACH ORDER: assignTransactionId (audits + close unchanged)
+       coalesce notes snapshot/automation dirty
+       defer driver-guide item + notification (after successful commit)
+  → flushInvalidations (1× snapshot forget + 1× automation dirty)
+  → render rows + classify + transactionsAssigned (unchanged once)
+  → flushCommunications
+       TransactionCompletedNotification × committed orders (same recipients)
+       SendServiceReferenceDriverGuideBatchJob × 1 (ordered items)
+  → flushKpiCoalesce (once)
+```
+
+Single assign path unchanged: per-order DriverGuide job + immediate afterCommit notify.
+
+### Benchmarks (35-order batch)
+
+| Metric | Before (prod 2026-08-07) | After (Phase 9) |
+|--------|--------------------------:|----------------:|
+| Queue jobs (DriverGuide) | **35** single jobs | **1** batch job |
+| DriverGuide queue wall (serial worker) | **~175–280s** (35 × 5–8s) | **~175–280s** work inside 1 job (same sends; less queue overhead) |
+| Snapshot `forget()` during closes | **≈35+** | **1** coalesced (+ ≤1 broadcast) |
+| Automation dirty marks | **≈35+** | **1** |
+| `TransactionCompletedNotification` | 35 afterCommit passes | **1 flush pass** (same notification count) |
+| Dashboard refresh / HTTP response | 1 response; KPI once | **unchanged** (still 1) |
+| HTTP wall (peak-minute span, multi-actor) | **~28–37s** for 35–42 assigns | Local 8-order batch &lt;15s budget (`AssignReferencePhase9PerformanceTest`); prod remeasure pending |
+| Audits / case Closed / commercial gates | preserved | **preserved** |
+
+Local coalescing asserts (8 orders): `automationDirtyCount === 1`, `snapshotForgetCount ≤ 2`, `SendServiceReferenceDriverGuideBatchJob` pushed once with ordered `order_id`s, 16 DB notifications (creator+assignee × 8).
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `app/Services/AssignReferenceBatchCoalescer.php` | Request-scoped coalesce for snapshot/automation/notify/DriverGuide |
+| `app/Jobs/SendServiceReferenceDriverGuideBatchJob.php` | Ordered multi-order DriverGuide on `notifications` queue (`timeout` 900) |
+| `app/Services/OrderTransactionService.php` | Batch begin/flush; defer side effects; single-path unchanged |
+| `app/Services/ServiceCaseStatusService.php` | Note dirty via coalescer when batch active |
+| `app/Providers/AppServiceProvider.php` | Scoped `AssignReferenceBatchCoalescer` |
+| `tests/Feature/AssignReferencePhase9PerformanceTest.php` | Coalesce + single-path regression |
+| `tests/Feature/CommunicationActions/ReferenceNumberAddedDriverInstallationGuideTest.php` | Expect batch job on bulk |
+| `tests/Feature/WorkspaceBatchTransactionActionTest.php` | Per-order failure hook (not `beginKpiCoalesce`) |
+| `tests/Feature/QueueRoutingTest.php` | Batch job queue routing |
+
+### Risks
+
+| Risk | Mitigation |
+|------|------------|
+| Batch DriverGuide job timeout | `$timeout = 900`; per-order idempotency audit skips already-sent |
+| Missed notification if post-processing throws | `finally` flushes deferred communications when clean path did not |
+| Stale dashboard snapshot during loop | Invalidations flushed before row/KPI rebuild |
+| Single-assign regression | Still uses `SendServiceReferenceDriverGuideJob` |
+
+### Rollback notes
+
+1. Revert Phase 9 coalescer / batch job / `OrderTransactionService` + `ServiceCaseStatusService` wiring + tests.
+2. No migrations. In-flight `SendServiceReferenceDriverGuideBatchJob` payloads remain processable if the job class is kept; otherwise drain/fail the `notifications` queue jobs of that type before revert.
+3. Emergency: keep batch job class and route `flushDriverGuides` back to N× `SendServiceReferenceDriverGuideJob::dispatch` without restoring per-close snapshot marks.
+
+### Regression (local)
+
+`AssignReferencePhase9PerformanceTest` + DriverGuide / workspace batch / queue routing / hybrid reference / post-commit stability: **45 passed**.
+
+---
+
 ## Phase 7 — `platform:snapshots:warm` (implemented)
 
 Performance-only. No UI, business-rule, or schema changes. Snapshot payloads unchanged when a warmer runs; incremental path skips rebuild while TTL-fresh caches remain valid.
@@ -908,12 +999,84 @@ After (deduped cold + skip-when-fresh):
 | Item | Why it remains |
 |------|----------------|
 | **Cold email_operations / integration_health** | Still many COUNT/live probes when TTL expires |
-| **`CACHE_STORE=database`** | Warm path Cache::put/get is SQL; Redis would cut further |
+| **`CACHE_STORE=database`** | Warm path Cache::put/get is SQL; Redis would cut further — see § Laravel Cache below |
 | **Production re-benchmark** | Confirm wall + `%CPU` after deploy |
 
 ### Regression (local)
 
 `PlatformSnapshotWarmPerformanceTest` + `ExecutiveMetricsForceMemoTest` + platform hardening / health unification / queue metrics: **26 passed**.
+
+---
+
+## Laravel Cache — hidden SQL / CPU contributor (P0 investigation)
+
+**Date:** 2026-08-07 · **Scope:** investigation only, no code changes  
+**Canvas:** [`p0-laravel-cache-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-cache-investigation.canvas.tsx)  
+**Full architecture + top-20 table:** [radium-desk-performance-audit.md §5](./radium-desk-performance-audit.md#5-cache)
+
+### Verdict
+
+**Yes.** With production `cache.default = database` (SSH 2026-08-07), Laravel Cache is still a major **hidden** MySQL contributor. Phases 1–8 removed the worst *business* stampedes (settings ×6442, Cashfree exists ×25k, warm double-probe). What remains is structural: every intended cache hit is still a `SELECT`/`UPSERT` on the `cache` table, and every-minute warmers + short TTLs keep that traffic continuous.
+
+### Architecture (confirmed)
+
+| Fact | Value |
+|------|------:|
+| `CACHE_STORE` / `cache.default` | `database` |
+| Tables | `cache`, `cache_locks` |
+| `serializable_classes` | `false` |
+| Policy | `PlatformCachePolicy` requires Redis for Platform ECC |
+| Files with `Cache::` | **68** under `app/` |
+
+### Surface matrix (cache ops only)
+
+| Surface | Est. cache ops | Dominant keys |
+|---------|---------------:|---------------|
+| Dashboard / `/dashboard/live` | 3–8 / request | snapshot:v2, slow_scalars, email widget, settings (≤1 after memo) |
+| Assign reference | 1–3 / batch | snapshot forget + automation dirty (coalesced) |
+| Platform `snapshots:warm` | 20–200+ / min | zone snapshots, overviews, warm locks |
+| Automation `snapshot` | 10–40 / min | snapshot + meta + dirty + Cashfree sub-cache |
+| Notifications poll | ~0–1 | alert dedupe on dispatch only |
+| Watchdog (5m) | 10–30 / run | fingerprints, uptime day key |
+| Platform warmers / heartbeat / presence / Gmail / IRA flush | see audit §5 | every-minute baseline |
+
+### Top offenders (summary)
+
+1. **Platform warm** zone/overview/lock keys — largest every-minute cache SQL source  
+2. **Gmail sync metrics increments** — has+put+increment write amplification  
+3. **Automation snapshot** (+ dirty / Cashfree) — cron tax even when incremental  
+4. **Operator / Ops short-TTL keys (15–30s)** — poll-driven churn  
+5. **Heartbeat + presence puts** — pure cache SQL every minute  
+
+Full top-20: [audit §5](./radium-desk-performance-audit.md#5-cache).
+
+### Keys: request-scoped vs long-lived
+
+- **Already request-scoped (keep):** `SettingService::$resolved`, `DashboardSnapshotStore`, assign-reference coalescer, Case Intelligence / RadiumBox / timeline request memos.  
+- **Short TTL → treat as Redis-first (optional later TTL raise):** `operator.dashboard.*` (15–30s), `operations:dashboard:*` / health widgets (30s), `ira:operations:snapshot-data:*` (30s), automation-health aggregation (60s).  
+- **Must stay long-lived shared:** Platform zones/overviews (120–300s), automation snapshot (900s), settings forever, OAuth tokens, watchdog fingerprints, integration daily stats.
+
+### Estimated impact (cache store only)
+
+| Metric | Estimate |
+|--------|----------|
+| Share of MySQL QPS from cache tables | **~20–35%** (post Phase 1–8) |
+| Share of account CPU from cache I/O + serialize | **~8–18%** |
+| Quiet-minute pure cache SQL | **~15–40** (heartbeat + presence + locks + skip checks) |
+
+Does **not** claim ownership of cold `platform:snapshots:warm` zone rebuild CPU — that is business SQL/compute. Database cache means even the *skip* path still hits MySQL.
+
+### Redis later — % reduction without business-logic change
+
+| Metric | Likely reduction |
+|--------|------------------|
+| SQL | **25–40%** overall · **70–90%** on fresh-warm/skip · **5–15%** on cold rebuild minutes |
+| CPU | **10–20%** account-wide |
+| Request latency | **10–25%** cache-heavy admin/ops · **5–15%** warm live |
+
+### Roadmap (not implemented)
+
+R0 confirm hot keys in prod `cache` table → R1 `CACHE_STORE=redis` → R2 raise safe short TTLs → R3 reduce increment amplification → R4 remeasure MySQL QPS / warm wall.
 
 ---
 
@@ -928,6 +1091,7 @@ After (deduped cold + skip-when-fresh):
 - Local Phase 5 RadiumBox queue budget: `tests/Feature/RadiumBox/RadiumBoxQueuePhase5PerformanceTest.php`
 - Local Phase 6 automation snapshot budget: `tests/Feature/AutomationSnapshotPerformanceTest.php`
 - Local Phase 7 platform warm budget: `tests/Feature/Platform/PlatformSnapshotWarmPerformanceTest.php`
+- Local Phase 9 Assign Reference batch: `tests/Feature/AssignReferencePhase9PerformanceTest.php`
 - `app/Http/Controllers/DashboardLiveController.php`
 - `app/Services/DashboardService.php`, `OperatorDashboardCache.php`
 - `app/Models/Incident.php` (`slaStatus` → `SettingService`)
@@ -938,4 +1102,4 @@ After (deduped cold + skip-when-fresh):
 - `app/Services/Platform/Warmers/PlatformSnapshotWarmingService.php`
 - `app/Jobs/RadiumBoxOrderEnrichmentJob.php`, `app/Services/RadiumBox/RadiumBoxOrderEnrichmentService.php`
 - `resources/js/live-dashboard-polling.js`, `live-notifications.js`, `polling/visibility-aware-poller.js`
-- Related: [radium-desk-performance-audit.md](./radium-desk-performance-audit.md), [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md), [p0-cpu-incident-remeasure.md](./p0-cpu-incident-remeasure.md), [radiumbox-api-success-rate-degradation-investigation.md](./radiumbox-api-success-rate-degradation-investigation.md)
+- Related: [radium-desk-performance-audit.md](./radium-desk-performance-audit.md) (§5 Cache P0 update), [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md), [p0-cpu-incident-remeasure.md](./p0-cpu-incident-remeasure.md), [radiumbox-api-success-rate-degradation-investigation.md](./radiumbox-api-success-rate-degradation-investigation.md), canvas [`p0-laravel-cache-investigation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-laravel-cache-investigation.canvas.tsx)

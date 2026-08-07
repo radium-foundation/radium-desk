@@ -16,7 +16,7 @@ use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
 use Tests\TestCase;
@@ -41,7 +41,6 @@ class AssignReferencePhase9PerformanceTest extends TestCase
     public function test_batch_assign_coalesces_driver_guide_snapshot_automation_and_preserves_audits(): void
     {
         Queue::fake();
-        Notification::fake();
 
         $snapshotForgetCount = 0;
         $automationDirtyCount = 0;
@@ -92,7 +91,7 @@ class AssignReferencePhase9PerformanceTest extends TestCase
                 'description' => 'Phase 9 batch.',
                 'status' => IncidentStatus::Open->value,
                 'created_by' => $admin->id,
-                'assigned_to' => $assignee->id,
+                'assigned_to_user_id' => $assignee->id,
             ]);
 
             $incidentIds[] = $incident->id;
@@ -137,7 +136,13 @@ class AssignReferencePhase9PerformanceTest extends TestCase
             Incident::query()->whereIn('id', $incidentIds)->where('status', IncidentStatus::Closed)->count(),
         );
 
-        Notification::assertSentToTimes($assignee, TransactionCompletedNotification::class, 8);
+        $this->assertSame(
+            16,
+            DB::table('notifications')
+                ->where('type', TransactionCompletedNotification::class)
+                ->count(),
+            'Expected 8 orders × (admin creator + assignee) database notifications',
+        );
 
         $this->assertLessThan(
             15_000,

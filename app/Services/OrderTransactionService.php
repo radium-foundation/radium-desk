@@ -107,7 +107,9 @@ class OrderTransactionService
                 app(TeamMemberActivityService::class)
                     ->recordCaseAction($actor);
 
-                $this->scheduleServiceReferenceAssignedCommunication($freshOrder, $transactionId, $actor);
+                if (! $batchActive) {
+                    $this->scheduleServiceReferenceAssignedCommunication($freshOrder, $transactionId, $actor);
+                }
 
                 $this->auditLogService->log(
                     userId: $actor->id,
@@ -131,13 +133,12 @@ class OrderTransactionService
                 $orderId = $freshOrder->id;
                 $actorId = $actor->id;
 
-                DB::afterCommit(function () use ($orderId, $transactionId, $actorId, $broadcast, $batchActive): void {
-                    if ($batchActive) {
-                        $this->batchCoalescer->deferNotification($orderId, $transactionId, $actorId);
+                if ($batchActive) {
+                    // Driver guide + notifications flush once after the full batch loop.
+                    return $freshOrder;
+                }
 
-                        return;
-                    }
-
+                DB::afterCommit(function () use ($orderId, $transactionId, $actorId, $broadcast): void {
                     $committedOrder = Order::query()
                         ->with(['transactionAssigner'])
                         ->find($orderId);
@@ -175,6 +176,12 @@ class OrderTransactionService
             throw $exception;
         }
 
+        if ($batchActive) {
+            // Only after the per-order transaction has committed successfully.
+            $this->batchCoalescer->deferDriverGuide($freshOrder->id, $transactionId, $actor->id);
+            $this->batchCoalescer->deferNotification($freshOrder->id, $transactionId, $actor->id);
+        }
+
         return $freshOrder;
     }
 
@@ -185,12 +192,6 @@ class OrderTransactionService
     ): void {
         $orderId = $order->id;
         $actorId = $actor->id;
-
-        if ($this->batchCoalescer->isActive()) {
-            $this->batchCoalescer->deferDriverGuide($orderId, $serviceReference, $actorId);
-
-            return;
-        }
 
         DB::afterCommit(function () use ($orderId, $serviceReference, $actorId): void {
             SendServiceReferenceDriverGuideJob::dispatch($orderId, $serviceReference, $actorId)

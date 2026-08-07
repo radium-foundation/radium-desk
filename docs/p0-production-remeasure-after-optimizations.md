@@ -202,6 +202,8 @@ Clearing the stuck schedule lock for `automation:snapshot` (`cache_locks` key `f
 
 **Follow-up (Phase 8):** Event-driven dirty-slice infrastructure + every-minute light tick + 15-minute `--reconcile` replaces fingerprint-as-gate. See [p0-production-cpu-request-inventory.md](./p0-production-cpu-request-inventory.md) Phase 8. Short overlap TTLs (5m / 20m) reduce 24h stuck-mutex risk.
 
+**Follow-up (Phase 9):** Batch Assign Reference coalescing — 1× `SendServiceReferenceDriverGuideBatchJob`, 1× snapshot forget, 1× automation dirty, consolidated notifications. See [p0-production-cpu-request-inventory.md](./p0-production-cpu-request-inventory.md) Phase 9 and [p0-assign-reference-cpu-investigation.md](./p0-assign-reference-cpu-investigation.md). Production remeasure of HTTP wall + queue DONE mix pending deploy.
+
 ---
 
 ## Related

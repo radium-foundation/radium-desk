@@ -8,6 +8,7 @@ use App\Enums\WorkspaceContext;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CustomerVerificationService;
 use App\Services\DashboardBroadcastService;
 use App\Services\DashboardService;
 use App\Services\OrderTransactionService;
@@ -317,16 +318,25 @@ class WorkspaceBatchTransactionActionTest extends TestCase
             $incidents[] = $this->createPendingCase($admin, (string) $index)['incident'];
         }
 
-        $beginKpiCoalesceCalls = 0;
+        // Phase 9: beginKpiCoalesce runs once per batch, so simulate a per-order failure
+        // on the commercial/verification gate (still inside assignTransactionId).
+        $assertCalls = 0;
+        $realVerification = app(CustomerVerificationService::class);
 
-        $this->partialMock(DashboardBroadcastService::class, function ($mock) use (&$beginKpiCoalesceCalls): void {
-            $mock->shouldReceive('beginKpiCoalesce')->andReturnUsing(function () use (&$beginKpiCoalesceCalls): void {
-                $beginKpiCoalesceCalls++;
+        $this->mock(CustomerVerificationService::class, function ($mock) use (&$assertCalls, $realVerification): void {
+            $mock->shouldReceive('assertCanCompleteService')
+                ->andReturnUsing(function (Order $order, User $actor) use (&$assertCalls, $realVerification): void {
+                    $assertCalls++;
 
-                if ($beginKpiCoalesceCalls === 34) {
-                    throw new RuntimeException('Simulated broadcast failure on order 34');
-                }
-            });
+                    if ($assertCalls === 34) {
+                        throw new RuntimeException('Simulated broadcast failure on order 34');
+                    }
+
+                    $realVerification->assertCanCompleteService($order, $actor);
+                });
+
+            $mock->shouldReceive('canCompleteService')
+                ->andReturnUsing(fn (Order $order): bool => $realVerification->canCompleteService($order));
         });
 
         $incidentIds = array_map(fn (Incident $incident): int => $incident->id, $incidents);
