@@ -51,7 +51,17 @@ print_success "Frontend build completed"
 # --- Remote deployment ---
 
 print_warning "Fetching latest code and tags on remote..."
-ssh_exec "cd '$REMOTE_PROJECT' && git fetch origin --prune --force && git fetch origin --tags --force && git pull origin '$DEFAULT_BRANCH'"
+# Runtime Platform Health heartbeats were briefly tracked; discard local mods so
+# git pull cannot fail with "local changes would be overwritten" on that path.
+# After the untrack commit lands, the file is gitignored and recreated by the app.
+ssh_exec "cd '$REMOTE_PROJECT' && \
+  HB='storage/framework/platform-health/platform-health-heartbeats.json' && \
+  if git ls-files --error-unmatch \"\$HB\" >/dev/null 2>&1; then \
+    git restore --source=HEAD --worktree -- \"\$HB\" 2>/dev/null \
+      || git checkout HEAD -- \"\$HB\" 2>/dev/null \
+      || true; \
+  fi && \
+  git fetch origin --prune --force && git fetch origin --tags --force && git pull origin '$DEFAULT_BRANCH'"
 print_success "Remote git pull completed"
 
 print_warning "Writing release snapshot (version, build, deployed_at)..."

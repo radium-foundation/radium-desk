@@ -109,7 +109,7 @@ Build frontend assets and deploy the application to production.
 **Deployment steps:**
 
 1. Run `npm run build` locally
-2. `git pull origin main` on the remote Laravel project
+2. On the remote Laravel project: if the legacy tracked Platform Health heartbeat file is still in the index, discard local runtime edits to it, then `git pull origin main` (heartbeat JSON is runtime-only and gitignored under `storage/framework/platform-health/`)
 3. `composer install --no-dev --optimize-autoloader`
 4. `php artisan migrate --force`
 5. Sync `public/build/` to **both** `REMOTE_PUBLIC/build/` (web assets) and `REMOTE_PROJECT/public/build/` (Laravel manifest)
@@ -230,3 +230,4 @@ tools/
 | Health check fails | Check remote `.env` (`APP_URL`), web server config, `INDEX_VENDOR_PATH` / `INDEX_BOOTSTRAP_PATH`, and `desk logs` |
 | Stale CSS/JS after deploy | Ensure `public/build/` is synced to both `REMOTE_PUBLIC/build/` and `REMOTE_PROJECT/public/build/`; run `desk cache` |
 | Permission errors on storage | Fix ownership/permissions on the server for `storage/` and `bootstrap/cache/` |
+| `git pull` fails on `platform-health-heartbeats.json` | Runtime file; discard with `git restore --source=HEAD --worktree -- storage/framework/platform-health/platform-health-heartbeats.json` (deploy does this automatically when the path is still tracked), then pull again. After the untrack commit, the path is gitignored under `storage/framework/platform-health/` |
