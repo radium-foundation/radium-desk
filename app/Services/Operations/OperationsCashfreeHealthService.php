@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Cache;
 
 class OperationsCashfreeHealthService
 {
-    private const CACHE_KEY = 'operations:cashfree-health';
+    public const CACHE_KEY = 'operations:cashfree-health';
 
     private const CACHE_TTL_SECONDS = 30;
 
@@ -20,6 +20,22 @@ class OperationsCashfreeHealthService
         private readonly CashfreeIntegrityReadModel $integrityReadModel,
         private readonly CashfreeHealthService $cashfreeHealthService,
     ) {}
+
+    /**
+     * Cache-only read for callers that must never trigger a rebuild (e.g. IRA highlights).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function cachedWidget(): ?array
+    {
+        $cached = Cache::get(self::CACHE_KEY);
+
+        if (! is_array($cached)) {
+            return null;
+        }
+
+        return $this->hydrateWidgetFromCache($cached);
+    }
 
     /**
      * @return array<string, mixed>

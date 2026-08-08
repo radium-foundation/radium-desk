@@ -141,17 +141,17 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
                 : "{$warning} cases being monitored";
         }
 
-        $cashfreeHealth = $this->cashfreeHealthService->widget();
+        $cashfreeHealth = $this->cashfreeHealthService->cachedWidget();
 
-        if (($cashfreeHealth['is_healthy'] ?? false) === true) {
-            if (($cashfreeHealth['historical_resolved_failures'] ?? 0) > 0) {
-                $highlights[] = sprintf(
-                    'Cashfree healthy. %d historical failure(s) archived.',
-                    $cashfreeHealth['historical_resolved_failures'],
-                );
-            }
-        } else {
-            if (($cashfreeHealth['paid_without_desk_order'] ?? 0) > 0) {
+        if ($cashfreeHealth !== null) {
+            if (($cashfreeHealth['is_healthy'] ?? false) === true) {
+                if (($cashfreeHealth['historical_resolved_failures'] ?? 0) > 0) {
+                    $highlights[] = sprintf(
+                        'Cashfree healthy. %d historical failure(s) archived.',
+                        $cashfreeHealth['historical_resolved_failures'],
+                    );
+                }
+            } elseif (($cashfreeHealth['paid_without_desk_order'] ?? 0) > 0) {
                 $highlights[] = sprintf(
                     '%d paid Cashfree payment(s) missing Desk orders.',
                     $cashfreeHealth['paid_without_desk_order'],

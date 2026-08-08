@@ -124,7 +124,7 @@ class CashfreeIntegrityReadModelTest extends TestCase
     {
         $this->seedUnresolvedFailedPayment();
 
-        $cacheKey = 'operations:cashfree-health';
+        $cacheKey = OperationsCashfreeHealthService::CACHE_KEY;
         $this->assertFalse(Cache::has($cacheKey));
 
         $first = app(OperationsCashfreeHealthService::class)->widget(useCache: true);
