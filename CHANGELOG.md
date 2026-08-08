@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.14 — 2026-08-08 — IRA Cashfree Cache-Read Briefing
+
+- Made IRA Operations Live Cashfree health highlights cache-read-only so normal briefing never rebuilds Cashfree integrity.
+- Preserved on-demand Cashfree health widget rebuild behavior for full/health surfaces.
+
 ## 4.0.13 — 2026-08-08 — BonVoice Outgoing Retirement
 
 - Retired Desk-initiated BonVoice click-to-call and outbound live-status functionality.
