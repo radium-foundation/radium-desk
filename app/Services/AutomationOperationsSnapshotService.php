@@ -30,6 +30,13 @@ class AutomationOperationsSnapshotService
      */
     public const TTL_SECONDS = 900;
 
+    /**
+     * Periodic hard full rebuild during --reconcile even when dirty is empty and
+     * the cheap fingerprint matches. Covers known fingerprint gaps (duplicate-serial
+     * set composition, sync-store-only changes, queue row contents).
+     */
+    public const HARD_RECONCILE_SECONDS = 3600;
+
     public function __construct(
         private readonly AutomationOperationsSnapshotBuilder $builder,
         private readonly AutomationOperationsSnapshotInvalidator $invalidator,
@@ -74,6 +81,16 @@ class AutomationOperationsSnapshotService
         $cached = Cache::get(self::CACHE_KEY);
         $meta = Cache::get(self::META_CACHE_KEY);
         $hasCache = is_array($cached) && is_array($meta) && is_array($meta['incident_stubs'] ?? null);
+
+        // Fingerprint-first quiet reconcile: check cheap aggregates BEFORE
+        // activeIncidents() hydration. Dirty / mismatch / hard cadence still rebuild.
+        if ($forceReconcile && $hasCache && $dirtyBefore === []) {
+            $quiet = $this->attemptQuietReconcileSkip($cached, $meta, $dirtyBefore);
+
+            if ($quiet !== null) {
+                return $quiet;
+            }
+        }
 
         if (! $hasCache || $this->incrementalUpdater->shouldFullRebuild($forceReconcile)) {
             return $this->fullRebuild(
@@ -132,8 +149,9 @@ class AutomationOperationsSnapshotService
     }
 
     /**
-     * Cheap content fingerprint — used for reconcile diagnostics / missed-event detection.
-     * No longer the primary gate for skipping rebuilds (event-driven dirty flags are).
+     * Cheap content fingerprint — aggregate change proxies (~6–10 SQL).
+     * Primary gate for quiet --reconcile skip when dirty=[] and fingerprint matches.
+     * Event-driven dirty flags remain the primary gate for light ticks.
      */
     public function contentFingerprint(): string
     {
@@ -205,6 +223,80 @@ class AutomationOperationsSnapshotService
             (string) $outboxFailed,
             (string) $ordersCreated,
         ]));
+    }
+
+    /**
+     * Quiet --reconcile path: reuse cached payload when dirty is empty and the
+     * existing contentFingerprint still matches. Never hydrates activeIncidents().
+     *
+     * @param  array<string, mixed>  $cached
+     * @param  array<string, mixed>  $meta
+     * @param  list<string>  $dirtyBefore
+     * @return array{
+     *     snapshot: AutomationOperationsDashboardData,
+     *     rebuilt: bool,
+     *     mode: string,
+     *     fingerprint: string,
+     *     dirty_slices: list<string>
+     * }|null
+     */
+    private function attemptQuietReconcileSkip(array $cached, array $meta, array $dirtyBefore): ?array
+    {
+        $previousFingerprint = $meta['fingerprint'] ?? null;
+
+        if (! is_string($previousFingerprint) || $previousFingerprint === '') {
+            return null;
+        }
+
+        if ($this->hardReconcileDue($meta)) {
+            return null;
+        }
+
+        $fingerprint = $this->contentFingerprint();
+
+        if ($fingerprint !== $previousFingerprint) {
+            // Missed dirty mark: fall through to fullRebuild (safety net).
+            return null;
+        }
+
+        $snapshot = AutomationOperationsDashboardData::fromCacheArray($cached);
+        $snapshot = $this->incrementalUpdater->mergeCashfreeKpis($snapshot);
+        $snapshot = $this->applyTimeDependentFields($snapshot, $meta['incident_stubs']);
+
+        Cache::put(self::CACHE_KEY, $snapshot->toCacheArray(), self::TTL_SECONDS);
+        Cache::put(self::META_CACHE_KEY, [
+            ...$meta,
+            'fingerprint' => $fingerprint,
+            'last_light_at' => now()->toIso8601String(),
+            'last_mode' => 'reconcile-skip',
+            'last_slices' => [AutomationSnapshotSlice::Cashfree->value],
+        ], self::TTL_SECONDS);
+
+        return [
+            'snapshot' => $snapshot,
+            'rebuilt' => false,
+            'mode' => 'reconcile-skip',
+            'fingerprint' => $fingerprint,
+            'dirty_slices' => $dirtyBefore,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function hardReconcileDue(array $meta): bool
+    {
+        $builtAt = $meta['built_at'] ?? null;
+
+        if (! is_string($builtAt) || $builtAt === '') {
+            return true;
+        }
+
+        try {
+            return Carbon::parse($builtAt)->lte(now()->subSeconds(self::HARD_RECONCILE_SECONDS));
+        } catch (\Throwable) {
+            return true;
+        }
     }
 
     /**

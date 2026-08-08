@@ -28,6 +28,7 @@ class AutomationSnapshotCommand extends Command
 
         $this->info(match ($mode) {
             'reconcile' => 'Automation operations snapshot reconciled (full rebuild).',
+            'reconcile-skip' => 'Automation operations snapshot reconciled (quiet skip; fingerprint matched).',
             'full-rebuild' => 'Automation operations snapshot rebuilt (dirty slices required full pass).',
             default => 'Automation operations snapshot updated incrementally.',
         });

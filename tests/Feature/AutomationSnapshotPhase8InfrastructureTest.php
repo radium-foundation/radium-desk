@@ -81,6 +81,10 @@ class AutomationSnapshotPhase8InfrastructureTest extends TestCase
         $this->artisan('automation:snapshot', ['--reconcile' => true])
             ->assertSuccessful()
             ->expectsOutput('Automation operations snapshot reconciled (full rebuild).');
+
+        $this->artisan('automation:snapshot', ['--reconcile' => true])
+            ->assertSuccessful()
+            ->expectsOutput('Automation operations snapshot reconciled (quiet skip; fingerprint matched).');
     }
 
     public function test_mark_dirty_coalesces_slices(): void
