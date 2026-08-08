@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.10 — 2026-08-08 — Dashboard Broadcast Performance
+
+- Removed synchronous per-recipient KPI rebuilding from Operations dashboard service-case broadcasts.
+- Preserved row and SLA broadcasts while allowing clients to reconcile KPIs through the existing dashboard refresh mechanism.
+- Reduced dashboard broadcast processing from 25–38 seconds to approximately 200ms in the local 12-viewer benchmark.
+
 ## 4.0.9 — 2026-08-07 — Cashfree-First Enrichment
 
 - Implemented Cashfree-first enrichment for paid orders, using webhook order tags to complete eligible orders without RadiumBox lookup.
