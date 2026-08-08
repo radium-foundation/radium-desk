@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.12 — 2026-08-08 — Ready Queue Incremental Updates
+
+- Added incremental Ready Queue count updates for proven case additions and removals without triggering unnecessary full count reconciliation.
+- Added membership-state protection to prevent duplicate or stale Ready Queue count changes across queue switches and authoritative count refreshes.
+- Preserved existing Ably row updates and absolute reconciliation as the safety mechanism.
+
 ## 4.0.11 — 2026-08-08 — Ready Queue Reconcile Performance
 
 - Optimized Ready Queue KPI reconciliation to return counts and KPI data without rebuilding Ready Queue rows.
