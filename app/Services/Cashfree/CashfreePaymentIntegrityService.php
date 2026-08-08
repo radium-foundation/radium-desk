@@ -17,6 +17,19 @@ class CashfreePaymentIntegrityService
 {
     private const LOOKUP_CHUNK_SIZE = 500;
 
+    /**
+     * Minimum columns for successfulPaymentLogsByCfPaymentId().
+     * Integrity classification only needs payload + identity + ordering fields.
+     *
+     * @var list<string>
+     */
+    private const SUCCESSFUL_PAYMENT_HYDRATE_COLUMNS = [
+        'id',
+        'cf_payment_id',
+        'request_payload',
+        'received_at',
+    ];
+
     public function __construct(
         private readonly CashfreeWebhookPayloadParser $payloadParser,
     ) {}
@@ -235,6 +248,7 @@ class CashfreePaymentIntegrityService
         $byPaymentId = collect();
 
         CashfreeWebhookLog::query()
+            ->select(self::SUCCESSFUL_PAYMENT_HYDRATE_COLUMNS)
             ->orderBy('received_at')
             ->orderBy('id')
             ->get()
