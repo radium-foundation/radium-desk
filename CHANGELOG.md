@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.16 — 2026-08-08 — Cashfree Scoped Outbox Processing
+
+- Scoped Cashfree deferred outbox processing to the payment incident instead of draining unrelated global pending jobs.
+- Preserved processing of the payment's three deferred operations, dashboard broadcast, enrichment, and the global cron safety net.
+
 ## 4.0.15 — 2026-08-08 — Scheduler Automation Pending Limit
 
 - Limited automation-pending grace processing per scheduler light-tick so large expired backlogs cannot run unbounded in one minute.
