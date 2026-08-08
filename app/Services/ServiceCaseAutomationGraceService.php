@@ -97,17 +97,22 @@ class ServiceCaseAutomationGraceService
         $this->eligibilityService->evaluateAssignmentEligibility($order->fresh(), $actor);
     }
 
-    public function processExpiredGracePeriods(): int
+    public function processExpiredGracePeriods(?int $limit = null): int
     {
         $processed = 0;
         $broadcasts = app(DashboardBroadcastService::class);
         $broadcasts->beginAssignmentCoalesce();
 
         try {
-            $expiredIds = Incident::query()
+            $query = Incident::query()
                 ->automationGraceExpired()
-                ->orderBy('id')
-                ->pluck('id');
+                ->orderBy('id');
+
+            if ($limit !== null && $limit > 0) {
+                $query->limit($limit);
+            }
+
+            $expiredIds = $query->pluck('id');
 
             foreach ($expiredIds as $incidentId) {
                 try {

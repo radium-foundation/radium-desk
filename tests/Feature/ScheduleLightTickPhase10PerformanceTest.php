@@ -52,4 +52,19 @@ class ScheduleLightTickPhase10PerformanceTest extends TestCase
         $this->assertSame(3, (int) $outbox['parameters']['--limit']);
         $this->assertTrue($outbox['when']);
     }
+
+    public function test_light_tick_wires_configured_automation_pending_limit(): void
+    {
+        config(['scheduler.automation_pending_limit' => 7]);
+
+        $command = $this->app->make(ScheduleLightTickCommand::class);
+        $method = new ReflectionMethod(ScheduleLightTickCommand::class, 'buildSteps');
+        $steps = $method->invoke($command);
+
+        $pending = collect($steps)->firstWhere('command', 'service-cases:process-automation-pending');
+
+        $this->assertNotNull($pending);
+        $this->assertSame(7, (int) $pending['parameters']['--limit']);
+        $this->assertTrue($pending['when']);
+    }
 }

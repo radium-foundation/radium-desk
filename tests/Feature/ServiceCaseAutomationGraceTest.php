@@ -338,7 +338,99 @@ class ServiceCaseAutomationGraceTest extends TestCase
 
         $this->artisan('service-cases:process-automation-pending')
             ->assertSuccessful()
-            ->expectsOutput('Processed 1 automation-pending service case(s).');
+            ->expectsOutput('Processed 1 automation-pending service case(s).')
+            ->expectsOutput('Picked up 0 unassigned Ready Queue service case(s).');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_expired_grace_processing_respects_positive_limit(): void
+    {
+        $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        $actor = User::factory()->create();
+        $assignment = app(ServiceCaseAssignmentService::class);
+
+        $incidents = collect([
+            $this->createIncidentWithoutSerial($actor),
+            $this->createIncidentWithoutSerial($actor),
+            $this->createIncidentWithoutSerial($actor),
+        ]);
+
+        foreach ($incidents as $incident) {
+            $assignment->assignOnCreate($incident, $actor);
+        }
+
+        Carbon::setTestNow(now()->addSeconds(61));
+
+        $service = app(ServiceCaseAutomationGraceService::class);
+        $this->assertSame(2, $service->processExpiredGracePeriods(2));
+
+        $stillPending = Incident::query()
+            ->whereIn('id', $incidents->pluck('id'))
+            ->whereNotNull('automation_pending_until')
+            ->count();
+
+        $this->assertSame(1, $stillPending);
+        $this->assertSame(1, $service->processExpiredGracePeriods());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_expired_grace_processing_without_limit_processes_all_expired(): void
+    {
+        $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        $actor = User::factory()->create();
+        $assignment = app(ServiceCaseAssignmentService::class);
+
+        $incidents = collect([
+            $this->createIncidentWithoutSerial($actor),
+            $this->createIncidentWithoutSerial($actor),
+            $this->createIncidentWithoutSerial($actor),
+        ]);
+
+        foreach ($incidents as $incident) {
+            $assignment->assignOnCreate($incident, $actor);
+        }
+
+        Carbon::setTestNow(now()->addSeconds(61));
+
+        $this->assertSame(3, app(ServiceCaseAutomationGraceService::class)->processExpiredGracePeriods());
+
+        $this->assertSame(0, Incident::query()
+            ->whereIn('id', $incidents->pluck('id'))
+            ->whereNotNull('automation_pending_until')
+            ->count());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_process_automation_pending_command_accepts_limit_and_runs_ready_queue_pickup(): void
+    {
+        $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        $actor = User::factory()->create();
+        $assignment = app(ServiceCaseAssignmentService::class);
+
+        $incidents = collect([
+            $this->createIncidentWithoutSerial($actor),
+            $this->createIncidentWithoutSerial($actor),
+            $this->createIncidentWithoutSerial($actor),
+        ]);
+
+        foreach ($incidents as $incident) {
+            $assignment->assignOnCreate($incident, $actor);
+        }
+
+        Carbon::setTestNow(now()->addSeconds(61));
+
+        $this->artisan('service-cases:process-automation-pending', ['--limit' => 2])
+            ->assertSuccessful()
+            ->expectsOutput('Processed 2 automation-pending service case(s).')
+            ->expectsOutput('Picked up 0 unassigned Ready Queue service case(s).');
+
+        $this->assertSame(1, Incident::query()
+            ->whereIn('id', $incidents->pluck('id'))
+            ->whereNotNull('automation_pending_until')
+            ->count());
 
         Carbon::setTestNow();
     }

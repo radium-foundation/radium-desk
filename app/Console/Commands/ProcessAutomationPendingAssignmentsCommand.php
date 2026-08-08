@@ -9,7 +9,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
-#[Signature('service-cases:process-automation-pending')]
+#[Signature('service-cases:process-automation-pending {--limit= : Maximum expired cases to process this run}')]
 #[Description('Assign service cases whose automation-pending grace period has expired')]
 class ProcessAutomationPendingAssignmentsCommand extends Command
 {
@@ -22,10 +22,16 @@ class ProcessAutomationPendingAssignmentsCommand extends Command
 
     public function handle(): int
     {
-        $processed = $this->automationGraceService->processExpiredGracePeriods();
+        $limitOption = $this->option('limit');
+        $limit = is_numeric($limitOption) && (int) $limitOption > 0
+            ? (int) $limitOption
+            : null;
+
+        $processed = $this->automationGraceService->processExpiredGracePeriods($limit);
 
         Log::info('Automation pending grace period processing completed.', [
             'processed' => $processed,
+            'limit' => $limit,
         ]);
 
         $this->info(sprintf('Processed %d automation-pending service case(s).', $processed));

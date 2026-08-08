@@ -63,11 +63,12 @@ class ScheduleLightTickCommand extends Command
     private function buildSteps(): array
     {
         $outboxLimit = max(1, (int) config('scheduler.outbox_process_limit', 50));
+        $automationPendingLimit = max(1, (int) config('scheduler.automation_pending_limit', 25));
 
         return [
             [
                 'command' => 'service-cases:process-automation-pending',
-                'parameters' => [],
+                'parameters' => ['--limit' => $automationPendingLimit],
                 'log' => 'automation-pending-assignments.log',
                 'when' => (bool) config('service_case_assignment.automation_grace_period_enabled', true),
             ],
