@@ -171,7 +171,8 @@ class CashfreePaymentIntegrityTest extends TestCase
         Queue::fake();
 
         $this->partialMock(OutboxProcessorService::class, function ($mock): void {
-            $mock->shouldReceive('process')
+            $mock->shouldReceive('process')->never();
+            $mock->shouldReceive('processAggregate')
                 ->once()
                 ->andThrow(new RuntimeException('outbox processor unavailable'));
         });
