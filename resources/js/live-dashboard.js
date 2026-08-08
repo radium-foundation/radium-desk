@@ -589,9 +589,15 @@ const flushPendingDashboardRefresh = async () => {
     });
 };
 
-const buildLiveRefreshQuery = (pageRoot, loadedCount = 0) => buildDashboardLiveQuery(pageRoot, {
-    limit: loadedCount > 0 ? loadedCount : undefined,
-});
+const buildLiveRefreshQuery = (pageRoot, loadedCount = 0, options = {}) => {
+    const kpisOnly = options.kpisOnly === true;
+
+    return buildDashboardLiveQuery(pageRoot, {
+        ...(kpisOnly
+            ? { kpis_only: 1 }
+            : { limit: loadedCount > 0 ? loadedCount : undefined }),
+    });
+};
 
 const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
     const { kpisOnly = false, force = false, resetPagination = false } = options;
@@ -683,7 +689,7 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
             : Number(
                 pageRoot.querySelector('.dashboard-service-cases-card')?.dataset.serviceCasesLoaded ?? 0,
             );
-        const query = buildLiveRefreshQuery(pageRoot, loadedCount);
+        const query = buildLiveRefreshQuery(pageRoot, loadedCount, { kpisOnly });
         requestUrl = `${liveUrl}?${query.toString()}`;
 
         logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_request_started', {

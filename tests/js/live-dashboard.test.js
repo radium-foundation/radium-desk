@@ -465,6 +465,11 @@ describe('live dashboard refresh session integration', () => {
             kpisOnly: true,
         });
 
+        expect(fetch).toHaveBeenCalledWith(
+            expect.stringContaining('kpis_only=1'),
+            expect.any(Object),
+        );
+        expect(fetch.mock.calls[0][0]).not.toContain('limit=');
         expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-reconciled');
         expect(document.querySelector('[data-dashboard-case-filter-count="all"]')?.textContent).toBe('(5)');
         expect(document.querySelector('#service-case-row-10')).not.toBeNull();

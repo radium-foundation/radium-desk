@@ -42,6 +42,7 @@ describe('hybrid KPI reconcile scheduler', () => {
             'hybrid-kpi-reconcile',
             { kpisOnly: true },
         );
+        // live-dashboard maps kpisOnly → query kpis_only=1 (server counts-only short-circuit).
     });
 
     it('coalesces multiple schedules into one reconcile', async () => {

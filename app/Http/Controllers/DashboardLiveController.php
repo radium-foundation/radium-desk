@@ -59,8 +59,6 @@ class DashboardLiveController extends Controller
 
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $operationQueue);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($operationQueue);
-        $pageSize = $this->dashboardService->serviceCasePageSize();
-        $limit = max($pageSize, min($request->integer('limit', $pageSize), 500));
 
         // Read-only live refresh — no transaction (avoids holding a DB connection unnecessarily).
         // Pass assignedTo so liveMetricsFor does not re-resolve workspace/context.
@@ -69,6 +67,48 @@ class DashboardLiveController extends Controller
             assignedToForFilterCounts: $assignedTo,
         );
         $filterCounts = $metrics['service_case_filter_counts'];
+
+        // Hybrid KPI reconcile: counts/KPI strip only — never build Ready Queue row HTML.
+        if ($request->boolean('kpis_only')) {
+            $totalCount = (int) ($filterCounts[$serviceCaseFilter]
+                ?? $filterCounts[$operationQueue]
+                ?? 0);
+
+            return response()->json([
+                'kpi_strip_html' => $metrics['kpi_strip_html'],
+                'next_appointment' => $metrics['next_appointment'],
+                'online_count' => $metrics['online_count'],
+                'online_users' => $metrics['online_users'],
+                'service_case_filter_counts' => $filterCounts,
+                'service_cases_empty' => false,
+                'service_cases_empty_html' => '',
+                'rows' => [],
+                'incident_ids' => [],
+                'total_count' => $totalCount,
+                'has_more' => false,
+                'loaded_count' => 0,
+                'workspace' => $workspace['workspace'],
+                'operation_queue' => $operationQueue,
+                'service_case_filter' => $serviceCaseFilter,
+                'live_scope' => $workspace['live_scope'],
+                'panel_title' => $workspace['panel_title'],
+                'kpis_only' => true,
+                'fast' => [
+                    ...($metrics['fast'] ?? []),
+                    'rows' => [],
+                    'incident_ids' => [],
+                    'total_count' => $totalCount,
+                    'has_more' => false,
+                    'loaded_count' => 0,
+                    'service_cases_empty' => false,
+                    'service_cases_empty_html' => '',
+                ],
+                'slow' => $metrics['slow'] ?? [],
+            ]);
+        }
+
+        $pageSize = $this->dashboardService->serviceCasePageSize();
+        $limit = max($pageSize, min($request->integer('limit', $pageSize), 500));
 
         $serviceCasesPayload = $user->can('incidents.view')
             ? $this->dashboardService->serviceCasesPayload(

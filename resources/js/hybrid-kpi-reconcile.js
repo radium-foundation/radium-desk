@@ -18,6 +18,7 @@ export const scheduleHybridKpiReconcile = (pageRoot) => {
     reconcileTimeoutId = window.setTimeout(() => {
         reconcileTimeoutId = null;
 
+        // kpisOnly → GET /dashboard/live?kpis_only=1 (server skips Ready Queue row HTML).
         void refreshDashboard(pageRoot, 'hybrid-kpi-reconcile', { kpisOnly: true });
     }, HYBRID_KPI_RECONCILE_DEBOUNCE_MS);
 };
