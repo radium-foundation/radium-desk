@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.17 — 2026-08-08 — RadiumBox Recover-Sync Scan Optimization
+
+- Reduced unnecessary RadiumBox recover-sync candidate scanning by filtering out orders already beyond automatic recovery limits.
+- Preserved stale-PENDING handling and the existing recovery, retry, enrichment, and scheduler behavior.
+
 ## 4.0.16 — 2026-08-08 — Cashfree Scoped Outbox Processing
 
 - Scoped Cashfree deferred outbox processing to the payment incident instead of draining unrelated global pending jobs.
