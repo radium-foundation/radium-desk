@@ -247,7 +247,7 @@ class UserManagementTest extends TestCase
         $this->assertSame('08448423017', $target->fresh()->bonvoice_extension);
     }
 
-    public function test_invalid_click_to_call_mobile_is_rejected_on_create_and_update(): void
+    public function test_invalid_bonvoice_agent_mobile_is_rejected_on_create_and_update(): void
     {
         $admin = $this->createAdmin();
         $target = User::factory()->create([
@@ -277,7 +277,7 @@ class UserManagementTest extends TestCase
         ])->assertSessionHasErrors('bonvoice_extension');
     }
 
-    public function test_user_form_shows_click_to_call_mobile_label_and_help_text(): void
+    public function test_user_form_shows_bonvoice_agent_mobile_label_and_help_text(): void
     {
         $admin = $this->createAdmin();
         $target = User::factory()->create();
@@ -286,11 +286,11 @@ class UserManagementTest extends TestCase
         $this->actingAs($admin)
             ->get(route('users.edit', $target))
             ->assertOk()
-            ->assertSee('Click-to-Call Mobile', false)
+            ->assertSee('BonVoice Agent Mobile', false)
             ->assertSee('Do NOT enter the company DID.', false);
     }
 
-    public function test_users_index_shows_missing_click_to_call_mobile_badge(): void
+    public function test_users_index_shows_missing_bonvoice_agent_mobile_badge(): void
     {
         $admin = $this->createAdmin();
         $missing = User::factory()->create([
@@ -304,7 +304,7 @@ class UserManagementTest extends TestCase
         $this->actingAs($admin)
             ->get(route('users.index'))
             ->assertOk()
-            ->assertSee('Click-to-Call Mobile', false)
+            ->assertSee('BonVoice Agent Mobile', false)
             ->assertSee('badge text-bg-warning', false)
             ->assertSee('Missing', false)
             ->assertSee('no-mobile@test.com', false);

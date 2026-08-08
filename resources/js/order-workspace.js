@@ -1,5 +1,4 @@
 import { guardServiceReferenceAssignment } from './customer-intake';
-import { bindBonvoiceClickToCall } from './bonvoice-click-to-call';
 
 let legacyVerificationModal = null;
 
@@ -75,7 +74,6 @@ export function initOrderWorkspace({ showToast } = {}) {
     }
 
     initOrderWorkspaceTransactionGuard();
-    bindBonvoiceClickToCall(root, { showToast });
 }
 
 const initOrderWorkspaceTransactionGuard = () => {

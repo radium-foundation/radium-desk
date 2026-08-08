@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.13 — 2026-08-08 — BonVoice Outgoing Retirement
+
+- Retired Desk-initiated BonVoice click-to-call and outbound live-status functionality.
+- Preserved incoming BonVoice IVR, call events, live-assist, missed-call recovery, history, and reprocessing.
+- Scoped incoming BonVoice webhook outbox processing to its own aggregate to prevent unrelated outbox work from running during webhook requests.
+
 ## 4.0.12 — 2026-08-08 — Ready Queue Incremental Updates
 
 - Added incremental Ready Queue count updates for proven case additions and removals without triggering unnecessary full count reconciliation.

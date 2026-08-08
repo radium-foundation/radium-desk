@@ -2,9 +2,7 @@
 
 namespace Tests\Unit\Operations;
 
-use App\Enums\BonvoiceClickToCallFailureCode;
 use App\Models\BonvoiceCallEvent;
-use App\Services\Bonvoice\BonvoiceClickToCallMetrics;
 use App\Services\Operations\ProductionEveningHealthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -90,18 +88,12 @@ class ProductionEveningHealthBonvoiceSummaryTest extends TestCase
         $this->assertSame(1, $summary['missed']);
     }
 
-    public function test_evening_health_includes_click_to_call_metrics(): void
+    public function test_evening_health_does_not_include_retired_click_to_call_metrics(): void
     {
-        $metrics = app(BonvoiceClickToCallMetrics::class);
-        $metrics->recordSuccess('EVENTSUCCESS0001');
-        $metrics->recordFailure(BonvoiceClickToCallFailureCode::ProviderResponse, eventId: 'EVENTFAIL0000001');
+        $summary = app(ProductionEveningHealthService::class)->build();
 
-        $summary = app(ProductionEveningHealthService::class)->build()['bonvoice_click_to_call'];
-
-        $this->assertSame(2, $summary['total']);
-        $this->assertSame(1, $summary['success']);
-        $this->assertSame(1, $summary['failure']);
-        $this->assertSame(1, $summary['by_failure_code']['provider_response']);
+        $this->assertArrayNotHasKey('bonvoice_click_to_call', $summary);
+        $this->assertArrayHasKey('bonvoice_calls', $summary);
     }
 
     private function seedCall(

@@ -73,7 +73,7 @@
                                 <th>First Name</th>
                                 <th>Last Name</th>
                                 <th>Email</th>
-                                <th>Click-to-Call Mobile</th>
+                                <th>BonVoice Agent Mobile</th>
                                 <th>Role</th>
                                 <th>Workforce</th>
                                 <th>Status</th>

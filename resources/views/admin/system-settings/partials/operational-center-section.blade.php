@@ -12,7 +12,8 @@
     $whatsappEnabled = $whatsappSettings->isNotEmpty()
         ? filter_var($whatsappSettings->first()['value'] ?? false, FILTER_VALIDATE_BOOLEAN)
         : false;
-    $telephonyEnabled = filter_var(config('bonvoice.click_to_call.enabled', false), FILTER_VALIDATE_BOOLEAN);
+    $telephonyConfigured = filled(config('bonvoice.webhook_token'))
+        || filled(config('bonvoice.account_id'));
     $telegramEnabled = $telegramSettings->isNotEmpty()
         ? filter_var($telegramSettings->first()['value'] ?? false, FILTER_VALIDATE_BOOLEAN)
         : false;
@@ -74,12 +75,11 @@
             <x-settings-center.operational-hub-card
                 icon="phone-call"
                 title="Telephony"
-                :status="$telephonyEnabled ? 'Connected' : 'Offline'"
-                :status-tone="$telephonyEnabled ? 'success' : 'danger'"
-                description="Bonvoice click-to-call and telephony webhooks."
+                :status="$telephonyConfigured ? 'Configured' : 'Not configured'"
+                :status-tone="$telephonyConfigured ? 'success' : 'warning'"
+                description="BonVoice inbound IVR webhooks and live-assist."
                 primary-label="Configure"
                 :primary-href="'#operational-telephony'"
-                secondary-label="Test Call"
             />
         @endif
         <x-settings-center.operational-hub-card
@@ -138,25 +138,27 @@
                 @endif
             </x-system-settings.card>
 
-            <x-system-settings.card id="operational-telephony" title="Telephony" description="Bonvoice click-to-call configuration (environment-based)." class="mb-3">
+            <x-system-settings.card id="operational-telephony" title="Telephony" description="BonVoice inbound IVR webhook configuration (environment-based)." class="mb-3">
                 <div class="settings-center-details-grid">
                     <div class="settings-center-detail">
                         <span class="settings-center-detail__label">Provider</span>
-                        <span class="settings-center-detail__value">Bonvoice</span>
+                        <span class="settings-center-detail__value">BonVoice</span>
                     </div>
                     <div class="settings-center-detail">
-                        <span class="settings-center-detail__label">Click to call</span>
+                        <span class="settings-center-detail__label">Inbound webhooks</span>
                         <span class="settings-center-detail__value">
                             <span @class([
                                 'settings-center-status-pill settings-center-status-pill--sm',
-                                'settings-center-status-pill--success' => $telephonyEnabled,
-                                'settings-center-status-pill--danger' => ! $telephonyEnabled,
-                            ])>{{ $telephonyEnabled ? 'Enabled' : 'Disabled' }}</span>
+                                'settings-center-status-pill--success' => $telephonyConfigured,
+                                'settings-center-status-pill--warning' => ! $telephonyConfigured,
+                            ])>{{ $telephonyConfigured ? 'Configured' : 'Not configured' }}</span>
                         </span>
                     </div>
                     <div class="settings-center-detail">
-                        <span class="settings-center-detail__label">API base URL</span>
-                        <span class="settings-center-detail__value"><code>{{ config('bonvoice.click_to_call.base_url') }}</code></span>
+                        <span class="settings-center-detail__label">Missed-call recovery</span>
+                        <span class="settings-center-detail__value">
+                            {{ filter_var(config('bonvoice.missed_call_recovery_enabled', false), FILTER_VALIDATE_BOOLEAN) ? 'Enabled' : 'Disabled' }}
+                        </span>
                     </div>
                 </div>
                 @if($telegramSettings->isNotEmpty())

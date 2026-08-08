@@ -4,7 +4,6 @@ import { initUnifiedTimeline } from './unified-timeline';
 import { initCustomer360Cockpit, bindIraDisclosures } from './customer-360-cockpit';
 import { initServiceCaseEmailWorkspace } from './service-case-email-workspace';
 import { initServiceCaseWhatsAppPanel } from './service-case-whatsapp-panel';
-import { bindBonvoiceClickToCall } from './bonvoice-click-to-call';
 import { initMoreMenu, closeMenu as closeMoreMenu, isMoreMenuOpen, openMoreMenuForHost } from './customer-360-more-menu';
 import { initConversationWorkspace } from './conversation-workspace';
 
@@ -1357,7 +1356,6 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             isOpen: () => drawer.classList.contains('is-open'),
         });
         conversationWorkspaceApi = initConversationWorkspace(contentHost, { showToast });
-        bindBonvoiceClickToCall(contentHost, { showToast });
     };
 
     const loadInitialContent = async (incidentId) => {

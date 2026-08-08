@@ -53,7 +53,11 @@ class BonvoiceWebhookController extends Controller
             }
 
             $this->outboxWriter->writeProcessingJob($webhookLog->id);
-            $this->outboxProcessorService->process();
+            // Scoped aggregate only — never drain unrelated Cashfree/Interakt/email outbox rows.
+            $this->outboxProcessorService->processAggregate(
+                BonvoiceWebhookOutboxWriter::AGGREGATE_TYPE,
+                $webhookLog->id,
+            );
 
             $this->incomingCallLatency->mark(BonvoiceIncomingCallLatency::STAGE_REQUEST);
 

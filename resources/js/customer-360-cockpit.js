@@ -1,6 +1,4 @@
 import { closeMenu as closeMoreMenu } from './customer-360-more-menu';
-import { runBonvoiceShortcutCall } from './bonvoice-click-to-call';
-
 const SEARCH_FIELDS = [
     { key: 'sc', label: 'SC Number', icon: 'bi-hash' },
     { key: 'reference', label: 'Reference Number', icon: 'bi-tag' },
@@ -562,7 +560,11 @@ export const initCustomer360Cockpit = ({
             event.preventDefault();
 
             if (actionKey === 'call') {
-                runBonvoiceShortcutCall(contentHost, { showToast });
+                const callLink = contentHost.querySelector('a[data-c360-shortcut-action="call"][href^="tel:"]');
+
+                if (callLink instanceof HTMLAnchorElement) {
+                    callLink.click();
+                }
 
                 return;
             }

@@ -11,7 +11,6 @@ use App\Models\BonvoiceWebhookLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
-use App\Services\Bonvoice\BonvoiceClickToCallMetrics;
 use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use App\Support\BonvoiceCallStatuses;
 use Illuminate\Support\Carbon;
@@ -25,7 +24,6 @@ class ProductionEveningHealthService
         private readonly OperationsIntegrationHealthService $integrationHealthService,
         private readonly OperationsSystemHealthService $systemHealthService,
         private readonly OperationsRadiumBoxHealthService $radiumBoxHealthService,
-        private readonly BonvoiceClickToCallMetrics $clickToCallMetrics,
     ) {}
 
     /**
@@ -55,7 +53,6 @@ class ProductionEveningHealthService
                 'failed_processing' => $cashfreeReconciliation->failedProcessing,
             ],
             'bonvoice_calls' => $this->bonvoiceCallSummary($rangeStart, $rangeEnd),
-            'bonvoice_click_to_call' => $this->clickToCallMetrics->todaySummary(),
             'whatsapp_delivery' => $this->whatsappDeliverySummary($rangeStart, $rangeEnd),
             'radiumbox' => [
                 'failed_syncs' => (int) ($radiumBox['failed_syncs'] ?? 0),
