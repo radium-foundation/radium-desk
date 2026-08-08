@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.18 — 2026-08-09 — CPU Optimization Batch
+
+- Reduced Cashfree integrity CPU cost by deduplicating alert calculation, narrowing hydrate queries, and bounding missing-order recovery discovery per run.
+- Staggered overnight scheduler workloads across the hour to cut clock-aligned CPU spikes without skipping required recovery or reconciliation jobs.
+- Skipped full Automation Snapshot rebuilds during quiet reconciliation when nothing changed, while preserving dirty-state and periodic full-rebuild safety nets.
+
 ## 4.0.17 — 2026-08-08 — RadiumBox Recover-Sync Scan Optimization
 
 - Reduced unnecessary RadiumBox recover-sync candidate scanning by filtering out orders already beyond automatic recovery limits.
