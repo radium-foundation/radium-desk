@@ -60,8 +60,9 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_minute', 2)))
             ->appendOutputTo(storage_path('logs/schedule-light-tick.log'));
 
+        // Stagger +4 off :00/:05 pack — same 5-minute cadence (4-59/5 → :04,:09,…).
         $schedule->command('infrastructure:metrics:collect')
-            ->everyFiveMinutes()
+            ->cron('4-59/5 * * * *')
             ->when(fn (): bool => (bool) config('infrastructure.metrics_enabled'))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_five_minutes', 5)));
 
@@ -77,15 +78,16 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Light tick: drain dirty slices + time fields + Cashfree KPI merge.
         // Full rebuilds are event-driven (dirty Health/Validation/Repair) or
-        // the 15-minute --reconcile safety net below.
+        // the staggered 15-minute --reconcile safety net below.
         $schedule->command('automation:snapshot')
             ->everyMinute()
             ->withoutOverlapping(5)
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/automation-snapshot.log'));
 
+        // Stagger +9 off :00/:15 pack — same 15-minute cadence (:09,:24,:39,:54).
         $schedule->command('automation:snapshot --reconcile')
-            ->everyFifteenMinutes()
+            ->cron('9-59/15 * * * *')
             ->withoutOverlapping(20)
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/automation-snapshot.log'));
@@ -96,9 +98,10 @@ return Application::configure(basePath: dirname(__DIR__))
             ->appendOutputTo(storage_path('logs/executive-snapshot.log'));
 
         // Phase 10: align with zone TTLs (120–300s); default every 5 minutes.
+        // Stagger +1 off clock — same cadence (1-59/5 → :01,:06,:11,…).
         $schedule->command('platform:snapshots:warm')
             ->cron(sprintf(
-                '*/%d * * * *',
+                '1-59/%d * * * *',
                 max(1, (int) config('scheduler.platform_snapshots_warm_interval_minutes', 5)),
             ))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_five_minutes', 5)))
@@ -174,8 +177,9 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-risk-alerts.log'));
 
+        // Stagger +3 off :00/:05 pack — same 5-minute cadence (3-59/5 → :03,:08,…).
         $schedule->command('watchdog:send-critical-alerts')
-            ->cron(sprintf('*/%d * * * *', max(1, (int) config('ira.watchdog.schedule_interval_minutes', 5))))
+            ->cron(sprintf('3-59/%d * * * *', max(1, (int) config('ira.watchdog.schedule_interval_minutes', 5))))
             ->when(fn (): bool => (bool) config('ira.watchdog.enabled', true))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/watchdog-critical-alerts.log'));
@@ -192,9 +196,10 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/team-telegram-slot-reminders.log'));
 
+        // Stagger +2 off :00/:05 pack — same 5-minute cadence (2-59/5 → :02,:07,…).
         $schedule->command('team-telegram:send-appointment-reminders')
             ->cron(sprintf(
-                '*/%d * * * *',
+                '2-59/%d * * * *',
                 max(1, (int) config('team_telegram.appointment_reminders.schedule_interval_minutes', 5)),
             ))
             ->when(fn (): bool => (bool) config('team_telegram.enabled', true)
@@ -208,20 +213,23 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.hourly', 55)))
             ->appendOutputTo(storage_path('logs/automation-scheduler.log'));
 
+        // Keep on :00/:15/:30/:45 — anchor for recovery pack stagger.
         $schedule->command('radiumbox:recover-sync')
             ->cron(sprintf('*/%d * * * *', max(1, (int) config('radiumbox.recovery.schedule_interval_minutes', 15))))
             ->when(fn (): bool => (bool) config('radiumbox.recovery.enabled', true))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/radiumbox-recovery.log'));
 
+        // Stagger +5 off recover-sync — same 15-minute cadence (:05,:20,:35,:50).
         $schedule->command('missing-serial:process')
-            ->cron(sprintf('*/%d * * * *', max(1, (int) config('missing_serial.schedule_interval_minutes', 15))))
+            ->cron(sprintf('5-59/%d * * * *', max(1, (int) config('missing_serial.schedule_interval_minutes', 15))))
             ->when(fn (): bool => (bool) config('missing_serial.enabled', true))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/missing-serial-automation.log'));
 
+        // Stagger +7 off recover-sync — same 15-minute cadence (:07,:22,:37,:52).
         $schedule->command('cashfree:auto-recover-missing')
-            ->cron(sprintf('*/%d * * * *', max(1, (int) config('cashfree.auto_recover.schedule_interval_minutes', 15))))
+            ->cron(sprintf('7-59/%d * * * *', max(1, (int) config('cashfree.auto_recover.schedule_interval_minutes', 15))))
             ->when(fn (): bool => (bool) config('cashfree.auto_recover.enabled', true))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/cashfree-auto-recover.log'));

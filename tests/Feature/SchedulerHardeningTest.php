@@ -45,7 +45,7 @@ class SchedulerHardeningTest extends TestCase
         $events = collect(app(Schedule::class)->events());
 
         $warm = $this->findEvent($events, 'platform:snapshots:warm');
-        $this->assertSame('*/5 * * * *', $warm->getExpression());
+        $this->assertSame('1-59/5 * * * *', $warm->getExpression());
         $this->assertLessThan(1440, (int) $warm->expiresAt);
 
         $gmail = $this->findEvent($events, 'inbound-email:sync-gmail');
@@ -54,11 +54,11 @@ class SchedulerHardeningTest extends TestCase
         $this->assertSame('*/2 * * * *', $gmail->getExpression());
 
         $reminders = $this->findEvent($events, 'team-telegram:send-appointment-reminders');
-        $this->assertSame('*/5 * * * *', $reminders->getExpression());
+        $this->assertSame('2-59/5 * * * *', $reminders->getExpression());
         $this->assertLessThan(1440, (int) $reminders->expiresAt);
 
         $cashfree = $this->findEvent($events, 'cashfree:auto-recover-missing');
-        $this->assertSame('*/15 * * * *', $cashfree->getExpression());
+        $this->assertSame('7-59/15 * * * *', $cashfree->getExpression());
         $this->assertLessThan(1440, (int) $cashfree->expiresAt);
     }
 
@@ -97,7 +97,7 @@ class SchedulerHardeningTest extends TestCase
         $this->assertTrue($light->runInBackground);
         $this->assertTrue($reconcile->runInBackground);
         $this->assertSame('* * * * *', $light->getExpression());
-        $this->assertSame('*/15 * * * *', $reconcile->getExpression());
+        $this->assertSame('9-59/15 * * * *', $reconcile->getExpression());
         $this->assertSame(5, (int) $light->expiresAt);
         $this->assertSame(20, (int) $reconcile->expiresAt);
     }
