@@ -18,6 +18,7 @@ import {
     logRefreshLifecycle,
     setRefreshLifecycleState,
 } from './dashboard-refresh-lifecycle';
+import { clearReadyQueueMembershipMemory } from './ready-queue-membership-memory';
 
 const uniqueIncidentIds = (incidentIds = []) => Array.from(new Set(
     incidentIds
@@ -166,9 +167,16 @@ const coalescePendingLiveRefresh = (previous, next) => {
 
 const toIsoTimestamp = (epochMs) => new Date(epochMs).toISOString();
 
-const applyFilterCounts = (counts) => {
+const applyFilterCounts = (counts, options = {}) => {
     if (!counts || typeof counts !== 'object') {
         return;
+    }
+
+    // Absolute action_required counts (full live / kpis_only / DashboardKpisUpdated)
+    // invalidate optimistic membership memory. Optimistic ±1 uses { optimistic: true }.
+    if (!options.optimistic
+        && Object.prototype.hasOwnProperty.call(counts, 'action_required')) {
+        clearReadyQueueMembershipMemory();
     }
 
     const card = document.querySelector('.dashboard-service-cases-card');
@@ -203,6 +211,37 @@ const applyFilterCounts = (counts) => {
 
         tab.classList.toggle('d-none', Number(count) === 0);
     });
+};
+
+const readFilterCount = (filterKey) => {
+    const countElement = document.querySelector(
+        `[data-dashboard-case-filter-count="${filterKey}"]`,
+    );
+
+    if (!countElement) {
+        return null;
+    }
+
+    const parsed = Number(String(countElement.textContent ?? '').replace(/[()]/g, '').trim());
+
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const adjustFilterCount = (filterKey, delta) => {
+    if (!filterKey || !delta) {
+        return null;
+    }
+
+    const current = readFilterCount(filterKey);
+
+    if (current === null) {
+        return null;
+    }
+
+    const next = Math.max(0, current + delta);
+    applyFilterCounts({ [filterKey]: next }, { optimistic: true });
+
+    return next;
 };
 
 const applyKpis = (kpiStripHtml) => {
@@ -900,6 +939,7 @@ export const initLiveDashboard = (hooks = {}) => {
 };
 
 export {
+    adjustFilterCount,
     applyDashboardRefresh,
     applyFilterCounts,
     applyKpis,
@@ -908,6 +948,7 @@ export {
     buildLiveRefreshQuery,
     flushPendingDashboardRefresh,
     queueDashboardRefresh,
+    readFilterCount,
     refreshDashboard,
     startPolling,
     startFastPolling,

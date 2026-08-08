@@ -8,6 +8,7 @@ import {
     resolveListAction,
 } from '../../resources/js/live-dashboard-reverb';
 import { resetHybridKpiReconcileForTests } from '../../resources/js/hybrid-kpi-reconcile';
+import { resetReadyQueueCountDeltaForTests } from '../../resources/js/ready-queue-count-delta';
 import * as liveDashboard from '../../resources/js/live-dashboard';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
 
@@ -15,6 +16,7 @@ describe('live dashboard reverb handlers', () => {
     beforeEach(() => {
         resetWorkspaceSession();
         resetHybridKpiReconcileForTests();
+        resetReadyQueueCountDeltaForTests();
         document.body.innerHTML = `
             <div id="dashboard-page"
                  data-live-queue="action_required"
@@ -22,8 +24,8 @@ describe('live dashboard reverb handlers', () => {
                  data-live-rows-url="/dashboard/live/rows"></div>
             <div id="dashboard-kpi-strip">stats-old</div>
             <div class="dashboard-service-cases-card">
-                <span data-dashboard-case-filter-count="action_required">(0)</span>
-                <span data-dashboard-case-filter-count="waiting_customer">(0)</span>
+                <span data-dashboard-case-filter-count="action_required">(10)</span>
+                <span data-dashboard-case-filter-count="waiting_customer">(3)</span>
                 <div id="dashboard-service-cases-scroll">
                     <table>
                         <thead><tr><th>Ref</th></tr></thead>
@@ -39,6 +41,7 @@ describe('live dashboard reverb handlers', () => {
     afterEach(() => {
         resetWorkspaceSession();
         resetHybridKpiReconcileForTests();
+        resetReadyQueueCountDeltaForTests();
         vi.unstubAllGlobals();
         vi.restoreAllMocks();
     });
@@ -97,7 +100,41 @@ describe('live dashboard reverb handlers', () => {
         expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 updated');
     });
 
-    it('schedules KPI reconcile after ServiceCaseCreated row merge', async () => {
+    it('skips KPI reconcile for ServiceCaseCreated ADD when Ready ±1 is proven', async () => {
+        vi.useFakeTimers();
+        const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+            const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
+
+            await handleServiceCaseEvent(pageRoot, {
+                incident_id: 99,
+                queue: 'action_required',
+                list_actions: {
+                    action_required: 'add',
+                },
+                html: '<tr id="service-case-row-99"><td>SC00099 created</td></tr>',
+            }, 'ServiceCaseCreated');
+
+            expect(document.querySelector('#service-case-row-99 td')?.textContent).toBe('SC00099 created');
+            expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent)
+                .toBe('(11)');
+
+            await vi.advanceTimersByTimeAsync(500);
+
+            expect(refreshSpy).not.toHaveBeenCalled();
+        } finally {
+            rafSpy.mockRestore();
+            vi.useRealTimers();
+        }
+    });
+
+    it('skips KPI reconcile for ServiceCaseCreated upsert when row already present (UPDATE)', async () => {
         vi.useFakeTimers();
         const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
             callback(0);
@@ -119,14 +156,12 @@ describe('live dashboard reverb handlers', () => {
             }, 'ServiceCaseCreated');
 
             expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 created');
+            expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent)
+                .toBe('(10)');
 
             await vi.advanceTimersByTimeAsync(500);
 
-            expect(refreshSpy).toHaveBeenCalledWith(
-                pageRoot,
-                'hybrid-kpi-reconcile',
-                { kpisOnly: true },
-            );
+            expect(refreshSpy).not.toHaveBeenCalled();
         } finally {
             rafSpy.mockRestore();
             vi.useRealTimers();
@@ -351,7 +386,7 @@ describe('live dashboard reverb handlers', () => {
         expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010');
     });
 
-    it('schedules KPI reconcile after hybrid row merge and keeps it after a KPI event', async () => {
+    it('skips KPI reconcile after hybrid UPDATE when Ready membership is unchanged', async () => {
         vi.useFakeTimers();
 
         try {
@@ -383,6 +418,8 @@ describe('live dashboard reverb handlers', () => {
 
             expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 hybrid');
             expect(fetchMock).toHaveBeenCalledTimes(1);
+            expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent)
+                .toBe('(10)');
 
             await handleKpisUpdated({ kpi_strip_html: 'stats-live' });
 
@@ -390,11 +427,7 @@ describe('live dashboard reverb handlers', () => {
 
             await vi.advanceTimersByTimeAsync(500);
 
-            expect(refreshSpy).toHaveBeenCalledWith(
-                pageRoot,
-                'hybrid-kpi-reconcile',
-                { kpisOnly: true },
-            );
+            expect(refreshSpy).not.toHaveBeenCalled();
 
             refreshSpy.mockRestore();
         } finally {
@@ -402,7 +435,7 @@ describe('live dashboard reverb handlers', () => {
         }
     });
 
-    it('reconciles KPI strip after hybrid row merge once debounce elapses', async () => {
+    it('applies hybrid Ready REMOVE ±1 and skips counts-only reconcile', async () => {
         vi.useFakeTimers();
         vi.stubGlobal('requestAnimationFrame', (callback) => {
             callback(0);
@@ -412,47 +445,153 @@ describe('live dashboard reverb handlers', () => {
 
         try {
             const pageRoot = document.getElementById('dashboard-page');
-            pageRoot.dataset.liveUrl = '/dashboard/live';
+            const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
 
-            const fetchMock = vi.fn()
-                .mockResolvedValueOnce({
-                    ok: true,
-                    json: async () => ({
-                        rows: [{
-                            incident_id: 10,
-                            html: '<tr id="service-case-row-10"><td>SC00010 assigned</td></tr>',
-                        }],
-                        remove_incident_ids: [],
-                    }),
-                })
-                .mockResolvedValueOnce({
-                    ok: true,
-                    json: async () => ({
-                        kpi_strip_html: 'stats-reconciled',
-                        service_case_filter_counts: {
-                            action_required: 3,
-                        },
-                    }),
-                });
-
-            vi.stubGlobal('fetch', fetchMock);
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    rows: [],
+                    remove_incident_ids: [10],
+                }),
+            }));
 
             await handleHybridIncidentsUpdated(pageRoot, { incident_ids: [10] });
 
-            expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 assigned');
-            expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-old');
+            expect(document.querySelector('#service-case-row-10')).toBeNull();
+            expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent)
+                .toBe('(9)');
 
             await vi.advanceTimersByTimeAsync(500);
-            await Promise.resolve();
-            await Promise.resolve();
 
-            expect(fetchMock).toHaveBeenCalledTimes(2);
-            expect(String(fetchMock.mock.calls[1][0])).toContain('/dashboard/live');
-            expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-reconciled');
-            expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent).toBe('(3)');
-            expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 assigned');
+            expect(refreshSpy).not.toHaveBeenCalled();
+            refreshSpy.mockRestore();
         } finally {
             vi.useRealTimers();
+        }
+    });
+
+    it('keeps counts-only reconcile when not viewing Ready Queue', async () => {
+        vi.useFakeTimers();
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+            pageRoot.dataset.liveQueue = 'waiting_customer';
+            pageRoot.dataset.liveUrl = '/dashboard/live';
+
+            const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
+
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    rows: [{
+                        incident_id: 10,
+                        html: '<tr id="service-case-row-10"><td>SC00010 waiting</td></tr>',
+                    }],
+                    remove_incident_ids: [],
+                }),
+            }));
+
+            await handleHybridIncidentsUpdated(pageRoot, { incident_ids: [10] });
+
+            expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent)
+                .toBe('(10)');
+
+            await vi.advanceTimersByTimeAsync(500);
+
+            expect(refreshSpy).toHaveBeenCalledWith(
+                pageRoot,
+                'hybrid-kpi-reconcile',
+                { kpisOnly: true },
+            );
+            refreshSpy.mockRestore();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('G: Ready row ADD/UPDATE/REMOVE behavior is unchanged', async () => {
+        const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+
+            await handleServiceCaseEvent(pageRoot, {
+                incident_id: 99,
+                queue: 'action_required',
+                list_actions: { action_required: 'add' },
+                html: '<tr id="service-case-row-99"><td>SC00099</td></tr>',
+            }, 'ServiceCaseRemarked');
+
+            expect(document.querySelector('#service-case-row-99 td')?.textContent).toBe('SC00099');
+
+            await handleServiceCaseEvent(pageRoot, {
+                incident_id: 99,
+                queue: 'action_required',
+                list_actions: { action_required: 'update' },
+                html: '<tr id="service-case-row-99"><td>SC00099 updated</td></tr>',
+            }, 'ServiceCaseRemarked');
+
+            expect(document.querySelector('#service-case-row-99 td')?.textContent).toBe('SC00099 updated');
+
+            await handleServiceCaseEvent(pageRoot, {
+                incident_id: 99,
+                queue: 'action_required',
+                list_actions: { action_required: 'remove' },
+            }, 'ServiceCaseRemarked');
+
+            expect(document.querySelector('#service-case-row-99')).toBeNull();
+        } finally {
+            rafSpy.mockRestore();
+        }
+    });
+
+    it('H: absolute DashboardKpisUpdated filter counts remain authoritative', async () => {
+        const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+
+            await handleServiceCaseEvent(pageRoot, {
+                incident_id: 99,
+                queue: 'action_required',
+                list_actions: { action_required: 'add' },
+                html: '<tr id="service-case-row-99"><td>SC00099</td></tr>',
+            }, 'ServiceCaseCreated');
+
+            expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent)
+                .toBe('(11)');
+
+            await handleKpisUpdated({
+                kpi_strip_html: 'stats-live',
+                service_case_filter_count_variants: {
+                    operations_scope: {
+                        action_required: 4,
+                        waiting_customer: 1,
+                    },
+                },
+            });
+
+            expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-live');
+            expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent)
+                .toBe('(4)');
+            expect(document.querySelector('[data-dashboard-case-filter-count="waiting_customer"]')?.textContent)
+                .toBe('(1)');
+            expect(document.querySelector('#service-case-row-99')).not.toBeNull();
+        } finally {
+            rafSpy.mockRestore();
         }
     });
 });

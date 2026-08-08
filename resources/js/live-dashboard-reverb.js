@@ -31,6 +31,12 @@ import {
     cancelHybridKpiReconcile,
     scheduleHybridKpiReconcile,
 } from './hybrid-kpi-reconcile';
+import {
+    applyReadyQueueCountDelta,
+    commitReadyQueueListActionDelta,
+    resolveReadyQueueCountDeltaFromHybrid,
+    resolveReadyQueueCountDeltaFromListAction,
+} from './ready-queue-count-delta';
 import { setRealtimeTransportConnected } from './realtime-transport-status';
 
 const SERVICE_CASE_EVENTS = [
@@ -130,12 +136,33 @@ const handleHybridIncidentsUpdated = async (pageRoot, payload) => {
         return;
     }
 
-    await applyPartialDashboardUpdate({
+    const unlockedRemoveIds = removeIncidentIds.filter(
+        (id) => !lockedIncidentIds.includes(Number(id)),
+    );
+
+    // Prove Ready ±1 from prior DOM membership before patch/remove mutates rows.
+    const readyDelta = resolveReadyQueueCountDeltaFromHybrid({
+        pageRoot,
         rows,
-        remove_incident_ids: removeIncidentIds.filter((id) => !lockedIncidentIds.includes(Number(id))),
+        removeIncidentIds: unlockedRemoveIds,
     });
 
-    scheduleHybridKpiReconcile(pageRoot);
+    if (readyDelta.safe) {
+        applyReadyQueueCountDelta(readyDelta.delta, {
+            rememberIn: readyDelta.rememberIn ?? [],
+            rememberOut: readyDelta.rememberOut ?? [],
+        });
+    }
+
+    await applyPartialDashboardUpdate({
+        rows,
+        remove_incident_ids: unlockedRemoveIds,
+    });
+
+    // Skip counts-only reconcile only when Ready membership deltas were proven.
+    if (!readyDelta.safe) {
+        scheduleHybridKpiReconcile(pageRoot);
+    }
 };
 
 const handleReferenceNumbersUpdated = handleHybridIncidentsUpdated;
@@ -152,9 +179,22 @@ const handleServiceCaseEvent = async (pageRoot, payload, eventName = null) => {
     const reconcileKpis = shouldReconcileKpisForServiceCaseEvent(eventName);
     const action = resolveListAction(pageRoot, payload);
 
+    // Use list_actions.action_required (not active-queue action) + DOM presence.
+    // Must run before row patch/remove so ADD vs UPDATE can be distinguished.
+    const readyDelta = resolveReadyQueueCountDeltaFromListAction({
+        pageRoot,
+        incidentId: payload.incident_id,
+        listActions: payload.list_actions,
+    });
+
+    commitReadyQueueListActionDelta(readyDelta, payload.incident_id);
+
+    const skipReconcile = readyDelta.safe;
+
     if (action === 'ignore') {
-        // Queue filter may hide the row, but create/SLA still changes global KPI strip.
-        if (reconcileKpis) {
+        // Not viewing this queue's row — keep absolute reconcile when Ready ±1
+        // could not be proven (e.g. viewing another tab).
+        if (reconcileKpis && !skipReconcile) {
             scheduleHybridKpiReconcile(pageRoot);
         }
 
@@ -169,7 +209,7 @@ const handleServiceCaseEvent = async (pageRoot, payload, eventName = null) => {
             remove_incident_ids: lockedIncidentIds.includes(incidentId) ? [] : [incidentId],
         });
 
-        if (reconcileKpis) {
+        if (reconcileKpis && !skipReconcile) {
             scheduleHybridKpiReconcile(pageRoot);
         }
 
@@ -184,7 +224,7 @@ const handleServiceCaseEvent = async (pageRoot, payload, eventName = null) => {
             }],
         });
 
-        if (reconcileKpis) {
+        if (reconcileKpis && !skipReconcile) {
             scheduleHybridKpiReconcile(pageRoot);
         }
     }

@@ -1,6 +1,7 @@
 import { refreshDashboard, startPolling, stopPolling } from './live-dashboard';
 import { setDashboardSearchActive, isDashboardSearchActive } from './dashboard-search-mode';
 import { setServiceCasePagination, setServiceCaseSearchQuery } from './dashboard-service-case-state';
+import { syncReadyQueueMembershipScope } from './ready-queue-membership-memory';
 
 const FILTER_WORKSPACES = new Set([
     'overdue',
@@ -253,6 +254,8 @@ export const applyWorkspaceChrome = (pageRoot, target, { panelTitle = null } = {
     pageRoot.dataset.liveFilter = target.serviceCaseFilter;
     pageRoot.dataset.liveWorkspace = target.workspace;
     pageRoot.dataset.operationsWorkspaceKind = target.kind ?? 'case_queue';
+    // Drop Ready ±1 membership memory across queue/tab switches (Phase 2 P1).
+    syncReadyQueueMembershipScope(pageRoot);
 
     if (card && (target.kind ?? 'case_queue') === 'case_queue') {
         card.dataset.operationQueue = target.operationQueue;
