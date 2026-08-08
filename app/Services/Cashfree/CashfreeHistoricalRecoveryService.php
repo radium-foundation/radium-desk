@@ -60,12 +60,51 @@ class CashfreeHistoricalRecoveryService
     }
 
     /**
+     * Live discovery for auto-recovery.
+     *
+     * Universe: earliest successful PAYMENT_SUCCESS per payment among non-processed
+     * webhook logs (`failed` and stuck `received`). Aligns with integrity reconcile
+     * recoverable IDs without scanning the full webhook history table.
+     *
+     * @return Collection<int, array{log: CashfreeWebhookLog, disposition: CashfreeHistoricalRecoveryDisposition, reason: string}>
+     */
+    public function autoRecoveryCandidateAssessments(): Collection
+    {
+        return $this->discoveryCandidateAssessments(includeReceived: true);
+    }
+
+    /**
      * @return Collection<int, array{log: CashfreeWebhookLog, disposition: CashfreeHistoricalRecoveryDisposition, reason: string}>
      */
     private function recoveryCandidates(): Collection
     {
+        return $this->discoveryCandidateAssessments(includeReceived: false);
+    }
+
+    /**
+     * @return Collection<int, array{log: CashfreeWebhookLog, disposition: CashfreeHistoricalRecoveryDisposition, reason: string}>
+     */
+    private function discoveryCandidateAssessments(bool $includeReceived): Collection
+    {
+        $statuses = [CashfreeWebhookLog::STATUS_FAILED];
+
+        if ($includeReceived) {
+            $statuses[] = CashfreeWebhookLog::STATUS_RECEIVED;
+        }
+
+        if (! $this->hasRecoveryDiscoveryRows($statuses)) {
+            return collect();
+        }
+
         $logs = CashfreeWebhookLog::query()
-            ->where('processing_status', CashfreeWebhookLog::STATUS_FAILED)
+            ->select([
+                'id',
+                'cf_payment_id',
+                'request_payload',
+                'received_at',
+                'processing_status',
+            ])
+            ->whereIn('processing_status', $statuses)
             ->orderBy('received_at')
             ->orderBy('id')
             ->get()
@@ -86,6 +125,16 @@ class CashfreeHistoricalRecoveryService
             ->values()
             ->map(fn (CashfreeWebhookLog $log): array => $this->integrityService->assessLog($log))
             ->values();
+    }
+
+    /**
+     * @param  list<string>  $statuses
+     */
+    private function hasRecoveryDiscoveryRows(array $statuses): bool
+    {
+        return CashfreeWebhookLog::query()
+            ->whereIn('processing_status', $statuses)
+            ->exists();
     }
 
     /**

@@ -2,9 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Enums\CashfreeHistoricalRecoveryDisposition;
 use App\Services\Cashfree\CashfreeMissingOrderAutoRecoveryService;
-use App\Services\Cashfree\CashfreePaymentIntegrityService;
+use App\Services\Cashfree\CashfreeWebhookPayloadParser;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -17,7 +16,7 @@ class AutoRecoverMissingCashfreeOrdersCommand extends Command
 {
     public function __construct(
         private readonly CashfreeMissingOrderAutoRecoveryService $autoRecoveryService,
-        private readonly CashfreePaymentIntegrityService $integrityService,
+        private readonly CashfreeWebhookPayloadParser $payloadParser,
     ) {
         parent::__construct();
     }
@@ -34,21 +33,21 @@ class AutoRecoverMissingCashfreeOrdersCommand extends Command
         $limit = is_numeric($limitOption) ? max(1, (int) $limitOption) : null;
 
         if ($this->option('dry-run')) {
-            $report = $this->integrityService->reconcile();
-            $recoverable = collect($report->missingOrders)
-                ->filter(fn ($record): bool => $record->recoveryEligibility === CashfreeHistoricalRecoveryDisposition::Recoverable)
-                ->take($limit ?? max(1, (int) config('cashfree.auto_recover.max_per_run', 20)));
+            $recoverable = $this->autoRecoveryService->previewRecoverableCandidates($limit);
 
             $this->info('Dry run — no webhook logs will be replayed.');
             $this->line('Recoverable missing paid orders: '.$recoverable->count());
 
-            foreach ($recoverable as $missing) {
+            foreach ($recoverable as $candidate) {
+                $log = $candidate['log'];
+                $payload = $log->request_payload ?? [];
+
                 $this->line(sprintf(
                     '- log #%d | order_id=%s | cf_payment_id=%s | paid_at=%s',
-                    $missing->webhookLogId,
-                    $missing->orderId ?? 'unknown',
-                    $missing->cfPaymentId,
-                    $missing->paidAt?->toDateTimeString() ?? 'unknown',
+                    $log->id,
+                    $this->payloadParser->orderId($payload) ?? 'unknown',
+                    $this->payloadParser->cfPaymentId($payload) ?? $log->cf_payment_id ?? 'unknown',
+                    $log->received_at?->toDateTimeString() ?? 'unknown',
                 ));
             }
 

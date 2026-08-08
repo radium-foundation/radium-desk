@@ -17,7 +17,6 @@ class CashfreeMissingOrderAutoRecoveryService
     public const AUDIT_EVENT = 'cashfree.missing_order_auto_recovery';
 
     public function __construct(
-        private readonly CashfreePaymentIntegrityService $integrityService,
         private readonly CashfreeHistoricalRecoveryService $historicalRecoveryService,
         private readonly CashfreeWebhookPayloadParser $payloadParser,
         private readonly AuditLogService $auditLogService,
@@ -108,22 +107,22 @@ class CashfreeMissingOrderAutoRecoveryService
     /**
      * @return \Illuminate\Support\Collection<int, array{log: CashfreeWebhookLog, disposition: CashfreeHistoricalRecoveryDisposition, reason: string}>
      */
+    public function previewRecoverableCandidates(?int $maxPerRun = null): \Illuminate\Support\Collection
+    {
+        $limit = $maxPerRun ?? max(1, (int) config('cashfree.auto_recover.max_per_run', 20));
+
+        return $this->recoverableCandidates($limit);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, array{log: CashfreeWebhookLog, disposition: CashfreeHistoricalRecoveryDisposition, reason: string}>
+     */
     private function recoverableCandidates(int $limit)
     {
-        return collect($this->integrityService->reconcile()->missingOrders)
-            ->filter(fn ($record): bool => $record->recoveryEligibility === CashfreeHistoricalRecoveryDisposition::Recoverable)
+        return $this->historicalRecoveryService
+            ->autoRecoveryCandidateAssessments()
+            ->filter(fn (array $entry): bool => $entry['disposition'] === CashfreeHistoricalRecoveryDisposition::Recoverable)
             ->take($limit)
-            ->map(function ($record): ?array {
-                $log = CashfreeWebhookLog::query()->find($record->webhookLogId);
-
-                if ($log === null) {
-                    return null;
-                }
-
-                return $this->integrityService->assessLog($log);
-            })
-            ->filter(fn (?array $entry): bool => $entry !== null
-                && $entry['disposition'] === CashfreeHistoricalRecoveryDisposition::Recoverable)
             ->values();
     }
 
