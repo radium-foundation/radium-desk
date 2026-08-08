@@ -207,6 +207,12 @@ class RadiumBoxSyncRecoveryService
             return Order::query()->whereRaw('1 = 0');
         }
 
+        // A1: push permanent isSafeToRecover() rejections into SQL.
+        // - attempts >= maxRecoveryAttempts() is rejected for every status.
+        // - age outside AUTOMATIC_WINDOW_DAYS is rejected for Failed (explicit
+        //   isWithinAutomaticWindow) and for Synced/NotSynced (retry interval
+        //   becomes PHP_INT_MAX). Pending is carved out: stale-pending recovery
+        //   does not consult the automatic window.
         return Order::query()
             ->cashfreeVerified()
             ->missingDeviceEnrichment()
@@ -215,7 +221,18 @@ class RadiumBoxSyncRecoveryService
                 RadiumBoxEnrichmentSyncStatus::Pending->value,
                 RadiumBoxEnrichmentSyncStatus::Synced->value,
                 RadiumBoxEnrichmentSyncStatus::NotSynced->value,
-            ]);
+            ])
+            ->where('radiumbox_sync_attempts', '<', $this->maxRecoveryAttempts())
+            ->where(function (Builder $query): void {
+                $query->where(
+                    'radiumbox_sync_status',
+                    RadiumBoxEnrichmentSyncStatus::Pending->value,
+                )->orWhere(
+                    'created_at',
+                    '>=',
+                    now()->subDays(RadiumBoxEnrichmentRetryPolicy::AUTOMATIC_WINDOW_DAYS),
+                );
+            });
     }
 
     private function resolvePendingReferenceAt(Order $order): ?Carbon
