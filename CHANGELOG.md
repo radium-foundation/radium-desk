@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.15 — 2026-08-08 — Scheduler Automation Pending Limit
+
+- Limited automation-pending grace processing per scheduler light-tick so large expired backlogs cannot run unbounded in one minute.
+- Preserved Ready Queue unassigned pickup behavior after grace processing.
+
 ## 4.0.14 — 2026-08-08 — IRA Cashfree Cache-Read Briefing
 
 - Made IRA Operations Live Cashfree health highlights cache-read-only so normal briefing never rebuilds Cashfree integrity.
