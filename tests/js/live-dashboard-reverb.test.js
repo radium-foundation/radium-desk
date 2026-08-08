@@ -92,9 +92,107 @@ describe('live dashboard reverb handlers', () => {
                 action_required: 'add',
             },
             html: '<tr id="service-case-row-10"><td>SC00010 updated</td></tr>',
-        });
+        }, 'ServiceCaseRemarked');
 
         expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 updated');
+    });
+
+    it('schedules KPI reconcile after ServiceCaseCreated row merge', async () => {
+        vi.useFakeTimers();
+        const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+            const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
+
+            await handleServiceCaseEvent(pageRoot, {
+                incident_id: 10,
+                queue: 'action_required',
+                list_actions: {
+                    action_required: 'add',
+                },
+                html: '<tr id="service-case-row-10"><td>SC00010 created</td></tr>',
+            }, 'ServiceCaseCreated');
+
+            expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 created');
+
+            await vi.advanceTimersByTimeAsync(500);
+
+            expect(refreshSpy).toHaveBeenCalledWith(
+                pageRoot,
+                'hybrid-kpi-reconcile',
+                { kpisOnly: true },
+            );
+        } finally {
+            rafSpy.mockRestore();
+            vi.useRealTimers();
+        }
+    });
+
+    it('schedules KPI reconcile for ServiceCaseCreated even when list action is ignore', async () => {
+        vi.useFakeTimers();
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+            pageRoot.dataset.liveQueue = 'waiting_customer';
+            const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
+
+            await handleServiceCaseEvent(pageRoot, {
+                incident_id: 10,
+                queue: 'action_required',
+                list_actions: {
+                    waiting_customer: 'ignore',
+                    action_required: 'add',
+                },
+                html: '<tr id="service-case-row-10"><td>hidden</td></tr>',
+            }, 'ServiceCaseCreated');
+
+            expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010');
+
+            await vi.advanceTimersByTimeAsync(500);
+
+            expect(refreshSpy).toHaveBeenCalledWith(
+                pageRoot,
+                'hybrid-kpi-reconcile',
+                { kpisOnly: true },
+            );
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not schedule KPI reconcile for ServiceCaseRemarked', async () => {
+        vi.useFakeTimers();
+        const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+            const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
+
+            await handleServiceCaseEvent(pageRoot, {
+                incident_id: 10,
+                queue: 'action_required',
+                list_actions: {
+                    action_required: 'update',
+                },
+                html: '<tr id="service-case-row-10"><td>remarked</td></tr>',
+            }, 'ServiceCaseRemarked');
+
+            await vi.advanceTimersByTimeAsync(500);
+
+            expect(refreshSpy).not.toHaveBeenCalled();
+        } finally {
+            rafSpy.mockRestore();
+            vi.useRealTimers();
+        }
     });
 
     it('removes rows when list action is remove for the active queue', async () => {

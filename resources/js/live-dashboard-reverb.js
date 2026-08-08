@@ -140,14 +140,24 @@ const handleHybridIncidentsUpdated = async (pageRoot, payload) => {
 
 const handleReferenceNumbersUpdated = handleHybridIncidentsUpdated;
 
-const handleServiceCaseEvent = async (pageRoot, payload) => {
+const shouldReconcileKpisForServiceCaseEvent = (eventName) => (
+    eventName === 'ServiceCaseCreated' || eventName === 'SlaStatusChanged'
+);
+
+const handleServiceCaseEvent = async (pageRoot, payload, eventName = null) => {
     if (isDashboardSearchActive() || isDashboardQuickFilterActive()) {
         return;
     }
 
+    const reconcileKpis = shouldReconcileKpisForServiceCaseEvent(eventName);
     const action = resolveListAction(pageRoot, payload);
 
     if (action === 'ignore') {
+        // Queue filter may hide the row, but create/SLA still changes global KPI strip.
+        if (reconcileKpis) {
+            scheduleHybridKpiReconcile(pageRoot);
+        }
+
         return;
     }
 
@@ -159,6 +169,10 @@ const handleServiceCaseEvent = async (pageRoot, payload) => {
             remove_incident_ids: lockedIncidentIds.includes(incidentId) ? [] : [incidentId],
         });
 
+        if (reconcileKpis) {
+            scheduleHybridKpiReconcile(pageRoot);
+        }
+
         return;
     }
 
@@ -169,6 +183,10 @@ const handleServiceCaseEvent = async (pageRoot, payload) => {
                 html: payload.html,
             }],
         });
+
+        if (reconcileKpis) {
+            scheduleHybridKpiReconcile(pageRoot);
+        }
     }
 };
 
@@ -777,7 +795,7 @@ export const initLiveDashboardReverb = ({
     if (dashboardLiveUpdates) {
         SERVICE_CASE_EVENTS.forEach((eventName) => {
             dashboardChannel.listen(`.${eventName}`, (payload) => {
-                handleServiceCaseEvent(pageRoot, payload);
+                handleServiceCaseEvent(pageRoot, payload, eventName);
             });
         });
 

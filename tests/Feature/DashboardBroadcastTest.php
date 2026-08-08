@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\OrderStatus;
+use App\Events\Dashboard\DashboardKpisUpdated;
+use App\Events\Dashboard\ServiceCaseCreated;
+use App\Events\Dashboard\SlaStatusChanged;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -15,6 +18,7 @@ use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class DashboardBroadcastTest extends TestCase
@@ -155,5 +159,72 @@ class DashboardBroadcastTest extends TestCase
         app(DashboardBroadcastService::class)->kpisUpdated(null);
 
         $this->assertTrue(true);
+    }
+
+    public function test_service_case_created_broadcasts_rows_without_sync_kpi_fanout(): void
+    {
+        Event::fake([ServiceCaseCreated::class, SlaStatusChanged::class, DashboardKpisUpdated::class]);
+
+        $actor = User::factory()->create(['is_active' => true]);
+        $actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $viewer = User::factory()->create(['is_active' => true]);
+        $viewer->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'ORD-KPI-LIGHT-1',
+            'serial_number' => 'SN-KPI-LIGHT-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_kpi_light_1',
+            'status' => OrderStatus::Active,
+            'created_by' => $actor->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-KPI-LIGHT-1',
+            'category' => 'General',
+            'source' => IncidentSource::Cashfree,
+            'title' => 'KPI light path',
+            'description' => 'KPI light path',
+            'status' => 'open',
+            'created_by' => $actor->id,
+        ]);
+
+        app(DashboardBroadcastService::class)->serviceCaseCreated($incident->fresh(), $actor);
+
+        Event::assertDispatched(ServiceCaseCreated::class, function (ServiceCaseCreated $event) use ($viewer, $incident): bool {
+            return $event->recipient->id === $viewer->id
+                && $event->incident->id === $incident->id
+                && is_string($event->rowHtml)
+                && $event->rowHtml !== '';
+        });
+
+        Event::assertDispatched(SlaStatusChanged::class, function (SlaStatusChanged $event) use ($viewer, $incident): bool {
+            return $event->recipient->id === $viewer->id
+                && $event->incident->id === $incident->id;
+        });
+
+        Event::assertNotDispatched(DashboardKpisUpdated::class);
+        $this->assertTrue($incident->fresh()->isPendingAdmin());
+    }
+
+    public function test_explicit_kpis_updated_still_rebuilds_per_recipient_metrics(): void
+    {
+        Event::fake([DashboardKpisUpdated::class]);
+
+        $actor = User::factory()->create(['is_active' => true]);
+        $actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $viewer = User::factory()->create(['is_active' => true]);
+        $viewer->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        app(DashboardBroadcastService::class)->kpisUpdated($actor);
+
+        Event::assertDispatched(DashboardKpisUpdated::class, function (DashboardKpisUpdated $event) use ($viewer): bool {
+            return $event->recipient->id === $viewer->id
+                && str_contains($event->kpiStripHtml, 'dashboard-kpi-strip');
+        });
     }
 }

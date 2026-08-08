@@ -85,13 +85,16 @@ class DashboardBroadcastService
                 return;
             }
 
+            // Row fan-out only. Do not rebuild per-recipient KPI HTML here — that path
+            // was 25–38s in production outbox drains. Snapshot invalidation happens in
+            // broadcastRowUpdate; clients refresh KPIs via hybrid-kpi-reconcile / live poll
+            // after ServiceCaseCreated / SlaStatusChanged (same pattern as assignment).
             $this->broadcastRowUpdate(
                 incident: $freshIncident,
                 actor: $freshActor,
                 eventClass: ServiceCaseCreated::class,
             );
 
-            $this->kpisUpdated($freshActor);
             $this->slaStatusChanged($freshIncident, $freshActor);
         });
     }
@@ -439,13 +442,13 @@ class DashboardBroadcastService
                 return;
             }
 
+            // SLA row update only — KPI HTML fan-out is handled by the client reconcile
+            // triggered from ServiceCaseCreated / SlaStatusChanged listeners.
             $this->broadcastRowUpdate(
                 incident: $freshIncident,
                 actor: $freshActor,
                 eventClass: SlaStatusChanged::class,
             );
-
-            $this->kpisUpdated($freshActor);
         });
     }
 
