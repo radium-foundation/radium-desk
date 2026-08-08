@@ -65,7 +65,11 @@ class OperationsIntegrationHealthService
             ?? $this->cashfreeProbe->probe();
         $classification = $this->cashfreeIntegrityReadModel->classifyFailedWebhooks();
         $paidWithoutDeskOrder = $this->cashfreeIntegrityReadModel->paidWithoutDeskOrderCount();
-        $requiresAlert = $this->cashfreeIntegrityReadModel->requiresCashfreeHealthAlert();
+        // Derive alert from already-loaded paid + classify counts (avoids duplicate hydrate).
+        $requiresAlert = $this->cashfreeIntegrityReadModel->requiresCashfreeHealthAlertFromCounts(
+            $paidWithoutDeskOrder,
+            $classification->activeFailedWebhooks,
+        );
 
         $status = $requiresAlert
             ? OperationsHealthStatus::Failed

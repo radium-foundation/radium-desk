@@ -164,10 +164,23 @@ class CashfreePaymentIntegrityService
         return $this->failedWebhookRecord($log, $category, $assessment['reason']);
     }
 
+    /**
+     * Alert semantics when paid + failed classification counts are already loaded.
+     * Equivalent to requiresCashfreeHealthAlert() without re-running hydrate/classify.
+     */
+    public function requiresCashfreeHealthAlertFromCounts(
+        int $paidWithoutDeskOrderCount,
+        int $activeFailedWebhooks,
+    ): bool {
+        return $paidWithoutDeskOrderCount > 0 || $activeFailedWebhooks > 0;
+    }
+
     public function requiresCashfreeHealthAlert(): bool
     {
-        return $this->paidWithoutDeskOrderCount() > 0
-            || $this->activeFailedWebhookCount() > 0;
+        return $this->requiresCashfreeHealthAlertFromCounts(
+            $this->paidWithoutDeskOrderCount(),
+            $this->activeFailedWebhookCount(),
+        );
     }
 
     /**

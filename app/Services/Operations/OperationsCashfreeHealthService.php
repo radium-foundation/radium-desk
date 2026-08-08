@@ -66,7 +66,12 @@ class OperationsCashfreeHealthService
         $selfTest = $this->cashfreeHealthService->status();
         $paidWithoutDeskOrder = $this->integrityReadModel->paidWithoutDeskOrderCount();
         $configHealthy = $selfTest->isHealthy();
-        $isHealthy = $configHealthy && ! $this->integrityReadModel->requiresCashfreeHealthAlert();
+        // Derive alert from already-loaded paid + classify counts (avoids duplicate hydrate).
+        $requiresAlert = $this->integrityReadModel->requiresCashfreeHealthAlertFromCounts(
+            $paidWithoutDeskOrder,
+            $classification->activeFailedWebhooks,
+        );
+        $isHealthy = $configHealthy && ! $requiresAlert;
 
         return [
             'is_healthy' => $isHealthy,

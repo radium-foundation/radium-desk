@@ -153,29 +153,118 @@ class CashfreeIntegrityReadModelTest extends TestCase
         $this->assertFalse(Cache::has('readmodel:cashfree-integrity'));
     }
 
-    public function test_read_model_metrics_do_not_increase_owner_query_count_vs_equivalent_owner_calls(): void
+    public function test_metrics_derives_alert_without_reentering_requires_alert_hydrate(): void
     {
         $this->seedUnresolvedFailedPayment();
         Cache::flush();
 
+        $owner = app(CashfreePaymentIntegrityService::class);
+
         DB::enableQueryLog();
         DB::flushQueryLog();
-        $owner = app(CashfreePaymentIntegrityService::class);
         $owner->classifyFailedWebhooks();
         $owner->paidWithoutDeskOrderCount();
-        $owner->requiresCashfreeHealthAlert();
-        $ownerQueryCount = count(DB::getQueryLog());
+        $classifyAndPaidQueryCount = count(DB::getQueryLog());
 
         Cache::flush();
         DB::flushQueryLog();
-        app(CashfreeIntegrityReadModel::class)->metrics();
-        $readModelQueryCount = count(DB::getQueryLog());
+        $owner->classifyFailedWebhooks();
+        $owner->paidWithoutDeskOrderCount();
+        $owner->requiresCashfreeHealthAlert();
+        $legacyTripleSequenceQueryCount = count(DB::getQueryLog());
+
+        Cache::flush();
+        DB::flushQueryLog();
+        $metrics = app(CashfreeIntegrityReadModel::class)->metrics();
+        $metricsQueryCount = count(DB::getQueryLog());
 
         $this->assertSame(
-            $ownerQueryCount,
-            $readModelQueryCount,
-            'metrics() must preserve the owner call sequence query count (no regression, no silent merge).',
+            $classifyAndPaidQueryCount,
+            $metricsQueryCount,
+            'metrics() must equal classify + paid only (alert derived from loaded counts).',
         );
+        $this->assertLessThan(
+            $legacyTripleSequenceQueryCount,
+            $metricsQueryCount,
+            'metrics() must not re-enter requiresCashfreeHealthAlert() hydrate/classify.',
+        );
+        $this->assertTrue($metrics->requiresAlert);
+        $this->assertSame($owner->requiresCashfreeHealthAlert(), $metrics->requiresAlert);
+    }
+
+    public function test_widget_build_runs_paid_integrity_hydrate_once_and_preserves_alert(): void
+    {
+        $this->seedUnresolvedFailedPayment();
+        Cache::flush();
+
+        $expectedAlert = app(CashfreePaymentIntegrityService::class)->requiresCashfreeHealthAlert();
+        Cache::flush();
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $startedAt = hrtime(true);
+        $widget = app(OperationsCashfreeHealthService::class)->widget(useCache: false);
+        $elapsedMs = (hrtime(true) - $startedAt) / 1_000_000;
+        $queries = collect(DB::getQueryLog());
+
+        $hydrateQueries = $queries->filter(fn (array $query): bool => $this->isSuccessfulPaymentHydrateQuery($query));
+        $classifyQueries = $queries->filter(fn (array $query): bool => $this->isFailedWebhookClassifyQuery($query));
+
+        $derivedAlert = $widget['paid_without_desk_order'] > 0
+            || $widget['active_failed_webhooks'] > 0;
+
+        // Legacy requiresCashfreeHealthAlert() would double both hydrate + classify SQL.
+        $this->assertCount(1, $hydrateQueries, 'successful-payment hydrate SQL must run once per widget build.');
+        $this->assertCount(1, $classifyQueries, 'failed-webhook classify SQL must run once per widget build.');
+        $this->assertSame($expectedAlert, $derivedAlert, 'Widget alert semantics must match requiresCashfreeHealthAlert().');
+        $this->assertFalse($widget['is_healthy']);
+        $this->assertSame(1, $widget['paid_without_desk_order']);
+        $this->assertSame(1, $widget['active_failed_webhooks']);
+        $this->assertGreaterThan(0, $elapsedMs);
+    }
+
+    public function test_integration_cashfree_card_derives_alert_without_requires_alert_reentry(): void
+    {
+        $this->seedUnresolvedFailedPayment();
+        Cache::flush();
+
+        $expectedAlert = app(CashfreePaymentIntegrityService::class)->requiresCashfreeHealthAlert();
+        Cache::flush();
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $card = collect(app(OperationsIntegrationHealthService::class)->cards())->firstWhere('key', 'cashfree');
+        $queries = collect(DB::getQueryLog());
+
+        $hydrateQueries = $queries->filter(fn (array $query): bool => $this->isSuccessfulPaymentHydrateQuery($query));
+        $classifyQueries = $queries->filter(fn (array $query): bool => $this->isFailedWebhookClassifyQuery($query));
+
+        $derivedAlert = $card['paid_without_desk_order'] > 0
+            || $card['active_failed_webhooks'] > 0;
+
+        $this->assertCount(1, $hydrateQueries, 'Card build must not duplicate successful-payment hydrate.');
+        $this->assertCount(1, $classifyQueries, 'Card build must not duplicate failed-webhook classify.');
+        $this->assertSame($expectedAlert, $derivedAlert);
+        $this->assertSame('failed', $card['status']);
+        $this->assertSame(1, $card['paid_without_desk_order']);
+        $this->assertSame(1, $card['active_failed_webhooks']);
+    }
+
+    public function test_alert_from_counts_matches_requires_cashfree_health_alert(): void
+    {
+        $this->seedUnresolvedFailedPayment();
+
+        $owner = app(CashfreePaymentIntegrityService::class);
+        $classification = $owner->classifyFailedWebhooks();
+        $paid = $owner->paidWithoutDeskOrderCount();
+
+        $this->assertSame(
+            $owner->requiresCashfreeHealthAlert(),
+            $owner->requiresCashfreeHealthAlertFromCounts($paid, $classification->activeFailedWebhooks),
+        );
+        $this->assertTrue($owner->requiresCashfreeHealthAlertFromCounts(1, 0));
+        $this->assertTrue($owner->requiresCashfreeHealthAlertFromCounts(0, 1));
+        $this->assertFalse($owner->requiresCashfreeHealthAlertFromCounts(0, 0));
     }
 
     public function test_admin_operations_cashfree_health_html_unchanged_across_repeat_requests(): void
@@ -208,6 +297,38 @@ class CashfreeIntegrityReadModelTest extends TestCase
         $classification = app(CashfreeIntegrityReadModel::class)->classifyFailedWebhooks();
 
         $this->assertSame(CashfreeWebhookFailureCategory::Unresolved, $classification->records[0]->category);
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     */
+    private function isSuccessfulPaymentHydrateQuery(array $query): bool
+    {
+        $sql = strtolower((string) ($query['query'] ?? ''));
+
+        // successfulPaymentLogsByCfPaymentId(): full-table get ordered by received_at, id.
+        return str_contains($sql, 'cashfree_webhook_logs')
+            && str_contains($sql, 'order by')
+            && str_contains($sql, 'received_at')
+            && str_contains($sql, 'id')
+            && ! str_contains($sql, 'processing_status')
+            && ! str_contains($sql, 'limit');
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     */
+    private function isFailedWebhookClassifyQuery(array $query): bool
+    {
+        $sql = strtolower((string) ($query['query'] ?? ''));
+
+        // classifyFailedWebhooks(): failed rows ordered by processed_at, id.
+        return str_contains($sql, 'cashfree_webhook_logs')
+            && str_contains($sql, 'processing_status')
+            && str_contains($sql, 'order by')
+            && str_contains($sql, 'processed_at')
+            && str_contains($sql, 'id')
+            && ! str_contains($sql, 'limit');
     }
 
     private function seedUnresolvedFailedPayment(): void

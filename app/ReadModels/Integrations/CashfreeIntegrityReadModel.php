@@ -22,14 +22,17 @@ class CashfreeIntegrityReadModel
     /**
      * Stable integrity KPI projection.
      *
-     * Call sequence matches OperationsCashfreeHealthService integrity reads:
-     * classifyFailedWebhooks → paidWithoutDeskOrderCount → requiresCashfreeHealthAlert.
+     * Call sequence: classifyFailedWebhooks → paidWithoutDeskOrderCount.
+     * Alert is derived from those loaded counts (no second hydrate/classify).
      */
     public function metrics(): CashfreeIntegrityMetricsV1
     {
         $classification = $this->integrityService->classifyFailedWebhooks();
         $paidWithoutDeskOrderCount = $this->integrityService->paidWithoutDeskOrderCount();
-        $requiresAlert = $this->integrityService->requiresCashfreeHealthAlert();
+        $requiresAlert = $this->integrityService->requiresCashfreeHealthAlertFromCounts(
+            $paidWithoutDeskOrderCount,
+            $classification->activeFailedWebhooks,
+        );
 
         return new CashfreeIntegrityMetricsV1(
             paidWithoutDeskOrderCount: $paidWithoutDeskOrderCount,
@@ -76,5 +79,18 @@ class CashfreeIntegrityReadModel
     public function requiresCashfreeHealthAlert(): bool
     {
         return $this->integrityService->requiresCashfreeHealthAlert();
+    }
+
+    /**
+     * Same alert semantics as requiresCashfreeHealthAlert() without re-hydrate.
+     */
+    public function requiresCashfreeHealthAlertFromCounts(
+        int $paidWithoutDeskOrderCount,
+        int $activeFailedWebhooks,
+    ): bool {
+        return $this->integrityService->requiresCashfreeHealthAlertFromCounts(
+            $paidWithoutDeskOrderCount,
+            $activeFailedWebhooks,
+        );
     }
 }
