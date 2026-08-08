@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.11 — 2026-08-08 — Ready Queue Reconcile Performance
+
+- Optimized Ready Queue KPI reconciliation to return counts and KPI data without rebuilding Ready Queue rows.
+- Reduced unnecessary database queries, PHP processing, and response payload during event-driven dashboard reconciliation.
+- Preserved existing Ready Queue row updates, Ably events, heartbeat behavior, and full dashboard refresh behavior.
+
 ## 4.0.10 — 2026-08-08 — Dashboard Broadcast Performance
 
 - Removed synchronous per-recipient KPI rebuilding from Operations dashboard service-case broadcasts.
