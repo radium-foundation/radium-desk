@@ -1105,6 +1105,104 @@ class ServiceCaseAssignmentService
         return $this->hasManualIdentityReadyRepublishAfterManualSupportOwnership($incident);
     }
 
+    /**
+     * Batch-load Admin Ready visibility audit anchors for the Ready-eligible
+     * manual-support universe and seed the request-local memo (≤2 audit SQL).
+     * Call before filtering unscoped ActionRequired.
+     *
+     * @param  iterable<int, Incident>  $incidents
+     */
+    public function prefetchAdminReadyVisibility(iterable $incidents): void
+    {
+        $classifier = app(OperationsQueueClassifier::class);
+        /** @var array<int, Incident> $candidates */
+        $candidates = [];
+
+        foreach ($incidents as $incident) {
+            $incidentId = (int) $incident->id;
+
+            if (array_key_exists($incidentId, $this->manualOwnershipReadyVisibilityMemo)) {
+                continue;
+            }
+
+            if (! $this->hasManualSupportOwnership($incident)) {
+                continue;
+            }
+
+            $incident->loadMissing([
+                'order',
+                'assignee.roles',
+                'supportAppointments',
+                'activeWaitingState',
+            ]);
+
+            if (! $classifier->isReadyForReferenceEntry($incident)) {
+                continue;
+            }
+
+            $candidates[$incidentId] = $incident;
+        }
+
+        if ($candidates === []) {
+            return;
+        }
+
+        $candidateIds = array_keys($candidates);
+        $morphClass = reset($candidates)->getMorphClass();
+
+        // B1 — latest ownership audit per candidate (manual origin preserved in MAX).
+        $ownershipAnchors = AuditLog::query()
+            ->selectRaw('auditable_id, MAX(id) as ownership_audit_id')
+            ->where('auditable_type', $morphClass)
+            ->whereIn('auditable_id', $candidateIds)
+            ->whereIn('event', ['service_case.assigned', 'service_case.reassigned', 'service_case.escalated'])
+            ->where('new_values->assignment_origin', AssignmentOrigin::Manual->value)
+            ->groupBy('auditable_id')
+            ->get()
+            ->mapWithKeys(fn (AuditLog $row): array => [
+                (int) $row->auditable_id => (int) $row->ownership_audit_id,
+            ]);
+
+        $withAnchorIds = [];
+
+        foreach ($candidateIds as $candidateId) {
+            if (! $ownershipAnchors->has($candidateId)) {
+                $this->manualOwnershipReadyVisibilityMemo[$candidateId] = false;
+
+                continue;
+            }
+
+            $withAnchorIds[] = $candidateId;
+        }
+
+        if ($withAnchorIds === []) {
+            return;
+        }
+
+        // B2 — republish rows; visibility = any republish id > ownership anchor.
+        $republishRows = AuditLog::query()
+            ->select(['auditable_id', 'id'])
+            ->where('auditable_type', $morphClass)
+            ->whereIn('auditable_id', $withAnchorIds)
+            ->where('event', self::MANUAL_IDENTITY_READY_REPUBLISH_EVENT)
+            ->get();
+
+        $hasLaterRepublish = [];
+
+        foreach ($republishRows as $row) {
+            $auditableId = (int) $row->auditable_id;
+            $ownershipAuditId = (int) $ownershipAnchors->get($auditableId);
+
+            if ((int) $row->id > $ownershipAuditId) {
+                $hasLaterRepublish[$auditableId] = true;
+            }
+        }
+
+        foreach ($withAnchorIds as $candidateId) {
+            $this->manualOwnershipReadyVisibilityMemo[$candidateId] = isset($hasLaterRepublish[$candidateId]);
+        }
+    }
+
     public function isManualIdentityRepublishSource(string $source): bool
     {
         return in_array($source, self::MANUAL_IDENTITY_REPUBLISH_SOURCES, true);

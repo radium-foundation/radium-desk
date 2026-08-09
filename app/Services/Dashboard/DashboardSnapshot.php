@@ -323,6 +323,7 @@ class DashboardSnapshot
 
             if ($queue === OperationQueue::ActionRequired && $scopeUser === null) {
                 $assignmentService ??= app(ServiceCaseAssignmentService::class);
+                $assignmentService->prefetchAdminReadyVisibility($incidents);
                 $incidents = $incidents->filter(
                     fn (Incident $incident): bool => $assignmentService->isVisibleInAdminReadyQueue($incident),
                 );
@@ -396,6 +397,7 @@ class DashboardSnapshot
 
         if ($queue === OperationQueue::ActionRequired->value && $scopeUser === null) {
             $assignmentService = app(ServiceCaseAssignmentService::class);
+            $assignmentService->prefetchAdminReadyVisibility($incidents);
             $incidents = $incidents->filter(
                 fn (Incident $incident): bool => $assignmentService->isVisibleInAdminReadyQueue($incident),
             );

@@ -30,6 +30,8 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use ReflectionProperty;
 use Tests\TestCase;
 
 class AdminReadyIdentityRepublishTest extends TestCase
@@ -712,6 +714,293 @@ class AdminReadyIdentityRepublishTest extends TestCase
         $hardware->order->update(['order_id' => 'RDE'.uniqid()]);
         $hardware = $this->manualReassign($hardware->fresh(['order']), $agent, $admin);
         $this->assertFalse($this->inAdminReady($hardware->fresh(['order', 'assignee.roles'])));
+    }
+
+    public function test_prefetch_zero_candidates_issues_no_audit_queries(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-03 14:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('prefetch-m0-admin@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        // Non-manual Admin Ready cases: overlay short-circuits with zero audit SQL.
+        $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto);
+        $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto);
+
+        app(DashboardSnapshotStore::class)->forget();
+
+        $auditQueryCount = $this->countAuditLogQueries(function (): void {
+            DashboardSnapshot::load()
+                ->incidentsForQueue(OperationQueue::ActionRequired->value);
+        });
+
+        $this->assertSame(0, $auditQueryCount);
+    }
+
+    public function test_prefetch_batches_at_most_two_audit_queries_for_many_candidates(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-03 14:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('prefetch-m-admin@radium.local');
+        $agent = $this->createAgent('prefetch-m-agent@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $hidden = [];
+        $visible = [];
+
+        for ($i = 0; $i < 4; $i++) {
+            $incident = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto);
+            $hidden[] = $this->manualReassign($incident, $agent, $admin);
+        }
+
+        for ($i = 0; $i < 3; $i++) {
+            $incident = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: null);
+            $model = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+            $incident->order->update([
+                'device_model_id' => $model->id,
+                'device_model' => $model->name,
+                'product_name' => $model->name,
+            ]);
+            $incident = $this->manualReassign($incident->fresh(['order']), $agent, $admin);
+            app(OrderSerialService::class)->assignSerialNumber($incident->order->fresh(), '78819'.(50 + $i), $agent);
+            $visible[] = $incident->fresh(['order', 'assignee.roles']);
+        }
+
+        $this->assertCount(4, $hidden);
+        $this->assertCount(3, $visible);
+        $this->assertGreaterThanOrEqual(5, count($hidden) + count($visible));
+
+        app(DashboardSnapshotStore::class)->forget();
+
+        $auditQueryCount = $this->countAuditLogQueries(function (): void {
+            DashboardSnapshot::load()
+                ->incidentsForQueue(OperationQueue::ActionRequired->value);
+        });
+
+        $this->assertLessThanOrEqual(2, $auditQueryCount);
+        $this->assertGreaterThan(0, $auditQueryCount);
+
+        foreach ($hidden as $incident) {
+            $this->assertFalse($this->inAdminReady($incident->fresh(['order', 'assignee.roles'])));
+        }
+
+        foreach ($visible as $incident) {
+            $this->assertTrue($this->inAdminReady($incident->fresh(['order', 'assignee.roles'])));
+        }
+    }
+
+    public function test_prefetch_visibility_matches_per_incident_fallback(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-03 14:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('prefetch-parity-admin@radium.local');
+        $agent = $this->createAgent('prefetch-parity-agent@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $hidden = $this->manualReassign(
+            $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto),
+            $agent,
+            $admin,
+        );
+
+        $incomplete = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: null);
+        $model = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+        $incomplete->order->update([
+            'device_model_id' => $model->id,
+            'device_model' => $model->name,
+            'product_name' => $model->name,
+        ]);
+        $republished = $this->manualReassign($incomplete->fresh(['order']), $agent, $admin);
+        app(OrderSerialService::class)->assignSerialNumber($republished->order->fresh(), '7881959', $agent);
+        $republished = $republished->fresh(['order', 'assignee.roles', 'supportAppointments', 'activeWaitingState']);
+
+        $autoVisible = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto);
+
+        $incidents = collect([
+            $hidden->fresh(['order', 'assignee.roles', 'supportAppointments', 'activeWaitingState']),
+            $republished,
+            $autoVisible->fresh(['order', 'assignee.roles', 'supportAppointments', 'activeWaitingState']),
+        ]);
+
+        $perIncident = app()->make(ServiceCaseAssignmentService::class);
+        $expected = [];
+        foreach ($incidents as $incident) {
+            $expected[(int) $incident->id] = $perIncident->isVisibleInAdminReadyQueue($incident);
+        }
+
+        $batched = app()->make(ServiceCaseAssignmentService::class);
+        $batched->prefetchAdminReadyVisibility($incidents);
+        $actual = [];
+        foreach ($incidents as $incident) {
+            $actual[(int) $incident->id] = $batched->isVisibleInAdminReadyQueue($incident);
+        }
+
+        $this->assertSame($expected, $actual);
+        $this->assertFalse($expected[(int) $hidden->id]);
+        $this->assertTrue($expected[(int) $republished->id]);
+        $this->assertTrue($expected[(int) $autoVisible->id]);
+    }
+
+    public function test_prefetch_sc28000_stays_hidden_until_manual_republish(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-06 14:10:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('prefetch-sc28000-admin@radium.local');
+        $agent = $this->createAgent('prefetch-sc28000-agent@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $incident = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: null);
+        $model = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+        $incident->order->update([
+            'device_model_id' => $model->id,
+            'device_model' => $model->name,
+            'product_name' => $model->name,
+        ]);
+        $incident = $this->manualReassign($incident->fresh(['order']), $agent, $admin);
+
+        $incident->order->update(['serial_number' => '6540662', 'updated_by' => 1]);
+        $this->markSynced($incident->order_id);
+        app(\App\Services\OrderIdentityLifecycleService::class)->afterIdentityChanged(
+            order: $incident->order->fresh(),
+            actor: $admin,
+            source: 'radiumbox_enrichment',
+            serialChanged: true,
+        );
+
+        $fresh = $incident->fresh(['order', 'assignee.roles', 'supportAppointments', 'activeWaitingState']);
+        $service = app()->make(ServiceCaseAssignmentService::class);
+        $service->prefetchAdminReadyVisibility([$fresh]);
+
+        $this->assertTrue(app(OperationsQueueClassifier::class)->isReadyForReferenceEntry($fresh));
+        $this->assertFalse($service->isVisibleInAdminReadyQueue($fresh));
+        $this->assertFalse($this->inAdminReady($fresh));
+
+        DeviceModel::query()->firstOrCreate(['name' => 'MIS 100'], ['is_active' => true, 'display_order' => 99]);
+        $mis = DeviceModel::query()->where('name', 'MIS 100')->firstOrFail();
+        app(OrderDeviceModelService::class)->correctDeviceModel($fresh->order->fresh(), $mis, $agent);
+        $after = $fresh->fresh(['order', 'assignee.roles', 'supportAppointments', 'activeWaitingState']);
+
+        $serviceAfter = app()->make(ServiceCaseAssignmentService::class);
+        $serviceAfter->prefetchAdminReadyVisibility([$after]);
+        $this->assertTrue($serviceAfter->isVisibleInAdminReadyQueue($after));
+        $this->assertTrue($this->inAdminReady($after));
+    }
+
+    public function test_prefetch_unrelated_audit_events_do_not_qualify(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-03 14:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('prefetch-unrelated-admin@radium.local');
+        $agent = $this->createAgent('prefetch-unrelated-agent@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $incident = $this->manualReassign(
+            $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto),
+            $agent,
+            $admin,
+        );
+
+        // Later non-manual ownership + validation_passed must not unlock Admin Ready.
+        AuditLog::query()->create([
+            'user_id' => $admin->id,
+            'event' => 'service_case.reassigned',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+            'old_values' => [],
+            'new_values' => [
+                'assigned_to_user_id' => $agent->id,
+                'assignment_origin' => AssignmentOrigin::Auto->value,
+            ],
+        ]);
+        AuditLog::query()->create([
+            'user_id' => $admin->id,
+            'event' => ServiceCaseAutomationMonitorService::EVENT_VALIDATION_PASSED,
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+            'old_values' => [],
+            'new_values' => ['source' => 'test'],
+        ]);
+
+        $fresh = $incident->fresh(['order', 'assignee.roles', 'supportAppointments', 'activeWaitingState']);
+        $service = app()->make(ServiceCaseAssignmentService::class);
+        $service->prefetchAdminReadyVisibility([$fresh]);
+
+        $this->assertFalse($service->isVisibleInAdminReadyQueue($fresh));
+        $this->assertFalse(
+            app()->make(ServiceCaseAssignmentService::class)->isVisibleInAdminReadyQueue($fresh),
+        );
+    }
+
+    public function test_prefetch_seeds_candidate_memo(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-03 14:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin('prefetch-memo-admin@radium.local');
+        $agent = $this->createAgent('prefetch-memo-agent@radium.local');
+        $this->configureShiftAdmin($admin->id);
+
+        $hidden = $this->manualReassign(
+            $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto),
+            $agent,
+            $admin,
+        )->fresh(['order', 'assignee.roles', 'supportAppointments', 'activeWaitingState']);
+
+        $incomplete = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto, serial: null);
+        $model = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+        $incomplete->order->update([
+            'device_model_id' => $model->id,
+            'device_model' => $model->name,
+            'product_name' => $model->name,
+        ]);
+        $visible = $this->manualReassign($incomplete->fresh(['order']), $agent, $admin);
+        app(OrderSerialService::class)->assignSerialNumber($visible->order->fresh(), '7881960', $agent);
+        $visible = $visible->fresh(['order', 'assignee.roles', 'supportAppointments', 'activeWaitingState']);
+
+        $autoOnly = $this->createReadyCase($admin, assignee: $admin, origin: AssignmentOrigin::Auto)
+            ->fresh(['order', 'assignee.roles', 'supportAppointments', 'activeWaitingState']);
+
+        $service = app()->make(ServiceCaseAssignmentService::class);
+        $service->prefetchAdminReadyVisibility([$hidden, $visible, $autoOnly]);
+
+        $memo = $this->manualOwnershipReadyVisibilityMemo($service);
+
+        $this->assertArrayHasKey((int) $hidden->id, $memo);
+        $this->assertFalse($memo[(int) $hidden->id]);
+        $this->assertArrayHasKey((int) $visible->id, $memo);
+        $this->assertTrue($memo[(int) $visible->id]);
+        $this->assertArrayNotHasKey((int) $autoOnly->id, $memo, 'Non-candidates must not be memo-seeded');
+
+        $auditQueryCount = $this->countAuditLogQueries(function () use ($service, $hidden, $visible): void {
+            $service->isVisibleInAdminReadyQueue($hidden);
+            $service->isVisibleInAdminReadyQueue($visible);
+        });
+        $this->assertSame(0, $auditQueryCount, 'Memo hits must skip per-incident audit SQL');
+    }
+
+    /**
+     * @return array<int, bool>
+     */
+    private function manualOwnershipReadyVisibilityMemo(ServiceCaseAssignmentService $service): array
+    {
+        $property = new ReflectionProperty(ServiceCaseAssignmentService::class, 'manualOwnershipReadyVisibilityMemo');
+
+        /** @var array<int, bool> $memo */
+        $memo = $property->getValue($service);
+
+        return $memo;
+    }
+
+    private function countAuditLogQueries(callable $callback): int
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $callback();
+        $count = collect(DB::getQueryLog())
+            ->filter(fn (array $query): bool => str_contains(strtolower($query['query']), 'audit_logs'))
+            ->count();
+        DB::disableQueryLog();
+
+        return $count;
     }
 
     private function createReadyCase(
