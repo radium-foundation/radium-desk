@@ -65,6 +65,7 @@
     @include('workspace.partials.workspace-modal-host')
     @include('layouts.partials.keyboard-shortcuts-modal')
     @include('layouts.partials.whats-new-modal')
+    @include('todos.partials.modal-host')
 
     @auth
         @if(app(\App\Services\Operations\OperationsRoleService::class)->isTeamMember(auth()->user()))

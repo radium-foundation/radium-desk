@@ -5,9 +5,11 @@ namespace App\Services;
 use App\Data\RecentActivityStreams;
 use App\Enums\OperationQueue;
 use App\Enums\ServiceCaseSlaStatus;
+use App\Enums\TodoStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\Todo;
 use App\Models\User;
 use App\ReadModels\Cases\CaseQueueReadModel;
 use App\Services\Dashboard\AgentNextAppointmentResolver;
@@ -165,7 +167,34 @@ class DashboardService
             }
         }
 
+        if ($user->can('viewAny', Todo::class)) {
+            $stats['todo_widget'] = $this->todoWidgetCounts($user);
+        }
+
         return $stats;
+    }
+
+    /**
+     * @return array{pending: int, overdue: int}
+     */
+    private function todoWidgetCounts(User $user): array
+    {
+        $base = Todo::query()
+            ->when(! $user->can('todos.manage'), function ($query) use ($user): void {
+                $query->where(function ($scoped) use ($user): void {
+                    $scoped->where('created_by', $user->id)
+                        ->orWhere('assigned_to', $user->id);
+                });
+            })
+            ->where('status', TodoStatus::Open);
+
+        return [
+            'pending' => (clone $base)->count(),
+            'overdue' => (clone $base)
+                ->whereNotNull('due_at')
+                ->where('due_at', '<', now())
+                ->count(),
+        ];
     }
 
     /**

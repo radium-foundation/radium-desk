@@ -133,6 +133,9 @@ export const initGlobalShell = () => {
     });
     initPresenceHeartbeat();
     initIncomingCallCardHost();
+    void import('../todo-modal').then(({ initTodoModal }) => {
+        initTodoModal();
+    });
 };
 
 document.addEventListener('DOMContentLoaded', initGlobalShell);

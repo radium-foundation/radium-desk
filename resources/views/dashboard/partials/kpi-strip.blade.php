@@ -103,5 +103,7 @@
     @include('dashboard.partials.email-intake-kpi-card', [
         'widget' => $stats['email_intake_widget'] ?? null,
     ])
+
+    @include('dashboard.partials.todo-kpi-card', ['stats' => $stats, 'variant' => 'strip'])
 @endif
 </div>

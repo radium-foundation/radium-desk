@@ -163,7 +163,10 @@ class NavigationContextResolver
                 ? $this->sidebarItem('personal.my_leave', 'My Leave', 'bi-calendar-x', route('leave-requests.index'), $context)
                 : null,
             Gate::check('viewAny', Todo::class)
-                ? $this->sidebarItem('personal.todos', 'To-Dos', 'bi-check2-square', route('todos.index'), $context)
+                ? array_merge(
+                    $this->sidebarItem('personal.todos', 'To-Dos', 'bi-check2-square', route('todos.index'), $context),
+                    ['open_todo_modal' => true],
+                )
                 : null,
         ]));
 
@@ -478,7 +481,7 @@ class NavigationContextResolver
             NavigationMenu::WorkforceManagement => in_array($pageTitle, ['Workforce Management', 'Attendance'], true),
             NavigationMenu::Finance => in_array($pageTitle, ['Finance', 'Dashboard'], true),
             NavigationMenu::Administration => $pageTitle === 'Administration',
-            NavigationMenu::Personal => in_array($pageTitle, ['My Workforce', 'My Performance', 'Leave Requests'], true),
+            NavigationMenu::Personal => in_array($pageTitle, ['My Workforce', 'My Performance', 'Leave Requests', 'To-Dos'], true),
         };
     }
 

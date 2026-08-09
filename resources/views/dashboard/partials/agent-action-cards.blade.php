@@ -90,5 +90,7 @@
                 </div>
             @endif
         @endunless
+
+        @include('dashboard.partials.todo-kpi-card', ['stats' => $stats, 'variant' => 'agent'])
     </div>
 </div>

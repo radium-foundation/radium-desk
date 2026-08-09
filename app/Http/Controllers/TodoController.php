@@ -10,108 +10,92 @@ use App\Http\Requests\UpdateTodoRequest;
 use App\Models\Todo;
 use App\Models\User;
 use App\Services\Todos\TodoService;
+use App\Support\Todos\TodoPanelRenderer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 class TodoController extends Controller
 {
     public function __construct(
         private readonly TodoService $todoService,
+        private readonly TodoPanelRenderer $panelRenderer,
     ) {
         $this->authorizeResource(Todo::class, 'todo');
     }
 
-    public function index(Request $request): View
+    public function index(Request $request): View|Response
     {
-        $user = $request->user();
-        $statusFilter = (string) $request->string('status')->trim();
-        $scopeFilter = (string) $request->string('scope')->trim();
+        $data = $this->indexData($request);
 
-        $todos = Todo::query()
-            ->with(['creator', 'assignee', 'reminders'])
-            ->when(! $user->can('todos.manage'), function ($query) use ($user): void {
-                $query->where(function ($scoped) use ($user): void {
-                    $scoped->where('created_by', $user->id)
-                        ->orWhere('assigned_to', $user->id);
-                });
-            })
-            ->when($scopeFilter === 'assigned', function ($query) use ($user): void {
-                $query->where('assigned_to', $user->id);
-            })
-            ->when($scopeFilter === 'created', function ($query) use ($user): void {
-                $query->where('created_by', $user->id);
-            })
-            ->when(
-                $statusFilter !== ''
-                    && $statusFilter !== 'all'
-                    && in_array($statusFilter, TodoStatus::values(), true),
-                function ($query) use ($statusFilter): void {
-                    $query->where('status', $statusFilter);
-                },
-            )
-            ->when($statusFilter === '', function ($query): void {
-                $query->where('status', TodoStatus::Open->value);
-            })
-            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', [TodoStatus::Open->value])
-            ->orderBy('due_at')
-            ->latest('id')
-            ->paginate(20)
-            ->withQueryString();
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->list($data);
+        }
 
-        return view('todos.index', [
-            'todos' => $todos,
-            'filters' => [
-                'status' => $statusFilter,
-                'scope' => $scopeFilter,
-            ],
-        ]);
+        return view('todos.index', $data);
     }
 
-    public function create(): View
+    public function create(Request $request): View|Response
     {
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->createForm($request);
+        }
+
         return view('todos.create', [
-            'assignableUsers' => $this->assignableUsers(request()->user()),
+            'assignableUsers' => $this->panelRenderer->assignableUsers($request->user()),
         ]);
     }
 
-    public function store(StoreTodoRequest $request): RedirectResponse
+    public function store(StoreTodoRequest $request): RedirectResponse|Response
     {
         $todo = $this->todoService->create(
             actor: $request->user(),
             data: $request->todoData(),
         );
 
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->detail($request, $todo, 'todo-created');
+        }
+
         return redirect()
             ->route('todos.show', $todo)
             ->with('status', 'todo-created');
     }
 
-    public function show(Todo $todo): View
+    public function show(Request $request, Todo $todo): View|Response
     {
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->detail($request, $todo);
+        }
+
         $todo->load(['creator', 'assignee', 'reminders']);
 
         return view('todos.show', [
             'todo' => $todo,
-            'assignableUsers' => $this->assignableUsers(request()->user()),
+            'assignableUsers' => $this->panelRenderer->assignableUsers($request->user()),
             'pendingReminder' => $todo->reminders
                 ->first(fn ($reminder) => $reminder->status === ReminderStatus::Pending),
         ]);
     }
 
-    public function edit(Todo $todo): View
+    public function edit(Request $request, Todo $todo): View|Response
     {
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->editForm($request, $todo);
+        }
+
         $todo->load(['reminders']);
 
         return view('todos.edit', [
             'todo' => $todo,
-            'assignableUsers' => $this->assignableUsers(request()->user()),
+            'assignableUsers' => $this->panelRenderer->assignableUsers($request->user()),
             'pendingReminder' => $todo->reminders
                 ->first(fn ($reminder) => $reminder->status === ReminderStatus::Pending),
         ]);
     }
 
-    public function update(UpdateTodoRequest $request, Todo $todo): RedirectResponse
+    public function update(UpdateTodoRequest $request, Todo $todo): RedirectResponse|Response
     {
         $todo = $this->todoService->update(
             actor: $request->user(),
@@ -119,24 +103,32 @@ class TodoController extends Controller
             data: $request->todoData(),
         );
 
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->detail($request, $todo, 'todo-updated');
+        }
+
         return redirect()
             ->route('todos.show', $todo)
             ->with('status', 'todo-updated');
     }
 
-    public function destroy(Request $request, Todo $todo): RedirectResponse
+    public function destroy(Request $request, Todo $todo): RedirectResponse|Response
     {
         $this->todoService->delete(
             actor: $request->user(),
             todo: $todo,
         );
 
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->list($this->indexData($request), 'todo-deleted');
+        }
+
         return redirect()
             ->route('todos.index')
             ->with('status', 'todo-deleted');
     }
 
-    public function complete(Request $request, Todo $todo): RedirectResponse
+    public function complete(Request $request, Todo $todo): RedirectResponse|Response
     {
         $this->authorize('complete', $todo);
 
@@ -145,12 +137,16 @@ class TodoController extends Controller
             todo: $todo,
         );
 
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->detail($request, $todo, 'todo-completed');
+        }
+
         return redirect()
             ->route('todos.show', $todo)
             ->with('status', 'todo-completed');
     }
 
-    public function reopen(Request $request, Todo $todo): RedirectResponse
+    public function reopen(Request $request, Todo $todo): RedirectResponse|Response
     {
         $this->authorize('update', $todo);
 
@@ -159,12 +155,16 @@ class TodoController extends Controller
             todo: $todo,
         );
 
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->detail($request, $todo, 'todo-reopened');
+        }
+
         return redirect()
             ->route('todos.show', $todo)
             ->with('status', 'todo-reopened');
     }
 
-    public function cancel(Request $request, Todo $todo): RedirectResponse
+    public function cancel(Request $request, Todo $todo): RedirectResponse|Response
     {
         $this->authorize('cancel', $todo);
 
@@ -173,12 +173,16 @@ class TodoController extends Controller
             todo: $todo,
         );
 
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->detail($request, $todo, 'todo-cancelled');
+        }
+
         return redirect()
             ->route('todos.show', $todo)
             ->with('status', 'todo-cancelled');
     }
 
-    public function assign(AssignTodoRequest $request, Todo $todo): RedirectResponse
+    public function assign(AssignTodoRequest $request, Todo $todo): RedirectResponse|Response
     {
         $assignee = User::query()->findOrFail((int) $request->validated('assigned_to'));
 
@@ -188,23 +192,45 @@ class TodoController extends Controller
             assignee: $assignee,
         );
 
+        if ($this->wantsTodoPanel($request)) {
+            return $this->panelRenderer->detail($request, $todo, 'todo-assigned');
+        }
+
         return redirect()
             ->route('todos.show', $todo)
             ->with('status', 'todo-assigned');
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, User>
+     * @return array{
+     *     todos: \Illuminate\Contracts\Pagination\LengthAwarePaginator,
+     *     filters: array{status: string, scope: string}
+     * }
      */
-    private function assignableUsers(?User $actor)
+    private function indexData(Request $request): array
     {
-        if ($actor === null || ! $actor->can('todos.assign')) {
-            return collect();
-        }
+        $user = $request->user();
+        $filters = TodoPanelRenderer::filtersFromRequest($request);
 
-        return User::query()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name', 'email']);
+        $todos = TodoPanelRenderer::applyIndexScopes(
+            Todo::query()->with(['creator', 'assignee', 'reminders']),
+            $request,
+            $user,
+        )
+            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', [TodoStatus::Open->value])
+            ->orderBy('due_at')
+            ->latest('id')
+            ->paginate(20)
+            ->withQueryString();
+
+        return [
+            'todos' => $todos,
+            'filters' => $filters,
+        ];
+    }
+
+    private function wantsTodoPanel(Request $request): bool
+    {
+        return TodoPanelRenderer::wantsPanel($request);
     }
 }

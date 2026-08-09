@@ -4,7 +4,10 @@ namespace App\Http\Requests;
 
 use App\Enums\TodoPriority;
 use App\Models\Todo;
+use App\Support\Todos\TodoPanelRenderer;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 class UpdateTodoRequest extends FormRequest
@@ -56,5 +59,19 @@ class UpdateTodoRequest extends FormRequest
         }
 
         return $data;
+    }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        if (TodoPanelRenderer::wantsPanel($this)) {
+            /** @var Todo $todo */
+            $todo = $this->route('todo');
+
+            throw new HttpResponseException(
+                app(TodoPanelRenderer::class)->editFormWithErrors($this, $todo, $validator),
+            );
+        }
+
+        parent::failedValidation($validator);
     }
 }

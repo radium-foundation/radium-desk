@@ -23,6 +23,10 @@
                                href="{{ $item['url'] }}"
                                title="{{ $item['title'] }}"
                                data-nav-key="{{ $item['key'] }}"
+                               @if(! empty($item['open_todo_modal']))
+                                   data-todo-modal-open
+                                   data-todo-url="{{ $item['url'] }}"
+                               @endif
                                @if($item['active']) aria-current="page" @endif>
                                 <i class="bi {{ $item['icon'] }} nav-icon me-2"></i>
                                 <span class="nav-label">{{ $item['label'] }}</span>

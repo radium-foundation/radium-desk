@@ -38,6 +38,19 @@
         @include('layouts.partials.notification-bell')
     </div>
 
+    @can('viewAny', \App\Models\Todo::class)
+        <button
+            type="button"
+            class="btn btn-light border ms-2"
+            data-todo-modal-open
+            data-todo-url="{{ route('todos.index') }}"
+            aria-label="Open To-Dos"
+            title="To-Dos"
+        >
+            <i class="bi bi-check2-square" aria-hidden="true"></i>
+        </button>
+    @endcan
+
     <div class="dropdown">
         <button
             class="btn btn-light border dropdown-toggle d-flex align-items-center"

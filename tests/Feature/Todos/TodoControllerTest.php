@@ -40,12 +40,39 @@ class TodoControllerTest extends TestCase
             ->get(route('todos.index'))
             ->assertOk()
             ->assertSee('To-Dos')
+            ->assertSee('data-todo-panel="list"', false)
+            ->assertDontSee('<table', false)
             ->assertSee(route('todos.create'), false);
 
         $this->actingAs($agent)
             ->get(route('todos.create'))
             ->assertOk()
             ->assertSee('New to-do');
+    }
+
+    public function test_ajax_index_returns_panel_fragment_without_full_layout(): void
+    {
+        $agent = $this->agent();
+
+        $this->actingAs($agent)
+            ->get(route('todos.index'), ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertSee('data-todo-panel="list"', false)
+            ->assertDontSee('app-sidebar', false)
+            ->assertDontSee('id="todoModal"', false);
+    }
+
+    public function test_layout_exposes_todo_modal_entry_points(): void
+    {
+        $agent = $this->agent();
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-todo-modal', false)
+            ->assertSee('data-todo-modal-open', false)
+            ->assertSee('data-nav-key="personal.todos"', false)
+            ->assertSee('agent-kpi-tile--todos', false);
     }
 
     public function test_store_creates_todo_with_due_and_reminder_via_service(): void
@@ -323,7 +350,172 @@ class TodoControllerTest extends TestCase
             ->get(route('todos.index'))
             ->assertOk()
             ->assertSee(route('todos.index'), false)
-            ->assertSee('To-Dos');
+            ->assertSee('To-Dos')
+            ->assertSee('data-todo-modal-open', false)
+            ->assertSee('data-nav-key="personal.todos"', false);
+    }
+
+    public function test_ajax_store_returns_detail_panel_without_full_page_redirect(): void
+    {
+        $agent = $this->agent();
+
+        $response = $this->actingAs($agent)->post(route('todos.store'), [
+            'title' => 'Modal create',
+            'priority' => TodoPriority::Normal->value,
+        ], ['X-Requested-With' => 'XMLHttpRequest']);
+
+        $todo = Todo::query()->where('title', 'Modal create')->firstOrFail();
+
+        $response->assertOk()
+            ->assertHeader('X-Todo-Status', 'todo-created')
+            ->assertSee('data-todo-panel="detail"', false)
+            ->assertSee('Modal create')
+            ->assertDontSee('app-sidebar', false);
+
+        $this->assertSame($todo->id, $todo->fresh()->id);
+    }
+
+    public function test_ajax_store_validation_returns_form_panel_with_errors(): void
+    {
+        $agent = $this->agent();
+
+        $this->actingAs($agent)
+            ->post(route('todos.store'), [
+                'title' => '',
+                'priority' => TodoPriority::Normal->value,
+            ], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertStatus(422)
+            ->assertSee('data-todo-panel="form"', false)
+            ->assertSee('The title field is required', false);
+    }
+
+    public function test_ajax_update_returns_detail_panel(): void
+    {
+        $agent = $this->agent();
+        $todo = Todo::factory()->create([
+            'created_by' => $agent->id,
+            'assigned_to' => $agent->id,
+            'title' => 'Before',
+        ]);
+
+        $this->actingAs($agent)
+            ->put(route('todos.update', $todo), [
+                'title' => 'After modal update',
+                'priority' => TodoPriority::Normal->value,
+            ], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertHeader('X-Todo-Status', 'todo-updated')
+            ->assertSee('data-todo-panel="detail"', false)
+            ->assertSee('After modal update');
+    }
+
+    public function test_ajax_update_validation_returns_edit_form_panel(): void
+    {
+        $agent = $this->agent();
+        $todo = Todo::factory()->create([
+            'created_by' => $agent->id,
+            'assigned_to' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->put(route('todos.update', $todo), [
+                'title' => '',
+                'priority' => TodoPriority::Normal->value,
+            ], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertStatus(422)
+            ->assertSee('data-todo-panel="form"', false)
+            ->assertSee('The title field is required', false);
+    }
+
+    public function test_ajax_complete_reopen_cancel_and_assign_return_detail_panel(): void
+    {
+        $admin = $this->admin();
+        $assignee = $this->agent();
+        $todo = Todo::factory()->create([
+            'created_by' => $admin->id,
+            'assigned_to' => $admin->id,
+            'status' => TodoStatus::Open,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('todos.complete', $todo), [], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertHeader('X-Todo-Status', 'todo-completed')
+            ->assertSee('data-todo-panel="detail"', false);
+
+        $this->actingAs($admin)
+            ->post(route('todos.reopen', $todo), [], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertHeader('X-Todo-Status', 'todo-reopened')
+            ->assertSee('data-todo-panel="detail"', false);
+
+        $this->actingAs($admin)
+            ->post(route('todos.cancel', $todo), [], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertHeader('X-Todo-Status', 'todo-cancelled')
+            ->assertSee('data-todo-panel="detail"', false);
+
+        $todo = Todo::factory()->create([
+            'created_by' => $admin->id,
+            'assigned_to' => $admin->id,
+            'status' => TodoStatus::Open,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('todos.assign', $todo), [
+                'assigned_to' => $assignee->id,
+            ], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertOk()
+            ->assertHeader('X-Todo-Status', 'todo-assigned')
+            ->assertSee('data-todo-panel="detail"', false)
+            ->assertSee($assignee->name);
+    }
+
+    public function test_ajax_assign_validation_returns_detail_panel_with_errors(): void
+    {
+        $admin = $this->admin();
+        $todo = Todo::factory()->create([
+            'created_by' => $admin->id,
+            'assigned_to' => $admin->id,
+            'status' => TodoStatus::Open,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('todos.assign', $todo), [], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertStatus(422)
+            ->assertSee('data-todo-panel="detail"', false)
+            ->assertSee('The assigned to field is required', false);
+    }
+
+    public function test_ajax_unauthorized_post_remains_rejected(): void
+    {
+        $creator = $this->agent();
+        $other = $this->agent();
+        $todo = Todo::factory()->create([
+            'created_by' => $creator->id,
+            'assigned_to' => $creator->id,
+        ]);
+
+        $this->actingAs($other)
+            ->put(route('todos.update', $todo), [
+                'title' => 'Hijacked',
+                'priority' => TodoPriority::Normal->value,
+            ], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertForbidden();
+    }
+
+    public function test_non_ajax_store_still_redirects_to_show_page(): void
+    {
+        $agent = $this->agent();
+
+        $response = $this->actingAs($agent)->post(route('todos.store'), [
+            'title' => 'Full page create',
+            'priority' => TodoPriority::Normal->value,
+        ]);
+
+        $todo = Todo::query()->where('title', 'Full page create')->firstOrFail();
+
+        $response->assertRedirect(route('todos.show', $todo));
     }
 
     private function agent(): User

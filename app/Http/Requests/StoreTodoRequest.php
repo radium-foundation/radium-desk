@@ -4,7 +4,10 @@ namespace App\Http\Requests;
 
 use App\Enums\TodoPriority;
 use App\Models\Todo;
+use App\Support\Todos\TodoPanelRenderer;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 class StoreTodoRequest extends FormRequest
@@ -48,5 +51,16 @@ class StoreTodoRequest extends FormRequest
             'due_at' => $validated['due_at'] ?? null,
             'remind_at' => $validated['remind_at'] ?? null,
         ];
+    }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        if (TodoPanelRenderer::wantsPanel($this)) {
+            throw new HttpResponseException(
+                app(TodoPanelRenderer::class)->createFormWithErrors($this, $validator),
+            );
+        }
+
+        parent::failedValidation($validator);
     }
 }
