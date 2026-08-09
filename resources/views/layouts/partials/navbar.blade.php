@@ -5,7 +5,7 @@
 
     <form action="{{ route('search.index') }}"
           method="GET"
-          class="flex-grow-1 mx-lg-3 position-relative"
+          class="flex-grow-1 position-relative"
           role="search"
           data-universal-search-form
           data-search-url="{{ route('search.index') }}"

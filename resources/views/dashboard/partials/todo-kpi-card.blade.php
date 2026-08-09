@@ -8,6 +8,9 @@
         $todoWidget = $stats['todo_widget'] ?? ['pending' => 0, 'overdue' => 0];
         $pending = (int) ($todoWidget['pending'] ?? 0);
         $overdue = (int) ($todoWidget['overdue'] ?? 0);
+        $subtitle = $overdue > 0
+            ? number_format($overdue).' overdue'
+            : 'Pending tasks';
     @endphp
 
     @if($variant === 'agent')
@@ -18,13 +21,7 @@
                 aria-label="Open to-dos">
             <span class="agent-kpi-tile__title">To-Do</span>
             <span class="agent-kpi-tile__value">{{ number_format($pending) }}</span>
-            <span class="agent-kpi-tile__meta">
-                @if($overdue > 0)
-                    {{ number_format($overdue) }} overdue
-                @else
-                    Pending tasks
-                @endif
-            </span>
+            <span class="agent-kpi-tile__meta">{{ $subtitle }}</span>
         </button>
     @else
         <button type="button"
@@ -34,26 +31,17 @@
                     'dashboard-u-transition',
                     'dashboard-u-hover-lift',
                     'dashboard-u-focus-ring',
+                    'dashboard-todo-kpi',
                     'border-0',
                     'text-start',
-                    'w-100',
                 ])
                 data-todo-modal-open
                 data-todo-url="{{ route('todos.index') }}"
                 aria-label="Open to-dos">
-            <div class="dashboard-kpi-icon text-primary">
-                <i class="bi bi-check2-square" aria-hidden="true"></i>
-            </div>
-            <div class="dashboard-kpi-content">
-                <div class="dashboard-kpi-label">To-Do</div>
-                <div class="dashboard-kpi-value">{{ number_format($pending) }}</div>
-                <div class="small text-muted">
-                    @if($overdue > 0)
-                        {{ number_format($overdue) }} overdue
-                    @else
-                        Pending tasks
-                    @endif
-                </div>
+            <div class="dashboard-todo-kpi__body">
+                <div class="dashboard-todo-kpi__title">To-Do</div>
+                <div class="dashboard-todo-kpi__value">{{ number_format($pending) }}</div>
+                <div class="dashboard-todo-kpi__subtitle">{{ $subtitle }}</div>
             </div>
         </button>
     @endif

@@ -261,6 +261,27 @@ html.sidebar-expanded .app-main {
     position: sticky;
     top: 0;
     z-index: 1030;
+    gap: 0.5rem;
+}
+
+.app-topbar [data-universal-search-form] {
+    flex: 1 1 auto;
+    max-width: min(36rem, calc(100% - 11rem));
+    min-width: 0;
+    margin-left: 0.75rem;
+    margin-right: 0.25rem;
+}
+
+@media (min-width: 768px) {
+    .app-topbar {
+        gap: 0.625rem;
+    }
+
+    .app-topbar #notification-bell-root,
+    .app-topbar [data-todo-modal-open],
+    .app-topbar .dropdown {
+        flex-shrink: 0;
+    }
 }
 
 body.unified-intake-primary .app-topbar [data-universal-search-form] .input-group {
@@ -754,6 +775,99 @@ a.dashboard-u-hover-lift:focus-visible {
     padding: 0.5rem 0.75rem;
     border: 1px solid rgba(148, 163, 184, 0.35);
     color: inherit;
+}
+
+.dashboard-todo-kpi {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: auto;
+    max-width: 8.5rem;
+    min-width: 7.5rem;
+    min-height: 4.5rem;
+    padding: 0.5rem 0.75rem;
+    color: inherit;
+}
+
+.dashboard-todo-kpi__body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+    text-align: center;
+}
+
+.dashboard-todo-kpi__title {
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: var(--dashboard-color-muted-light);
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.dashboard-todo-kpi__value {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--dashboard-color-text);
+    line-height: 1.1;
+}
+
+.dashboard-todo-kpi__subtitle {
+    font-size: 0.625rem;
+    font-weight: 500;
+    color: var(--dashboard-color-muted);
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.dashboard-recent-customers {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.35rem;
+    margin-left: 1rem;
+}
+
+.dashboard-recent-customers__label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--dashboard-color-muted-light, #94a3b8);
+    letter-spacing: 0.01em;
+}
+
+.dashboard-recent-customers__chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.375rem;
+}
+
+.dashboard-recent-customers__chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    padding: 0.25rem 0.625rem;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 0.375rem;
+    background: #fff;
+    color: #334155;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.dashboard-recent-customers__chip:hover,
+.dashboard-recent-customers__chip:focus-visible {
+    border-color: rgba(37, 99, 235, 0.35);
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+.dashboard-recent-customers__chip--compact {
+    font-weight: 500;
 }
 
 .dashboard-email-intake-kpi--blue {
@@ -21210,20 +21324,59 @@ body.todo-modal-stacked-open .customer-360-drawer {
     pointer-events: none;
 }
 
-/* Topbar/sidebar sit below C360 (1030/1040 vs 1080); lift shells so To-Do triggers stay reachable */
+/* Topbar/sidebar sit below C360 (1030/1040 vs 1080); lift shells so navbar/sidebar To-Do stays reachable.
+   Do not elevate dashboard KPI To-Do above C360 — that causes visual poke-through under the drawer. */
 body.customer-360-drawer-open .app-topbar,
 body.customer-360-drawer-open .app-sidebar {
-    z-index: 1091;
-}
-
-body.customer-360-drawer-open [data-todo-modal-open] {
-    position: relative;
     z-index: 1091;
 }
 
 .agent-kpi-tile--todos {
     cursor: pointer;
     text-align: left;
+}
+
+@media (max-width: 767.98px) {
+    .app-topbar {
+        gap: 0.25rem;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+
+    .app-topbar [data-universal-search-form] {
+        max-width: none;
+        flex: 1 1 0;
+        min-width: 5rem;
+        margin-left: 0.125rem;
+        margin-right: 0;
+    }
+
+    .app-topbar [data-universal-search-form] .input-group {
+        flex-wrap: nowrap;
+    }
+
+    .app-topbar [data-sidebar-toggle].me-2 {
+        margin-right: 0.125rem !important;
+    }
+
+    .app-topbar [data-todo-modal-open].ms-2 {
+        margin-left: 0.125rem !important;
+    }
+
+    .dashboard-todo-kpi {
+        max-width: 7.75rem;
+        min-width: 6.75rem;
+    }
+
+    .dashboard-recent-customers {
+        margin-left: 0;
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .dashboard-recent-customers__chips {
+        justify-content: flex-start;
+    }
 }
 
 .todo-skeleton {
