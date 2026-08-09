@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.24 — 2026-08-09 — Outbox Cashfree Claim Guard
+
+- Prevented the global outbox processor from stealing Cashfree deferred jobs while a payment's scoped drain is in flight.
+- Preserved Interakt, email, and other unrelated outbox processing, plus cron recovery for true leftovers.
+
 ## 4.0.23 — 2026-08-09 — Cashfree Missed Webhook Batch Heal
 
 - Added a Cashfree missed-webhook batch heal command for allowlisted paid orders that did not receive webhook delivery.
