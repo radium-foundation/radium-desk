@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.27 — 2026-08-09 — Contextual To-Do Modal
+
+- Open To-Dos from the navbar, sidebar, and dashboard without leaving the current page.
+- Create, edit, complete, reopen, cancel, and assign To-Dos inside a centered modal.
+- Escape and stacking stay correct when Customer 360 is also open.
+
 ## 4.0.26 — 2026-08-09 — To-Dos and Reminders
 
 - Added personal and assigned To-Dos with priority, due dates, completion, and cancel support.
