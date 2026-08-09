@@ -60,7 +60,7 @@ class AutomationOperationsSnapshotBuilder
      */
     public function buildDetailed(): array
     {
-        $activeIncidents = $this->healthService->activeIncidents();
+        $activeIncidents = $this->healthService->activeIncidentsForAutomationSnapshot();
         $statusByIncidentId = $this->statusesFor($activeIncidents);
         $orders = $this->uniqueOrdersFromIncidents($activeIncidents);
         $analysis = $this->validationCollector->collectFromOrders($orders, $statusByIncidentId);

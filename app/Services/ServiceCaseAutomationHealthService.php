@@ -31,6 +31,87 @@ class ServiceCaseAutomationHealthService
     }
 
     /**
+     * Column-minimal active-incident load for Automation Operations snapshot rebuilds.
+     *
+     * Retains only attributes proven required by statusFor(), counts/queues/stubs,
+     * validation, and RadiumBox sync-status consumers. Shared activeIncidents()
+     * remains full-column for CLI/IRA callers.
+     *
+     * @return Collection<int, Incident>
+     */
+    public function activeIncidentsForAutomationSnapshot(): Collection
+    {
+        return $this->activeIncidentQuery()
+            ->select(self::automationSnapshotIncidentColumns())
+            ->with([
+                'order' => static fn ($query) => $query->select(self::automationSnapshotOrderColumns()),
+                'assignee' => static fn ($query) => $query->select(self::automationSnapshotAssigneeColumns()),
+                'assignee.roles' => static fn ($query) => $query->select(self::automationSnapshotRoleColumns()),
+            ])
+            ->get();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function automationSnapshotIncidentColumns(): array
+    {
+        return [
+            'id',
+            'order_id',
+            'order_record_id',
+            'status',
+            'assigned_to_user_id',
+            'automation_pending_until',
+            'created_at',
+            'reference_no',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function automationSnapshotOrderColumns(): array
+    {
+        return [
+            'id',
+            'order_id',
+            'serial_number',
+            'product_name',
+            'device_model',
+            'device_model_id',
+            'transaction_id',
+            'customer_name',
+            'radiumbox_sync_status',
+            'radiumbox_last_sync_at',
+            'radiumbox_last_sync_error',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function automationSnapshotAssigneeColumns(): array
+    {
+        return [
+            'id',
+            'name',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function automationSnapshotRoleColumns(): array
+    {
+        return [
+            'roles.id',
+            'roles.name',
+            'roles.guard_name',
+        ];
+    }
+
+    /**
      * @return array<string, int>
      */
     public function counts(): array

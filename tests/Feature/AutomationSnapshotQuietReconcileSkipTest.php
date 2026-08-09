@@ -48,6 +48,7 @@ class AutomationSnapshotQuietReconcileSkipTest extends TestCase
         $this->assertSame('reconcile', $seed['mode']);
 
         $health = Mockery::mock(app(ServiceCaseAutomationHealthService::class))->makePartial();
+        $health->shouldReceive('activeIncidentsForAutomationSnapshot')->never();
         $health->shouldReceive('activeIncidents')->never();
         $this->app->instance(ServiceCaseAutomationHealthService::class, $health);
         $this->app->forgetInstance(AutomationOperationsSnapshotBuilder::class);
