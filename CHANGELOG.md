@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.20 — 2026-08-09 — Cashfree Paid-Without Discovery
+
+- Reduced Cashfree paid-without-order integrity CPU by checking only unmatched payment candidates instead of scanning the full webhook history.
+- Preserved reconcile completeness, assessment rules, and handling of payments with a missing payment-id column.
+
 ## 4.0.19 — 2026-08-09 — Automation Snapshot Hydration
 
 - Reduced Automation Snapshot full-rebuild CPU cost by loading only the incident, order, and assignee columns required for dashboard health and queue classification.
