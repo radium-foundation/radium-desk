@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.23 — 2026-08-09 — Cashfree Missed Webhook Batch Heal
+
+- Added a Cashfree missed-webhook batch heal command for allowlisted paid orders that did not receive webhook delivery.
+- Defaults to dry-run preview; writes only when `--execute` is explicitly passed.
+- Recovers through the existing Cashfree webhook processor pipeline using synthetic PAYMENT_SUCCESS logs.
+
 ## 4.0.22 — 2026-08-09 — Missing Serial Scheduler Performance
 
 - Ran missing-serial automation in the background so schedule:run is no longer blocked during outreach runs.
