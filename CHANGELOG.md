@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.21 — 2026-08-09 — Cashfree Health & Performance
+
+- Reduced evening health report CPU by using scalar Cashfree reconciliation instead of a full payment reconcile scan.
+- Optimized Platform Cashfree health warm refresh to reuse the operations cache and avoid expensive probe work on cache miss.
+- Batched Ready Queue admin audit visibility queries to reduce repeated database lookups.
+- Removed live slow-count queries from dashboard snapshot refresh.
+- Added scheduler timing telemetry to improve CPU spike attribution in production logs.
+
 ## 4.0.20 — 2026-08-09 — Cashfree Paid-Without Discovery
 
 - Reduced Cashfree paid-without-order integrity CPU by checking only unmatched payment candidates instead of scanning the full webhook history.
