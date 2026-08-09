@@ -74,6 +74,14 @@ class CashfreeIntegrityReadModelTest extends TestCase
         $readModel = app(CashfreeIntegrityReadModel::class);
 
         $this->assertSame($owner->paidWithoutDeskOrderCount(), $readModel->paidWithoutDeskOrderCount());
+        $this->assertSame(
+            $owner->reconciliationScalars()->successfulCashfreePayments,
+            $readModel->reconciliationScalars()->successfulCashfreePayments,
+        );
+        $this->assertSame(
+            $owner->reconciliationScalars()->missingOrdersCount,
+            $readModel->reconciliationScalars()->missingOrdersCount,
+        );
         $this->assertSame($owner->activeFailedWebhookCount(), $readModel->activeFailedWebhookCount());
         $this->assertSame($owner->historicalResolvedFailureCount(), $readModel->historicalResolvedFailureCount());
         $this->assertSame($owner->requiresCashfreeHealthAlert(), $readModel->requiresCashfreeHealthAlert());

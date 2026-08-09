@@ -11,7 +11,7 @@ use App\Models\BonvoiceWebhookLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
-use App\Services\Cashfree\CashfreePaymentIntegrityService;
+use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use App\Support\BonvoiceCallStatuses;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
@@ -20,7 +20,7 @@ class ProductionEveningHealthService
 {
     public function __construct(
         private readonly ProductionWatchdogService $watchdogService,
-        private readonly CashfreePaymentIntegrityService $cashfreeIntegrityService,
+        private readonly CashfreeIntegrityReadModel $cashfreeIntegrityReadModel,
         private readonly OperationsIntegrationHealthService $integrationHealthService,
         private readonly OperationsSystemHealthService $systemHealthService,
         private readonly OperationsRadiumBoxHealthService $radiumBoxHealthService,
@@ -35,7 +35,7 @@ class ProductionEveningHealthService
         $rangeStart = $at->copy()->startOfDay();
         $rangeEnd = $at->copy()->endOfDay();
         $uptime = $this->watchdogService->todayUptimeSummary($at);
-        $cashfreeReconciliation = $this->cashfreeIntegrityService->reconcile();
+        $cashfreeScalars = $this->cashfreeIntegrityReadModel->reconciliationScalars();
         $radiumBox = $this->radiumBoxHealthService->widget();
 
         return [
@@ -47,10 +47,10 @@ class ProductionEveningHealthService
             'queue_health' => $this->queueHealthSummary(),
             'automation_executions' => $this->automationExecutionSummary($rangeStart, $rangeEnd),
             'cashfree_reconciliation' => [
-                'successful_payments' => $cashfreeReconciliation->successfulCashfreePayments,
-                'desk_orders' => $cashfreeReconciliation->deskOrders,
-                'missing_orders' => $cashfreeReconciliation->missingOrdersCount,
-                'failed_processing' => $cashfreeReconciliation->failedProcessing,
+                'successful_payments' => $cashfreeScalars->successfulCashfreePayments,
+                'desk_orders' => $cashfreeScalars->deskOrders,
+                'missing_orders' => $cashfreeScalars->missingOrdersCount,
+                'failed_processing' => $cashfreeScalars->failedProcessing,
             ],
             'bonvoice_calls' => $this->bonvoiceCallSummary($rangeStart, $rangeEnd),
             'whatsapp_delivery' => $this->whatsappDeliverySummary($rangeStart, $rangeEnd),

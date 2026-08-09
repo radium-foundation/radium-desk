@@ -3,6 +3,7 @@
 namespace App\ReadModels\Integrations;
 
 use App\Data\CashfreeFailedWebhookClassificationReport;
+use App\Data\CashfreePaymentReconciliationScalars;
 use App\Data\Integrations\CashfreeIntegrityMetricsV1;
 use App\Services\Cashfree\CashfreePaymentIntegrityService;
 
@@ -51,6 +52,14 @@ class CashfreeIntegrityReadModel
     public function paidWithoutDeskOrderCount(): int
     {
         return $this->integrityService->paidWithoutDeskOrderCount();
+    }
+
+    /**
+     * Scalar reconciliation KPIs without full missing-payment assessment.
+     */
+    public function reconciliationScalars(): CashfreePaymentReconciliationScalars
+    {
+        return $this->integrityService->reconciliationScalars();
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Data\CashfreeFailedWebhookClassificationReport;
 use App\Data\CashfreeFailedWebhookRecord;
 use App\Data\CashfreeMissingPaidOrderRecord;
 use App\Data\CashfreePaymentReconciliationReport;
+use App\Data\CashfreePaymentReconciliationScalars;
 use App\Enums\CashfreeHistoricalRecoveryDisposition;
 use App\Enums\CashfreeWebhookFailureCategory;
 use App\Models\CashfreeWebhookLog;
@@ -41,19 +42,41 @@ class CashfreePaymentIntegrityService
 
         return new CashfreePaymentReconciliationReport(
             successfulCashfreePayments: $successfulPayments->count(),
-            deskOrders: Order::query()->whereNotNull('cashfree_payment_id')->count(),
+            deskOrders: $this->deskOrderCount(),
             missingOrdersCount: $missingOrders->count(),
-            failedProcessing: CashfreeWebhookLog::query()
-                ->where('processing_status', CashfreeWebhookLog::STATUS_FAILED)
-                ->get()
-                ->filter(fn (CashfreeWebhookLog $log): bool => $this->payloadParser->isSuccessfulPayment($log->request_payload ?? []))
-                ->count(),
+            failedProcessing: $this->failedSuccessfulPaymentProcessingCount(),
             paidWithoutDeskOrderCount: $missingOrders->count(),
             missingOrders: $missingOrders
                 ->map(fn (array $entry): CashfreeMissingPaidOrderRecord => $this->toMissingRecord($entry))
                 ->values()
                 ->all(),
         );
+    }
+
+    /**
+     * Scalar reconciliation KPIs for health summaries (evening report, dashboards).
+     *
+     * Avoids full-universe missingPaidOrders assessment. Missing count uses the
+     * candidate paid-without path (equivalent to reconcile missingOrdersCount).
+     * Successful-payment cardinality still uses the historical success map.
+     */
+    public function reconciliationScalars(): CashfreePaymentReconciliationScalars
+    {
+        return new CashfreePaymentReconciliationScalars(
+            successfulCashfreePayments: $this->successfulPaymentLogsByCfPaymentId()->count(),
+            deskOrders: $this->deskOrderCount(),
+            missingOrdersCount: $this->paidWithoutDeskOrderCount(),
+            failedProcessing: $this->failedSuccessfulPaymentProcessingCount(),
+        );
+    }
+
+    public function failedSuccessfulPaymentProcessingCount(): int
+    {
+        return CashfreeWebhookLog::query()
+            ->where('processing_status', CashfreeWebhookLog::STATUS_FAILED)
+            ->get()
+            ->filter(fn (CashfreeWebhookLog $log): bool => $this->payloadParser->isSuccessfulPayment($log->request_payload ?? []))
+            ->count();
     }
 
     public function paidWithoutDeskOrderCount(): int
@@ -598,6 +621,11 @@ class CashfreePaymentIntegrityService
             'disposition' => $disposition,
             'reason' => $reason,
         ];
+    }
+
+    private function deskOrderCount(): int
+    {
+        return Order::query()->whereNotNull('cashfree_payment_id')->count();
     }
 
     private function resolveCfPaymentId(CashfreeWebhookLog $log): ?string
