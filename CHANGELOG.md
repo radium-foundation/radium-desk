@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.19 — 2026-08-09 — Automation Snapshot Hydration
+
+- Reduced Automation Snapshot full-rebuild CPU cost by loading only the incident, order, and assignee columns required for dashboard health and queue classification.
+- Preserved snapshot payload semantics, quiet-reconcile skip behavior, and periodic full-rebuild safety nets.
+
 ## 4.0.18 — 2026-08-09 — CPU Optimization Batch
 
 - Reduced Cashfree integrity CPU cost by deduplicating alert calculation, narrowing hydrate queries, and bounding missing-order recovery discovery per run.
