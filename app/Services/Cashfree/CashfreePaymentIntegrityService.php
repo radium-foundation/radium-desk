@@ -58,17 +58,20 @@ class CashfreePaymentIntegrityService
 
     public function paidWithoutDeskOrderCount(): int
     {
-        return $this->missingPaidOrders($this->successfulPaymentLogsByCfPaymentId())->count();
+        return $this->candidatePaidWithoutDeskOrders()->count();
     }
 
     /**
      * Single-pass missing paid-order count + sample IDs (avoids reconcile() double scan).
      *
+     * Uses the anti-join candidate universe (same as paidWithoutDeskOrderCount).
+     * Full historical completeness remains on reconcile() / successfulPaymentLogsByCfPaymentId().
+     *
      * @return array{count: int, order_ids: list<string>}
      */
     public function missingPaidOrderSample(int $limit = 5): array
     {
-        $missingOrders = $this->missingPaidOrders($this->successfulPaymentLogsByCfPaymentId());
+        $missingOrders = $this->candidatePaidWithoutDeskOrders();
 
         $orderIds = $missingOrders
             ->take(max(0, $limit))
@@ -85,6 +88,50 @@ class CashfreePaymentIntegrityService
             'count' => $missingOrders->count(),
             'order_ids' => $orderIds,
         ];
+    }
+
+    /**
+     * Assessed paid-without rows from the anti-join candidate universe.
+     *
+     * Candidates are webhook rows whose cf_payment_id is not present on
+     * orders.cashfree_payment_id, plus null-column rows (payload may still
+     * carry a usable payment id). Anti-join count alone is never the answer —
+     * each candidate still runs through assessLog / AlreadyExists semantics.
+     *
+     * @return Collection<int, array{log: CashfreeWebhookLog, disposition: CashfreeHistoricalRecoveryDisposition, reason: string}>
+     */
+    public function candidatePaidWithoutDeskOrders(): Collection
+    {
+        return $this->missingPaidOrders($this->candidateSuccessfulPaymentLogsByCfPaymentId());
+    }
+
+    /**
+     * Earliest successful payment log per cf_payment_id within the candidate universe.
+     *
+     * @return Collection<string, CashfreeWebhookLog>
+     */
+    public function candidateSuccessfulPaymentLogsByCfPaymentId(): Collection
+    {
+        /** @var Collection<string, CashfreeWebhookLog> $byPaymentId */
+        $byPaymentId = collect();
+
+        foreach ($this->paidWithoutCandidateWebhookLogs() as $log) {
+            if (! $this->payloadParser->isSuccessfulPayment($log->request_payload ?? [])) {
+                continue;
+            }
+
+            $cfPaymentId = $this->resolveCfPaymentId($log);
+
+            if ($cfPaymentId === null) {
+                continue;
+            }
+
+            if (! $byPaymentId->has($cfPaymentId)) {
+                $byPaymentId->put($cfPaymentId, $log);
+            }
+        }
+
+        return $byPaymentId;
     }
 
     public function activeFailedWebhookCount(): int
@@ -240,6 +287,10 @@ class CashfreePaymentIntegrityService
     }
 
     /**
+     * Full historical successful-payment map (entire webhook log table).
+     * Required for reconcile() totals / CLI completeness. Prefer
+     * candidateSuccessfulPaymentLogsByCfPaymentId() for paid-without / sample.
+     *
      * @return Collection<string, CashfreeWebhookLog>
      */
     public function successfulPaymentLogsByCfPaymentId(): Collection
@@ -269,6 +320,45 @@ class CashfreePaymentIntegrityService
             });
 
         return $byPaymentId;
+    }
+
+    /**
+     * Anti-join + null-column candidate rows for paid-without discovery.
+     * Ordered earliest-first so earliest-success-per-cf_payment_id is preserved.
+     *
+     * @return Collection<int, CashfreeWebhookLog>
+     */
+    private function paidWithoutCandidateWebhookLogs(): Collection
+    {
+        $antiJoinIds = CashfreeWebhookLog::query()
+            ->whereNotNull('cf_payment_id')
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('orders')
+                    ->whereColumn('orders.cashfree_payment_id', 'cashfree_webhook_logs.cf_payment_id');
+            })
+            ->pluck('id');
+
+        $nullColumnIds = CashfreeWebhookLog::query()
+            ->whereNull('cf_payment_id')
+            ->pluck('id');
+
+        $candidateIds = $antiJoinIds
+            ->concat($nullColumnIds)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($candidateIds === []) {
+            return collect();
+        }
+
+        return CashfreeWebhookLog::query()
+            ->select(self::SUCCESSFUL_PAYMENT_HYDRATE_COLUMNS)
+            ->whereIn('id', $candidateIds)
+            ->orderBy('received_at')
+            ->orderBy('id')
+            ->get();
     }
 
     /**

@@ -306,13 +306,18 @@ class CashfreeIntegrityReadModelTest extends TestCase
     {
         $sql = strtolower((string) ($query['query'] ?? ''));
 
-        // successfulPaymentLogsByCfPaymentId(): full-table get ordered by received_at, id.
-        return str_contains($sql, 'cashfree_webhook_logs')
-            && str_contains($sql, 'order by')
-            && str_contains($sql, 'received_at')
-            && str_contains($sql, 'id')
-            && ! str_contains($sql, 'processing_status')
-            && ! str_contains($sql, 'limit');
+        if (! str_contains($sql, 'cashfree_webhook_logs')
+            || ! str_contains($sql, 'order by')
+            || ! str_contains($sql, 'received_at')
+            || ! str_contains($sql, 'id')
+            || str_contains($sql, 'processing_status')
+            || str_contains($sql, 'limit')
+        ) {
+            return false;
+        }
+
+        // Ignore anti-join id discovery; count the ordered hydrate (full-table or candidate whereIn).
+        return ! str_contains($sql, 'not exists');
     }
 
     /**
