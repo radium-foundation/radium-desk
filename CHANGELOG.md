@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.25 — 2026-08-09 — Dashboard Queue Snapshot Performance
+
+- Operations and dashboard queue/SLA counts now reuse precomputed metrics from the active-incident snapshot cache, avoiding repeated case classification on cache hits.
+- Snapshot cache default TTL increased from 20 to 30 seconds (still capped at 30) for better alignment with dashboard refresh cadence.
+
 ## 4.0.24 — 2026-08-09 — Outbox Cashfree Claim Guard
 
 - Prevented the global outbox processor from stealing Cashfree deferred jobs while a payment's scoped drain is in flight.
