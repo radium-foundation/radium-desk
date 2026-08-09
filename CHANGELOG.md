@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.29 — 2026-08-09 — Navbar Alignment
+
+- Anchored notifications, To-Dos, and the profile menu to the far-right of the topbar.
+- Constrained search width so it no longer crowds or runs into Customer 360 when the drawer is open.
+
 ## 4.0.28 — 2026-08-09 — Dashboard To-Do Layout
 
 - Tightened the dashboard To-Do KPI card so it matches other compact KPI cards.
