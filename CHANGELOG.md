@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.26 — 2026-08-09 — To-Dos and Reminders
+
+- Added personal and assigned To-Dos with priority, due dates, completion, and cancel support.
+- Added optional reminders that fire into the existing notification center with deep links.
+- Added a minute scheduler that safely dispatches due reminders without duplicate notifications.
+
 ## 4.0.25 — 2026-08-09 — Dashboard Queue Snapshot Performance
 
 - Operations and dashboard queue/SLA counts now reuse precomputed metrics from the active-incident snapshot cache, avoiding repeated case classification on cache hits.
