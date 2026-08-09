@@ -227,14 +227,13 @@ class CashfreeWebhookProcessorService
     ): void {
         try {
             // Cashfree writes exactly three deferred rows for this incident aggregate.
-            // processAggregate() claims one Pending row per call — never drain global FIFO
-            // (Interakt / BonVoice / email / WhatsApp / unrelated Cashfree rows).
-            for ($pass = 0; $pass < 3; $pass++) {
-                $this->outboxProcessorService->processAggregate(
-                    CashfreeWebhookOutboxWriter::AGGREGATE_TYPE,
-                    $deferredContext->incidentId,
-                );
-            }
+            // One processAggregate() claim-all drains only that aggregate — never global
+            // FIFO (Interakt / BonVoice / email / WhatsApp / unrelated Cashfree rows)
+            // and prevents cron outbox:process from stealing siblings mid-drain.
+            $this->outboxProcessorService->processAggregate(
+                CashfreeWebhookOutboxWriter::AGGREGATE_TYPE,
+                $deferredContext->incidentId,
+            );
         } catch (Throwable $exception) {
             Log::error('[Cashfree Webhook] Deferred operation dispatch failed after payment commit.', [
                 'webhook_log_id' => $webhookLog->id,

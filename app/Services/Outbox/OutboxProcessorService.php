@@ -69,33 +69,44 @@ class OutboxProcessorService
     {
         $this->recoverStaleProcessingEvents();
 
-        $event = DB::transaction(function () use ($aggregateType, $aggregateId): ?OutboxEvent {
-            $event = OutboxEvent::query()
+        // Claim every available Pending row for this aggregate in one lock
+        // transaction so global process() cannot steal siblings mid-drain
+        // (Cashfree deferred triples: monitor → dashboard_broadcast → enrichment).
+        $events = DB::transaction(function () use ($aggregateType, $aggregateId): array {
+            $pending = OutboxEvent::query()
                 ->where('aggregate_type', $aggregateType)
                 ->where('aggregate_id', $aggregateId)
                 ->where('status', OutboxEventStatus::Pending)
                 ->where('available_at', '<=', now())
                 ->orderBy('id')
                 ->lockForUpdate()
-                ->first();
+                ->get();
 
-            if ($event === null) {
-                return null;
+            if ($pending->isEmpty()) {
+                return [];
             }
 
-            $event->update([
-                'status' => OutboxEventStatus::Processing,
-                'attempts' => $event->attempts + 1,
-            ]);
+            $claimed = [];
 
-            return $event->fresh();
+            foreach ($pending as $event) {
+                $event->update([
+                    'status' => OutboxEventStatus::Processing,
+                    'attempts' => $event->attempts + 1,
+                ]);
+
+                $fresh = $event->fresh();
+
+                if ($fresh !== null) {
+                    $claimed[] = $fresh;
+                }
+            }
+
+            return $claimed;
         });
 
-        if ($event === null) {
-            return;
+        foreach ($events as $index => $event) {
+            $this->processClaimedEvent($event, $index);
         }
-
-        $this->processClaimedEvent($event, 0);
     }
 
     private function recoverStaleProcessingEvents(): void
@@ -109,9 +120,20 @@ class OutboxProcessorService
     private function claimNextEvent(): ?OutboxEvent
     {
         return DB::transaction(function (): ?OutboxEvent {
+            // Skip Pending rows whose aggregate already has a Processing sibling.
+            // That marks an in-flight scoped processAggregate drain (claim-all);
+            // cron must not interleave those leftovers until the drain finishes
+            // or stale recovery returns Processing → Pending.
             $event = OutboxEvent::query()
                 ->where('status', OutboxEventStatus::Pending)
                 ->where('available_at', '<=', now())
+                ->whereNotExists(function ($query): void {
+                    $query->selectRaw('1')
+                        ->from('outbox_events as aggregate_siblings')
+                        ->whereColumn('aggregate_siblings.aggregate_type', 'outbox_events.aggregate_type')
+                        ->whereColumn('aggregate_siblings.aggregate_id', 'outbox_events.aggregate_id')
+                        ->where('aggregate_siblings.status', OutboxEventStatus::Processing->value);
+                })
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->first();

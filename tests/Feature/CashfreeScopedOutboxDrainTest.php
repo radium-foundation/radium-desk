@@ -249,7 +249,7 @@ class CashfreeScopedOutboxDrainTest extends TestCase
         $this->partialMock(OutboxProcessorService::class, function ($mock): void {
             $mock->shouldReceive('process')->never();
             $mock->shouldReceive('processAggregate')
-                ->times(3)
+                ->once()
                 ->with(
                     CashfreeWebhookOutboxWriter::AGGREGATE_TYPE,
                     Mockery::type('int'),
