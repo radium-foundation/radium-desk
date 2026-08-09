@@ -94,7 +94,7 @@ return [
 
     'snapshot_cache_enabled' => (bool) env('DASHBOARD_SNAPSHOT_CACHE_ENABLED', true),
 
-    'snapshot_cache_ttl_seconds' => (int) env('DASHBOARD_SNAPSHOT_CACHE_TTL_SECONDS', 20),
+    'snapshot_cache_ttl_seconds' => (int) env('DASHBOARD_SNAPSHOT_CACHE_TTL_SECONDS', 30),
 
     /*
     |--------------------------------------------------------------------------

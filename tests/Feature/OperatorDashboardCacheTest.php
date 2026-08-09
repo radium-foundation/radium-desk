@@ -87,6 +87,90 @@ class OperatorDashboardCacheTest extends TestCase
         $this->assertSame('model', $cached['incidents'][0]['type']);
         $this->assertSame('incident', $cached['incidents'][0]['alias']);
         $this->assertIsArray($cached['incidents'][0]['attributes']);
+        $this->assertArrayHasKey('queue_counts', $cached);
+        $this->assertArrayHasKey('sla_counts', $cached);
+        $this->assertIsArray($cached['queue_counts']);
+        $this->assertIsArray($cached['sla_counts']);
+    }
+
+    public function test_cached_snapshot_reuses_precomputed_queue_and_sla_counts_without_reclassifying(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->createOpenIncident($admin);
+
+        $fresh = app(DashboardSnapshotStore::class)->get();
+        $freshQueueCounts = $fresh->queueCounts();
+        $freshSlaCounts = $fresh->slaCounts();
+
+        app()->forgetInstance(DashboardSnapshotStore::class);
+        $classifier = app(\App\Services\Operations\OperationsQueueClassifier::class);
+        $classifier->forgetClassifications();
+
+        $cached = app(DashboardSnapshotStore::class)->get();
+        $classifier->forgetClassifications();
+
+        $this->assertSame($freshQueueCounts, $cached->queueCounts());
+        $this->assertSame($freshSlaCounts, $cached->slaCounts());
+        $this->assertSame(0, $classifier->classificationComputeCount());
+
+        $cached->queueCounts();
+        $cached->slaCounts();
+        $this->assertSame(0, $classifier->classificationComputeCount());
+    }
+
+    public function test_forget_snapshot_forces_queue_and_sla_recomputation(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->createOpenIncident($admin);
+
+        app(DashboardSnapshotStore::class)->get();
+        $this->assertTrue(Cache::has(OperatorDashboardCache::SNAPSHOT_CACHE_KEY));
+        $this->assertIsArray(Cache::get(OperatorDashboardCache::SNAPSHOT_CACHE_KEY)['queue_counts'] ?? null);
+
+        app(DashboardSnapshotStore::class)->forget();
+        $this->assertFalse(Cache::has(OperatorDashboardCache::SNAPSHOT_CACHE_KEY));
+
+        app()->forgetInstance(DashboardSnapshotStore::class);
+        app(DashboardSnapshotStore::class)->get();
+
+        $this->assertTrue(Cache::has(OperatorDashboardCache::SNAPSHOT_CACHE_KEY));
+        $rebuilt = Cache::get(OperatorDashboardCache::SNAPSHOT_CACHE_KEY);
+        $this->assertIsArray($rebuilt);
+        $this->assertArrayHasKey('queue_counts', $rebuilt);
+        $this->assertArrayHasKey('sla_counts', $rebuilt);
+        $this->assertIsArray($rebuilt['queue_counts']);
+        $this->assertIsArray($rebuilt['sla_counts']);
+    }
+
+    public function test_legacy_v1_snapshot_payload_decodes_without_precomputed_metrics(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->createOpenIncident($admin);
+
+        app(DashboardSnapshotStore::class)->get();
+        $raw = Cache::get(OperatorDashboardCache::SNAPSHOT_CACHE_KEY);
+        $this->assertIsArray($raw);
+
+        $legacy = [
+            'v' => 1,
+            'incidents' => $raw['incidents'],
+        ];
+        Cache::put(OperatorDashboardCache::SNAPSHOT_CACHE_KEY, $legacy, now()->addMinute());
+
+        app()->forgetInstance(DashboardSnapshotStore::class);
+        app()->forgetInstance(OperatorDashboardCache::class);
+        app(\App\Services\Operations\OperationsQueueClassifier::class)->forgetClassifications();
+
+        $snapshot = app(DashboardSnapshotStore::class)->get();
+        $snapshot->queueCounts();
+        $this->assertGreaterThan(
+            0,
+            app(\App\Services\Operations\OperationsQueueClassifier::class)->classificationComputeCount(),
+        );
+        $this->assertNotEmpty($snapshot->queueCounts());
     }
 
     #[DataProvider('serializingCacheStores')]
@@ -437,8 +521,14 @@ class OperatorDashboardCacheTest extends TestCase
         config(['dashboard.snapshot_cache_ttl_seconds' => 90]);
         $this->assertSame(30, app(OperatorDashboardCache::class)->snapshotTtlSeconds());
 
-        config(['dashboard.snapshot_cache_ttl_seconds' => 20]);
-        $this->assertSame(20, app(OperatorDashboardCache::class)->snapshotTtlSeconds());
+        config(['dashboard.snapshot_cache_ttl_seconds' => 25]);
+        $this->assertSame(25, app(OperatorDashboardCache::class)->snapshotTtlSeconds());
+    }
+
+    public function test_snapshot_default_ttl_is_thirty_seconds(): void
+    {
+        config(['dashboard.snapshot_cache_ttl_seconds' => 30]);
+        $this->assertSame(30, app(OperatorDashboardCache::class)->snapshotTtlSeconds());
     }
 
     /**

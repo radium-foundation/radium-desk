@@ -6,7 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use App\Services\Operations\OperationsQueueClassifier;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -34,45 +34,43 @@ class OperatorDashboardCache
      */
     public function rememberActiveIncidents(callable $loader): Collection
     {
+        return $this->rememberCachedSnapshot($loader)->incidents;
+    }
+
+    /**
+     * @param  callable(): Collection<int, Incident>  $loader
+     */
+    public function rememberCachedSnapshot(callable $loader): CachedActiveIncidentSnapshot
+    {
         if (! $this->snapshotCacheEnabled()) {
-            return $loader();
+            return $this->buildCachedSnapshot($loader());
         }
 
         $cached = Cache::get(self::SNAPSHOT_CACHE_KEY);
 
         if ($this->snapshotPayload->isValidPayload($cached)) {
-            $decoded = $this->snapshotPayload->decode($cached);
+            $decoded = $this->snapshotPayload->decodeCached($cached);
 
-            if ($decoded instanceof EloquentCollection) {
+            if ($decoded instanceof CachedActiveIncidentSnapshot) {
                 return $decoded;
             }
         }
 
-        $incidents = $loader();
+        $built = $this->buildCachedSnapshot($loader());
 
         Cache::put(
             self::SNAPSHOT_CACHE_KEY,
-            $this->snapshotPayload->encode($incidents),
+            $this->snapshotPayload->encode(
+                $built->incidents,
+                $built->queueCounts,
+                $built->slaCounts,
+            ),
             now()->addSeconds($this->snapshotTtlSeconds()),
         );
 
-        // Drop any legacy Eloquent Collection payload from v1.
         Cache::forget('operator.dashboard.snapshot:v1');
 
-        return $incidents;
-    }
-
-    /**
-     * @return array{total_orders: int, total_users: int, audit_log_count: int}
-     */
-    public function slowScalars(): array
-    {
-        /** @var array{total_orders: int, total_users: int, audit_log_count: int} */
-        return Cache::remember(
-            self::SLOW_SCALARS_CACHE_KEY,
-            now()->addSeconds($this->slowScalarsTtlSeconds()),
-            fn (): array => $this->loadSlowScalars(),
-        );
+        return $built;
     }
 
     public function forgetSnapshot(): void
@@ -99,7 +97,7 @@ class OperatorDashboardCache
 
     public function snapshotTtlSeconds(): int
     {
-        $ttl = (int) config('dashboard.snapshot_cache_ttl_seconds', 20);
+        $ttl = (int) config('dashboard.snapshot_cache_ttl_seconds', 30);
 
         return max(15, min(30, $ttl));
     }
@@ -109,6 +107,38 @@ class OperatorDashboardCache
         $ttl = (int) config('dashboard.slow_scalars_cache_ttl_seconds', 30);
 
         return max(15, min(60, $ttl));
+    }
+
+    /**
+     * @return array{total_orders: int, total_users: int, audit_log_count: int}
+     */
+    public function slowScalars(): array
+    {
+        /** @var array{total_orders: int, total_users: int, audit_log_count: int} */
+        return Cache::remember(
+            self::SLOW_SCALARS_CACHE_KEY,
+            now()->addSeconds($this->slowScalarsTtlSeconds()),
+            fn (): array => $this->loadSlowScalars(),
+        );
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $incidents
+     */
+    private function buildCachedSnapshot(Collection $incidents): CachedActiveIncidentSnapshot
+    {
+        $classifier = app(OperationsQueueClassifier::class)->rememberClassifications();
+        $snapshot = new DashboardSnapshot($incidents, $classifier);
+        $queueCounts = $snapshot->queueCounts();
+        $slaCounts = $snapshot->slaCounts();
+
+        return new CachedActiveIncidentSnapshot(
+            incidents: $incidents instanceof \Illuminate\Database\Eloquent\Collection
+                ? $incidents
+                : new \Illuminate\Database\Eloquent\Collection($incidents->all()),
+            queueCounts: $queueCounts,
+            slaCounts: $slaCounts,
+        );
     }
 
     /**

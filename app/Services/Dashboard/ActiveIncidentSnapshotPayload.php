@@ -24,7 +24,9 @@ use Spatie\Permission\Models\Role;
  */
 final class ActiveIncidentSnapshotPayload
 {
-    public const VERSION = 1;
+    public const VERSION = 2;
+
+    private const VERSION_LEGACY = 1;
 
     /**
      * @var array<string, class-string<Model>>
@@ -44,9 +46,11 @@ final class ActiveIncidentSnapshotPayload
 
     /**
      * @param  Collection<int, Incident>  $incidents
-     * @return array{v: int, incidents: list<array<string, mixed>>}
+     * @param  array<string, int>|null  $queueCounts
+     * @param  array<string, int>|null  $slaCounts
+     * @return array{v: int, incidents: list<array<string, mixed>>, queue_counts?: array<string, int>, sla_counts?: array<string, int>}
      */
-    public function encode(Collection $incidents): array
+    public function encode(Collection $incidents, ?array $queueCounts = null, ?array $slaCounts = null): array
     {
         $rows = [];
 
@@ -62,10 +66,17 @@ final class ActiveIncidentSnapshotPayload
             }
         }
 
-        return [
+        $payload = [
             'v' => self::VERSION,
             'incidents' => $rows,
         ];
+
+        if ($queueCounts !== null && $slaCounts !== null) {
+            $payload['queue_counts'] = $queueCounts;
+            $payload['sla_counts'] = $slaCounts;
+        }
+
+        return $payload;
     }
 
     /**
@@ -74,7 +85,17 @@ final class ActiveIncidentSnapshotPayload
      */
     public function decode(array $payload): ?EloquentCollection
     {
-        if (($payload['v'] ?? null) !== self::VERSION) {
+        return $this->decodeCached($payload)?->incidents;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function decodeCached(array $payload): ?CachedActiveIncidentSnapshot
+    {
+        $version = $payload['v'] ?? null;
+
+        if ($version !== self::VERSION && $version !== self::VERSION_LEGACY) {
             return null;
         }
 
@@ -98,15 +119,94 @@ final class ActiveIncidentSnapshotPayload
             $incidents[] = $model;
         }
 
-        return new EloquentCollection($incidents);
+        $queueCounts = $this->decodeQueueCounts($payload['queue_counts'] ?? null);
+        $slaCounts = $this->decodeSlaCounts($payload['sla_counts'] ?? null);
+
+        if ($queueCounts === null || $slaCounts === null) {
+            $queueCounts = null;
+            $slaCounts = null;
+        }
+
+        return new CachedActiveIncidentSnapshot(
+            incidents: new EloquentCollection($incidents),
+            queueCounts: $queueCounts,
+            slaCounts: $slaCounts,
+        );
     }
 
     public function isValidPayload(mixed $payload): bool
     {
-        return is_array($payload)
-            && ($payload['v'] ?? null) === self::VERSION
-            && isset($payload['incidents'])
-            && is_array($payload['incidents']);
+        if (! is_array($payload)) {
+            return false;
+        }
+
+        $version = $payload['v'] ?? null;
+
+        if ($version !== self::VERSION && $version !== self::VERSION_LEGACY) {
+            return false;
+        }
+
+        return isset($payload['incidents']) && is_array($payload['incidents']);
+    }
+
+    /**
+     * @return array<string, int>|null
+     */
+    private function decodeQueueCounts(mixed $value): ?array
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $counts = [];
+
+        foreach ($value as $queue => $count) {
+            if (! is_string($queue) || ! is_numeric($count)) {
+                return null;
+            }
+
+            $counts[$queue] = (int) $count;
+        }
+
+        return $counts === [] ? null : $counts;
+    }
+
+    /**
+     * @return array{
+     *     overdue_cases: int,
+     *     warning_cases: int,
+     *     service_overdue_cases: int,
+     *     service_warning_cases: int,
+     *     hardware_overdue_cases: int,
+     *     hardware_warning_cases: int
+     * }|null
+     */
+    private function decodeSlaCounts(mixed $value): ?array
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $keys = [
+            'overdue_cases',
+            'warning_cases',
+            'service_overdue_cases',
+            'service_warning_cases',
+            'hardware_overdue_cases',
+            'hardware_warning_cases',
+        ];
+
+        $counts = [];
+
+        foreach ($keys as $key) {
+            if (! array_key_exists($key, $value)) {
+                return null;
+            }
+
+            $counts[$key] = (int) $value[$key];
+        }
+
+        return $counts;
     }
 
     /**

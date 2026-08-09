@@ -28,11 +28,21 @@ class DashboardSnapshot
     /** @var array<string, array{open_cases: int, waiting_cases: int}> */
     private array $operationalKpiCounts = [];
 
+    /** @var array<string, int>|null */
+    private ?array $precomputedQueueCounts = null;
+
     public function __construct(
         Collection $activeIncidents,
         private readonly OperationsQueueClassifier $queueClassifier,
+        ?array $precomputedQueueCounts = null,
+        ?array $precomputedSlaCounts = null,
     ) {
         $this->activeIncidents = $activeIncidents;
+        $this->precomputedQueueCounts = $precomputedQueueCounts;
+
+        if ($precomputedSlaCounts !== null) {
+            $this->slaCounts = $precomputedSlaCounts;
+        }
     }
 
     public static function load(): self
@@ -233,6 +243,10 @@ class DashboardSnapshot
      */
     public function queueCounts(?User $scopeUser = null): array
     {
+        if ($scopeUser === null && $this->precomputedQueueCounts !== null) {
+            return $this->precomputedQueueCounts;
+        }
+
         $this->warmQueueIncidents($scopeUser);
 
         return collect(OperationQueue::cases())

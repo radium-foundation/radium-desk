@@ -35,7 +35,7 @@ class DashboardSnapshotStore
         $classifier = app(OperationsQueueClassifier::class)->rememberClassifications();
         $cache = app(OperatorDashboardCache::class);
 
-        $incidents = $cache->rememberActiveIncidents(
+        $cached = $cache->rememberCachedSnapshot(
             fn () => Incident::query()
                 ->with([
                     'order.deviceModel',
@@ -60,6 +60,11 @@ class DashboardSnapshotStore
                 ->get(),
         );
 
-        return new DashboardSnapshot($incidents, $classifier);
+        return new DashboardSnapshot(
+            $cached->incidents,
+            $classifier,
+            $cached->queueCounts,
+            $cached->slaCounts,
+        );
     }
 }
