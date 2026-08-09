@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.22 — 2026-08-09 — Missing Serial Scheduler Performance
+
+- Ran missing-serial automation in the background so schedule:run is no longer blocked during outreach runs.
+- Reduced skip-heavy batch work by filtering to due request, reminder, and escalation windows in SQL instead of scanning not-yet-due candidates in PHP.
+- Removed duplicate eligibility checks on the skip path while preserving existing timing rules, prioritization, and customer messaging behavior.
+
 ## 4.0.21 — 2026-08-09 — Cashfree Health & Performance
 
 - Reduced evening health report CPU by using scalar Cashfree reconciliation instead of a full payment reconcile scan.
