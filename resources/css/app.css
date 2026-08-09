@@ -264,12 +264,35 @@ html.sidebar-expanded .app-main {
     gap: 0.5rem;
 }
 
+.app-topbar [data-sidebar-toggle] {
+    flex-shrink: 0;
+}
+
 .app-topbar [data-universal-search-form] {
     flex: 1 1 auto;
-    max-width: min(36rem, calc(100% - 11rem));
+    max-width: min(36rem, 100%);
     min-width: 0;
-    margin-left: 0.75rem;
-    margin-right: 0.25rem;
+    margin-left: 0.5rem;
+    margin-right: 0;
+}
+
+.app-topbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.app-topbar__actions #notification-bell-root,
+.app-topbar__actions [data-todo-modal-open],
+.app-topbar__actions .dropdown {
+    flex-shrink: 0;
+}
+
+/* Keep search clear of the C360 drawer footprint without changing C360 itself. */
+body.customer-360-drawer-open .app-topbar [data-universal-search-form] {
+    max-width: min(28rem, calc(100% - 12rem));
 }
 
 @media (min-width: 768px) {
@@ -277,10 +300,8 @@ html.sidebar-expanded .app-main {
         gap: 0.625rem;
     }
 
-    .app-topbar #notification-bell-root,
-    .app-topbar [data-todo-modal-open],
-    .app-topbar .dropdown {
-        flex-shrink: 0;
+    .app-topbar__actions {
+        gap: 0.625rem;
     }
 }
 
@@ -21359,8 +21380,13 @@ body.customer-360-drawer-open .app-sidebar {
         margin-right: 0.125rem !important;
     }
 
-    .app-topbar [data-todo-modal-open].ms-2 {
-        margin-left: 0.125rem !important;
+    .app-topbar__actions {
+        gap: 0.25rem;
+        margin-left: 0.25rem;
+    }
+
+    body.customer-360-drawer-open .app-topbar [data-universal-search-form] {
+        max-width: none;
     }
 
     .dashboard-todo-kpi {

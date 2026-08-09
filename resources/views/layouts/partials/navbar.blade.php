@@ -32,63 +32,65 @@
         </div>
     </form>
 
-    <div id="notification-bell-root"
-         data-poll-url="{{ route('notifications.poll') }}"
-         data-poll-interval="{{ $performanceRuntime['notificationPollIntervalMs'] ?? 45000 }}">
-        @include('layouts.partials.notification-bell')
-    </div>
+    <div class="app-topbar__actions">
+        <div id="notification-bell-root"
+             data-poll-url="{{ route('notifications.poll') }}"
+             data-poll-interval="{{ $performanceRuntime['notificationPollIntervalMs'] ?? 45000 }}">
+            @include('layouts.partials.notification-bell')
+        </div>
 
-    @can('viewAny', \App\Models\Todo::class)
-        <button
-            type="button"
-            class="btn btn-light border ms-2"
-            data-todo-modal-open
-            data-todo-url="{{ route('todos.index') }}"
-            aria-label="Open To-Dos"
-            title="To-Dos"
-        >
-            <i class="bi bi-check2-square" aria-hidden="true"></i>
-        </button>
-    @endcan
+        @can('viewAny', \App\Models\Todo::class)
+            <button
+                type="button"
+                class="btn btn-light border"
+                data-todo-modal-open
+                data-todo-url="{{ route('todos.index') }}"
+                aria-label="Open To-Dos"
+                title="To-Dos"
+            >
+                <i class="bi bi-check2-square" aria-hidden="true"></i>
+            </button>
+        @endcan
 
-    <div class="dropdown">
-        <button
-            class="btn btn-light border dropdown-toggle d-flex align-items-center"
-            type="button"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-        >
-            <span class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center me-2"
-                  style="width: 2rem; height: 2rem; font-size: 0.875rem;">
-                {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
-            </span>
-            <span class="d-none d-md-inline">{{ auth()->user()->name }}</span>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end shadow">
-            <li class="px-3 py-2">
-                <div class="fw-semibold">{{ auth()->user()->name }}</div>
-                <div class="small text-muted">{{ auth()->user()->email }}</div>
-                <div class="mt-1">
-                    @foreach(auth()->user()->roles as $role)
-                        <span class="badge text-bg-secondary">{{ ucfirst($role->name) }}</span>
-                    @endforeach
-                </div>
-            </li>
-            <li><hr class="dropdown-divider"></li>
-            <li>
-                <a class="dropdown-item" href="{{ route('profile.edit') }}">
-                    <i class="bi bi-person me-2"></i> Profile
-                </a>
-            </li>
-            <li><hr class="dropdown-divider"></li>
-            <li>
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit" class="dropdown-item text-danger">
-                        <i class="bi bi-box-arrow-right me-2"></i> Logout
-                    </button>
-                </form>
-            </li>
-        </ul>
+        <div class="dropdown">
+            <button
+                class="btn btn-light border dropdown-toggle d-flex align-items-center"
+                type="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+            >
+                <span class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center me-2"
+                      style="width: 2rem; height: 2rem; font-size: 0.875rem;">
+                    {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+                </span>
+                <span class="d-none d-md-inline">{{ auth()->user()->name }}</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow">
+                <li class="px-3 py-2">
+                    <div class="fw-semibold">{{ auth()->user()->name }}</div>
+                    <div class="small text-muted">{{ auth()->user()->email }}</div>
+                    <div class="mt-1">
+                        @foreach(auth()->user()->roles as $role)
+                            <span class="badge text-bg-secondary">{{ ucfirst($role->name) }}</span>
+                        @endforeach
+                    </div>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <a class="dropdown-item" href="{{ route('profile.edit') }}">
+                        <i class="bi bi-person me-2"></i> Profile
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button type="submit" class="dropdown-item text-danger">
+                            <i class="bi bi-box-arrow-right me-2"></i> Logout
+                        </button>
+                    </form>
+                </li>
+            </ul>
+        </div>
     </div>
 </header>
