@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.28 — 2026-08-09 — Dashboard To-Do Layout
+
+- Tightened the dashboard To-Do KPI card so it matches other compact KPI cards.
+- Improved topbar breathing room between search, notifications, To-Dos, and the user menu.
+- Cleaned Recent Customers chip spacing without changing Customer 360 behavior.
+
 ## 4.0.27 — 2026-08-09 — Contextual To-Do Modal
 
 - Open To-Dos from the navbar, sidebar, and dashboard without leaving the current page.
