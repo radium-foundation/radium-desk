@@ -9,6 +9,7 @@ use App\Models\LeaveRequest;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\SystemSetting;
+use App\Models\Todo;
 use App\Models\User;
 use App\Services\Operations\OperationsRoleService;
 use App\Support\Finance\FinanceAccess;
@@ -161,6 +162,9 @@ class NavigationContextResolver
             (! $isAdminTeam && Gate::check('viewAny', LeaveRequest::class))
                 ? $this->sidebarItem('personal.my_leave', 'My Leave', 'bi-calendar-x', route('leave-requests.index'), $context)
                 : null,
+            Gate::check('viewAny', Todo::class)
+                ? $this->sidebarItem('personal.todos', 'To-Dos', 'bi-check2-square', route('todos.index'), $context)
+                : null,
         ]));
 
         return [
@@ -271,6 +275,10 @@ class NavigationContextResolver
             }
 
             return [NavigationMenu::Personal, 'personal.my_leave', null];
+        }
+
+        if ($request->routeIs('todos.*')) {
+            return [NavigationMenu::Personal, 'personal.todos', null];
         }
 
         if ($request->routeIs('admin.administration.*')) {

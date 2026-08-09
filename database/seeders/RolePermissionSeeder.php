@@ -81,6 +81,37 @@ class RolePermissionSeeder extends Seeder
     /** Record Finance-verified external wallet reverse → restore commercial service. */
     public const PERMISSION_COMMERCIAL_SERVICE_RESTORE = 'commercial.service.restore';
 
+    public const PERMISSION_TODOS_VIEW = 'todos.view';
+
+    public const PERMISSION_TODOS_CREATE = 'todos.create';
+
+    public const PERMISSION_TODOS_UPDATE = 'todos.update';
+
+    public const PERMISSION_TODOS_ASSIGN = 'todos.assign';
+
+    public const PERMISSION_TODOS_MANAGE = 'todos.manage';
+
+    /**
+     * Baseline To-Do access for roles that already create leave requests.
+     *
+     * @var list<string>
+     */
+    private const TODO_BASELINE_PERMISSIONS = [
+        self::PERMISSION_TODOS_VIEW,
+        self::PERMISSION_TODOS_CREATE,
+        self::PERMISSION_TODOS_UPDATE,
+    ];
+
+    /**
+     * Cross-user assign/manage for admin team roles.
+     *
+     * @var list<string>
+     */
+    private const TODO_ADMIN_PERMISSIONS = [
+        self::PERMISSION_TODOS_ASSIGN,
+        self::PERMISSION_TODOS_MANAGE,
+    ];
+
     /**
      * @var list<string>
      */
@@ -167,6 +198,7 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
             'workforce.view',
             'workforce.self',
+            ...self::TODO_BASELINE_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_EMAIL_INTAKE_VIEW,
@@ -186,6 +218,7 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
             'workforce.view',
             'workforce.self',
+            ...self::TODO_BASELINE_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_EMAIL_INTAKE_VIEW,
@@ -205,6 +238,7 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
             'workforce.view',
             'workforce.self',
+            ...self::TODO_BASELINE_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_EMAIL_INTAKE_VIEW,
@@ -224,6 +258,7 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
             'workforce.view',
             'workforce.self',
+            ...self::TODO_BASELINE_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
         ],
@@ -239,6 +274,7 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
             'workforce.view',
             'workforce.self',
+            ...self::TODO_BASELINE_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
         ],
@@ -247,6 +283,7 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.view',
             'leave-requests.create',
             'workforce.self',
+            ...self::TODO_BASELINE_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
         ],
@@ -283,6 +320,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.view.member',
             'workforce.self',
             'workforce.recognition.view',
+            ...self::TODO_BASELINE_PERMISSIONS,
+            ...self::TODO_ADMIN_PERMISSIONS,
             self::PERMISSION_SHORT_ATTENDANCE_VIEW,
             self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_FINANCE_VIEW,
@@ -329,6 +368,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.self',
             'workforce.recognition.view',
             'workforce.recognition.review',
+            ...self::TODO_BASELINE_PERMISSIONS,
+            ...self::TODO_ADMIN_PERMISSIONS,
             self::PERMISSION_SHORT_ATTENDANCE_VIEW,
             self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
@@ -380,6 +421,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.self',
             'workforce.recognition.view',
             'workforce.recognition.review',
+            ...self::TODO_BASELINE_PERMISSIONS,
+            ...self::TODO_ADMIN_PERMISSIONS,
             self::PERMISSION_SHORT_ATTENDANCE_VIEW,
             self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
@@ -405,6 +448,8 @@ class RolePermissionSeeder extends Seeder
             ->merge(self::DIRECT_ASSIGNABLE_PERMISSIONS)
             ->merge(self::WORKFORCE_TEAM_VISIBILITY_PERMISSIONS)
             ->merge(self::FINANCE_MODULE_VIEW_PERMISSIONS)
+            ->merge(self::TODO_BASELINE_PERMISSIONS)
+            ->merge(self::TODO_ADMIN_PERMISSIONS)
             ->unique()
             ->values();
 

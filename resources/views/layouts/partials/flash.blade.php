@@ -68,6 +68,13 @@
                 .(session('work_recognition_scanned_count') !== null
                     ? ' ('.session('work_recognition_scanned_count').' reviews touched).'
                     : '.'),
+            'todo-created' => 'To-do created successfully.',
+            'todo-updated' => 'To-do updated successfully.',
+            'todo-assigned' => 'To-do assignee updated successfully.',
+            'todo-completed' => 'To-do marked complete.',
+            'todo-reopened' => 'To-do reopened.',
+            'todo-cancelled' => 'To-do cancelled.',
+            'todo-deleted' => 'To-do deleted.',
             'finance-payment-method-created' => 'Payment method added successfully.',
             'finance-payment-method-updated' => 'Payment method updated successfully.',
             'finance-payment-method-activated' => 'Payment method activated successfully.',

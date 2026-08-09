@@ -32,6 +32,7 @@ use App\Http\Controllers\IraMemoryAdminController;
 use App\Http\Controllers\IncomingEmailContentController;
 use App\Http\Controllers\IraOperationsBrainController;
 use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\TodoController;
 use App\Http\Controllers\MyPerformanceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
@@ -300,6 +301,12 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('leave-requests.approve');
     Route::post('leave-requests/{leaveRequest}/reject', [LeaveRequestController::class, 'reject'])
         ->name('leave-requests.reject');
+
+    Route::resource('todos', TodoController::class);
+    Route::post('todos/{todo}/complete', [TodoController::class, 'complete'])->name('todos.complete');
+    Route::post('todos/{todo}/reopen', [TodoController::class, 'reopen'])->name('todos.reopen');
+    Route::post('todos/{todo}/cancel', [TodoController::class, 'cancel'])->name('todos.cancel');
+    Route::post('todos/{todo}/assign', [TodoController::class, 'assign'])->name('todos.assign');
 
     Route::prefix('admin/workforce')->name('admin.workforce.')->group(function () {
         Route::get('holidays', [CompanyHolidayController::class, 'index'])->name('holidays.index');

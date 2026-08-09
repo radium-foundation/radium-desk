@@ -60,6 +60,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_minute', 2)))
             ->appendOutputTo(storage_path('logs/schedule-light-tick.log'));
 
+        $schedule->command('reminders:dispatch-due')
+            ->everyMinute()
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_minute', 2)))
+            ->appendOutputTo(storage_path('logs/reminders-dispatch-due.log'));
+
         // Stagger +4 off :00/:05 pack — same 5-minute cadence (4-59/5 → :04,:09,…).
         $schedule->command('infrastructure:metrics:collect')
             ->cron('4-59/5 * * * *')
