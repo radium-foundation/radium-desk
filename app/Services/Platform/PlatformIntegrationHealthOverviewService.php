@@ -442,8 +442,8 @@ class PlatformIntegrationHealthOverviewService
      */
     private function cashfreeItem(): array
     {
-        $widget = $this->cashfreeHealth->widget(useCache: false);
-        $opsStatus = ($widget['is_healthy'] ?? false)
+        $card = $this->cashfreeHealth->platformOverviewCard();
+        $opsStatus = ($card['is_healthy'] ?? false)
             ? OperationsHealthStatus::Healthy
             : OperationsHealthStatus::Failed;
 
@@ -451,7 +451,7 @@ class PlatformIntegrationHealthOverviewService
             'cashfree',
             'Cashfree',
             $opsStatus,
-            (string) ($widget['detail'] ?? 'Payment webhook integration.'),
+            (string) ($card['detail'] ?? 'Payment webhook integration.'),
         );
     }
 

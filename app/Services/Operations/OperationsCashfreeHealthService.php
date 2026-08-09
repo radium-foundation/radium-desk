@@ -8,6 +8,7 @@ use App\Services\Cashfree\CashfreeHealthService;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 
 class OperationsCashfreeHealthService
 {
@@ -35,6 +36,33 @@ class OperationsCashfreeHealthService
         }
 
         return $this->hydrateWidgetFromCache($cached);
+    }
+
+    /**
+     * Platform integration overview card: reuses operations:cashfree-health on hit.
+     * On miss, derives is_healthy + detail from integrity metrics and config checks
+     * without CashfreeIntegrationHealthProbe (no per-failed-log N+1).
+     *
+     * @return array{is_healthy: bool, detail: string}
+     */
+    public function platformOverviewCard(): array
+    {
+        $cached = $this->cachedWidget();
+
+        if ($cached !== null) {
+            return [
+                'is_healthy' => (bool) ($cached['is_healthy'] ?? false),
+                'detail' => (string) ($cached['detail'] ?? 'Payment webhook integration.'),
+            ];
+        }
+
+        $widget = $this->buildPlatformOverviewWidget();
+        Cache::put(self::CACHE_KEY, $this->toCacheArray($widget), now()->addSeconds(self::CACHE_TTL_SECONDS));
+
+        return [
+            'is_healthy' => (bool) $widget['is_healthy'],
+            'detail' => (string) $widget['detail'],
+        ];
     }
 
     /**
@@ -102,21 +130,64 @@ class OperationsCashfreeHealthService
             'database_ready' => $selfTest->databaseReady,
             'self_test_failures' => $selfTest->failures,
             'detail' => $this->detailMessage(
-                $isHealthy,
                 $configHealthy,
                 $paidWithoutDeskOrder,
-                $classification,
+                $classification->activeFailedWebhooks,
+                $classification->historicalResolvedFailures,
                 $selfTest->systemUserStatusLabel,
                 $selfTest->configuredEmail,
             ),
         ];
     }
 
+    /**
+     * Overview card/widget core without integration probe timestamps.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildPlatformOverviewWidget(): array
+    {
+        $metrics = $this->integrityReadModel->metrics();
+        $systemUser = $this->cashfreeHealthService->systemUserCheck();
+        $configHealthy = $this->configurationHealthy();
+        $isHealthy = $configHealthy && ! $metrics->requiresAlert;
+
+        return [
+            'is_healthy' => $isHealthy,
+            'status_label' => $isHealthy ? 'Healthy' : 'Needs attention',
+            'badge_class' => $isHealthy ? 'success' : 'danger',
+            'paid_without_desk_order' => $metrics->paidWithoutDeskOrderCount,
+            'active_failed_webhooks' => $metrics->activeFailedWebhooks,
+            'historical_resolved_failures' => $metrics->historicalResolvedFailures,
+            'invalid_event_failures' => $metrics->invalidEventFailures,
+            'total_failed_webhooks' => $metrics->totalFailedWebhooks,
+            'counts_by_category' => $metrics->countsByCategory,
+            'oldest_failed_at' => $metrics->oldestFailedAt,
+            'newest_failed_at' => $metrics->newestFailedAt,
+            'affected_order_ids' => $metrics->affectedOrderIds,
+            'detail' => $this->detailMessage(
+                $configHealthy,
+                $metrics->paidWithoutDeskOrderCount,
+                $metrics->activeFailedWebhooks,
+                $metrics->historicalResolvedFailures,
+                $systemUser['label'],
+                $systemUser['email'],
+            ),
+        ];
+    }
+
+    private function configurationHealthy(): bool
+    {
+        return $this->cashfreeHealthService->blockingFailures() === []
+            && Schema::hasTable('cashfree_webhook_logs')
+            && Schema::hasTable('outbox_events');
+    }
+
     private function detailMessage(
-        bool $isHealthy,
         bool $configHealthy,
         int $paidWithoutDeskOrder,
-        \App\Data\CashfreeFailedWebhookClassificationReport $classification,
+        int $activeFailedWebhooks,
+        int $historicalResolvedFailures,
         string $systemUserStatusLabel,
         string $configuredEmail,
     ): string {
@@ -137,17 +208,17 @@ class OperationsCashfreeHealthService
             );
         }
 
-        if ($classification->activeFailedWebhooks > 0) {
+        if ($activeFailedWebhooks > 0) {
             return sprintf(
                 '%d actionable webhook failure(s) require recovery.',
-                $classification->activeFailedWebhooks,
+                $activeFailedWebhooks,
             );
         }
 
-        if ($classification->historicalResolvedFailures > 0) {
+        if ($historicalResolvedFailures > 0) {
             return sprintf(
                 'Cashfree healthy. %d historical failure(s) archived.',
-                $classification->historicalResolvedFailures,
+                $historicalResolvedFailures,
             );
         }
 
