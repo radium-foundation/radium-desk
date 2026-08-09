@@ -624,8 +624,7 @@ class DashboardService
         }
 
         $fast = $this->fastChangingStatsForKpiStrip($user);
-        $slow = $this->slowChangingStatsFor($user);
-        $stats = [...$fast, ...$slow];
+        $stats = $fast;
 
         $filterCounts = $user->can('incidents.view')
             ? $this->serviceCaseFilterCounts($assignedTo, $user)
@@ -644,7 +643,7 @@ class DashboardService
                 'online_count' => $fast['online_count'],
                 'online_users' => $onlineUsers,
             ],
-            'slow' => $slow,
+            'slow' => [],
         ];
     }
 
@@ -653,7 +652,7 @@ class DashboardService
      */
     public function liveReverbMetricsFor(User $user): array
     {
-        $stats = $this->statsFor($user);
+        $stats = $this->fastChangingStatsForKpiStrip($user);
         $variants = [
             DashboardPersonalizationService::SCOPE_OPERATIONS => $user->can('incidents.view')
                 ? $this->serviceCaseFilterCounts(null, $user)

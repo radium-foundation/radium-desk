@@ -297,9 +297,136 @@ class OperatorDashboardCacheTest extends TestCase
 
         $this->assertArrayHasKey('fast', $metrics);
         $this->assertArrayHasKey('slow', $metrics);
-        $this->assertArrayHasKey('total_orders', $metrics['slow']);
+        $this->assertSame([], $metrics['slow']);
         $this->assertArrayHasKey('online_count', $metrics['fast']);
         $this->assertArrayHasKey('kpi_strip_html', $metrics);
+    }
+
+    public function test_live_metrics_for_performs_no_slow_scalar_count_queries(): void
+    {
+        $superAdmin = User::factory()->create(['is_active' => true]);
+        $superAdmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+        $this->createOpenIncident($superAdmin);
+
+        Order::query()->create([
+            'order_id' => 'RB-LIVE-SLOW-1',
+            'serial_number' => null,
+            'product_name' => 'MFS110',
+            'device_model' => 'MFS110',
+            'status' => 'active',
+            'created_by' => $superAdmin->id,
+        ]);
+
+        AuditLog::query()->create([
+            'user_id' => $superAdmin->id,
+            'event' => 'test.live',
+            'auditable_type' => $superAdmin->getMorphClass(),
+            'auditable_id' => $superAdmin->id,
+            'new_values' => ['source' => 'operator-dashboard-cache-test'],
+        ]);
+
+        Cache::forget(OperatorDashboardCache::SLOW_SCALARS_CACHE_KEY);
+
+        $service = app(DashboardService::class);
+        $fast = $service->fastChangingStatsForKpiStrip($superAdmin);
+
+        $countQueries = $this->countSlowScalarCountQueries(
+            fn (): array => $service->liveMetricsFor($superAdmin),
+        );
+
+        $metrics = $service->liveMetricsFor($superAdmin);
+
+        $this->assertSame(0, $countQueries);
+        $this->assertSame($fast['online_count'], $metrics['online_count']);
+        $this->assertStringContainsString((string) $fast['open_cases'], $metrics['kpi_strip_html']);
+    }
+
+    public function test_live_metrics_kpis_only_performs_no_slow_scalar_count_queries(): void
+    {
+        $superAdmin = User::factory()->create(['is_active' => true]);
+        $superAdmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+        $this->createOpenIncident($superAdmin);
+
+        Cache::forget(OperatorDashboardCache::SLOW_SCALARS_CACHE_KEY);
+
+        $countQueries = $this->countSlowScalarCountQueries(function () use ($superAdmin): void {
+            $this->actingAs($superAdmin)
+                ->getJson(route('dashboard.live', ['kpis_only' => 1]))
+                ->assertOk();
+        });
+
+        $this->assertSame(0, $countQueries);
+    }
+
+    public function test_live_reverb_metrics_for_performs_no_slow_scalar_count_queries(): void
+    {
+        $superAdmin = User::factory()->create(['is_active' => true]);
+        $superAdmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+        $this->createOpenIncident($superAdmin);
+
+        Order::query()->create([
+            'order_id' => 'RB-REVERB-SLOW-1',
+            'serial_number' => null,
+            'product_name' => 'MFS110',
+            'device_model' => 'MFS110',
+            'status' => 'active',
+            'created_by' => $superAdmin->id,
+        ]);
+
+        Cache::forget(OperatorDashboardCache::SLOW_SCALARS_CACHE_KEY);
+
+        $service = app(DashboardService::class);
+        $fast = $service->fastChangingStatsForKpiStrip($superAdmin);
+
+        $countQueries = $this->countSlowScalarCountQueries(
+            fn (): array => $service->liveReverbMetricsFor($superAdmin),
+        );
+
+        $metrics = $service->liveReverbMetricsFor($superAdmin);
+
+        $this->assertSame(0, $countQueries);
+        $this->assertStringContainsString('dashboard-kpi-strip', $metrics['kpi_strip_html']);
+        $this->assertStringContainsString((string) $fast['open_cases'], $metrics['kpi_strip_html']);
+    }
+
+    public function test_live_metrics_operational_kpis_and_online_count_match_fast_strip_stats(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->createOpenIncident($admin);
+
+        $service = app(DashboardService::class);
+        $fast = $service->fastChangingStatsForKpiStrip($admin);
+        $metrics = $service->liveMetricsFor($admin);
+
+        $this->assertSame($fast['online_count'], $metrics['online_count']);
+        $this->assertStringContainsString((string) $fast['open_cases'], $metrics['kpi_strip_html']);
+        $this->assertStringContainsString((string) ($fast['waiting_cases'] ?? 0), $metrics['kpi_strip_html']);
+    }
+
+    private function countSlowScalarCountQueries(callable $callback): int
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $callback();
+        $count = collect(DB::getQueryLog())
+            ->filter(function (array $query): bool {
+                $sql = strtolower($query['query']);
+
+                return (str_contains($sql, 'count(') || str_contains($sql, 'count (*)'))
+                    && (
+                        str_contains($sql, ' from "orders"')
+                        || str_contains($sql, ' from `orders`')
+                        || str_contains($sql, ' from "users"')
+                        || str_contains($sql, ' from `users`')
+                        || str_contains($sql, ' from "audit_logs"')
+                        || str_contains($sql, ' from `audit_logs`')
+                    );
+            })
+            ->count();
+        DB::disableQueryLog();
+
+        return $count;
     }
 
     public function test_snapshot_ttl_is_clamped_to_15_30_seconds(): void
