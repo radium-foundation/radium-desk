@@ -477,6 +477,113 @@ class MissingSerialAutomationTest extends TestCase
         $this->assertSame(1, WhatsAppTemplateDispatch::query()->where('order_id', $dueOrder->id)->count());
     }
 
+    public function test_due_candidate_query_excludes_future_request_and_reminder_windows(): void
+    {
+        $service = app(MissingSerialAutomationService::class);
+
+        $futureRequest = $this->createEligibleOrder(paymentMinutesAgo: 10);
+        $futureReminder = $this->createEligibleOrder(paymentMinutesAgo: 120);
+        $futureReminder->update([
+            'missing_serial_automation_status' => MissingSerialAutomationStatus::Requested->value,
+            'missing_serial_first_requested_at' => now()->subHours(2),
+            'missing_serial_last_contacted_at' => now()->subHours(2),
+        ]);
+
+        $dueRequest = $this->createEligibleOrder(paymentMinutesAgo: 20);
+        $dueReminder = $this->createEligibleOrder(paymentMinutesAgo: 120);
+        $dueReminder->update([
+            'missing_serial_automation_status' => MissingSerialAutomationStatus::Requested->value,
+            'missing_serial_first_requested_at' => now()->subHours(25),
+            'missing_serial_last_contacted_at' => now()->subHours(25),
+        ]);
+
+        $ids = $service->dueCandidateOrdersQuery()->pluck('id')->all();
+
+        $this->assertNotContains($futureRequest->id, $ids);
+        $this->assertNotContains($futureReminder->id, $ids);
+        $this->assertContains($dueRequest->id, $ids);
+        $this->assertContains($dueReminder->id, $ids);
+    }
+
+    public function test_due_candidate_query_includes_escalation_window(): void
+    {
+        $service = app(MissingSerialAutomationService::class);
+
+        $dueEscalation = $this->createEligibleOrder(paymentMinutesAgo: 120);
+        $dueEscalation->update([
+            'missing_serial_automation_status' => MissingSerialAutomationStatus::Reminded->value,
+            'missing_serial_first_requested_at' => now()->subHours(73),
+            'missing_serial_last_contacted_at' => now()->subHours(73),
+        ]);
+
+        $futureEscalation = $this->createEligibleOrder(paymentMinutesAgo: 120);
+        $futureEscalation->update([
+            'missing_serial_automation_status' => MissingSerialAutomationStatus::Reminded->value,
+            'missing_serial_first_requested_at' => now()->subHours(50),
+            'missing_serial_last_contacted_at' => now()->subHours(50),
+        ]);
+
+        $ids = $service->dueCandidateOrdersQuery()->pluck('id')->all();
+
+        $this->assertContains($dueEscalation->id, $ids);
+        $this->assertNotContains($futureEscalation->id, $ids);
+    }
+
+    public function test_prioritization_prefers_null_status_then_oldest_payment_among_due_orders(): void
+    {
+        $service = app(MissingSerialAutomationService::class);
+
+        $olderRequestedReminder = $this->createEligibleOrder(paymentMinutesAgo: 180);
+        $olderRequestedReminder->update([
+            'missing_serial_automation_status' => MissingSerialAutomationStatus::Requested->value,
+            'missing_serial_first_requested_at' => now()->subHours(30),
+            'missing_serial_last_contacted_at' => now()->subHours(30),
+        ]);
+
+        $newerDueRequest = $this->createEligibleOrder(paymentMinutesAgo: 30);
+        $olderDueRequest = $this->createEligibleOrder(paymentMinutesAgo: 60);
+
+        $prioritizedIds = $service->prioritizedCandidateOrdersQuery()
+            ->pluck('id')
+            ->all();
+
+        $this->assertSame([
+            $olderDueRequest->id,
+            $newerDueRequest->id,
+            $olderRequestedReminder->id,
+        ], array_slice($prioritizedIds, 0, 3));
+    }
+
+    public function test_determine_due_action_matches_determine_action_for_due_windows(): void
+    {
+        $service = app(MissingSerialAutomationService::class);
+
+        $dueRequest = $this->createEligibleOrder(paymentMinutesAgo: 20);
+        $dueReminder = $this->createEligibleOrder(paymentMinutesAgo: 120);
+        $dueReminder->update([
+            'missing_serial_automation_status' => MissingSerialAutomationStatus::Requested->value,
+            'missing_serial_first_requested_at' => now()->subHours(25),
+        ]);
+        $dueEscalation = $this->createEligibleOrder(paymentMinutesAgo: 120);
+        $dueEscalation->update([
+            'missing_serial_automation_status' => MissingSerialAutomationStatus::Reminded->value,
+            'missing_serial_first_requested_at' => now()->subHours(73),
+        ]);
+
+        $this->assertSame(
+            $service->determineAction($dueRequest),
+            $service->determineDueAction($dueRequest),
+        );
+        $this->assertSame(
+            $service->determineAction($dueReminder),
+            $service->determineDueAction($dueReminder),
+        );
+        $this->assertSame(
+            $service->determineAction($dueEscalation),
+            $service->determineDueAction($dueEscalation),
+        );
+    }
+
     private function createEligibleOrder(int $paymentMinutesAgo): Order
     {
         $agent = User::factory()->create(['is_active' => true]);

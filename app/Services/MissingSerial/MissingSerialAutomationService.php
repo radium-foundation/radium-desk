@@ -109,14 +109,25 @@ class MissingSerialAutomationService
 
     public function processOrder(Order $order): MissingSerialAutomationOrderResult
     {
-        $action = $this->determineAction($order);
+        $ineligibility = $this->ineligibilityReason($order);
+
+        if ($ineligibility !== null) {
+            return new MissingSerialAutomationOrderResult(
+                orderId: $order->id,
+                action: MissingSerialAutomationAction::Request,
+                outcome: 'skipped',
+                message: $ineligibility,
+            );
+        }
+
+        $action = $this->determineDueAction($order);
 
         if ($action === null) {
             return new MissingSerialAutomationOrderResult(
                 orderId: $order->id,
                 action: MissingSerialAutomationAction::Request,
                 outcome: 'skipped',
-                message: $this->ineligibilityReason($order) ?? 'Not due for automation.',
+                message: 'Not due for automation.',
             );
         }
 
@@ -157,6 +168,11 @@ class MissingSerialAutomationService
             return null;
         }
 
+        return $this->determineDueAction($order);
+    }
+
+    public function determineDueAction(Order $order): ?MissingSerialAutomationAction
+    {
         $status = MissingSerialAutomationStatus::tryFrom((string) $order->missing_serial_automation_status);
         $paymentAt = $this->paymentReferenceAt($order);
 
@@ -288,10 +304,48 @@ class MissingSerialAutomationService
      */
     public function prioritizedCandidateOrdersQuery(): Builder
     {
-        return $this->candidateOrdersQuery()
+        return $this->dueCandidateOrdersQuery()
             ->orderByRaw('CASE WHEN missing_serial_automation_status IS NULL THEN 0 ELSE 1 END')
             ->orderByRaw('COALESCE(payment_date, created_at) ASC')
             ->orderBy('id');
+    }
+
+    /**
+     * Eligible candidates whose due-time window matches {@see determineDueAction()}.
+     *
+     * @return Builder<Order>
+     */
+    public function dueCandidateOrdersQuery(): Builder
+    {
+        $now = now();
+        $firstDueThreshold = $now->copy()->subMinutes($this->firstDelayMinutes());
+        $reminderDueThreshold = $now->copy()->subHours($this->reminderDelayHours());
+        $escalationDueThreshold = $now->copy()->subHours($this->escalationDelayHours());
+
+        return $this->candidateOrdersQuery()
+            ->where(function (Builder $query) use (
+                $firstDueThreshold,
+                $reminderDueThreshold,
+                $escalationDueThreshold,
+            ): void {
+                $query->where(function (Builder $requestQuery) use ($firstDueThreshold): void {
+                    $requestQuery->whereNull('missing_serial_automation_status')
+                        ->whereRaw('COALESCE(payment_date, created_at) <= ?', [$firstDueThreshold]);
+                })->orWhere(function (Builder $requestQuery) use ($firstDueThreshold): void {
+                    $requestQuery->whereNull('missing_serial_first_requested_at')
+                        ->whereRaw('COALESCE(payment_date, created_at) <= ?', [$firstDueThreshold]);
+                })->orWhere(function (Builder $requestedQuery) use ($reminderDueThreshold): void {
+                    $requestedQuery
+                        ->where('missing_serial_automation_status', MissingSerialAutomationStatus::Requested->value)
+                        ->whereNotNull('missing_serial_first_requested_at')
+                        ->where('missing_serial_first_requested_at', '<=', $reminderDueThreshold);
+                })->orWhere(function (Builder $remindedQuery) use ($escalationDueThreshold): void {
+                    $remindedQuery
+                        ->where('missing_serial_automation_status', MissingSerialAutomationStatus::Reminded->value)
+                        ->whereNotNull('missing_serial_first_requested_at')
+                        ->where('missing_serial_first_requested_at', '<=', $escalationDueThreshold);
+                });
+            });
     }
 
     /**

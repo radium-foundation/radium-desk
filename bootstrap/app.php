@@ -225,6 +225,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ->cron(sprintf('5-59/%d * * * *', max(1, (int) config('missing_serial.schedule_interval_minutes', 15))))
             ->when(fn (): bool => (bool) config('missing_serial.enabled', true))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
+            ->runInBackground()
             ->appendOutputTo(storage_path('logs/missing-serial-automation.log'));
 
         // Stagger +7 off recover-sync — same 15-minute cadence (:07,:22,:37,:52).

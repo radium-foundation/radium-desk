@@ -132,6 +132,16 @@ class SchedulerStaggeringTest extends TestCase
         }
     }
 
+    public function test_missing_serial_runs_in_background(): void
+    {
+        $event = $this->findEvent(collect(app(Schedule::class)->events()), 'missing-serial:process');
+
+        $this->assertTrue($event->runInBackground);
+        $this->assertTrue($event->withoutOverlapping);
+        $this->assertSame('5-59/15 * * * *', $event->getExpression());
+        $this->assertSame(15, (int) $event->expiresAt);
+    }
+
     /**
      * @param  list<int>  $expectedMinutes
      */
