@@ -11,6 +11,7 @@ use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Listeners\BroadcastNotificationCreated;
 use App\Listeners\Finance\PostOrderPaidJournal;
 use App\Listeners\Finance\PostRefundCompletedJournal;
+use App\Listeners\LogScheduledTaskTiming;
 use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
 use App\Models\DeviceModel;
 use App\Models\Order;
@@ -74,6 +75,11 @@ use App\Services\Timeline\Sources\RadiumBoxSyncTimelineEventSource;
 use App\Services\Timeline\Sources\ServiceCaseLifecycleTimelineEventSource;
 use App\Services\Timeline\Sources\WhatsAppTemplateDispatchTimelineSource;
 use App\Services\Timeline\Sources\WhatsAppTimelineEventSource;
+use Illuminate\Console\Events\ScheduledBackgroundTaskFinished;
+use Illuminate\Console\Events\ScheduledTaskFailed;
+use Illuminate\Console\Events\ScheduledTaskFinished;
+use Illuminate\Console\Events\ScheduledTaskSkipped;
+use Illuminate\Console\Events\ScheduledTaskStarting;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
@@ -262,6 +268,13 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(SupportAppointmentSmartAssigned::class, DispatchIraSmartAssignmentNotification::class);
         Event::listen(OrderPaid::class, PostOrderPaidJournal::class);
         Event::listen(RefundCompleted::class, PostRefundCompletedJournal::class);
+        Event::listen([
+            ScheduledTaskStarting::class,
+            ScheduledTaskFinished::class,
+            ScheduledTaskSkipped::class,
+            ScheduledTaskFailed::class,
+            ScheduledBackgroundTaskFinished::class,
+        ], LogScheduledTaskTiming::class);
 
         Order::updated(function (Order $order): void {
             if ($order->wasChanged('serial_number') && $order->isSerialLocked()) {

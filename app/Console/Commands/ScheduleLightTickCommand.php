@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\SchedulerTimingLogger;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -98,21 +99,36 @@ class ScheduleLightTickCommand extends Command
      */
     private function runStep(string $command, array $parameters, string $logFile): int
     {
+        $started = hrtime(true);
+        $exit = self::FAILURE;
+        $output = '';
+
         try {
-            $exit = Artisan::call($command, $parameters);
-            $output = Artisan::output();
-        } catch (Throwable $e) {
-            $output = $e->getMessage().PHP_EOL;
-            $exit = self::FAILURE;
-            report($e);
-        }
+            try {
+                $exit = Artisan::call($command, $parameters);
+                $output = Artisan::output();
+            } catch (Throwable $e) {
+                $output = $e->getMessage().PHP_EOL;
+                $exit = self::FAILURE;
+                report($e);
+            }
 
-        if ($output !== '') {
-            $this->output->write($output);
-            $this->appendLog($logFile, $output);
-        }
+            if ($output !== '') {
+                $this->output->write($output);
+                $this->appendLog($logFile, $output);
+            }
 
-        return $exit;
+            return $exit;
+        } finally {
+            $durationMs = (int) round((hrtime(true) - $started) / 1_000_000);
+            app(SchedulerTimingLogger::class)->write([
+                'event' => 'light_tick_step',
+                'command' => $command,
+                'duration_ms' => $durationMs,
+                'exit' => $exit,
+                'parent' => 'schedule:light-tick',
+            ]);
+        }
     }
 
     private function appendLog(string $logFile, string $output): void
