@@ -2,7 +2,7 @@
  * Dashboard HTTP polling modes used alongside Reverb.
  *
  * - fast fallback: aggressive refresh when the WebSocket is down or recovering from staleness
- * - heartbeat: low-frequency safety net while Reverb stays connected
+ * - heartbeat: disabled in Phase 1 while Ably is healthy (realtime events + hybrid rows are primary)
  */
 
 import { logRefreshLifecycle } from './dashboard-refresh-lifecycle';
@@ -299,13 +299,19 @@ export const startFastPolling = (pageRoot, intervalMs = null) => {
     startPollingWithMode(pageRoot, POLL_MODE_FAST, intervalMs);
 };
 
-/** Heartbeat mode: low-frequency refresh while Reverb remains the primary transport. */
-export const startHeartbeatPolling = (pageRoot, intervalMs = null) => {
+/**
+ * Heartbeat mode (Phase 1): no-op while Ably is the primary transport.
+ * Full GET /dashboard/live heartbeat polling is disabled when realtime is healthy;
+ * fast fallback polling still runs when the socket is down.
+ */
+export const startHeartbeatPolling = (pageRoot) => {
     if (pageRoot?.dataset.liveUpdatesEnabled === '0') {
         return;
     }
 
-    startPollingWithMode(pageRoot, POLL_MODE_HEARTBEAT, intervalMs);
+    logRefreshLifecycle(pageRoot, 'heartbeat_polling_suppressed', {
+        reason: 'ably_primary_transport',
+    });
 };
 
 export const stopPolling = () => {

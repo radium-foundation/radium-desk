@@ -11,12 +11,10 @@ import {
     applyKpis,
     applyPartialDashboardUpdate,
     configureLiveDashboard,
-    refreshDashboard,
 } from './live-dashboard';
 import {
     destroyPolling,
     startFastPolling,
-    startHeartbeatPolling,
     stopPolling,
 } from './live-dashboard-polling';
 import { buildDashboardLiveQuery } from './dashboard-live-query';
@@ -489,7 +487,6 @@ const bindConnectionHandlers = ({
     connection,
     metadata,
     startFastPolling: startFastPollingFn,
-    startHeartbeatPolling: startHeartbeatPollingFn,
     stopPolling: stopPollingFn,
     dashboardLiveUpdates,
     getConnected,
@@ -542,39 +539,9 @@ const bindConnectionHandlers = ({
         reportRealtimeConnectionStatus(pageRoot, 'connected', null, { force: true });
         logRealtime(pageRoot, wasConnected ? 'reconnect_success' : 'connection_established');
 
-        // Heartbeat mode: keep a low-frequency poll running as a safety net while Reverb is up.
-        // Immediate refresh once per successful connection so reconnect churn cannot delay
-        // the first /dashboard/live past the 60s heartbeat interval.
+        // Phase 1: Ably is the primary transport while connected — stop HTTP fallback
+        // timers and rely on realtime events + hybrid /dashboard/live/rows updates.
         stopPollingFn?.();
-        if (dashboardLiveUpdates) {
-            const refreshStartedAt = Date.now();
-
-            logRealtimeLifecycle(pageRoot, 'dashboard_refresh_triggered', {
-                source: 'bindConnectionHandlers.connected',
-                ...connectionLifecycleSnapshot(connection),
-            });
-            void refreshDashboard(pageRoot, 'bindConnectionHandlers.connected').then(() => {
-                logRealtimeLifecycle(pageRoot, 'dashboard_refresh_promise_settled', {
-                    source: 'bindConnectionHandlers.connected',
-                    status: 'fulfilled',
-                    durationMs: Date.now() - refreshStartedAt,
-                    ...connectionLifecycleSnapshot(connection),
-                });
-            }).catch((error) => {
-                logRealtimeLifecycle(pageRoot, 'dashboard_refresh_promise_settled', {
-                    source: 'bindConnectionHandlers.connected',
-                    status: 'rejected',
-                    durationMs: Date.now() - refreshStartedAt,
-                    errorMessage: error?.message ?? String(error),
-                    ...connectionLifecycleSnapshot(connection),
-                });
-            });
-            logRealtimeLifecycle(pageRoot, 'heartbeat_polling_started', {
-                source: 'bindConnectionHandlers.connected',
-                ...connectionLifecycleSnapshot(connection),
-            });
-            startHeartbeatPollingFn?.(pageRoot);
-        }
 
         onWebSocketConnected?.();
     });
@@ -741,13 +708,6 @@ export const initLiveDashboardReverb = ({
             staleRecoveryFastPoll = false;
             staleReconnectAttempted = false;
             stopPolling();
-            if (reverbConnected && dashboardLiveUpdates) {
-                logRealtimeLifecycle(pageRoot, 'heartbeat_polling_started', {
-                    source: 'stale_websocket_recovered',
-                    ...connectionLifecycleSnapshot(echo?.connector?.pusher?.connection),
-                });
-                startHeartbeatPolling(pageRoot);
-            }
 
             updateConnectionIndicator(pageRoot, 'connected', metadata);
             logRealtime(pageRoot, 'stale_websocket_recovered');
@@ -954,13 +914,6 @@ export const initLiveDashboardReverb = ({
                     ...connectionLifecycleSnapshot(liveConnection),
                 });
                 startFastPolling(root);
-            },
-            startHeartbeatPolling: (root) => {
-                logRealtimeLifecycle(pageRoot, 'heartbeat_polling_started', {
-                    source: 'startHeartbeatPolling_wrapper',
-                    ...connectionLifecycleSnapshot(liveConnection),
-                });
-                startHeartbeatPolling(root);
             },
             stopPolling,
             dashboardLiveUpdates,

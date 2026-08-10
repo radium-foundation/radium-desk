@@ -604,6 +604,160 @@ describe('live dashboard reverb reconnect fallback', () => {
     });
 });
 
+describe('dashboard refresh architecture phase 1', () => {
+    const connectionListeners = {};
+    const mockConnection = {
+        state: 'connecting',
+        bind: vi.fn((event, handler) => {
+            connectionListeners[event] = handler;
+        }),
+        unbind: vi.fn(),
+        disconnect: vi.fn(() => {
+            mockConnection.state = 'disconnected';
+            connectionListeners.disconnected?.();
+        }),
+        connect: vi.fn(() => {
+            mockConnection.state = 'connected';
+            connectionListeners.connected?.();
+        }),
+    };
+
+    const refreshDashboard = vi.fn().mockResolvedValue(undefined);
+    const startFastPolling = vi.fn();
+    const stopPolling = vi.fn();
+    let destroyHandle = null;
+
+    beforeEach(() => {
+        vi.resetModules();
+        Object.keys(connectionListeners).forEach((key) => {
+            delete connectionListeners[key];
+        });
+        mockConnection.state = 'connecting';
+        mockConnection.bind.mockClear();
+        mockConnection.unbind.mockClear();
+        mockConnection.disconnect.mockClear();
+        mockConnection.connect.mockClear();
+        refreshDashboard.mockClear();
+        startFastPolling.mockClear();
+        stopPolling.mockClear();
+
+        document.body.innerHTML = `
+            <meta name="csrf-token" content="test-token">
+            <div id="dashboard-page"
+                 data-echo-key="test-key"
+                 data-echo-broadcaster="reverb"
+                 data-user-id="42"
+                 data-live-url="/dashboard/live"
+                 data-live-updates-enabled="1"
+                 data-live-interval-active="20000"></div>
+            <div id="notification-bell-root"></div>
+        `;
+
+        vi.doMock('laravel-echo', () => ({
+            default: vi.fn().mockImplementation(() => ({
+                private: vi.fn(() => ({
+                    listen: vi.fn(),
+                })),
+                connector: {
+                    pusher: {
+                        connection: mockConnection,
+                    },
+                },
+                disconnect: vi.fn(),
+            })),
+        }));
+
+        vi.doMock('../../resources/js/live-dashboard', () => ({
+            applyKpis: vi.fn(),
+            applyPartialDashboardUpdate: vi.fn(),
+            configureLiveDashboard: vi.fn(),
+            refreshDashboard,
+        }));
+
+        vi.doMock('../../resources/js/live-dashboard-polling', () => ({
+            destroyPolling: vi.fn(),
+            startFastPolling,
+            stopPolling,
+        }));
+    });
+
+    afterEach(() => {
+        destroyHandle?.destroy?.();
+        destroyHandle = null;
+        vi.doUnmock('laravel-echo');
+        vi.doUnmock('../../resources/js/live-dashboard');
+        vi.doUnmock('../../resources/js/live-dashboard-polling');
+        vi.restoreAllMocks();
+    });
+
+    it('does not full-refresh or start heartbeat polling when Ably connects', async () => {
+        const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
+
+        destroyHandle = initLiveDashboardReverb({
+            pageRoot: document.getElementById('dashboard-page'),
+            dashboardLiveUpdates: true,
+        });
+
+        connectionListeners.connected?.();
+
+        expect(refreshDashboard).not.toHaveBeenCalled();
+        expect(startFastPolling).not.toHaveBeenCalled();
+        expect(stopPolling).toHaveBeenCalled();
+    });
+
+    it('does not full-refresh on Ably reconnect', async () => {
+        const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
+
+        destroyHandle = initLiveDashboardReverb({
+            pageRoot: document.getElementById('dashboard-page'),
+            dashboardLiveUpdates: true,
+        });
+
+        connectionListeners.connected?.();
+        refreshDashboard.mockClear();
+        stopPolling.mockClear();
+
+        connectionListeners.disconnected?.();
+        connectionListeners.connected?.();
+
+        expect(refreshDashboard).not.toHaveBeenCalled();
+        expect(stopPolling).toHaveBeenCalled();
+    });
+
+    it('starts fast fallback polling when Ably disconnects', async () => {
+        const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
+
+        destroyHandle = initLiveDashboardReverb({
+            pageRoot: document.getElementById('dashboard-page'),
+            dashboardLiveUpdates: true,
+        });
+
+        connectionListeners.connected?.();
+        startFastPolling.mockClear();
+
+        connectionListeners.disconnected?.();
+
+        expect(startFastPolling).toHaveBeenCalledWith(document.getElementById('dashboard-page'));
+    });
+
+    it('keeps only one polling mode active across connect and disconnect churn', async () => {
+        const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
+
+        destroyHandle = initLiveDashboardReverb({
+            pageRoot: document.getElementById('dashboard-page'),
+            dashboardLiveUpdates: true,
+        });
+
+        connectionListeners.connected?.();
+        connectionListeners.disconnected?.();
+        connectionListeners.connected?.();
+        connectionListeners.disconnected?.();
+
+        expect(startFastPolling).toHaveBeenCalledTimes(2);
+        expect(stopPolling.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+});
+
 describe('live dashboard reverb lifecycle diagnostics', () => {
     const connectionListeners = {};
     const mockConnection = {
@@ -624,7 +778,6 @@ describe('live dashboard reverb lifecycle diagnostics', () => {
 
     const refreshDashboard = vi.fn().mockResolvedValue(undefined);
     const startFastPolling = vi.fn();
-    const startHeartbeatPolling = vi.fn();
     const stopPolling = vi.fn();
     let warnSpy;
 
@@ -641,7 +794,6 @@ describe('live dashboard reverb lifecycle diagnostics', () => {
         mockConnection.connect.mockClear();
         refreshDashboard.mockClear();
         startFastPolling.mockClear();
-        startHeartbeatPolling.mockClear();
         stopPolling.mockClear();
 
         document.body.innerHTML = `
@@ -680,7 +832,6 @@ describe('live dashboard reverb lifecycle diagnostics', () => {
         vi.doMock('../../resources/js/live-dashboard-polling', () => ({
             destroyPolling: vi.fn(),
             startFastPolling,
-            startHeartbeatPolling,
             stopPolling,
         }));
     });

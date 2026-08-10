@@ -5,7 +5,7 @@ import {
     destroyPolling,
     isPollingActive,
     POLL_MODE_FAST,
-    POLL_MODE_HEARTBEAT,
+    POLL_MODE_LEGACY,
     startFastPolling,
     startHeartbeatPolling,
     startPolling,
@@ -60,7 +60,7 @@ describe('live dashboard polling modes', () => {
         expect(refreshDashboard).toHaveBeenCalledTimes(1);
     });
 
-    it('heartbeat mode polls every 60 seconds while visible and active', async () => {
+    it('heartbeat mode is suppressed while Ably is the primary transport', async () => {
         const pageRoot = document.getElementById('dashboard-page');
         const refreshDashboard = vi.fn().mockResolvedValue(undefined);
 
@@ -74,18 +74,18 @@ describe('live dashboard polling modes', () => {
 
         startHeartbeatPolling(pageRoot);
 
-        expect(currentPollingMode()).toBe(POLL_MODE_HEARTBEAT);
+        expect(currentPollingMode()).toBe(POLL_MODE_LEGACY);
+        expect(isPollingActive()).toBe(false);
 
-        await vi.advanceTimersByTimeAsync(59_999);
+        await vi.advanceTimersByTimeAsync(5 * 60_000);
+
         expect(refreshDashboard).not.toHaveBeenCalled();
-
-        await vi.advanceTimersByTimeAsync(1);
-        expect(refreshDashboard).toHaveBeenCalledTimes(1);
     });
 
-    it('pauses heartbeat polling while the browser tab is hidden', async () => {
+    it('heartbeat mode does not schedule polls when the tab is hidden', async () => {
         const pageRoot = document.getElementById('dashboard-page');
         const refreshDashboard = vi.fn().mockResolvedValue(undefined);
+        const previousVisibility = document.visibilityState;
 
         configureDashboardPolling({
             refreshDashboard,
@@ -94,51 +94,43 @@ describe('live dashboard polling modes', () => {
                 onIdle: vi.fn(),
             }),
         });
-
-        startHeartbeatPolling(pageRoot);
 
         Object.defineProperty(document, 'visibilityState', {
             configurable: true,
             get: () => 'hidden',
-        });
-        document.dispatchEvent(new Event('visibilitychange'));
-
-        await vi.advanceTimersByTimeAsync(120_000);
-        expect(refreshDashboard).not.toHaveBeenCalled();
-
-        Object.defineProperty(document, 'visibilityState', {
-            configurable: true,
-            get: () => 'visible',
-        });
-        document.dispatchEvent(new Event('visibilitychange'));
-
-        await vi.advanceTimersByTimeAsync(60_000);
-        expect(refreshDashboard).toHaveBeenCalledTimes(1);
-    });
-
-    it('slows heartbeat polling after five minutes of user inactivity', async () => {
-        const pageRoot = document.getElementById('dashboard-page');
-        const refreshDashboard = vi.fn().mockResolvedValue(undefined);
-
-        configureDashboardPolling({
-            refreshDashboard,
-            getWorkspaceSession: () => ({
-                isActive: () => false,
-                onIdle: vi.fn(),
-            }),
         });
 
         startHeartbeatPolling(pageRoot);
 
         await vi.advanceTimersByTimeAsync(5 * 60_000);
 
-        refreshDashboard.mockClear();
-
-        await vi.advanceTimersByTimeAsync(5 * 60_000 - 1);
         expect(refreshDashboard).not.toHaveBeenCalled();
+        expect(isPollingActive()).toBe(false);
 
-        await vi.advanceTimersByTimeAsync(1);
-        expect(refreshDashboard).toHaveBeenCalledTimes(1);
+        Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => previousVisibility,
+        });
+    });
+
+    it('heartbeat mode does not poll after prolonged user inactivity', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const refreshDashboard = vi.fn().mockResolvedValue(undefined);
+
+        configureDashboardPolling({
+            refreshDashboard,
+            getWorkspaceSession: () => ({
+                isActive: () => false,
+                onIdle: vi.fn(),
+            }),
+        });
+
+        startHeartbeatPolling(pageRoot);
+
+        await vi.advanceTimersByTimeAsync(10 * 60_000);
+
+        expect(refreshDashboard).not.toHaveBeenCalled();
+        expect(isPollingActive()).toBe(false);
     });
 
     it('legacy poll-only mode still uses active and idle intervals', async () => {
@@ -164,6 +156,19 @@ describe('live dashboard polling modes', () => {
 
         startFastPolling(pageRoot);
         expect(isPollingActive()).toBe(true);
+
+        stopPolling();
+        expect(isPollingActive()).toBe(false);
+    });
+
+    it('does not leave a heartbeat timer running after startHeartbeatPolling', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+
+        startHeartbeatPolling(pageRoot);
+        startFastPolling(pageRoot);
+
+        expect(isPollingActive()).toBe(true);
+        expect(currentPollingMode()).toBe(POLL_MODE_FAST);
 
         stopPolling();
         expect(isPollingActive()).toBe(false);
