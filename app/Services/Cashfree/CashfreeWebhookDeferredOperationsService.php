@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\DashboardBroadcastService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use App\Services\ServiceCaseAutomationMonitorService;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class CashfreeWebhookDeferredOperationsService
@@ -33,6 +34,15 @@ class CashfreeWebhookDeferredOperationsService
         private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
     ) {}
 
+    /**
+     * Emergency CPU mitigation: when false, Cashfree deferred dashboard_broadcast
+     * is neither written nor executed. Other deferred ops and operator broadcasts stay on.
+     */
+    public static function isDashboardBroadcastEnabled(): bool
+    {
+        return (bool) config('cashfree.deferred_dashboard_broadcast_enabled', false);
+    }
+
     public function executeOperation(
         string $operation,
         int $orderId,
@@ -41,6 +51,16 @@ class CashfreeWebhookDeferredOperationsService
     ): void {
         if (! in_array($operation, self::OPERATIONS, true)) {
             throw new RuntimeException('Unknown Cashfree deferred operation: '.$operation);
+        }
+
+        if ($operation === self::OPERATION_DASHBOARD_BROADCAST && ! self::isDashboardBroadcastEnabled()) {
+            Log::info('[Cashfree] Deferred dashboard_broadcast skipped (emergency mitigation).', [
+                'order_id' => $orderId,
+                'incident_id' => $incidentId,
+                'actor_id' => $actorId,
+            ]);
+
+            return;
         }
 
         $this->performOperation(

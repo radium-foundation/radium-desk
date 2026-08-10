@@ -24,6 +24,13 @@ class CashfreeWebhookOutboxWriter
     public function writeDeferredOperations(CashfreeWebhookDeferredContext $context): void
     {
         foreach (self::OPERATIONS as $operation) {
+            if (
+                $operation === CashfreeWebhookDeferredOperationsService::OPERATION_DASHBOARD_BROADCAST
+                && ! CashfreeWebhookDeferredOperationsService::isDashboardBroadcastEnabled()
+            ) {
+                continue;
+            }
+
             $idempotencyKey = sprintf(
                 'cashfree.webhook.deferred.%s.%d',
                 $operation,

@@ -47,7 +47,11 @@ class OutboxCashfreeAggregateClaimGuardTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->ensureCashfreeSystemUser();
         $this->seed(SettingsSeeder::class);
-        config(['radiumbox.enabled' => false]);
+        config([
+            'radiumbox.enabled' => false,
+            // Claim-guard tests assert scoped drain of the full deferred triple.
+            'cashfree.deferred_dashboard_broadcast_enabled' => true,
+        ]);
 
         Cache::flush();
     }

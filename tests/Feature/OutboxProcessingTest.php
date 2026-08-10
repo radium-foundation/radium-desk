@@ -39,7 +39,11 @@ class OutboxProcessingTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->ensureCashfreeSystemUser();
         $this->seed(SettingsSeeder::class);
-        config(['radiumbox.enabled' => false]);
+        config([
+            'radiumbox.enabled' => false,
+            // Outbox write/process coverage expects the full Cashfree deferred triple.
+            'cashfree.deferred_dashboard_broadcast_enabled' => true,
+        ]);
 
         Cache::flush();
     }

@@ -40,7 +40,11 @@ class CashfreeWebhookReliabilityTest extends TestCase
         $this->ensureCashfreeSystemUser();
         $this->seed(SettingsSeeder::class);
 
-        config(['radiumbox.enabled' => false]);
+        config([
+            'radiumbox.enabled' => false,
+            // Preserve deferred dashboard_broadcast rows for reliability coverage.
+            'cashfree.deferred_dashboard_broadcast_enabled' => true,
+        ]);
 
         Cache::flush();
     }

@@ -44,7 +44,11 @@ class CashfreePaymentIntegrityTest extends TestCase
         $this->ensureCashfreeSystemUser();
         $this->seed(SettingsSeeder::class);
 
-        config(['radiumbox.enabled' => false]);
+        config([
+            'radiumbox.enabled' => false,
+            // Integrity tests assert deferred dashboard_broadcast row lifecycle.
+            'cashfree.deferred_dashboard_broadcast_enabled' => true,
+        ]);
 
         Cache::flush();
     }

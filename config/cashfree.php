@@ -40,6 +40,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Deferred dashboard_broadcast (emergency CPU mitigation)
+    |--------------------------------------------------------------------------
+    |
+    | When false, Cashfree deferred triples still enqueue/run automation_monitor
+    | and radiumbox_enrichment, but dashboard_broadcast is not written and any
+    | leftover pending row is a no-op. Operator / assignment broadcasts are
+    | unaffected. Set true to restore Cashfree live-row fan-out.
+    |
+    */
+    'deferred_dashboard_broadcast_enabled' => filter_var(
+        env('CASHFREE_DEFERRED_DASHBOARD_BROADCAST_ENABLED', false),
+        FILTER_VALIDATE_BOOLEAN
+    ),
+
+    /*
+    |--------------------------------------------------------------------------
     | Automatic missing-order recovery
     |--------------------------------------------------------------------------
     |

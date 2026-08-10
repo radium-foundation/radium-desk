@@ -41,7 +41,11 @@ class CashfreeScopedOutboxDrainTest extends TestCase
         $this->ensureCashfreeSystemUser();
         $this->seed(SettingsSeeder::class);
 
-        config(['radiumbox.enabled' => true]);
+        config([
+            'radiumbox.enabled' => true,
+            // Preserve full deferred triple for scoped-drain regression coverage.
+            'cashfree.deferred_dashboard_broadcast_enabled' => true,
+        ]);
 
         Cache::flush();
     }
