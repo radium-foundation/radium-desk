@@ -31,17 +31,34 @@ class DashboardSnapshot
     /** @var array<string, int>|null */
     private ?array $precomputedQueueCounts = null;
 
+    /** @var array<string, Collection<int, Incident>>|null */
+    private ?array $preloadedQueueIncidents = null;
+
+    /** @var array<string, list<Incident>>|null */
+    private ?array $rawQueueBuckets = null;
+
+    /** @var array<string, array<string, int>> */
+    private array $precomputedFilterCountsByScope = [];
+
     public function __construct(
         Collection $activeIncidents,
         private readonly OperationsQueueClassifier $queueClassifier,
         ?array $precomputedQueueCounts = null,
         ?array $precomputedSlaCounts = null,
+        ?array $preloadedQueueIncidents = null,
+        ?array $rawQueueBuckets = null,
     ) {
         $this->activeIncidents = $activeIncidents;
         $this->precomputedQueueCounts = $precomputedQueueCounts;
+        $this->preloadedQueueIncidents = $preloadedQueueIncidents;
+        $this->rawQueueBuckets = $rawQueueBuckets;
 
         if ($precomputedSlaCounts !== null) {
             $this->slaCounts = $precomputedSlaCounts;
+        }
+
+        if ($preloadedQueueIncidents !== null) {
+            $this->queueIncidents = $preloadedQueueIncidents;
         }
     }
 
@@ -261,10 +278,83 @@ class DashboardSnapshot
      */
     public function filterCounts(?User $assignedTo = null, ?User $user = null): array
     {
-        $counts = $this->queueCounts($assignedTo);
+        $scopeKey = $this->filterScopeKey($assignedTo);
 
-        foreach ($this->legacyFilterKeys() as $legacyFilter) {
-            $counts[$legacyFilter] = $this->incidentsForFilter($legacyFilter, $assignedTo)->count();
+        if (isset($this->precomputedFilterCountsByScope[$scopeKey])) {
+            return $this->precomputedFilterCountsByScope[$scopeKey];
+        }
+
+        $counts = $this->queueCounts($assignedTo);
+        $legacyCounts = $this->computeLegacyFilterCountsSinglePass($assignedTo);
+
+        foreach ($legacyCounts as $legacyFilter => $count) {
+            $counts[$legacyFilter] = $count;
+        }
+
+        return $this->precomputedFilterCountsByScope[$scopeKey] = $counts;
+    }
+
+    /**
+     * @param  array<string, int>  $counts
+     */
+    public function rememberFilterCountsForScope(?User $assignedTo, array $counts): void
+    {
+        $this->precomputedFilterCountsByScope[$this->filterScopeKey($assignedTo)] = $counts;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function computeLegacyFilterCountsSinglePass(?User $assignedTo): array
+    {
+        $counts = array_fill_keys($this->legacyFilterKeys(), 0);
+        $now = now();
+
+        $counts['my_cases'] = $this->incidentsForQueue(OperationQueue::MyWork->value, $assignedTo)->count();
+        $counts[OperationQueue::ActionRequired->value] = $this->incidentsForQueue(
+            OperationQueue::ActionRequired->value,
+            $this->scopeUserForQueue(OperationQueue::ActionRequired->value, $assignedTo),
+        )->count();
+        $counts['action_required'] = $counts[OperationQueue::ActionRequired->value];
+        $counts['completed'] = $this->incidentsForQueue(
+            OperationQueue::Completed->value,
+            $this->scopeUserForQueue(OperationQueue::Completed->value, $assignedTo),
+        )->count();
+        $counts['pending_support'] = $this->incidentsForQueue(
+            OperationQueue::Attention->value,
+            $this->scopeUserForQueue(OperationQueue::Attention->value, $assignedTo),
+        )->count();
+
+        $attentionScoped = $this->incidentsForQueue(OperationQueue::Attention->value);
+        if ($this->shouldScopeByAssignee($assignedTo)) {
+            $attentionScoped = $attentionScoped
+                ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $assignedTo->id);
+        }
+        $counts['my_attention'] = $attentionScoped->count();
+        $counts['high_priority'] = $attentionScoped
+            ->filter(fn (Incident $incident): bool => (bool) $incident->high_priority)
+            ->count();
+
+        foreach ($this->activeIncidents as $incident) {
+            if ($this->matchesPendingAdminLegacyFilter($incident, $assignedTo)) {
+                $counts['pending_admin']++;
+            }
+
+            if ($this->matchesNeedsAttentionLegacyFilter($incident, $assignedTo)) {
+                $counts['needs_attention']++;
+            }
+
+            if ($this->matchesSlaLegacyFilter($incident, $assignedTo, ServiceCaseSlaStatus::Overdue, $now)) {
+                $counts['overdue']++;
+            }
+
+            if ($this->matchesSlaLegacyFilter($incident, $assignedTo, ServiceCaseSlaStatus::Warning, $now)) {
+                $counts['warning']++;
+            }
+
+            if (! $this->queueClassifier->isCompleted($incident)) {
+                $counts['all']++;
+            }
         }
 
         return $counts;
@@ -297,24 +387,31 @@ class DashboardSnapshot
         /** @var array<string, list<Incident>> $buckets */
         $buckets = [];
 
-        foreach ($queues as $queue) {
-            $buckets[$queue->value] = [];
-        }
+        if ($this->rawQueueBuckets !== null) {
+            $buckets = $this->rawQueueBuckets;
 
-        foreach ($this->activeIncidents as $incident) {
-            $queue = $this->queueClassifier->classify($incident);
-            $buckets[$queue->value][] = $incident;
-
-            // Ready-for-Service-Reference overlay (Dashboard worklist membership).
-            // Classifier primary queue is unchanged; appointment cases stay Scheduled
-            // while still appearing in Ready when validation passed and transaction_id is null.
-            if ($queue !== OperationQueue::ActionRequired
-                && $this->queueClassifier->isReadyForReferenceEntry($incident)) {
-                $buckets[OperationQueue::ActionRequired->value][] = $incident;
+            if ($scopeUser !== null) {
+                $buckets[OperationQueue::MyWork->value] = $this->activeIncidents
+                    ->filter(fn (Incident $incident): bool => $this->queueClassifier->matchesMyWork($incident, $scopeUser))
+                    ->all();
+            }
+        } else {
+            foreach ($queues as $queue) {
+                $buckets[$queue->value] = [];
             }
 
-            if ($scopeUser !== null && $this->queueClassifier->matchesMyWork($incident, $scopeUser)) {
-                $buckets[OperationQueue::MyWork->value][] = $incident;
+            foreach ($this->activeIncidents as $incident) {
+                $queue = $this->queueClassifier->classify($incident);
+                $buckets[$queue->value][] = $incident;
+
+                if ($queue !== OperationQueue::ActionRequired
+                    && $this->queueClassifier->isReadyForReferenceEntry($incident)) {
+                    $buckets[OperationQueue::ActionRequired->value][] = $incident;
+                }
+
+                if ($scopeUser !== null && $this->queueClassifier->matchesMyWork($incident, $scopeUser)) {
+                    $buckets[OperationQueue::MyWork->value][] = $incident;
+                }
             }
         }
 
@@ -569,6 +666,58 @@ class DashboardSnapshot
     private function queueCacheKey(string $queue, ?User $scopeUser): string
     {
         return $queue.':'.($scopeUser?->id ?? 'all');
+    }
+
+    private function filterScopeKey(?User $assignedTo): string
+    {
+        return (string) ($assignedTo?->id ?? 'all');
+    }
+
+    private function matchesPendingAdminLegacyFilter(Incident $incident, ?User $assignmentScope): bool
+    {
+        if (! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        if ($this->queueClassifier->isHardware($incident)) {
+            return false;
+        }
+
+        return $this->matchesAssignmentScope($incident, $assignmentScope);
+    }
+
+    private function matchesNeedsAttentionLegacyFilter(Incident $incident, ?User $assignmentScope): bool
+    {
+        if (! $incident->isActive() || $incident->status === IncidentStatus::Closed) {
+            return false;
+        }
+
+        if (! $this->matchesAssignmentScope($incident, $assignmentScope)) {
+            return false;
+        }
+
+        return $this->orderSerialMissing($incident->order);
+    }
+
+    private function matchesSlaLegacyFilter(
+        Incident $incident,
+        ?User $assignmentScope,
+        ServiceCaseSlaStatus $targetSla,
+        Carbon $now,
+    ): bool {
+        if (! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        if ($this->queueClassifier->isHardware($incident)) {
+            return false;
+        }
+
+        if (! $this->matchesAssignmentScope($incident, $assignmentScope)) {
+            return false;
+        }
+
+        return $incident->slaStatus($now) === $targetSla;
     }
 
     private function mapLegacyFilterToQueue(string $filter): string

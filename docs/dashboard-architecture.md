@@ -49,6 +49,21 @@ Central data layer for dashboard views:
 
 Ready Queue live paths (`/dashboard/live`, `/dashboard/live/rows`, Ably) are unchanged.
 
+### Classification index (Layer 1)
+
+Request-scoped `DashboardClassificationIndex` (`app/Services/Dashboard/DashboardClassificationIndex.php`):
+
+- **COUNT path:** lean incident load (no description, refund graphs, creator, device model relation, legacy importer, close outcomes) → one `OperationsQueueClassifier::classify()` pass → precomputed queue, SLA, and legacy filter counts.
+- **ROW path:** `DashboardService::mapServiceCaseRows()` batch-loads row HTML relations per visible incident IDs (not from lean snapshot attributes).
+
+`DashboardSnapshotStore` uses the index when `DASHBOARD_SNAPSHOT_CACHE_ENABLED=false` (current production). Cross-request cache encoding still uses lean incidents when cache is enabled.
+
+### KPI broadcast batching (Layer 4B)
+
+`DashboardBroadcastService::dispatchKpisUpdated()` calls `DashboardService::prepareLiveReverbMetricsBatch()` once per flush, then projects per-recipient KPI strip HTML while reusing shared operations/support filter-count variants.
+
+`DashboardLiveRowVisibilityService::isVisibleInQueue()` uses `DashboardIncidentQueueMembership` (single-incident classification) instead of loading the full snapshot.
+
 ### Quick Create Flow
 
 1. Agent submits quick create form from dashboard modal.
