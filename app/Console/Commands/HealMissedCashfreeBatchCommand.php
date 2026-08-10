@@ -16,7 +16,7 @@ use Throwable;
     {--dry-run : Preview intended synthetic webhooks without writing (default when --execute is omitted)}
     {--execute : Insert synthetic webhook logs and process via CashfreeWebhookProcessorService}
     {--order=* : Limit to specific allowlisted order ID(s)}')]
-#[Description('One-time heal for the Aug 7 Cashfree missed-webhook batch via synthetic PAYMENT_SUCCESS logs')]
+#[Description('Heal allowlisted missed Cashfree webhooks via synthetic PAYMENT_SUCCESS logs (Aug 7 + removable 403-gap list)')]
 class HealMissedCashfreeBatchCommand extends Command
 {
     public function __construct(

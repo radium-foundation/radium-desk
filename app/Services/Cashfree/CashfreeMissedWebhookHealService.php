@@ -42,20 +42,26 @@ class CashfreeMissedWebhookHealService
     ) {}
 
     /**
+     * Combined approved targets: Aug 7 allowlist ∪ removable 403-gap allowlist.
+     *
      * @return list<string>
      */
     public function allowlist(): array
     {
-        $configured = config('cashfree.missed_batch_heal.allowlist', []);
+        return array_values(array_unique([
+            ...$this->normalizeIdList(config('cashfree.missed_batch_heal.allowlist', [])),
+            ...$this->gapAllowlist(),
+        ]));
+    }
 
-        if (! is_array($configured) || $configured === []) {
-            return [];
-        }
-
-        return array_values(array_filter(array_map(
-            static fn (mixed $id): string => trim((string) $id),
-            $configured,
-        ), static fn (string $id): bool => $id !== ''));
+    /**
+     * Removable one-time 403-gap targets. Empty after recovery is complete.
+     *
+     * @return list<string>
+     */
+    public function gapAllowlist(): array
+    {
+        return $this->normalizeIdList(config('cashfree.missed_batch_heal.gap_allowlist', []));
     }
 
     public function batchId(): string
@@ -63,6 +69,20 @@ class CashfreeMissedWebhookHealService
         $batchId = trim((string) config('cashfree.missed_batch_heal.batch_id', 'aug7-2026-missed-webhook'));
 
         return $batchId !== '' ? $batchId : 'aug7-2026-missed-webhook';
+    }
+
+    public function gapBatchId(): string
+    {
+        $batchId = trim((string) config('cashfree.missed_batch_heal.gap_batch_id', 'aug10-2026-403-webhook-gap'));
+
+        return $batchId !== '' ? $batchId : 'aug10-2026-403-webhook-gap';
+    }
+
+    public function batchIdFor(string $orderId): string
+    {
+        return in_array($orderId, $this->gapAllowlist(), true)
+            ? $this->gapBatchId()
+            : $this->batchId();
     }
 
     /**
@@ -177,7 +197,7 @@ class CashfreeMissedWebhookHealService
                 Log::info('[Cashfree Missed Batch Heal] Dry-run would heal order.', [
                     'order_id' => $orderId,
                     'cf_payment_id' => $cfPaymentId,
-                    'batch' => $this->batchId(),
+                    'batch' => $this->batchIdFor($orderId),
                     'expected_serial' => $expectedSerial,
                 ]);
 
@@ -286,7 +306,7 @@ class CashfreeMissedWebhookHealService
                 $this->auditModel($orderById, self::AUDIT_BLOCKED, [
                     'order_id' => $orderId,
                     'cf_payment_id' => $cfPaymentId,
-                    'batch' => $this->batchId(),
+                    'batch' => $this->batchIdFor($orderId),
                     'source' => self::INGEST_SOURCE,
                     'reason' => 'order_id_exists_with_different_cf_payment_id',
                 ]);
@@ -302,7 +322,7 @@ class CashfreeMissedWebhookHealService
             $this->auditModel($orderById, self::AUDIT_SKIPPED, [
                 'order_id' => $orderId,
                 'cf_payment_id' => $cfPaymentId,
-                'batch' => $this->batchId(),
+                'batch' => $this->batchIdFor($orderId),
                 'source' => self::INGEST_SOURCE,
                 'reason' => 'desk_order_exists',
             ]);
@@ -319,7 +339,7 @@ class CashfreeMissedWebhookHealService
             $this->auditModel($orderByPayment, self::AUDIT_SKIPPED, [
                 'order_id' => $orderId,
                 'cf_payment_id' => $cfPaymentId,
-                'batch' => $this->batchId(),
+                'batch' => $this->batchIdFor($orderId),
                 'source' => self::INGEST_SOURCE,
                 'reason' => 'desk_cf_payment_id_exists',
             ]);
@@ -342,7 +362,7 @@ class CashfreeMissedWebhookHealService
             $this->audit($processedLog, self::AUDIT_SKIPPED, [
                 'order_id' => $orderId,
                 'cf_payment_id' => $cfPaymentId,
-                'batch' => $this->batchId(),
+                'batch' => $this->batchIdFor($orderId),
                 'source' => self::INGEST_SOURCE,
                 'reason' => 'processed_webhook_exists',
                 'webhook_log_id' => $processedLog->id,
@@ -399,7 +419,7 @@ class CashfreeMissedWebhookHealService
         $this->audit($processed, self::AUDIT_RESUMED, [
             'order_id' => $orderId,
             'cf_payment_id' => $cfPaymentId,
-            'batch' => $this->batchId(),
+            'batch' => $this->batchIdFor($orderId),
             'source' => self::INGEST_SOURCE,
             'webhook_log_id' => $processed->id,
             'processing_status' => $processed->processing_status,
@@ -458,7 +478,7 @@ class CashfreeMissedWebhookHealService
             );
         }
 
-        $headers = $this->syntheticHeaders();
+        $headers = $this->syntheticHeaders($orderId);
         $rawBody = json_encode($payload, JSON_THROW_ON_ERROR);
 
         $log = CashfreeWebhookLog::query()->create([
@@ -476,7 +496,7 @@ class CashfreeMissedWebhookHealService
         $this->audit($log, self::AUDIT_DISCOVERED, [
             'order_id' => $orderId,
             'cf_payment_id' => $cfPaymentId,
-            'batch' => $this->batchId(),
+            'batch' => $this->batchIdFor($orderId),
             'source' => self::INGEST_SOURCE,
             'webhook_log_id' => $log->id,
             'mode' => 'execute',
@@ -488,7 +508,7 @@ class CashfreeMissedWebhookHealService
             $this->audit($processed, self::AUDIT_FAILED, [
                 'order_id' => $orderId,
                 'cf_payment_id' => $cfPaymentId,
-                'batch' => $this->batchId(),
+                'batch' => $this->batchIdFor($orderId),
                 'source' => self::INGEST_SOURCE,
                 'webhook_log_id' => $processed->id,
                 'processing_error' => $processed->processing_error,
@@ -508,7 +528,7 @@ class CashfreeMissedWebhookHealService
         $this->audit($processed, self::AUDIT_RECOVERED, [
             'order_id' => $orderId,
             'cf_payment_id' => $cfPaymentId,
-            'batch' => $this->batchId(),
+            'batch' => $this->batchIdFor($orderId),
             'source' => self::INGEST_SOURCE,
             'webhook_log_id' => $processed->id,
             'desk_order_id' => $deskOrder?->id,
@@ -530,12 +550,14 @@ class CashfreeMissedWebhookHealService
     /**
      * @return array<string, list<string>>
      */
-    public function syntheticHeaders(): array
+    public function syntheticHeaders(string $orderId): array
     {
+        $batchId = $this->batchIdFor($orderId);
+
         return [
             'X-Desk-Ingest-Source' => [self::INGEST_SOURCE],
-            'X-Desk-Reconcile-Batch' => [$this->batchId()],
-            'X-Desk-Reconcile-Reason' => ['missed_webhook_gap_2026-08-07'],
+            'X-Desk-Reconcile-Batch' => [$batchId],
+            'X-Desk-Reconcile-Reason' => [$batchId],
             'User-Agent' => [self::USER_AGENT],
         ];
     }
@@ -674,5 +696,20 @@ class CashfreeMissedWebhookHealService
         $string = trim((string) $value);
 
         return $string === '' ? null : $string;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeIdList(mixed $configured): array
+    {
+        if (! is_array($configured) || $configured === []) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn (mixed $id): string => trim((string) $id),
+            $configured,
+        ), static fn (string $id): bool => $id !== ''));
     }
 }

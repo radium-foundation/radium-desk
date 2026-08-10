@@ -131,6 +131,8 @@ class CashfreeHealMissedBatchCommandTest extends TestCase
             'cashfree.api.secret' => 'test-api-secret',
             'cashfree.api.base_url' => 'https://api.cashfree.test/pg',
             'cashfree.api.version' => '2026-01-01',
+            // Keep Aug 7 allowlist tests isolated from production gap_allowlist.
+            'cashfree.missed_batch_heal.gap_allowlist' => [],
             'radiumbox.enabled' => false,
         ]);
 
@@ -184,6 +186,100 @@ class CashfreeHealMissedBatchCommandTest extends TestCase
             ->assertFailed();
 
         $this->assertSame(0, Order::query()->count());
+        $this->assertSame(0, CashfreeWebhookLog::query()->count());
+    }
+
+    public function test_gap_allowlist_ids_can_enter_heal_path(): void
+    {
+        $gapOrder = [
+            'order_id' => 'RD3483194',
+            'cf_payment_id' => '6205406682',
+            'amount' => 499,
+            'serial' => 'GAPSERIAL001',
+            'product' => 'MFS110',
+            'service' => '1 Year Unlimited',
+            'bank_reference' => '111111111111',
+            'cf_order_id' => '6619404120',
+            'payment_time' => '2026-08-10T10:30:28+05:30',
+        ];
+
+        config([
+            'cashfree.missed_batch_heal.gap_allowlist' => ['RD3483194'],
+            'cashfree.missed_batch_heal.gap_batch_id' => 'aug10-2026-403-webhook-gap',
+        ]);
+
+        $this->fakeCashfreeForRows([$gapOrder]);
+
+        $service = app(CashfreeMissedWebhookHealService::class);
+
+        $this->assertContains('RD3483194', $service->allowlist());
+        $this->assertContains('RD3483194', $service->gapAllowlist());
+        $this->assertSame('aug10-2026-403-webhook-gap', $service->batchIdFor('RD3483194'));
+        $this->assertSame('aug7-2026-missed-webhook', $service->batchIdFor('RD3478381'));
+
+        $result = $service->heal(['RD3483194'], dryRun: true);
+
+        $this->assertSame(CashfreeMissedBatchHealDisposition::WouldHeal, $result->orders[0]->disposition);
+        $this->assertSame('6205406682', $result->orders[0]->cfPaymentId);
+        $this->assertSame(0, Order::query()->count());
+        $this->assertSame(0, CashfreeWebhookLog::query()->count());
+
+        $this->artisan('cashfree:heal-missed-batch', [
+            '--dry-run' => true,
+            '--order' => ['RD3483194'],
+        ])
+            ->expectsOutputToContain('Would heal: 1')
+            ->assertSuccessful();
+    }
+
+    public function test_gap_allowlist_still_rejects_arbitrary_ids(): void
+    {
+        config([
+            'cashfree.missed_batch_heal.gap_allowlist' => ['RD3483194'],
+        ]);
+
+        $this->artisan('cashfree:heal-missed-batch', [
+            '--dry-run' => true,
+            '--order' => ['RD3483999'],
+        ])
+            ->expectsOutputToContain('not in the approved missed-webhook heal allowlist')
+            ->assertFailed();
+    }
+
+    public function test_gap_allowlist_preserves_duplicate_skip_protection(): void
+    {
+        $gapOrder = [
+            'order_id' => 'RD3483195',
+            'cf_payment_id' => '6205408180',
+            'amount' => 499,
+            'serial' => 'GAPSERIAL002',
+            'product' => 'MFS110',
+            'service' => '1 Year Unlimited',
+            'bank_reference' => '222222222222',
+            'cf_order_id' => '6619406577',
+            'payment_time' => '2026-08-10T10:30:49+05:30',
+        ];
+
+        config([
+            'cashfree.missed_batch_heal.gap_allowlist' => ['RD3483195'],
+        ]);
+
+        Order::query()->create([
+            'order_id' => 'RD3483195',
+            'cashfree_payment_id' => '6205408180',
+            'serial_number' => 'GAPSERIAL002',
+            'status' => 'active',
+            'created_by' => $this->systemUserId,
+            'updated_by' => $this->systemUserId,
+        ]);
+
+        $this->fakeCashfreeForRows([$gapOrder]);
+
+        $result = app(CashfreeMissedWebhookHealService::class)->heal(['RD3483195'], dryRun: true);
+
+        $this->assertSame(CashfreeMissedBatchHealDisposition::Skipped, $result->orders[0]->disposition);
+        $this->assertSame('desk_order_exists', $result->orders[0]->reason);
+        $this->assertSame(1, Order::query()->where('order_id', 'RD3483195')->count());
         $this->assertSame(0, CashfreeWebhookLog::query()->count());
     }
 
@@ -495,7 +591,25 @@ class CashfreeHealMissedBatchCommandTest extends TestCase
 
     public function test_allowlist_contains_exactly_seven_approved_orders(): void
     {
+        $this->assertSame([], app(CashfreeMissedWebhookHealService::class)->gapAllowlist());
         $this->assertSame($this->allowlistIds(), app(CashfreeMissedWebhookHealService::class)->allowlist());
+    }
+
+    public function test_combined_allowlist_merges_aug7_and_gap_without_dropping_aug7(): void
+    {
+        config([
+            'cashfree.missed_batch_heal.gap_allowlist' => ['RD3483194', 'RD3483242'],
+        ]);
+
+        $combined = app(CashfreeMissedWebhookHealService::class)->allowlist();
+
+        foreach ($this->allowlistIds() as $aug7Id) {
+            $this->assertContains($aug7Id, $combined);
+        }
+
+        $this->assertContains('RD3483194', $combined);
+        $this->assertContains('RD3483242', $combined);
+        $this->assertNotContains('RD3483999', $combined);
     }
 
     /**
