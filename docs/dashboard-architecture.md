@@ -12,6 +12,8 @@ The dashboard is the primary operational surface for agents and admins: KPI stat
 |-------|------------|---------|
 | `GET /dashboard` | `DashboardController` | Full page render |
 | `GET /dashboard/live` | `DashboardLiveController` | JSON refresh payload |
+| `GET /dashboard/live/counts` | `DashboardLiveController` | Lightweight view-only metric counts (no snapshot classify) |
+| `GET /dashboard/live/rows` | `DashboardLiveController` | Targeted row HTML for Ably hybrid updates |
 | `GET dashboard/service-cases/{incident}/row` | `DashboardServiceCaseController` | Single row HTML |
 | `POST dashboard/transactions/bulk` | `OrderTransactionController` | Bulk transaction assign |
 | `POST service-requests/quick` | `QuickServiceRequestController` | Quick create order + service case |
@@ -24,6 +26,43 @@ Central data layer for dashboard views:
 - **`recentServiceCases(filter)`** — Filtered incident list (`all`, `pending_admin`, `completed`, `high_priority`, `overdue`, `warning`).
 - **`serviceCaseRowViewData(Incident, User)`** — Row partial view model (permissions, SLA, transaction state).
 - **`liveRefreshPayload(User, filter)`** — JSON bundle for live polling.
+- **`operationallyActiveCasesCount()`** — Indexed SQL `COUNT(*)` for operationally active incidents (`IncidentStatus::operationallyActive()`), shared by KPI SSR and `GET /dashboard/live/counts?metric=active_cases`.
+
+### View-only metric counts (Phase 1 + E/C refresh)
+
+**Total Active Cases** and **Refunds (pending)** use indexed SQL aggregates — not `OperationsQueueClassifier`:
+
+| Metric | Endpoint | Aggregate source |
+|--------|----------|------------------|
+| `active_cases` | `GET /dashboard/live/counts?metric=active_cases` | `DashboardKpiAggregator::operationallyActiveCasesCount()` |
+| `pending_refunds` | `GET /dashboard/live/counts?metric=pending_refunds` | `DashboardKpiAggregator::refundStatusCounts()['pending']` |
+
+**Deferred (classifier / queue semantics):** Open, Overdue, Customer Waiting — still SSR + full `/dashboard/live` on case-queue workspace switch only.
+
+**Client (E + C):** `resources/js/dashboard-live-counts.js`
+
+- Seeds count + timestamp from SSR on load.
+- Stale threshold = `data-live-interval-idle` (default 120s) — no automatic polling loop.
+- On embedded workspace open: fetches count only when stale.
+- Per-metric ↻ button: force one lightweight fetch; dedupes in-flight requests.
+- `hybrid-kpi-reconcile.js` reconciles stale view-only metrics only — **never** `GET /dashboard/live`.
+
+Ready Queue live paths (`/dashboard/live`, `/dashboard/live/rows`, Ably) are unchanged.
+
+### Classification index (Layer 1)
+
+Request-scoped `DashboardClassificationIndex` (`app/Services/Dashboard/DashboardClassificationIndex.php`):
+
+- **COUNT path:** lean incident load (no description, refund graphs, creator, device model relation, legacy importer, close outcomes) → one `OperationsQueueClassifier::classify()` pass → precomputed queue, SLA, and legacy filter counts.
+- **ROW path:** `DashboardService::mapServiceCaseRows()` batch-loads row HTML relations per visible incident IDs (not from lean snapshot attributes).
+
+`DashboardSnapshotStore` uses the index when `DASHBOARD_SNAPSHOT_CACHE_ENABLED=false` (current production). Cross-request cache encoding still uses lean incidents when cache is enabled.
+
+### KPI broadcast batching (Layer 4B)
+
+`DashboardBroadcastService::dispatchKpisUpdated()` calls `DashboardService::prepareLiveReverbMetricsBatch()` once per flush, then projects per-recipient KPI strip HTML while reusing shared operations/support filter-count variants.
+
+`DashboardLiveRowVisibilityService::isVisibleInQueue()` uses `DashboardIncidentQueueMembership` (single-incident classification) instead of loading the full snapshot.
 
 ### Quick Create Flow
 

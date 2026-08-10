@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Services\Dashboard\DashboardLiveRowVisibilityService;
 use App\Services\Dashboard\OperationsWorkspaceResolver;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
+use App\Services\Operations\OperationsRoleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -50,6 +52,50 @@ class DashboardLiveController extends Controller
         return response()->json($payload);
     }
 
+    public function counts(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $metric = $request->string('metric')->trim()->toString();
+
+        if ($metric === '') {
+            return response()->json(['message' => 'Metric is required.'], 422);
+        }
+
+        return match ($metric) {
+            'active_cases' => $this->activeCasesCountResponse($user),
+            'pending_refunds' => $this->pendingRefundsCountResponse($user),
+            default => response()->json(['message' => 'Unknown metric.'], 404),
+        };
+    }
+
+    private function activeCasesCountResponse(User $user): JsonResponse
+    {
+        if (! $user->can('incidents.view')) {
+            abort(403);
+        }
+
+        if (! app(OperationsRoleService::class)->usesAdminQueues($user)) {
+            abort(403);
+        }
+
+        return response()->json([
+            'metric' => 'active_cases',
+            'count' => $this->dashboardService->operationallyActiveCasesCount(),
+        ]);
+    }
+
+    private function pendingRefundsCountResponse(User $user): JsonResponse
+    {
+        if (! $user->can('refunds.view')) {
+            abort(403);
+        }
+
+        return response()->json([
+            'metric' => 'pending_refunds',
+            'count' => $this->dashboardService->pendingRefundsCount(),
+        ]);
+    }
+
     public function refresh(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -64,6 +110,9 @@ class DashboardLiveController extends Controller
         // Pass assignedTo so liveMetricsFor does not re-resolve workspace/context.
         $metrics = $this->dashboardService->liveMetricsFor(
             $user,
+            requestedQueue: $operationQueue,
+            legacyView: $workspace['legacy_view'],
+            legacyFilter: $workspace['legacy_filter'],
             assignedToForFilterCounts: $assignedTo,
         );
         $filterCounts = $metrics['service_case_filter_counts'];

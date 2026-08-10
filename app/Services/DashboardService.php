@@ -16,6 +16,7 @@ use App\Services\Dashboard\AgentNextAppointmentResolver;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\Dashboard\LiveReverbMetricsBatch;
 use App\Services\Dashboard\OperatorDashboardCache;
 use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
 use App\Services\Operations\OperationsRoleService;
@@ -79,6 +80,22 @@ class DashboardService
     }
 
     /**
+     * Indexed COUNT of operationally active incidents — no snapshot or queue classification.
+     */
+    public function operationallyActiveCasesCount(): int
+    {
+        return $this->kpiAggregator->operationallyActiveCasesCount();
+    }
+
+    /**
+     * Indexed COUNT of pending refund requests — no snapshot or queue classification.
+     */
+    public function pendingRefundsCount(): int
+    {
+        return $this->kpiAggregator->refundStatusCounts()['pending'];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function buildFastChangingStats(User $user, bool $leanForKpiStrip): array
@@ -102,7 +119,7 @@ class DashboardService
             'my_active_cases' => $activeKpis['my_active_cases'],
             'waiting_for_admin' => $activeKpis['waiting_for_admin'],
             'high_priority_cases' => $activeKpis['high_priority_cases'],
-            'total_active_cases' => $activeKpis['total_active_cases'],
+            'total_active_cases' => $this->kpiAggregator->operationallyActiveCasesCount(),
         ];
 
         if (! $leanForKpiStrip) {
@@ -495,13 +512,14 @@ class DashboardService
      */
     public function mapServiceCaseRows(Collection $cases, User $user, ?string $dashboardOperationQueue = null): array
     {
-        if ($cases->isNotEmpty()) {
-            // recentServiceCases() returns a Support collection; eager-load via Eloquent wrapper.
-            $eloquentCases = $cases instanceof EloquentCollection
-                ? $cases
-                : new EloquentCollection($cases->all());
+        if ($cases->isEmpty()) {
+            return [];
+        }
 
-            $eloquentCases->loadMissing([
+        $rowIncidents = Incident::query()
+            ->whereIn('id', $cases->pluck('id'))
+            ->with([
+                'order.transactionAssigner',
                 'order.refundRequests.requester',
                 'order.refundRequests.reviewer',
                 'order.refundRequests.executor',
@@ -509,15 +527,24 @@ class DashboardService
                 'refundRequests.reviewer',
                 'refundRequests.executor',
                 'closeOutcomes.closer',
+                'creator',
                 'assignee',
-            ]);
+                'activeWaitingState',
+                'activeBusinessHold',
+                'supportAppointments',
+            ])
+            ->get()
+            ->keyBy('id');
 
-            $orders = $eloquentCases
-                ->map(fn (Incident $incident): mixed => $incident->order)
-                ->filter(fn (mixed $order): bool => $order instanceof Order);
+        $cases = $cases->map(
+            fn (Incident $incident): Incident => $rowIncidents->get($incident->id) ?? $incident,
+        );
 
-            app(RadiumBoxOrderEnrichmentSyncStore::class)->warmFromOrders($orders);
-        }
+        $orders = $rowIncidents
+            ->map(fn (Incident $incident): mixed => $incident->order)
+            ->filter(fn (mixed $order): bool => $order instanceof Order);
+
+        app(RadiumBoxOrderEnrichmentSyncStore::class)->warmFromOrders($orders);
 
         return $cases
             ->map(fn (Incident $serviceCase): array => [
@@ -642,7 +669,7 @@ class DashboardService
     ): array {
         if ($assignedToForFilterCounts !== null) {
             $assignedTo = $assignedToForFilterCounts;
-        } else {
+        } elseif ($requestedQueue !== null || $legacyView !== null || $legacyFilter !== null) {
             $context = $this->dashboardPersonalization->resolveLiveDashboardContext(
                 $user,
                 $requestedQueue,
@@ -650,6 +677,8 @@ class DashboardService
                 $legacyFilter,
             );
             $assignedTo = $context['assigned_to'];
+        } else {
+            $assignedTo = null;
         }
 
         $fast = $this->fastChangingStatsForKpiStrip($user);
@@ -679,18 +708,18 @@ class DashboardService
     /**
      * @return array{kpi_strip_html: string, service_case_filter_count_variants: array<string, array<string, int>>}
      */
-    public function liveReverbMetricsFor(User $user): array
+    public function liveReverbMetricsFor(User $user, ?LiveReverbMetricsBatch $batch = null): array
     {
         $stats = $this->fastChangingStatsForKpiStrip($user);
         $variants = [
             DashboardPersonalizationService::SCOPE_OPERATIONS => $user->can('incidents.view')
-                ? $this->serviceCaseFilterCounts(null, $user)
+                ? ($batch?->operationsFilterCounts ?? $this->serviceCaseFilterCounts(null, $user))
                 : [],
         ];
 
         if ($this->dashboardPersonalization->usesSupportScopeVariants($user)) {
             $variants[DashboardPersonalizationService::SCOPE_SUPPORT] = $user->can('incidents.view')
-                ? $this->serviceCaseFilterCounts($user, $user)
+                ? ($batch?->supportFilterCountsByUserId[$user->id] ?? $this->serviceCaseFilterCounts($user, $user))
                 : [];
         }
 
@@ -698,6 +727,28 @@ class DashboardService
             'kpi_strip_html' => $this->renderKpiStrip($stats, $user),
             'service_case_filter_count_variants' => $variants,
         ];
+    }
+
+    /**
+     * @param  Collection<int, User>  $recipients
+     */
+    public function prepareLiveReverbMetricsBatch(Collection $recipients): LiveReverbMetricsBatch
+    {
+        $this->snapshot();
+
+        $operationsFilterCounts = $this->serviceCaseFilterCounts(null, null);
+
+        $supportFilterCountsByUserId = [];
+        foreach ($recipients as $recipient) {
+            if ($this->dashboardPersonalization->usesSupportScopeVariants($recipient)) {
+                $supportFilterCountsByUserId[$recipient->id] = $this->serviceCaseFilterCounts($recipient, $recipient);
+            }
+        }
+
+        return new LiveReverbMetricsBatch(
+            operationsFilterCounts: $operationsFilterCounts,
+            supportFilterCountsByUserId: $supportFilterCountsByUserId,
+        );
     }
 
     /**
