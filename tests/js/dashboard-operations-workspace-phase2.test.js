@@ -50,11 +50,13 @@ const buildPage = ({ legacyKpis = false } = {}) => {
              data-operations-workspace-kind="case_queue"
              data-operations-workspace-soft-switch="1"
              data-operations-workspace-phase2-embed="1"
-             data-operations-workspace-url="/dashboard/workspace">
+             data-operations-workspace-url="/dashboard/workspace"
+             data-live-counts-url="/dashboard/live/counts">
             <div id="dashboard-kpi-strip" class="dashboard-kpi-strip-host">
                 <a href="${activeHref}"
                    ${softAttrs}
-                   class="dashboard-kpi-item">Total Active Cases</a>
+                   data-dashboard-metric="active_cases"
+                   class="dashboard-kpi-item">Total Active Cases<div class="dashboard-kpi-value">0</div></a>
                 <a href="${refundHref}"
                    ${refundSoftAttrs}
                    class="dashboard-kpi-item">Refunds</a>
@@ -119,16 +121,28 @@ describe('operations workspace phase 2 embed', () => {
 
     it('soft-switches to active cases via panel endpoint without full navigation', async () => {
         const pageRoot = buildPage();
-        vi.stubGlobal('fetch', vi.fn(async () => ({
-            ok: true,
-            json: async () => ({
-                workspace: 'active_cases',
-                kind: 'embedded',
-                panel_title: 'Active Service Cases',
-                panel_html: '<div data-operations-embedded-panel="active_cases">Active listing</div>',
-                supports_live: false,
-            }),
-        })));
+        vi.stubGlobal('fetch', vi.fn(async (url) => {
+            if (String(url).includes('/dashboard/live/counts')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        metric: 'active_cases',
+                        count: 2719,
+                    }),
+                };
+            }
+
+            return {
+                ok: true,
+                json: async () => ({
+                    workspace: 'active_cases',
+                    kind: 'embedded',
+                    panel_title: 'Active Service Cases',
+                    panel_html: '<div data-operations-embedded-panel="active_cases">Active listing</div>',
+                    supports_live: false,
+                }),
+            };
+        }));
 
         await switchOperationsWorkspace(pageRoot, {
             workspace: 'active_cases',
@@ -140,14 +154,21 @@ describe('operations workspace phase 2 embed', () => {
         });
 
         expect(fetch).toHaveBeenCalledWith(
+            '/dashboard/live/counts?metric=active_cases',
+            expect.objectContaining({ credentials: 'same-origin' }),
+        );
+        expect(fetch).toHaveBeenCalledWith(
             expect.stringContaining('/dashboard/workspace?workspace=active_cases'),
             expect.objectContaining({ credentials: 'same-origin' }),
         );
+        expect(pageRoot.querySelector('[data-dashboard-metric="active_cases"] .dashboard-kpi-value')?.textContent)
+            .toBe('2,719');
         expect(pageRoot.querySelector('[data-operations-embedded-panel="active_cases"]')).not.toBeNull();
         expect(pageRoot.querySelector('[data-operations-case-host]')?.hidden).toBe(true);
         expect(stopPolling).toHaveBeenCalled();
         expect(pageRoot.dataset.operationsEmbeddedActive).toBe('1');
         expect(pageRoot.dataset.liveUpdatesEnabled).toBe('0');
+        expect(refreshDashboard).not.toHaveBeenCalled();
     });
 
     it('intercepts stale legacy kpi hrefs when phase 2 embed is enabled', async () => {

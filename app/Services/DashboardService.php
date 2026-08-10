@@ -79,6 +79,14 @@ class DashboardService
     }
 
     /**
+     * Indexed COUNT of operationally active incidents — no snapshot or queue classification.
+     */
+    public function operationallyActiveCasesCount(): int
+    {
+        return $this->kpiAggregator->operationallyActiveCasesCount();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function buildFastChangingStats(User $user, bool $leanForKpiStrip): array
@@ -102,7 +110,7 @@ class DashboardService
             'my_active_cases' => $activeKpis['my_active_cases'],
             'waiting_for_admin' => $activeKpis['waiting_for_admin'],
             'high_priority_cases' => $activeKpis['high_priority_cases'],
-            'total_active_cases' => $activeKpis['total_active_cases'],
+            'total_active_cases' => $this->kpiAggregator->operationallyActiveCasesCount(),
         ];
 
         if (! $leanForKpiStrip) {

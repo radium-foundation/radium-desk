@@ -17,6 +17,8 @@ use Illuminate\Support\Collection;
 
 class DashboardKpiAggregator
 {
+    private ?int $operationallyActiveCasesCount = null;
+
     /** @var array{resolved: int, closed: int}|null */
     private ?array $incidentStatusCounts = null;
 
@@ -25,6 +27,28 @@ class DashboardKpiAggregator
 
     /** @var array{open: int, total: int}|null */
     private ?array $approvalCounts = null;
+
+    /**
+     * Count of operationally active service cases (open, in progress, awaiting product details).
+     *
+     * Uses an indexed SQL aggregate — same definition as IncidentListingQuery status=active
+     * and DashboardSnapshot active-incident hydration — without loading or classifying incidents.
+     */
+    public function operationallyActiveCasesCount(): int
+    {
+        if ($this->operationallyActiveCasesCount !== null) {
+            return $this->operationallyActiveCasesCount;
+        }
+
+        $statuses = array_map(
+            static fn (IncidentStatus $status): string => $status->value,
+            IncidentStatus::operationallyActive(),
+        );
+
+        return $this->operationallyActiveCasesCount = (int) Incident::query()
+            ->whereIn('status', $statuses)
+            ->count();
+    }
 
     /**
      * @return array{
@@ -40,7 +64,7 @@ class DashboardKpiAggregator
         $userIncidents = $activeIncidents
             ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $user->id);
 
-        $activeCount = $activeIncidents->count();
+        $activeCount = $this->operationallyActiveCasesCount();
 
         return [
             'open_incidents' => $activeCount,

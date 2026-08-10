@@ -54,6 +54,7 @@
                 ? route('dashboard', ['workspace' => 'active_cases'])
                 : route('incidents.index', ['status' => 'active']),
             'workspace' => config('dashboard.operations_workspace_phase2_embed', true) ? 'active_cases' : null,
+            'metric' => 'active_cases',
         ];
     }
 

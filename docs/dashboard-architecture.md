@@ -12,6 +12,8 @@ The dashboard is the primary operational surface for agents and admins: KPI stat
 |-------|------------|---------|
 | `GET /dashboard` | `DashboardController` | Full page render |
 | `GET /dashboard/live` | `DashboardLiveController` | JSON refresh payload |
+| `GET /dashboard/live/counts` | `DashboardLiveController` | Lightweight view-only metric counts (no snapshot classify) |
+| `GET /dashboard/live/rows` | `DashboardLiveController` | Targeted row HTML for Ably hybrid updates |
 | `GET dashboard/service-cases/{incident}/row` | `DashboardServiceCaseController` | Single row HTML |
 | `POST dashboard/transactions/bulk` | `OrderTransactionController` | Bulk transaction assign |
 | `POST service-requests/quick` | `QuickServiceRequestController` | Quick create order + service case |
@@ -24,6 +26,20 @@ Central data layer for dashboard views:
 - **`recentServiceCases(filter)`** — Filtered incident list (`all`, `pending_admin`, `completed`, `high_priority`, `overdue`, `warning`).
 - **`serviceCaseRowViewData(Incident, User)`** — Row partial view model (permissions, SLA, transaction state).
 - **`liveRefreshPayload(User, filter)`** — JSON bundle for live polling.
+- **`operationallyActiveCasesCount()`** — Indexed SQL `COUNT(*)` for operationally active incidents (`IncidentStatus::operationallyActive()`), shared by KPI SSR and `GET /dashboard/live/counts?metric=active_cases`.
+
+### View-only metric counts (Phase 1)
+
+**Total Active Cases** uses the same definition as the Active Cases embedded workspace (`IncidentListingQuery` with `status=active`):
+
+- Statuses: `open`, `in_progress`, `awaiting_product_details` (`IncidentStatus::operationallyActive()`).
+- **Count:** `GET /dashboard/live/counts?metric=active_cases` → `{ "metric": "active_cases", "count": N }`.
+- **Does not** call `serviceCaseFilterCounts()`, `OperationsQueueClassifier`, or `DashboardSnapshot::warmQueueIncidents()`.
+- **List:** `GET /dashboard/workspace?workspace=active_cases&status=active` (paginated via `IncidentListingQuery`, unchanged).
+
+On KPI click, `dashboard-operations-workspace.js` fetches the lightweight count before loading the embedded panel. Ready Queue live paths (`/dashboard/live`, `/dashboard/live/rows`, Ably) are unchanged.
+
+**Future candidates** for the same pattern (indexed aggregate, not classifier): `pending_refunds` (`RefundRequest` status counts — already in `DashboardKpiAggregator::refundStatusCounts()`), resolved/closed incident totals (`incidentStatusCounts()`).
 
 ### Quick Create Flow
 

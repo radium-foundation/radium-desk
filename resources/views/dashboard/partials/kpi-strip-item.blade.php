@@ -7,6 +7,7 @@
     'itemClass' => null,
     'kpiAction' => null,
     'workspace' => null,
+    'metric' => null,
 ])
 
 @php
@@ -35,6 +36,9 @@
     @if($workspace)
         data-workspace="{{ $workspace }}"
         data-operations-workspace-link
+    @endif
+    @if($metric)
+        data-dashboard-metric="{{ $metric }}"
     @endif
     @if($kpiAction)
         data-dashboard-kpi-action="{{ $kpiAction }}"

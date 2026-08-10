@@ -2,6 +2,7 @@ import { refreshDashboard, startPolling, stopPolling } from './live-dashboard';
 import { setDashboardSearchActive, isDashboardSearchActive } from './dashboard-search-mode';
 import { setServiceCasePagination, setServiceCaseSearchQuery } from './dashboard-service-case-state';
 import { syncReadyQueueMembershipScope } from './ready-queue-membership-memory';
+import { refreshActiveCasesCount } from './dashboard-live-counts';
 
 const FILTER_WORKSPACES = new Set([
     'overdue',
@@ -420,6 +421,11 @@ const embeddedFallbackDashboardUrl = (target) => {
 
 const switchToEmbeddedWorkspace = async (pageRoot, target, { pushHistory = true } = {}) => {
     pauseCaseLiveUpdates(pageRoot);
+
+    if (target.workspace === 'active_cases') {
+        await refreshActiveCasesCount(pageRoot);
+    }
+
     applyWorkspaceChrome(pageRoot, {
         ...target,
         kind: 'embedded',

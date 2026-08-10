@@ -6,6 +6,7 @@ use App\Services\Dashboard\DashboardLiveRowVisibilityService;
 use App\Services\Dashboard\OperationsWorkspaceResolver;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
+use App\Services\Operations\OperationsRoleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -48,6 +49,33 @@ class DashboardLiveController extends Controller
         );
 
         return response()->json($payload);
+    }
+
+    public function counts(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $metric = $request->string('metric')->trim()->toString();
+
+        if ($metric === '') {
+            return response()->json(['message' => 'Metric is required.'], 422);
+        }
+
+        if ($metric !== 'active_cases') {
+            return response()->json(['message' => 'Unknown metric.'], 404);
+        }
+
+        if (! $user->can('incidents.view')) {
+            abort(403);
+        }
+
+        if (! app(OperationsRoleService::class)->usesAdminQueues($user)) {
+            abort(403);
+        }
+
+        return response()->json([
+            'metric' => 'active_cases',
+            'count' => $this->dashboardService->operationallyActiveCasesCount(),
+        ]);
     }
 
     public function refresh(Request $request): JsonResponse
