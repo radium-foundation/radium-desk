@@ -241,6 +241,32 @@ class OperatorDashboardCacheTest extends TestCase
         ];
     }
 
+    public function test_snapshot_cache_put_failure_does_not_break_dashboard_load(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->createOpenIncident($admin);
+
+        $repository = new class(new \Illuminate\Cache\ArrayStore) extends \Illuminate\Cache\Repository {
+            public function put($key, $value, $ttl = null): bool
+            {
+                if ($key === OperatorDashboardCache::SNAPSHOT_CACHE_KEY) {
+                    throw new \RuntimeException('Data too long for column value');
+                }
+
+                return parent::put($key, $value, $ttl);
+            }
+        };
+        Cache::swap($repository);
+
+        app()->forgetInstance(DashboardSnapshotStore::class);
+        app()->forgetInstance(OperatorDashboardCache::class);
+
+        $snapshot = app(DashboardSnapshotStore::class)->get();
+
+        $this->assertNotEmpty($snapshot->activeIncidents());
+    }
+
     public function test_close_invalidates_snapshot_when_hybrid_and_broadcast_are_off(): void
     {
         config([

@@ -58,17 +58,13 @@ class OperatorDashboardCache
 
         $built = $this->buildCachedSnapshot($loader());
 
-        Cache::put(
-            self::SNAPSHOT_CACHE_KEY,
+        $this->storeSnapshotCache(
             $this->snapshotPayload->encode(
                 $built->incidents,
                 $built->queueCounts,
                 $built->slaCounts,
             ),
-            now()->addSeconds($this->snapshotTtlSeconds()),
         );
-
-        Cache::forget('operator.dashboard.snapshot:v1');
 
         return $built;
     }
@@ -120,6 +116,26 @@ class OperatorDashboardCache
             now()->addSeconds($this->slowScalarsTtlSeconds()),
             fn (): array => $this->loadSlowScalars(),
         );
+    }
+
+    /**
+     * @param  array{v: int, incidents: list<array<string, mixed>>, queue_counts?: array<string, int>, sla_counts?: array<string, int>}  $payload
+     */
+    private function storeSnapshotCache(array $payload): void
+    {
+        try {
+            Cache::put(
+                self::SNAPSHOT_CACHE_KEY,
+                $payload,
+                now()->addSeconds($this->snapshotTtlSeconds()),
+            );
+
+            Cache::forget('operator.dashboard.snapshot:v1');
+        } catch (\Throwable $exception) {
+            // Production cache tables may use TEXT-sized value columns; large
+            // active-incident snapshots must not break dashboard/login redirects.
+            report($exception);
+        }
     }
 
     /**
