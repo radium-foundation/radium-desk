@@ -2,7 +2,7 @@
  * Dashboard HTTP polling modes used alongside Reverb.
  *
  * - fast fallback: aggressive refresh when the WebSocket is down or recovering from staleness
- * - heartbeat: disabled in Phase 1 while Ably is healthy (realtime events + hybrid rows are primary)
+ * - heartbeat: Ready Queue membership safety net while Ably is healthy
  */
 
 import { logRefreshLifecycle } from './dashboard-refresh-lifecycle';
@@ -28,12 +28,44 @@ let heartbeatListenersBound = false;
 let pollVisibilityHandler = null;
 let pollWorkspaceReleaseHandler = null;
 let refreshDashboardFn = null;
+let reconcileReadyQueueMembershipFn = null;
 let getWorkspaceSessionFn = null;
+
+const runPollTick = async (activePageRoot, mode) => {
+    if (mode === POLL_MODE_LEGACY) {
+        if (typeof refreshDashboardFn === 'function') {
+            await refreshDashboardFn(activePageRoot, `poll_${mode}`);
+        }
+
+        return;
+    }
+
+    if (typeof reconcileReadyQueueMembershipFn === 'function') {
+        await reconcileReadyQueueMembershipFn(activePageRoot, `poll_${mode}`);
+
+        return;
+    }
+
+    if (typeof refreshDashboardFn === 'function') {
+        await refreshDashboardFn(activePageRoot, `poll_${mode}`, { kpisOnly: true });
+    }
+};
+
+const heartbeatPollJitterMs = (intervalMs) => {
+    const cap = Math.min(5_000, Math.max(0, intervalMs * 0.1));
+
+    return cap > 0 ? Math.floor(Math.random() * cap) : 0;
+};
 
 const USER_ACTIVITY_EVENTS = ['mousedown', 'keydown', 'touchstart', 'scroll'];
 
-export const configureDashboardPolling = ({ refreshDashboard, getWorkspaceSession }) => {
+export const configureDashboardPolling = ({
+    refreshDashboard,
+    reconcileReadyQueueMembership,
+    getWorkspaceSession,
+}) => {
     refreshDashboardFn = refreshDashboard;
+    reconcileReadyQueueMembershipFn = reconcileReadyQueueMembership;
     getWorkspaceSessionFn = getWorkspaceSession;
 };
 
@@ -232,11 +264,11 @@ const scheduleNextPoll = (pageRoot) => {
             return;
         }
 
-        if (typeof refreshDashboardFn === 'function') {
-            await refreshDashboardFn(activePageRoot, `poll_${pollMode}`);
+        if (typeof refreshDashboardFn === 'function' || typeof reconcileReadyQueueMembershipFn === 'function') {
+            await runPollTick(activePageRoot, pollMode);
         } else {
             logRefreshLifecycle(activePageRoot, 'poll_timer_suppressed', {
-                reason: 'missing_refresh_dashboard_fn',
+                reason: 'missing_poll_handlers',
             });
         }
 
@@ -248,13 +280,13 @@ const scheduleNextPoll = (pageRoot) => {
                 samePageRoot: pollPageRoot === activePageRoot,
             });
         }
-    }, pollIntervalMs);
+    }, pollIntervalMs + (pollMode === POLL_MODE_HEARTBEAT ? heartbeatPollJitterMs(pollIntervalMs) : 0));
 };
 
 const startPollingWithMode = (pageRoot, mode, intervalMs = null) => {
-    if (! pageRoot || typeof refreshDashboardFn !== 'function') {
+    if (! pageRoot || (typeof refreshDashboardFn !== 'function' && typeof reconcileReadyQueueMembershipFn !== 'function')) {
         logRefreshLifecycle(pageRoot, 'poll_start_suppressed', {
-            reason: ! pageRoot ? 'missing_page_root' : 'missing_refresh_dashboard_fn',
+            reason: ! pageRoot ? 'missing_page_root' : 'missing_poll_handlers',
             mode,
         });
 
@@ -300,18 +332,14 @@ export const startFastPolling = (pageRoot, intervalMs = null) => {
 };
 
 /**
- * Heartbeat mode (Phase 1): no-op while Ably is the primary transport.
- * Full GET /dashboard/live heartbeat polling is disabled when realtime is healthy;
- * fast fallback polling still runs when the socket is down.
+ * Ready Queue membership heartbeat while Ably is healthy — authoritative count + first-35 window.
  */
 export const startHeartbeatPolling = (pageRoot) => {
     if (pageRoot?.dataset.liveUpdatesEnabled === '0') {
         return;
     }
 
-    logRefreshLifecycle(pageRoot, 'heartbeat_polling_suppressed', {
-        reason: 'ably_primary_transport',
-    });
+    startPollingWithMode(pageRoot, POLL_MODE_HEARTBEAT);
 };
 
 export const stopPolling = () => {

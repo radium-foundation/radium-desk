@@ -1,6 +1,8 @@
 import { applyKpis, applyRows, refreshDashboard } from '../live-dashboard';
 import { initLiveDashboard } from '../live-dashboard';
+import { configureDashboardPolling } from '../live-dashboard-polling';
 import { initLiveDashboardReverb } from '../live-dashboard-reverb';
+import { reconcileReadyQueueMembership } from '../ready-queue-membership-reconcile';
 import { initDashboardQuickFilter } from '../dashboard-filter';
 import { initDashboardSerialNumbers } from '../dashboard-serial';
 import { initDashboardLoadMore } from '../dashboard-load-more';
@@ -328,6 +330,13 @@ export const bootDashboard = () => {
 
     const { pageRoot } = dashboardConfig;
     const dashboardTransactionsRef = { current: null };
+
+    configureDashboardPolling({
+        refreshDashboard,
+        reconcileReadyQueueMembership,
+        getWorkspaceSession,
+    });
+
     const dashboardSerialRef = { current: null };
     const customer360DrawerRef = { current: null };
     let dashboardQuickFilter = null;

@@ -76,6 +76,79 @@ class DashboardLiveCountsOnlyTest extends TestCase
         $this->assertStringNotContainsString('service-case-row-', (string) $response->getContent());
     }
 
+    public function test_membership_returns_ordered_ids_without_row_html(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $incidents = [];
+
+        for ($i = 0; $i < 5; $i++) {
+            $incidents[] = $this->createReadyQueueCase('RD-MEM-'.$i, $admin);
+        }
+
+        $real = $this->app->make(DashboardService::class);
+        $spy = Mockery::mock($real)->makePartial();
+        $spy->shouldReceive('serviceCasesPayload')->never();
+        $this->app->instance(DashboardService::class, $spy);
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('dashboard.live', [
+                'queue' => DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+                'kpis_only' => 1,
+                'membership' => 1,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('kpis_only', true)
+            ->assertJsonPath('membership', true)
+            ->assertJsonPath('rows', [])
+            ->assertJsonCount(5, 'incident_ids')
+            ->assertJsonPath('total_count', 5)
+            ->assertJsonPath('loaded_count', 5)
+            ->assertJsonPath('has_more', false);
+
+        $membershipPayload = $real->serviceCaseMembershipPayload(
+            DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+            null,
+            false,
+        );
+
+        $payloadIds = collect($response->json('incident_ids'))->map(fn ($id) => (int) $id)->all();
+
+        $this->assertSame(
+            $membershipPayload['incident_ids']->map(fn ($id) => (int) $id)->all(),
+            $payloadIds,
+        );
+        $this->assertStringNotContainsString('service-case-row-', (string) $response->getContent());
+    }
+
+    public function test_membership_caps_first_window_at_service_case_page_size(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        for ($i = 0; $i < 40; $i++) {
+            $this->createReadyQueueCase('RD-MEM-CAP-'.$i, $admin);
+        }
+
+        $pageSize = app(DashboardService::class)->serviceCasePageSize();
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('dashboard.live', [
+                'queue' => DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+                'kpis_only' => 1,
+                'membership' => 1,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('total_count', 40)
+            ->assertJsonPath('loaded_count', $pageSize)
+            ->assertJsonPath('has_more', true)
+            ->assertJsonCount($pageSize, 'incident_ids');
+
+        $this->assertSame(35, $pageSize);
+        $this->assertStringNotContainsString('service-case-row-', (string) $response->getContent());
+    }
+
     public function test_full_live_still_builds_service_case_rows(): void
     {
         $admin = User::factory()->create(['is_active' => true]);

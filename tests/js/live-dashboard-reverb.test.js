@@ -624,6 +624,7 @@ describe('dashboard refresh architecture phase 1', () => {
 
     const refreshDashboard = vi.fn().mockResolvedValue(undefined);
     const startFastPolling = vi.fn();
+    const startHeartbeatPolling = vi.fn();
     const stopPolling = vi.fn();
     let destroyHandle = null;
 
@@ -639,6 +640,7 @@ describe('dashboard refresh architecture phase 1', () => {
         mockConnection.connect.mockClear();
         refreshDashboard.mockClear();
         startFastPolling.mockClear();
+        startHeartbeatPolling.mockClear();
         stopPolling.mockClear();
 
         document.body.innerHTML = `
@@ -677,6 +679,7 @@ describe('dashboard refresh architecture phase 1', () => {
         vi.doMock('../../resources/js/live-dashboard-polling', () => ({
             destroyPolling: vi.fn(),
             startFastPolling,
+            startHeartbeatPolling,
             stopPolling,
         }));
     });
@@ -690,7 +693,7 @@ describe('dashboard refresh architecture phase 1', () => {
         vi.restoreAllMocks();
     });
 
-    it('does not full-refresh or start heartbeat polling when Ably connects', async () => {
+    it('does not full-refresh but starts membership heartbeat when Ably connects', async () => {
         const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
 
         destroyHandle = initLiveDashboardReverb({
@@ -701,6 +704,7 @@ describe('dashboard refresh architecture phase 1', () => {
         connectionListeners.connected?.();
 
         expect(refreshDashboard).not.toHaveBeenCalled();
+        expect(startHeartbeatPolling).toHaveBeenCalledWith(document.getElementById('dashboard-page'));
         expect(startFastPolling).not.toHaveBeenCalled();
         expect(stopPolling).toHaveBeenCalled();
     });
@@ -716,12 +720,14 @@ describe('dashboard refresh architecture phase 1', () => {
         connectionListeners.connected?.();
         refreshDashboard.mockClear();
         stopPolling.mockClear();
+        startHeartbeatPolling.mockClear();
 
         connectionListeners.disconnected?.();
         connectionListeners.connected?.();
 
         expect(refreshDashboard).not.toHaveBeenCalled();
         expect(stopPolling).toHaveBeenCalled();
+        expect(startHeartbeatPolling).toHaveBeenCalledWith(document.getElementById('dashboard-page'));
     });
 
     it('starts fast fallback polling when Ably disconnects', async () => {
@@ -753,6 +759,7 @@ describe('dashboard refresh architecture phase 1', () => {
         connectionListeners.connected?.();
         connectionListeners.disconnected?.();
 
+        expect(startHeartbeatPolling).toHaveBeenCalledTimes(2);
         expect(startFastPolling).toHaveBeenCalledTimes(2);
         expect(stopPolling.mock.calls.length).toBeGreaterThanOrEqual(2);
     });

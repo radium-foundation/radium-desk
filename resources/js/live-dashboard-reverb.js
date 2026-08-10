@@ -15,6 +15,7 @@ import {
 import {
     destroyPolling,
     startFastPolling,
+    startHeartbeatPolling,
     stopPolling,
 } from './live-dashboard-polling';
 import { buildDashboardLiveQuery } from './dashboard-live-query';
@@ -925,6 +926,7 @@ export const initLiveDashboardReverb = ({
             onWebSocketConnected: () => {
                 resetStaleWatchdogState();
                 startStaleWatchdog(forceReconnect);
+                startHeartbeatPolling(pageRoot);
             },
             onWebSocketDisconnected: stopStaleWatchdog,
         });

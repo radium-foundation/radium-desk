@@ -597,6 +597,46 @@ class DashboardService
      *     loaded_count: int,
      * }
      */
+    /**
+     * Authoritative queue membership for heartbeat reconcile — sorted incident IDs only.
+     * Reuses the request-scoped snapshot and sorting path; never hydrates rows or renders Blade.
+     *
+     * @return array{
+     *     incident_ids: Collection<int, int>,
+     *     total_count: int,
+     *     has_more: bool,
+     *     loaded_count: int,
+     *     service_cases_empty: bool,
+     * }
+     */
+    public function serviceCaseMembershipPayload(
+        string $filter,
+        ?User $assignedTo,
+        bool $prioritizeRecentAssignments,
+        ?int $windowLimit = null,
+    ): array {
+        $pageSize = $this->serviceCasePageSize();
+        $windowLimit = min($windowLimit ?? $pageSize, $pageSize);
+
+        $sorted = $this->sortedIncidentsForFilter(
+            $filter,
+            $assignedTo,
+            $prioritizeRecentAssignments,
+        );
+
+        $totalCount = $sorted->count();
+        $window = $sorted->take($windowLimit);
+        $loadedCount = $window->count();
+
+        return [
+            'incident_ids' => $window->pluck('id')->values(),
+            'total_count' => $totalCount,
+            'has_more' => $loadedCount < $totalCount,
+            'loaded_count' => $loadedCount,
+            'service_cases_empty' => $totalCount === 0,
+        ];
+    }
+
     public function serviceCasesPayload(
         User $user,
         string $filter,

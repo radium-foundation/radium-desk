@@ -119,9 +119,22 @@ class DashboardLiveController extends Controller
 
         // Hybrid KPI reconcile: counts/KPI strip only — never build Ready Queue row HTML.
         if ($request->boolean('kpis_only')) {
-            $totalCount = (int) ($filterCounts[$serviceCaseFilter]
+            $membership = $request->boolean('membership') && $user->can('incidents.view')
+                ? $this->dashboardService->serviceCaseMembershipPayload(
+                    $serviceCaseFilter,
+                    $assignedTo,
+                    $prioritizeRecentAssignments,
+                )
+                : null;
+
+            $totalCount = (int) ($membership['total_count']
+                ?? $filterCounts[$serviceCaseFilter]
                 ?? $filterCounts[$operationQueue]
                 ?? 0);
+            $incidentIds = $membership['incident_ids'] ?? collect();
+            $loadedCount = (int) ($membership['loaded_count'] ?? 0);
+            $hasMore = (bool) ($membership['has_more'] ?? false);
+            $serviceCasesEmpty = (bool) ($membership['service_cases_empty'] ?? ($totalCount === 0));
 
             return response()->json([
                 'kpi_strip_html' => $metrics['kpi_strip_html'],
@@ -129,27 +142,28 @@ class DashboardLiveController extends Controller
                 'online_count' => $metrics['online_count'],
                 'online_users' => $metrics['online_users'],
                 'service_case_filter_counts' => $filterCounts,
-                'service_cases_empty' => false,
+                'service_cases_empty' => $serviceCasesEmpty,
                 'service_cases_empty_html' => '',
                 'rows' => [],
-                'incident_ids' => [],
+                'incident_ids' => $incidentIds,
                 'total_count' => $totalCount,
-                'has_more' => false,
-                'loaded_count' => 0,
+                'has_more' => $hasMore,
+                'loaded_count' => $loadedCount,
                 'workspace' => $workspace['workspace'],
                 'operation_queue' => $operationQueue,
                 'service_case_filter' => $serviceCaseFilter,
                 'live_scope' => $workspace['live_scope'],
                 'panel_title' => $workspace['panel_title'],
                 'kpis_only' => true,
+                'membership' => $membership !== null,
                 'fast' => [
                     ...($metrics['fast'] ?? []),
                     'rows' => [],
-                    'incident_ids' => [],
+                    'incident_ids' => $incidentIds,
                     'total_count' => $totalCount,
-                    'has_more' => false,
-                    'loaded_count' => 0,
-                    'service_cases_empty' => false,
+                    'has_more' => $hasMore,
+                    'loaded_count' => $loadedCount,
+                    'service_cases_empty' => $serviceCasesEmpty,
                     'service_cases_empty_html' => '',
                 ],
                 'slow' => $metrics['slow'] ?? [],

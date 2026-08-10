@@ -5,6 +5,7 @@ import {
     destroyPolling,
     isPollingActive,
     POLL_MODE_FAST,
+    POLL_MODE_HEARTBEAT,
     POLL_MODE_LEGACY,
     startFastPolling,
     startHeartbeatPolling,
@@ -60,12 +61,14 @@ describe('live dashboard polling modes', () => {
         expect(refreshDashboard).toHaveBeenCalledTimes(1);
     });
 
-    it('heartbeat mode is suppressed while Ably is the primary transport', async () => {
+    it('heartbeat mode calls membership reconcile on the active interval', async () => {
         const pageRoot = document.getElementById('dashboard-page');
         const refreshDashboard = vi.fn().mockResolvedValue(undefined);
+        const reconcileReadyQueueMembership = vi.fn().mockResolvedValue(null);
 
         configureDashboardPolling({
             refreshDashboard,
+            reconcileReadyQueueMembership,
             getWorkspaceSession: () => ({
                 isActive: () => false,
                 onIdle: vi.fn(),
@@ -74,21 +77,24 @@ describe('live dashboard polling modes', () => {
 
         startHeartbeatPolling(pageRoot);
 
-        expect(currentPollingMode()).toBe(POLL_MODE_LEGACY);
-        expect(isPollingActive()).toBe(false);
+        expect(currentPollingMode()).toBe(POLL_MODE_HEARTBEAT);
+        expect(isPollingActive()).toBe(true);
 
-        await vi.advanceTimersByTimeAsync(5 * 60_000);
+        await vi.advanceTimersByTimeAsync(65_000);
 
+        expect(reconcileReadyQueueMembership).toHaveBeenCalledTimes(1);
         expect(refreshDashboard).not.toHaveBeenCalled();
     });
 
     it('heartbeat mode does not schedule polls when the tab is hidden', async () => {
         const pageRoot = document.getElementById('dashboard-page');
         const refreshDashboard = vi.fn().mockResolvedValue(undefined);
+        const reconcileReadyQueueMembership = vi.fn().mockResolvedValue(null);
         const previousVisibility = document.visibilityState;
 
         configureDashboardPolling({
             refreshDashboard,
+            reconcileReadyQueueMembership,
             getWorkspaceSession: () => ({
                 isActive: () => false,
                 onIdle: vi.fn(),
@@ -102,10 +108,11 @@ describe('live dashboard polling modes', () => {
 
         startHeartbeatPolling(pageRoot);
 
-        await vi.advanceTimersByTimeAsync(5 * 60_000);
+        await vi.advanceTimersByTimeAsync(65_000);
 
         expect(refreshDashboard).not.toHaveBeenCalled();
-        expect(isPollingActive()).toBe(false);
+        expect(reconcileReadyQueueMembership).not.toHaveBeenCalled();
+        expect(isPollingActive()).toBe(true);
 
         Object.defineProperty(document, 'visibilityState', {
             configurable: true,
@@ -113,12 +120,18 @@ describe('live dashboard polling modes', () => {
         });
     });
 
-    it('heartbeat mode does not poll after prolonged user inactivity', async () => {
+    it('heartbeat mode uses the slow interval after prolonged user inactivity', async () => {
         const pageRoot = document.getElementById('dashboard-page');
+        pageRoot.dataset.liveHeartbeatMs = '10000';
+        pageRoot.dataset.liveUserIdleMs = '10000';
+        pageRoot.dataset.liveHeartbeatSlowMs = '30000';
+
         const refreshDashboard = vi.fn().mockResolvedValue(undefined);
+        const reconcileReadyQueueMembership = vi.fn().mockResolvedValue(null);
 
         configureDashboardPolling({
             refreshDashboard,
+            reconcileReadyQueueMembership,
             getWorkspaceSession: () => ({
                 isActive: () => false,
                 onIdle: vi.fn(),
@@ -127,10 +140,17 @@ describe('live dashboard polling modes', () => {
 
         startHeartbeatPolling(pageRoot);
 
-        await vi.advanceTimersByTimeAsync(10 * 60_000);
+        await vi.advanceTimersByTimeAsync(11_000);
+        expect(reconcileReadyQueueMembership).toHaveBeenCalledTimes(1);
 
+        reconcileReadyQueueMembership.mockClear();
+
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(reconcileReadyQueueMembership).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(31_000);
+        expect(reconcileReadyQueueMembership).toHaveBeenCalledTimes(1);
         expect(refreshDashboard).not.toHaveBeenCalled();
-        expect(isPollingActive()).toBe(false);
     });
 
     it('legacy poll-only mode still uses active and idle intervals', async () => {
