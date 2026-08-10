@@ -2,6 +2,7 @@
 
 namespace App\Services\Dashboard;
 
+use App\Models\Incident;
 use App\Services\Operations\OperationsQueueClassifier;
 
 /**
@@ -10,18 +11,12 @@ use App\Services\Operations\OperationsQueueClassifier;
  * Prevents duplicate incident loads during the same HTTP request and
  * reuses a short-TTL cross-request cache via OperatorDashboardCache.
  *
- * COUNT paths load lean incidents via DashboardClassificationIndex.
- * ROW paths batch-load row-only relations in DashboardService::mapServiceCaseRows.
+ * Shared cache holds a serializable array projection only; this store
+ * rehydrates Eloquent models for DashboardSnapshot consumers.
  */
 class DashboardSnapshotStore
 {
     private ?DashboardSnapshot $snapshot = null;
-
-    private bool $requestScopedOnly = false;
-
-    public function __construct(
-        private readonly DashboardClassificationIndex $classificationIndex,
-    ) {}
 
     public function get(): DashboardSnapshot
     {
@@ -31,38 +26,39 @@ class DashboardSnapshotStore
     public function forget(): void
     {
         $this->snapshot = null;
-        $this->requestScopedOnly = false;
-        $this->classificationIndex->forget();
         app(OperationsQueueClassifier::class)->forgetClassifications();
         app(OperatorDashboardCache::class)->forgetSnapshot();
     }
 
-    /**
-     * Rebuild snapshot for broadcast/KPI paths without repopulating cross-request cache.
-     */
-    public function useRequestScopedSnapshotOnly(): void
-    {
-        $this->requestScopedOnly = true;
-    }
-
     private function loadFresh(): DashboardSnapshot
     {
-        $cache = app(OperatorDashboardCache::class);
-        $index = $this->classificationIndex;
-
-        if (! $cache->snapshotCacheEnabled() || $this->requestScopedOnly) {
-            return $index->getSnapshot();
-        }
-
         $classifier = app(OperationsQueueClassifier::class)->rememberClassifications();
+        $cache = app(OperatorDashboardCache::class);
 
         $cached = $cache->rememberCachedSnapshot(
-            fn () => $index->loadLeanIncidents(),
+            fn () => Incident::query()
+                ->with([
+                    'order.deviceModel',
+                    'order.transactionAssigner',
+                    'order.legacyImporter',
+                    // Nested refund actors are serializable (User alias); avoids CommercialState N+1.
+                    'order.refundRequests.requester',
+                    'order.refundRequests.reviewer',
+                    'order.refundRequests.executor',
+                    'refundRequests.requester',
+                    'refundRequests.reviewer',
+                    'refundRequests.executor',
+                    // closeOutcomes intentionally omitted from snapshot cache (no payload alias yet);
+                    // mapServiceCaseRows() batch-loads them for visible rows only.
+                    'creator',
+                    'assignee.roles',
+                    'activeWaitingState',
+                    'activeBusinessHold',
+                    'supportAppointments',
+                ])
+                ->whereIn('status', \App\Enums\IncidentStatus::operationallyActive())
+                ->get(),
         );
-
-        if ($cached->hasPrecomputedMetrics() && $index->hasSnapshot()) {
-            return $index->getSnapshot();
-        }
 
         return new DashboardSnapshot(
             $cached->incidents,

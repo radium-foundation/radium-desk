@@ -15,7 +15,6 @@ use App\Events\Dashboard\SlaStatusChanged;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Dashboard\DashboardLiveRowVisibilityService;
-use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\HybridRealtime\HybridRealtimeFeature;
 use App\Services\HybridRealtime\HybridRealtimeFeatureService;
 use App\Services\Operations\OperationsQueueClassifier;
@@ -529,13 +528,9 @@ class DashboardBroadcastService
     private function dispatchKpisUpdated(?User $actor): void
     {
         $this->dashboardService->forgetSnapshot();
-        app(DashboardSnapshotStore::class)->useRequestScopedSnapshotOnly();
 
-        $recipients = $this->recipientsExcept($actor);
-        $batch = $this->dashboardService->prepareLiveReverbMetricsBatch($recipients);
-
-        foreach ($recipients as $recipient) {
-            $metrics = $this->dashboardService->liveReverbMetricsFor($recipient, $batch);
+        foreach ($this->recipientsExcept($actor) as $recipient) {
+            $metrics = $this->dashboardService->liveReverbMetricsFor($recipient);
 
             broadcast(new DashboardKpisUpdated(
                 recipient: $recipient,

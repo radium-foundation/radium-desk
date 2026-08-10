@@ -43,8 +43,6 @@ use App\Services\Notifications\Channels\TelegramChannel;
 use App\Services\Notifications\Channels\WhatsAppChannel;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
-use App\Services\Dashboard\DashboardClassificationIndex;
-use App\Services\Dashboard\DashboardIncidentQueueMembership;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\DashboardBroadcastService;
 use App\Services\Operations\OperationsQueueClassifier;
@@ -123,8 +121,6 @@ class AppServiceProvider extends ServiceProvider
             ]);
         });
         $this->app->scoped(DashboardSnapshotStore::class);
-        $this->app->scoped(DashboardClassificationIndex::class);
-        $this->app->scoped(DashboardIncidentQueueMembership::class);
         $this->app->scoped(SettingService::class);
         $this->app->scoped(SystemSettingsAdminCollection::class);
         $this->app->scoped(\App\Services\AssignReferenceBatchCoalescer::class);

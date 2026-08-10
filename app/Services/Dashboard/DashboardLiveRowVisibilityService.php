@@ -23,7 +23,6 @@ class DashboardLiveRowVisibilityService
         private readonly DashboardService $dashboardService,
         private readonly DashboardPersonalizationService $dashboardPersonalization,
         private readonly OperationsQueueClassifier $queueClassifier,
-        private readonly DashboardIncidentQueueMembership $queueMembership,
     ) {}
 
     /**
@@ -70,7 +69,9 @@ class DashboardLiveRowVisibilityService
     {
         $scopeUser = $this->dashboardPersonalization->resolveAssignedToScope($recipient, $queue);
 
-        return $this->queueMembership->isVisibleInQueue($incident, $queue, $scopeUser);
+        return $this->dashboardService->snapshot()
+            ->incidentsForQueue($queue, $scopeUser)
+            ->contains(fn (Incident $case): bool => $case->id === $incident->id);
     }
 
     /**
