@@ -110,6 +110,9 @@ class DashboardLiveController extends Controller
         // Pass assignedTo so liveMetricsFor does not re-resolve workspace/context.
         $metrics = $this->dashboardService->liveMetricsFor(
             $user,
+            requestedQueue: $operationQueue,
+            legacyView: $workspace['legacy_view'],
+            legacyFilter: $workspace['legacy_filter'],
             assignedToForFilterCounts: $assignedTo,
         );
         $filterCounts = $metrics['service_case_filter_counts'];

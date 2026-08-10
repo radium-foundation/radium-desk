@@ -123,6 +123,18 @@ class OperatorDashboardCache
      */
     private function storeSnapshotCache(array $payload): void
     {
+        $encoded = json_encode($payload);
+
+        if ($encoded === false) {
+            return;
+        }
+
+        // MySQL cache.value is mediumtext (~16 MB). Skip oversize payloads instead of
+        // logging the full SQL/bindings on insert failure.
+        if (strlen($encoded) > 15 * 1024 * 1024) {
+            return;
+        }
+
         try {
             Cache::put(
                 self::SNAPSHOT_CACHE_KEY,
@@ -132,9 +144,11 @@ class OperatorDashboardCache
 
             Cache::forget('operator.dashboard.snapshot:v1');
         } catch (\Throwable $exception) {
-            // Production cache tables may use TEXT-sized value columns; large
-            // active-incident snapshots must not break dashboard/login redirects.
-            report($exception);
+            report(new \RuntimeException(
+                'Dashboard snapshot cache write failed: '.$exception->getMessage(),
+                (int) $exception->getCode(),
+                $exception,
+            ));
         }
     }
 
@@ -143,18 +157,11 @@ class OperatorDashboardCache
      */
     private function buildCachedSnapshot(Collection $incidents): CachedActiveIncidentSnapshot
     {
-        $classifier = app(OperationsQueueClassifier::class)->rememberClassifications();
-        $snapshot = new DashboardSnapshot($incidents, $classifier);
-        $queueCounts = $snapshot->queueCounts();
-        $slaCounts = $snapshot->slaCounts();
+        $eloquent = $incidents instanceof \Illuminate\Database\Eloquent\Collection
+            ? $incidents
+            : new \Illuminate\Database\Eloquent\Collection($incidents->all());
 
-        return new CachedActiveIncidentSnapshot(
-            incidents: $incidents instanceof \Illuminate\Database\Eloquent\Collection
-                ? $incidents
-                : new \Illuminate\Database\Eloquent\Collection($incidents->all()),
-            queueCounts: $queueCounts,
-            slaCounts: $slaCounts,
-        );
+        return app(DashboardClassificationIndex::class)->buildCachedSnapshot($eloquent);
     }
 
     /**
