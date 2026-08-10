@@ -87,6 +87,14 @@ class DashboardService
     }
 
     /**
+     * Indexed COUNT of pending refund requests — no snapshot or queue classification.
+     */
+    public function pendingRefundsCount(): int
+    {
+        return $this->kpiAggregator->refundStatusCounts()['pending'];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function buildFastChangingStats(User $user, bool $leanForKpiStrip): array

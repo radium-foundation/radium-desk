@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Enums\IncidentStatus;
+use App\Enums\RefundStatus;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\DashboardService;
@@ -85,8 +87,81 @@ class DashboardLiveMetricCountsTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $this->actingAs($admin)
-            ->getJson(route('dashboard.live.counts', ['metric' => 'pending_refunds']))
+            ->getJson(route('dashboard.live.counts', ['metric' => 'open_cases']))
             ->assertNotFound();
+    }
+
+    public function test_pending_refunds_count_endpoint_returns_correct_count(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $admin->givePermissionTo('refunds.view');
+
+        $order = Order::query()->create([
+            'order_id' => 'ORD-REFUND-METRIC',
+            'serial_number' => 'B47C11929',
+            'device_model' => 'Access FM220 L1',
+            'product_name' => 'Access FM220 L1',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        RefundRequest::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'REF-METRIC-1',
+            'amount' => 100,
+            'reason' => 'Pending refund metric test.',
+            'status' => RefundStatus::Pending,
+            'requested_by' => $admin->id,
+        ]);
+        RefundRequest::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'REF-METRIC-2',
+            'amount' => 100,
+            'reason' => 'Second pending refund metric test.',
+            'status' => RefundStatus::Pending,
+            'requested_by' => $admin->id,
+        ]);
+        RefundRequest::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'REF-METRIC-3',
+            'amount' => 100,
+            'reason' => 'Completed refund metric test.',
+            'status' => RefundStatus::Completed,
+            'requested_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson(route('dashboard.live.counts', ['metric' => 'pending_refunds']))
+            ->assertOk()
+            ->assertJsonPath('metric', 'pending_refunds')
+            ->assertJsonPath('count', 2);
+    }
+
+    public function test_pending_refunds_count_requires_refunds_view_permission(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_EMPLOYEE);
+
+        $this->actingAs($user)
+            ->getJson(route('dashboard.live.counts', ['metric' => 'pending_refunds']))
+            ->assertForbidden();
+    }
+
+    public function test_pending_refunds_count_does_not_call_service_case_filter_counts(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $admin->givePermissionTo('refunds.view');
+
+        $real = $this->app->make(DashboardService::class);
+        $spy = Mockery::mock($real)->makePartial();
+        $spy->shouldReceive('serviceCaseFilterCounts')->never();
+        $this->app->instance(DashboardService::class, $spy);
+
+        $this->actingAs($admin)
+            ->getJson(route('dashboard.live.counts', ['metric' => 'pending_refunds']))
+            ->assertOk();
     }
 
     public function test_active_cases_count_does_not_call_service_case_filter_counts(): void

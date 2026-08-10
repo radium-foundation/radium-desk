@@ -5,6 +5,7 @@ import { initDashboardQuickFilter } from '../dashboard-filter';
 import { initDashboardSerialNumbers } from '../dashboard-serial';
 import { initDashboardLoadMore } from '../dashboard-load-more';
 import { initDashboardKpiActions } from '../dashboard-kpi';
+import { initViewOnlyMetricRefresh } from '../dashboard-live-counts';
 import { initOperationsWorkspaceSoftSwitch } from '../dashboard-operations-workspace';
 import { initServiceCasePaginationState } from '../dashboard-service-case-state';
 import { createServiceCaseRowReplacer } from '../service-case-row';
@@ -339,6 +340,7 @@ export const bootDashboard = () => {
 
     initServiceCasePaginationState(pageRoot);
     initDashboardKpiActions(pageRoot);
+    initViewOnlyMetricRefresh(pageRoot);
 
     dashboardTransactionsRef.current = initDashboardTransactions({
         pageRoot,

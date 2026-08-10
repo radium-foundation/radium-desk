@@ -55,6 +55,7 @@
                 : route('incidents.index', ['status' => 'active']),
             'workspace' => config('dashboard.operations_workspace_phase2_embed', true) ? 'active_cases' : null,
             'metric' => 'active_cases',
+            'viewOnlyRefresh' => true,
         ];
     }
 
@@ -68,6 +69,8 @@
                 ? route('dashboard', ['workspace' => 'refunds', 'status' => 'pending'])
                 : route('refunds.index', ['status' => 'pending']),
             'workspace' => config('dashboard.operations_workspace_phase2_embed', true) ? 'refunds' : null,
+            'metric' => 'pending_refunds',
+            'viewOnlyRefresh' => true,
         ];
     }
 

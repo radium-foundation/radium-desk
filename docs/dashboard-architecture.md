@@ -28,18 +28,26 @@ Central data layer for dashboard views:
 - **`liveRefreshPayload(User, filter)`** — JSON bundle for live polling.
 - **`operationallyActiveCasesCount()`** — Indexed SQL `COUNT(*)` for operationally active incidents (`IncidentStatus::operationallyActive()`), shared by KPI SSR and `GET /dashboard/live/counts?metric=active_cases`.
 
-### View-only metric counts (Phase 1)
+### View-only metric counts (Phase 1 + E/C refresh)
 
-**Total Active Cases** uses the same definition as the Active Cases embedded workspace (`IncidentListingQuery` with `status=active`):
+**Total Active Cases** and **Refunds (pending)** use indexed SQL aggregates — not `OperationsQueueClassifier`:
 
-- Statuses: `open`, `in_progress`, `awaiting_product_details` (`IncidentStatus::operationallyActive()`).
-- **Count:** `GET /dashboard/live/counts?metric=active_cases` → `{ "metric": "active_cases", "count": N }`.
-- **Does not** call `serviceCaseFilterCounts()`, `OperationsQueueClassifier`, or `DashboardSnapshot::warmQueueIncidents()`.
-- **List:** `GET /dashboard/workspace?workspace=active_cases&status=active` (paginated via `IncidentListingQuery`, unchanged).
+| Metric | Endpoint | Aggregate source |
+|--------|----------|------------------|
+| `active_cases` | `GET /dashboard/live/counts?metric=active_cases` | `DashboardKpiAggregator::operationallyActiveCasesCount()` |
+| `pending_refunds` | `GET /dashboard/live/counts?metric=pending_refunds` | `DashboardKpiAggregator::refundStatusCounts()['pending']` |
 
-On KPI click, `dashboard-operations-workspace.js` fetches the lightweight count before loading the embedded panel. Ready Queue live paths (`/dashboard/live`, `/dashboard/live/rows`, Ably) are unchanged.
+**Deferred (classifier / queue semantics):** Open, Overdue, Customer Waiting — still SSR + full `/dashboard/live` on case-queue workspace switch only.
 
-**Future candidates** for the same pattern (indexed aggregate, not classifier): `pending_refunds` (`RefundRequest` status counts — already in `DashboardKpiAggregator::refundStatusCounts()`), resolved/closed incident totals (`incidentStatusCounts()`).
+**Client (E + C):** `resources/js/dashboard-live-counts.js`
+
+- Seeds count + timestamp from SSR on load.
+- Stale threshold = `data-live-interval-idle` (default 120s) — no automatic polling loop.
+- On embedded workspace open: fetches count only when stale.
+- Per-metric ↻ button: force one lightweight fetch; dedupes in-flight requests.
+- `hybrid-kpi-reconcile.js` reconciles stale view-only metrics only — **never** `GET /dashboard/live`.
+
+Ready Queue live paths (`/dashboard/live`, `/dashboard/live/rows`, Ably) are unchanged.
 
 ### Quick Create Flow
 
