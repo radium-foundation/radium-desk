@@ -5,7 +5,12 @@ import {
     scheduleHybridKpiReconcile,
 } from '../../resources/js/hybrid-kpi-reconcile';
 
+const reconcileViewOnlyMetrics = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const refreshDashboard = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
+vi.mock('../../resources/js/dashboard-live-counts', () => ({
+    reconcileViewOnlyMetrics,
+}));
 
 vi.mock('../../resources/js/live-dashboard', () => ({
     refreshDashboard,
@@ -15,9 +20,12 @@ describe('hybrid KPI reconcile scheduler', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         resetHybridKpiReconcileForTests();
+        reconcileViewOnlyMetrics.mockClear();
         refreshDashboard.mockClear();
         document.body.innerHTML = `
-            <div id="dashboard-page" data-live-url="/dashboard/live"></div>
+            <div id="dashboard-page"
+                 data-live-url="/dashboard/live"
+                 data-live-counts-url="/dashboard/live/counts"></div>
         `;
     });
 
@@ -27,7 +35,21 @@ describe('hybrid KPI reconcile scheduler', () => {
         vi.clearAllMocks();
     });
 
-    it('schedules a debounced KPI-only refresh after hybrid row merge', async () => {
+    it('schedules a debounced view-only metric reconcile after hybrid row merge', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+
+        scheduleHybridKpiReconcile(pageRoot);
+
+        expect(reconcileViewOnlyMetrics).not.toHaveBeenCalled();
+        expect(refreshDashboard).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(reconcileViewOnlyMetrics).toHaveBeenCalledTimes(1);
+        expect(reconcileViewOnlyMetrics).toHaveBeenCalledWith(pageRoot);
+    });
+
+    it('schedules debounced kpis_only filter-count reconciliation', async () => {
         const pageRoot = document.getElementById('dashboard-page');
 
         scheduleHybridKpiReconcile(pageRoot);
@@ -42,7 +64,6 @@ describe('hybrid KPI reconcile scheduler', () => {
             'hybrid-kpi-reconcile',
             { kpisOnly: true },
         );
-        // live-dashboard maps kpisOnly → query kpis_only=1 (server counts-only short-circuit).
     });
 
     it('coalesces multiple schedules into one reconcile', async () => {
@@ -54,10 +75,12 @@ describe('hybrid KPI reconcile scheduler', () => {
         await vi.advanceTimersByTimeAsync(200);
         scheduleHybridKpiReconcile(pageRoot);
 
+        expect(reconcileViewOnlyMetrics).not.toHaveBeenCalled();
         expect(refreshDashboard).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(500);
 
+        expect(reconcileViewOnlyMetrics).toHaveBeenCalledTimes(1);
         expect(refreshDashboard).toHaveBeenCalledTimes(1);
     });
 
@@ -69,6 +92,7 @@ describe('hybrid KPI reconcile scheduler', () => {
 
         await vi.advanceTimersByTimeAsync(1000);
 
+        expect(reconcileViewOnlyMetrics).not.toHaveBeenCalled();
         expect(refreshDashboard).not.toHaveBeenCalled();
     });
 });

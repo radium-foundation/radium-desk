@@ -45,9 +45,9 @@ Central data layer for dashboard views:
 - Stale threshold = `data-live-interval-idle` (default 120s) — no automatic polling loop.
 - On embedded workspace open: fetches count only when stale.
 - Per-metric ↻ button: force one lightweight fetch; dedupes in-flight requests.
-- `hybrid-kpi-reconcile.js` reconciles stale view-only metrics only — **never** `GET /dashboard/live`.
+- `hybrid-kpi-reconcile.js` reconciles stale view-only metrics via `/dashboard/live/counts`, and when optimistic queue deltas are unsafe, debounces `GET /dashboard/live?kpis_only=1` for authoritative `service_case_filter_counts` (including Ready Queue `action_required`) **without** row HTML.
 
-Ready Queue live paths (`/dashboard/live`, `/dashboard/live/rows`, Ably) are unchanged.
+Ready Queue row live paths (`/dashboard/live` full refresh, `/dashboard/live/rows`, Ably) are unchanged.
 
 ### Classification index (Layer 1)
 
