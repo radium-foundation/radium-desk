@@ -54,16 +54,14 @@ class ServiceCaseLifecycleTimelineEventSource implements TimelineEventSource
                     return null;
                 }
 
-                $isClosed = $newStatus === IncidentStatus::Closed->value;
-                $title = $isClosed ? 'Incident closed' : 'Incident updated';
-                $type = $isClosed
-                    ? TimelineEventType::ServiceCaseClosed
-                    : TimelineEventType::ServiceCaseCreated;
+                if ($newStatus !== IncidentStatus::Closed->value) {
+                    return null;
+                }
 
                 return new TimelineEvent(
-                    type: $type,
+                    type: TimelineEventType::ServiceCaseClosed,
                     occurredAt: $auditLog->created_at,
-                    title: $title,
+                    title: 'Incident closed',
                     actor: $this->resolveActor($auditLog->user),
                     dedupeKey: "incident-status:{$auditLog->id}",
                     detail: $newStatus !== '' ? "Status: {$newStatus}" : null,
