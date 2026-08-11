@@ -41,6 +41,8 @@ class CashfreeWebhookProcessorService
 
     public const AUDIT_EVENT_INVALID_ORDER_TAG = 'cashfree.invalid_order_tag';
 
+    public const AUDIT_EVENT_PAYMENT_LINKED_TO_EXISTING_ORDER = 'cashfree.payment_linked_to_existing_order';
+
     /** Matches Laravel default string columns for product_name / device_model. */
     private const ORDER_TAG_STRING_MAX_LENGTH = 255;
 
@@ -111,6 +113,14 @@ class CashfreeWebhookProcessorService
             try {
                 return $this->attemptPersistSuccessfulPayment($webhookLog, $payload);
             } catch (QueryException $exception) {
+                if ($this->isDuplicateOrderIdViolation($exception)) {
+                    $resolved = $this->attemptRecoverFromDuplicateOrderId($webhookLog, $payload);
+
+                    if ($resolved !== null) {
+                        return $resolved;
+                    }
+                }
+
                 if (! $this->isRetryableContention($exception) || $attempt >= $maxAttempts) {
                     throw $exception;
                 }
@@ -152,6 +162,15 @@ class CashfreeWebhookProcessorService
             return null;
         }
 
+        $businessOrderId = $this->payloadParser->orderId($payload);
+        $existingOrder = $businessOrderId !== null
+            ? $this->findExistingOrderByBusinessOrderId($businessOrderId)
+            : null;
+
+        if ($existingOrder !== null) {
+            return $this->linkPaymentToExistingOrder($webhookLog, $payload, $cfPaymentId, $existingOrder);
+        }
+
         // System user is pre-flighted in process(); resolve again for the unit of work.
         $systemUser = $this->cashfreeHealthService->assertSystemUserReady();
 
@@ -166,6 +185,15 @@ class CashfreeWebhookProcessorService
                 $this->markProcessed($webhookLog, $existingIncident);
 
                 return null;
+            }
+
+            $businessOrderId = $this->payloadParser->orderId($payload);
+            $existingOrder = $businessOrderId !== null
+                ? $this->findExistingOrderByBusinessOrderId($businessOrderId)
+                : null;
+
+            if ($existingOrder !== null) {
+                return $this->linkPaymentToExistingOrder($webhookLog, $payload, $cfPaymentId, $existingOrder);
             }
 
             $created = $this->createOrder($payload, $cfPaymentId, $systemUser);
@@ -219,6 +247,175 @@ class CashfreeWebhookProcessorService
             || str_contains($message, 'Deadlock')
             || str_contains($message, '1205')
             || str_contains($message, 'Lock wait timeout');
+    }
+
+    private function isDuplicateOrderIdViolation(QueryException $exception): bool
+    {
+        $driverCode = (int) ($exception->errorInfo[1] ?? 0);
+
+        if ($driverCode === 1062) {
+            return true;
+        }
+
+        return str_contains($exception->getMessage(), '1062')
+            && str_contains($exception->getMessage(), 'orders_order_id_unique');
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function attemptRecoverFromDuplicateOrderId(
+        CashfreeWebhookLog $webhookLog,
+        array $payload,
+    ): ?CashfreeWebhookDeferredContext {
+        $businessOrderId = $this->payloadParser->orderId($payload);
+
+        if ($businessOrderId === null) {
+            return null;
+        }
+
+        $existingOrder = $this->findExistingOrderByBusinessOrderId($businessOrderId);
+
+        if ($existingOrder === null) {
+            return null;
+        }
+
+        $cfPaymentId = $this->payloadParser->cfPaymentId($payload);
+
+        if ($cfPaymentId === null) {
+            return null;
+        }
+
+        $systemUser = $this->cashfreeHealthService->assertSystemUserReady();
+
+        return $this->linkPaymentToExistingOrder($webhookLog, $payload, $cfPaymentId, $existingOrder, $systemUser);
+    }
+
+    private function findExistingOrderByBusinessOrderId(string $businessOrderId): ?Order
+    {
+        $normalizedOrderId = strtoupper(trim($businessOrderId));
+
+        if ($normalizedOrderId === '') {
+            return null;
+        }
+
+        return Order::query()
+            ->whereRaw('UPPER(order_id) = ?', [$normalizedOrderId])
+            ->first();
+    }
+
+    /**
+     * Link Cashfree payment metadata onto a pre-existing Desk order (e.g. legacy import)
+     * without creating a duplicate order or service case.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function linkPaymentToExistingOrder(
+        CashfreeWebhookLog $webhookLog,
+        array $payload,
+        string $cfPaymentId,
+        Order $existingOrder,
+        ?User $systemUser = null,
+    ): ?CashfreeWebhookDeferredContext {
+        return DB::transaction(function () use ($webhookLog, $payload, $cfPaymentId, $existingOrder, $systemUser): ?CashfreeWebhookDeferredContext {
+            $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
+
+            if ($existingIncident !== null) {
+                $this->markProcessed($webhookLog, $existingIncident);
+
+                return null;
+            }
+
+            $order = Order::query()->whereKey($existingOrder->id)->lockForUpdate()->first();
+
+            if ($order === null) {
+                throw new RuntimeException('Existing Desk order disappeared during Cashfree payment link.');
+            }
+
+            $actor = $systemUser ?? $this->cashfreeHealthService->assertSystemUserReady();
+            $linkedOrder = $this->applyCashfreePaymentFieldsToExistingOrder($order, $payload, $cfPaymentId, $actor);
+
+            $incident = $linkedOrder->latestIncident();
+
+            if ($incident === null) {
+                throw new RuntimeException(
+                    'Cashfree payment cannot be linked because Desk order '.$linkedOrder->order_id.' has no service case.',
+                );
+            }
+
+            $this->auditLogService->log(
+                userId: $actor->id,
+                event: self::AUDIT_EVENT_PAYMENT_LINKED_TO_EXISTING_ORDER,
+                auditable: $linkedOrder,
+                oldValues: null,
+                newValues: [
+                    'webhook_log_id' => $webhookLog->id,
+                    'cf_payment_id' => $cfPaymentId,
+                    'incident_id' => $incident->id,
+                    'order_id' => $linkedOrder->order_id,
+                ],
+            );
+
+            $this->markProcessed($webhookLog, $incident);
+
+            return null;
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function applyCashfreePaymentFieldsToExistingOrder(
+        Order $order,
+        array $payload,
+        string $cfPaymentId,
+        User $systemUser,
+    ): Order {
+        $existingPaymentId = trim((string) ($order->cashfree_payment_id ?? ''));
+
+        if ($existingPaymentId !== '' && $existingPaymentId !== $cfPaymentId) {
+            throw new RuntimeException(sprintf(
+                'Desk order %s is already linked to a different Cashfree payment.',
+                $order->order_id,
+            ));
+        }
+
+        $paymentDate = $this->payloadParser->paymentDate($payload);
+        $updates = [
+            'updated_by' => $systemUser->id,
+        ];
+
+        if ($existingPaymentId === '') {
+            $updates['cashfree_payment_id'] = $cfPaymentId;
+        }
+
+        $nullablePaymentFields = [
+            'payment_amount' => $this->payloadParser->paymentAmount($payload),
+            'payment_method' => $this->payloadParser->paymentMethod($payload),
+            'bank_reference' => $this->payloadParser->bankReference($payload),
+            'gateway_order_id' => $this->payloadParser->gatewayOrderId($payload),
+            'gateway_payment_id' => $this->payloadParser->gatewayPaymentId($payload),
+        ];
+
+        foreach ($nullablePaymentFields as $column => $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            if (blank($order->{$column})) {
+                $updates[$column] = $value;
+            }
+        }
+
+        if ($paymentDate !== null && $order->payment_date === null) {
+            $updates['payment_date'] = Carbon::parse($paymentDate);
+        }
+
+        if (count($updates) > 1) {
+            $order->update($updates);
+        }
+
+        return $order->fresh() ?? $order;
     }
 
     private function dispatchDeferredOperationsSafely(
