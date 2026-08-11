@@ -130,6 +130,25 @@ class CashfreeMissingOrderAutoRecoveryDiscoveryTest extends TestCase
         $this->assertSame([], $this->discoveryRecoverableWebhookIds());
     }
 
+    public function test_mixed_case_existing_business_order_is_not_recoverable(): void
+    {
+        $user = User::query()->firstOrFail();
+
+        Order::query()->create([
+            'order_id' => 'rd3483568',
+            'cashfree_payment_id' => null,
+            'status' => 'active',
+            'created_by' => $user->id,
+        ]);
+
+        $this->createFailedLog('6206001295', 'RD3483568');
+
+        $preview = app(CashfreeMissingOrderAutoRecoveryService::class)->previewRecoverableCandidates();
+
+        $this->assertCount(0, $preview);
+        $this->assertSame([], $this->discoveryRecoverableWebhookIds());
+    }
+
     public function test_candidate_ordering_follows_received_at_then_id(): void
     {
         $this->createFailedLog('6999000303', 'RD-ORDER-3', receivedAt: Carbon::parse('2024-04-01 12:00:00'));
