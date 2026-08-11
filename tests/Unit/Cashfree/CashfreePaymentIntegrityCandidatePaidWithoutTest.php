@@ -77,6 +77,55 @@ class CashfreePaymentIntegrityCandidatePaidWithoutTest extends TestCase
         $this->assertSame(0, $service->paidWithoutDeskOrderCount());
     }
 
+    public function test_mixed_case_existing_order_id_is_not_counted_as_missing(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+
+        Order::query()->create([
+            'order_id' => 'rd3483568',
+            'cashfree_payment_id' => null,
+            'status' => 'active',
+            'created_by' => $user->id,
+        ]);
+
+        $this->createFailedSuccessLog('6206001295', 'RD3483568');
+
+        $service = app(CashfreePaymentIntegrityService::class);
+
+        $this->assertSame(1, $service->candidateSuccessfulPaymentLogsByCfPaymentId()->count());
+        $this->assertSame(0, $service->candidatePaidWithoutDeskOrders()->count());
+        $this->assertSame(0, $service->paidWithoutDeskOrderCount());
+        $this->assertSame(
+            ['count' => 0, 'order_ids' => []],
+            $service->missingPaidOrderSample(5),
+        );
+
+        $assessment = $service->assessLog(CashfreeWebhookLog::query()->firstOrFail());
+        $this->assertSame(CashfreeHistoricalRecoveryDisposition::AlreadyExists, $assessment['disposition']);
+        $this->assertSame('order_id_exists', $assessment['reason']);
+    }
+
+    public function test_mixed_case_variants_match_in_batch_assessment_index(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+
+        Order::query()->create([
+            'order_id' => 'Rd3489999',
+            'cashfree_payment_id' => null,
+            'status' => 'active',
+            'created_by' => $user->id,
+        ]);
+
+        $log = $this->createFailedSuccessLog('6206009999', 'rD3489999');
+        $service = app(CashfreePaymentIntegrityService::class);
+        $classification = $service->classifyFailedWebhooks();
+
+        $this->assertSame(0, $classification->activeFailedWebhooks);
+        $this->assertSame(1, $classification->historicalResolvedFailures);
+        $this->assertSame('order_id_exists', $classification->records[0]->reason);
+        $this->assertSame($log->id, $classification->records[0]->webhookLogId);
+    }
+
     public function test_processed_sibling_assessment_excludes_candidate(): void
     {
         $user = User::factory()->create(['is_active' => true]);

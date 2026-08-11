@@ -190,6 +190,30 @@ class ReprocessFailedCashfreeWebhooksCommandTest extends TestCase
         $this->assertSame($existingIncident->id, $log->incident_id);
     }
 
+    public function test_dry_run_skips_when_business_order_exists_without_payment_link(): void
+    {
+        $systemUser = User::query()->where('email', 'superadmin@radium.local')->firstOrFail();
+
+        Order::query()->create([
+            'order_id' => 'rd3483568',
+            'cashfree_payment_id' => null,
+            'status' => OrderStatus::Active,
+            'created_by' => $systemUser->id,
+            'updated_by' => $systemUser->id,
+        ]);
+
+        $log = $this->createFailedLog([
+            'request_payload' => $this->successfulPayload('6206001295', 'RD3483568'),
+            'cf_payment_id' => '6206001295',
+        ]);
+
+        $this->artisan('cashfree:reprocess-failed --dry-run')
+            ->assertSuccessful()
+            ->expectsOutputToContain(sprintf('Log #%d (skipped (already exists))', $log->id))
+            ->expectsOutputToContain('Would recover: 0')
+            ->expectsOutputToContain('Skipped (already exists): 1');
+    }
+
     public function test_invalid_log_id_returns_failure(): void
     {
         $this->artisan('cashfree:reprocess-failed --log=99999')

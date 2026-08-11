@@ -13,6 +13,7 @@ use App\Models\CashfreeWebhookLog;
 use App\Models\Order;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class CashfreePaymentIntegrityService
 {
@@ -428,7 +429,7 @@ class CashfreePaymentIntegrityService
                 $paymentIds[$cfPaymentId] = true;
             }
 
-            $businessOrderId = $this->payloadParser->orderId($payload);
+            $businessOrderId = $this->normalizeBusinessOrderId($this->payloadParser->orderId($payload));
 
             if ($businessOrderId !== null) {
                 $orderIds[$businessOrderId] = true;
@@ -484,12 +485,12 @@ class CashfreePaymentIntegrityService
             }
 
             Order::query()
-                ->whereIn('order_id', $chunk)
+                ->whereIn(DB::raw('UPPER(order_id)'), $chunk)
                 ->pluck('order_id')
                 ->each(function (mixed $id) use (&$existing): void {
-                    $key = trim((string) $id);
+                    $key = $this->normalizeBusinessOrderId(is_scalar($id) ? (string) $id : null);
 
-                    if ($key !== '') {
+                    if ($key !== null) {
                         $existing[$key] = true;
                     }
                 });
@@ -555,11 +556,30 @@ class CashfreePaymentIntegrityService
      */
     private function businessOrderIdExists(string $businessOrderId, ?array $index): bool
     {
-        if ($index !== null) {
-            return isset($index['order_ids'][$businessOrderId]);
+        $normalizedOrderId = $this->normalizeBusinessOrderId($businessOrderId);
+
+        if ($normalizedOrderId === null) {
+            return false;
         }
 
-        return Order::query()->where('order_id', $businessOrderId)->exists();
+        if ($index !== null) {
+            return isset($index['order_ids'][$normalizedOrderId]);
+        }
+
+        return Order::query()
+            ->whereRaw('UPPER(order_id) = ?', [$normalizedOrderId])
+            ->exists();
+    }
+
+    private function normalizeBusinessOrderId(?string $businessOrderId): ?string
+    {
+        if ($businessOrderId === null) {
+            return null;
+        }
+
+        $normalized = strtoupper(trim($businessOrderId));
+
+        return $normalized !== '' ? $normalized : null;
     }
 
     /**
