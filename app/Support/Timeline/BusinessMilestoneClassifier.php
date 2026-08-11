@@ -50,11 +50,16 @@ final class BusinessMilestoneClassifier
             return BusinessMilestoneType::SerialPending;
         }
 
+        if (str_contains($haystack, 'serial')
+            && (str_contains($haystack, 'number added') || str_contains($haystack, 'serial assigned'))) {
+            return BusinessMilestoneType::SerialVerified;
+        }
+
         if ($event->type === TimelineEventType::Payment || str_contains($haystack, 'payment')) {
             return BusinessMilestoneType::PaymentReceived;
         }
 
-        if ($event->type === TimelineEventType::Appointment || str_contains($haystack, 'appointment')) {
+        if ($event->type === TimelineEventType::Appointment) {
             return BusinessMilestoneType::Appointment;
         }
 

@@ -46,7 +46,7 @@ class ServiceCaseLifecycleTimelineEventSourceTest extends TestCase
         $this->assertSame('Incident closed', $events->first()->title);
     }
 
-    public function test_non_closed_status_change_does_not_emit_service_case_created_for_closure(): void
+    public function test_non_closed_status_change_is_not_emitted(): void
     {
         [$order, $incident, $agent] = $this->createFixture();
 
@@ -61,9 +61,7 @@ class ServiceCaseLifecycleTimelineEventSourceTest extends TestCase
 
         $events = app(ServiceCaseLifecycleTimelineEventSource::class, ['order' => $order])->collect();
 
-        $this->assertCount(1, $events);
-        $this->assertSame(TimelineEventType::ServiceCaseCreated, $events->first()->type);
-        $this->assertNotSame(TimelineEventType::ServiceCaseClosed, $events->first()->type);
+        $this->assertCount(0, $events);
     }
 
     /**

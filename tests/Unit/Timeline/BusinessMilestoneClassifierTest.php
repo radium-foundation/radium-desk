@@ -62,6 +62,10 @@ class BusinessMilestoneClassifierTest extends TestCase
             'assignment' => [TimelineEventType::Assignment, 'Assigned to Sushant', 'assignment:1', BusinessMilestoneType::EngineerAssignment],
             'case_created' => [TimelineEventType::ServiceCaseCreated, 'Service request created', 'case:1', BusinessMilestoneType::CaseCreated],
             'case_closed' => [TimelineEventType::ServiceCaseClosed, 'Incident closed', 'incident-status:1', BusinessMilestoneType::Closure],
+            'serial_number_added' => [TimelineEventType::AuditEvent, 'Serial Number Added', 'audit:1100666', BusinessMilestoneType::SerialVerified],
+            'serial_assigned_sync' => [TimelineEventType::Synchronization, 'Serial assigned', 'serial-assigned:1100666', BusinessMilestoneType::SerialVerified],
+            'device_model_assigned' => [TimelineEventType::AuditEvent, 'Device Model Assigned', 'audit:1097215', BusinessMilestoneType::SystemUpdate],
+            'appointment_notification' => [TimelineEventType::Notification, 'Support appointment booked Sent', 'notification:audit:1', BusinessMilestoneType::OutboundEmail],
             'internal_note' => [TimelineEventType::InternalNote, 'Internal note', 'note:1', BusinessMilestoneType::InternalNote],
         ];
     }

@@ -343,6 +343,15 @@ class OrderActivityTimelineService
                     actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
+                'service_case.deferred_smart_assignment' => new OrderTimelineEntry(
+                    occurredAt: $occurredAt,
+                    title: filled($auditLog->old_values['assigned_to_user_id'] ?? null)
+                        ? 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident, $assigneeUsers)
+                        : 'Assigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident, $assigneeUsers).' (Smart Assignment)',
+                    detail: $incident?->reference_no,
+                    actor: $actor,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
                 default => null,
             };
         }
@@ -473,7 +482,11 @@ class OrderActivityTimelineService
     private function assigneeUsersForAuditLogs(Collection $auditLogs): Collection
     {
         $assigneeIds = $auditLogs
-            ->filter(fn (AuditLog $auditLog): bool => in_array($auditLog->event, ['service_case.assigned', 'service_case.reassigned'], true))
+            ->filter(fn (AuditLog $auditLog): bool => in_array($auditLog->event, [
+                'service_case.assigned',
+                'service_case.reassigned',
+                'service_case.deferred_smart_assignment',
+            ], true))
             ->map(fn (AuditLog $auditLog): mixed => $auditLog->new_values['assigned_to_user_id'] ?? null)
             ->filter()
             ->unique()

@@ -189,6 +189,10 @@ class OrderCustomerTimelineSource implements TimelineEventSource
             return TimelineEventType::ServiceCaseCreated;
         }
 
+        if (str_contains($title, 'device model')) {
+            return TimelineEventType::AuditEvent;
+        }
+
         if (str_contains($title, 'assigned') || str_contains($title, 'reassigned')) {
             return TimelineEventType::Assignment;
         }

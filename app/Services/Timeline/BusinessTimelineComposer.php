@@ -8,6 +8,7 @@ use App\Data\Timeline\BusinessTimelineViewModel;
 use App\Data\TimelineEvent;
 use App\Enums\BusinessMilestoneType;
 use App\Enums\TimelineDayBucket;
+use App\Enums\TimelineEventType;
 use App\Support\AppDateFormatter;
 use App\Support\Timeline\BusinessMilestoneClassifier;
 use App\Support\Timeline\BusinessTimelineTitlePresenter;
@@ -17,6 +18,9 @@ use Illuminate\Support\Collection;
 
 class BusinessTimelineComposer
 {
+    /** @var array<string, list<TimelineEvent>> */
+    private array $mergedRawAttachments = [];
+
     public function __construct(
         private readonly BusinessMilestoneClassifier $classifier,
         private readonly BusinessTimelineTitlePresenter $titlePresenter,
@@ -50,8 +54,12 @@ class BusinessTimelineComposer
                 ->values();
         }
 
+        $this->mergedRawAttachments = [];
+        $eventsForCompose = $this->collapseCanonicalDuplicates($eventsForCompose);
+
         $milestones = $this->toMilestones($eventsForCompose);
         $clustered = $this->clusterConsecutive($milestones);
+        $clustered = $this->clusterSameDaySystemUpdates($clustered);
 
         $totalCount = $clustered->count();
         $page = $clustered->slice($offset, $limit)->values();
@@ -70,6 +78,185 @@ class BusinessTimelineComposer
 
     /**
      * @param  Collection<int, TimelineEvent>  $events
+     * @return Collection<int, TimelineEvent>
+     */
+    private function collapseCanonicalDuplicates(Collection $events): Collection
+    {
+        $events = $this->collapsePayments($events);
+        $events = $this->collapseSerialPairs($events);
+        $events = $this->collapseAppointmentNotifications($events);
+
+        return $events->values();
+    }
+
+    /**
+     * @param  Collection<int, TimelineEvent>  $events
+     * @return Collection<int, TimelineEvent>
+     */
+    private function collapsePayments(Collection $events): Collection
+    {
+        $orderPayments = $events
+            ->filter(fn (TimelineEvent $event): bool => $this->isPaymentOrderKey($event->dedupeKey))
+            ->keyBy(fn (TimelineEvent $event): string => $this->paymentOrderScopeKey($event->dedupeKey));
+
+        if ($orderPayments->isEmpty()) {
+            return $events;
+        }
+
+        $removeKeys = [];
+
+        foreach ($events as $event) {
+            if (! str_contains($event->dedupeKey, 'payment:audit:')) {
+                continue;
+            }
+
+            $scope = $this->paymentAuditScopeKey($event->dedupeKey, $orderPayments);
+            $primary = $scope !== null ? $orderPayments->get($scope) : null;
+
+            if ($primary === null && $orderPayments->count() === 1) {
+                $primary = $orderPayments->first();
+            }
+
+            if ($primary === null) {
+                continue;
+            }
+
+            $this->attachMergedRaw($primary->dedupeKey, $event);
+            $removeKeys[] = $event->dedupeKey;
+        }
+
+        if ($removeKeys === []) {
+            return $events;
+        }
+
+        return $events
+            ->reject(fn (TimelineEvent $event): bool => in_array($event->dedupeKey, $removeKeys, true))
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, TimelineEvent>  $events
+     * @return Collection<int, TimelineEvent>
+     */
+    private function collapseSerialPairs(Collection $events): Collection
+    {
+        $removeKeys = [];
+
+        foreach ($events as $event) {
+            if (! preg_match('/^audit:(\d+)$/', $event->dedupeKey, $matches)) {
+                continue;
+            }
+
+            $title = strtolower($event->title);
+            if (! str_contains($title, 'serial')) {
+                continue;
+            }
+
+            $pairedKey = "serial-assigned:{$matches[1]}";
+            $paired = $events->first(fn (TimelineEvent $candidate): bool => $candidate->dedupeKey === $pairedKey);
+
+            if ($paired === null) {
+                continue;
+            }
+
+            $this->attachMergedRaw($event->dedupeKey, $paired);
+            $removeKeys[] = $pairedKey;
+        }
+
+        if ($removeKeys === []) {
+            return $events;
+        }
+
+        return $events
+            ->reject(fn (TimelineEvent $event): bool => in_array($event->dedupeKey, $removeKeys, true))
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, TimelineEvent>  $events
+     * @return Collection<int, TimelineEvent>
+     */
+    private function collapseAppointmentNotifications(Collection $events): Collection
+    {
+        $appointments = $events
+            ->filter(fn (TimelineEvent $event): bool => $event->type === TimelineEventType::Appointment)
+            ->values();
+
+        if ($appointments->isEmpty()) {
+            return $events;
+        }
+
+        $removeKeys = [];
+
+        foreach ($events as $event) {
+            if ($event->type !== TimelineEventType::Notification) {
+                continue;
+            }
+
+            $title = strtolower($event->title);
+            if (! str_contains($title, 'appointment') || ! str_contains($title, 'book')) {
+                continue;
+            }
+
+            $match = $appointments
+                ->filter(function (TimelineEvent $appointment) use ($event): bool {
+                    return abs($appointment->occurredAt->diffInSeconds($event->occurredAt)) <= 300;
+                })
+                ->sortBy(fn (TimelineEvent $appointment): int => abs($appointment->occurredAt->diffInSeconds($event->occurredAt)))
+                ->first();
+
+            if ($match === null) {
+                continue;
+            }
+
+            $this->attachMergedRaw($match->dedupeKey, $event);
+            $removeKeys[] = $event->dedupeKey;
+        }
+
+        if ($removeKeys === []) {
+            return $events;
+        }
+
+        return $events
+            ->reject(fn (TimelineEvent $event): bool => in_array($event->dedupeKey, $removeKeys, true))
+            ->values();
+    }
+
+    private function attachMergedRaw(string $primaryDedupeKey, TimelineEvent $event): void
+    {
+        $existing = $this->mergedRawAttachments[$primaryDedupeKey] ?? [];
+        $existing[] = $event;
+        $this->mergedRawAttachments[$primaryDedupeKey] = $existing;
+    }
+
+    private function isPaymentOrderKey(string $dedupeKey): bool
+    {
+        return (bool) preg_match('/payment:order:\d+$/', $dedupeKey);
+    }
+
+    private function paymentOrderScopeKey(string $dedupeKey): string
+    {
+        if (preg_match('/^(.*)payment:order:(\d+)$/', $dedupeKey, $matches) !== 1) {
+            return $dedupeKey;
+        }
+
+        return $matches[1].'payment:order:'.$matches[2];
+    }
+
+    /**
+     * @param  Collection<string, TimelineEvent>  $orderPayments
+     */
+    private function paymentAuditScopeKey(string $auditDedupeKey, Collection $orderPayments): ?string
+    {
+        if ($orderPayments->count() === 1) {
+            return $orderPayments->keys()->first();
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  Collection<int, TimelineEvent>  $events
      * @return Collection<int, BusinessTimelineItem>
      */
     private function toMilestones(Collection $events): Collection
@@ -77,7 +264,9 @@ class BusinessTimelineComposer
         return $events
             ->map(function (TimelineEvent $event): BusinessTimelineItem {
                 $type = $this->classifier->classify($event);
-                $presented = $this->titlePresenter->present($type, [$event], false);
+                $mergedRaw = $this->mergedRawAttachments[$event->dedupeKey] ?? [];
+                $rawEvents = array_values(array_merge([$event], $mergedRaw));
+                $presented = $this->titlePresenter->present($type, $rawEvents, false);
 
                 $unified = $event->storyKey === IncomingEmailReopenTimelinePresenter::STORY_KEY;
 
@@ -87,9 +276,9 @@ class BusinessTimelineComposer
                     occurredAt: $event->occurredAt,
                     title: $presented['title'],
                     summary: $presented['summary'],
-                    rawCount: 1,
-                    rawEvents: [$event],
-                    searchText: $this->searchTokens([$event], $presented['title'], $presented['summary']),
+                    rawCount: count($rawEvents),
+                    rawEvents: $rawEvents,
+                    searchText: $this->searchTokens($rawEvents, $presented['title'], $presented['summary']),
                     filterTags: $event->allFilterTags(),
                     isCluster: false,
                     displayFields: $unified ? $event->summaryFields : [],
@@ -144,6 +333,65 @@ class BusinessTimelineComposer
         }
 
         $flush();
+
+        return collect($result)->values();
+    }
+
+    /**
+     * @param  Collection<int, BusinessTimelineItem>  $items  Newest-first
+     * @return Collection<int, BusinessTimelineItem>
+     */
+    private function clusterSameDaySystemUpdates(Collection $items): Collection
+    {
+        if ($items->isEmpty()) {
+            return $items;
+        }
+
+        $byDay = [];
+        foreach ($items->values() as $index => $item) {
+            if ($item->type !== BusinessMilestoneType::SystemUpdate) {
+                continue;
+            }
+
+            $day = AppDateFormatter::inAppTimezone($item->occurredAt)?->toDateString();
+            if ($day === null) {
+                continue;
+            }
+
+            $byDay[$day][] = $index;
+        }
+
+        $removeIndices = [];
+        $replacements = [];
+
+        foreach ($byDay as $indices) {
+            if (count($indices) < 2) {
+                continue;
+            }
+
+            $toMerge = array_map(fn (int $index): BusinessTimelineItem => $items[$index], $indices);
+            $newestIndex = min($indices);
+            $replacements[$newestIndex] = $this->mergeBuffer($toMerge);
+
+            foreach ($indices as $index) {
+                if ($index !== $newestIndex) {
+                    $removeIndices[] = $index;
+                }
+            }
+        }
+
+        if ($removeIndices === []) {
+            return $items;
+        }
+
+        $result = [];
+        foreach ($items->values() as $index => $item) {
+            if (in_array($index, $removeIndices, true)) {
+                continue;
+            }
+
+            $result[] = $replacements[$index] ?? $item;
+        }
 
         return collect($result)->values();
     }
