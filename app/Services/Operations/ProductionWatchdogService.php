@@ -7,11 +7,13 @@ use App\Data\Platform\PlatformHealthSnapshot;
 use App\Enums\AutomationExecutionStatus;
 use App\Enums\OperationsHealthStatus;
 use App\Enums\PlatformHealthStatus;
+use App\Enums\QueueWorkerMode;
 use App\Models\AutomationExecution;
 use App\Models\BonvoiceWebhookLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
+use App\Infrastructure\Queue\QueueMetricsService;
 use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use App\Services\Platform\Health\PlatformHealthSnapshotService;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
@@ -168,21 +170,39 @@ class ProductionWatchdogService
         $status = OperationsHealthStatus::tryFrom((string) ($component['status'] ?? ''));
 
         if ($status === OperationsHealthStatus::Failed) {
+            $queueSnapshot = app(QueueMetricsService::class)->capture();
+            $prefix = 'Queue worker ('.QueueWorkerMode::fromConfig()->value.')';
+
             return [
                 new ProductionCriticalAlert(
                     key: 'queue:dead_letter',
                     label: 'Queue',
-                    message: (string) ($component['detail'] ?? 'Queue worker has failed jobs.'),
+                    message: "{$prefix}: {$queueSnapshot->failedJobs} failed job(s) in the dead-letter queue.",
+                    affectedCount: $queueSnapshot->failedJobs,
                 ),
             ];
         }
 
         if ($status === OperationsHealthStatus::Warning) {
+            $queueSnapshot = app(QueueMetricsService::class)->capture();
+            $prefix = 'Queue worker ('.QueueWorkerMode::fromConfig()->value.')';
+            $message = (string) ($component['detail'] ?? 'Queue backlog requires attention.');
+
+            if ($queueSnapshot->pendingJobs > 50) {
+                $message = "{$prefix}: {$queueSnapshot->pendingJobs} pending job(s) waiting.";
+            } elseif (
+                $queueSnapshot->oldestPendingJobAt !== null
+                && $queueSnapshot->oldestPendingJobAt->lt(now()->subMinutes(30))
+            ) {
+                $message = "{$prefix}: oldest pending job is over 30 minutes old.";
+            }
+
             return [
                 new ProductionCriticalAlert(
                     key: 'queue:backlog',
                     label: 'Queue',
-                    message: (string) ($component['detail'] ?? 'Queue backlog requires attention.'),
+                    message: $message,
+                    affectedCount: $queueSnapshot->pendingJobs,
                 ),
             ];
         }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Data\Operations\ProductionCriticalAlert;
 use App\Data\Operations\IraCommunicationInput;
 use App\Enums\AutomationExecutionStatus;
 use App\Enums\AutomationPolicyActionType;
@@ -9,6 +10,7 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\IraNotificationStatus;
 use App\Enums\IraNotificationType;
+use App\Enums\QueueWorkerMode;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\TeamBroadcastAudience;
 use App\Enums\WaitingReason;
@@ -22,10 +24,12 @@ use App\Services\IncidentReferenceService;
 use App\Services\Operations\IraCommunicationService;
 use App\Services\Operations\ProductionWatchdogService;
 use App\Services\Operations\TeamTelegramBroadcastService;
+use App\Services\Platform\Health\PlatformHealthSnapshotService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -276,6 +280,56 @@ class ProductionWatchdogTest extends TestCase
         $this->assertSame(1, $summary['downtime_incidents']);
     }
 
+    public function test_queue_dead_letter_fingerprint_matches_snapshot_and_legacy_paths(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['infrastructure.queue_worker_mode' => QueueWorkerMode::DedicatedCron->value]);
+
+        $this->insertFailedJobs(2);
+
+        app(PlatformHealthSnapshotService::class)->probe();
+
+        $snapshotPathAlert = $this->queueDeadLetterAlert(
+            app(ProductionWatchdogService::class)->collectCriticalAlerts(),
+        );
+        $this->assertNotNull($snapshotPathAlert);
+        $this->assertSame(2, $snapshotPathAlert->affectedCount);
+
+        Cache::forget(PlatformHealthSnapshotService::CACHE_KEY);
+        app()->forgetInstance(ProductionWatchdogService::class);
+
+        $legacyPathAlert = $this->queueDeadLetterAlert(
+            app(ProductionWatchdogService::class)->collectCriticalAlerts(),
+        );
+        $this->assertNotNull($legacyPathAlert);
+        $this->assertSame(2, $legacyPathAlert->affectedCount);
+        $this->assertSame($snapshotPathAlert->message, $legacyPathAlert->message);
+        $this->assertSame($snapshotPathAlert->fingerprint(), $legacyPathAlert->fingerprint());
+    }
+
+    public function test_automation_failure_fingerprint_unaffected_by_queue_dead_letter_fix(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        $this->createFailedAutomationExecutions(2);
+
+        $alert = array_values(array_filter(
+            app(ProductionWatchdogService::class)->collectCriticalAlerts(),
+            fn (ProductionCriticalAlert $candidate): bool => $candidate->key === 'automation:failures',
+        ))[0] ?? null;
+
+        $this->assertNotNull($alert);
+        $this->assertSame(
+            hash('sha256', 'automation:failures|'.$alert->message.'|'.$alert->affectedCount),
+            $alert->fingerprint(),
+        );
+    }
+
     public function test_critical_alert_message_includes_affected_count(): void
     {
         Http::fake();
@@ -295,6 +349,36 @@ class ProductionWatchdogTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertStringContainsString('Affected: 3', $results[0]->message);
         $this->assertSame($owner->id, $results[0]->user_id);
+    }
+
+    private function insertFailedJobs(int $count): void
+    {
+        for ($index = 0; $index < $count; $index++) {
+            DB::table('failed_jobs')->insert([
+                'uuid' => (string) str()->uuid(),
+                'connection' => 'database',
+                'queue' => 'critical',
+                'payload' => json_encode([
+                    'displayName' => 'App\\Jobs\\RadiumBoxOrderEnrichmentJob',
+                ], JSON_THROW_ON_ERROR),
+                'exception' => 'Test failure '.$index,
+                'failed_at' => now(),
+            ]);
+        }
+    }
+
+    /**
+     * @param  list<ProductionCriticalAlert>  $alerts
+     */
+    private function queueDeadLetterAlert(array $alerts): ?ProductionCriticalAlert
+    {
+        foreach ($alerts as $alert) {
+            if ($alert->key === 'queue:dead_letter') {
+                return $alert;
+            }
+        }
+
+        return null;
     }
 
     private function createSkippedEnquirySpamAutomationExecutions(int $count): void
