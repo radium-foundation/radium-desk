@@ -12,6 +12,8 @@ use App\Models\OutgoingEmailMessage;
 use App\Services\AuditLogService;
 use App\Services\AutomationIdentityService;
 use App\Services\Outbox\OutboxProcessorService;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
 
 class IncomingEmailIngestService
@@ -51,34 +53,48 @@ class IncomingEmailIngestService
 
         $isOwnOutbound = $this->isOwnOutboundEcho($dto);
 
-        $message = IncomingEmailMessage::query()->create([
-            'intake_channel' => IntakeChannel::Email,
-            'mailbox' => strtolower(trim($dto->mailbox)),
-            'channel' => $channel,
-            'provider' => $dto->provider,
-            'provider_message_id' => $dto->providerMessageId,
-            'rfc_message_id' => $this->normalizeMessageId($dto->rfcMessageId),
-            'thread_id' => $dto->threadId,
-            'from_email' => strtolower(trim($dto->fromEmail)),
-            'from_name' => $dto->fromName !== null ? trim($dto->fromName) : null,
-            'to_emails' => array_values(array_map(
-                fn (string $email): string => strtolower(trim($email)),
-                $dto->toEmails,
-            )),
-            'subject' => $dto->subject,
-            'preview' => $preview,
-            'received_at' => $dto->receivedAt,
-            'attachment_count' => max(0, $dto->attachmentCount),
-            'headers' => $dto->headers,
-            'labels' => $dto->labels,
-            'raw_payload' => $rawPayload,
-            'status' => $isOwnOutbound
-                ? IncomingEmailMessageStatus::Ignored
-                : IncomingEmailMessageStatus::Received,
-            'ignore_reason' => $isOwnOutbound ? 'own_outbound' : null,
-            'classification' => $isOwnOutbound ? IncomingEmailClassification::OwnOutbound : null,
-            'processed_at' => $isOwnOutbound ? now() : null,
-        ]);
+        try {
+            $message = IncomingEmailMessage::query()->create([
+                'intake_channel' => IntakeChannel::Email,
+                'mailbox' => strtolower(trim($dto->mailbox)),
+                'channel' => $channel,
+                'provider' => $dto->provider,
+                'provider_message_id' => $dto->providerMessageId,
+                'rfc_message_id' => $this->normalizeMessageId($dto->rfcMessageId),
+                'thread_id' => $dto->threadId,
+                'from_email' => strtolower(trim($dto->fromEmail)),
+                'from_name' => $dto->fromName !== null ? trim($dto->fromName) : null,
+                'to_emails' => array_values(array_map(
+                    fn (string $email): string => strtolower(trim($email)),
+                    $dto->toEmails,
+                )),
+                'subject' => $dto->subject,
+                'preview' => $preview,
+                'received_at' => $dto->receivedAt,
+                'attachment_count' => max(0, $dto->attachmentCount),
+                'headers' => $dto->headers,
+                'labels' => $dto->labels,
+                'raw_payload' => $rawPayload,
+                'status' => $isOwnOutbound
+                    ? IncomingEmailMessageStatus::Ignored
+                    : IncomingEmailMessageStatus::Received,
+                'ignore_reason' => $isOwnOutbound ? 'own_outbound' : null,
+                'classification' => $isOwnOutbound ? IncomingEmailClassification::OwnOutbound : null,
+                'processed_at' => $isOwnOutbound ? now() : null,
+            ]);
+        } catch (UniqueConstraintViolationException|QueryException $exception) {
+            if (! $this->isRfcMessageIdDuplicateViolation($exception)) {
+                throw $exception;
+            }
+
+            $existingAfterRace = $this->findExisting($dto);
+
+            if ($existingAfterRace instanceof IncomingEmailMessage) {
+                return $existingAfterRace;
+            }
+
+            throw $exception;
+        }
 
         $actor = $this->automationIdentity->systemUser();
 
@@ -198,7 +214,7 @@ class IncomingEmailIngestService
         )));
     }
 
-    private function findExisting(NormalizedInboundEmail $dto): ?IncomingEmailMessage
+    protected function findExisting(NormalizedInboundEmail $dto): ?IncomingEmailMessage
     {
         $rfcMessageId = $this->normalizeMessageId($dto->rfcMessageId);
 
@@ -243,5 +259,32 @@ class IncomingEmailIngestService
         }
 
         return $mailboxes[$key] ?? null;
+    }
+
+    private function isRfcMessageIdDuplicateViolation(
+        QueryException|UniqueConstraintViolationException $exception,
+    ): bool {
+        if (! $this->isUniqueConstraintViolation($exception)) {
+            return false;
+        }
+
+        $message = $exception->getMessage();
+
+        return str_contains($message, 'iem_rfc_message_id_uq')
+            || str_contains($message, 'incoming_email_messages.rfc_message_id');
+    }
+
+    private function isUniqueConstraintViolation(
+        QueryException|UniqueConstraintViolationException $exception,
+    ): bool {
+        if ($exception instanceof UniqueConstraintViolationException) {
+            return true;
+        }
+
+        $errorCode = (string) ($exception->errorInfo[1] ?? '');
+        $sqlState = $exception->errorInfo[0] ?? null;
+
+        return in_array($errorCode, ['1062', '19', '2067', '1555'], true)
+            || in_array($sqlState, ['23000', '23505', '2067'], true);
     }
 }

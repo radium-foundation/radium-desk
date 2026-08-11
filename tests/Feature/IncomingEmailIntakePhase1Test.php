@@ -24,8 +24,10 @@ use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\Sources\IncomingEmailTimelineEventSource;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 class IncomingEmailIntakePhase1Test extends TestCase
@@ -128,6 +130,60 @@ class IncomingEmailIntakePhase1Test extends TestCase
         $this->assertSame(1, IncidentIncomingEmailLink::query()->where('incident_id', $incident->id)->count());
         $this->assertSame(1, Incident::query()->count());
         $this->assertSame($order->id, $incident->fresh()->order_id);
+    }
+
+    public function test_ingest_returns_existing_message_on_rfc_message_id_insert_race(): void
+    {
+        $this->seedCustomerWithOpenIncident('customer@example.com');
+
+        $existing = $this->ingestEmail(
+            fromEmail: 'customer@example.com',
+            rfcMessageId: '<race-id@radium.test>',
+            providerMessageId: 'prov-winner',
+        );
+
+        $this->partialMock(IncomingEmailIngestService::class, function (MockInterface $mock) use ($existing): void {
+            $mock->shouldAllowMockingProtectedMethods();
+            $mock->shouldReceive('findExisting')
+                ->twice()
+                ->andReturn(null, $existing);
+        });
+
+        $raced = $this->ingestEmail(
+            fromEmail: 'customer@example.com',
+            rfcMessageId: '<race-id@radium.test>',
+            providerMessageId: 'prov-loser',
+        );
+
+        $this->assertNotNull($raced);
+        $this->assertSame($existing->id, $raced?->id);
+        $this->assertSame(1, IncomingEmailMessage::query()->count());
+    }
+
+    public function test_ingest_propagates_unrelated_query_exceptions(): void
+    {
+        $this->seedCustomerWithOpenIncident('customer@example.com');
+
+        $this->partialMock(IncomingEmailIngestService::class, function (MockInterface $mock): void {
+            $mock->shouldAllowMockingProtectedMethods();
+            $mock->shouldReceive('findExisting')->once()->andReturn(null);
+        });
+
+        IncomingEmailMessage::creating(static function (): void {
+            throw new QueryException(
+                'insert into incoming_email_messages',
+                'insert into incoming_email_messages (...) values (...)',
+                [],
+                new \PDOException('SQLSTATE[23000]: 1452 Cannot add or update a child row: a foreign key constraint fails'),
+            );
+        });
+
+        $this->expectException(QueryException::class);
+
+        $this->ingestEmail(
+            fromEmail: 'customer@example.com',
+            rfcMessageId: '<unrelated@radium.test>',
+        );
     }
 
     public function test_spam_label_is_ignored(): void

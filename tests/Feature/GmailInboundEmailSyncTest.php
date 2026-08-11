@@ -362,14 +362,55 @@ class GmailInboundEmailSyncTest extends TestCase
     {
         Http::fake();
 
-        $lock = Cache::lock('gmail-inbound-sync:'.sha1('support@radiumbox.com'), 120);
+        $lockSeconds = max(1, (int) config('inbound_email.gmail.sync_lock_seconds', 900));
+        $lock = Cache::lock('gmail-inbound-sync:'.sha1('support@radiumbox.com'), $lockSeconds);
         $this->assertTrue($lock->get());
 
         try {
             $result = app(IncomingEmailGmailSyncService::class)->sync();
 
+            $this->assertFalse($result['skipped_run'] ?? false);
             $this->assertSame(1, $result['skipped']);
             $this->assertSame(0, $result['pulled']);
+            Http::assertNothingSent();
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function test_skips_sync_when_orchestrator_lock_is_held(): void
+    {
+        Http::fake();
+
+        $lockSeconds = max(1, (int) config('inbound_email.gmail.sync_lock_seconds', 900));
+        $lock = Cache::lock('gmail-inbound-sync:orchestrator', $lockSeconds);
+        $this->assertTrue($lock->get());
+
+        try {
+            $result = app(IncomingEmailGmailSyncService::class)->sync();
+
+            $this->assertTrue($result['skipped_run']);
+            $this->assertSame(0, $result['pulled']);
+            $this->assertSame(0, $result['skipped']);
+            Http::assertNothingSent();
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function test_command_exits_success_when_orchestrator_lock_is_held(): void
+    {
+        Http::fake();
+
+        $lockSeconds = max(1, (int) config('inbound_email.gmail.sync_lock_seconds', 900));
+        $lock = Cache::lock('gmail-inbound-sync:orchestrator', $lockSeconds);
+        $this->assertTrue($lock->get());
+
+        try {
+            $this->artisan('inbound-email:sync-gmail')
+                ->assertSuccessful()
+                ->expectsOutputToContain('Gmail sync skipped; another run is already in progress.');
+
             Http::assertNothingSent();
         } finally {
             $lock->release();

@@ -42,6 +42,12 @@ class SyncGmailInboundEmailCommand extends Command
             return self::FAILURE;
         }
 
+        if ($result['skipped_run'] ?? false) {
+            $this->info('Gmail sync skipped; another run is already in progress.');
+
+            return self::SUCCESS;
+        }
+
         Log::info('[GmailInbound] Sync run completed.', [
             'mailboxes' => $result['mailboxes'],
             'pulled' => $result['pulled'],

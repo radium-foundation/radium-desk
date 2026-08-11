@@ -19,7 +19,7 @@ use Throwable;
  */
 class IncomingEmailGmailSyncService
 {
-    private const MAILBOX_LOCK_SECONDS = 120;
+    private const ORCHESTRATOR_LOCK_KEY = 'gmail-inbound-sync:orchestrator';
 
     public function __construct(
         private readonly GmailInboundEmailProvider $gmailProvider,
@@ -39,28 +39,69 @@ class IncomingEmailGmailSyncService
      *     messages_retried: int,
      *     history_pages: int,
      *     cursor_advances: int,
-     *     failed_mailboxes: int
+     *     failed_mailboxes: int,
+     *     skipped_run: bool
      * }
      */
     public function sync(): array
     {
         if (! config('inbound_email.enabled') || ! config('inbound_email.gmail.enabled')) {
-            return [
-                'mailboxes' => 0,
-                'pulled' => 0,
-                'ingested' => 0,
-                'skipped' => 0,
-                'stale_messages_skipped' => 0,
-                'messages_failed' => 0,
-                'messages_retried' => 0,
-                'history_pages' => 0,
-                'cursor_advances' => 0,
-                'failed_mailboxes' => 0,
-            ];
+            return $this->emptySyncResult();
         }
 
         $this->assertGmailConfigured();
 
+        $orchestratorLock = Cache::lock(self::ORCHESTRATOR_LOCK_KEY, $this->syncLockSeconds());
+
+        if (! $orchestratorLock->get()) {
+            Log::info('[GmailInbound] Skipping sync; another run is already in progress.');
+
+            return $this->emptySyncResult(skippedRun: true);
+        }
+
+        try {
+            return $this->syncMailboxesWithLocks();
+        } finally {
+            $orchestratorLock->release();
+        }
+    }
+
+    public function rebaselineMailbox(string $mailbox): string
+    {
+        $this->assertGmailConfigured();
+
+        $orchestratorLock = Cache::lock(self::ORCHESTRATOR_LOCK_KEY, $this->syncLockSeconds());
+
+        if (! $orchestratorLock->get()) {
+            throw new RuntimeException('Gmail sync is already in progress.');
+        }
+
+        try {
+            $provider = $this->gmailProvider->forMailbox($mailbox);
+
+            return $provider->rebaseline();
+        } finally {
+            $orchestratorLock->release();
+        }
+    }
+
+    /**
+     * @return array{
+     *     mailboxes: int,
+     *     pulled: int,
+     *     ingested: int,
+     *     skipped: int,
+     *     stale_messages_skipped: int,
+     *     messages_failed: int,
+     *     messages_retried: int,
+     *     history_pages: int,
+     *     cursor_advances: int,
+     *     failed_mailboxes: int,
+     *     skipped_run: bool
+     * }
+     */
+    private function syncMailboxesWithLocks(): array
+    {
         $mailboxes = $this->syncMailboxes();
         $pulled = 0;
         $ingested = 0;
@@ -73,7 +114,7 @@ class IncomingEmailGmailSyncService
         $failedMailboxes = 0;
 
         foreach ($mailboxes as $mailbox) {
-            $lock = Cache::lock($this->mailboxLockKey($mailbox), self::MAILBOX_LOCK_SECONDS);
+            $lock = Cache::lock($this->mailboxLockKey($mailbox), $this->syncLockSeconds());
 
             if (! $lock->get()) {
                 $skipped++;
@@ -122,16 +163,45 @@ class IncomingEmailGmailSyncService
             'history_pages' => $historyPages,
             'cursor_advances' => $cursorAdvances,
             'failed_mailboxes' => $failedMailboxes,
+            'skipped_run' => false,
         ];
     }
 
-    public function rebaselineMailbox(string $mailbox): string
+    /**
+     * @return array{
+     *     mailboxes: int,
+     *     pulled: int,
+     *     ingested: int,
+     *     skipped: int,
+     *     stale_messages_skipped: int,
+     *     messages_failed: int,
+     *     messages_retried: int,
+     *     history_pages: int,
+     *     cursor_advances: int,
+     *     failed_mailboxes: int,
+     *     skipped_run: bool
+     * }
+     */
+    private function emptySyncResult(bool $skippedRun = false): array
     {
-        $this->assertGmailConfigured();
+        return [
+            'mailboxes' => 0,
+            'pulled' => 0,
+            'ingested' => 0,
+            'skipped' => 0,
+            'stale_messages_skipped' => 0,
+            'messages_failed' => 0,
+            'messages_retried' => 0,
+            'history_pages' => 0,
+            'cursor_advances' => 0,
+            'failed_mailboxes' => 0,
+            'skipped_run' => $skippedRun,
+        ];
+    }
 
-        $provider = $this->gmailProvider->forMailbox($mailbox);
-
-        return $provider->rebaseline();
+    private function syncLockSeconds(): int
+    {
+        return max(1, (int) config('inbound_email.gmail.sync_lock_seconds', 900));
     }
 
     /**

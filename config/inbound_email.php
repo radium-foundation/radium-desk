@@ -267,10 +267,18 @@ return [
         'schedule_interval_minutes' => max(1, (int) env('INBOUND_EMAIL_GMAIL_SYNC_INTERVAL_MINUTES', 2)),
 
         /*
-         * Hard ceiling for a single artisan sync invocation (CLI set_time_limit).
+         * PHP execution-time ceiling for a single artisan sync invocation (set_time_limit).
+         * This limits measured script time only; time blocked in I/O (Gmail HTTP, DB, outbox)
+         * is excluded, so it is not a reliable wall-clock cap for I/O-heavy sync work.
          * Keep below the schedule withoutOverlapping(10) mutex window (10 minutes).
          */
         'sync_timeout_seconds' => (int) env('INBOUND_EMAIL_GMAIL_SYNC_TIMEOUT_SECONDS', 540),
+
+        /*
+         * Cache lock TTL for Gmail sync orchestrator and per-mailbox locks (seconds).
+         * Must cover expected wall-clock sync duration; auto-expires if a process crashes.
+         */
+        'sync_lock_seconds' => max(1, (int) env('INBOUND_EMAIL_GMAIL_SYNC_LOCK_SECONDS', 900)),
 
         /*
          * Mailboxes to sync. Defaults to keys of inbound_email.mailboxes when empty.
