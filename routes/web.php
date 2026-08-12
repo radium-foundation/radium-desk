@@ -43,6 +43,7 @@ use App\Http\Controllers\IncomingEmailAdminController;
 use App\Http\Controllers\IncomingEmailContentController;
 use App\Http\Controllers\IraMemoryAdminController;
 use App\Http\Controllers\IraOperationsBrainController;
+use App\Http\Controllers\LeaveRequestAmendmentController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\MyPerformanceController;
 use App\Http\Controllers\NotificationController;
@@ -298,12 +299,22 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.operations.telegram.broadcast');
 
     Route::resource('leave-requests', LeaveRequestController::class)
-        ->except(['edit', 'update', 'destroy'])
+        ->except(['destroy'])
         ->parameters(['leave-requests' => 'leaveRequest']);
     Route::post('leave-requests/{leaveRequest}/approve', [LeaveRequestController::class, 'approve'])
         ->name('leave-requests.approve');
     Route::post('leave-requests/{leaveRequest}/reject', [LeaveRequestController::class, 'reject'])
         ->name('leave-requests.reject');
+    Route::post('leave-requests/{leaveRequest}/amendments', [LeaveRequestAmendmentController::class, 'store'])
+        ->name('leave-requests.amendments.store');
+    Route::post('leave-requests/{leaveRequest}/manage-update', [LeaveRequestController::class, 'manageUpdate'])
+        ->name('leave-requests.manage-update');
+    Route::post('leave-requests/{leaveRequest}/manage-cancel', [LeaveRequestController::class, 'manageCancel'])
+        ->name('leave-requests.manage-cancel');
+    Route::post('leave-request-amendments/{amendment}/approve', [LeaveRequestAmendmentController::class, 'approve'])
+        ->name('leave-request-amendments.approve');
+    Route::post('leave-request-amendments/{amendment}/reject', [LeaveRequestAmendmentController::class, 'reject'])
+        ->name('leave-request-amendments.reject');
 
     Route::resource('todos', TodoController::class);
     Route::post('todos/{todo}/complete', [TodoController::class, 'complete'])->name('todos.complete');

@@ -7,6 +7,8 @@ use App\Enums\LeavePayClass;
 use App\Enums\LeaveRequestStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class LeaveRequest extends Model
 {
@@ -65,5 +67,37 @@ class LeaveRequest extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function amendments(): HasMany
+    {
+        return $this->hasMany(LeaveRequestAmendment::class);
+    }
+
+    public function pendingAmendment(): HasOne
+    {
+        return $this->hasOne(LeaveRequestAmendment::class)
+            ->where('status', \App\Enums\LeaveAmendmentStatus::Pending->value)
+            ->latestOfMany();
+    }
+
+    public function hasPendingAmendment(): bool
+    {
+        return $this->pendingAmendment()->exists();
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->status === LeaveRequestStatus::Approved;
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === LeaveRequestStatus::Pending;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === LeaveRequestStatus::Cancelled;
     }
 }

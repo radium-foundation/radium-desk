@@ -32,7 +32,6 @@ enum WorkforceEventType: string
     public function isReserved(): bool
     {
         return match ($this) {
-            self::LeaveCancelled,
             self::HalfDayRecorded,
             self::PerformanceCalculated,
             self::SalesCredited,
