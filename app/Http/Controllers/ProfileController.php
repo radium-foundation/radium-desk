@@ -6,6 +6,7 @@ use App\Http\Requests\ProfileTelegramUpdateRequest;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Services\Operations\OperationsRoleService;
 use App\Services\Operations\TeamAvailabilityService;
+use App\Services\UserTelegramSettingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +18,7 @@ class ProfileController extends Controller
     public function __construct(
         private readonly TeamAvailabilityService $availabilityService,
         private readonly OperationsRoleService $roleService,
+        private readonly UserTelegramSettingsService $telegramSettingsService,
     ) {}
 
     /**
@@ -30,6 +32,7 @@ class ProfileController extends Controller
             'user' => $user,
             'showsTeamAvailability' => $this->roleService->isTeamMember($user),
             'availability' => $this->availabilityService->snapshotFor($user),
+            'telegramSettings' => $this->telegramSettingsService->snapshotForProfile($user),
         ]);
     }
 
@@ -51,14 +54,19 @@ class ProfileController extends Controller
 
     public function updateTelegram(ProfileTelegramUpdateRequest $request): RedirectResponse
     {
-        $validated = $request->validated();
         $user = $request->user();
 
-        $user->fill([
-            'telegram_chat_id' => $validated['telegram_chat_id'] ?? null,
-            'telegram_notifications_enabled' => (bool) ($validated['telegram_notifications_enabled'] ?? false),
-        ]);
-        $user->save();
+        if ($user->can('users.manage')) {
+            $this->telegramSettingsService->applyProfileUpdateForManager(
+                $user,
+                $request->validated(),
+            );
+        } else {
+            $this->telegramSettingsService->applyProfileConnect(
+                $user,
+                $request->validated('telegram_chat_id'),
+            );
+        }
 
         return Redirect::route('profile.edit')->with('status', 'telegram-updated');
     }

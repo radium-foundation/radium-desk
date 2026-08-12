@@ -1,7 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\PerformanceIntelligenceController;
 use App\Http\Controllers\AdministrationHomeController;
-use App\Http\Controllers\GmailAdminActionsController;
 use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
@@ -10,46 +10,57 @@ use App\Http\Controllers\AutomationOperationsController;
 use App\Http\Controllers\CashBook\CashBookController;
 use App\Http\Controllers\CashfreeWebhookLogController;
 use App\Http\Controllers\ChangelogController;
+use App\Http\Controllers\CommercialServiceRestorationController;
 use App\Http\Controllers\CompanyHolidayController;
 use App\Http\Controllers\ConversationWorkspaceController;
-use App\Http\Controllers\CommercialServiceRestorationController;
 use App\Http\Controllers\Customer360Controller;
-use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardActivityController;
-use App\Http\Controllers\DashboardTeamActivityController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
 use App\Http\Controllers\DashboardLiveController;
 use App\Http\Controllers\DashboardServiceCaseController;
-use App\Http\Controllers\OperationsWorkspaceController;
+use App\Http\Controllers\DashboardTeamActivityController;
 use App\Http\Controllers\DashboardWorkspaceActionController;
 use App\Http\Controllers\DashboardWorkspaceComponentController;
 use App\Http\Controllers\DashboardWorkspaceDeviceModelController;
 use App\Http\Controllers\DeviceModelAliasController;
 use App\Http\Controllers\DeviceModelController;
+use App\Http\Controllers\Finance\BankAccountController;
+use App\Http\Controllers\Finance\BankLedgerController;
+use App\Http\Controllers\Finance\CashAccountController;
+use App\Http\Controllers\Finance\CashLedgerController;
+use App\Http\Controllers\Finance\CustomerPaymentController;
+use App\Http\Controllers\Finance\DailyClosingController;
+use App\Http\Controllers\Finance\DashboardController as FinanceDashboardController;
+use App\Http\Controllers\Finance\ExpenseCategoryController;
+use App\Http\Controllers\Finance\ExpenseController as FinanceExpenseController;
+use App\Http\Controllers\Finance\PaymentMethodController;
+use App\Http\Controllers\Finance\SettingsController as FinanceSettingsController;
+use App\Http\Controllers\Finance\VendorPaymentController;
+use App\Http\Controllers\GmailAdminActionsController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\IncomingEmailAdminController;
-use App\Http\Controllers\IraMemoryAdminController;
 use App\Http\Controllers\IncomingEmailContentController;
+use App\Http\Controllers\IraMemoryAdminController;
 use App\Http\Controllers\IraOperationsBrainController;
 use App\Http\Controllers\LeaveRequestController;
-use App\Http\Controllers\TodoController;
 use App\Http\Controllers\MyPerformanceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
-use App\Http\Controllers\Admin\PerformanceIntelligenceController;
 use App\Http\Controllers\OperationalSystemSettingsController;
-use App\Http\Controllers\RealtimeAdminActionsController;
-use App\Http\Controllers\RealtimeConnectionStatusController;
 use App\Http\Controllers\OperationsDashboardController;
-use App\Http\Controllers\PlatformDashboardController;
+use App\Http\Controllers\OperationsWorkspaceController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderDeviceModelController;
 use App\Http\Controllers\OrderLegacyVerificationController;
 use App\Http\Controllers\OrderSerialController;
 use App\Http\Controllers\OrderTransactionController;
+use App\Http\Controllers\PlatformDashboardController;
 use App\Http\Controllers\PresenceHeartbeatController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuickServiceRequestController;
+use App\Http\Controllers\RealtimeAdminActionsController;
+use App\Http\Controllers\RealtimeConnectionStatusController;
 use App\Http\Controllers\RefundRequestController;
 use App\Http\Controllers\RemarkController;
 use App\Http\Controllers\SearchController;
@@ -63,30 +74,21 @@ use App\Http\Controllers\SupportAppointmentController;
 use App\Http\Controllers\SupportScheduleRedirectController;
 use App\Http\Controllers\TeamAvailabilityController;
 use App\Http\Controllers\TeamPerformanceController;
+use App\Http\Controllers\TeamTelegramBroadcastController;
+use App\Http\Controllers\TeamWorkScheduleController;
+use App\Http\Controllers\TodoController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserTelegramSettingsController;
 use App\Http\Controllers\Workforce\EmployeeSalaryController;
 use App\Http\Controllers\Workforce\MonthlyAttendanceController;
 use App\Http\Controllers\Workforce\PayrollController;
 use App\Http\Controllers\Workforce\ShortAttendanceReviewController;
-use App\Http\Controllers\Workforce\WorkRecognitionController;
 use App\Http\Controllers\Workforce\WorkforceMember360Controller;
-use App\Http\Controllers\Finance\BankAccountController;
-use App\Http\Controllers\Finance\BankLedgerController;
-use App\Http\Controllers\Finance\CashAccountController;
-use App\Http\Controllers\Finance\CashLedgerController;
-use App\Http\Controllers\Finance\CustomerPaymentController;
-use App\Http\Controllers\Finance\DailyClosingController;
-use App\Http\Controllers\Finance\DashboardController as FinanceDashboardController;
-use App\Http\Controllers\Finance\ExpenseCategoryController;
-use App\Http\Controllers\Finance\ExpenseController as FinanceExpenseController;
-use App\Http\Controllers\Finance\PaymentMethodController;
-use App\Http\Controllers\Finance\SettingsController as FinanceSettingsController;
-use App\Http\Controllers\Finance\VendorPaymentController;
-use App\Http\Controllers\TeamTelegramBroadcastController;
-use App\Http\Controllers\TeamWorkScheduleController;
+use App\Http\Controllers\Workforce\WorkRecognitionController;
 use App\Http\Controllers\Workforce360Controller;
-use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkspaceActionController;
 use App\Http\Controllers\WorkspaceComponentController;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -130,10 +132,10 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('dashboard/service-cases/{incident}/customer-360/radiumbox-sync', [Customer360Controller::class, 'radiumBoxSync'])
         ->name('dashboard.service-cases.customer-360.radiumbox-sync');
     Route::post('dashboard/service-cases/{incident}/customer-360/commercial-service-restore/{refund}', [CommercialServiceRestorationController::class, 'store'])
-        ->middleware('permission:'.\Database\Seeders\RolePermissionSeeder::PERMISSION_COMMERCIAL_SERVICE_RESTORE)
+        ->middleware('permission:'.RolePermissionSeeder::PERMISSION_COMMERCIAL_SERVICE_RESTORE)
         ->name('dashboard.service-cases.customer-360.commercial-service-restore');
     Route::post('dashboard/service-cases/{incident}/customer-360/commercial-service-restore/{restoration}/revoke', [CommercialServiceRestorationController::class, 'revoke'])
-        ->middleware('permission:'.\Database\Seeders\RolePermissionSeeder::PERMISSION_COMMERCIAL_SERVICE_RESTORE)
+        ->middleware('permission:'.RolePermissionSeeder::PERMISSION_COMMERCIAL_SERVICE_RESTORE)
         ->name('dashboard.service-cases.customer-360.commercial-service-restore.revoke');
     Route::get('dashboard/service-cases/{incident}/customer-360/device', [Customer360Controller::class, 'device'])
         ->name('dashboard.service-cases.customer-360.device');
@@ -397,6 +399,8 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::put('users/{user}/work-schedule', [TeamWorkScheduleController::class, 'update'])
         ->name('users.work-schedule.update');
+    Route::put('users/{user}/telegram', [UserTelegramSettingsController::class, 'update'])
+        ->name('users.telegram.update');
 
     Route::get('/admin/administration', AdministrationHomeController::class)
         ->name('admin.administration.index');

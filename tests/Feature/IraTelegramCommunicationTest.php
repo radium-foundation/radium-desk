@@ -6,29 +6,33 @@ use App\Data\Operations\IraCommunicationInput;
 use App\Data\Operations\IraMorningBriefing;
 use App\Data\Operations\IraOperationalRisk;
 use App\Data\Operations\IraOperationalSnapshotData;
+use App\Data\Operations\SmartAssignmentResult;
 use App\Enums\AI\AIRiskLevel;
+use App\Enums\IncidentSource;
+use App\Enums\IncidentStatus;
 use App\Enums\IraNotificationStatus;
 use App\Enums\IraNotificationType;
 use App\Enums\IraRiskCategory;
-use App\Enums\IncidentSource;
-use App\Enums\IncidentStatus;
+use App\Enums\NotificationCategory;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Enums\TeamAvailabilityStatus;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
+use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
+use App\Listeners\Operations\DispatchSupportAssignmentTelegramNotification;
 use App\Models\Incident;
 use App\Models\IraNotification;
 use App\Models\Order;
 use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
+use App\Services\Notifications\IraNotificationCategoryMapper;
+use App\Services\Operations\IraAssignmentTelegramBatchService;
 use App\Services\Operations\IraCommunicationService;
 use App\Services\Operations\IraOperationsBrainService;
 use Database\Seeders\RolePermissionSeeder;
-use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
@@ -350,7 +354,7 @@ class IraTelegramCommunicationTest extends TestCase
             incident: $incident->fresh(),
             appointment: $appointment,
             assignee: $assignee,
-            result: \App\Data\Operations\SmartAssignmentResult::assigned(
+            result: SmartAssignmentResult::assigned(
                 assignee: $assignee,
                 reasons: ['Available'],
                 context: ['factors' => ['Available']],
@@ -358,7 +362,7 @@ class IraTelegramCommunicationTest extends TestCase
         ));
 
         Http::assertNothingSent();
-        $this->assertNotNull(app(\App\Services\Operations\IraAssignmentTelegramBatchService::class)->peek($assignee->id));
+        $this->assertNotNull(app(IraAssignmentTelegramBatchService::class)->peek($assignee->id));
 
         Carbon::setTestNow(Carbon::parse('2026-07-09 10:05:00', 'Asia/Kolkata'));
         $this->artisan('ira:flush-assignment-telegram-batches')->assertSuccessful();
@@ -406,7 +410,7 @@ class IraTelegramCommunicationTest extends TestCase
             incident: $incident,
             appointment: $appointment,
             assignee: $assignee,
-            result: \App\Data\Operations\SmartAssignmentResult::assigned(
+            result: SmartAssignmentResult::assigned(
                 assignee: $assignee,
                 reasons: ['Available'],
                 context: ['factors' => ['Available']],
@@ -433,7 +437,7 @@ class IraTelegramCommunicationTest extends TestCase
     public function test_legacy_support_assignment_telegram_listener_is_not_registered(): void
     {
         $this->assertFalse(
-            class_exists(\App\Listeners\Operations\DispatchSupportAssignmentTelegramNotification::class),
+            class_exists(DispatchSupportAssignmentTelegramNotification::class),
         );
 
         $registered = collect(app('events')->getRawListeners()[SupportAppointmentSmartAssigned::class] ?? [])
@@ -493,7 +497,7 @@ class IraTelegramCommunicationTest extends TestCase
             incident: $incident,
             appointment: $appointment,
             assignee: $assignee,
-            result: \App\Data\Operations\SmartAssignmentResult::assigned(
+            result: SmartAssignmentResult::assigned(
                 assignee: $assignee,
                 reasons: ['Available'],
                 context: ['factors' => ['Available']],
@@ -612,26 +616,26 @@ class IraTelegramCommunicationTest extends TestCase
     public function test_ira_notification_category_mapping_covers_risk_alerts(): void
     {
         $this->assertSame(
-            \App\Enums\NotificationCategory::Escalation,
-            \App\Services\Notifications\IraNotificationCategoryMapper::toNotificationCategory(
+            NotificationCategory::Escalation,
+            IraNotificationCategoryMapper::toNotificationCategory(
                 IraNotificationType::RiskAlert,
             ),
         );
         $this->assertSame(
-            \App\Enums\NotificationCategory::DailySummary,
-            \App\Services\Notifications\IraNotificationCategoryMapper::toNotificationCategory(
+            NotificationCategory::DailySummary,
+            IraNotificationCategoryMapper::toNotificationCategory(
                 IraNotificationType::DailyBriefing,
             ),
         );
         $this->assertSame(
-            \App\Enums\NotificationCategory::Assignment,
-            \App\Services\Notifications\IraNotificationCategoryMapper::toNotificationCategory(
+            NotificationCategory::Assignment,
+            IraNotificationCategoryMapper::toNotificationCategory(
                 IraNotificationType::SmartAssignment,
             ),
         );
     }
 
-    public function test_profile_telegram_settings_can_be_updated(): void
+    public function test_profile_telegram_settings_can_be_updated_on_first_connect(): void
     {
         $user = User::factory()->create([
             'telegram_chat_id' => null,
@@ -641,9 +645,47 @@ class IraTelegramCommunicationTest extends TestCase
         $this->actingAs($user)
             ->patch(route('profile.telegram.update'), [
                 'telegram_chat_id' => '999888777',
-                'telegram_notifications_enabled' => '1',
             ])
             ->assertRedirect(route('profile.edit'));
+
+        $user->refresh();
+
+        $this->assertSame('999888777', $user->telegram_chat_id);
+        $this->assertTrue($user->telegram_notifications_enabled);
+    }
+
+    public function test_profile_telegram_first_connect_with_crafted_disable_forces_enabled_true(): void
+    {
+        $user = User::factory()->create([
+            'telegram_chat_id' => null,
+            'telegram_notifications_enabled' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->patch(route('profile.telegram.update'), [
+                'telegram_chat_id' => '888777666',
+                'telegram_notifications_enabled' => '0',
+            ])
+            ->assertRedirect(route('profile.edit'));
+
+        $user->refresh();
+
+        $this->assertSame('888777666', $user->telegram_chat_id);
+        $this->assertTrue($user->telegram_notifications_enabled);
+    }
+
+    public function test_profile_telegram_settings_are_locked_after_first_connect(): void
+    {
+        $user = User::factory()->create([
+            'telegram_chat_id' => '999888777',
+            'telegram_notifications_enabled' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->patch(route('profile.telegram.update'), [
+                'telegram_chat_id' => '111222333',
+            ])
+            ->assertForbidden();
 
         $user->refresh();
 

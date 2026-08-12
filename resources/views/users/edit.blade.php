@@ -40,6 +40,13 @@
                 'schedule' => $workSchedule ?? [],
             ])
         @endif
+
+        @can('update', $user)
+            @include('users.partials.telegram-settings', [
+                'user' => $user,
+                'telegramSettings' => $telegramSettings ?? [],
+            ])
+        @endcan
     </div>
 
     <div class="row g-4">
