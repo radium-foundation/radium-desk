@@ -32,6 +32,11 @@ import {
     scheduleHybridKpiReconcile,
 } from './hybrid-kpi-reconcile';
 import {
+    cancelReadyQueueRowReconcile,
+    notifyReadyQueueRowMutated,
+    scheduleReadyQueueRowReconcile,
+} from './ready-queue-row-reconcile';
+import {
     applyReadyQueueCountDelta,
     commitReadyQueueListActionDelta,
     resolveReadyQueueCountDeltaFromHybrid,
@@ -191,26 +196,36 @@ const handleServiceCaseEvent = async (pageRoot, payload, eventName = null) => {
 
     const skipReconcile = readyDelta.safe;
 
+    const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
+    const incidentId = Number(payload.incident_id);
+
     if (action === 'ignore') {
         // Not viewing this queue's row — keep absolute reconcile when Ready ±1
         // could not be proven (e.g. viewing another tab).
         if (reconcileKpis && !skipReconcile) {
             scheduleHybridKpiReconcile(pageRoot);
+        } else if (readyDelta.safe && readyDelta.delta !== 0) {
+            scheduleReadyQueueRowReconcile(pageRoot);
         }
 
         return;
     }
 
-    const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
-    const incidentId = Number(payload.incident_id);
+    let rowMutated = false;
 
     if (action === 'remove') {
         await applyPartialDashboardUpdate({
             remove_incident_ids: lockedIncidentIds.includes(incidentId) ? [] : [incidentId],
         });
+        rowMutated = !lockedIncidentIds.includes(incidentId);
+        if (rowMutated) {
+            notifyReadyQueueRowMutated();
+        }
 
         if (reconcileKpis && !skipReconcile) {
             scheduleHybridKpiReconcile(pageRoot);
+        } else if (!rowMutated && readyDelta.safe && readyDelta.delta !== 0) {
+            scheduleReadyQueueRowReconcile(pageRoot);
         }
 
         return;
@@ -223,10 +238,22 @@ const handleServiceCaseEvent = async (pageRoot, payload, eventName = null) => {
                 html: payload.html,
             }],
         });
+        rowMutated = true;
+        notifyReadyQueueRowMutated();
 
         if (reconcileKpis && !skipReconcile) {
             scheduleHybridKpiReconcile(pageRoot);
         }
+
+        return;
+    }
+
+    if (!rowMutated && readyDelta.safe && readyDelta.delta !== 0) {
+        scheduleReadyQueueRowReconcile(pageRoot);
+    }
+
+    if (reconcileKpis && !skipReconcile) {
+        scheduleHybridKpiReconcile(pageRoot);
     }
 };
 
@@ -868,6 +895,7 @@ export const initLiveDashboardReverb = ({
         reverbConnected = false;
         setRealtimeTransportConnected(false);
         cancelHybridKpiReconcile();
+        cancelReadyQueueRowReconcile();
         stopStaleWatchdog();
         stopPolling();
 

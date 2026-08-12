@@ -139,6 +139,32 @@ describe('operations workspace soft switch helpers', () => {
         expect(document.getElementById('dashboard-kpi-strip')).not.toBeNull();
     });
 
+    it('re-fetches rows when the already-active queue tab is clicked again', async () => {
+        const pageRoot = buildPage();
+        const target = {
+            workspace: 'action_required',
+            operationQueue: 'action_required',
+            serviceCaseFilter: 'action_required',
+            url: new URL('/dashboard?queue=action_required', window.location.origin),
+        };
+
+        vi.mocked(refreshDashboard).mockClear();
+
+        await switchOperationsWorkspace(pageRoot, target);
+
+        expect(refreshDashboard).toHaveBeenCalledTimes(1);
+        expect(refreshDashboard).toHaveBeenCalledWith(
+            pageRoot,
+            'operations_workspace_reselect',
+            { force: true },
+        );
+        expect(refreshDashboard).not.toHaveBeenCalledWith(
+            expect.anything(),
+            'operations_workspace_switch',
+            expect.anything(),
+        );
+    });
+
     it('applyWorkspaceChrome toggles scheduled board attributes', () => {
         const pageRoot = buildPage();
 

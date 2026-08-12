@@ -103,7 +103,8 @@ class DashboardTest extends TestCase
             ->assertSee('Hardware')
             ->assertDontSee('dashboard-module-nav', false)
             ->assertSee('aria-selected="true"', false)
-            ->assertSee('>Ready Queue<', false);
+            ->assertDontSee('<h2 class="dashboard-cases-title mb-0">Ready Queue</h2>', false)
+            ->assertSee('dashboard-case-filter-chip__label', false);
     }
 
     public function test_superadmin_dashboard_uses_admin_operation_queues(): void

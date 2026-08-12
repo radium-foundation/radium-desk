@@ -50,12 +50,14 @@
         <div class="dashboard-cases-header">
             @unless($compactAgentLayout)
             <div class="dashboard-cases-header__title-row">
+                @unless($showsQueueNavigation ?? true)
                 <div class="dashboard-cases-header__brand">
                     <span class="dashboard-cases-header__icon" aria-hidden="true">
                         <i class="bi bi-clipboard-data"></i>
                     </span>
                     <h2 class="dashboard-cases-title mb-0">{{ $serviceCasePanelTitle ?? 'Service Cases' }}</h2>
                 </div>
+                @endunless
                 @can('viewAny', App\Models\Incident::class)
                     <a href="{{ route('incidents.index') }}"
                        class="dashboard-cases-view-all dashboard-u-focus-ring">
