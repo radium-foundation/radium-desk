@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../resources/js/dashboard-live-counts', () => ({
+    reconcileViewOnlyMetrics: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
     handleHybridIncidentsUpdated,
     handleKpisUpdated,
@@ -9,6 +14,7 @@ import {
 } from '../../resources/js/live-dashboard-reverb';
 import { resetHybridKpiReconcileForTests } from '../../resources/js/hybrid-kpi-reconcile';
 import { resetReadyQueueCountDeltaForTests } from '../../resources/js/ready-queue-count-delta';
+import { resetReadyQueueRowReconcileForTests } from '../../resources/js/ready-queue-row-reconcile';
 import * as liveDashboard from '../../resources/js/live-dashboard';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
 
@@ -17,6 +23,7 @@ describe('live dashboard reverb handlers', () => {
         resetWorkspaceSession();
         resetHybridKpiReconcileForTests();
         resetReadyQueueCountDeltaForTests();
+        resetReadyQueueRowReconcileForTests();
         document.body.innerHTML = `
             <div id="dashboard-page"
                  data-live-queue="action_required"
@@ -42,6 +49,7 @@ describe('live dashboard reverb handlers', () => {
         resetWorkspaceSession();
         resetHybridKpiReconcileForTests();
         resetReadyQueueCountDeltaForTests();
+        resetReadyQueueRowReconcileForTests();
         vi.unstubAllGlobals();
         vi.restoreAllMocks();
     });
@@ -196,6 +204,118 @@ describe('live dashboard reverb handlers', () => {
                 { kpisOnly: true },
             );
         } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('schedules Ready Queue row reconcile after DashboardKpisUpdated count changes', async () => {
+        vi.useFakeTimers();
+        const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+            pageRoot.dataset.liveFilter = 'action_required';
+            const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
+
+            await handleKpisUpdated({
+                kpi_strip_html: 'stats-live',
+                service_case_filter_count_variants: {
+                    operations_scope: {
+                        action_required: 12,
+                    },
+                },
+            });
+
+            await vi.advanceTimersByTimeAsync(500);
+
+            expect(refreshSpy).toHaveBeenCalledTimes(1);
+            expect(refreshSpy).toHaveBeenCalledWith(
+                pageRoot,
+                'ready-queue-row-reconcile',
+            );
+        } finally {
+            rafSpy.mockRestore();
+            vi.useRealTimers();
+        }
+    });
+
+    it('coalesces rapid DashboardKpisUpdated events into one row reconcile', async () => {
+        vi.useFakeTimers();
+        const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+            pageRoot.dataset.liveFilter = 'action_required';
+            const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
+
+            await handleKpisUpdated({
+                service_case_filter_count_variants: {
+                    operations_scope: { action_required: 12 },
+                },
+            });
+            await handleKpisUpdated({
+                service_case_filter_count_variants: {
+                    operations_scope: { action_required: 13 },
+                },
+            });
+            await handleKpisUpdated({
+                service_case_filter_count_variants: {
+                    operations_scope: { action_required: 14 },
+                },
+            });
+
+            await vi.advanceTimersByTimeAsync(500);
+
+            expect(refreshSpy).toHaveBeenCalledTimes(1);
+            expect(refreshSpy).toHaveBeenCalledWith(
+                pageRoot,
+                'ready-queue-row-reconcile',
+            );
+        } finally {
+            rafSpy.mockRestore();
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not schedule row reconcile after hybrid Ready REMOVE with proven delta', async () => {
+        vi.useFakeTimers();
+        const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+            pageRoot.dataset.liveFilter = 'action_required';
+            const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
+
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    rows: [],
+                    remove_incident_ids: [10],
+                }),
+            }));
+
+            await handleHybridIncidentsUpdated(pageRoot, { incident_ids: [10] });
+
+            expect(document.querySelector('#service-case-row-10')).toBeNull();
+
+            await vi.advanceTimersByTimeAsync(500);
+
+            expect(refreshSpy).not.toHaveBeenCalled();
+        } finally {
+            rafSpy.mockRestore();
+            vi.unstubAllGlobals();
             vi.useRealTimers();
         }
     });

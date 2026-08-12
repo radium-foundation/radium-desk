@@ -19,6 +19,10 @@ import {
     setRefreshLifecycleState,
 } from './dashboard-refresh-lifecycle';
 import { clearReadyQueueMembershipMemory } from './ready-queue-membership-memory';
+import {
+    maybeScheduleReadyQueueRowReconcileAfterCounts,
+    notifyReadyQueueRowMutated,
+} from './ready-queue-row-reconcile';
 
 const uniqueIncidentIds = (incidentIds = []) => Array.from(new Set(
     incidentIds
@@ -403,16 +407,19 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
                 serviceCasesEmpty: data.service_cases_empty,
                 serviceCasesEmptyHtml: data.service_cases_empty_html,
             });
+            notifyReadyQueueRowMutated();
         }
 
         const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
 
         if (data.remove_incident_ids?.length) {
             removeRows(data.remove_incident_ids, lockedIncidentIds);
+            notifyReadyQueueRowMutated();
         }
 
         if (data.patch_rows?.length) {
             applyRows(data.patch_rows, { lockedIncidentIds, mode: 'patch' });
+            notifyReadyQueueRowMutated();
         }
 
         applyPaginationFromRefresh(data, { hasAuthoritativeRows: hasRows });
@@ -482,6 +489,9 @@ const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
         const patchRows = Array.isArray(data.patch_rows)
             ? data.patch_rows
             : (Array.isArray(data.rows) ? data.rows : []);
+        const hadRowMutation = patchRows.length > 0
+            || (Array.isArray(data.remove_incident_ids) && data.remove_incident_ids.length > 0);
+        const pageRoot = document.getElementById('dashboard-page');
 
         applyKpis(data.kpi_strip_html);
         document.dispatchEvent(new CustomEvent('dashboard:live-refresh', { detail: data }));
@@ -495,7 +505,13 @@ const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
             applyRows(patchRows, { lockedIncidentIds, mode: 'patch' });
         }
 
+        if (hadRowMutation) {
+            notifyReadyQueueRowMutated();
+        }
+
         applyPaginationFromRefresh(data, { hasAuthoritativeRows: false });
+
+        maybeScheduleReadyQueueRowReconcileAfterCounts(pageRoot, data, { hadRowMutation });
 
         resolve();
     });

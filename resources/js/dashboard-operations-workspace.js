@@ -579,6 +579,10 @@ export const switchOperationsWorkspace = async (
         document.getElementById('dashboard-service-cases-panel')
             ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
+        await refreshDashboard(pageRoot, 'operations_workspace_reselect', {
+            force: true,
+        });
+
         return true;
     }
 
