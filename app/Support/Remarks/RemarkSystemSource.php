@@ -26,4 +26,6 @@ final class RemarkSystemSource
     public const REFUND_CLOSE = 'refund_close';
 
     public const INQUIRY_SPAM_CLEANUP = 'inquiry_spam_cleanup';
+
+    public const TEAM_ACTIVITY_SALES_LEAD_BACKLOG_CLEANUP = 'team_activity_sales_lead_backlog_cleanup';
 }
