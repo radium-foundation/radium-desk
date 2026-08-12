@@ -2,13 +2,17 @@
 
 @php
     use App\Enums\CommercialAction;
+    use App\Services\SerialValidation\SerialPlaceholderService;
 
     $order = $serviceCase->order;
     $isCompleted = $order?->isTransactionLocked() ?? false;
     $commercialBlocksAssign = is_array($commercialState)
         && in_array(CommercialAction::AssignServiceReference->value, $commercialState['blocked_actions'] ?? [], true);
+    $hasValidSerialForServiceReference = $order !== null
+        && ! app(SerialPlaceholderService::class)->isPlaceholder($order->serial_number);
     $canAssign = $canManageTransactions
         && $order
+        && $hasValidSerialForServiceReference
         && ! $order->isInquiryOrder()
         && ! $commercialBlocksAssign
         && auth()->user()?->can('assignTransaction', $order);

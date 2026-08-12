@@ -1,8 +1,11 @@
 @php
+    use App\Services\SerialValidation\SerialPlaceholderService;
+
     $verificationService = app(\App\Services\CustomerVerificationService::class);
     $canCompleteService = $verificationService->canCompleteService($order);
     $requiresLegacyVerification = $verificationService->requiresLegacyVerification($order);
     $legacyVerificationMode = $verificationService->legacyVerificationMode($order);
+    $hasValidSerialForServiceReference = ! app(SerialPlaceholderService::class)->isPlaceholder($order->serial_number);
 @endphp
 
 @can('assignTransaction', $order)
@@ -11,7 +14,11 @@
             <h2 class="h6 mb-0">Update Service Reference</h2>
         </div>
         <div class="card-body">
-            @if(! $canCompleteService && ! $requiresLegacyVerification)
+            @if(! $order->isInquiryOrder() && ! $hasValidSerialForServiceReference)
+                <div class="alert alert-warning mb-0 py-2 small" role="alert">
+                    A valid Serial Number is required before a Service Reference can be assigned.
+                </div>
+            @elseif(! $canCompleteService && ! $requiresLegacyVerification)
                 <div class="alert alert-warning mb-0 py-2 small" role="alert">
                     Customer verification required before completing service.
                 </div>
