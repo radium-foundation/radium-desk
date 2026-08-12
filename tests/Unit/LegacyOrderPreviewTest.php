@@ -37,17 +37,31 @@ class LegacyOrderPreviewTest extends TestCase
         $this->assertSame([], $preview->missingFieldsForOneClick('9876543210'));
     }
 
-    public function test_missing_serial_marks_preview_incomplete(): void
+    public function test_missing_serial_is_allowed_for_one_click(): void
     {
         $preview = new LegacyOrderPreview(
-            orderId: 'RD3421021',
+            orderId: 'RD3430643',
             customerName: 'Satyam Test',
             mobile: '9876543210',
             productModel: 'MFS 110',
             serialNumber: null,
         );
 
+        $this->assertTrue($preview->isCompleteForOneClick());
+        $this->assertSame([], $preview->missingFieldsForOneClick());
+    }
+
+    public function test_missing_product_marks_preview_incomplete(): void
+    {
+        $preview = new LegacyOrderPreview(
+            orderId: 'RD3421021',
+            customerName: 'Satyam Test',
+            mobile: '9876543210',
+            productModel: null,
+            serialNumber: null,
+        );
+
         $this->assertFalse($preview->isCompleteForOneClick());
-        $this->assertSame(['serial_number'], $preview->missingFieldsForOneClick());
+        $this->assertSame(['product_model'], $preview->missingFieldsForOneClick());
     }
 }

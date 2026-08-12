@@ -78,10 +78,6 @@ class LegacyOrderPreview
             $missing[] = 'product_model';
         }
 
-        if (! filled($this->serialNumber)) {
-            $missing[] = 'serial_number';
-        }
-
         return $missing;
     }
 

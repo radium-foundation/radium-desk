@@ -123,7 +123,7 @@ class GlobalSearchIntakeFallbackTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    public function test_incomplete_legacy_preview_is_not_one_click_eligible(): void
+    public function test_missing_serial_legacy_preview_is_one_click_eligible(): void
     {
         Http::fake([
             'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponseWithoutSerial()),
@@ -135,8 +135,25 @@ class GlobalSearchIntakeFallbackTest extends TestCase
         $this->actingAs($agent)
             ->getJson(route('search.index', ['q' => 'RD3395988']))
             ->assertOk()
+            ->assertJsonPath('intake.legacy_preview_complete', true)
+            ->assertJsonPath('intake.missing_fields', [])
+            ->assertJsonPath('intake.legacy_preview.serial_number', null);
+    }
+
+    public function test_incomplete_legacy_preview_missing_product_is_not_one_click_eligible(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponseWithoutProduct()),
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'RD3395988']))
+            ->assertOk()
             ->assertJsonPath('intake.legacy_preview_complete', false)
-            ->assertJsonPath('intake.missing_fields', ['serial_number']);
+            ->assertJsonPath('intake.missing_fields', ['product_model']);
     }
 
     public function test_unknown_phone_returns_new_contact_intake_state(): void
@@ -247,6 +264,17 @@ class GlobalSearchIntakeFallbackTest extends TestCase
     {
         $response = $this->legacyOrderApiResponse($orderId);
         unset($response['data']['rd_order']['serial_no']);
+
+        return $response;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function legacyOrderApiResponseWithoutProduct(string $orderId = 'RD3395988'): array
+    {
+        $response = $this->legacyOrderApiResponseWithoutSerial($orderId);
+        unset($response['data']['rd_order']['product_name']);
 
         return $response;
     }

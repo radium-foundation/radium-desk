@@ -153,6 +153,35 @@ class LegacyOrderBridgeTest extends TestCase
         $this->assertSame('Imported legacy order.', $incident->description);
     }
 
+    public function test_legacy_import_without_serial_creates_order_and_service_case(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponseWithoutSerial('RD3430643')),
+        ]);
+
+        $agent = User::factory()->create(['name' => 'No Serial Import Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->postJson(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3430643',
+                'source' => IncidentSource::Call->value,
+                'notes' => 'Imported legacy order without serial.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', fn (string $message): bool => str_starts_with($message, 'Service Case '));
+
+        $order = Order::query()->where('order_id', 'RD3430643')->first();
+        $this->assertNotNull($order);
+        $this->assertNull($order->serial_number);
+        $this->assertSame('MFS 110', $order->product_name);
+
+        $incident = Incident::query()->where('order_id', $order->id)->first();
+        $this->assertNotNull($incident);
+        $this->assertSame('Imported legacy order without serial.', $incident->description);
+    }
+
     public function test_legacy_import_json_response_returns_incident_details(): void
     {
         Http::fake([
@@ -511,6 +540,17 @@ class LegacyOrderBridgeTest extends TestCase
             'auditable_type' => $order->getMorphClass(),
             'auditable_id' => $order->id,
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function legacyOrderApiResponseWithoutSerial(string $orderId = 'RD3395988'): array
+    {
+        $response = $this->legacyOrderApiResponse($orderId);
+        unset($response['data']['rd_order']['serial_no']);
+
+        return $response;
     }
 
     /**

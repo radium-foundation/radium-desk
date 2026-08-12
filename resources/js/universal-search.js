@@ -1,5 +1,5 @@
 import * as bootstrap from 'bootstrap';
-import { advanceQuickCreateToNewContact } from './customer-intake';
+import { advanceQuickCreateToNewContact, resetQuickCreateStepForDashboardFlow } from './customer-intake';
 import { isDashboardSearchActive, setDashboardSearchActive } from './dashboard-search-mode';
 import { hideSearchBanner, showSearchBanner } from './dashboard-search-banner';
 import {
@@ -82,6 +82,7 @@ const prefillAndOpenQuickCreate = (intake, query) => {
     const parsedQuery = intake?.parsed_query ?? {};
     clearStaleQuickCreateState(form);
     prefillIntakeSearchFields(form, parsedQuery, query);
+    resetQuickCreateStepForDashboardFlow(modalElement, form);
 
     modalElement.dataset.resetOnShow = 'false';
 

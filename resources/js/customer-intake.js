@@ -1,4 +1,9 @@
 import * as bootstrap from 'bootstrap';
+import {
+    intakeCreateNetworkErrorMessage,
+    parseIntakeJsonResponse,
+    resolveIntakeCreateErrorMessage,
+} from './intake-create-errors';
 import { csrfToken } from './workspace/http';
 import { getWorkspaceSession } from './workspace';
 import {
@@ -6,6 +11,42 @@ import {
     openLegacySearchConfirmModal,
     resolveIntakeOutcome,
 } from './intake-search-flow';
+
+export const resetQuickCreateStepForDashboardFlow = (modalElement, form) => {
+    if (!modalElement || !form) {
+        return;
+    }
+
+    modalElement.querySelectorAll('.intake-step').forEach((step) => {
+        step.classList.toggle('d-none', step.id !== 'intake-step-search');
+    });
+
+    const actionField = form.querySelector('#intake_action');
+
+    if (actionField) {
+        actionField.value = 'new_contact';
+    }
+
+    const matchedOrderField = form.querySelector('#intake_matched_order_id');
+
+    if (matchedOrderField) {
+        matchedOrderField.value = '';
+    }
+
+    const legacyOrderField = form.querySelector('#intake_legacy_order_id');
+
+    if (legacyOrderField) {
+        legacyOrderField.value = '';
+    }
+
+    const searchButton = modalElement.querySelector('#intake-search-button');
+    const submitButton = modalElement.querySelector('#intake-submit-button');
+    searchButton?.classList.remove('d-none');
+    submitButton?.classList.add('d-none');
+
+    updateModalTitle(modalElement, 'Find Customer');
+    clearIntakeValidationState(modalElement, form);
+};
 
 const showStep = (modal, stepId) => {
     modal.querySelectorAll('.intake-step').forEach((step) => {
@@ -701,37 +742,8 @@ const searchCustomer = async (modal, form) => {
     }
 };
 
-const parseJsonResponse = async (response) => {
-    const contentType = response.headers.get('content-type') ?? '';
+const parseJsonResponse = parseIntakeJsonResponse;
 
-    if (!contentType.includes('application/json')) {
-        return null;
-    }
-
-    try {
-        return await response.json();
-    } catch {
-        return null;
-    }
-};
-
-const extractValidationMessage = (data) => {
-    if (data?.errors && typeof data.errors === 'object') {
-        const firstError = Object.values(data.errors)
-            .flat()
-            .find((value) => typeof value === 'string' && value !== '');
-
-        if (firstError) {
-            return firstError;
-        }
-    }
-
-    if (typeof data?.message === 'string' && data.message !== '') {
-        return data.message;
-    }
-
-    return 'Unable to create service request.';
-};
 
 export const openCustomer360AfterIntakeCreate = (result, dashboardIntegration = null) => {
     if (!result?.incident_id) {
@@ -826,14 +838,14 @@ const submitCustomerIntakeForm = async (
         const data = await parseJsonResponse(response);
 
         if (data === null) {
-            showToast?.('Unable to create service request.', 'danger');
+            showToast?.(resolveIntakeCreateErrorMessage(response, null), 'danger');
 
             return;
         }
 
         if (!response.ok) {
             applyIntakeServerValidationErrors(form, data.errors ?? {});
-            showToast?.(extractValidationMessage(data), 'danger');
+            showToast?.(resolveIntakeCreateErrorMessage(response, data), 'danger');
 
             return;
         }
@@ -846,7 +858,7 @@ const submitCustomerIntakeForm = async (
         }));
         resetIntakeForm(modalElement, form);
     } catch {
-        showToast?.('Unable to create service request.', 'danger');
+        showToast?.(intakeCreateNetworkErrorMessage(), 'danger');
     } finally {
         if (submitButton) {
             submitButton.disabled = false;
