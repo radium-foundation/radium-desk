@@ -1,5 +1,24 @@
 # Changelog
 
+## 4.0.30 — 2026-08-12 — Dashboard Reliability & Payment Hardening
+
+- Fixed dashboard snapshot cache growth that could prevent operators from logging in.
+- Reduced dashboard CPU by caching queue classification and batching KPI broadcasts.
+- Stopped unnecessary full dashboard reloads during healthy realtime heartbeat ticks.
+- Ready Queue tab counts reconcile correctly after hybrid assignment and lifecycle events.
+- Added a lightweight Ready Queue membership heartbeat to keep queue badges accurate without heavy polling.
+- Ready Queue rows catch up when counts change without a matching row update.
+- Re-clicking the active Ready Queue tab refreshes the case list without resetting pagination.
+- Removed the duplicate Ready Queue heading when queue navigation tabs are visible.
+- Total Active Cases and Refunds KPIs now refresh from lightweight count endpoints with stale-aware and manual refresh controls.
+- Cashfree payments link to existing orders when legacy imports and webhooks race on mixed-case order IDs.
+- Cashfree reprocess tooling correctly reports existing orders instead of false recovery candidates.
+- Deferred Cashfree dashboard broadcasts are disabled by default to reduce post-payment CPU load.
+- Customer 360 business timelines show cleaner, deduplicated milestones with fewer noisy duplicate events.
+- Gmail inbound sync uses single-flight locking to prevent overlapping sync runs.
+- Platform health dead-letter queue alerts use stable fingerprints to reduce repeated Telegram noise.
+- Fixed legacy service request creation from global search and legacy order intake flows with clearer validation errors.
+
 ## 4.0.29 — 2026-08-09 — Navbar Alignment
 
 - Anchored notifications, To-Dos, and the profile menu to the far-right of the topbar.
