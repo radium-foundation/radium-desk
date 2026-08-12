@@ -8,8 +8,10 @@ use App\Http\Requests\UpdateUserRequest;
 use App\Http\Requests\UpdateUserStatusRequest;
 use App\Models\User;
 use App\Services\Operations\OperationsRoleService;
+use App\Services\Operations\TeamWorkScheduleService;
 use App\Services\Operations\WorkforceAuthorityService;
 use App\Services\UserManagementService;
+use App\Services\UserTelegramSettingsService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +21,7 @@ class UserController extends Controller
 {
     public function __construct(
         private readonly UserManagementService $userManagementService,
+        private readonly UserTelegramSettingsService $telegramSettingsService,
     ) {
         $this->authorizeResource(User::class, 'user', [
             'except' => ['updateStatus', 'resetPassword'],
@@ -122,8 +125,8 @@ class UserController extends Controller
         /** @var User $actor */
         $actor = auth()->user();
 
-        $operationsRoleService = app(\App\Services\Operations\OperationsRoleService::class);
-        $workSchedule = app(\App\Services\Operations\TeamWorkScheduleService::class)->snapshotFor($user);
+        $operationsRoleService = app(OperationsRoleService::class);
+        $workSchedule = app(TeamWorkScheduleService::class)->snapshotFor($user);
 
         return view('users.edit', [
             'user' => $user,
@@ -134,6 +137,7 @@ class UserController extends Controller
             'showsWorkSchedule' => $operationsRoleService->isTeamMember($user)
                 && $actor->can('workforce-calendar.manage'),
             'workSchedule' => $workSchedule,
+            'telegramSettings' => $this->telegramSettingsService->snapshotForAdmin($user),
         ]);
     }
 

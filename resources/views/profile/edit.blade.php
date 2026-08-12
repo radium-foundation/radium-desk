@@ -151,7 +151,10 @@
         @endif
 
         <div class="col-lg-6">
-            @include('profile.partials.telegram-notifications', ['user' => $user])
+            @include('profile.partials.telegram-notifications', [
+                'user' => $user,
+                'telegramSettings' => $telegramSettings ?? [],
+            ])
         </div>
     </div>
 @endsection

@@ -2,6 +2,7 @@
     @php
         $toastMessage = match (session('status')) {
             'profile-updated' => 'Profile updated successfully.',
+            'telegram-updated' => 'Telegram settings saved successfully.',
             'password-updated' => 'Password updated successfully.',
             'order-created' => 'Order created successfully.',
             'order-updated' => 'Order updated successfully.',
@@ -33,6 +34,7 @@
             'refund-deleted' => 'Refund request deleted successfully.',
             'user-created' => 'User created successfully.',
             'user-updated' => 'User updated successfully.',
+            'user-telegram-updated' => 'Telegram settings saved successfully.',
             'user-activated' => 'User activated successfully.',
             'user-deactivated' => 'User deactivated successfully.',
             'user-password-reset' => 'Password reset successfully.',
