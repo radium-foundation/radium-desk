@@ -13,6 +13,7 @@ use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Commercial\CommercialStateResolver;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\TeamMemberActivityService;
+use App\Services\SerialValidation\SerialPlaceholderService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -34,6 +35,7 @@ class OrderTransactionService
         private readonly DashboardSnapshotStore $dashboardSnapshotStore,
         private readonly AutomationOperationsSnapshotInvalidator $automationSnapshotInvalidator,
         private readonly SettingService $settingService,
+        private readonly SerialPlaceholderService $serialPlaceholderService,
     ) {}
 
     public function assignTransactionId(
@@ -67,6 +69,8 @@ class OrderTransactionService
                 'transaction_id' => 'Transaction ID is required.',
             ]);
         }
+
+        $this->assertOrderHasValidSerialForServiceReference($order);
 
         $this->customerVerificationService->assertCanCompleteService($order, $actor);
         $this->assertNoActiveBusinessHoldOnOrder($order);
@@ -556,6 +560,15 @@ class OrderTransactionService
                 $incident,
                 'assigned a service reference',
             );
+        }
+    }
+
+    private function assertOrderHasValidSerialForServiceReference(Order $order): void
+    {
+        if ($this->serialPlaceholderService->isPlaceholder($order->serial_number)) {
+            throw ValidationException::withMessages([
+                'transaction_id' => 'Service Reference Number cannot be assigned until a valid Serial Number is available.',
+            ]);
         }
     }
 

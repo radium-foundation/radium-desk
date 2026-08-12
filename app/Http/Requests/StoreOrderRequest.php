@@ -23,7 +23,7 @@ class StoreOrderRequest extends FormRequest
             'product_name' => ['required', 'string', 'max:255'],
             'device_model_id' => ['required', 'integer', Rule::exists('device_models', 'id')],
             'device_model' => ['prohibited'],
-            'transaction_id' => ['nullable', 'string', 'max:100'],
+            'transaction_id' => ['prohibited'],
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_email' => ['nullable', 'email', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:50'],
