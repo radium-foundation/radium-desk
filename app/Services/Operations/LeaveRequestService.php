@@ -96,6 +96,92 @@ class LeaveRequestService
         return $leaveRequest;
     }
 
+    /**
+     * @param  array{start_date: string, end_date: string, reason: string, duration?: string}  $data
+     */
+    public function updatePending(User $requester, LeaveRequest $leaveRequest, array $data): LeaveRequest
+    {
+        $startDate = Carbon::parse($data['start_date'])->startOfDay();
+        $endDate = Carbon::parse($data['end_date'])->startOfDay();
+        $duration = LeaveDuration::tryFrom((string) ($data['duration'] ?? LeaveDuration::FullDay->value))
+            ?? LeaveDuration::FullDay;
+
+        $leaveRequest = DB::transaction(function () use ($requester, $leaveRequest, $data, $startDate, $endDate, $duration): LeaveRequest {
+            $lockedLeaveRequest = $this->lockLeaveRequest($leaveRequest);
+
+            if ((int) $lockedLeaveRequest->user_id !== (int) $requester->id) {
+                throw ValidationException::withMessages([
+                    'leave_request' => 'You can only edit your own leave requests.',
+                ]);
+            }
+
+            if ($lockedLeaveRequest->status !== LeaveRequestStatus::Pending) {
+                throw ValidationException::withMessages([
+                    'status' => 'Only pending leave requests can be edited.',
+                ]);
+            }
+
+            $this->lockActiveLeaveRequestsFor($requester);
+            $this->payrollMonthLockService->assertLeaveWritable($startDate, $endDate);
+            $this->assertPermittedStartDate($startDate);
+            $this->assertValidDateRange($startDate, $endDate);
+            $this->assertDurationMatchesRange($duration, $startDate, $endDate);
+            $this->assertNoOverlappingLeave(
+                user: $requester,
+                startDate: $startDate,
+                endDate: $endDate,
+                excludeLeaveRequestId: $lockedLeaveRequest->id,
+            );
+
+            $lockedLeaveRequest->fill([
+                'start_date' => $startDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
+                'reason' => $data['reason'],
+                'duration' => $duration,
+            ])->save();
+
+            $lockedLeaveRequest = $lockedLeaveRequest->fresh(['user']);
+
+            $this->auditLeaveEvent(
+                event: WorkforceAuditEvent::LeaveUpdated,
+                userId: $requester->id,
+                leaveRequest: $lockedLeaveRequest,
+                newValues: [
+                    'requester_id' => $requester->id,
+                    'start_date' => $lockedLeaveRequest->start_date->toDateString(),
+                    'end_date' => $lockedLeaveRequest->end_date->toDateString(),
+                    'duration' => $lockedLeaveRequest->duration->value,
+                    'status' => LeaveRequestStatus::Pending->value,
+                    'reason' => $lockedLeaveRequest->reason,
+                ],
+            );
+
+            return $lockedLeaveRequest;
+        });
+
+        return $leaveRequest;
+    }
+
+    public function canManage(User $user): bool
+    {
+        return $user->can('leave-requests.manage');
+    }
+
+    public function assertNoOverlappingLeaveForAmendment(
+        User $user,
+        Carbon $startDate,
+        Carbon $endDate,
+        ?int $excludeLeaveRequestId = null,
+    ): void {
+        $this->assertNoOverlappingLeave(
+            user: $user,
+            startDate: $startDate,
+            endDate: $endDate,
+            excludeLeaveRequestId: $excludeLeaveRequestId,
+            statuses: [LeaveRequestStatus::Pending, LeaveRequestStatus::Approved],
+        );
+    }
+
     public function approve(LeaveRequest $leaveRequest, User $reviewer, ?string $reviewNotes = null): LeaveRequest
     {
         $this->assertReviewNotesProvided($reviewNotes);
@@ -450,7 +536,7 @@ class LeaveRequestService
         }
     }
 
-    private function assertPermittedStartDate(Carbon $startDate): void
+    public function assertPermittedStartDate(Carbon $startDate): void
     {
         if ($startDate->lt($this->earliestPermittedStartDate())) {
             throw ValidationException::withMessages([
@@ -459,7 +545,7 @@ class LeaveRequestService
         }
     }
 
-    private function assertValidDateRange(Carbon $startDate, Carbon $endDate): void
+    public function assertValidDateRange(Carbon $startDate, Carbon $endDate): void
     {
         if ($endDate->lt($startDate)) {
             throw ValidationException::withMessages([
@@ -468,7 +554,7 @@ class LeaveRequestService
         }
     }
 
-    private function assertDurationMatchesRange(
+    public function assertDurationMatchesRange(
         LeaveDuration $duration,
         Carbon $startDate,
         Carbon $endDate,

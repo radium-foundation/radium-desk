@@ -53,6 +53,23 @@
         </div>
     @endif
 
+    @if(($canManageLeave ?? false) && ($pendingAmendments ?? collect())->isNotEmpty())
+        <div class="card border-0 shadow-sm mb-4 border-info-subtle">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h2 class="h6 mb-0">Pending Leave Amendments</h2>
+                <span class="badge text-bg-warning">{{ $pendingAmendments->count() }}</span>
+            </div>
+            <div class="card-body d-grid gap-3">
+                @foreach($pendingAmendments as $amendment)
+                    @include('leave-requests.partials.pending-amendment-row', [
+                        'amendment' => $amendment,
+                        'compact' => false,
+                    ])
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
             <form method="GET" action="{{ route('leave-requests.index') }}" class="row g-3">
@@ -95,7 +112,14 @@
                                 {{ display_app_date($leaveRequest->start_date) }}
                                 – {{ display_app_date($leaveRequest->end_date) }}
                             </td>
-                            <td>@include('leave-requests.partials.status-badge', ['status' => $leaveRequest->status])</td>
+                            <td>
+                                @include('leave-requests.partials.status-badge', ['status' => $leaveRequest->status])
+                                @if($leaveRequest->pendingAmendment)
+                                    <div class="mt-1">
+                                        @include('leave-requests.partials.amendment-status-badge', ['amendment' => $leaveRequest->pendingAmendment])
+                                    </div>
+                                @endif
+                            </td>
                             <td>{{ display_app_datetime_24($leaveRequest->created_at) }}</td>
                             <td class="text-end">
                                 <a href="{{ route('leave-requests.show', $leaveRequest) }}" class="btn btn-sm btn-outline-primary">View</a>
