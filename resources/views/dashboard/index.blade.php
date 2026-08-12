@@ -18,6 +18,7 @@
          id="dashboard-page"
          data-workspace-context="dashboard"
          data-live-url="{{ route('dashboard.live') }}"
+         data-live-counts-url="{{ route('dashboard.live.counts') }}"
          data-live-rows-url="{{ route('dashboard.live.rows') }}"
          data-live-queue="{{ $operationQueue }}"
          data-live-workspace="{{ $operationsWorkspace ?? $operationQueue }}"
