@@ -83,6 +83,48 @@ class QuickServiceRequestJsonExceptionScopeTest extends TestCase
             ->assertSessionHasErrors('source');
     }
 
+    public function test_quick_store_ajax_success_returns_json_with_x_requested_with_only(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponseWithoutSerial()),
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $response = $this->actingAs($agent)
+            ->withHeaders([
+                'X-Requested-With' => 'XMLHttpRequest',
+            ])
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3395988',
+                'source' => IncidentSource::Call->value,
+                'notes' => 'Imported legacy order without serial.',
+            ]);
+
+        $response
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertJsonStructure([
+                'message',
+                'incident_id',
+                'display_reference',
+                'customer_360_url',
+            ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function legacyOrderApiResponseWithoutSerial(string $orderId = 'RD3395988'): array
+    {
+        $response = $this->legacyOrderApiResponse($orderId);
+        unset($response['data']['rd_order']['serial_no']);
+
+        return $response;
+    }
+
     /**
      * @return array<string, mixed>
      */

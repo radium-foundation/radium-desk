@@ -1,4 +1,10 @@
 import * as bootstrap from 'bootstrap';
+import {
+    INTAKE_CREATE_MISSING_ORDER_ERROR,
+    intakeCreateNetworkErrorMessage,
+    parseIntakeJsonResponse,
+    resolveIntakeCreateErrorMessage,
+} from './intake-create-errors';
 import { csrfToken } from './workspace/http';
 
 export const formatIntakePreviewValue = (value) => {
@@ -60,45 +66,7 @@ export const buildLegacyPreviewSummaryHtml = (preview) => {
     `;
 };
 
-const extractValidationMessage = (data) => {
-    if (data?.errors && typeof data.errors === 'object') {
-        const firstError = Object.values(data.errors)
-            .flat()
-            .find((value) => typeof value === 'string' && value !== '');
-
-        if (firstError) {
-            return firstError;
-        }
-    }
-
-    if (typeof data?.message === 'string' && data.message !== '') {
-        return data.message;
-    }
-
-    return 'Unable to create service request.';
-};
-
-const parseJsonResponse = async (response) => {
-    const contentType = response.headers.get('content-type') ?? '';
-
-    if (!contentType.includes('application/json')) {
-        return null;
-    }
-
-    try {
-        return await response.json();
-    } catch {
-        return null;
-    }
-};
-
-const legacyCreateErrorMessage = (response) => {
-    if (response.status === 419) {
-        return 'Session expired. Refresh and try again.';
-    }
-
-    return 'Unable to create service request.';
-};
+const parseJsonResponse = parseIntakeJsonResponse;
 
 let listenersWired = false;
 let pendingLegacyConfirm = null;
@@ -125,8 +93,14 @@ const createLegacyServiceRequest = async (
     const parsedQuery = intake?.parsed_query ?? {};
     const legacyConfirmError = legacyConfirmModal?.querySelector('#legacy_search_confirm_error');
 
-    if (!source || !preview.order_id) {
-        legacyConfirmContext.showToast?.('Unable to create service request.', 'danger');
+    if (!source) {
+        legacyConfirmContext.showToast?.('Select a source before continuing.', 'danger');
+
+        return null;
+    }
+
+    if (!preview.order_id) {
+        legacyConfirmContext.showToast?.(INTAKE_CREATE_MISSING_ORDER_ERROR, 'danger');
 
         return null;
     }
@@ -172,13 +146,13 @@ const createLegacyServiceRequest = async (
         const data = await parseJsonResponse(response);
 
         if (data === null) {
-            legacyConfirmContext.showToast?.(legacyCreateErrorMessage(response), 'danger');
+            legacyConfirmContext.showToast?.(resolveIntakeCreateErrorMessage(response, null), 'danger');
 
             return null;
         }
 
         if (!response.ok) {
-            const message = extractValidationMessage(data);
+            const message = resolveIntakeCreateErrorMessage(response, data);
 
             if (legacyConfirmError) {
                 legacyConfirmError.textContent = message;
@@ -194,7 +168,7 @@ const createLegacyServiceRequest = async (
 
         return data;
     } catch {
-        legacyConfirmContext.showToast?.('Unable to create service request.', 'danger');
+        legacyConfirmContext.showToast?.(intakeCreateNetworkErrorMessage(), 'danger');
 
         return null;
     } finally {

@@ -138,7 +138,7 @@ class QuickServiceRequestController extends Controller
 
     private function respondCreated(StoreCustomerIntakeRequest $request, Incident $incident): RedirectResponse|JsonResponse
     {
-        if ($request->wantsJson()) {
+        if ($this->shouldRespondWithJson($request)) {
             return response()->json([
                 'message' => 'Service Case '.$incident->display_reference.' created',
                 'incident_id' => $incident->id,
@@ -155,7 +155,7 @@ class QuickServiceRequestController extends Controller
         Incident $incident,
         Order $order,
     ): RedirectResponse|JsonResponse {
-        if ($request->wantsJson()) {
+        if ($this->shouldRespondWithJson($request)) {
             return response()->json([
                 'message' => 'Service Case '.$incident->display_reference.' linked to '.$order->order_id,
                 'incident_id' => $incident->id,
@@ -171,6 +171,11 @@ class QuickServiceRequestController extends Controller
             ->with('service_case_reference', $incident->display_reference)
             ->with('linked_order_id', $order->order_id)
             ->with('open_customer_360_incident_id', $incident->id);
+    }
+
+    private function shouldRespondWithJson(StoreCustomerIntakeRequest $request): bool
+    {
+        return $request->expectsJson() || $request->ajax();
     }
 
     private function createdRedirect(Incident $incident): RedirectResponse

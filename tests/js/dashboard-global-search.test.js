@@ -836,7 +836,7 @@ describe('dashboard global search integration', () => {
 
         await vi.waitFor(() => {
             expect(showToast).toHaveBeenCalledWith(
-                'Session expired. Refresh and try again.',
+                'Your session has expired. Please refresh the page and try again.',
                 'danger',
             );
         });
@@ -893,10 +893,124 @@ describe('dashboard global search integration', () => {
 
         await vi.waitFor(() => {
             expect(showToast).toHaveBeenCalledWith(
-                'Unable to create service request.',
+                'Unable to create service request. Please try again.',
                 'danger',
             );
         });
+    });
+
+    it('opens legacy confirm modal for legacy preview missing serial only', async () => {
+        const legacyConfirmShow = vi.fn();
+        const quickCreateShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockImplementation((element) => ({
+            show: element?.id === 'legacySearchConfirmModal' ? legacyConfirmShow : quickCreateShow,
+            hide: vi.fn(),
+        }));
+
+        mountDashboard();
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+                intake: {
+                    classification: 'legacy',
+                    requires_confirmation: true,
+                    legacy_preview_complete: true,
+                    missing_fields: [],
+                    default_source: 'call',
+                    create_url: '/service-requests/quick',
+                    legacy_preview: {
+                        order_id: 'RD3430643',
+                        customer_name: 'Satyam Test',
+                        mobile: '9876543210',
+                        product_model: 'MFS 110',
+                        serial_number: null,
+                    },
+                    parsed_query: {
+                        phone: null,
+                        order_id: 'RD3430643',
+                        serial_number: null,
+                    },
+                },
+            }),
+        });
+
+        await submitSearch('RD3430643');
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(legacyConfirmShow).toHaveBeenCalled();
+        });
+
+        expect(quickCreateShow).not.toHaveBeenCalled();
+    });
+
+    it('creates legacy orders without serial after dashboard confirmation', async () => {
+        const quickCreateShow = vi.fn();
+        const legacyConfirmShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockImplementation((element) => ({
+            show: element?.id === 'legacySearchConfirmModal' ? legacyConfirmShow : quickCreateShow,
+            hide: vi.fn(),
+        }));
+
+        const { showToast } = mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 0,
+                    incident_ids: [],
+                    results: [],
+                    intake: {
+                        classification: 'legacy',
+                        requires_confirmation: true,
+                        legacy_preview_complete: true,
+                        default_source: 'call',
+                        create_url: '/service-requests/quick',
+                        legacy_preview: {
+                            order_id: 'RD3430643',
+                            customer_name: 'Satyam Test',
+                            mobile: '9876543210',
+                            product_model: 'MFS 110',
+                            serial_number: null,
+                        },
+                        parsed_query: {
+                            phone: null,
+                            order_id: 'RD3430643',
+                            serial_number: null,
+                        },
+                    },
+                }),
+            })
+            .mockResolvedValueOnce(jsonFetchResponse({
+                message: 'Service Case SC36010 created',
+                incident_id: 36010,
+                display_reference: 'SC36010',
+            }));
+
+        await submitSearch('RD3430643');
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(legacyConfirmShow).toHaveBeenCalled();
+        });
+
+        fillLegacyConfirmForm();
+        document.querySelector('[data-legacy-search-confirm-submit]')?.click();
+
+        await vi.waitFor(() => {
+            expect(showToast).toHaveBeenCalledWith('Service Case SC36010 created');
+        });
+
+        const createRequest = fetch.mock.calls.find(
+            ([url, options]) => url === '/service-requests/quick' && options?.method === 'POST',
+        );
+        expect(createRequest?.[1]?.body.get('legacy_order_id')).toBe('RD3430643');
+        expect(createRequest?.[1]?.body.get('action')).toBe('legacy_import');
     });
 
     it('falls back to quick create for incomplete legacy preview', async () => {
@@ -929,12 +1043,12 @@ describe('dashboard global search integration', () => {
                     classification: 'legacy',
                     requires_confirmation: true,
                     legacy_preview_complete: false,
-                    missing_fields: ['serial_number'],
+                    missing_fields: ['product_model'],
                     legacy_preview: {
                         order_id: 'RD3395988',
                         customer_name: 'Satyam Test',
                         mobile: '9876543210',
-                        product_model: 'MFS 110',
+                        product_model: null,
                         serial_number: null,
                     },
                     parsed_query: {
@@ -1915,13 +2029,13 @@ describe('dashboard global search integration', () => {
             classification: 'legacy',
             requires_confirmation: true,
             legacy_preview_complete: false,
-            missing_fields: ['serial_number'],
+            missing_fields: ['product_model'],
             legacy_preview_message: 'Legacy order found. Create service case?',
             legacy_preview: {
                 order_id: 'RD3395988',
                 customer_name: 'Satyam Test',
                 mobile: '9876543210',
-                product_model: 'MFS 110',
+                product_model: null,
                 serial_number: null,
             },
             parsed_query: {
