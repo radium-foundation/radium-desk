@@ -36,13 +36,6 @@
                             {{ config('ui.service_case.log_action') }}
                         </a>
                     @endcan
-                    @can('viewAny', App\Models\Incident::class)
-                        <a href="{{ route('incidents.index', ['status' => 'active']) }}"
-                           class="dashboard-cases-view-all dashboard-u-focus-ring">
-                            {{ config('ui.service_case.view_all') }}
-                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                        </a>
-                    @endcan
                 </div>
             </div>
 

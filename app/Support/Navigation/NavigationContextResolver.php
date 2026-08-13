@@ -4,10 +4,7 @@ namespace App\Support\Navigation;
 
 use App\Models\AuditLog;
 use App\Models\CashfreeWebhookLog;
-use App\Models\Incident;
 use App\Models\LeaveRequest;
-use App\Models\Order;
-use App\Models\RefundRequest;
 use App\Models\SystemSetting;
 use App\Models\Todo;
 use App\Models\User;
@@ -65,21 +62,6 @@ class NavigationContextResolver
         ];
 
         $operationsItems = array_values(array_filter([
-            Gate::check('viewAny', Order::class)
-                ? $this->sidebarItem('operations.orders', 'Orders', 'bi-box-seam', route('orders.index'), $context)
-                : null,
-            Gate::check('viewAny', Incident::class)
-                ? $this->sidebarItem(
-                    'operations.incidents',
-                    config('ui.service_case.plural'),
-                    'bi-exclamation-triangle',
-                    route('incidents.index'),
-                    $context,
-                )
-                : null,
-            Gate::check('viewAny', RefundRequest::class)
-                ? $this->sidebarItem('operations.refunds', 'Refunds', 'bi-currency-exchange', route('refunds.index'), $context)
-                : null,
             ($user?->can(RolePermissionSeeder::PERMISSION_CASHBOOK_VIEW) ?? false)
                 ? $this->sidebarItem('operations.cash_book', 'Cash Book', 'bi-journal-text', route('cash-book.index'), $context)
                 : null,

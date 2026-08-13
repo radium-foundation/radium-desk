@@ -165,9 +165,12 @@ class NavigationContextResolverTest extends TestCase
         $this->assertNotContains('administration.users', $keys);
         $this->assertNotContains('administration.holiday_calendar', $keys);
         $this->assertNotContains('operations.approvals', $keys);
+        $this->assertNotContains('operations.orders', $keys);
+        $this->assertNotContains('operations.incidents', $keys);
+        $this->assertNotContains('operations.refunds', $keys);
     }
 
-    public function test_approvals_route_highlights_service_cases_sidebar_item(): void
+    public function test_approvals_route_resolves_operations_incidents_context_without_sidebar_highlight(): void
     {
         $user = User::factory()->create(['is_active' => true]);
         $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -177,7 +180,7 @@ class NavigationContextResolverTest extends TestCase
         $sidebar = $this->resolver->sidebar($request, $context);
 
         $this->assertSame('operations.incidents', $context->activeItemKey);
-        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'operations.incidents'));
+        $this->assertFalse($this->sidebarItemIsActive($sidebar, 'operations.incidents'));
         $this->assertFalse($this->sidebarItemIsActive($sidebar, 'operations.approvals'));
     }
 

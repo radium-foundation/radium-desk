@@ -706,6 +706,14 @@ a.dashboard-u-hover-lift:focus-visible {
     overflow: visible;
 }
 
+/* Allow Email Intake KPI tooltip to escape compact/agent dashboard toolbar containers. */
+.dashboard-case-filters:has(.dashboard-email-intake-kpi:hover),
+.dashboard-case-filters:has(.dashboard-email-intake-kpi:focus-visible),
+.dashboard-cases-toolbar:has(.dashboard-email-intake-kpi:hover),
+.dashboard-cases-toolbar:has(.dashboard-email-intake-kpi:focus-visible) {
+    overflow: visible;
+}
+
 .dashboard-kpi-strip--admin {
     gap: var(--dashboard-space-1);
     padding: var(--dashboard-space-half) 0;
@@ -1000,7 +1008,7 @@ a.dashboard-u-hover-lift:focus-visible {
     display: none;
     position: absolute;
     left: 50%;
-    bottom: calc(100% + 0.35rem);
+    top: calc(100% + 0.35rem);
     transform: translateX(-50%);
     min-width: 10.5rem;
     padding: 0.4rem 0.55rem;
@@ -1008,7 +1016,7 @@ a.dashboard-u-hover-lift:focus-visible {
     border-radius: 0.4rem;
     background: #fff;
     box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
-    z-index: 40;
+    z-index: 1045;
     pointer-events: none;
 }
 
