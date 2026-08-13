@@ -10,9 +10,13 @@ use App\Services\ServiceCaseStatusService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Throwable;
 
-#[Signature('service-cases:sync-closed-status {--dry-run : Show what would be changed without updating anything}')]
+#[Signature('service-cases:sync-closed-status
+    {--dry-run : Show what would be changed without updating anything}
+    {--active-only : Only close operationally-active cases; exclude today/future scheduled appointments}')]
 #[Description('Close unfinished service cases for orders that already have a transaction ID')]
 class SyncCompletedOrdersServiceCases extends Command
 {
@@ -25,6 +29,7 @@ class SyncCompletedOrdersServiceCases extends Command
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
+        $activeOnly = (bool) $this->option('active-only');
 
         $completedOrderIds = Order::query()
             ->whereNotNull('transaction_id')
@@ -34,9 +39,7 @@ class SyncCompletedOrdersServiceCases extends Command
 
         $ordersScanned = $completedOrderIds->count();
 
-        $incidents = Incident::query()
-            ->whereIn('order_id', $completedOrderIds)
-            ->where('status', '!=', IncidentStatus::Closed)
+        $incidents = $this->candidateQuery($completedOrderIds, $activeOnly)
             ->with(['order' => fn ($query) => $query->select(
                 'id',
                 'order_id',
@@ -92,6 +95,11 @@ class SyncCompletedOrdersServiceCases extends Command
 
         $this->newLine();
         $this->info('Summary');
+
+        if ($activeOnly) {
+            $this->line('Scope: active-only (operationally active, excluding today/future scheduled appointments)');
+        }
+
         $this->line("Orders scanned: {$ordersScanned}");
         $this->line('Service Cases updated: '.($dryRun ? 0 : $serviceCasesUpdated));
         $this->line("Skipped: {$skipped}");
@@ -144,5 +152,34 @@ class SyncCompletedOrdersServiceCases extends Command
         }
 
         return User::query()->find($userId);
+    }
+
+    /**
+     * @param  Collection<int, int>  $completedOrderIds
+     * @return Builder<Incident>
+     */
+    private function candidateQuery(Collection $completedOrderIds, bool $activeOnly): Builder
+    {
+        $query = Incident::query()
+            ->whereIn('order_id', $completedOrderIds)
+            ->where('status', '!=', IncidentStatus::Closed);
+
+        if (! $activeOnly) {
+            return $query;
+        }
+
+        $query->whereIn('status', array_map(
+            fn (IncidentStatus $status): string => $status->value,
+            IncidentStatus::operationallyActive(),
+        ));
+
+        $today = now()->timezone(config('app.timezone'))->toDateString();
+
+        return $query->whereDoesntHave('supportAppointments', function (Builder $appointmentQuery) use ($today): void {
+            $appointmentQuery
+                ->scheduled()
+                ->whereNotNull('preferred_date')
+                ->whereDate('preferred_date', '>=', $today);
+        });
     }
 }

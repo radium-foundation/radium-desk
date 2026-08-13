@@ -2,12 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\RefundDeductionProfile;
+use App\Enums\RefundStatus;
+use App\Enums\SupportAppointmentStatus;
+use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\RefundRequest;
+use App\Models\SupportAppointment;
 use App\Models\User;
+use App\Services\BusinessHoldService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -238,6 +246,187 @@ class SyncCompletedOrdersServiceCasesTest extends TestCase
         $this->assertSame(IncidentStatus::Closed, $successIncident->fresh()->status);
     }
 
+    public function test_active_only_closes_open_txn_complete_case(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = $this->createCompletedOrder($admin, 'RD-SYNC-ACTIVE-OPEN');
+        $incident = $this->createUnfinishedServiceCase($order, $admin, 'SC-SYNC-ACTIVE-OPEN', IncidentStatus::Open);
+
+        $this->artisan('service-cases:sync-closed-status --active-only')
+            ->expectsOutputToContain('Scope: active-only (operationally active, excluding today/future scheduled appointments)')
+            ->expectsOutputToContain('Service Cases updated: 1')
+            ->assertSuccessful();
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+    }
+
+    public function test_active_only_excludes_resolved_case(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = $this->createCompletedOrder($admin, 'RD-SYNC-ACTIVE-RESOLVED');
+        $resolvedCase = $this->createUnfinishedServiceCase($order, $admin, 'SC-SYNC-ACTIVE-RESOLVED', IncidentStatus::Resolved);
+
+        $this->artisan('service-cases:sync-closed-status --active-only')
+            ->doesntExpectOutputToContain('SC-SYNC-ACTIVE-RESOLVED')
+            ->expectsOutputToContain('Service Cases updated: 0')
+            ->assertSuccessful();
+
+        $this->assertSame(IncidentStatus::Resolved, $resolvedCase->fresh()->status);
+    }
+
+    public function test_active_only_closes_awaiting_product_details_case(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = $this->createCompletedOrder($admin, 'RD-SYNC-ACTIVE-APD');
+        $incident = $this->createUnfinishedServiceCase(
+            $order,
+            $admin,
+            'SC-SYNC-ACTIVE-APD',
+            IncidentStatus::AwaitingProductDetails,
+        );
+
+        $this->artisan('service-cases:sync-closed-status --active-only')
+            ->expectsOutputToContain('Service Cases updated: 1')
+            ->assertSuccessful();
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+    }
+
+    public function test_active_only_excludes_future_scheduled_appointment(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = $this->createCompletedOrder($admin, 'RD-SYNC-ACTIVE-FUTURE-APT');
+        $incident = $this->createUnfinishedServiceCase($order, $admin, 'SC-SYNC-ACTIVE-FUTURE-APT', IncidentStatus::Open);
+        $this->createScheduledAppointment($incident, now()->addDays(3)->toDateString());
+
+        $this->artisan('service-cases:sync-closed-status --active-only')
+            ->expectsOutputToContain('Service Cases updated: 0')
+            ->assertSuccessful();
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+    }
+
+    public function test_active_only_excludes_today_scheduled_appointment(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = $this->createCompletedOrder($admin, 'RD-SYNC-ACTIVE-TODAY-APT');
+        $incident = $this->createUnfinishedServiceCase($order, $admin, 'SC-SYNC-ACTIVE-TODAY-APT', IncidentStatus::Open);
+        $this->createScheduledAppointment($incident, now()->timezone(config('app.timezone'))->toDateString());
+
+        $this->artisan('service-cases:sync-closed-status --active-only')
+            ->expectsOutputToContain('Service Cases updated: 0')
+            ->assertSuccessful();
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+    }
+
+    public function test_active_only_closes_past_scheduled_appointment(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = $this->createCompletedOrder($admin, 'RD-SYNC-ACTIVE-PAST-APT');
+        $incident = $this->createUnfinishedServiceCase($order, $admin, 'SC-SYNC-ACTIVE-PAST-APT', IncidentStatus::Open);
+        $appointment = $this->createScheduledAppointment($incident, now()->subDays(2)->toDateString());
+
+        $this->artisan('service-cases:sync-closed-status --active-only')
+            ->expectsOutputToContain('Service Cases updated: 1')
+            ->assertSuccessful();
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        $this->assertSame(
+            SupportAppointmentStatus::Completed,
+            $appointment->fresh()->status,
+        );
+    }
+
+    public function test_active_only_fails_safely_on_refund_hold(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = $this->createCompletedOrder($admin, 'RD-SYNC-ACTIVE-HOLD');
+        $incident = $this->createUnfinishedServiceCase($order, $admin, 'SC-SYNC-ACTIVE-HOLD', IncidentStatus::Open);
+
+        $refund = RefundRequest::query()->create([
+            'order_id' => $order->id,
+            'incident_id' => $incident->id,
+            'reference_no' => 'RF-SYNC-ACTIVE-HOLD',
+            'amount' => 100,
+            'refund_amount' => 100,
+            'reason' => 'Test',
+            'requester_remarks' => 'Test',
+            'customer_preferred_method' => CustomerPreferredRefundMethod::Opm,
+            'status' => RefundStatus::Pending,
+            'total_paid_amount' => 100,
+            'already_refunded_amount' => 0,
+            'maximum_refundable' => 100,
+            'cancellation_charges' => 0,
+            'gst_on_cancellation' => 0,
+            'other_deduction' => 0,
+            'total_deduction' => 0,
+            'deduction_profile_key' => RefundDeductionProfile::FullRefund,
+            'communication_channels' => ['email'],
+            'requested_by' => $admin->id,
+        ]);
+
+        app(BusinessHoldService::class)->activateRefundHold($incident, $refund, $admin);
+
+        $this->artisan('service-cases:sync-closed-status --active-only')
+            ->expectsOutputToContain('Failed to close '.$incident->display_reference.' for order '.$order->order_id)
+            ->expectsOutputToContain('Service Cases updated: 0')
+            ->expectsOutputToContain('Failures: 1')
+            ->assertSuccessful();
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+    }
+
+    public function test_active_only_is_idempotent_on_second_run(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = $this->createCompletedOrder($admin, 'RD-SYNC-ACTIVE-IDEM');
+        $incident = $this->createUnfinishedServiceCase($order, $admin, 'SC-SYNC-ACTIVE-IDEM', IncidentStatus::Open);
+
+        $this->artisan('service-cases:sync-closed-status --active-only')
+            ->expectsOutputToContain('Service Cases updated: 1')
+            ->assertSuccessful();
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+
+        $this->artisan('service-cases:sync-closed-status --active-only')
+            ->expectsOutputToContain('Service Cases updated: 0')
+            ->assertSuccessful();
+    }
+
+    public function test_active_only_dry_run_shows_scope_without_closing(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = $this->createCompletedOrder($admin, 'RD-SYNC-ACTIVE-DRY');
+        $incident = $this->createUnfinishedServiceCase($order, $admin, 'SC-SYNC-ACTIVE-DRY', IncidentStatus::Open);
+
+        $this->artisan('service-cases:sync-closed-status --active-only --dry-run')
+            ->expectsOutputToContain('Scope: active-only (operationally active, excluding today/future scheduled appointments)')
+            ->expectsOutputToContain('Would Close')
+            ->expectsOutputToContain('Service Cases updated: 0')
+            ->assertSuccessful();
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+    }
+
     private function createCompletedOrder(User $admin, string $orderId): Order
     {
         return Order::query()->create([
@@ -268,6 +457,18 @@ class SyncCompletedOrdersServiceCasesTest extends TestCase
             'description' => 'Sync test case.',
             'status' => $status->value,
             'created_by' => $admin->id,
+        ]);
+    }
+
+    private function createScheduledAppointment(Incident $incident, string $preferredDate): SupportAppointment
+    {
+        return SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => $preferredDate,
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9876543210',
+            'normalized_phone' => '9876543210',
+            'status' => SupportAppointmentStatus::Scheduled,
         ]);
     }
 }
