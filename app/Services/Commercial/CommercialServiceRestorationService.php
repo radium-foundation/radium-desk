@@ -3,12 +3,16 @@
 namespace App\Services\Commercial;
 
 use App\Enums\ApprovedRefundMethod;
+use App\Enums\IncidentStatus;
 use App\Enums\RefundStatus;
 use App\Models\CommercialServiceRestoration;
+use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\DashboardBroadcastService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +26,8 @@ class CommercialServiceRestorationService
 {
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly DashboardSnapshotStore $dashboardSnapshotStore,
+        private readonly DashboardBroadcastService $dashboardBroadcastService,
     ) {}
 
     public function activeFor(Order $order, RefundRequest $refund): ?CommercialServiceRestoration
@@ -117,6 +123,8 @@ class CommercialServiceRestorationService
                 ],
             );
 
+            $this->syncDashboardQueueMembershipAfterCommercialChange($order, $actor);
+
             return $restoration->fresh(['order', 'refundRequest', 'recordedBy', 'verifiedBy']) ?? $restoration;
         });
     }
@@ -162,8 +170,38 @@ class CommercialServiceRestorationService
                 ],
             );
 
+            $order = $fresh->order;
+
+            if ($order instanceof Order) {
+                $this->syncDashboardQueueMembershipAfterCommercialChange($order, $actor);
+            }
+
             return $fresh;
         });
+    }
+
+    private function syncDashboardQueueMembershipAfterCommercialChange(Order $order, User $actor): void
+    {
+        $this->dashboardSnapshotStore->forget();
+
+        $incidents = Incident::query()
+            ->where('order_record_id', $order->id)
+            ->whereIn('status', IncidentStatus::operationallyActive())
+            ->get();
+
+        foreach ($incidents as $incident) {
+            $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged(
+                $incident->fresh([
+                    'order.transactionAssigner',
+                    'creator',
+                    'assignee.roles',
+                    'activeWaitingState',
+                    'activeBusinessHold',
+                    'supportAppointments',
+                ]),
+                $actor,
+            );
+        }
     }
 
     private function assertEligibleRefund(Order $order, RefundRequest $refund): void

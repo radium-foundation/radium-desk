@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\CommercialState;
 use App\Enums\IncidentStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SerialValidationSeverity;
 use App\Enums\SerialValidationStatus;
+use App\Services\Commercial\CommercialStateResolver;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -159,6 +161,13 @@ class ServiceCaseAssignmentEligibilityService
         }
 
         if (! $incident->isActive() || ! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        $commercialResolver = app(CommercialStateResolver::class);
+
+        if ($commercialResolver->enabled()
+            && $commercialResolver->forIncident($incident)->state === CommercialState::RefundCompleted) {
             return false;
         }
 

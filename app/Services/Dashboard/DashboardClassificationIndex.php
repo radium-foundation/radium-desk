@@ -70,7 +70,39 @@ class DashboardClassificationIndex
                         'status',
                     ]);
                 },
+                'order.refundRequests' => static function ($query): void {
+                    $query->select([
+                        'id',
+                        'order_id',
+                        'incident_id',
+                        'status',
+                        'approved_refund_method',
+                        'executed_at',
+                        'closed_at',
+                        'reviewed_at',
+                        'updated_at',
+                        'reference_no',
+                        'amount',
+                        'refund_amount',
+                    ]);
+                },
                 'assignee.roles',
+                'refundRequests' => static function ($query): void {
+                    $query->select([
+                        'id',
+                        'order_id',
+                        'incident_id',
+                        'status',
+                        'approved_refund_method',
+                        'executed_at',
+                        'closed_at',
+                        'reviewed_at',
+                        'updated_at',
+                        'reference_no',
+                        'amount',
+                        'refund_amount',
+                    ]);
+                },
                 'activeWaitingState',
                 'activeBusinessHold',
                 'supportAppointments' => static function ($query): void {
