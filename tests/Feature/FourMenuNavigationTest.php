@@ -69,7 +69,9 @@ class FourMenuNavigationTest extends TestCase
         $html = $this->sidebarHtml($agent);
 
         $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Operations'));
-        $this->assertStringContainsString(route('orders.index'), $html);
+        $this->assertStringNotContainsString('data-nav-key="operations.orders"', $html);
+        $this->assertStringNotContainsString('data-nav-key="operations.incidents"', $html);
+        $this->assertStringNotContainsString('data-nav-key="operations.refunds"', $html);
         $this->assertStringContainsString('My Leave', $html);
         $this->assertStringContainsString('Mission Control</span>', $html);
         $this->assertStringNotContainsString('Administration</span>', $html);

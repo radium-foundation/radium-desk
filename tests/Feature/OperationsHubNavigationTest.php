@@ -83,7 +83,9 @@ class OperationsHubNavigationTest extends TestCase
         $this->assertStringNotContainsString('title="Automation Health"', $html);
         $this->assertStringNotContainsString('title="Automation Operations"', $html);
         $this->assertStringContainsString('Mission Control</span>', $html);
-        $this->assertStringContainsString(route('orders.index'), $html);
+        $this->assertStringNotContainsString('data-nav-key="operations.orders"', $html);
+        $this->assertStringNotContainsString('data-nav-key="operations.incidents"', $html);
+        $this->assertStringNotContainsString('data-nav-key="operations.refunds"', $html);
     }
 
     public function test_admin_operations_control_center_shows_merged_hub_navigation(): void
