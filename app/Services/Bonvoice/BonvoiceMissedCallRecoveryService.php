@@ -32,6 +32,11 @@ class BonvoiceMissedCallRecoveryService
 {
     public const CATEGORY = 'Missed Call Recovery';
 
+    public const EVENT_SUPPRESSED = 'missed_call_recovery.suppressed';
+
+    /** After-hours IVR option for callback / register / sell (Bonvoice production DTMF). */
+    private const AFTER_HOURS_CALLBACK_DTMF = '9';
+
     public function __construct(
         private readonly BonvoiceInboundCustomerResolver $customerResolver,
         private readonly InteraktCustomerMatcher $customerMatcher,
@@ -90,12 +95,7 @@ class BonvoiceMissedCallRecoveryService
         $match = $this->customerResolver->resolve($event->customer_phone);
 
         if (! $this->isEligibleForRecoveryCase($event, $match)) {
-            Log::info('[BonVoice Missed Call Recovery] Skipping case creation — no customer interaction', [
-                'call_id' => $event->call_id,
-                'bonvoice_call_event_id' => $event->id,
-                'status' => $event->status,
-                'order_matched' => $match['order_id'] !== null,
-            ]);
+            $this->recordSuppressedIntake($event, $match);
 
             return;
         }
@@ -132,27 +132,24 @@ class BonvoiceMissedCallRecoveryService
      */
     private function isEligibleForRecoveryCase(BonvoiceCallEvent $event, array $match): bool
     {
-        // Rule C: NOINPUT / no interaction never creates a recovery case.
-        if (BonvoiceCallStatuses::normalize($event->status) === 'NOINPUT') {
-            return false;
+        if ($this->hasCustomerInteraction($event)) {
+            return true;
         }
 
-        // Rule A: matched customer/order is eligible without requiring IVR params.
         if ($match['order_id'] !== null) {
             return true;
         }
 
-        // Rule B: unmatched callers need customer interaction (IVR input).
-        return $this->hasCustomerInteraction($event);
+        return false;
     }
 
     /**
-     * Production payloads use DTMF; legacy/test payloads may use callBackParams.
+     * Production payloads use payload.DTMF; legacy/test payloads may use callBackParams.
      */
     private function hasCustomerInteraction(BonvoiceCallEvent $event): bool
     {
-        if (BonvoiceCallStatuses::normalize($event->status) === 'NOINPUT') {
-            return false;
+        if ($this->hasExplicitAfterHoursCallbackRequest($event)) {
+            return true;
         }
 
         if ($this->hasNonEmptyCallbackParams($event->callback_params)) {
@@ -162,25 +159,84 @@ class BonvoiceMissedCallRecoveryService
         return $this->hasNonEmptyDtmf($event->payload);
     }
 
+    /**
+     * After-hours option 9 (callback / register / sell) — production DTMF or callBackParams menu.
+     */
+    private function hasExplicitAfterHoursCallbackRequest(BonvoiceCallEvent $event): bool
+    {
+        $dtmf = $this->extractDtmfValue($event->payload);
+
+        if ($dtmf === self::AFTER_HOURS_CALLBACK_DTMF) {
+            return true;
+        }
+
+        return $this->callbackParamsContainSelectionDigit($event->callback_params, self::AFTER_HOURS_CALLBACK_DTMF);
+    }
+
     private function hasNonEmptyDtmf(mixed $payload): bool
     {
+        return $this->extractDtmfValue($payload) !== null;
+    }
+
+    private function extractDtmfValue(mixed $payload): ?string
+    {
         if (! is_array($payload)) {
-            return false;
+            return null;
         }
 
         $dtmf = $payload['DTMF'] ?? $payload['dtmf'] ?? null;
 
         if ($dtmf === null) {
-            return false;
+            return null;
         }
 
         if (is_string($dtmf)) {
             $trimmed = trim($dtmf);
 
-            return $trimmed !== '' && strtolower($trimmed) !== 'null';
+            if ($trimmed === '' || strtolower($trimmed) === 'null') {
+                return null;
+            }
+
+            return $trimmed;
         }
 
-        return is_numeric($dtmf) || is_bool($dtmf);
+        if (is_numeric($dtmf)) {
+            return (string) $dtmf;
+        }
+
+        if (is_bool($dtmf)) {
+            return $dtmf ? '1' : '0';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $callbackParams
+     */
+    private function callbackParamsContainSelectionDigit(?array $callbackParams, string $digit): bool
+    {
+        if (! is_array($callbackParams) || $callbackParams === []) {
+            return false;
+        }
+
+        foreach (['menu', 'option', 'dtmf', 'DTMF'] as $key) {
+            if (! array_key_exists($key, $callbackParams)) {
+                continue;
+            }
+
+            $value = $callbackParams[$key];
+
+            if (is_string($value) && trim($value) === $digit) {
+                return true;
+            }
+
+            if (is_numeric($value) && (string) $value === $digit) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasNonEmptyCallbackParams(mixed $callbackParams): bool
@@ -589,5 +645,50 @@ class BonvoiceMissedCallRecoveryService
     private function dispatchOrderEnrichmentIfEligible(Order $order): void
     {
         $this->radiumBoxOrderEnrichmentService->dispatchIfNeeded($order);
+    }
+
+    /**
+     * @param  array{
+     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     customer_phone: ?string,
+     *     order_id: ?int,
+     *     order_label: ?string,
+     *     incident_id: ?int,
+     * }  $match
+     */
+    private function recordSuppressedIntake(BonvoiceCallEvent $event, array $match): void
+    {
+        $normalizedStatus = BonvoiceCallStatuses::normalize($event->status);
+        $reason = $normalizedStatus === 'NOINPUT'
+            ? 'noinput_without_interaction_unmatched'
+            : 'no_customer_interaction_unmatched';
+
+        Log::info('[BonVoice Missed Call Recovery] Skipping case creation — intake suppressed', [
+            'call_id' => $event->call_id,
+            'bonvoice_call_event_id' => $event->id,
+            'status' => $event->status,
+            'order_matched' => $match['order_id'] !== null,
+            'reason' => $reason,
+        ]);
+
+        try {
+            $actor = $this->automationIdentity->systemUser();
+
+            $this->auditLogService->log(
+                userId: $actor->id,
+                event: self::EVENT_SUPPRESSED,
+                auditable: $event,
+                newValues: [
+                    'call_id' => $event->call_id,
+                    'status' => $event->status,
+                    'order_matched' => $match['order_id'] !== null,
+                    'order_id' => $match['order_id'],
+                    'order_label' => $match['order_label'],
+                    'reason' => $reason,
+                ],
+            );
+        } catch (\Throwable) {
+            // Observability should not block webhook processing.
+        }
     }
 }
