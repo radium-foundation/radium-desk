@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.32 — 2026-08-13 — Bonvoice Intake Prevention
+
+- Unmatched Bonvoice missed calls without customer IVR input no longer create service cases.
+- Known customers with matched orders still get missed-call recovery cases without requiring IVR input.
+- Valid DTMF and IVR menu selections continue to create enquiry cases for unknown callers.
+- Suppressed missed-call intake is recorded in audit logs for operations visibility.
+
 ## 4.0.31 — 2026-08-13 — Ready Queue Refunded Exclusion
 
 - Refunded cases no longer appear in the Ready Queue.
