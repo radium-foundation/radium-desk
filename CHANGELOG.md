@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.31 — 2026-08-13 — Ready Queue Refunded Exclusion
+
+- Refunded cases no longer appear in the Ready Queue.
+- Commercial service restoration and revoke refresh Ready Queue membership in realtime.
+
 ## 4.0.30 — 2026-08-12 — Dashboard Reliability & Payment Hardening
 
 - Fixed dashboard snapshot cache growth that could prevent operators from logging in.
