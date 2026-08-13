@@ -6,6 +6,7 @@ use App\Contracts\Platform\PlatformHealthProvider;
 use App\Data\Platform\PlatformHealthComponent;
 use App\Enums\PlatformHealthStatus;
 use App\Enums\QueueWorkerMode;
+use App\Infrastructure\Queue\QueueDeadLetterCopy;
 use App\Infrastructure\Queue\QueueMetricsService;
 use App\Infrastructure\Queue\QueueMetricsSnapshot;
 use Illuminate\Support\Carbon;
@@ -82,7 +83,7 @@ class QueueHealthProvider implements PlatformHealthProvider
         if ($snapshot->failedJobs > 0) {
             return [
                 PlatformHealthStatus::Critical,
-                "{$prefix}: {$snapshot->failedJobs} failed job(s) in the dead-letter queue.",
+                QueueDeadLetterCopy::detail($workerMode->value, $snapshot->failedJobs),
             ];
         }
 

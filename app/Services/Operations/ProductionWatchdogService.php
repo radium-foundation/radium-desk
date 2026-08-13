@@ -8,12 +8,13 @@ use App\Enums\AutomationExecutionStatus;
 use App\Enums\OperationsHealthStatus;
 use App\Enums\PlatformHealthStatus;
 use App\Enums\QueueWorkerMode;
+use App\Infrastructure\Queue\QueueDeadLetterCopy;
+use App\Infrastructure\Queue\QueueMetricsService;
 use App\Models\AutomationExecution;
 use App\Models\BonvoiceWebhookLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
-use App\Infrastructure\Queue\QueueMetricsService;
 use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use App\Services\Platform\Health\PlatformHealthSnapshotService;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
@@ -44,6 +45,7 @@ class ProductionWatchdogService
         private readonly OperationsSystemHealthService $systemHealthService,
         private readonly OperationsRadiumBoxHealthService $radiumBoxHealthService,
         private readonly PlatformHealthSnapshotService $platformHealthSnapshot,
+        private readonly QueueMetricsService $queueMetrics,
     ) {}
 
     /**
@@ -157,103 +159,84 @@ class ProductionWatchdogService
      */
     private function queueAlerts(): array
     {
-        $fromSnapshot = $this->queueAlertsFromSharedSnapshot();
-        if ($fromSnapshot !== null) {
-            return $fromSnapshot;
+        $alerts = [];
+
+        $deadLetter = $this->queueDeadLetterAlert();
+        if ($deadLetter !== null) {
+            $alerts[] = $deadLetter;
         }
 
-        $component = $this->systemHealthService->componentFor('queue_worker');
-        if ($component === null) {
-            return [];
+        $backlog = $this->queueBacklogAlert();
+        if ($backlog !== null) {
+            $alerts[] = $backlog;
         }
 
-        $status = OperationsHealthStatus::tryFrom((string) ($component['status'] ?? ''));
-
-        if ($status === OperationsHealthStatus::Failed) {
-            $queueSnapshot = app(QueueMetricsService::class)->capture();
-            $prefix = 'Queue worker ('.QueueWorkerMode::fromConfig()->value.')';
-
-            return [
-                new ProductionCriticalAlert(
-                    key: 'queue:dead_letter',
-                    label: 'Queue',
-                    message: "{$prefix}: {$queueSnapshot->failedJobs} failed job(s) in the dead-letter queue.",
-                    affectedCount: $queueSnapshot->failedJobs,
-                ),
-            ];
-        }
-
-        if ($status === OperationsHealthStatus::Warning) {
-            $queueSnapshot = app(QueueMetricsService::class)->capture();
-            $prefix = 'Queue worker ('.QueueWorkerMode::fromConfig()->value.')';
-            $message = (string) ($component['detail'] ?? 'Queue backlog requires attention.');
-
-            if ($queueSnapshot->pendingJobs > 50) {
-                $message = "{$prefix}: {$queueSnapshot->pendingJobs} pending job(s) waiting.";
-            } elseif (
-                $queueSnapshot->oldestPendingJobAt !== null
-                && $queueSnapshot->oldestPendingJobAt->lt(now()->subMinutes(30))
-            ) {
-                $message = "{$prefix}: oldest pending job is over 30 minutes old.";
-            }
-
-            return [
-                new ProductionCriticalAlert(
-                    key: 'queue:backlog',
-                    label: 'Queue',
-                    message: $message,
-                    affectedCount: $queueSnapshot->pendingJobs,
-                ),
-            ];
-        }
-
-        return [];
+        return $alerts;
     }
 
     /**
-     * Prefer shared Platform Health queue component when warm (same object as Platform Health).
-     *
-     * @return list<ProductionCriticalAlert>|null null = snapshot unavailable, use legacy path
+     * Live failed_jobs identity — independent of snapshot freshness so a stale
+     * Healthy Platform Health component cannot syncResolved-clear the DLQ alert.
      */
-    private function queueAlertsFromSharedSnapshot(): ?array
+    private function queueDeadLetterAlert(): ?ProductionCriticalAlert
+    {
+        if (! QueueWorkerMode::fromConfig()->isActive()) {
+            return null;
+        }
+
+        $uuids = $this->queueMetrics->failedJobUuids();
+        if ($uuids === []) {
+            return null;
+        }
+
+        $count = count($uuids);
+
+        return new ProductionCriticalAlert(
+            key: 'queue:dead_letter',
+            label: 'Queue',
+            message: QueueDeadLetterCopy::detail(QueueWorkerMode::fromConfig()->value, $count),
+            affectedCount: $count,
+            incidentIdentity: implode(',', $uuids),
+        );
+    }
+
+    private function queueBacklogAlert(): ?ProductionCriticalAlert
     {
         $snapshot = $this->sharedHealthSnapshot();
-        if ($snapshot === null) {
-            return null;
-        }
+        if ($snapshot !== null) {
+            $queue = $snapshot->component('queue');
+            if ($queue !== null) {
+                if ($queue->status !== PlatformHealthStatus::Warning) {
+                    return null;
+                }
 
-        $queue = $snapshot->component('queue');
-        if ($queue === null) {
-            return null;
-        }
-
-        if ($queue->status === PlatformHealthStatus::Critical) {
-            return [
-                new ProductionCriticalAlert(
-                    key: 'queue:dead_letter',
-                    label: 'Queue',
-                    message: $queue->detail !== ''
-                        ? $queue->detail
-                        : 'Queue worker has failed jobs.',
-                    affectedCount: (int) ($queue->metrics['failed_jobs'] ?? 0),
-                ),
-            ];
-        }
-
-        if ($queue->status === PlatformHealthStatus::Warning) {
-            return [
-                new ProductionCriticalAlert(
+                return new ProductionCriticalAlert(
                     key: 'queue:backlog',
                     label: 'Queue',
                     message: $queue->detail !== ''
                         ? $queue->detail
                         : 'Queue backlog requires attention.',
                     affectedCount: (int) ($queue->metrics['pending_jobs'] ?? 0),
-                ),
-            ];
+                );
+            }
         }
 
-        return [];
+        $component = $this->systemHealthService->componentFor('queue_worker');
+        if ($component === null) {
+            return null;
+        }
+
+        $status = OperationsHealthStatus::tryFrom((string) ($component['status'] ?? ''));
+
+        if ($status === OperationsHealthStatus::Warning) {
+            return new ProductionCriticalAlert(
+                key: 'queue:backlog',
+                label: 'Queue',
+                message: (string) ($component['detail'] ?? 'Queue backlog requires attention.'),
+            );
+        }
+
+        return null;
     }
 
     /**

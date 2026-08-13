@@ -11,6 +11,7 @@ abstract class TestCase extends BaseTestCase
     protected function tearDown(): void
     {
         \Illuminate\Support\Carbon::setTestNow();
+        \App\Services\Operations\WatchdogCriticalAlertGate::clearDurableForTests();
 
         parent::tearDown();
     }

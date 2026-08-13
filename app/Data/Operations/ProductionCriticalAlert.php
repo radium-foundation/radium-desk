@@ -13,10 +13,15 @@ readonly class ProductionCriticalAlert
         public string $message,
         public int $affectedCount = 0,
         public array $orderIds = [],
+        public ?string $incidentIdentity = null,
     ) {}
 
     public function fingerprint(): string
     {
+        if ($this->incidentIdentity !== null && $this->incidentIdentity !== '') {
+            return hash('sha256', $this->key.'|'.$this->incidentIdentity);
+        }
+
         return hash('sha256', $this->key.'|'.$this->message.'|'.$this->affectedCount);
     }
 

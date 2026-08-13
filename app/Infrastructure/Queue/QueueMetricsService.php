@@ -95,6 +95,26 @@ class QueueMetricsService
         return (int) $this->runnableJobsQuery()->count();
     }
 
+    /**
+     * Sorted failed-job UUIDs for dead-letter identity. Read-only; does not
+     * modify failed_jobs.
+     *
+     * @return list<string>
+     */
+    public function failedJobUuids(): array
+    {
+        if (! Schema::hasTable('failed_jobs')) {
+            return [];
+        }
+
+        return DB::table('failed_jobs')
+            ->orderBy('uuid')
+            ->pluck('uuid')
+            ->map(fn ($uuid) => (string) $uuid)
+            ->values()
+            ->all();
+    }
+
     private function countFailedJobs(): int
     {
         if (! Schema::hasTable('failed_jobs')) {
