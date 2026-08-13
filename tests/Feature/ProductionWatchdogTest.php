@@ -297,6 +297,212 @@ class ProductionWatchdogTest extends TestCase
         $this->assertSame($owner->id, $results[0]->user_id);
     }
 
+    public function test_two_failed_jobs_produce_one_canonical_queue_alert(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['infrastructure.queue_worker_mode' => 'dedicated_cron']);
+        $this->insertFailedJob('bbbbbbbb-2222-2222-2222-222222222222');
+        $this->insertFailedJob('aaaaaaaa-1111-1111-1111-111111111111');
+
+        $alerts = $this->queueDeadLetterAlerts();
+
+        $this->assertCount(1, $alerts);
+        $this->assertSame('queue:dead_letter', $alerts[0]->key);
+        $this->assertSame(
+            'Queue worker (dedicated_cron): 2 failed job(s) in the dead-letter queue.',
+            $alerts[0]->message,
+        );
+        $this->assertSame(2, $alerts[0]->affectedCount);
+        $this->assertSame(
+            'aaaaaaaa-1111-1111-1111-111111111111,bbbbbbbb-2222-2222-2222-222222222222',
+            $alerts[0]->incidentIdentity,
+        );
+    }
+
+    public function test_snapshot_and_legacy_paths_produce_the_same_dead_letter_alert(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['infrastructure.queue_worker_mode' => 'dedicated_cron']);
+        $this->insertFailedJob('aaaaaaaa-1111-1111-1111-111111111111');
+        $this->insertFailedJob('bbbbbbbb-2222-2222-2222-222222222222');
+
+        app(\App\Services\Platform\Health\PlatformHealthSnapshotService::class)->probe();
+        $snapshotAlert = $this->queueDeadLetterAlerts()[0] ?? null;
+
+        Cache::forget(\App\Services\Platform\Health\PlatformHealthSnapshotService::CACHE_KEY);
+        $legacyAlert = $this->queueDeadLetterAlerts()[0] ?? null;
+
+        $this->assertNotNull($snapshotAlert);
+        $this->assertNotNull($legacyAlert);
+        $this->assertSame($snapshotAlert->message, $legacyAlert->message);
+        $this->assertSame($snapshotAlert->affectedCount, $legacyAlert->affectedCount);
+        $this->assertSame($snapshotAlert->fingerprint(), $legacyAlert->fingerprint());
+        $this->assertSame(2, $snapshotAlert->affectedCount);
+        $this->assertStringContainsString('in the dead-letter queue.', $snapshotAlert->message);
+    }
+
+    public function test_dead_letter_telegram_sends_once_and_survives_cache_flush(): void
+    {
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 90],
+            ], 200),
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['infrastructure.queue_worker_mode' => 'dedicated_cron']);
+        $this->createOwnerWithTelegram('866666666');
+        $this->insertFailedJob('aaaaaaaa-1111-1111-1111-111111111111');
+        $this->insertFailedJob('bbbbbbbb-2222-2222-2222-222222222222');
+
+        $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
+        $this->assertSame(1, $this->sentQueueAlertCount());
+
+        $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
+        $this->assertSame(1, $this->sentQueueAlertCount());
+
+        Cache::flush();
+
+        $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
+        $this->assertSame(1, $this->sentQueueAlertCount());
+    }
+
+    public function test_adding_a_third_failed_job_uuid_sends_one_new_alert(): void
+    {
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 91],
+            ], 200),
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['infrastructure.queue_worker_mode' => 'dedicated_cron']);
+        $this->createOwnerWithTelegram('877777777');
+        $this->insertFailedJob('aaaaaaaa-1111-1111-1111-111111111111');
+        $this->insertFailedJob('bbbbbbbb-2222-2222-2222-222222222222');
+
+        $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
+        $this->assertSame(1, $this->sentQueueAlertCount());
+
+        $this->insertFailedJob('cccccccc-3333-3333-3333-333333333333');
+
+        $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
+        $this->assertSame(2, $this->sentQueueAlertCount());
+        $this->assertStringContainsString(
+            '3 failed job(s) in the dead-letter queue.',
+            (string) IraNotification::query()->orderByDesc('id')->value('message'),
+        );
+    }
+
+    public function test_removing_all_failed_jobs_resolves_and_a_later_uuid_alerts_again(): void
+    {
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 92],
+            ], 200),
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['infrastructure.queue_worker_mode' => 'dedicated_cron']);
+        $this->createOwnerWithTelegram('888888888');
+        $this->insertFailedJob('aaaaaaaa-1111-1111-1111-111111111111');
+        $this->insertFailedJob('bbbbbbbb-2222-2222-2222-222222222222');
+
+        $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
+        $this->assertSame(1, $this->sentQueueAlertCount());
+
+        \Illuminate\Support\Facades\DB::table('failed_jobs')->delete();
+
+        $this->assertSame([], $this->queueDeadLetterAlerts());
+        $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
+        $this->assertSame(1, $this->sentQueueAlertCount());
+
+        $this->insertFailedJob('dddddddd-4444-4444-4444-444444444444');
+
+        $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
+        $this->assertSame(2, $this->sentQueueAlertCount());
+    }
+
+    public function test_stale_healthy_snapshot_does_not_clear_live_dead_letter(): void
+    {
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 93],
+            ], 200),
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['infrastructure.queue_worker_mode' => 'dedicated_cron']);
+        $this->createOwnerWithTelegram('899999999');
+        $this->insertFailedJob('aaaaaaaa-1111-1111-1111-111111111111');
+
+        $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
+        $this->assertSame(1, $this->sentQueueAlertCount());
+
+        $snapshot = app(\App\Services\Platform\Health\PlatformHealthSnapshotService::class)->probe();
+        $payload = $snapshot->toArray();
+        foreach ($payload['components'] as &$component) {
+            if (($component['key'] ?? '') !== 'queue') {
+                continue;
+            }
+
+            $component['status'] = 'healthy';
+            $component['detail'] = 'Queue worker (dedicated_cron) is healthy.';
+            $component['metrics']['failed_jobs'] = 0;
+        }
+        unset($component);
+        Cache::put(\App\Services\Platform\Health\PlatformHealthSnapshotService::CACHE_KEY, $payload, now()->addMinutes(5));
+
+        $this->assertCount(1, $this->queueDeadLetterAlerts());
+        $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
+        $this->assertSame(1, $this->sentQueueAlertCount());
+    }
+
+    /**
+     * @return list<\App\Data\Operations\ProductionCriticalAlert>
+     */
+    private function queueDeadLetterAlerts(): array
+    {
+        return array_values(array_filter(
+            app(ProductionWatchdogService::class)->collectCriticalAlerts(),
+            fn ($alert) => $alert->key === 'queue:dead_letter',
+        ));
+    }
+
+    private function sentQueueAlertCount(): int
+    {
+        return IraNotification::query()
+            ->where('notification_type', IraNotificationType::CriticalSystemAlert->value)
+            ->where('status', IraNotificationStatus::Sent->value)
+            ->where('message', 'like', '%dead-letter queue%')
+            ->count();
+    }
+
+    private function insertFailedJob(string $uuid): void
+    {
+        \Illuminate\Support\Facades\DB::table('failed_jobs')->insert([
+            'uuid' => $uuid,
+            'connection' => 'database',
+            'queue' => 'critical',
+            'payload' => json_encode([
+                'displayName' => 'App\\Jobs\\RadiumBoxOrderEnrichmentJob',
+                'uuid' => $uuid,
+            ], JSON_THROW_ON_ERROR),
+            'exception' => 'TimeoutExceededException',
+            'failed_at' => now(),
+        ]);
+    }
+
     private function createSkippedEnquirySpamAutomationExecutions(int $count): void
     {
         $actor = User::factory()->create();

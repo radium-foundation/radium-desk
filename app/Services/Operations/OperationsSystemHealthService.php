@@ -5,6 +5,7 @@ namespace App\Services\Operations;
 use App\Enums\AutomationExecutionStatus;
 use App\Enums\OperationsHealthStatus;
 use App\Enums\QueueWorkerMode;
+use App\Infrastructure\Queue\QueueDeadLetterCopy;
 use App\Models\AutomationExecution;
 use App\Models\InteraktMessage;
 use App\Services\SystemSettingsService;
@@ -142,7 +143,12 @@ class OperationsSystemHealthService
         $prefix = "Queue worker ({$workerMode->value})";
 
         if ($queueSnapshot->failedJobs > 0) {
-            return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Failed, "{$prefix}: {$queueSnapshot->failedJobs} failed job(s) in dead-letter queue.");
+            return $this->component(
+                'queue_worker',
+                'Queue Worker',
+                OperationsHealthStatus::Failed,
+                QueueDeadLetterCopy::detail($workerMode->value, $queueSnapshot->failedJobs),
+            );
         }
 
         if ($queueSnapshot->pendingJobs > 50) {

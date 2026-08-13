@@ -5,6 +5,7 @@ namespace Tests\Feature\Infrastructure;
 use App\Enums\PlatformHealthStatus;
 use App\Enums\QueueWorkerMode;
 use App\Infrastructure\Queue\QueueMetricsService;
+use App\Services\Operations\OperationsSystemHealthService;
 use App\Services\Platform\Health\QueueHealthProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -133,6 +134,51 @@ class QueueMetricsHealthTest extends TestCase
 
         $this->assertSame(PlatformHealthStatus::Healthy, $health->status);
         $this->assertSame(0, $health->metrics['pending_jobs'] ?? null);
+    }
+
+    public function test_failed_job_uuids_are_returned_sorted(): void
+    {
+        $this->insertFailedJob('bbbbbbbb-2222-2222-2222-222222222222');
+        $this->insertFailedJob('aaaaaaaa-1111-1111-1111-111111111111');
+
+        $uuids = app(QueueMetricsService::class)->failedJobUuids();
+
+        $this->assertSame([
+            'aaaaaaaa-1111-1111-1111-111111111111',
+            'bbbbbbbb-2222-2222-2222-222222222222',
+        ], $uuids);
+    }
+
+    public function test_health_probe_uses_canonical_dead_letter_wording(): void
+    {
+        $this->insertFailedJob('aaaaaaaa-1111-1111-1111-111111111111');
+
+        $health = app(QueueHealthProvider::class)->probe();
+
+        $this->assertSame(PlatformHealthStatus::Critical, $health->status);
+        $this->assertSame(
+            'Queue worker (dedicated_cron): 1 failed job(s) in the dead-letter queue.',
+            $health->detail,
+        );
+        $this->assertSame(1, $health->metrics['failed_jobs'] ?? null);
+
+        $legacy = app(OperationsSystemHealthService::class)->componentFor('queue_worker');
+        $this->assertSame(
+            'Queue worker (dedicated_cron): 1 failed job(s) in the dead-letter queue.',
+            $legacy['detail'] ?? null,
+        );
+    }
+
+    private function insertFailedJob(string $uuid): void
+    {
+        DB::table('failed_jobs')->insert([
+            'uuid' => $uuid,
+            'connection' => 'database',
+            'queue' => 'critical',
+            'payload' => json_encode(['uuid' => $uuid], JSON_THROW_ON_ERROR),
+            'exception' => 'TimeoutExceededException',
+            'failed_at' => now(),
+        ]);
     }
 
     private function insertJob(
