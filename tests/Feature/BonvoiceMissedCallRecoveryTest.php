@@ -104,19 +104,21 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_noinput_does_not_create_recovery_case_but_keeps_call_log(): void
+    public function test_unmatched_noinput_without_interaction_is_suppressed(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
 
         $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
         $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
 
-        $this->seedCustomerOrder('9876543210');
-
-        $this->postMissedCall('call-noinput-001', status: 'NOINPUT');
+        $this->postMissedCall(
+            callId: 'call-noinput-unmatched-001',
+            status: 'NOINPUT',
+            sourceNumber: '9123456789',
+        );
 
         $this->assertDatabaseHas('bonvoice_call_events', [
-            'call_id' => 'call-noinput-001',
+            'call_id' => 'call-noinput-unmatched-001',
             'status' => 'NOINPUT',
         ]);
 
@@ -124,7 +126,62 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
             'category' => BonvoiceMissedCallRecoveryService::CATEGORY,
         ]);
 
-        $this->assertSame(0, IncidentBonvoiceCallLink::query()->where('call_id', 'call-noinput-001')->count());
+        $this->assertSame(0, IncidentBonvoiceCallLink::query()->where('call_id', 'call-noinput-unmatched-001')->count());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_matched_rd_noinput_without_interaction_creates_recovery_case(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $order = $this->seedCustomerOrder('9876543210');
+
+        $this->postMissedCall('call-noinput-matched-rd-001', status: 'NOINPUT');
+
+        $this->assertDatabaseHas('incidents', [
+            'order_id' => $order->id,
+            'category' => BonvoiceMissedCallRecoveryService::CATEGORY,
+            'recovery_phone' => '9876543210',
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_matched_inq_noinput_without_interaction_creates_recovery_case(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
+
+        $dayAdmin = $this->createAdminUser('day-admin@test.com', 'Day Admin');
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $dayAdmin->id, nightAdminId: $nightAdmin->id);
+        $this->createEligibleAgent('agent@test.com', 'Support Agent');
+
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => Order::inquiryOrderIdFromReference('SC-INQ-NOINPUT'),
+            'customer_phone' => '9988776655',
+            'serial_number' => '',
+            'status' => 'active',
+            'created_by' => $creator->id,
+        ]);
+
+        $this->postMissedCall(
+            callId: 'call-noinput-matched-inq-001',
+            status: 'NOINPUT',
+            sourceNumber: '9988776655',
+        );
+
+        $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
+
+        $this->assertNotNull($incident);
+        $this->assertSame($order->id, $incident->order_id);
+        $this->assertTrue($incident->order?->isInquiryOrder());
 
         Carbon::setTestNow();
     }
@@ -637,6 +694,161 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
 
         $this->assertNotNull($secondCase);
         $this->assertTrue($secondCase->isActive());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_matched_inquiry_order_noanswer_without_input_creates_recovery_case(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
+
+        $dayAdmin = $this->createAdminUser('day-admin@test.com', 'Day Admin');
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $dayAdmin->id, nightAdminId: $nightAdmin->id);
+        $this->createEligibleAgent('agent@test.com', 'Support Agent');
+
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => Order::inquiryOrderIdFromReference('SC-INQ-MATCH'),
+            'customer_phone' => '9988776655',
+            'serial_number' => '',
+            'status' => 'active',
+            'created_by' => $creator->id,
+        ]);
+
+        $this->postMissedCall(
+            callId: 'call-inq-matched-no-ivr',
+            status: 'NOANSWER',
+            sourceNumber: '9988776655',
+        );
+
+        $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
+
+        $this->assertNotNull($incident);
+        $this->assertSame($order->id, $incident->order_id);
+        $this->assertTrue($incident->order?->isInquiryOrder());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_unmatched_after_hours_dtmf_nine_creates_inquiry_case(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->productionInboundCallPayload(
+            callId: 'call-after-hours-9-dtmf',
+            status: 'NOANSWER',
+            sourceNumber: '9123456789',
+            dtmf: '9',
+        ))->assertOk();
+
+        $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
+
+        $this->assertNotNull($incident);
+        $this->assertTrue($incident->order?->isInquiryOrder());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_unmatched_after_hours_menu_nine_creates_inquiry_case(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->postMissedCall(
+            callId: 'call-after-hours-9-menu',
+            status: 'NOANSWER',
+            sourceNumber: '9123456789',
+            callBackParams: ['menu' => '9'],
+        );
+
+        $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
+
+        $this->assertNotNull($incident);
+        $this->assertTrue($incident->order?->isInquiryOrder());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_unmatched_noinput_with_dtmf_nine_creates_inquiry_case(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->productionInboundCallPayload(
+            callId: 'call-noinput-9-dtmf',
+            status: 'NOINPUT',
+            sourceNumber: '9123456789',
+            dtmf: '9',
+        ))->assertOk();
+
+        $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
+
+        $this->assertNotNull($incident);
+        $this->assertTrue($incident->order?->isInquiryOrder());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_suppression_is_audited_for_unmatched_no_input(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->postMissedCall(
+            callId: 'call-suppressed-audit-001',
+            status: 'NOANSWER',
+            sourceNumber: '9123456789',
+        );
+
+        $callEvent = \App\Models\BonvoiceCallEvent::query()
+            ->where('call_id', 'call-suppressed-audit-001')
+            ->firstOrFail();
+
+        $this->assertDatabaseMissing('incidents', [
+            'category' => BonvoiceMissedCallRecoveryService::CATEGORY,
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => BonvoiceMissedCallRecoveryService::EVENT_SUPPRESSED,
+            'auditable_type' => $callEvent->getMorphClass(),
+            'auditable_id' => $callEvent->id,
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_duplicate_missed_webhook_for_same_call_id_does_not_duplicate_link(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->seedCustomerOrder('9876543210');
+
+        $this->postMissedCall('call-dup-link-001');
+        $this->postMissedCall('call-dup-link-001');
+
+        $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
+
+        $this->assertNotNull($incident);
+        $this->assertSame(1, IncidentBonvoiceCallLink::query()
+            ->where('call_id', 'call-dup-link-001')
+            ->where('link_type', 'missed')
+            ->count());
+        $this->assertSame(1, $incident->missed_call_attempt_count);
 
         Carbon::setTestNow();
     }
