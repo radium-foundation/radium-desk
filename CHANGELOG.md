@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.33 — 2026-08-13 — Dashboard Navigation
+
+- Improved Email Intake KPI hover so the full breakdown is visible.
+- Removed redundant “View all service cases” dashboard links.
+- Removed Orders, Refunds, and Service Cases from the left sidebar.
+- Routes, permissions, dashboard workflows, and existing functionality remain available.
+- Ready Queue operation was not changed.
+
 ## 4.0.32 — 2026-08-13 — Bonvoice Intake Prevention
 
 - Unmatched Bonvoice missed calls without customer IVR input no longer create service cases.
