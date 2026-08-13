@@ -55,8 +55,10 @@ Future states (Replacement Approved, Warranty Replacement, Exchange, Chargeback)
 - `SupportAppointmentService::book` — Paid Appointment
 - `Customer360OverflowMenuPresenter` — Schedule Appointment menu item
 - Dashboard transaction cell — hides assign UI when blocked
+- `ServiceCaseAssignmentEligibilityService::isReadyForReferenceEntry` — Ready Queue membership (`RefundCompleted` excluded; `ServiceRestored` follows normal gates)
 
----
+Ready Queue must not list cases whose canonical commercial state is **Refund Completed** (`Refunded`). Customer email reopen does not restore commercial service. Only an active `commercial_service_restorations` row moves the resolver to **Service Restored**, after which existing Ready eligibility gates apply. Revoking restoration returns **Refund Completed** and removes Ready membership again.
+
 
 ## Surfaces
 
@@ -125,9 +127,11 @@ Derived `commercial_state = refund_completed` from terminal `refund_requests.sta
 - One active restoration per `(order_id, refund_request_id)` (app-enforced)
 - Never edit `refund_requests`, payments, Cashfree, or wallet systems
 - Revoke re-applies `refund_completed` block
+- Restore/revoke invalidate the dashboard snapshot and broadcast queue membership changes (same pattern as business holds)
 
 ### Tests
 
 - `tests/Unit/Commercial/CommercialStateResolverTest.php`
 - `tests/Feature/Commercial/CommercialStateGoldenTest.php`
 - `tests/Feature/Commercial/CommercialServiceRestorationTest.php`
+- `tests/Feature/ReadyQueueCommercialRefundedExclusionTest.php`

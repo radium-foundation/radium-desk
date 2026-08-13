@@ -7,16 +7,26 @@ use App\Enums\CommercialAction;
 use App\Enums\CommercialState;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\OperationQueue;
+use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\RefundStatus;
 use App\Models\CommercialServiceRestoration;
+use App\Models\DeviceModel;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\Commercial\CommercialServiceRestorationService;
 use App\Services\Commercial\CommercialStateResolver;
+use App\Services\Dashboard\DashboardSnapshot;
+use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\DashboardPersonalizationService;
 use App\Services\IncidentReferenceService;
+use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\OrderTransactionService;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
+use App\Services\ServiceCaseAssignmentEligibilityService;
+use Database\Seeders\DeviceModelSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -31,6 +41,7 @@ class CommercialServiceRestorationTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->seed(DeviceModelSeeder::class);
         config(['commercial_state.enabled' => true]);
     }
 
@@ -68,6 +79,15 @@ class CommercialServiceRestorationTest extends TestCase
 
         $this->actingAs($admin);
 
+        $freshBefore = $incident->fresh(['order', 'assignee.roles', 'activeWaitingState', 'supportAppointments', 'activeBusinessHold', 'refundRequests']);
+        $this->assertFalse(
+            app(ServiceCaseAssignmentEligibilityService::class)->isReadyForReferenceEntry($order->fresh(), $freshBefore),
+        );
+        $this->assertNotSame(
+            OperationQueue::ActionRequired,
+            app(OperationsQueueClassifier::class)->classify($freshBefore),
+        );
+
         $response = $this->postJson(route('dashboard.service-cases.customer-360.commercial-service-restore', [
             'incident' => $incident,
             'refund' => $refund,
@@ -85,6 +105,22 @@ class CommercialServiceRestorationTest extends TestCase
         $this->assertFalse($snapshot->blocks(CommercialAction::AssignServiceReference));
         $this->assertTrue($snapshot->allowsCommercialWork());
 
+        $fresh = $incident->fresh(['order', 'assignee.roles', 'activeWaitingState', 'supportAppointments', 'activeBusinessHold', 'refundRequests']);
+        app(DashboardSnapshotStore::class)->forget();
+
+        $this->assertTrue(
+            app(ServiceCaseAssignmentEligibilityService::class)->isReadyForReferenceEntry($order->fresh(), $fresh),
+        );
+        $this->assertSame(
+            OperationQueue::ActionRequired,
+            app(OperationsQueueClassifier::class)->classify($fresh),
+        );
+        $this->assertTrue(
+            DashboardSnapshot::load()
+                ->incidentsForQueue(DashboardPersonalizationService::QUEUE_ACTION_REQUIRED)
+                ->contains(fn (Incident $case): bool => $case->id === $incident->id),
+        );
+
         $assigned = app(OrderTransactionService::class)->assignTransactionId(
             $order->fresh(),
             'TXN-RESTORED-001',
@@ -92,6 +128,12 @@ class CommercialServiceRestorationTest extends TestCase
             broadcast: false,
         );
         $this->assertSame('TXN-RESTORED-001', $assigned->transaction_id);
+
+        $freshAfterAssign = $incident->fresh(['order', 'assignee.roles', 'activeWaitingState', 'supportAppointments', 'activeBusinessHold', 'refundRequests']);
+        app(DashboardSnapshotStore::class)->forget();
+        $this->assertFalse(
+            app(ServiceCaseAssignmentEligibilityService::class)->isReadyForReferenceEntry($order->fresh(), $freshAfterAssign),
+        );
 
         $refund->refresh();
         $this->assertSame($refundSnapshotBefore, [
@@ -143,6 +185,16 @@ class CommercialServiceRestorationTest extends TestCase
         $snapshot = app(CommercialStateResolver::class)->forIncident($incident->fresh());
         $this->assertSame(CommercialState::RefundCompleted, $snapshot->state);
         $this->assertTrue($snapshot->blocks(CommercialAction::AssignServiceReference));
+
+        $freshAfterRevoke = $incident->fresh(['order', 'assignee.roles', 'activeWaitingState', 'supportAppointments', 'activeBusinessHold', 'refundRequests']);
+        app(DashboardSnapshotStore::class)->forget();
+        $this->assertFalse(
+            app(ServiceCaseAssignmentEligibilityService::class)->isReadyForReferenceEntry($order->fresh(), $freshAfterRevoke),
+        );
+        $this->assertNotSame(
+            OperationQueue::ActionRequired,
+            app(OperationsQueueClassifier::class)->classify($freshAfterRevoke),
+        );
 
         $this->assertNotNull($restoration->fresh()->revoked_at);
         $this->assertDatabaseHas('audit_logs', [
@@ -238,19 +290,24 @@ class CommercialServiceRestorationTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
+        $deviceModel = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+
         $order = Order::query()->create([
             'order_id' => 'RD-CSR-'.uniqid(),
-            'serial_number' => 'SN-CSR-'.uniqid(),
-            'product_name' => 'Radium Device',
-            'device_model' => 'MFS 110',
+            'serial_number' => '7881953',
+            'product_name' => $deviceModel->name,
+            'device_model' => $deviceModel->name,
+            'device_model_id' => $deviceModel->id,
             'customer_name' => 'Restore Customer',
             'customer_email' => 'restore@example.com',
             'customer_phone' => '9000002843',
             'cashfree_payment_id' => 'CF-CSR-'.uniqid(),
             'payment_amount' => 617,
             'status' => 'active',
+            'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::Synced,
             'created_by' => $admin->id,
         ]);
+        app(RadiumBoxOrderEnrichmentSyncStore::class)->markSynced($order->id);
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,
