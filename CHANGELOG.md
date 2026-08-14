@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.34 — 2026-08-14 — Dead-Letter Watchdog Alerts
+
+- Stabilized dead-letter queue Telegram alerts so the same failed jobs no longer repeat after deploy or cache clears.
+- Unified watchdog dead-letter messaging across Platform Health and legacy probe paths.
+
 ## 4.0.33 — 2026-08-13 — Dashboard Navigation
 
 - Improved Email Intake KPI hover so the full breakdown is visible.
