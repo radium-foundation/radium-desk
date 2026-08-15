@@ -1,2 +1,4 @@
 *
 !.gitignore
+!db-sync/
+!db-sync/.gitignore
