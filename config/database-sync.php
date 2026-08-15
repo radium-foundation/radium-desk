@@ -15,6 +15,27 @@ return [
     'direction' => 'hostinger_to_vps',
 
     'checkpoint_path' => storage_path('app/private/db-sync/state.json'),
+    'table_checkpoint_directory' => storage_path('app/private/db-sync/checkpoints'),
+
+    'apply_lock_path' => storage_path('app/private/db-sync/.apply.lock'),
+
+    'inbox_directory' => storage_path('app/private/db-sync/inbox'),
+
+    'chunk_row_limit' => 2000,
+
+    'require_vps_dark' => true,
+
+    'enforce_target_host' => true,
+
+    'forbidden_vps_commands' => [
+        'queue:work',
+        'schedule:run',
+        'outbox:process',
+        'cashfree:auto-recover-missing',
+        'cashfree:recover-historical',
+        'radiumbox:recover-sync',
+    ],
+
 
     /*
     |--------------------------------------------------------------------------
@@ -54,7 +75,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | sync_order controls FK-safe apply order (lower runs first).
-    | unique_keys are business conflict keys checked before Phase 2 upsert.
+    | unique_indexes are business conflict indexes checked before Phase 2 upsert.
     |
     */
 
@@ -68,7 +89,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['email'],
+            'unique_indexes' => [['email']],
             'soft_deletes' => true,
         ],
         'permissions' => [
@@ -76,14 +97,14 @@ return [
             'sync_order' => 10,
             'strategy' => 'full_replace',
             'primary_key' => ['id'],
-            'unique_keys' => ['name', 'guard_name'],
+            'unique_indexes' => [['name', 'guard_name']],
         ],
         'roles' => [
             'tier' => 1,
             'sync_order' => 10,
             'strategy' => 'full_replace',
             'primary_key' => ['id'],
-            'unique_keys' => ['name', 'guard_name'],
+            'unique_indexes' => [['name', 'guard_name']],
         ],
         'device_models' => [
             'tier' => 1,
@@ -92,7 +113,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['name'],
+            'unique_indexes' => [['name']],
         ],
         'reference_sequences' => [
             'tier' => 1,
@@ -101,7 +122,7 @@ return [
             'primary_key' => ['name'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['name'],
+            'unique_indexes' => [['name']],
         ],
         'finance_payment_methods' => [
             'tier' => 1,
@@ -110,7 +131,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['name'],
+            'unique_indexes' => [['name']],
         ],
         'finance_expense_categories' => [
             'tier' => 1,
@@ -119,7 +140,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['name'],
+            'unique_indexes' => [['name']],
         ],
         'finance_cash_accounts' => [
             'tier' => 1,
@@ -128,7 +149,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['name'],
+            'unique_indexes' => [['name']],
         ],
         'finance_bank_accounts' => [
             'tier' => 1,
@@ -137,7 +158,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['name'],
+            'unique_indexes' => [['name']],
         ],
         'finance_settings' => [
             'tier' => 1,
@@ -146,7 +167,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['key'],
+            'unique_indexes' => [['key']],
         ],
         'system_settings' => [
             'tier' => 2,
@@ -155,7 +176,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['key'],
+            'unique_indexes' => [['key']],
         ],
         'settings' => [
             'tier' => 2,
@@ -164,7 +185,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['key'],
+            'unique_indexes' => [['key']],
         ],
         'setting_products' => [
             'tier' => 2,
@@ -181,7 +202,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['key'],
+            'unique_indexes' => [['key']],
         ],
         'company_holidays' => [
             'tier' => 2,
@@ -222,7 +243,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['device_models'],
-            'unique_keys' => ['alias'],
+            'unique_indexes' => [['alias']],
         ],
         'finance_accounts' => [
             'tier' => 1,
@@ -232,7 +253,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['finance_payment_methods', 'finance_expense_categories', 'finance_cash_accounts', 'finance_bank_accounts'],
-            'unique_keys' => ['code'],
+            'unique_indexes' => [['code']],
         ],
         'team_member_work_schedules' => [
             'tier' => 2,
@@ -271,7 +292,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['users', 'device_models'],
-            'unique_keys' => ['order_id', 'cashfree_payment_id', 'serial_number'],
+            'unique_indexes' => [['order_id'], ['cashfree_payment_id'], ['serial_number']],
             'soft_deletes' => true,
         ],
 
@@ -284,7 +305,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['orders', 'users'],
-            'unique_keys' => ['reference_no'],
+            'unique_indexes' => [['reference_no']],
             'soft_deletes' => true,
         ],
         'approval_numbers' => [
@@ -295,7 +316,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['users'],
-            'unique_keys' => ['approval_number'],
+            'unique_indexes' => [['approval_number']],
             'soft_deletes' => true,
         ],
         'cashfree_webhook_logs' => [
@@ -380,7 +401,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['orders', 'incidents', 'users'],
-            'unique_keys' => ['reference_no'],
+            'unique_indexes' => [['reference_no']],
             'soft_deletes' => true,
         ],
         'approval_incident' => [
@@ -455,7 +476,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['finance_accounts', 'users'],
-            'unique_keys' => ['journal_no', 'idempotency_key'],
+            'unique_indexes' => [['journal_no'], ['idempotency_key']],
         ],
         'finance_journal_lines' => [
             'tier' => 1,
@@ -483,7 +504,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['finance_journals', 'users'],
-            'unique_keys' => ['entry_no'],
+            'unique_indexes' => [['entry_no']],
             'soft_deletes' => true,
         ],
 
@@ -496,7 +517,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['users'],
-            'unique_keys' => ['uuid'],
+            'unique_indexes' => [['uuid']],
             'soft_deletes' => true,
         ],
         'ira_memory_relations' => [
@@ -517,7 +538,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['idempotency_key'],
+            'unique_indexes' => [['idempotency_key']],
         ],
         'interakt_messages' => [
             'tier' => 2,
@@ -526,7 +547,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['message_id'],
+            'unique_indexes' => [['message_id']],
         ],
         'interakt_webhook_logs' => [
             'tier' => 2,
@@ -551,7 +572,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['call_id', 'leg'],
+            'unique_indexes' => [['call_id', 'leg']],
         ],
         'bonvoice_call_alerts' => [
             'tier' => 2,
@@ -560,7 +581,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['call_id'],
+            'unique_indexes' => [['call_id']],
         ],
         'whatsapp_template_dispatches' => [
             'tier' => 2,
@@ -594,7 +615,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['incident_waiting_states'],
-            'unique_keys' => ['idempotency_key'],
+            'unique_indexes' => [['idempotency_key']],
         ],
         'reminders' => [
             'tier' => 2,
@@ -603,7 +624,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['idempotency_key'],
+            'unique_indexes' => [['idempotency_key']],
         ],
         'ira_notifications' => [
             'tier' => 2,
@@ -638,7 +659,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['mailbox'],
+            'unique_indexes' => [['mailbox']],
         ],
         'gmail_sync_message_failures' => [
             'tier' => 2,
@@ -656,7 +677,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['ira_memories'],
-            'unique_keys' => ['rfc_message_id', 'provider', 'provider_message_id'],
+            'unique_indexes' => [['rfc_message_id'], ['provider', 'provider_message_id']],
         ],
         'outgoing_email_messages' => [
             'tier' => 2,
@@ -674,7 +695,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['incidents', 'incoming_email_messages'],
-            'unique_keys' => ['incoming_email_message_id'],
+            'unique_indexes' => [['incoming_email_message_id']],
         ],
         'incoming_email_ignore_stats' => [
             'tier' => 2,
@@ -683,7 +704,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['stat_date', 'reason'],
+            'unique_indexes' => [['stat_date', 'reason']],
         ],
         'conversation_workspace_sessions' => [
             'tier' => 2,
@@ -731,7 +752,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['users'],
-            'unique_keys' => ['user_id', 'work_date'],
+            'unique_indexes' => [['user_id', 'work_date']],
         ],
         'workforce_short_attendance_reviews' => [
             'tier' => 2,
@@ -741,7 +762,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['users'],
-            'unique_keys' => ['user_id', 'work_date'],
+            'unique_indexes' => [['user_id', 'work_date']],
         ],
         'workforce_payroll_month_locks' => [
             'tier' => 2,
@@ -820,7 +841,7 @@ return [
             'strategy' => 'bigint_id_insert_only',
             'primary_key' => ['id'],
             'created_at' => 'created_at',
-            'unique_keys' => ['metric_key', 'snapshot_time', 'granularity'],
+            'unique_indexes' => [['metric_key', 'snapshot_time', 'granularity']],
         ],
         'performance_intelligence_snapshots' => [
             'tier' => 4,
@@ -829,7 +850,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['user_id', 'snapshot_date'],
+            'unique_indexes' => [['user_id', 'snapshot_date']],
         ],
     ],
 

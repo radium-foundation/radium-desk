@@ -8,7 +8,7 @@ final readonly class SyncTableDefinition
 {
     /**
      * @param  list<string>  $primaryKey
-     * @param  list<string>  $uniqueKeys
+     * @param  list<list<string>>  $uniqueIndexes
      * @param  list<string>  $dependsOn
      */
     public function __construct(
@@ -19,10 +19,26 @@ final readonly class SyncTableDefinition
         public ?string $updatedAtColumn,
         public ?string $createdAtColumn,
         public int $syncOrder,
-        public array $uniqueKeys = [],
+        public array $uniqueIndexes = [],
         public array $dependsOn = [],
         public bool $softDeletes = false,
     ) {}
+
+    /**
+     * @return list<string>
+     */
+    public function flattenedUniqueKeys(): array
+    {
+        $keys = [];
+
+        foreach ($this->uniqueIndexes as $index) {
+            foreach ($index as $column) {
+                $keys[] = $column;
+            }
+        }
+
+        return array_values(array_unique($keys));
+    }
 
     /**
      * @param  array<string, mixed>  $config
@@ -69,7 +85,7 @@ final readonly class SyncTableDefinition
             updatedAtColumn: self::nullableString($config['updated_at'] ?? null),
             createdAtColumn: self::nullableString($config['created_at'] ?? null),
             syncOrder: $syncOrder,
-            uniqueKeys: self::stringList($config['unique_keys'] ?? [], $name, 'unique_keys'),
+            uniqueIndexes: self::uniqueIndexes($name, $config),
             dependsOn: self::stringList($config['depends_on'] ?? [], $name, 'depends_on'),
             softDeletes: (bool) ($config['soft_deletes'] ?? false),
         );
@@ -88,7 +104,8 @@ final readonly class SyncTableDefinition
             'updated_at' => $this->updatedAtColumn,
             'created_at' => $this->createdAtColumn,
             'sync_order' => $this->syncOrder,
-            'unique_keys' => $this->uniqueKeys,
+            'unique_indexes' => $this->uniqueIndexes,
+            'unique_keys' => $this->flattenedUniqueKeys(),
             'depends_on' => $this->dependsOn,
             'soft_deletes' => $this->softDeletes,
         ];
@@ -158,6 +175,93 @@ final readonly class SyncTableDefinition
                 throw new InvalidArgumentException("Table [{$name}] has invalid {$field} for its cursor strategy.");
             }
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @return list<list<string>>
+     */
+    private static function uniqueIndexes(string $name, array $config): array
+    {
+        if (isset($config['unique_indexes'])) {
+            return self::nestedStringList($config['unique_indexes'], $name, 'unique_indexes');
+        }
+
+        $legacyKeys = self::stringList($config['unique_keys'] ?? [], $name, 'unique_keys');
+
+        if ($legacyKeys === []) {
+            return [];
+        }
+
+        return self::normalizeLegacyUniqueKeys($name, $legacyKeys);
+    }
+
+    /**
+     * @param  list<string>  $legacyKeys
+     * @return list<list<string>>
+     */
+    private static function normalizeLegacyUniqueKeys(string $name, array $legacyKeys): array
+    {
+        $composite = [
+            'permissions' => [['name', 'guard_name']],
+            'roles' => [['name', 'guard_name']],
+            'bonvoice_call_events' => [['call_id', 'leg']],
+            'incoming_email_ignore_stats' => [['stat_date', 'reason']],
+            'workforce_attendance_days' => [['user_id', 'work_date']],
+            'workforce_short_attendance_reviews' => [['user_id', 'work_date']],
+            'executive_metric_snapshots' => [['metric_key', 'snapshot_time', 'granularity']],
+            'user_metric_snapshots' => [['user_id', 'snapshot_date']],
+        ];
+
+        $multi = [
+            'orders' => [['order_id'], ['cashfree_payment_id'], ['serial_number']],
+            'finance_journals' => [['journal_no'], ['idempotency_key']],
+            'incoming_email_messages' => [['rfc_message_id'], ['provider', 'provider_message_id']],
+        ];
+
+        if (isset($composite[$name])) {
+            return $composite[$name];
+        }
+
+        if (isset($multi[$name])) {
+            return $multi[$name];
+        }
+
+        return array_map(static fn (string $key): array => [$key], $legacyKeys);
+    }
+
+    /**
+     * @return list<list<string>>
+     */
+    private static function nestedStringList(mixed $value, string $name, string $field): array
+    {
+        if (! is_array($value)) {
+            throw new InvalidArgumentException("Table [{$name}] field [{$field}] must be an array of string lists.");
+        }
+
+        $indexes = [];
+
+        foreach ($value as $index => $columns) {
+            if (! is_array($columns)) {
+                throw new InvalidArgumentException("Table [{$name}] field [{$field}] must contain string lists.");
+            }
+
+            $normalized = [];
+
+            foreach ($columns as $column) {
+                if (! is_string($column) || $column === '') {
+                    throw new InvalidArgumentException("Table [{$name}] field [{$field}] must contain non-empty strings.");
+                }
+
+                $normalized[] = $column;
+            }
+
+            if ($normalized !== []) {
+                $indexes[] = $normalized;
+            }
+        }
+
+        return $indexes;
     }
 
     /**

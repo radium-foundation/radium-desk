@@ -18,7 +18,7 @@ class SyncTableDefinitionTest extends TestCase
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_keys' => ['order_id'],
+            'unique_indexes' => [['order_id']],
         ]);
 
         $this->assertSame('orders', $definition->name);

@@ -80,6 +80,17 @@ class DatabaseSyncManifestTest extends TestCase
         new DatabaseSyncManifest;
     }
 
+    public function test_rejects_reverse_direction(): void
+    {
+        $config = config('database-sync');
+        $config['direction'] = 'vps_to_hostinger';
+        config(['database-sync' => $config]);
+
+        $this->expectException(InvalidArgumentException::class);
+
+        new DatabaseSyncManifest;
+    }
+
     public function test_filters_tables_by_tier(): void
     {
         $manifest = new DatabaseSyncManifest;

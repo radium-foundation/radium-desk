@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Infrastructure\DatabaseSync\DatabaseSyncApplyService;
 use App\Infrastructure\DatabaseSync\DatabaseSyncDryRunService;
 use App\Infrastructure\DatabaseSync\SyncVerificationReport;
 use Illuminate\Console\Attributes\Description;
@@ -10,26 +11,74 @@ use Illuminate\Console\Command;
 
 #[Signature('db:sync-delta
     {--dry-run : Read-only drift report from Hostinger (source) to VPS (target)}
+    {--apply : Apply a delta generation to the VPS target}
+    {--vps-is-dark : Confirm the VPS has no scheduler, queue, webhooks, or public traffic}
+    {--generation-id= : Optional generation identifier for apply mode}
     {--tier= : Limit inspection to a single sync tier}
     {--table= : Limit inspection to a single table}
     {--json : Output the structured report as JSON}')]
-#[Description('Logical Checkpoint Delta Sync dry-run (Hostinger source → VPS target)')]
+#[Description('Logical Checkpoint Delta Sync (Hostinger source → VPS target)')]
 class DatabaseDeltaSyncCommand extends Command
 {
     public function __construct(
         private readonly DatabaseSyncDryRunService $dryRunService,
+        private readonly DatabaseSyncApplyService $applyService,
     ) {
         parent::__construct();
     }
 
     public function handle(): int
     {
+        if ($this->option('apply')) {
+            return $this->handleApply();
+        }
+
         if (! $this->option('dry-run')) {
             $this->error('db:sync-delta is dry-run only in Phase 1. Re-run with --dry-run.');
 
             return self::FAILURE;
         }
 
+        return $this->handleDryRun();
+    }
+
+    private function handleApply(): int
+    {
+        if (! $this->option('vps-is-dark')) {
+            $this->error('Apply mode requires --vps-is-dark to confirm the VPS remains dark.');
+
+            return self::FAILURE;
+        }
+
+        $tier = $this->normalizedTierOption();
+        $table = $this->normalizedTableOption();
+        $generationId = $this->normalizedGenerationIdOption();
+
+        $this->info('Logical Checkpoint Delta Sync — APPLY');
+        $this->line('Direction: Hostinger SOURCE → VPS TARGET');
+        $this->newLine();
+
+        try {
+            $report = $this->applyService->run($table, $tier, $generationId);
+        } catch (\Throwable $exception) {
+            $this->error($exception->getMessage());
+
+            return self::FAILURE;
+        }
+
+        if ($this->option('json')) {
+            $this->line(json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+            return self::SUCCESS;
+        }
+
+        $this->info('Apply generation completed: '.($report['generation_id'] ?? 'unknown'));
+
+        return self::SUCCESS;
+    }
+
+    private function handleDryRun(): int
+    {
         $tier = $this->normalizedTierOption();
         $table = $this->normalizedTableOption();
 
@@ -80,6 +129,19 @@ class DatabaseDeltaSyncCommand extends Command
         }
 
         $trimmed = trim($table);
+
+        return $trimmed !== '' ? $trimmed : null;
+    }
+
+    private function normalizedGenerationIdOption(): ?string
+    {
+        $generationId = $this->option('generation-id');
+
+        if (! is_string($generationId)) {
+            return null;
+        }
+
+        $trimmed = trim($generationId);
 
         return $trimmed !== '' ? $trimmed : null;
     }

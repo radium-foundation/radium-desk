@@ -80,6 +80,31 @@ class RemoteInspectScriptTest extends TestCase
         $this->assertFalse(Schema::hasTable('lcds_probe_should_not_create'));
     }
 
+    public function test_remote_inspect_exports_checkpoints_and_dark_status(): void
+    {
+        $directory = storage_path('app/private/db-sync/checkpoints');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $path = $directory.'/lcds_inspect_probe.json';
+        file_put_contents($path, json_encode(['table' => 'lcds_inspect_probe', 'last_id' => 7]));
+
+        try {
+            $checkpoints = $this->runInspectScript(['--action=export-checkpoints']);
+            $this->assertSame('vps', $checkpoints['authority'] ?? null);
+            $this->assertSame(7, $checkpoints['checkpoints']['lcds_inspect_probe']['last_id'] ?? null);
+
+            $dark = $this->runInspectScript(['--action=dark-status']);
+            $this->assertArrayHasKey('dark', $dark);
+            $this->assertArrayHasKey('active', $dark);
+        } finally {
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
+
     /**
      * @param  list<string>  $arguments
      * @return array<string, mixed>
