@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+#
+# Test mock: rsync copies selected files to a local fake remote tree.
+# Set BACKUP_CLOUD_REMOTE_ROOT to the fake remote filesystem root.
+#
+set -euo pipefail
+
+if [[ "${RSYNC_MOCK_FAIL:-}" == "1" ]]; then
+    echo "mock rsync: simulated failure" >&2
+    exit 1
+fi
+
+ssh_e=""
+files_from=""
+src=""
+dest=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -az)
+            shift
+            ;;
+        -e)
+            ssh_e="$2"
+            shift 2
+            ;;
+        --files-from=*)
+            files_from="${1#--files-from=}"
+            shift
+            ;;
+        --files-from)
+            files_from="$2"
+            shift 2
+            ;;
+        *)
+            if [[ -z "$src" ]]; then
+                src="$1"
+            else
+                dest="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+[[ -n "$BACKUP_CLOUD_REMOTE_ROOT" ]] || {
+    echo "mock rsync: BACKUP_CLOUD_REMOTE_ROOT is not set" >&2
+    exit 1
+}
+
+remote_path="${dest#*:}"
+remote_path="${remote_path%/}"
+
+if [[ -n "$files_from" ]]; then
+    [[ -d "$src" ]] || {
+        echo "mock rsync: source directory missing: $src" >&2
+        exit 1
+    }
+    mkdir -p "$remote_path"
+    while IFS= read -r file || [[ -n "$file" ]]; do
+        [[ -n "$file" ]] || continue
+        cp "$src/$file" "$remote_path/$file"
+        if [[ -n "${RSYNC_MOCK_LOG:-}" ]]; then
+            printf '%s\n' "$file" >>"$RSYNC_MOCK_LOG"
+        fi
+    done <"$files_from"
+else
+    [[ -f "$src" ]] || {
+        echo "mock rsync: source file missing: $src" >&2
+        exit 1
+    }
+
+    if [[ "$remote_path" == */*.* ]]; then
+        mkdir -p "$(dirname "$remote_path")"
+        cp "$src" "$remote_path"
+        if [[ -n "${RSYNC_MOCK_LOG:-}" ]]; then
+            printf '%s\n' "$(basename "$remote_path")" >>"$RSYNC_MOCK_LOG"
+        fi
+    else
+        mkdir -p "$remote_path"
+        cp "$src" "$remote_path/$(basename "$src")"
+        if [[ -n "${RSYNC_MOCK_LOG:-}" ]]; then
+            printf '%s\n' "$(basename "$src")" >>"$RSYNC_MOCK_LOG"
+        fi
+    fi
+fi
+
+exit 0
