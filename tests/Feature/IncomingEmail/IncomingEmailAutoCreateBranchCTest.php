@@ -229,7 +229,8 @@ class IncomingEmailAutoCreateBranchCTest extends TestCase
             providerMessageId: 'prov-system-c',
         );
 
-        $this->assertSame(IncomingEmailMessageStatus::Ignored, $spam?->status);
+        $this->assertNull($spam);
+        $this->assertSame(0, IncomingEmailMessage::query()->where('ignore_reason', 'spam')->count());
         $this->assertSame(IncomingEmailMessageStatus::Ignored, $system?->status);
         $this->assertSame(0, Incident::query()->count());
         $this->assertSame(0, Order::query()->where('order_id', 'like', 'INQ-%')->count());
@@ -244,8 +245,13 @@ class IncomingEmailAutoCreateBranchCTest extends TestCase
             labels: ['CATEGORY_PROMOTIONS'],
         );
 
-        $this->assertSame(IncomingEmailMessageStatus::Ignored, $message?->status);
+        $this->assertNull($message);
+        $this->assertSame(0, IncomingEmailMessage::query()->count());
         $this->assertSame(0, Incident::query()->count());
+        $this->assertDatabaseHas('incoming_email_ignore_stats', [
+            'reason' => 'promotions',
+            'count' => 1,
+        ]);
     }
 
     public function test_flag_default_remains_disabled(): void
