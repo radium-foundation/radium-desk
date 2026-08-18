@@ -55,7 +55,7 @@ Waiting policy, SLA, reminder timings, assignment, dashboard, queue, attendance,
 
 ### 3. CustomerWaitingLifecycleService::autoCloseForNoResponse
 
-Closed incident → clear active waiting → audit `service_case.customer_waiting_already_closed_cleared` → `ActionHandlerResult::success` with message `Already closed - waiting cleared.` Runtime records **Success**, not Failed.
+Closed incident → clear active waiting → audit `service_case.customer_waiting_closed_cleared` → `ActionHandlerResult::success` with message `Already closed - waiting cleared.` Runtime records **Success**, not Failed.
 
 ---
 

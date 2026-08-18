@@ -35,7 +35,7 @@ class CustomerWaitingLifecycleService
 
     public const EVENT_AUTO_CLOSED = 'service_case.customer_waiting_auto_closed';
 
-    public const EVENT_ALREADY_CLOSED_WAITING_CLEARED = 'service_case.customer_waiting_already_closed_cleared';
+    public const EVENT_ALREADY_CLOSED_WAITING_CLEARED = 'service_case.customer_waiting_closed_cleared';
 
     public const EVENT_LEGACY_CLEANUP_CLOSED = 'service_case.customer_waiting_cleanup_closed';
 
