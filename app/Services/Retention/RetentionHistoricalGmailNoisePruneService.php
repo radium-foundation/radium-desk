@@ -49,41 +49,34 @@ class RetentionHistoricalGmailNoisePruneService
         $cutoff = $this->inspectionService->receivedAtCutoff();
         $candidateQuery = $this->inspectionService->candidateQuery($cutoff);
 
-        $candidateQuery->orderBy('id')->chunkById(
-            $batchSize,
-            function ($messages) use (&$deletedCount, &$batchesProcessed, &$remainingLimit): bool {
-                if ($remainingLimit !== null && $remainingLimit <= 0) {
-                    return false;
-                }
+        while ($remainingLimit === null || $remainingLimit > 0) {
+            $currentBatchSize = $remainingLimit === null
+                ? $batchSize
+                : min($batchSize, $remainingLimit);
 
-                $ids = $messages->pluck('id');
+            $ids = (clone $candidateQuery)
+                ->orderBy('id')
+                ->limit($currentBatchSize)
+                ->pluck('id');
 
-                if ($remainingLimit !== null) {
-                    $ids = $ids->take($remainingLimit);
-                }
+            if ($ids->isEmpty()) {
+                break;
+            }
 
-                if ($ids->isEmpty()) {
-                    return false;
-                }
+            IncomingEmailMessage::query()->whereIn('id', $ids->all())->delete();
 
-                IncomingEmailMessage::query()->whereIn('id', $ids->all())->delete();
+            $batchDeleted = $ids->count();
+            $deletedCount += $batchDeleted;
+            $batchesProcessed++;
 
-                $batchDeleted = $ids->count();
-                $deletedCount += $batchDeleted;
-                $batchesProcessed++;
+            if ($remainingLimit !== null) {
+                $remainingLimit -= $batchDeleted;
+            }
 
-                if ($remainingLimit !== null) {
-                    $remainingLimit -= $batchDeleted;
-                }
-
-                if ($remainingLimit !== null && $remainingLimit <= 0) {
-                    return false;
-                }
-
-                return true;
-            },
-            column: 'id',
-        );
+            if ($batchDeleted < $currentBatchSize) {
+                break;
+            }
+        }
 
         return $this->fromInspection(
             inspection: $inspection,

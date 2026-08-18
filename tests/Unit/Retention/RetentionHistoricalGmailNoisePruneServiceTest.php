@@ -334,6 +334,83 @@ class RetentionHistoricalGmailNoisePruneServiceTest extends TestCase
             ->count());
     }
 
+    public function test_execute_delete_batch_query_selects_only_ids(): void
+    {
+        $this->seedCandidate([
+            'ignore_reason' => 'promotions',
+            'provider_message_id' => 'large-select-test',
+            'raw_payload' => ['body' => str_repeat('x', 100000)],
+            'headers' => ['X-Test' => str_repeat('h', 10000)],
+        ]);
+
+        $batchSelectQueries = [];
+
+        DB::listen(function ($query) use (&$batchSelectQueries): void {
+            $sql = strtolower($query->sql);
+
+            if (! str_contains($sql, 'incoming_email_messages')) {
+                return;
+            }
+
+            if (str_contains($sql, 'count(') || str_contains($sql, 'sum(') || str_contains($sql, 'group by')) {
+                return;
+            }
+
+            if (! str_contains($sql, 'order by') || ! str_contains($sql, 'limit')) {
+                return;
+            }
+
+            $batchSelectQueries[] = $query->sql;
+        });
+
+        app(RetentionHistoricalGmailNoisePruneService::class)->prune(
+            dryRun: false,
+            batchSize: 10,
+            limit: 1,
+        );
+
+        $this->assertNotEmpty($batchSelectQueries);
+
+        foreach ($batchSelectQueries as $sql) {
+            $normalized = strtolower($sql);
+
+            $this->assertStringNotContainsString('raw_payload', $normalized);
+            $this->assertStringNotContainsString('headers', $normalized);
+            $this->assertStringNotContainsString('labels', $normalized);
+            $this->assertStringNotContainsString('preview', $normalized);
+            $this->assertMatchesRegularExpression('/select\s+[`"]?id[`"]?\s+from/i', $sql);
+        }
+    }
+
+    public function test_execute_deletes_large_payload_candidates_without_full_model_hydration(): void
+    {
+        for ($index = 0; $index < 3; $index++) {
+            $this->seedCandidate([
+                'ignore_reason' => 'promotions',
+                'provider_message_id' => 'large-payload-'.$index,
+                'raw_payload' => ['body' => str_repeat('x', 100000)],
+                'headers' => ['X-Test' => str_repeat('h', 10000)],
+            ]);
+        }
+
+        $this->seedCandidate([
+            'ignore_reason' => 'unknown_customer',
+            'provider_message_id' => 'large-unknown',
+            'raw_payload' => ['body' => str_repeat('y', 100000)],
+        ]);
+
+        $summary = app(RetentionHistoricalGmailNoisePruneService::class)->prune(
+            dryRun: false,
+            batchSize: 2,
+            limit: 3,
+        );
+
+        $this->assertSame(3, $summary->deletedCount);
+        $this->assertSame(2, $summary->batchesProcessed);
+        $this->assertSame(1, IncomingEmailMessage::query()->count());
+        $this->assertSame(1, IncomingEmailMessage::query()->where('ignore_reason', 'unknown_customer')->count());
+    }
+
     /**
      * @param  array<string, mixed>  $overrides
      */
