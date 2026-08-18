@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.42 — 2026-08-18 — Production Backup Staging
+
+- Added encrypted local backup staging for the database and critical application secrets.
+- Added optional off-server backup upload to Hostinger Cloud via SSH/rsync when explicitly enabled.
+- Backup scheduling, retention pruning, and automated restore drills are not enabled in this release.
+
 ## 4.0.41 — 2026-08-18 — Historical Unknown Customer Inspection
 
 - Added a read-only inspection command for pre-July ignored unknown_customer emails using a fixed received_at cutoff through 2026-06-30, with explicit safety exclusions before any cleanup is considered.
