@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.39 — 2026-08-18 — Customer Waiting Audit Event Fix
+
+- Fixed automation scheduler failures when clearing customer waiting on already-closed service cases caused by audit log event names exceeding database limits.
+
 ## 4.0.38 — 2026-08-18 — Historical Gmail Prune Memory Fix
 
 - Fixed historical Gmail noise prune execute mode exhausting PHP memory by batching deletes using IDs only instead of loading full email payloads.
