@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.40 — 2026-08-18 — Audit Log Retention Inspection
+
+- Added a read-only inspection command to review audit log growth, age cohorts, event categories, and retention safety before any cleanup is considered.
+
 ## 4.0.39 — 2026-08-18 — Customer Waiting Audit Event Fix
 
 - Fixed automation scheduler failures when clearing customer waiting on already-closed service cases caused by audit log event names exceeding database limits.
