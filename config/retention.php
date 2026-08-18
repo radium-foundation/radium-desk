@@ -32,4 +32,12 @@ return [
         FILTER_VALIDATE_BOOLEAN,
     ),
 
+    /*
+    | Chunk sizes for retention prune commands (small batches for live production).
+    | Future scheduler entries should use ->withoutOverlapping().
+    */
+    'cache_prune_batch_size' => max(1, (int) env('RETENTION_CACHE_PRUNE_BATCH_SIZE', 500)),
+
+    'outbox_prune_batch_size' => max(1, (int) env('RETENTION_OUTBOX_PRUNE_BATCH_SIZE', 1000)),
+
 ];
