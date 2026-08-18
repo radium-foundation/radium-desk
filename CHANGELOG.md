@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.38 — 2026-08-18 — Historical Gmail Prune Memory Fix
+
+- Fixed historical Gmail noise prune execute mode exhausting PHP memory by batching deletes using IDs only instead of loading full email payloads.
+
 ## 4.0.37 — 2026-08-18 — Historical Gmail Noise Prune (Dry-Run)
 
 - Added a dry-run-first prune command for pre-July historical ignored Gmail noise, reusing the inspection safety predicate with explicit --execute required for deletion.
