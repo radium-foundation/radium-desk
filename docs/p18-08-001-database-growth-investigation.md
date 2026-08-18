@@ -315,15 +315,79 @@ Hostinger KVM 4 200 GB is included. **Incremental MariaDB storage cost is $0/mon
 
 ### Later (code + jobs)
 
-- Retention commands with `--dry-run`.
+- ~~Retention commands with `--dry-run`.~~ **Phase 1 done (code only; not scheduled, not deployed).**
 - Stop `raw_body` duplication on new webhooks.
-- Skip audit/outbox for ignored promo mail.
-- Prune completed outbox, expired cache, old notifications.
+- ~~Skip audit/outbox for ignored promo mail.~~ **Phase 1 done for high-confidence Gmail labels only.**
+- Prune completed outbox, expired cache, old notifications. **Inspect only in Phase 1; no DELETE yet.**
 - Archive ignored email off MariaDB.
 - Index review (audit/orders) only after `EXPLAIN` on live queries.
 
 ---
 
+## 11. Phase 1 implementation (2026-08-18 — code only)
+
+**Baseline:** commit `0563d8dc3bfdb5aae6f9178f14e17a2a973ec8c6` on `feature/lcds-phase-1-dry-run`.  
+**Scope:** retention foundation + Gmail label early skip. **Not deployed.** **No production data deleted.** **Gmail history/cursor not reset.**
+
+### Retention configuration (`config/retention.php`)
+
+| Policy key | Retention | Notes |
+|---|---|---|
+| `completed_outbox_days` | **14 days** | Completed `outbox_events` older than cutoff |
+| `expired_cache_immediate` | **immediate** | `cache.expiration < now` |
+| `webhook_logs_days` | **90 days** | Cashfree, Interakt, Bonvoice webhook log tables |
+| `notifications_days` | **90 days** | `notifications` + `ira_notifications` |
+| `business_audit_days` | **365 days** | `audit_logs` excluding `incoming_email.%` events |
+| `ignored_email_days` | **90 days** | `incoming_email_messages` with `status = ignored` |
+
+Env overrides: `RETENTION_COMPLETED_OUTBOX_DAYS`, `RETENTION_WEBHOOK_LOGS_DAYS`, `RETENTION_NOTIFICATIONS_DAYS`, `RETENTION_BUSINESS_AUDIT_DAYS`, `RETENTION_IGNORED_EMAIL_DAYS`, `RETENTION_EXPIRED_CACHE_IMMEDIATE`.
+
+### Dry-run inspection command
+
+```bash
+php artisan database:retention-inspect --dry-run
+```
+
+- **Read-only:** zero database writes; `--dry-run` is always enforced.
+- Pattern: `RetentionInspectCommand` → `RetentionInspectionService` → `RetentionInspectionSummary` / `RetentionCategorySummary` DTOs.
+- Reports candidate counts and table totals per category.
+- Count queries only (no chunk deletes yet). Future prune commands should use `chunkById()`, `withoutOverlapping()`, and explicit policies from `config/retention.php`.
+- **Not registered in the scheduler.**
+
+### Gmail irrelevant-message prevention
+
+**Problem (before):** SPAM / TRASH / PROMOTIONS / SOCIAL messages were persisted in `incoming_email_messages`, then received `incoming_email.received` audit + outbox, then filtered in `IncomingEmailProcessorService` → `incoming_email.ignored` audit.
+
+**Change (after):** `IncomingEmailIngestService` calls `IncomingEmailFilterService::ignoredLabelReason()` **after dedup, before insert**. When a configured Gmail label matches (`config/inbound_email.ignored_labels`), ingest:
+
+1. Increments `incoming_email_ignore_stats` (dashboard Spam/Promotional counters unchanged).
+2. Returns `null` — **no row**, **no `incoming_email.received` audit**, **no outbox event**.
+
+**Unchanged:**
+
+- INBOX / legitimate customer mail: full pipeline (ingest → audit → outbox → processor → link/ignore/review).
+- Header-based ignores (bounce, auto-responder, system sender, unknown_customer): still ingested and processed in the processor.
+- Gmail history cursor: still advanced in `GmailInboundEmailProvider::pullIncremental()` **after** the ingest batch callback; skipping ingest does **not** block cursor advancement.
+- No Gmail rebaseline, no history reset, no DNS/Cloudflare/MariaDB/LCDS/.env changes.
+
+**Operational visibility trade-off:** label-skipped mail no longer appears in the admin Spam/Promotions queue (those views query `incoming_email_messages`). Counts come from `incoming_email_ignore_stats` instead.
+
+### Intentionally NOT done in Phase 1
+
+- No DELETE / TRUNCATE / archive jobs.
+- No scheduler registration for pruning.
+- No webhook `raw_body` deduplication.
+- No changes to AIC, production `.env`, MariaDB, LCDS, DNS, or Cloudflare.
+- No rebaseline of `mail@radiumbox.com` Gmail history.
+
+### Safety constraints preserved
+
+- LCDS migration/cutover work on branch untouched.
+- All existing business-email matching behavior for legitimate messages preserved.
+- High-confidence label skip only — unknown_customer and header heuristics not moved to ingest.
+
+---
+
 ## Stop
 
-Read-only investigation complete. No data, AIC, or configuration was changed.
+Investigation: read-only on production (2026-08-18). Phase 1 code landed locally only — no production data deleted, no deployment, Gmail cursor not reset.

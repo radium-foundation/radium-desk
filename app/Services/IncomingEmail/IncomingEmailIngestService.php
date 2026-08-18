@@ -23,6 +23,7 @@ class IncomingEmailIngestService
         private readonly OutboxProcessorService $outboxProcessorService,
         private readonly AuditLogService $auditLogService,
         private readonly AutomationIdentityService $automationIdentity,
+        private readonly IncomingEmailFilterService $filterService,
     ) {}
 
     public function ingest(NormalizedInboundEmail $dto, bool $processImmediately = true): ?IncomingEmailMessage
@@ -35,6 +36,14 @@ class IncomingEmailIngestService
 
         if ($existing instanceof IncomingEmailMessage) {
             return $existing;
+        }
+
+        $ignoredLabelReason = $this->filterService->ignoredLabelReason($dto->labels ?? []);
+
+        if ($ignoredLabelReason !== null) {
+            IncomingEmailIgnoreStat::incrementReason($ignoredLabelReason);
+
+            return null;
         }
 
         $previewMax = max(1, (int) config('inbound_email.preview_max_chars', 500));

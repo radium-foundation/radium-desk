@@ -9,9 +9,19 @@ class IncomingEmailFilterService
     /**
      * @return array{ignored: bool, reason: ?string}
      */
+    /**
+     * High-confidence Gmail label ignores (SPAM, TRASH, PROMOTIONS, SOCIAL).
+     *
+     * @param  list<string>|array<int, mixed>  $labels
+     */
+    public function ignoredLabelReason(array $labels): ?string
+    {
+        return $this->resolveIgnoredLabelReason($labels);
+    }
+
     public function evaluate(IncomingEmailMessage $message): array
     {
-        $labelReason = $this->ignoredLabelReason($message->labels ?? []);
+        $labelReason = $this->resolveIgnoredLabelReason($message->labels ?? []);
 
         if ($labelReason !== null) {
             return ['ignored' => true, 'reason' => $labelReason];
@@ -52,7 +62,10 @@ class IncomingEmailFilterService
     /**
      * @param  list<string>|array<int, mixed>  $labels
      */
-    private function ignoredLabelReason(array $labels): ?string
+    /**
+     * @param  list<string>|array<int, mixed>  $labels
+     */
+    private function resolveIgnoredLabelReason(array $labels): ?string
     {
         $ignored = array_map('strtoupper', config('inbound_email.ignored_labels', []));
         $normalized = array_map(

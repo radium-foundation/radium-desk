@@ -192,10 +192,8 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
         $this->assertStringNotContainsString('human@example.com', $spamHtml);
     }
 
-    public function test_ingested_spam_increments_counter_and_appears_in_spam_admin_filter(): void
+    public function test_ingested_spam_increments_ignore_stat_counter_without_persisting_admin_row(): void
     {
-        $admin = $this->createAdmin('email-ingest@test.com');
-
         app(IncomingEmailIngestService::class)->ingest(new NormalizedInboundEmail(
             mailbox: 'support@radiumbox.com',
             provider: 'fixture',
@@ -215,13 +213,7 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
         ));
 
         $this->assertSame(1, app(IncomingEmailIntakeCounterService::class)->counts()[IncomingEmailIntakeQueue::Spam->value]);
-
-        $html = (string) $this->actingAs($admin)
-            ->get(route('admin.incoming-emails.index', ['queue' => IncomingEmailIntakeQueue::Spam->value]))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertStringContainsString('Promo', $html);
+        $this->assertSame(0, IncomingEmailMessage::query()->count());
     }
 
     private function createAdmin(string $email): User

@@ -186,7 +186,7 @@ class IncomingEmailIntakePhase1Test extends TestCase
         );
     }
 
-    public function test_spam_label_is_ignored(): void
+    public function test_spam_label_is_skipped_at_ingest_without_persistence(): void
     {
         $this->seedCustomerWithOpenIncident('customer@example.com');
 
@@ -195,13 +195,14 @@ class IncomingEmailIntakePhase1Test extends TestCase
             labels: ['SPAM'],
         );
 
-        $this->assertSame(IncomingEmailMessageStatus::Ignored, $message?->status);
-        $this->assertSame('spam', $message?->ignore_reason);
-        $this->assertSame(\App\Enums\IncomingEmailClassification::Spam, $message?->classification);
+        $this->assertNull($message);
+        $this->assertSame(0, IncomingEmailMessage::query()->count());
         $this->assertSame(0, IncidentIncomingEmailLink::query()->count());
-        $this->assertDatabaseHas('audit_logs', [
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => 'incoming_email.received',
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
             'event' => 'incoming_email.ignored',
-            'auditable_id' => $message->id,
         ]);
         $this->assertDatabaseHas('incoming_email_ignore_stats', [
             'reason' => 'spam',
