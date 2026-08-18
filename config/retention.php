@@ -60,6 +60,7 @@ return [
             'own_outbound',
         ],
         'sample_id_limit' => max(1, (int) env('RETENTION_HISTORICAL_GMAIL_NOISE_SAMPLE_ID_LIMIT', 10)),
+        'prune_batch_size' => max(1, (int) env('RETENTION_HISTORICAL_GMAIL_NOISE_PRUNE_BATCH_SIZE', 10000)),
     ],
 
 ];
