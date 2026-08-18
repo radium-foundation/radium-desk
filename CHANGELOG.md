@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.37 — 2026-08-18 — Historical Gmail Noise Prune (Dry-Run)
+
+- Added a dry-run-first prune command for pre-July historical ignored Gmail noise, reusing the inspection safety predicate with explicit --execute required for deletion.
+
 ## 4.0.36 — 2026-08-18 — Historical Gmail Noise Inspection
 
 - Added a read-only inspection command to identify pre-July historical ignored Gmail noise by received date, with explicit safety exclusions.
