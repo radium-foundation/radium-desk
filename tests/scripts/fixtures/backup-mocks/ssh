@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+#
+# Test mock: ssh executes remote shell commands against BACKUP_CLOUD_REMOTE_ROOT.
+#
+set -euo pipefail
+
+host=""
+command=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -p|-i|-o)
+            shift 2
+            ;;
+        -*)
+            shift
+            ;;
+        *@*)
+            host="$1"
+            shift
+            ;;
+        *)
+            command="$1"
+            shift
+            ;;
+    esac
+done
+
+[[ -n "$BACKUP_CLOUD_REMOTE_ROOT" ]] || {
+    echo "mock ssh: BACKUP_CLOUD_REMOTE_ROOT is not set" >&2
+    exit 1
+}
+
+[[ -n "$command" ]] || {
+    echo "mock ssh: missing remote command" >&2
+    exit 1
+}
+
+bash -c "$command"

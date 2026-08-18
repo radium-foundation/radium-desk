@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 #
-# Radium Desk — local backup generation (Phase 1: staging only).
+# Radium Desk — local encrypted backup staging + optional Cloud upload.
 #
-# Produces encrypted database dump + encrypted critical-secrets bundle under a
-# local staging directory. Does not upload, schedule, prune, or alert.
+# Phase 1: mysqldump → gzip → encrypt → manifest → local staging.
+# Phase 2: optional SSH/rsync upload to Hostinger Cloud (when explicitly enabled).
 #
 # Encryption is mandatory and fail-closed:
 #   - gpg symmetric: BACKUP_ENCRYPTION_PASSPHRASE or BACKUP_ENCRYPTION_PASSPHRASE_FILE
 #   - age public-key:  BACKUP_AGE_RECIPIENT (and age binary on PATH)
+#
+# Cloud upload is disabled by default. Set BACKUP_CLOUD_UPLOAD_ENABLED=true to enable.
 #
 # See docs/backup-runbook.md
 #
@@ -22,6 +24,8 @@ GZIP_BIN="${GZIP_BIN:-$(command -v gzip || true)}"
 GPG_BIN="${GPG_BIN:-$(command -v gpg || true)}"
 AGE_BIN="${AGE_BIN:-$(command -v age || true)}"
 PHP_BIN="${PHP_BIN:-$(command -v php || true)}"
+RSYNC_BIN="${RSYNC_BIN:-$(command -v rsync || true)}"
+SSH_BIN="${SSH_BIN:-$(command -v ssh || true)}"
 
 BACKUP_STAGING_ROOT="${BACKUP_STAGING_ROOT:-/var/backups/radium-desk}"
 
@@ -343,6 +347,316 @@ ensure_staging_root() {
     chmod 700 "${BACKUP_STAGING_ROOT}/runs" 2>/dev/null || true
 }
 
+truthy_env() {
+    local value="${1:-}"
+
+    case "$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+cloud_upload_enabled() {
+    truthy_env "${BACKUP_CLOUD_UPLOAD_ENABLED:-}"
+}
+
+resolve_cloud_config() {
+    if [[ -z "$RSYNC_BIN" ]]; then
+        die "rsync is required for Cloud upload but was not found on PATH"
+    fi
+
+    if [[ -z "$SSH_BIN" ]]; then
+        die "ssh is required for Cloud upload but was not found on PATH"
+    fi
+
+    BACKUP_CLOUD_SSH_HOST="${BACKUP_CLOUD_SSH_HOST:-}"
+    BACKUP_CLOUD_SSH_USER="${BACKUP_CLOUD_SSH_USER:-}"
+    BACKUP_CLOUD_SSH_PORT="${BACKUP_CLOUD_SSH_PORT:-65002}"
+    BACKUP_CLOUD_REMOTE_ROOT="${BACKUP_CLOUD_REMOTE_ROOT:-}"
+
+    [[ -n "$BACKUP_CLOUD_SSH_HOST" ]] || die "BACKUP_CLOUD_SSH_HOST is required when Cloud upload is enabled"
+    [[ -n "$BACKUP_CLOUD_SSH_USER" ]] || die "BACKUP_CLOUD_SSH_USER is required when Cloud upload is enabled"
+    [[ -n "$BACKUP_CLOUD_REMOTE_ROOT" ]] || die "BACKUP_CLOUD_REMOTE_ROOT is required when Cloud upload is enabled"
+
+    BACKUP_CLOUD_REMOTE_ROOT="${BACKUP_CLOUD_REMOTE_ROOT%/}"
+}
+
+build_rsync_ssh_e() {
+    local -a parts=(ssh -p "$BACKUP_CLOUD_SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=accept-new)
+
+    if [[ -n "${BACKUP_CLOUD_SSH_IDENTITY_FILE:-}" ]]; then
+        parts+=(-i "$BACKUP_CLOUD_SSH_IDENTITY_FILE")
+    fi
+
+    local joined=""
+    local part
+    for part in "${parts[@]}"; do
+        if [[ -n "$joined" ]]; then
+            joined+=" "
+        fi
+        joined+="$(printf '%q' "$part")"
+    done
+
+    printf '%s' "$joined"
+}
+
+remote_ssh_target() {
+    printf '%s@%s' "$BACKUP_CLOUD_SSH_USER" "$BACKUP_CLOUD_SSH_HOST"
+}
+
+remote_ssh_exec() {
+    local remote_command="$1"
+    local -a ssh_args=(
+        -p "$BACKUP_CLOUD_SSH_PORT"
+        -o BatchMode=yes
+        -o StrictHostKeyChecking=accept-new
+    )
+
+    if [[ -n "${BACKUP_CLOUD_SSH_IDENTITY_FILE:-}" ]]; then
+        ssh_args+=(-i "$BACKUP_CLOUD_SSH_IDENTITY_FILE")
+    fi
+
+    "$SSH_BIN" "${ssh_args[@]}" "$(remote_ssh_target)" "$remote_command"
+}
+
+backup_date_parts_from_id() {
+    local backup_id="$1"
+
+    if [[ ! "$backup_id" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
+        die "backup_id has unexpected format: ${backup_id}"
+    fi
+
+    BACKUP_YEAR="${backup_id:0:4}"
+    BACKUP_MONTH="${backup_id:4:2}"
+    BACKUP_DAY="${backup_id:6:2}"
+}
+
+collect_upload_artifact_names() {
+    local run_dir="$1"
+    local -a allowed=()
+
+    local name
+    for name in "$run_dir"/*; do
+        [[ -e "$name" ]] || continue
+        name="$(basename "$name")"
+
+        case "$name" in
+            manifest.json)
+                allowed+=("$name")
+                ;;
+            database.sql.gz.gpg|database.sql.gz.age)
+                allowed+=("$name")
+                ;;
+            secrets.tar.gz.gpg|secrets.tar.gz.age)
+                allowed+=("$name")
+                ;;
+            *)
+                die "Refusing to upload unexpected artifact: ${name}"
+                ;;
+        esac
+    done
+
+    [[ "${#allowed[@]}" -ge 3 ]] || die "Expected manifest plus encrypted database and secrets artifacts"
+
+    UPLOAD_ARTIFACT_NAMES=("${allowed[@]}")
+}
+
+remote_path_is_plaintext_artifact() {
+    local path="$1"
+
+    case "$path" in
+        *.sql|*.sql.gz|*.tar.gz)
+            [[ "$path" != *.gpg && "$path" != *.age ]] && return 0
+            ;;
+    esac
+
+    return 1
+}
+
+verify_local_upload_selection() {
+    local run_dir="$1"
+    local name
+
+    for name in "$run_dir"/*; do
+        [[ -e "$name" ]] || continue
+        name="$(basename "$name")"
+
+        if remote_path_is_plaintext_artifact "$name"; then
+            die "Plaintext artifact would be uploaded: ${name}"
+        fi
+    done
+}
+
+remote_stat_size() {
+    local remote_path="$1"
+
+    remote_ssh_exec "if [ -f '${remote_path}' ]; then stat -c '%s' '${remote_path}' 2>/dev/null || stat -f '%z' '${remote_path}'; else exit 2; fi"
+}
+
+verify_remote_artifacts() {
+    local run_dir="$1"
+    local remote_dir="$2"
+    local name local_size remote_size
+
+    for name in "${UPLOAD_ARTIFACT_NAMES[@]}"; do
+        local_size="$(file_size_bytes "${run_dir}/${name}")"
+        remote_size="$(remote_stat_size "${remote_dir}/${name}")"
+        [[ "$local_size" == "$remote_size" ]] || die "Remote size mismatch for ${name}"
+    done
+}
+
+write_upload_complete_marker() {
+    local marker_path="$1"
+    local backup_id="$2"
+    local uploaded_at="$3"
+    local remote_path="$4"
+    local manifest_sha="$5"
+
+    if [[ -z "$PHP_BIN" ]]; then
+        die "php is required to write upload-complete marker"
+    fi
+
+    export BACKUP_UPLOAD_MARKER_BACKUP_ID="$backup_id"
+    export BACKUP_UPLOAD_MARKER_UPLOADED_AT="$uploaded_at"
+    export BACKUP_UPLOAD_MARKER_REMOTE_PATH="$remote_path"
+    export BACKUP_UPLOAD_MARKER_MANIFEST_SHA="$manifest_sha"
+
+    "$PHP_BIN" -r '
+        $marker = [
+            "backup_id" => getenv("BACKUP_UPLOAD_MARKER_BACKUP_ID") ?: "",
+            "uploaded_at" => getenv("BACKUP_UPLOAD_MARKER_UPLOADED_AT") ?: "",
+            "remote_path" => getenv("BACKUP_UPLOAD_MARKER_REMOTE_PATH") ?: "",
+            "manifest_sha256" => getenv("BACKUP_UPLOAD_MARKER_MANIFEST_SHA") ?: "",
+            "status" => "completed",
+        ];
+        echo json_encode($marker, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    ' >"$marker_path"
+}
+
+update_manifest_upload() {
+    local manifest_path="$1"
+    local uploaded_at="$2"
+    local remote_host="$3"
+    local remote_path="$4"
+
+    if [[ -z "$PHP_BIN" ]]; then
+        die "php is required to update the backup manifest"
+    fi
+
+    export BACKUP_UPLOAD_UPLOADED_AT="$uploaded_at"
+    export BACKUP_UPLOAD_REMOTE_HOST="$remote_host"
+    export BACKUP_UPLOAD_REMOTE_PATH="$remote_path"
+
+    "$PHP_BIN" -r '
+        $path = $argv[1];
+        $data = json_decode((string) file_get_contents($path), true);
+        if (! is_array($data)) {
+            fwrite(STDERR, "invalid manifest json\n");
+            exit(1);
+        }
+
+        $artifacts = $data["artifacts"] ?? null;
+        if (! is_array($artifacts)) {
+            fwrite(STDERR, "manifest artifacts missing\n");
+            exit(1);
+        }
+
+        $data["phase"] = "cloud_uploaded";
+        $data["upload"] = [
+            "status" => "completed",
+            "uploaded_at" => getenv("BACKUP_UPLOAD_UPLOADED_AT") ?: "",
+            "remote_host" => getenv("BACKUP_UPLOAD_REMOTE_HOST") ?: "",
+            "remote_path" => getenv("BACKUP_UPLOAD_REMOTE_PATH") ?: "",
+            "artifacts_verified" => true,
+        ];
+
+        file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    ' "$manifest_path"
+}
+
+upload_run_to_cloud() {
+    local run_dir="$1"
+    local backup_id="$2"
+    local created_at="$3"
+
+    resolve_cloud_config
+    collect_upload_artifact_names "$run_dir"
+    verify_local_upload_selection "$run_dir"
+
+    backup_date_parts_from_id "$backup_id"
+
+    local remote_root remote_work remote_temp remote_final
+    remote_root="$BACKUP_CLOUD_REMOTE_ROOT"
+    remote_work="${remote_root}/work"
+    remote_temp="${remote_work}/uploading-${backup_id}"
+    remote_final="${remote_root}/${BACKUP_YEAR}/${BACKUP_MONTH}/${BACKUP_DAY}/${backup_id}"
+
+    log "starting Cloud upload for ${backup_id} (host=${BACKUP_CLOUD_SSH_HOST}, remote=${remote_final})"
+
+    remote_ssh_exec "mkdir -p '${remote_work}' '${remote_temp}'"
+
+    local rsync_ssh_e files_list name
+    rsync_ssh_e="$(build_rsync_ssh_e)"
+    files_list="$(mktemp "${TMPDIR:-/tmp}/radium-backup-upload-files.XXXXXX")"
+
+    for name in "${UPLOAD_ARTIFACT_NAMES[@]}"; do
+        printf '%s\n' "$name" >>"$files_list"
+    done
+
+    if ! "$RSYNC_BIN" -az \
+        -e "$rsync_ssh_e" \
+        --files-from="$files_list" \
+        "$run_dir/" \
+        "$(remote_ssh_target):${remote_temp}/"; then
+        rm -f "$files_list"
+        die "rsync to remote staging directory failed"
+    fi
+
+    rm -f "$files_list"
+
+    verify_remote_artifacts "$run_dir" "$remote_temp"
+
+    remote_ssh_exec "
+        set -euo pipefail
+        if [ -d '${remote_final}' ] && [ \"\$(find '${remote_final}' -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)\" ]; then
+            echo 'remote final backup directory is not empty' >&2
+            exit 1
+        fi
+        mkdir -p '${remote_final}'
+        mv '${remote_temp}'/* '${remote_final}/'
+        rmdir '${remote_temp}'
+    "
+
+    local marker_local manifest_sha uploaded_at
+    uploaded_at="$(utc_iso8601)"
+    manifest_sha="$(sha256_file "${run_dir}/manifest.json")"
+    marker_local="$(mktemp "${TMPDIR:-/tmp}/radium-backup-upload-complete.XXXXXX")"
+    write_upload_complete_marker "$marker_local" "$backup_id" "$uploaded_at" "$remote_final" "$manifest_sha"
+    chmod 600 "$marker_local"
+
+    if ! "$RSYNC_BIN" -az \
+        -e "$rsync_ssh_e" \
+        "$marker_local" \
+        "$(remote_ssh_target):${remote_final}/upload-complete.json"; then
+        rm -f "$marker_local"
+        die "rsync upload-complete marker failed"
+    fi
+
+    rm -f "$marker_local"
+
+    remote_ssh_exec "test -f '${remote_final}/upload-complete.json'"
+
+    update_manifest_upload \
+        "${run_dir}/manifest.json" \
+        "$uploaded_at" \
+        "$BACKUP_CLOUD_SSH_HOST" \
+        "$remote_final"
+
+    chmod 600 "${run_dir}/manifest.json"
+
+    log "Cloud upload completed: ${remote_final}"
+}
+
 main() {
     [[ -n "$MYSQLDUMP_BIN" ]] || die "mysqldump was not found on PATH"
     [[ -n "$GZIP_BIN" ]] || die "gzip was not found on PATH"
@@ -479,7 +793,12 @@ main() {
     rm -f "$MYSQL_CNF"
     MYSQL_CNF=""
 
-    log "backup completed: ${final_run_dir}"
+    log "local backup completed: ${final_run_dir}"
+
+    if cloud_upload_enabled; then
+        upload_run_to_cloud "$final_run_dir" "$backup_id" "$created_at"
+        log "backup completed with Cloud upload: ${final_run_dir}"
+    fi
 }
 
 main "$@"

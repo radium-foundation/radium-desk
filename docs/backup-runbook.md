@@ -1,43 +1,57 @@
-# Radium Desk — Backup Runbook (Phase 1: Local Staging)
+# Radium Desk — Backup Runbook
 
-**Prompt:** P18-08-023  
-**Status:** Phase 1 implemented — local generation only  
+**Prompts:** P18-08-023 (local staging), P18-08-025 (Cloud upload)  
 **Script:** [`bin/backup-run.sh`](../bin/backup-run.sh)
-
-This document covers **local backup generation on the KVM** only. Cloud upload, scheduling, remote retention, alerting, and restore drills are **future phases**.
 
 ---
 
-## Architecture (implemented)
+## Implemented phases
+
+| Phase | Status | Scope |
+|-------|--------|--------|
+| 1 — Local staging | **Implemented** | Encrypt + manifest + local `runs/` |
+| 2 — Cloud upload | **Implemented** | SSH/rsync to Hostinger Cloud (opt-in) |
+| 3 — Scheduling | **Future** | KVM cron, twice daily |
+| 4 — Remote retention | **Future** | Prune old Cloud copies |
+| 5 — Restore drill + alerting | **Future** | Verification automation |
+
+---
+
+## Architecture
 
 ```
 KVM production (/var/www/radium-desk)
   │
   ├─ mysqldump --single-transaction --quick
-  │     → gzip
-  │     → encrypt (gpg symmetric or age public-key)
+  │     → gzip → encrypt (gpg or age)
   │
   ├─ tar.gz (.env + storage/app/google/*.json only)
   │     → encrypt
   │
-  ├─ SHA-256 manifest.json
+  ├─ manifest.json (SHA-256 per artifact)
   │
-  └─ stage under BACKUP_STAGING_ROOT/runs/<backup_id>/
+  ├─ local staging: BACKUP_STAGING_ROOT/runs/<backup_id>/
+  │
+  └─ [optional] SSH/rsync → Hostinger Cloud
+        work/uploading-<backup_id>/   (temporary)
+          → verify sizes
+          → YYYY/MM/DD/<backup_id>/   (final)
+          → upload-complete.json
 ```
 
-**Not backed up in this phase:** application code, `vendor/`, logs, cache, sessions, `storage/framework/`, `storage/app/private/db-sync/`, finance receipts in `storage/app/public/` (none on production today), or other disks.
+**Not backed up:** application code, `vendor/`, logs, cache, sessions, `storage/framework/`, `storage/app/private/db-sync/`, finance receipts in `storage/app/public/` (none on production today).
 
-**Not implemented:** rsync/SFTP upload to Hostinger Cloud, cron, Laravel scheduler hooks, remote retention, alerting.
+**Hostinger Cloud storage quota:** **Unknown** from codebase/SSH alone — confirm in hPanel before relying on long retention.
 
 ---
 
-## Staging layout
+## Local staging layout
 
-Default root: `/var/backups/radium-desk` (override with `BACKUP_STAGING_ROOT`).
+Default: `/var/backups/radium-desk` (`BACKUP_STAGING_ROOT`).
 
 ```
 /var/backups/radium-desk/
-  work/                         # transient; cleaned after each run
+  work/                         # transient local work
   runs/
     20260818T141800Z/
       manifest.json
@@ -45,94 +59,163 @@ Default root: `/var/backups/radium-desk` (override with `BACKUP_STAGING_ROOT`).
       secrets.tar.gz.gpg        # or .age
 ```
 
-Permissions: `700` on directories, `600` on artifacts and manifest.
+Permissions: `700` directories, `600` artifacts.
+
+---
+
+## Cloud upload (Phase 2)
+
+### Behaviour
+
+- **Disabled by default.** Set `BACKUP_CLOUD_UPLOAD_ENABLED=true` to run after local staging succeeds.
+- Uploads **only** `manifest.json`, encrypted database artifact, and encrypted secrets bundle.
+- Never uploads plaintext `.sql`, `.sql.gz`, `.tar.gz`, logs, cache, or application files.
+- Remote flow:
+  1. `rsync` artifacts to `{REMOTE_ROOT}/work/uploading-<backup_id>/`
+  2. Verify remote file sizes match local
+  3. Move into `{REMOTE_ROOT}/YYYY/MM/DD/<backup_id>/`
+  4. Upload `upload-complete.json` marker
+  5. Update local `manifest.json` with `upload` metadata (artifact SHA-256 values unchanged)
+
+### Remote directory structure
+
+Default root: `/home/u215544208/backups/radium-desk` (example — set via env).
+
+```
+backups/radium-desk/                    # BACKUP_CLOUD_REMOTE_ROOT
+  work/
+    uploading-<backup_id>/            # temporary; removed after promote
+  2026/
+    08/
+      18/
+        20260818T141800Z/
+          manifest.json
+          database.sql.gz.gpg
+          secrets.tar.gz.gpg
+          upload-complete.json
+```
+
+Date folders derive from `backup_id` (`YYYYMMDD` prefix).
+
+### Configuration variables
+
+| Variable | Required when upload enabled | Default | Description |
+|----------|------------------------------|---------|-------------|
+| `BACKUP_CLOUD_UPLOAD_ENABLED` | — | **off** | `true` / `1` / `yes` to enable |
+| `BACKUP_CLOUD_SSH_HOST` | **yes** | — | Cloud SSH host (e.g. shared hosting IP) |
+| `BACKUP_CLOUD_SSH_USER` | **yes** | — | SSH user (e.g. `u215544208`) |
+| `BACKUP_CLOUD_SSH_PORT` | no | `65002` | SSH port (Hostinger shared hosting convention) |
+| `BACKUP_CLOUD_SSH_IDENTITY_FILE` | no | SSH default | Path to private key for KVM→Cloud |
+| `BACKUP_CLOUD_REMOTE_ROOT` | **yes** | — | Remote base path (e.g. `/home/u215544208/backups/radium-desk`) |
+
+**Not in git:** SSH private keys, encryption passphrases, DB credentials.
+
+Example production values (from deployment tooling — verify before use):
+
+| Setting | Example |
+|---------|---------|
+| Host | `187.127.183.72` |
+| Port | `65002` |
+| User | `u215544208` |
+| Remote root | `/home/u215544208/backups/radium-desk` |
+
+LCDS uses the same SSH/rsync pattern (`ExtractFileTransporter.php`, `tools/config.sh`).
+
+### Manifest after Cloud upload
+
+`phase` becomes `cloud_uploaded`. New `upload` block:
+
+```json
+"upload": {
+  "status": "completed",
+  "uploaded_at": "2026-08-18T14:18:00Z",
+  "remote_host": "<host>",
+  "remote_path": "/home/.../backups/radium-desk/2026/08/18/<backup_id>",
+  "artifacts_verified": true
+}
+```
+
+Remote `upload-complete.json` contains `backup_id`, `uploaded_at`, `remote_path`, `manifest_sha256`, `status`.
 
 ---
 
 ## Encryption (mandatory, fail-closed)
 
-The script **never** leaves a completed backup in plaintext. If encryption is not configured, the run aborts before producing final artifacts.
+Local encryption runs **before** any Cloud upload. Unencrypted artifacts are never uploaded.
 
-### Option A — GPG symmetric (KVM has `gpg`)
-
-Provide passphrase at runtime via **one** of:
+### GPG symmetric (KVM has `gpg`)
 
 | Variable | Description |
 |----------|-------------|
-| `BACKUP_ENCRYPTION_PASSPHRASE` | Passphrase string (avoid in production cron; use file) |
-| `BACKUP_ENCRYPTION_PASSPHRASE_FILE` | Path to root-readable file containing passphrase |
+| `BACKUP_ENCRYPTION_PASSPHRASE` | Passphrase (avoid in cron; use file) |
+| `BACKUP_ENCRYPTION_PASSPHRASE_FILE` | Path to passphrase file (`chmod 600`) |
 
-Recommended production pattern (not yet deployed):
-
-```text
-/root/.radium-backup-passphrase   # chmod 600, root-only
-```
-
-Set `BACKUP_ENCRYPTION_PASSPHRASE_FILE=/root/.radium-backup-passphrase` when invoking the script.
-
-### Option B — age public-key
+### age public-key
 
 | Variable | Description |
 |----------|-------------|
-| `BACKUP_AGE_RECIPIENT` | age public key (encryption only; decryption key kept offline) |
+| `BACKUP_AGE_RECIPIENT` | Public key for encryption |
 
-Requires `age` on PATH.
-
-### Explicit method
-
-Set `BACKUP_ENCRYPTION_METHOD=gpg` or `BACKUP_ENCRYPTION_METHOD=age` to force a method.
-
-Auto-detection when unset:
-
-1. `BACKUP_AGE_RECIPIENT` → age  
-2. passphrase env/file → gpg  
-3. otherwise → **fail**
-
-**Do not** commit passphrases or private keys to git.
+Set `BACKUP_ENCRYPTION_METHOD=gpg` or `age` to force a method.
 
 ---
 
 ## Database credentials
 
-Read from application `.env` (`DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`). Credentials are passed to `mysqldump` via a temporary `chmod 600` defaults file; passwords are **not** echoed to stdout/stderr.
+Read from `.env` (`DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`). Passed to `mysqldump` via temporary `chmod 600` defaults file; never logged.
 
-Engine: MariaDB on production KVM (`mariadb` connection in Laravel).
-
----
-
-## Manifest
-
-Each run writes `manifest.json` with:
-
-- `backup_id`, `created_at`, `phase` (`local_staging`)
-- Application `version`, `build`, `deployed_at` from `storage/app/private/release.json` when present
-- Database name and `engine_version` from `SELECT VERSION()`
-- Per-artifact: `role`, `filename`, `size_bytes`, `sha256`, `encryption`
-
----
-
-## Manual invocation (when approved for production)
-
-**Not scheduled in this phase.** Example only:
-
-```bash
-cd /var/www/radium-desk
-export BACKUP_ENCRYPTION_PASSPHRASE_FILE=/root/.radium-backup-passphrase
-export PHP_BIN=/usr/local/lsws/lsphp84/bin/php
-sudo -E env BACKUP_ENCRYPTION_PASSPHRASE_FILE="$BACKUP_ENCRYPTION_PASSPHRASE_FILE" \
-  ./bin/backup-run.sh
-```
-
-Adjust paths for KVM PHP binary. Do not run until encryption passphrase storage is established and ops approves.
+Engine: MariaDB 11.8.x on production KVM.
 
 ---
 
 ## Failure behaviour
 
-- `set -euo pipefail` — any failed step aborts the run.
-- Incomplete work under `work/` is removed on failure.
-- **Existing successful runs under `runs/` are never deleted** by a failed run.
-- Plaintext `.sql`, `.sql.gz`, or `.tar.gz` must not remain after encryption; the script verifies this.
+### Local staging failure
+
+- Exit non-zero; remove incomplete `work/` artifacts.
+- **Never deletes** existing `runs/` directories.
+
+### Cloud upload failure (after local success)
+
+- Exit non-zero.
+- **Local `runs/<backup_id>/` preserved** with `phase: local_staging`.
+- **Does not delete** remote successful backups.
+- **Does not prune** remote or local history.
+- Incomplete remote `work/uploading-*` may remain until manual cleanup or a later successful run.
+
+---
+
+## Security considerations
+
+| Topic | Notes |
+|-------|-------|
+| Encryption before upload | Cloud receives only gpg/age artifacts |
+| SSH transport | Same pattern as LCDS; prefer key auth (`BatchMode=yes`) |
+| Passphrase / keys | Not in git; passphrase file root-only on KVM |
+| Cloud account access | hPanel can read uploaded files if not encrypted — encryption is mandatory |
+| Same provider | KVM + Cloud are both Hostinger — not geographic DR |
+| Quota | Unknown without hPanel — monitor usage |
+
+---
+
+## Manual invocation (when ops approves)
+
+**Not scheduled.** Example:
+
+```bash
+cd /var/www/radium-desk
+export BACKUP_ENCRYPTION_PASSPHRASE_FILE=/root/.radium-backup-passphrase
+export BACKUP_CLOUD_UPLOAD_ENABLED=true
+export BACKUP_CLOUD_SSH_HOST=187.127.183.72
+export BACKUP_CLOUD_SSH_USER=u215544208
+export BACKUP_CLOUD_SSH_PORT=65002
+export BACKUP_CLOUD_REMOTE_ROOT=/home/u215544208/backups/radium-desk
+export BACKUP_CLOUD_SSH_IDENTITY_FILE=/root/.ssh/radium_cloud_backup
+export PHP_BIN=/usr/local/lsws/lsphp84/bin/php
+sudo -E ./bin/backup-run.sh
+```
+
+Do not run until encryption passphrase and SSH key are provisioned.
 
 ---
 
@@ -142,23 +225,15 @@ Adjust paths for KVM PHP binary. Do not run until encryption passphrase storage 
 bash tests/scripts/backup-run.test.sh
 ```
 
-Uses mock `mysqldump`, `mysql`, and `gpg` under `tests/scripts/fixtures/backup-mocks/`. Does not connect to production.
+Mock `mysqldump`, `mysql`, `gpg`, `rsync`, and `ssh` under `tests/scripts/fixtures/backup-mocks/`. **Does not connect to production or Hostinger Cloud.**
 
 ---
 
 ## Future phases (not implemented)
 
-| Phase | Scope |
-|-------|--------|
-| 2 | Encrypted upload to Hostinger Cloud via SSH/rsync |
-| 3 | KVM cron (twice daily) + `flock` |
-| 4 | Remote retention on Cloud destination |
-| 5 | Restore verification drill + alerting |
+- KVM cron (twice daily) + `flock`
+- Remote retention / pruning on Cloud
+- Restore verification drill
+- Alerting on failure
 
-See also: [`docs/infrastructure-readiness.md`](infrastructure-readiness.md) §12 (high-level asset list).
-
----
-
-## Related inspection
-
-Pre-implementation findings: backup inspection conversation (P18-08-023 predecessor), [`docs/p18-08-001-database-growth-investigation.md`](p18-08-001-database-growth-investigation.md) for DB size context.
+See also: [`docs/infrastructure-readiness.md`](infrastructure-readiness.md) §12, [`docs/p18-08-001-database-growth-investigation.md`](p18-08-001-database-growth-investigation.md).
