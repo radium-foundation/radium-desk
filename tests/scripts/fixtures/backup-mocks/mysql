@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+query=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --defaults-extra-file)
+            shift 2
+            ;;
+        -N)
+            shift
+            ;;
+        -e)
+            query="${2:-}"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+if [[ "$query" == "SELECT VERSION();" ]]; then
+    echo "11.8.8-MariaDB-test"
+    exit 0
+fi
+
+echo "mock mysql: unsupported query: $query" >&2
+exit 1

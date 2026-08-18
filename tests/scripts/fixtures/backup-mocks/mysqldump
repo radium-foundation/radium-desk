@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+database=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --defaults-extra-file)
+            shift 2
+            ;;
+        --single-transaction|--quick)
+            shift
+            ;;
+        -*)
+            shift
+            ;;
+        *)
+            database="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ "$database" != "radium_desk_test" ]]; then
+    echo "mysqldump: unexpected database: $database" >&2
+    exit 1
+fi
+
+cat <<'SQL'
+-- Mock mysqldump output for backup-run tests
+CREATE TABLE orders (id INT PRIMARY KEY);
+INSERT INTO orders VALUES (1);
+SQL

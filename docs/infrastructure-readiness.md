@@ -431,6 +431,8 @@ Infrastructure metrics and integration health aggregates use the active cache dr
 
 ## 12. Backup Considerations
 
+**Phase 1 (local staging):** [`docs/backup-runbook.md`](backup-runbook.md) — `bin/backup-run.sh` generates encrypted DB + secrets bundles on the KVM. Cloud upload, cron, and retention are **not** implemented yet.
+
 Back up on Hostinger and VPS:
 
 | Asset | Priority |
