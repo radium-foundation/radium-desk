@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+#
+# Test-only gpg stub: symmetric AES-256-CBC via openssl (not compatible with real gpg).
+#
+set -euo pipefail
+
+output=""
+passphrase=""
+input=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --output)
+            output="$2"
+            shift 2
+            ;;
+        --passphrase)
+            passphrase="$2"
+            shift 2
+            ;;
+        --batch|--yes)
+            shift
+            ;;
+        --symmetric)
+            shift
+            ;;
+        --cipher-algo)
+            shift 2
+            ;;
+        *)
+            if [[ -f "$1" ]]; then
+                input="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+[[ -n "$output" ]] || { echo "mock gpg: missing --output" >&2; exit 1; }
+[[ -n "$input" ]] || { echo "mock gpg: missing input file" >&2; exit 1; }
+[[ -n "$passphrase" ]] || { echo "mock gpg: missing --passphrase" >&2; exit 1; }
+
+openssl enc -aes-256-cbc -salt -pbkdf2 -pass pass:"$passphrase" -in "$input" -out "$output"
