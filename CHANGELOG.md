@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.41 — 2026-08-18 — Historical Unknown Customer Inspection
+
+- Added a read-only inspection command for pre-July ignored unknown_customer emails using a fixed received_at cutoff through 2026-06-30, with explicit safety exclusions before any cleanup is considered.
+
 ## 4.0.40 — 2026-08-18 — Audit Log Retention Inspection
 
 - Added a read-only inspection command to review audit log growth, age cohorts, event categories, and retention safety before any cleanup is considered.
