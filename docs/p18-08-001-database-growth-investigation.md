@@ -376,18 +376,48 @@ php artisan database:retention-inspect --dry-run
 
 - No DELETE / TRUNCATE / archive jobs.
 - No scheduler registration for pruning.
-- No webhook `raw_body` deduplication.
+- ~~No webhook `raw_body` deduplication.~~ **Phase 2 done (code only; not deployed).**
 - No changes to AIC, production `.env`, MariaDB, LCDS, DNS, or Cloudflare.
 - No rebaseline of `mail@radiumbox.com` Gmail history.
 
+---
+
+## 12. Phase 2 implementation (2026-08-18 — code only)
+
+**Baseline:** Phase 1 commit `6c5b6a18` on `feature/lcds-phase-1-dry-run`.  
+**Scope:** stop persisting duplicate `raw_body` on **new** webhook rows. **Not deployed.** **No existing rows modified.**
+
+### What changed
+
+| Write path | Before | After |
+|---|---|---|
+| `CashfreeWebhookController` | `request_payload` + `raw_body` | `request_payload` only (`raw_body` null) |
+| `InteraktWebhookController` | `payload` + `raw_body` | `payload` only |
+| `InteraktFlowWebhookController` | `payload` + `raw_body` | `payload` only |
+| `BonvoiceWebhookController` | `payload` + `raw_body` | `payload` only |
+| `CashfreeMissedWebhookHealService` | synthetic `request_payload` + `raw_body` | `request_payload` only |
+
+### What did NOT change
+
+- **Signature verification** still uses the live HTTP request body (`$request->getContent()`) before/after persistence — unchanged.
+- **Runtime processing** still reads `request_payload` / `payload` — never depended on stored `raw_body`.
+- **Existing rows** with `raw_body` are untouched (no UPDATE/DELETE).
+- **Cashfree webhook explorer** still displays historical `raw_body`; new rows show “No raw body recorded.”
+- **Schema** unchanged — `raw_body` columns remain nullable longtext.
+
+### Expected storage impact going forward
+
+- ~50% reduction in new webhook log row size (Interakt largest ongoing contributor).
+- Historical duplication remains until future retention/archive phases.
+
 ### Safety constraints preserved
 
-- LCDS migration/cutover work on branch untouched.
-- All existing business-email matching behavior for legitimate messages preserved.
-- High-confidence label skip only — unknown_customer and header heuristics not moved to ingest.
+- No AIC, DNS, Cloudflare, LCDS, MariaDB, or `.env` changes.
+- No deployment.
+- Phase 1 Gmail label skip and retention inspect behavior unchanged.
 
 ---
 
 ## Stop
 
-Investigation: read-only on production (2026-08-18). Phase 1 code landed locally only — no production data deleted, no deployment, Gmail cursor not reset.
+Investigation: read-only on production (2026-08-18). Phase 1 and Phase 2 code landed locally only — no production data deleted or updated, no deployment, Gmail cursor not reset.

@@ -59,7 +59,8 @@ class CashfreeWebhookTest extends TestCase
         $this->assertSame(CashfreeWebhookLog::STATUS_RECEIVED, $log->processing_status);
         $this->assertNull($log->processing_error);
         $this->assertNull($log->processed_at);
-        $this->assertStringContainsString('ORD-123', (string) $log->raw_body);
+        $this->assertNull($log->raw_body);
+        $this->assertSame($payload, $log->request_payload);
     }
 
     public function test_webhook_rejects_non_post_requests(): void
