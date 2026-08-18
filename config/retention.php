@@ -40,4 +40,26 @@ return [
 
     'outbox_prune_batch_size' => max(1, (int) env('RETENTION_OUTBOX_PRUNE_BATCH_SIZE', 1000)),
 
+    /*
+    | Historical Gmail baseline noise (received_at cutoff — not created_at).
+    | Used by database:retention-inspect-historical-gmail-noise (read-only today).
+    | Does not alter ignored_email_days or other ongoing retention policies.
+    */
+    'historical_gmail_noise' => [
+        'received_at_cutoff' => env('RETENTION_HISTORICAL_GMAIL_NOISE_RECEIVED_CUTOFF', '2026-07-01 00:00:00'),
+        'excluded_message_ids' => [244287],
+        'ignore_reasons' => [
+            'promotions',
+            'social',
+            'spam',
+            'trash',
+            'newsletter_or_marketing',
+            'known_system_email',
+            'auto_responder',
+            'bounce_or_delivery_subsystem',
+            'own_outbound',
+        ],
+        'sample_id_limit' => max(1, (int) env('RETENTION_HISTORICAL_GMAIL_NOISE_SAMPLE_ID_LIMIT', 10)),
+    ],
+
 ];
