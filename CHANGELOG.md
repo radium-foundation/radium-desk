@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.36 — 2026-08-18 — Historical Gmail Noise Inspection
+
+- Added a read-only inspection command to identify pre-July historical ignored Gmail noise by received date, with explicit safety exclusions.
+
 ## 4.0.35 — 2026-08-18 — Database Retention Prune (Dry-Run)
 
 - Added dry-run retention prune commands for expired cache rows and completed outbox events older than 14 days.
