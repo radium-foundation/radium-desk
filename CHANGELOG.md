@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.35 — 2026-08-18 — Database Retention Prune (Dry-Run)
+
+- Added dry-run retention prune commands for expired cache rows and completed outbox events older than 14 days.
+- Added read-only database retention inspection to review growth candidates before any cleanup.
+- New webhook events no longer store duplicate raw request bodies alongside parsed payloads.
+- Gmail promotional, social, spam, and trash messages are skipped earlier during email intake.
+
 ## 4.0.34 — 2026-08-14 — Dead-Letter Watchdog Alerts
 
 - Stabilized dead-letter queue Telegram alerts so the same failed jobs no longer repeat after deploy or cache clears.
