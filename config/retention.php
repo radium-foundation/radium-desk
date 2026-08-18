@@ -282,4 +282,17 @@ return [
         ],
     ],
 
+    /*
+    | Historical ignored unknown_customer (fixed received_at cutoff — not created_at).
+    | Used by database:retention-inspect-historical-unknown-customer (read-only).
+    | One-time scope: emails received through 2026-06-30 (received_at < 2026-07-01 00:00:00).
+    | Separate from historical_gmail_noise — does not alter that predicate or prune command.
+    */
+    'historical_unknown_customer' => [
+        'received_at_cutoff' => env('RETENTION_HISTORICAL_UNKNOWN_CUSTOMER_RECEIVED_CUTOFF', '2026-07-01 00:00:00'),
+        'ignore_reason' => 'unknown_customer',
+        'sample_id_limit' => max(1, (int) env('RETENTION_HISTORICAL_UNKNOWN_CUSTOMER_SAMPLE_ID_LIMIT', 10)),
+        'sample_metadata_limit' => max(1, (int) env('RETENTION_HISTORICAL_UNKNOWN_CUSTOMER_SAMPLE_METADATA_LIMIT', 5)),
+    ],
+
 ];
