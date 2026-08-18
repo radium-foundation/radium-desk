@@ -67,6 +67,7 @@ class RetentionInspectionService
             cutoffAt: $cutoff->toIso8601String(),
             candidateCount: OutboxEvent::query()
                 ->where('status', OutboxEventStatus::Completed)
+                ->whereNotNull('processed_at')
                 ->where('processed_at', '<', $cutoff)
                 ->count(),
             tableTotalCount: OutboxEvent::query()->count(),

@@ -49,7 +49,7 @@ class RetentionInspectCommand extends Command
 
         $this->newLine();
         $this->info(sprintf('Total retention candidates: %s', number_format($summary->totalCandidates)));
-        $this->line('No rows were deleted. Future prune commands should use chunkById(), withoutOverlapping(), and explicit policies from config/retention.php.');
+        $this->line('No rows were deleted. Use database:retention-prune-cache or database:retention-prune-outbox (dry-run by default; --execute required for deletes).');
 
         Log::info('database.retention_inspect.completed', [
             'inspected_at' => $summary->inspectedAt->toIso8601String(),
