@@ -479,14 +479,12 @@ class CashfreeMissedWebhookHealService
         }
 
         $headers = $this->syntheticHeaders($orderId);
-        $rawBody = json_encode($payload, JSON_THROW_ON_ERROR);
 
         $log = CashfreeWebhookLog::query()->create([
             'webhook_version' => (string) config('cashfree.api.version', '2026-01-01'),
             'cf_payment_id' => $cfPaymentId,
             'request_headers' => $headers,
             'request_payload' => $payload,
-            'raw_body' => $rawBody,
             'received_at' => now(),
             'source_ip' => '127.0.0.1',
             'user_agent' => self::USER_AGENT,

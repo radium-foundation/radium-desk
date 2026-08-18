@@ -88,7 +88,6 @@ class CashfreeWebhookController extends Controller
             'cf_payment_id' => $this->payloadParser->cfPaymentId($payload),
             'request_headers' => $request->headers->all(),
             'request_payload' => $payload,
-            'raw_body' => $request->getContent(),
             'received_at' => now(),
             'source_ip' => $request->ip(),
             'user_agent' => $request->userAgent(),

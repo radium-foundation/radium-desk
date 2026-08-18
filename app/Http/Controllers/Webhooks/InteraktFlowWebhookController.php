@@ -126,7 +126,6 @@ class InteraktFlowWebhookController extends Controller
         return InteraktWebhookLog::query()->create([
             'event_type' => $this->payloadParser->eventType($payload),
             'payload' => $payload,
-            'raw_body' => $request->getContent(),
             'request_headers' => $request->headers->all(),
             'received_at' => now(),
             'processing_status' => InteraktWebhookLog::STATUS_RECEIVED,
