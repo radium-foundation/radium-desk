@@ -46,4 +46,19 @@ class CustomerWaitingLifecycleServiceTest extends TestCase
             Carbon::parse('2026-07-08 18:00:00', AppDateFormatter::timezone()),
         ));
     }
+
+    public function test_audit_event_constants_fit_audit_logs_event_column(): void
+    {
+        $events = [
+            CustomerWaitingLifecycleService::EVENT_WAITING_STARTED,
+            CustomerWaitingLifecycleService::EVENT_IDENTITY_RESOLVED,
+            CustomerWaitingLifecycleService::EVENT_AUTO_CLOSED,
+            CustomerWaitingLifecycleService::EVENT_ALREADY_CLOSED_WAITING_CLEARED,
+            CustomerWaitingLifecycleService::EVENT_LEGACY_CLEANUP_CLOSED,
+        ];
+
+        foreach ($events as $event) {
+            $this->assertLessThanOrEqual(50, strlen($event), $event);
+        }
+    }
 }
