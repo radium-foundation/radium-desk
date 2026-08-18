@@ -25,6 +25,9 @@ class DatabaseSyncManifest
     /** @var array<string, SyncTableDefinition> */
     private array $tablesByName = [];
 
+    /** @var list<SyncTableDefinition> */
+    private array $orderedTables = [];
+
     public readonly RemoteEndpointProfile $source;
 
     public readonly RemoteEndpointProfile $target;
@@ -72,6 +75,7 @@ class DatabaseSyncManifest
         }
 
         $this->validateDependencies();
+        $this->orderedTables = $this->topologicalOrder();
     }
 
     /**
@@ -79,17 +83,7 @@ class DatabaseSyncManifest
      */
     public function tablesInSyncOrder(): array
     {
-        $tables = array_values($this->tablesByName);
-
-        usort(
-            $tables,
-            static function (SyncTableDefinition $left, SyncTableDefinition $right): int {
-                return $left->syncOrder <=> $right->syncOrder
-                    ?: $left->name <=> $right->name;
-            },
-        );
-
-        return $tables;
+        return $this->orderedTables;
     }
 
     /**
@@ -159,6 +153,69 @@ class DatabaseSyncManifest
                 }
             }
         }
+    }
+
+    /**
+     * Kahn topological order. Lower sync_order stays first among ready tables;
+     * equal sync_order is deterministic by name. Explicit depends_on always wins
+     * over alphabetical order.
+     *
+     * @return list<SyncTableDefinition>
+     */
+    private function topologicalOrder(): array
+    {
+        $indegree = [];
+        $children = [];
+
+        foreach ($this->tablesByName as $name => $table) {
+            $indegree[$name] = 0;
+            $children[$name] = [];
+        }
+
+        foreach ($this->tablesByName as $name => $table) {
+            foreach ($table->dependsOn as $dependency) {
+                $children[$dependency][] = $name;
+                $indegree[$name]++;
+            }
+        }
+
+        $ordered = [];
+        $remaining = count($this->tablesByName);
+
+        while ($remaining > 0) {
+            $ready = [];
+
+            foreach ($indegree as $name => $degree) {
+                if ($degree === 0) {
+                    $ready[] = $this->tablesByName[$name];
+                }
+            }
+
+            if ($ready === []) {
+                throw new InvalidArgumentException('Database sync table dependencies contain a cycle.');
+            }
+
+            usort(
+                $ready,
+                static function (SyncTableDefinition $left, SyncTableDefinition $right): int {
+                    return $left->syncOrder <=> $right->syncOrder
+                        ?: $left->name <=> $right->name;
+                },
+            );
+
+            $next = $ready[0];
+            $ordered[] = $next;
+            unset($indegree[$next->name]);
+            $remaining--;
+
+            foreach ($children[$next->name] as $child) {
+                if (isset($indegree[$child])) {
+                    $indegree[$child]--;
+                }
+            }
+        }
+
+        return $ordered;
     }
 
     /**

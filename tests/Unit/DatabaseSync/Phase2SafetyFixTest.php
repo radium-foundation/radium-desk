@@ -36,9 +36,20 @@ use Tests\TestCase;
 
 class Phase2SafetyFixTest extends TestCase
 {
+    use IsolatesTableCheckpointDirectory;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->isolateTableCheckpointDirectory();
+    }
+
     protected function tearDown(): void
     {
         Mockery::close();
+
+        $this->cleanupTableCheckpointDirectory();
 
         parent::tearDown();
     }

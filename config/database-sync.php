@@ -15,7 +15,7 @@ return [
     'direction' => 'hostinger_to_vps',
 
     'checkpoint_path' => storage_path('app/private/db-sync/state.json'),
-    'table_checkpoint_directory' => storage_path('app/private/db-sync/checkpoints'),
+    'table_checkpoint_directory' => env('DB_SYNC_TABLE_CHECKPOINT_DIRECTORY', storage_path('app/private/db-sync/checkpoints')),
 
     'apply_lock_path' => storage_path('app/private/db-sync/.apply.lock'),
 
@@ -158,7 +158,6 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'unique_indexes' => [['name']],
         ],
         'finance_settings' => [
             'tier' => 1,
@@ -243,7 +242,7 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['device_models'],
-            'unique_indexes' => [['alias']],
+            'unique_indexes' => [['normalized_alias']],
         ],
         'finance_accounts' => [
             'tier' => 1,
@@ -292,8 +291,27 @@ return [
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
             'depends_on' => ['users', 'device_models'],
-            'unique_indexes' => [['order_id'], ['cashfree_payment_id'], ['serial_number']],
+            'physical_unique_indexes' => [['order_id'], ['cashfree_payment_id']],
+            'business_unique_keys' => [['order_id'], ['cashfree_payment_id']],
             'soft_deletes' => true,
+        ],
+        'bonvoice_webhook_logs' => [
+            'tier' => 1,
+            'sync_order' => 35,
+            'strategy' => 'bigint_id+updated_at',
+            'primary_key' => ['id'],
+            'updated_at' => 'updated_at',
+            'created_at' => 'created_at',
+        ],
+        'bonvoice_call_events' => [
+            'tier' => 1,
+            'sync_order' => 35,
+            'strategy' => 'bigint_id+updated_at',
+            'primary_key' => ['id'],
+            'updated_at' => 'updated_at',
+            'created_at' => 'created_at',
+            'depends_on' => ['bonvoice_webhook_logs'],
+            'unique_indexes' => [['call_id', 'leg']],
         ],
 
         // --- Tier 1/2: incidents and related (order 40) ---
@@ -326,7 +344,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'depends_on' => ['orders'],
+            'depends_on' => ['orders', 'incidents'],
         ],
         'incident_waiting_states' => [
             'tier' => 2,
@@ -362,7 +380,7 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-            'depends_on' => ['incidents'],
+            'depends_on' => ['incidents', 'bonvoice_call_events'],
         ],
         'business_holds' => [
             'tier' => 2,
@@ -556,23 +574,6 @@ return [
             'primary_key' => ['id'],
             'updated_at' => 'updated_at',
             'created_at' => 'created_at',
-        ],
-        'bonvoice_webhook_logs' => [
-            'tier' => 2,
-            'sync_order' => 80,
-            'strategy' => 'bigint_id+updated_at',
-            'primary_key' => ['id'],
-            'updated_at' => 'updated_at',
-            'created_at' => 'created_at',
-        ],
-        'bonvoice_call_events' => [
-            'tier' => 2,
-            'sync_order' => 80,
-            'strategy' => 'bigint_id+updated_at',
-            'primary_key' => ['id'],
-            'updated_at' => 'updated_at',
-            'created_at' => 'created_at',
-            'unique_indexes' => [['call_id', 'leg']],
         ],
         'bonvoice_call_alerts' => [
             'tier' => 2,

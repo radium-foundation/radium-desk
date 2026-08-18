@@ -25,7 +25,7 @@ class SchemaIndexParityGate
                 continue;
             }
 
-            $required = $this->requiredIndexes($table);
+            $required = $this->requiredPhysicalIndexes($table);
 
             foreach ($required as $indexColumns) {
                 $signature = $this->signature($indexColumns);
@@ -44,13 +44,19 @@ class SchemaIndexParityGate
     }
 
     /**
+     * Physical UNIQUE indexes only. Business unique keys are enforced by UniqueConflictChecker.
+     *
      * @return list<list<string>>
      */
-    private function requiredIndexes(SyncTableDefinition $table): array
+    private function requiredPhysicalIndexes(SyncTableDefinition $table): array
     {
         $indexes = [$table->primaryKey];
 
-        foreach ($table->uniqueIndexes as $uniqueIndex) {
+        foreach ($table->physicalUniqueIndexes as $uniqueIndex) {
+            if ($this->signature($uniqueIndex) === $this->signature($table->primaryKey)) {
+                continue;
+            }
+
             $indexes[] = $uniqueIndex;
         }
 

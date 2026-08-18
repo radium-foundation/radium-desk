@@ -9,11 +9,15 @@ use Tests\TestCase;
 
 class RemoteInspectScriptTest extends TestCase
 {
+    use IsolatesTableCheckpointDirectory;
+
     private string $databasePath;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->isolateTableCheckpointDirectory();
 
         $this->databasePath = storage_path('framework/testing/probe-'.uniqid('', true).'.sqlite');
         touch($this->databasePath);
@@ -34,6 +38,8 @@ class RemoteInspectScriptTest extends TestCase
         if (is_file($this->databasePath)) {
             unlink($this->databasePath);
         }
+
+        $this->cleanupTableCheckpointDirectory();
 
         parent::tearDown();
     }
@@ -82,27 +88,20 @@ class RemoteInspectScriptTest extends TestCase
 
     public function test_remote_inspect_exports_checkpoints_and_dark_status(): void
     {
-        $directory = storage_path('app/private/db-sync/checkpoints');
-        if (! is_dir($directory)) {
-            mkdir($directory, 0755, true);
+        if (! is_dir($this->tableCheckpointDirectory)) {
+            mkdir($this->tableCheckpointDirectory, 0755, true);
         }
 
-        $path = $directory.'/lcds_inspect_probe.json';
+        $path = $this->tableCheckpointDirectory.'/lcds_inspect_probe.json';
         file_put_contents($path, json_encode(['table' => 'lcds_inspect_probe', 'last_id' => 7]));
 
-        try {
-            $checkpoints = $this->runInspectScript(['--action=export-checkpoints']);
-            $this->assertSame('vps', $checkpoints['authority'] ?? null);
-            $this->assertSame(7, $checkpoints['checkpoints']['lcds_inspect_probe']['last_id'] ?? null);
+        $checkpoints = $this->runInspectScript(['--action=export-checkpoints']);
+        $this->assertSame('vps', $checkpoints['authority'] ?? null);
+        $this->assertSame(7, $checkpoints['checkpoints']['lcds_inspect_probe']['last_id'] ?? null);
 
-            $dark = $this->runInspectScript(['--action=dark-status']);
-            $this->assertArrayHasKey('dark', $dark);
-            $this->assertArrayHasKey('active', $dark);
-        } finally {
-            if (is_file($path)) {
-                unlink($path);
-            }
-        }
+        $dark = $this->runInspectScript(['--action=dark-status']);
+        $this->assertArrayHasKey('dark', $dark);
+        $this->assertArrayHasKey('active', $dark);
     }
 
     /**
@@ -113,8 +112,9 @@ class RemoteInspectScriptTest extends TestCase
     {
         $script = base_path('app/Infrastructure/DatabaseSync/Scripts/remote_inspect.php');
         $command = sprintf(
-            'APP_ENV=testing DB_CONNECTION=sqlite DB_DATABASE=%s php %s %s',
+            'APP_ENV=testing DB_CONNECTION=sqlite DB_DATABASE=%s DB_SYNC_TABLE_CHECKPOINT_DIRECTORY=%s php %s %s',
             escapeshellarg($this->databasePath),
+            escapeshellarg($this->tableCheckpointDirectory),
             escapeshellarg($script),
             implode(' ', array_map(static fn (string $argument): string => escapeshellarg($argument), $arguments)),
         );

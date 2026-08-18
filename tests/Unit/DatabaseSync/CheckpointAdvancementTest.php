@@ -16,14 +16,13 @@ use Tests\TestCase;
 
 class CheckpointAdvancementTest extends TestCase
 {
-    private string $checkpointDirectory;
+    use IsolatesTableCheckpointDirectory;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->checkpointDirectory = storage_path('framework/testing/checkpoints-'.uniqid('', true));
-        config(['database-sync.table_checkpoint_directory' => $this->checkpointDirectory]);
+        $this->isolateTableCheckpointDirectory();
 
         Schema::create('orders', function (Blueprint $table): void {
             $table->id();
@@ -39,10 +38,7 @@ class CheckpointAdvancementTest extends TestCase
     {
         Schema::dropIfExists('orders');
 
-        if (is_dir($this->checkpointDirectory)) {
-            array_map('unlink', glob($this->checkpointDirectory.'/*') ?: []);
-            rmdir($this->checkpointDirectory);
-        }
+        $this->cleanupTableCheckpointDirectory();
 
         parent::tearDown();
     }
@@ -94,7 +90,7 @@ class CheckpointAdvancementTest extends TestCase
         $this->assertSame('gen-2', $checkpoint['last_generation_id']);
         $this->assertSame($chunk->sha256, $checkpoint['last_chunk_checksum']);
         $this->assertIsString($checkpoint['applied_at']);
-        $this->assertFileDoesNotExist($this->checkpointDirectory.'/orders.json.tmp');
+        $this->assertFileDoesNotExist($this->tableCheckpointDirectory.'/orders.json.tmp');
     }
 
     /**

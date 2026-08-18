@@ -11,11 +11,11 @@ class UniqueConflictChecker
      */
     public function detectConflict(SyncTableDefinition $table, array $incomingRow): ?array
     {
-        if ($table->uniqueIndexes === []) {
+        if ($table->businessUniqueKeys === []) {
             return null;
         }
 
-        foreach ($table->uniqueIndexes as $indexColumns) {
+        foreach ($table->businessUniqueKeys as $indexColumns) {
             if ($this->shouldSkipIndex($incomingRow, $indexColumns)) {
                 continue;
             }

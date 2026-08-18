@@ -14,9 +14,13 @@ use Tests\TestCase;
 
 class ReferenceSequenceMergeTest extends TestCase
 {
+    use IsolatesTableCheckpointDirectory;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->isolateTableCheckpointDirectory();
 
         Schema::create('reference_sequences', function (Blueprint $table): void {
             $table->string('name')->primary();
@@ -28,6 +32,8 @@ class ReferenceSequenceMergeTest extends TestCase
     protected function tearDown(): void
     {
         Schema::dropIfExists('reference_sequences');
+
+        $this->cleanupTableCheckpointDirectory();
 
         parent::tearDown();
     }

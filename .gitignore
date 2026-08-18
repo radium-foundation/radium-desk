@@ -37,3 +37,4 @@ Thumbs.db
 .env.sqlite
 .env.production
 .env.testing.local
+.env.cloudflare

@@ -31,7 +31,7 @@ class TargetHostGuard
         $sourcePath = rtrim($manifest->source->projectPath, '/');
         $actual = rtrim(base_path(), '/');
 
-        if ($actual === $sourcePath) {
+        if ($actual === $sourcePath && $manifest->target->sshHost === $manifest->source->sshHost) {
             throw new RuntimeException('remote_apply.php cannot run against the Hostinger source.');
         }
 

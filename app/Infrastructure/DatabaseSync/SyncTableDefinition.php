@@ -8,7 +8,9 @@ final readonly class SyncTableDefinition
 {
     /**
      * @param  list<string>  $primaryKey
-     * @param  list<list<string>>  $uniqueIndexes
+     * @param  list<list<string>>  $physicalUniqueIndexes  Unique indexes that must exist on source and target.
+     * @param  list<list<string>>  $businessUniqueKeys  Logical uniqueness enforced by UniqueConflictChecker.
+     * @param  list<list<string>>  $uniqueIndexes  Alias of $businessUniqueKeys for dry-run / legacy callers.
      * @param  list<string>  $dependsOn
      */
     public function __construct(
@@ -19,6 +21,8 @@ final readonly class SyncTableDefinition
         public ?string $updatedAtColumn,
         public ?string $createdAtColumn,
         public int $syncOrder,
+        public array $physicalUniqueIndexes = [],
+        public array $businessUniqueKeys = [],
         public array $uniqueIndexes = [],
         public array $dependsOn = [],
         public bool $softDeletes = false,
@@ -31,7 +35,7 @@ final readonly class SyncTableDefinition
     {
         $keys = [];
 
-        foreach ($this->uniqueIndexes as $index) {
+        foreach ($this->businessUniqueKeys as $index) {
             foreach ($index as $column) {
                 $keys[] = $column;
             }
@@ -77,6 +81,8 @@ final readonly class SyncTableDefinition
 
         self::validateStrategyColumns($name, $strategy, $primaryKey, $config);
 
+        [$physicalUniqueIndexes, $businessUniqueKeys] = self::resolveUniqueKeySets($name, $config);
+
         return new self(
             name: $name,
             tier: $tier,
@@ -85,7 +91,9 @@ final readonly class SyncTableDefinition
             updatedAtColumn: self::nullableString($config['updated_at'] ?? null),
             createdAtColumn: self::nullableString($config['created_at'] ?? null),
             syncOrder: $syncOrder,
-            uniqueIndexes: self::uniqueIndexes($name, $config),
+            physicalUniqueIndexes: $physicalUniqueIndexes,
+            businessUniqueKeys: $businessUniqueKeys,
+            uniqueIndexes: $businessUniqueKeys,
             dependsOn: self::stringList($config['depends_on'] ?? [], $name, 'depends_on'),
             softDeletes: (bool) ($config['soft_deletes'] ?? false),
         );
@@ -104,7 +112,9 @@ final readonly class SyncTableDefinition
             'updated_at' => $this->updatedAtColumn,
             'created_at' => $this->createdAtColumn,
             'sync_order' => $this->syncOrder,
-            'unique_indexes' => $this->uniqueIndexes,
+            'physical_unique_indexes' => $this->physicalUniqueIndexes,
+            'business_unique_keys' => $this->businessUniqueKeys,
+            'unique_indexes' => $this->businessUniqueKeys,
             'unique_keys' => $this->flattenedUniqueKeys(),
             'depends_on' => $this->dependsOn,
             'soft_deletes' => $this->softDeletes,
@@ -179,9 +189,33 @@ final readonly class SyncTableDefinition
 
     /**
      * @param  array<string, mixed>  $config
+     * @return array{0: list<list<string>>, 1: list<list<string>>}
+     */
+    private static function resolveUniqueKeySets(string $name, array $config): array
+    {
+        $hasPhysical = array_key_exists('physical_unique_indexes', $config);
+        $hasBusiness = array_key_exists('business_unique_keys', $config);
+        $legacy = self::legacyUniqueIndexes($name, $config);
+
+        if ($hasPhysical || $hasBusiness) {
+            $physical = $hasPhysical
+                ? self::nestedStringList($config['physical_unique_indexes'], $name, 'physical_unique_indexes')
+                : [];
+            $business = $hasBusiness
+                ? self::nestedStringList($config['business_unique_keys'], $name, 'business_unique_keys')
+                : $legacy;
+
+            return [$physical, $business];
+        }
+
+        return [$legacy, $legacy];
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
      * @return list<list<string>>
      */
-    private static function uniqueIndexes(string $name, array $config): array
+    private static function legacyUniqueIndexes(string $name, array $config): array
     {
         if (isset($config['unique_indexes'])) {
             return self::nestedStringList($config['unique_indexes'], $name, 'unique_indexes');

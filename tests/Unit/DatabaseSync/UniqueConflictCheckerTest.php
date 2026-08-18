@@ -19,7 +19,7 @@ class UniqueConflictCheckerTest extends TestCase
             $table->id();
             $table->string('order_id')->unique();
             $table->string('cashfree_payment_id')->nullable()->unique();
-            $table->string('serial_number')->nullable()->unique();
+            $table->string('serial_number')->nullable();
             $table->timestamps();
         });
 
@@ -45,8 +45,12 @@ class UniqueConflictCheckerTest extends TestCase
         $this->assertSame([
             ['order_id'],
             ['cashfree_payment_id'],
-            ['serial_number'],
-        ], $definition->uniqueIndexes);
+        ], $definition->physicalUniqueIndexes);
+        $this->assertSame([
+            ['order_id'],
+            ['cashfree_payment_id'],
+        ], $definition->businessUniqueKeys);
+        $this->assertSame($definition->businessUniqueKeys, $definition->uniqueIndexes);
     }
 
     public function test_business_unique_conflict_with_different_pk_aborts(): void
@@ -119,11 +123,61 @@ class UniqueConflictCheckerTest extends TestCase
         $this->assertNull($conflict);
     }
 
+    public function test_duplicate_serial_number_across_different_pks_is_allowed(): void
+    {
+        DB::table('orders')->insert([
+            'id' => 1,
+            'order_id' => 'ORD-1',
+            'serial_number' => 'SN-SHARED',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $definition = $this->ordersDefinition();
+        $checker = new UniqueConflictChecker;
+
+        $conflict = $checker->detectConflict($definition, [
+            'id' => 2,
+            'order_id' => 'ORD-2',
+            'cashfree_payment_id' => null,
+            'serial_number' => 'SN-SHARED',
+        ]);
+
+        $this->assertNull($conflict);
+    }
+
+    public function test_cashfree_payment_id_conflict_with_different_pk_aborts(): void
+    {
+        DB::table('orders')->insert([
+            'id' => 1,
+            'order_id' => 'ORD-1',
+            'cashfree_payment_id' => 'pay-1',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $definition = $this->ordersDefinition();
+        $checker = new UniqueConflictChecker;
+
+        $conflict = $checker->detectConflict($definition, [
+            'id' => 2,
+            'order_id' => 'ORD-2',
+            'cashfree_payment_id' => 'pay-1',
+            'serial_number' => null,
+        ]);
+
+        $this->assertNotNull($conflict);
+        $this->assertSame(['cashfree_payment_id'], $conflict['unique_index']);
+        $this->assertSame(['id' => 2], $conflict['source_pk']);
+        $this->assertSame(['id' => 1], $conflict['target_pk']);
+    }
+
     public function test_cashfree_webhook_logs_cf_payment_id_is_not_treated_as_unique(): void
     {
         $definition = SyncTableDefinition::fromConfig('cashfree_webhook_logs', config('database-sync.tables.cashfree_webhook_logs'));
 
         $this->assertSame([], $definition->uniqueIndexes);
+        $this->assertSame([], $definition->businessUniqueKeys);
 
         DB::table('cashfree_webhook_logs')->insert([
             ['id' => 1, 'cf_payment_id' => 'pay-1', 'created_at' => now(), 'updated_at' => now()],
