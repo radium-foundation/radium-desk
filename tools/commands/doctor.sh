@@ -4,6 +4,9 @@
 #
 # Checks SSH connectivity, PHP, Composer, Laravel paths,
 # writable directories, Vite build manifest, APP_ENV, and database.
+#
+# When DEPLOY_MODE=kvm, runs KVM-specific health checks instead of
+# legacy shared-hosting public_html validation.
 
 set -euo pipefail
 
@@ -12,6 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib.sh"
 
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DEPLOY_MODE="${DEPLOY_MODE:-legacy}"
 
 failures=0
 
@@ -27,7 +31,7 @@ check() {
     fi
 }
 
-print_warning "Running desk doctor against ${SSH_USER}@${SSH_HOST}..."
+print_warning "Running desk doctor against ${SSH_USER}@${SSH_HOST} (${DEPLOY_MODE} mode)..."
 echo
 
 # --- SSH connectivity ---
@@ -61,23 +65,34 @@ check "bootstrap/cache/ is writable" \
 
 check "Local Vite build manifest exists" test -f "$PROJECT_ROOT/public/build/manifest.json"
 
-# --- Remote Vite manifests (shared hosting) ---
+# --- Mode-specific remote checks ---
 
-remote_project_manifest="${REMOTE_PROJECT}/public/build/manifest.json"
-remote_public_manifest="${REMOTE_PUBLIC}/build/manifest.json"
-
-if ssh_exec "test -f '$remote_project_manifest' && test -f '$remote_public_manifest'"; then
-    project_hash="$(ssh_exec "md5sum '$remote_project_manifest' | awk '{print \$1}'")"
-    public_hash="$(ssh_exec "md5sum '$remote_public_manifest' | awk '{print \$1}'")"
-
-    if [[ "$project_hash" == "$public_hash" ]]; then
+if [[ "$DEPLOY_MODE" == "kvm" ]]; then
+    check "KVM Laravel public directory (${REMOTE_PROJECT}/public)" kvm_doctor_check_laravel_public
+    check "Remote KVM Vite manifest exists" kvm_doctor_check_remote_manifest
+    check "APP_URL /up health endpoint (HTTP 200)" kvm_doctor_check_up_endpoint
+    check "Supervisor program is RUNNING (${SUPERVISOR_PROGRAM})" kvm_doctor_check_supervisor_program
+    check "Redis connectivity" kvm_doctor_check_redis
+else
+    parity_status=0
+    if legacy_doctor_check_vite_manifest_parity; then
         print_success "Remote Vite manifests match (Laravel and public_html)"
     else
-        print_error "Remote Vite manifests differ between Laravel and public_html"
+        parity_status=$?
+        if [[ "$parity_status" -eq 2 ]]; then
+            print_warning "Remote Vite manifests not found on server (run desk deploy)"
+        else
+            print_error "Remote Vite manifests differ between Laravel and public_html"
+            failures=$((failures + 1))
+        fi
+    fi
+
+    if legacy_doctor_check_shared_hosting_index; then
+        print_success "Shared-hosting index.php references configured bootstrap paths"
+    else
+        print_error "Shared-hosting index.php validation failed"
         failures=$((failures + 1))
     fi
-else
-    print_warning "Remote Vite manifests not found on server (run desk deploy)"
 fi
 
 # --- APP_ENV ---

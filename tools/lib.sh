@@ -396,3 +396,89 @@ kvm_restart_supervisor_worker() {
     print_error "Failed to restart Supervisor program: ${program}"
     return 1
 }
+
+# --- KVM doctor helpers (Phase 2.4) ---
+
+kvm_remote_app_url() {
+    local app_url
+
+    app_url="$(ssh_exec "grep '^APP_URL=' '$REMOTE_PROJECT/.env' 2>/dev/null | cut -d= -f2- | tr -d '\"'" || true)"
+    app_url="${app_url%/}"
+
+    if [[ -z "$app_url" ]]; then
+        return 1
+    fi
+
+    printf '%s' "$app_url"
+}
+
+# Verify the KVM Laravel public directory and configured REMOTE_PUBLIC path.
+kvm_doctor_check_laravel_public() {
+    local kvm_public="${REMOTE_PROJECT}/public"
+
+    if [[ "$REMOTE_PUBLIC" != "$kvm_public" ]]; then
+        return 1
+    fi
+
+    ssh_exec "test -d '$kvm_public' && test -f '$kvm_public/index.php' && test -f '$REMOTE_PROJECT/artisan' && grep -Fq '../vendor/autoload.php' '$kvm_public/index.php'"
+}
+
+# Verify the deployed Vite manifest exists under the KVM public directory.
+kvm_doctor_check_remote_manifest() {
+    ssh_exec "test -f '${REMOTE_PROJECT}/public/build/manifest.json'"
+}
+
+# Verify APP_URL /up responds with HTTP 200.
+kvm_doctor_check_up_endpoint() {
+    local app_url http_status
+
+    app_url="$(kvm_remote_app_url)" || return 1
+
+    http_status="$(ssh_exec "curl -s -o /dev/null -w '%{http_code}' --max-time 30 '${app_url}/up'" || true)"
+
+    [[ "$http_status" == "200" ]]
+}
+
+# Verify the configured Supervisor program exists and is RUNNING.
+kvm_doctor_check_supervisor_program() {
+    local program="${SUPERVISOR_PROGRAM:-radium-desk-queue-worker}"
+    local output
+
+    output="$(ssh_exec "supervisorctl status '${program}' 2>/dev/null || sudo -n supervisorctl status '${program}' 2>/dev/null" 2>/dev/null || true)"
+
+    if [[ -z "$output" ]]; then
+        return 1
+    fi
+
+    if [[ "$output" == *"no such process"* ]] || [[ "$output" == *"ERROR"* ]]; then
+        return 1
+    fi
+
+    [[ "$output" == *RUNNING* ]]
+}
+
+# Verify Redis connectivity via Laravel's configured connection (no secret output).
+kvm_doctor_check_redis() {
+    php_exec tinker --execute="exit(Illuminate\\Support\\Facades\\Redis::connection()->ping() ? 0 : 1);" >/dev/null 2>&1
+}
+
+# Legacy shared-hosting doctor check: Laravel and public_html Vite manifests match.
+legacy_doctor_check_vite_manifest_parity() {
+    local remote_project_manifest="${REMOTE_PROJECT}/public/build/manifest.json"
+    local remote_public_manifest="${LEGACY_REMOTE_PUBLIC}/build/manifest.json"
+    local project_hash public_hash
+
+    if ! ssh_exec "test -f '$remote_project_manifest' && test -f '$remote_public_manifest'"; then
+        return 2
+    fi
+
+    project_hash="$(ssh_exec "md5sum '$remote_project_manifest' | awk '{print \$1}'")"
+    public_hash="$(ssh_exec "md5sum '$remote_public_manifest' | awk '{print \$1}'")"
+
+    [[ "$project_hash" == "$public_hash" ]]
+}
+
+# Legacy shared-hosting doctor check: generated index.php references bootstrap paths.
+legacy_doctor_check_shared_hosting_index() {
+    verify_shared_hosting_index
+}
