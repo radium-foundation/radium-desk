@@ -21,6 +21,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tools/lib.sh
 source "$SCRIPT_DIR/../lib.sh"
 
+if [[ "${DEPLOY_MODE:-}" == "kvm" ]]; then
+    print_error "Legacy shared-hosting deploy is disabled when DEPLOY_MODE=kvm."
+    print_error "Use: desk deploy"
+    exit 1
+fi
+
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 cd "$PROJECT_ROOT"

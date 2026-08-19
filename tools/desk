@@ -10,6 +10,18 @@
 set -euo pipefail
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=tools/config.sh
+source "$TOOLS_DIR/config.sh"
+
+desk_deploy() {
+    if [[ "${DEPLOY_MODE:-}" == "kvm" ]]; then
+        exec "$TOOLS_DIR/commands/deploy-kvm.sh" "$@"
+    fi
+
+    printf 'desk deploy requires DEPLOY_MODE=kvm (current: %s).\n' "${DEPLOY_MODE:-unset}" >&2
+    printf 'For legacy shared-hosting deployment, use: desk deploy-legacy\n' >&2
+    exit 1
+}
 
 case "${1:-help}" in
     ssh)
@@ -19,6 +31,14 @@ case "${1:-help}" in
         exec "$TOOLS_DIR/commands/doctor.sh"
         ;;
     deploy)
+        shift
+        desk_deploy "$@"
+        ;;
+    deploy-kvm)
+        shift
+        exec "$TOOLS_DIR/commands/deploy-kvm.sh" "$@"
+        ;;
+    deploy-legacy)
         shift
         exec "$TOOLS_DIR/commands/deploy.sh" "$@"
         ;;
@@ -32,16 +52,22 @@ case "${1:-help}" in
         exec "$TOOLS_DIR/commands/rollback.sh" "$@"
         ;;
     help|-h|--help)
-        cat <<'MENU'
+        cat <<MENU
 Radium Desk Toolkit
 
 Usage:
-  desk ssh       Open an interactive SSH session on the server
-  desk doctor    Verify local and remote deployment prerequisites
-  desk deploy    Build assets and deploy to production
-  desk logs      Tail remote Laravel logs
-  desk cache     Clear and rebuild remote Laravel caches
-  desk rollback  Roll back the remote repository one commit
+  desk ssh            Open an interactive SSH session on the server
+  desk doctor         Verify local and remote deployment prerequisites
+  desk deploy         Deploy to production (KVM rsync when DEPLOY_MODE=kvm)
+  desk deploy-kvm      Run the KVM rsync deployment script directly
+  desk deploy-legacy   Legacy shared-hosting deploy (git pull + public_html)
+  desk logs           Tail remote Laravel logs
+  desk cache          Clear and rebuild remote Laravel caches
+  desk rollback       Roll back the remote repository one commit
+
+Deployment routing:
+  DEPLOY_MODE=kvm     desk deploy -> deploy-kvm.sh (no remote git pull)
+  legacy config       use desk deploy-legacy explicitly
 
 Run from the project root:
   ./tools/desk <command>
