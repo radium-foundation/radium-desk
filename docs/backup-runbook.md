@@ -1,7 +1,7 @@
 # Radium Desk — Backup Runbook
 
-**Prompts:** P18-08-023 (local staging), P18-08-025 (Cloud upload)  
-**Script:** [`bin/backup-run.sh`](../bin/backup-run.sh)
+**Prompts:** P18-08-023 (local staging), P18-08-025 (Cloud upload), P18-08-034 (Cloud retention)  
+**Scripts:** [`bin/backup-run.sh`](../bin/backup-run.sh), [`bin/backup-prune-cloud.sh`](../bin/backup-prune-cloud.sh)
 
 ---
 
@@ -12,7 +12,7 @@
 | 1 — Local staging | **Implemented** | Encrypt + manifest + local `runs/` |
 | 2 — Cloud upload | **Implemented** | SSH/rsync to Hostinger Cloud (opt-in) |
 | 3 — Scheduling | **Future** | KVM cron, twice daily |
-| 4 — Remote retention | **Future** | Prune old Cloud copies |
+| 4 — Remote retention | **Implemented** | Standalone Cloud prune (`backup-prune-cloud.sh`); dry-run default |
 | 5 — Restore drill + alerting | **Future** | Verification automation |
 
 ---
@@ -139,6 +139,62 @@ Remote `upload-complete.json` contains `backup_id`, `uploaded_at`, `remote_path`
 
 ---
 
+## Cloud retention (Phase 4)
+
+**Script:** [`bin/backup-prune-cloud.sh`](../bin/backup-prune-cloud.sh)
+
+Standalone KVM script. It does **not** run backups, does **not** change `bin/backup-run.sh`, and is **not** scheduled.
+
+### Policy (UTC, completed backups only)
+
+| Age | Keep |
+|-----|------|
+| 0–7 days | Both successful backups |
+| 8–30 days | Latest successful backup per UTC day |
+| 31–90 days | Latest successful Sunday per UTC week |
+| >90 days | Delete (if completed and not protected) |
+
+Always keep the newest completed backup. Never delete incomplete, unknown, or malformed directories. Never touch `work/` or `uploading-*`.
+
+A Cloud directory is **completed** only after all of the following succeed:
+
+- Path is `{REMOTE_ROOT}/YYYY/MM/DD/<backup_id>/` with matching date prefix
+- `upload-complete.json` is valid JSON with `status=completed`
+- Marker `backup_id` and `remote_path` match the directory
+- `manifest_sha256` matches the remote `manifest.json`
+- Encrypted database + secrets artifacts are present
+- No plaintext `.sql` / `.sql.gz` / `.tar.gz` artifacts
+- No extra files, subdirectories, or symlinks
+
+Remote `manifest.json` `phase` stays `local_staging` by design and is **not** used as a completion signal.
+
+### Behaviour
+
+- **Dry-run by default** (no flags or `--dry-run`): classify and print KEEP / DELETE / SKIP; no remote `rm`
+- **`--execute`**: delete only pre-validated allowlist files, then `rmdir` the leaf (and empty `DD` / `MM` / `YYYY` parents)
+- `--dry-run` and `--execute` together: error
+- Deletion uses explicit file names — never `rm -rf`, never follows symlinks
+- First deletion failure aborts the run
+- Optional `BACKUP_PRUNE_AS_OF=YYYYMMDDTHHMMSSZ` freezes “now” for tests
+
+### Manual invocation
+
+**Not scheduled. Do not `--execute` on production until a dry-run candidate list is reviewed.**
+
+```bash
+cd /var/www/radium-desk
+set -a
+source /root/.radium-backup.env
+set +a
+export PHP_BIN=/usr/local/lsws/lsphp84/bin/php
+sudo -E ./bin/backup-prune-cloud.sh --dry-run
+# sudo -E ./bin/backup-prune-cloud.sh --execute
+```
+
+Uses the same Cloud SSH variables as upload (`BACKUP_CLOUD_SSH_*`, `BACKUP_CLOUD_REMOTE_ROOT`). Does not need the encryption passphrase.
+
+---
+
 ## Encryption (mandatory, fail-closed)
 
 Local encryption runs **before** any Cloud upload. Unencrypted artifacts are never uploaded.
@@ -223,6 +279,7 @@ Do not run until encryption passphrase and SSH key are provisioned.
 
 ```bash
 bash tests/scripts/backup-run.test.sh
+bash tests/scripts/backup-prune-cloud.test.sh
 ```
 
 Mock `mysqldump`, `mysql`, `gpg`, `rsync`, and `ssh` under `tests/scripts/fixtures/backup-mocks/`. **Does not connect to production or Hostinger Cloud.**
@@ -231,8 +288,7 @@ Mock `mysqldump`, `mysql`, `gpg`, `rsync`, and `ssh` under `tests/scripts/fixtur
 
 ## Future phases (not implemented)
 
-- KVM cron (twice daily) + `flock`
-- Remote retention / pruning on Cloud
+- KVM cron (twice daily) + `flock` for backup and (later) prune
 - Restore verification drill
 - Alerting on failure
 

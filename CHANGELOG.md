@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.43 — 2026-08-19 — Cloud Backup Retention
+
+- Added a standalone Cloud backup retention tool that reports what would be kept or removed without deleting anything by default.
+- Completed Cloud backups can be pruned only with an explicit execute step after a dry-run review.
+- Backup scheduling and automated production prune runs are not enabled in this release.
+
 ## 4.0.42 — 2026-08-18 — Production Backup Staging
 
 - Added encrypted local backup staging for the database and critical application secrets.
