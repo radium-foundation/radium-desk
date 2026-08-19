@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\BackupStatusController;
 use App\Http\Controllers\Admin\PerformanceIntelligenceController;
 use App\Http\Controllers\AdministrationHomeController;
 use App\Http\Controllers\ApprovalNumberController;
@@ -415,6 +416,9 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/admin/administration', AdministrationHomeController::class)
         ->name('admin.administration.index');
+
+    Route::get('/admin/backups', [BackupStatusController::class, 'index'])
+        ->name('admin.backups.index');
 
     Route::post('/admin/gmail/sync-now', [GmailAdminActionsController::class, 'syncNow'])
         ->name('admin.gmail.sync-now');

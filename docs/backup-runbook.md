@@ -11,9 +11,11 @@
 |-------|--------|--------|
 | 1 — Local staging | **Implemented** | Encrypt + manifest + local `runs/` |
 | 2 — Cloud upload | **Implemented** | SSH/rsync to Hostinger Cloud (opt-in) |
-| 3 — Scheduling | **Future** | KVM cron, twice daily |
+| 3 — Scheduling | **Implemented** | KVM cron twice daily (02:00 and 14:00 IST) |
 | 4 — Remote retention | **Implemented** | Standalone Cloud prune (`backup-prune-cloud.sh`); dry-run default |
-| 5 — Restore drill + alerting | **Future** | Verification automation |
+| 5 — Desk read-only status | **Implemented** | Administration → Backups (`backups.view`, Super Admin only) |
+| 6 — Manual backup UX | **Future** | Trigger `backup-run.sh` from Desk (not implemented) |
+| 7 — Restore drill + alerting | **Future** | Verification automation + operator restore CLI |
 
 ---
 
@@ -195,7 +197,21 @@ Uses the same Cloud SSH variables as upload (`BACKUP_CLOUD_SSH_*`, `BACKUP_CLOUD
 
 ---
 
-## Encryption (mandatory, fail-closed)
+## Desk read-only status (Phase 5)
+
+**Permission:** `backups.view` (Super Admin only)
+
+**Route:** `/admin/backups` (`admin.backups.index`)
+
+**Service:** `App\Services\Backup\BackupStatusService` reads `manifest.json` files from local staging (`BACKUP_STAGING_ROOT/runs/`). It never executes `backup-run.sh`, never exposes encrypted artifacts, passphrases, SSH credentials, or Cloud paths.
+
+**Metadata shown:** backup ID, created timestamp, application version/build, database and secrets artifact sizes, cloud upload status, manifest integrity.
+
+**KVM note:** staging under `/var/backups/radium-desk` is root-owned (`700`). The web process must be able to **read** the `runs/` directory and `manifest.json` files for live status. Do not loosen permissions on encrypted `.gpg` artifacts. Prefer read-only ACL on `runs/` for the PHP user, or a future narrowly scoped read-only helper — not implemented in Phase 1.
+
+**Future:** manual backup trigger (`backups.manage`), restore CLI, failure alerting.
+
+---
 
 Local encryption runs **before** any Cloud upload. Unencrypted artifacts are never uploaded.
 

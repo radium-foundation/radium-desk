@@ -81,6 +81,9 @@ class RolePermissionSeeder extends Seeder
     /** Record Finance-verified external wallet reverse → restore commercial service. */
     public const PERMISSION_COMMERCIAL_SERVICE_RESTORE = 'commercial.service.restore';
 
+    /** Read-only backup status in Administration (Super Admin only). */
+    public const PERMISSION_BACKUPS_VIEW = 'backups.view';
+
     public const PERMISSION_TODOS_VIEW = 'todos.view';
 
     public const PERMISSION_TODOS_CREATE = 'todos.create';
@@ -439,6 +442,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
+            self::PERMISSION_BACKUPS_VIEW,
         ],
     ];
 

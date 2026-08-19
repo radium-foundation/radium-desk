@@ -6,6 +6,7 @@
     use App\Models\CompanyHoliday;
     use App\Models\SystemSetting;
     use App\Models\User;
+    use App\Support\Administration\BackupAccess;
     use App\Support\Administration\PerformanceIntelligenceAccess;
     use App\Support\Administration\PlatformConfigurationAccess;
     use App\Support\IncomingEmail\IncomingEmailAccess;
@@ -18,6 +19,7 @@
         || $user?->can('system-settings.manage');
     $canManagePlatformConfiguration = PlatformConfigurationAccess::canManage($user);
     $canViewPerformanceIntelligence = PerformanceIntelligenceAccess::canView($user);
+    $canViewBackups = BackupAccess::canView($user);
     $canViewLearningCenter = IncomingEmailAccess::allowsView($user);
 
     $tabs = [];
@@ -74,6 +76,13 @@
         $tabs['platform_configuration'] = [
             'label' => 'Platform Configuration',
             'url' => route('admin.platform-configuration.index'),
+        ];
+    }
+
+    if ($canViewBackups) {
+        $tabs['backups'] = [
+            'label' => 'Backups',
+            'url' => route('admin.backups.index'),
         ];
     }
 
