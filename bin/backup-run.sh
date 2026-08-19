@@ -345,6 +345,87 @@ ensure_staging_root() {
 
     mkdir -p "${BACKUP_STAGING_ROOT}/runs"
     chmod 700 "${BACKUP_STAGING_ROOT}/runs" 2>/dev/null || true
+
+    restore_staging_traversal_acls \
+        || log "ERROR: staging traversal ACLs were not restored"
+}
+
+manifest_read_acl_enabled() {
+    local acl_user="${BACKUP_MANIFEST_ACL_USER:-ravi}"
+
+    [[ -n "$acl_user" ]] && truthy_env "${BACKUP_MANIFEST_ACL_ENABLED:-true}"
+}
+
+restore_staging_traversal_acls() {
+    local acl_user="${BACKUP_MANIFEST_ACL_USER:-ravi}"
+    local runs_root="${BACKUP_STAGING_ROOT}/runs"
+
+    if ! manifest_read_acl_enabled; then
+        return 0
+    fi
+
+    if ! command -v setfacl >/dev/null 2>&1; then
+        log "ERROR: setfacl not available; staging traversal ACLs not restored"
+
+        return 1
+    fi
+
+    if ! setfacl -m "u:${acl_user}:--x,m:--x" "$BACKUP_STAGING_ROOT"; then
+        log "ERROR: setfacl failed for staging root (exit $?)"
+
+        return 1
+    fi
+
+    if ! setfacl -m "u:${acl_user}:r-x,m:r-x" "$runs_root"; then
+        log "ERROR: setfacl failed for runs directory (exit $?)"
+
+        return 1
+    fi
+
+    setfacl -d -m "u:${acl_user}:--x" "$runs_root" 2>/dev/null || true
+
+    return 0
+}
+
+restore_run_dir_traversal_acl() {
+    local run_dir="$1"
+    local runs_root="${BACKUP_STAGING_ROOT}/runs"
+    local acl_user="${BACKUP_MANIFEST_ACL_USER:-ravi}"
+    local run_id
+
+    if ! manifest_read_acl_enabled; then
+        return 0
+    fi
+
+    if [[ "$run_dir" != "${runs_root}/"* ]]; then
+        log "ERROR: run directory ACL: path outside staging runs"
+
+        return 1
+    fi
+
+    run_id="$(basename "$run_dir")"
+
+    if [[ ! "$run_id" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
+        log "ERROR: run directory ACL: invalid run directory"
+
+        return 1
+    fi
+
+    if ! command -v setfacl >/dev/null 2>&1; then
+        log "ERROR: setfacl not available; run directory traversal ACL not restored"
+
+        return 1
+    fi
+
+    if ! setfacl -m "u:${acl_user}:r-x,m:r-x" "$run_dir"; then
+        log "ERROR: setfacl failed for run directory (exit $?)"
+
+        return 1
+    fi
+
+    setfacl -d -m "u:${acl_user}:--x" "$run_dir" 2>/dev/null || true
+
+    return 0
 }
 
 truthy_env() {
@@ -578,8 +659,9 @@ apply_manifest_read_acl() {
     local manifest_path="$1"
     local runs_root="${BACKUP_STAGING_ROOT}/runs"
     local acl_user="${BACKUP_MANIFEST_ACL_USER:-ravi}"
+    local run_dir run_id
 
-    if [[ -z "$acl_user" ]] || ! truthy_env "${BACKUP_MANIFEST_ACL_ENABLED:-true}"; then
+    if ! manifest_read_acl_enabled; then
         log "manifest read ACL skipped (disabled)"
 
         return 0
@@ -603,8 +685,8 @@ apply_manifest_read_acl() {
         return 1
     fi
 
-    local run_id
-    run_id="$(basename "$(dirname "$manifest_path")")"
+    run_dir="$(dirname "$manifest_path")"
+    run_id="$(basename "$run_dir")"
 
     if [[ ! "$run_id" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
         log "ERROR: manifest ACL: invalid run directory"
@@ -618,7 +700,12 @@ apply_manifest_read_acl() {
         return 1
     fi
 
-    if setfacl -m "u:${acl_user}:r" "$manifest_path"; then
+    restore_staging_traversal_acls \
+        || log "ERROR: staging traversal ACLs were not restored"
+    restore_run_dir_traversal_acl "$run_dir" \
+        || log "ERROR: run directory traversal ACL was not restored"
+
+    if setfacl -m "u:${acl_user}:r,m:r" "$manifest_path"; then
         log "manifest read ACL applied for ${acl_user}"
 
         return 0
@@ -810,6 +897,9 @@ main() {
 
     mkdir -p "$final_run_dir"
     chmod 700 "$final_run_dir"
+
+    restore_run_dir_traversal_acl "$final_run_dir" \
+        || log "ERROR: run directory traversal ACL was not restored"
 
     local final_db_name="database.sql.gz.${db_ext}"
     local final_secrets_name="secrets.tar.gz.${secrets_ext}"

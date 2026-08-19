@@ -12,6 +12,28 @@ FIXTURES="$ROOT/tests/scripts/fixtures/backup-mocks"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "PASS: $*"; }
 
+assert_setfacl_traversal_chain() {
+    local log="$1"
+    local staging="$2"
+    local run_dir="$3"
+
+    grep -F -- "-m u:ravi:--x,m:--x ${staging}" "$log" >/dev/null \
+        || fail "setfacl missing staging root traversal ACL/mask"
+    grep -F -- "-m u:ravi:r-x,m:r-x ${staging}/runs" "$log" >/dev/null \
+        || fail "setfacl missing runs directory traversal ACL/mask"
+    grep -F -- "-m u:ravi:r-x,m:r-x ${run_dir}" "$log" >/dev/null \
+        || fail "setfacl missing run directory traversal ACL/mask"
+    grep -F -- "-m u:ravi:r,m:r ${run_dir}/manifest.json" "$log" >/dev/null \
+        || fail "setfacl missing manifest read ACL/mask"
+    grep -F -- "-d -m u:ravi:--x ${staging}/runs" "$log" >/dev/null \
+        || fail "setfacl missing runs default traversal ACL"
+    grep -F -- "-d -m u:ravi:--x ${run_dir}" "$log" >/dev/null \
+        || fail "setfacl missing run directory default traversal ACL"
+    if grep -F '.gpg' "$log" >/dev/null; then
+        fail "setfacl must not be applied to encrypted artifacts"
+    fi
+}
+
 [[ -x "$ROOT/bin/backup-run.sh" ]] || fail "backup-run.sh missing or not executable"
 bash -n "$ROOT/bin/backup-run.sh" || fail "backup-run.sh syntax check failed"
 pass "script syntax valid"
@@ -148,7 +170,7 @@ pass "manifest generation and structure"
 
 grep -F 'manifest.json' "$SETFACL_LOG" >/dev/null || fail "setfacl was not invoked for manifest.json"
 echo "$OUTPUT" | grep -F 'manifest read ACL applied for ravi' >/dev/null || fail "manifest ACL success was not logged"
-grep -F '.gpg' "$SETFACL_LOG" >/dev/null && fail "setfacl must not be applied to encrypted artifacts"
+assert_setfacl_traversal_chain "$SETFACL_LOG" "$STAGING" "$RUN_DIR"
 pass "successful local backup applies manifest read ACL"
 
 WORK_LEFT="$(find "$STAGING/work" -mindepth 1 2>/dev/null | wc -l | tr -d " ")"
@@ -263,6 +285,7 @@ php -r '
 ' "$RUN_DIR/manifest.json" || fail "manifest upload metadata missing after Cloud upload"
 grep -F 'manifest.json' "$SETFACL_LOG" >/dev/null || fail "setfacl was not invoked after Cloud upload"
 echo "$OUTPUT" | grep -F 'manifest read ACL applied for ravi' >/dev/null || fail "manifest ACL success was not logged after Cloud upload"
+assert_setfacl_traversal_chain "$SETFACL_LOG" "$STAGING" "$RUN_DIR"
 pass "successful mocked Cloud upload is recognized"
 
 rm -rf "$PROJECT" "$STAGING" "$MOCK_REMOTE"

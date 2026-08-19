@@ -207,7 +207,17 @@ Uses the same Cloud SSH variables as upload (`BACKUP_CLOUD_SSH_*`, `BACKUP_CLOUD
 
 **Metadata shown:** backup ID, created timestamp, application version/build, database and secrets artifact sizes, cloud upload status, manifest integrity.
 
-**KVM note:** staging under `/var/backups/radium-desk` is root-owned (`700`). The web process must be able to **read** the `runs/` directory and `manifest.json` files for live status. After each successful run, `backup-run.sh` applies a read-only ACL (`u:ravi:r`) to `manifest.json` only so Desk can read backup metadata. Encrypted `.gpg` artifacts remain `600 root:root` with no web-readable ACL. Directory traverse/list ACLs on `runs/` are configured separately on the KVM.
+**KVM note:** staging under `/var/backups/radium-desk` is root-owned (`700`). The web process must be able to **read** the `runs/` directory and `manifest.json` files for live status. After each successful run, `backup-run.sh` restores the required traversal ACL masks (which `chmod 700` would otherwise clear) and grants read-only access to `manifest.json` only:
+
+| Path | Desk (`ravi`) access |
+|------|----------------------|
+| Staging root | Traverse only (`u:ravi:--x`, mask `--x`) |
+| `runs/` | List + traverse (`u:ravi:r-x`, mask `r-x`) |
+| `runs/<backup_id>/` | Traverse (`u:ravi:r-x`, mask `r-x`) |
+| `manifest.json` | Read only (`u:ravi:r`, mask `r`) |
+| Encrypted `.gpg` artifacts | **No ACL** — remain `600 root:root` |
+
+Encrypted `.gpg` artifacts are never granted a web-readable ACL. Directory traverse/list ACLs on `runs/` may still be configured separately on the KVM for pre-existing trees.
 
 Optional env overrides:
 
