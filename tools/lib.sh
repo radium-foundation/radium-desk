@@ -34,8 +34,10 @@ composer_exec() {
     ssh_exec "cd '$REMOTE_PROJECT' && $PHP_BIN $COMPOSER_BIN $*"
 }
 
+# --- Legacy shared-hosting helpers (desk deploy / doctor / rollback) ---
+
 # Synchronize the Vite build output to both web-facing and Laravel-readable paths.
-# On shared hosting, public_html (REMOTE_PUBLIC) serves static assets while Laravel
+# On shared hosting, public_html (LEGACY_REMOTE_PUBLIC) serves static assets while Laravel
 # reads manifest.json from REMOTE_PROJECT/public/build at runtime.
 sync_vite_build() {
     local project_root="$1"
@@ -44,7 +46,7 @@ sync_vite_build() {
     rsync -avz --delete \
         -e "${rsync_ssh[*]}" \
         "${project_root}/public/build/" \
-        "${SSH_USER}@${SSH_HOST}:${REMOTE_PUBLIC}/build/"
+        "${SSH_USER}@${SSH_HOST}:${LEGACY_REMOTE_PUBLIC}/build/"
 
     rsync -avz --delete \
         -e "${rsync_ssh[*]}" \
@@ -63,7 +65,7 @@ copy_public() {
         --exclude 'index.php' \
         --exclude 'build/' \
         "${project_root}/public/" \
-        "${SSH_USER}@${SSH_HOST}:${REMOTE_PUBLIC}/"
+        "${SSH_USER}@${SSH_HOST}:${LEGACY_REMOTE_PUBLIC}/"
 }
 
 # Verify deployed Vite build: manifest exists, all manifest assets are on disk,
@@ -98,18 +100,18 @@ verify_vite_assets() {
     missing_count=0
     while IFS= read -r asset; do
         [[ -z "$asset" ]] && continue
-        if ! ssh_exec "test -f '${REMOTE_PUBLIC}/build/${asset}'"; then
+        if ! ssh_exec "test -f '${LEGACY_REMOTE_PUBLIC}/build/${asset}'"; then
             print_error "Missing Vite asset on public_html: build/${asset}"
             missing_count=$((missing_count + 1))
         fi
     done <<< "$manifest_assets"
 
     if [[ "$missing_count" -gt 0 ]]; then
-        print_error "Vite asset verification failed (${missing_count} missing file(s) in ${REMOTE_PUBLIC}/build/)"
+        print_error "Vite asset verification failed (${missing_count} missing file(s) in ${LEGACY_REMOTE_PUBLIC}/build/)"
         return 1
     fi
 
-    print_success "Vite manifest assets verified on ${REMOTE_PUBLIC}/build/"
+    print_success "Vite manifest assets verified on ${LEGACY_REMOTE_PUBLIC}/build/"
 
     http_status="$(ssh_exec "curl -s -o /dev/null -w '%{http_code}' --max-time 30 '${app_url}/login'" || true)"
     if [[ "$http_status" != "200" && "$http_status" != "302" ]]; then
@@ -140,7 +142,7 @@ verify_vite_assets() {
 # app root lives outside the web-accessible directory.
 generate_shared_hosting_index() {
     local template="$LIB_DIR/templates/index.shared-hosting.php"
-    local index_remote="${REMOTE_PUBLIC}/index.php"
+    local index_remote="${LEGACY_REMOTE_PUBLIC}/index.php"
     local generated
     local backup_suffix
 
@@ -190,7 +192,7 @@ generate_shared_hosting_index() {
 
 # Verify the generated index.php references the configured bootstrap paths.
 verify_shared_hosting_index() {
-    local index_remote="${REMOTE_PUBLIC}/index.php"
+    local index_remote="${LEGACY_REMOTE_PUBLIC}/index.php"
 
     if ! ssh_exec "test -f '$index_remote'"; then
         print_error "Generated index.php not found at ${index_remote}"
@@ -256,4 +258,141 @@ health_check() {
 
     print_success "Health check passed (${app_url}/, HTTP ${http_status})"
     return 0
+}
+
+# --- KVM deployment helpers (Phase 2.2; not wired into desk deploy yet) ---
+
+# Synchronize Vite build output to the KVM Laravel public/ directory.
+sync_kvm_public_build() {
+    local project_root="$1"
+    local kvm_public="${REMOTE_PROJECT}/public"
+    local rsync_ssh=(ssh -p "$SSH_PORT" -o BatchMode=yes -o ConnectTimeout=15)
+
+    rsync -avz --delete \
+        -e "${rsync_ssh[*]}" \
+        "${project_root}/public/build/" \
+        "${SSH_USER}@${SSH_HOST}:${kvm_public}/build/"
+}
+
+# Verify KVM Vite build: manifest exists under public/build/, assets on disk, /login smoke.
+kvm_verify_vite_assets() {
+    local app_url manifest_remote manifest_assets asset missing_count http_status html_assets overlap
+    local kvm_public="${REMOTE_PROJECT}/public"
+
+    app_url="$(ssh_exec "grep '^APP_URL=' '$REMOTE_PROJECT/.env' 2>/dev/null | cut -d= -f2- | tr -d '\"'" || true)"
+    app_url="${app_url%/}"
+
+    if [[ -z "$app_url" ]]; then
+        print_error "Could not determine APP_URL from remote .env"
+        return 1
+    fi
+
+    manifest_remote="${kvm_public}/build/manifest.json"
+    if ! ssh_exec "test -f '$manifest_remote'"; then
+        print_error "KVM manifest not found at ${manifest_remote}"
+        return 1
+    fi
+
+    manifest_assets="$(ssh_exec "grep -oE '\"file\": \"assets/[^\"]+\"' '$manifest_remote'" \
+        | sed -E 's/"file": "//;s/"$//' \
+        | sort -u \
+        || true)"
+
+    if [[ -z "$manifest_assets" ]]; then
+        print_error "Could not extract asset paths from ${manifest_remote}"
+        return 1
+    fi
+
+    missing_count=0
+    while IFS= read -r asset; do
+        [[ -z "$asset" ]] && continue
+        if ! ssh_exec "test -f '${kvm_public}/build/${asset}'"; then
+            print_error "Missing KVM Vite asset: build/${asset}"
+            missing_count=$((missing_count + 1))
+        fi
+    done <<< "$manifest_assets"
+
+    if [[ "$missing_count" -gt 0 ]]; then
+        print_error "KVM Vite asset verification failed (${missing_count} missing file(s) in ${kvm_public}/build/)"
+        return 1
+    fi
+
+    print_success "KVM Vite manifest assets verified on ${kvm_public}/build/"
+
+    http_status="$(ssh_exec "curl -s -o /dev/null -w '%{http_code}' --max-time 30 '${app_url}/login'" || true)"
+    if [[ "$http_status" != "200" && "$http_status" != "302" ]]; then
+        print_error "Login page check failed (${app_url}/login, HTTP ${http_status:-unknown})"
+        return 1
+    fi
+
+    html_assets="$(ssh_exec "curl -s --max-time 30 '${app_url}/login' | grep -oE 'build/assets/[^\"]+' | sed 's|^build/||' | sort -u" || true)"
+    overlap=0
+    while IFS= read -r asset; do
+        [[ -z "$asset" ]] && continue
+        if echo "$html_assets" | grep -Fxq "$asset"; then
+            overlap=1
+            break
+        fi
+    done <<< "$manifest_assets"
+
+    if [[ "$overlap" -ne 1 ]]; then
+        print_error "Login page does not reference any current Vite manifest assets (${app_url}/login)"
+        return 1
+    fi
+
+    print_success "Login page smoke check passed (${app_url}/login, HTTP ${http_status})"
+    return 0
+}
+
+# KVM health check: SSH, PHP binary, and Laravel /up endpoint (no shared-hosting index.php).
+kvm_health_check() {
+    local app_url http_status
+
+    print_warning "Running KVM health check..."
+
+    if ! ssh_exec "echo ok" >/dev/null 2>&1; then
+        print_error "SSH connectivity failed"
+        return 1
+    fi
+    print_success "SSH connectivity"
+
+    if ! ssh_exec "test -x '$PHP_BIN' && '$PHP_BIN' -v" >/dev/null 2>&1; then
+        print_error "PHP binary not available: ${PHP_BIN}"
+        return 1
+    fi
+    print_success "PHP binary available (${PHP_BIN})"
+
+    app_url="$(ssh_exec "grep '^APP_URL=' '$REMOTE_PROJECT/.env' 2>/dev/null | cut -d= -f2- | tr -d '\"'" || true)"
+    app_url="${app_url%/}"
+
+    if [[ -z "$app_url" ]]; then
+        print_error "Could not determine APP_URL from remote .env"
+        return 1
+    fi
+
+    http_status="$(ssh_exec "curl -s -o /dev/null -w '%{http_code}' --max-time 30 '${app_url}/up'" || true)"
+
+    if [[ "$http_status" != "200" ]]; then
+        print_error "KVM health check failed (${app_url}/up, HTTP ${http_status:-unknown})"
+        return 1
+    fi
+
+    print_success "KVM health check passed (${app_url}/up, HTTP ${http_status})"
+    return 0
+}
+
+# Restart the configured Supervisor queue worker on the KVM.
+kvm_restart_supervisor_worker() {
+    local program="${SUPERVISOR_PROGRAM:-radium-desk-queue-worker}"
+
+    print_warning "Restarting Supervisor program: ${program}..."
+
+    if ssh_exec "supervisorctl restart '${program}'" >/dev/null 2>&1 \
+        || ssh_exec "sudo -n supervisorctl restart '${program}'" >/dev/null 2>&1; then
+        print_success "Supervisor program restarted: ${program}"
+        return 0
+    fi
+
+    print_error "Failed to restart Supervisor program: ${program}"
+    return 1
 }
