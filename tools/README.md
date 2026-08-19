@@ -2,6 +2,12 @@
 
 Production deployment utilities for the Radium Service Desk Laravel application.
 
+> **Production target (2026-08):** Current production runs on **Hostinger KVM** (`ravi@187.127.129.16`, app at `/var/www/radium-desk`). **`desk ssh`**, **`desk logs`**, and **`desk cache`** use the KVM settings in [`config.sh`](config.sh).
+>
+> **`desk deploy`**, **`desk rollback`**, and **`desk doctor`** are **not KVM-ready** (shared-hosting layout, git-pull deploy, legacy paths). Use the established **targeted file-sync / `scp`** process for KVM deployments.
+>
+> **Hostinger Shared Cloud** remains active separately for **encrypted backup storage** (`/root/.radium-backup.env` on the KVM). It is not the app deploy target and is not configured in this toolkit.
+
 All commands are run from the **project root**:
 
 ```bash
@@ -12,15 +18,15 @@ Optional: add `tools/` to your `PATH` or symlink `tools/desk` as `desk` for shor
 
 ## Configuration
 
-Edit [`config.sh`](config.sh) before first use:
+Edit [`config.sh`](config.sh) before first use. **KVM connection** (`SSH_*`, `REMOTE_PROJECT`, `PHP_BIN`) targets current production. **`REMOTE_PUBLIC`** and related `INDEX_*` / `SCHEDULE_RUN_WRAPPER` values are **legacy shared-hosting** settings retained for unmigrated `desk deploy` / `doctor` code paths only.
 
 | Variable | Description |
 |----------|-------------|
-| `SSH_HOST` | Remote server hostname or IP |
+| `SSH_HOST` | KVM production server hostname or IP |
 | `SSH_PORT` | SSH port |
 | `SSH_USER` | SSH username |
-| `REMOTE_PROJECT` | Absolute path to the Laravel app on the server |
-| `REMOTE_PUBLIC` | Absolute path to the web-accessible `public_html` directory |
+| `REMOTE_PROJECT` | Absolute path to the Laravel app on the KVM |
+| `REMOTE_PUBLIC` | Legacy shared-hosting `public_html` path (not KVM production) |
 | `INDEX_VENDOR_PATH` | Absolute path to `vendor/autoload.php` on the server (used in generated `index.php`) |
 | `INDEX_BOOTSTRAP_PATH` | Absolute path to `bootstrap/app.php` on the server (used in generated `index.php`) |
 | `PHP_BIN` | Path to PHP on the remote server |
@@ -31,7 +37,9 @@ Shared helpers live in [`lib.sh`](lib.sh) and are sourced by each command script
 
 ---
 
-## Shared-hosting deployments
+## Shared-hosting deployments (legacy)
+
+> **Not current production.** The live app is on Hostinger KVM. This section documents the legacy `desk deploy` flow only.
 
 On shared hosting, the Laravel application root (`REMOTE_PROJECT`) typically sits **outside** the web-accessible document root (`REMOTE_PUBLIC`). The web server only serves files from `public_html`, so `index.php` must bootstrap Laravel using **absolute paths** back to the real project directory.
 
