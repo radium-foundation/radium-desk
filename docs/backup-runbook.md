@@ -207,7 +207,14 @@ Uses the same Cloud SSH variables as upload (`BACKUP_CLOUD_SSH_*`, `BACKUP_CLOUD
 
 **Metadata shown:** backup ID, created timestamp, application version/build, database and secrets artifact sizes, cloud upload status, manifest integrity.
 
-**KVM note:** staging under `/var/backups/radium-desk` is root-owned (`700`). The web process must be able to **read** the `runs/` directory and `manifest.json` files for live status. Do not loosen permissions on encrypted `.gpg` artifacts. Prefer read-only ACL on `runs/` for the PHP user, or a future narrowly scoped read-only helper — not implemented in Phase 1.
+**KVM note:** staging under `/var/backups/radium-desk` is root-owned (`700`). The web process must be able to **read** the `runs/` directory and `manifest.json` files for live status. After each successful run, `backup-run.sh` applies a read-only ACL (`u:ravi:r`) to `manifest.json` only so Desk can read backup metadata. Encrypted `.gpg` artifacts remain `600 root:root` with no web-readable ACL. Directory traverse/list ACLs on `runs/` are configured separately on the KVM.
+
+Optional env overrides:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BACKUP_MANIFEST_ACL_ENABLED` | `true` | Set `false` to skip manifest ACL (tests / non-KVM) |
+| `BACKUP_MANIFEST_ACL_USER` | `ravi` | PHP/web user granted read on `manifest.json` |
 
 **Future:** manual backup trigger (`backups.manage`), restore CLI, failure alerting.
 

@@ -574,6 +574,61 @@ update_manifest_upload() {
     ' "$manifest_path"
 }
 
+apply_manifest_read_acl() {
+    local manifest_path="$1"
+    local runs_root="${BACKUP_STAGING_ROOT}/runs"
+    local acl_user="${BACKUP_MANIFEST_ACL_USER:-ravi}"
+
+    if [[ -z "$acl_user" ]] || ! truthy_env "${BACKUP_MANIFEST_ACL_ENABLED:-true}"; then
+        log "manifest read ACL skipped (disabled)"
+
+        return 0
+    fi
+
+    if [[ ! -f "$manifest_path" ]]; then
+        log "ERROR: manifest ACL: file missing"
+
+        return 1
+    fi
+
+    if [[ "$(basename "$manifest_path")" != "manifest.json" ]]; then
+        log "ERROR: manifest ACL: not manifest.json"
+
+        return 1
+    fi
+
+    if [[ "$manifest_path" != "${runs_root}/"* ]]; then
+        log "ERROR: manifest ACL: path outside staging runs"
+
+        return 1
+    fi
+
+    local run_id
+    run_id="$(basename "$(dirname "$manifest_path")")"
+
+    if [[ ! "$run_id" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
+        log "ERROR: manifest ACL: invalid run directory"
+
+        return 1
+    fi
+
+    if ! command -v setfacl >/dev/null 2>&1; then
+        log "ERROR: setfacl not available; manifest read ACL not applied"
+
+        return 1
+    fi
+
+    if setfacl -m "u:${acl_user}:r" "$manifest_path"; then
+        log "manifest read ACL applied for ${acl_user}"
+
+        return 0
+    fi
+
+    log "ERROR: setfacl failed for manifest (exit $?)"
+
+    return 1
+}
+
 upload_run_to_cloud() {
     local run_dir="$1"
     local backup_id="$2"
@@ -799,6 +854,9 @@ main() {
         upload_run_to_cloud "$final_run_dir" "$backup_id" "$created_at"
         log "backup completed with Cloud upload: ${final_run_dir}"
     fi
+
+    apply_manifest_read_acl "${final_run_dir}/manifest.json" \
+        || log "ERROR: backup succeeded but Desk manifest read ACL was not applied"
 }
 
 main "$@"
