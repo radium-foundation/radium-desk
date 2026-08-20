@@ -14,6 +14,7 @@
 | 3 — Scheduling | **Implemented** | KVM cron twice daily (02:00 and 14:00 IST) |
 | 4 — Remote retention | **Implemented** | Standalone Cloud prune (`backup-prune-cloud.sh`); dry-run default |
 | 5 — Desk read-only status | **Implemented** | Administration → Backups (`backups.view`, Super Admin only) |
+| 5A — Cloud inventory index | **Implemented** | `bin/backup-cloud-inventory.sh` writes sanitized local JSON; Desk shows read-only Cloud table |
 | 6 — Manual backup UX | **Future** | Trigger `backup-run.sh` from Desk (not implemented) |
 | 7 — Restore drill + alerting | **Future** | Verification automation + operator restore CLI |
 
@@ -230,6 +231,82 @@ Optional env overrides:
 
 ---
 
+## Cloud inventory index (Phase 5A)
+
+**Script:** [`bin/backup-cloud-inventory.sh`](../bin/backup-cloud-inventory.sh)
+
+Standalone KVM script. It does **not** run backups, does **not** prune, and does **not** delete remote files.
+
+### Behaviour
+
+- Enumerates completed Cloud backups over SSH using the same validation model as [`bin/backup-prune-cloud.sh`](../bin/backup-prune-cloud.sh).
+- Writes a sanitized local JSON index (default: `{BACKUP_STAGING_ROOT}/cloud-inventory.json`).
+- Index entries include only: `backup_id`, `timestamp_utc`, `total_size_bytes`, `manifest_present`, `upload_complete`.
+- Never writes remote paths, hosts, usernames, credentials, artifact filenames, hashes, or encryption details.
+- Restores staging traversal ACLs and grants read-only access to `cloud-inventory.json` for the web user, matching the manifest ACL model used by `backup-run.sh`.
+
+### Desk display
+
+**Service:** `App\Services\Backup\BackupCloudInventoryService` reads the sanitized index. If the index is missing or unreadable, local backup status continues to work unchanged.
+
+Administration → Backups shows the latest 10 Cloud entries in IST with a read-only notice. This is inventory metadata only — not download, restore, or manual backup.
+
+### Manual invocation (when ops approves)
+
+```bash
+cd /var/www/radium-desk
+sudo bash -c 'set -a; source /root/.radium-backup.env; set +a; ./bin/backup-cloud-inventory.sh'
+```
+
+Recommended after successful Cloud uploads or on a short ops schedule so the Desk table stays current.
+
+---
+
+## How to restore (manual)
+
+<a id="how-to-restore-manual"></a>
+
+**Restore is not available from Desk.** There is no one-click restore, no automated restore CLI in this release, and no Desk action that decrypts or imports backup data.
+
+Use this section when an operator must recover from a known backup ID shown in Administration → Backups.
+
+### Before you start
+
+1. **Confirm the backup ID** from Administration → Backups (local staging and Cloud inventory tables).
+2. **Choose a target environment** — always rehearse on a non-production clone first unless an approved emergency production recovery is in progress.
+3. **Confirm application compatibility** — note the application version/build before importing data. For backups still present on the KVM, read this from the local staging manifest. For **Cloud-only recovery**, the operator must read `application.version` and `application.build` from the remote `manifest.json` for that backup ID (Desk inventory does not expose these fields).
+4. **Plan rollback** — document the current production state and how you will abort if verification fails.
+
+### Recovery outline
+
+1. **Obtain the backup bundle** using operator access to local staging (`BACKUP_STAGING_ROOT/runs/<backup_id>/`) or Hostinger Cloud storage via your existing ops access. Desk does not expose download links or storage paths.
+2. **Verify inventory flags** — the Cloud inventory index lists whether the remote copy had a manifest and upload-complete marker when the index was generated. Prefer backups where both are present.
+3. **Decrypt offline** — use the operator-held encryption passphrase or age private key on a trusted machine. Never paste passphrases into Desk, tickets, or chat.
+4. **Restore the database** — import the decrypted database dump into a clean MariaDB instance (staging first). Verify row counts, critical tables, and recent case/order samples.
+5. **Restore critical secrets** — decrypt the secrets bundle and restore only the required application secrets (environment configuration and Google service account JSON) onto the target host. Restrict file permissions to the application user.
+6. **Align application code** — deploy or checkout the application version that matches the backup era when possible; run migrations only after operator review if schema drift exists.
+7. **Verify before cutover** — log in, run `/up`, smoke-test intake, payments, and queue processing on staging; only then repeat on production during a maintenance window.
+
+### Safety rules
+
+| Rule | Why |
+|------|-----|
+| Never restore onto live production without a maintenance window | Active users and webhooks can write data that conflicts with the imported snapshot |
+| Never skip the staging rehearsal for unfamiliar backup IDs | Encryption, size, and schema surprises surface on the clone, not in production |
+| Never expose decrypted SQL, `.env`, or key material in Desk or logs | Backups contain credentials and customer data |
+| Never delete the current production data until the restore is verified | Rollback requires the pre-restore state |
+| Treat Cloud and local copies independently | Confirm which copy you are restoring; incomplete uploads must not be used |
+
+### After restore
+
+- Re-run `./bin/backup-cloud-inventory.sh` if Cloud inventory should reflect post-recovery state.
+- Record the recovery in audit/ops notes (backup ID, operator, target environment, verification outcome).
+- Schedule a fresh backup once production is healthy again.
+
+Automated restore verification drills remain a future phase (see Future phases below).
+
+---
+
 Local encryption runs **before** any Cloud upload. Unencrypted artifacts are never uploaded.
 
 ### GPG symmetric (KVM has `gpg`)
@@ -313,6 +390,7 @@ Do not run until encryption passphrase and SSH key are provisioned.
 ```bash
 bash tests/scripts/backup-run.test.sh
 bash tests/scripts/backup-prune-cloud.test.sh
+bash tests/scripts/backup-cloud-inventory.test.sh
 ```
 
 Mock `mysqldump`, `mysql`, `gpg`, `rsync`, and `ssh` under `tests/scripts/fixtures/backup-mocks/`. **Does not connect to production or Hostinger Cloud.**
