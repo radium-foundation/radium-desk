@@ -195,6 +195,7 @@ rsync_application_to_kvm() {
         --exclude 'vendor/'
         --exclude 'storage/logs/'
         --exclude 'storage/framework/'
+        --exclude 'bootstrap/cache/'
         --exclude 'tests/'
         --include 'storage/'
         --include 'storage/app/'
@@ -218,8 +219,8 @@ fix_remote_ownership() {
     return 0
   fi
 
-  print_warning "Applying ownership ravi:ravi to deployed application tree..."
-  ssh_exec "chown -R ravi:ravi '$REMOTE_PROJECT'"
+  print_warning "Applying ownership ${SSH_USER}:${SSH_USER} to deployed application tree..."
+  ssh_exec "find '$REMOTE_PROJECT' -path '$REMOTE_PROJECT/storage/logs' -prune -o -exec chown ${SSH_USER}:${SSH_USER} {} +"
   ssh_exec "find '$REMOTE_PROJECT/bin' -maxdepth 1 -type f -name '*.sh' -exec chmod 755 {} +"
   print_success "Ownership and bin permissions applied"
 }

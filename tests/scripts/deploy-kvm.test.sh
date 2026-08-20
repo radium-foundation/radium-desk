@@ -43,6 +43,9 @@ grep -q '/root/.radium-backup.env' "$SCRIPT" && fail "must not reference backup 
 
 pass "deploy-kvm safety guards present"
 
+grep -q '\-\-exclude.*bootstrap/cache/' "$SCRIPT" \
+    || fail "must exclude bootstrap/cache from rsync"
+
 # --- release.json rsync filter regression (static ordering) ---
 
 extract_rsync_filters() {
@@ -132,5 +135,27 @@ done
 [[ "${#storage_includes[@]}" -eq 4 ]] || fail "expected exactly 4 storage include rules (parents + release.json)"
 
 pass "release.json rsync filter ordering valid"
+
+find_filter_index "'bootstrap/cache/'" >/dev/null \
+    || fail "bootstrap/cache/ exclude must be part of application rsync filter set"
+
+pass "bootstrap/cache rsync protection present"
+
+# --- fix_remote_ownership regression (v4.0.47 incident) ---
+
+OWNERSHIP_BLOCK="$(awk '/^fix_remote_ownership\(\)/,/^}/' "$SCRIPT")"
+
+[[ -n "$OWNERSHIP_BLOCK" ]] || fail "could not extract fix_remote_ownership from deploy-kvm.sh"
+
+echo "$OWNERSHIP_BLOCK" | grep -q 'SSH_USER' \
+    || fail "fix_remote_ownership must use SSH_USER for ownership"
+echo "$OWNERSHIP_BLOCK" | grep -q 'chown -R ravi:ravi' \
+    && fail "fix_remote_ownership must not hardcode chown -R ravi:ravi"
+echo "$OWNERSHIP_BLOCK" | grep -q 'storage/logs' \
+    || fail "fix_remote_ownership must reference storage/logs skip"
+echo "$OWNERSHIP_BLOCK" | grep -q '\-prune' \
+    || fail "fix_remote_ownership must prune storage/logs during ownership traversal"
+
+pass "fix_remote_ownership skips Supervisor-owned logs"
 
 echo "All deploy-kvm static checks passed."
