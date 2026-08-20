@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.47 — 2026-08-20 — Worktree-Safe Release Snapshot
+
+- Fixed release snapshot Git metadata detection so it works correctly from linked Git worktrees used during KVM deployment.
+
 ## 4.0.46 — 2026-08-20 — KVM Doctor Redis Quoting Fix
 
 - Fixed the KVM doctor Redis connectivity check so remote shell quoting is handled correctly and healthy Redis no longer fails preflight.

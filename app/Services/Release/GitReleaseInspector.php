@@ -13,7 +13,7 @@ class GitReleaseInspector
 
     public function latestSemverVersion(): ?string
     {
-        if (! $this->gitDirectoryExists()) {
+        if (! $this->gitRepositoryAvailable()) {
             return null;
         }
 
@@ -32,7 +32,7 @@ class GitReleaseInspector
 
     public function shortCommit(): ?string
     {
-        if (! $this->gitDirectoryExists()) {
+        if (! $this->gitRepositoryAvailable()) {
             return null;
         }
 
@@ -69,26 +69,19 @@ class GitReleaseInspector
 
     private function shortCommitFromProcess(): ?string
     {
-        try {
-            $result = Process::path(base_path())
-                ->timeout(3)
-                ->run(['git', 'rev-parse', '--short', 'HEAD']);
-        } catch (\Throwable) {
-            return null;
-        }
+        $commit = $this->gitRevParse('--short', 'HEAD');
 
-        if (! $result->successful()) {
-            return null;
-        }
-
-        $commit = trim($result->output());
-
-        return $commit !== '' ? $commit : null;
+        return $commit !== null && $commit !== '' ? $commit : null;
     }
 
     private function shortCommitFromFilesystem(): ?string
     {
-        $gitDir = base_path('.git');
+        $gitDir = $this->resolveAbsoluteGitDir();
+
+        if ($gitDir === null) {
+            return null;
+        }
+
         $headPath = $gitDir.DIRECTORY_SEPARATOR.'HEAD';
 
         if (! is_file($headPath)) {
@@ -128,8 +121,38 @@ class GitReleaseInspector
         return $matches[1];
     }
 
-    private function gitDirectoryExists(): bool
+    private function gitRepositoryAvailable(): bool
     {
-        return is_dir(base_path('.git'));
+        return $this->gitRevParse('--git-dir') !== null;
+    }
+
+    private function resolveAbsoluteGitDir(): ?string
+    {
+        $gitDir = $this->gitRevParse('--absolute-git-dir');
+
+        if ($gitDir === null) {
+            return null;
+        }
+
+        return is_dir($gitDir) ? $gitDir : null;
+    }
+
+    private function gitRevParse(string ...$args): ?string
+    {
+        try {
+            $result = Process::path(base_path())
+                ->timeout(3)
+                ->run(array_merge(['git', 'rev-parse'], $args));
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (! $result->successful()) {
+            return null;
+        }
+
+        $output = trim($result->output());
+
+        return $output !== '' ? $output : null;
     }
 }

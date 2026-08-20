@@ -76,15 +76,23 @@ class VersionServiceTest extends TestCase
 
     public function test_version_falls_back_to_changelog_when_git_unavailable(): void
     {
-        $git = Mockery::mock(GitReleaseInspector::class);
-        $git->shouldReceive('latestSemverVersion')->andReturn(null);
-        $git->shouldReceive('shortCommit')->andReturn(null);
+        $changelogPath = base_path('CHANGELOG.md');
+        $original = (string) file_get_contents($changelogPath);
+        file_put_contents($changelogPath, "# Changelog\n\n## 4.0.0 — 2026-07-26 — Baseline\n\n- Initial release notes\n");
 
-        $service = new VersionService($git, new ReleaseManifestStore);
+        try {
+            $git = Mockery::mock(GitReleaseInspector::class);
+            $git->shouldReceive('latestSemverVersion')->andReturn(null);
+            $git->shouldReceive('shortCommit')->andReturn(null);
 
-        $this->assertSame('4.0.0', $service->version());
-        $this->assertSame('2026-07-26', $service->releaseDate());
-        $this->assertNull($service->build());
+            $service = new VersionService($git, new ReleaseManifestStore);
+
+            $this->assertSame('4.0.0', $service->version());
+            $this->assertSame('2026-07-26', $service->releaseDate());
+            $this->assertNull($service->build());
+        } finally {
+            file_put_contents($changelogPath, $original);
+        }
     }
 
     public function test_version_falls_back_to_app_version_when_git_and_changelog_unavailable(): void
@@ -136,11 +144,19 @@ class VersionServiceTest extends TestCase
         Process::fake(function (PendingProcess $process) {
             $command = $this->pendingCommandLine($process);
 
+            if (str_contains($command, 'rev-parse --git-dir')) {
+                return Process::result(".git\n");
+            }
+
             if (str_contains($command, 'tag')) {
                 return Process::result("v3.0-hybrid-realtime\nv2.7-role-aware-kpi\nv1.0.0\n");
             }
 
-            return Process::result("abc1234\n");
+            if (str_contains($command, 'rev-parse --short HEAD')) {
+                return Process::result("abc1234\n");
+            }
+
+            return Process::result('', exitCode: 1);
         });
 
         $service = new VersionService(new GitReleaseInspector, new ReleaseManifestStore);
