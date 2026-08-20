@@ -93,6 +93,11 @@ return [
         'daily_briefing_time' => env('IRA_DAILY_BRIEFING_TIME', '08:00'),
         'owner_morning_report_time' => env('IRA_OWNER_MORNING_REPORT_TIME', '10:00'),
         'owner_evening_report_time' => env('IRA_OWNER_EVENING_REPORT_TIME', '20:00'),
+        'quiet_hours' => [
+            'enabled' => true,
+            'start' => '21:00',
+            'end' => '08:00',
+        ],
         'assignment_telegram_batch' => [
             'enabled' => (bool) env('IRA_ASSIGNMENT_TELEGRAM_BATCH_ENABLED', true),
             'delay_minutes' => max(1, (int) env('IRA_ASSIGNMENT_TELEGRAM_BATCH_DELAY_MINUTES', 5)),

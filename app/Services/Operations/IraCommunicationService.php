@@ -62,6 +62,7 @@ class IraCommunicationService
         private readonly NotificationRecipientResolver $recipientResolver,
         private readonly NotificationAuthorityService $notificationAuthority,
         private readonly IraNotificationPolicyService $notificationPolicy,
+        private readonly IraOperationalQuietHoursService $operationalQuietHours,
     ) {}
 
     /**
@@ -487,6 +488,10 @@ class IraCommunicationService
      */
     public function sendRiskAlerts(IraMorningBriefing $briefing): array
     {
+        if ($this->operationalQuietHours->isQuietHours()) {
+            return [];
+        }
+
         $results = [];
 
         foreach ($this->highPriorityRisks($briefing) as $risk) {
