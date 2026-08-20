@@ -12,6 +12,28 @@ FIXTURES="$ROOT/tests/scripts/fixtures/backup-mocks"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "PASS: $*"; }
 
+assert_setfacl_traversal_chain() {
+    local log="$1"
+    local staging="$2"
+    local run_dir="$3"
+
+    grep -F -- "-m u:ravi:--x,m:--x ${staging}" "$log" >/dev/null \
+        || fail "setfacl missing staging root traversal ACL/mask"
+    grep -F -- "-m u:ravi:r-x,m:r-x ${staging}/runs" "$log" >/dev/null \
+        || fail "setfacl missing runs directory traversal ACL/mask"
+    grep -F -- "-m u:ravi:r-x,m:r-x ${run_dir}" "$log" >/dev/null \
+        || fail "setfacl missing run directory traversal ACL/mask"
+    grep -F -- "-m u:ravi:r,m:r ${run_dir}/manifest.json" "$log" >/dev/null \
+        || fail "setfacl missing manifest read ACL/mask"
+    grep -F -- "-d -m u:ravi:--x ${staging}/runs" "$log" >/dev/null \
+        || fail "setfacl missing runs default traversal ACL"
+    grep -F -- "-d -m u:ravi:--x ${run_dir}" "$log" >/dev/null \
+        || fail "setfacl missing run directory default traversal ACL"
+    if grep -F '.gpg' "$log" >/dev/null; then
+        fail "setfacl must not be applied to encrypted artifacts"
+    fi
+}
+
 [[ -x "$ROOT/bin/backup-run.sh" ]] || fail "backup-run.sh missing or not executable"
 bash -n "$ROOT/bin/backup-run.sh" || fail "backup-run.sh syntax check failed"
 pass "script syntax valid"
@@ -109,8 +131,9 @@ STAGING="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-staging-XXXXXX")"
 PASS_FILE="$(mktemp "${TMPDIR:-/tmp}/radium-backup-pass-XXXXXX")"
 printf 'test-passphrase' >"$PASS_FILE"
 chmod 600 "$PASS_FILE"
+SETFACL_LOG="$(mktemp "${TMPDIR:-/tmp}/radium-backup-setfacl-log-XXXXXX")"
 
-OUTPUT="$(run_backup_in_project "$PROJECT" "$STAGING" "$PASS_FILE" 2>&1)"
+OUTPUT="$(run_backup_in_project "$PROJECT" "$STAGING" "$PASS_FILE" "SETFACL_MOCK_LOG=$SETFACL_LOG" 2>&1)"
 STATUS=$?
 [[ "$STATUS" -eq 0 ]] || fail "backup-run.sh failed: $OUTPUT"
 
@@ -145,11 +168,16 @@ php -r '
 ' "$RUN_DIR/manifest.json" || fail "manifest validation failed"
 pass "manifest generation and structure"
 
+grep -F 'manifest.json' "$SETFACL_LOG" >/dev/null || fail "setfacl was not invoked for manifest.json"
+echo "$OUTPUT" | grep -F 'manifest read ACL applied for ravi' >/dev/null || fail "manifest ACL success was not logged"
+assert_setfacl_traversal_chain "$SETFACL_LOG" "$STAGING" "$RUN_DIR"
+pass "successful local backup applies manifest read ACL"
+
 WORK_LEFT="$(find "$STAGING/work" -mindepth 1 2>/dev/null | wc -l | tr -d " ")"
 [[ "$WORK_LEFT" -eq 0 ]] || fail "temporary work directory was not cleaned after success"
 
 rm -rf "$PROJECT" "$STAGING"
-rm -f "$PASS_FILE"
+rm -f "$PASS_FILE" "$SETFACL_LOG"
 
 # --- failure cleanup ---
 PROJECT="$(create_test_project)"
@@ -229,8 +257,9 @@ PASS_FILE="$(mktemp "${TMPDIR:-/tmp}/radium-backup-pass-XXXXXX")"
 RSYNC_LOG="$(mktemp "${TMPDIR:-/tmp}/radium-backup-rsync-log-XXXXXX")"
 printf 'test-passphrase' >"$PASS_FILE"
 chmod 600 "$PASS_FILE"
+SETFACL_LOG="$(mktemp "${TMPDIR:-/tmp}/radium-backup-setfacl-log-XXXXXX")"
 
-OUTPUT="$(run_cloud_backup_in_project "$PROJECT" "$STAGING" "$MOCK_REMOTE" "$PASS_FILE" "BACKUP_CLOUD_UPLOAD_ENABLED=true RSYNC_MOCK_LOG=$RSYNC_LOG" 2>&1)"
+OUTPUT="$(run_cloud_backup_in_project "$PROJECT" "$STAGING" "$MOCK_REMOTE" "$PASS_FILE" "BACKUP_CLOUD_UPLOAD_ENABLED=true RSYNC_MOCK_LOG=$RSYNC_LOG SETFACL_MOCK_LOG=$SETFACL_LOG" 2>&1)"
 STATUS=$?
 [[ "$STATUS" -eq 0 ]] || fail "Cloud upload backup failed: $OUTPUT"
 
@@ -254,10 +283,13 @@ php -r '
     if (($m["phase"] ?? "") !== "cloud_uploaded") { fwrite(STDERR, "expected cloud_uploaded phase\n"); exit(1); }
     if (($m["upload"]["status"] ?? "") !== "completed") { fwrite(STDERR, "upload status not completed\n"); exit(1); }
 ' "$RUN_DIR/manifest.json" || fail "manifest upload metadata missing after Cloud upload"
+grep -F 'manifest.json' "$SETFACL_LOG" >/dev/null || fail "setfacl was not invoked after Cloud upload"
+echo "$OUTPUT" | grep -F 'manifest read ACL applied for ravi' >/dev/null || fail "manifest ACL success was not logged after Cloud upload"
+assert_setfacl_traversal_chain "$SETFACL_LOG" "$STAGING" "$RUN_DIR"
 pass "successful mocked Cloud upload is recognized"
 
 rm -rf "$PROJECT" "$STAGING" "$MOCK_REMOTE"
-rm -f "$PASS_FILE" "$RSYNC_LOG"
+rm -f "$PASS_FILE" "$RSYNC_LOG" "$SETFACL_LOG"
 
 # --- rsync failure preserves local backup ---
 PROJECT="$(create_test_project)"
@@ -309,5 +341,41 @@ pass "previous remote backups are never deleted"
 
 rm -rf "$PROJECT" "$STAGING" "$MOCK_REMOTE"
 rm -f "$PASS_FILE"
+
+# --- manifest ACL failure is non-fatal ---
+PROJECT="$(create_test_project)"
+STAGING="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-staging-XXXXXX")"
+PASS_FILE="$(mktemp "${TMPDIR:-/tmp}/radium-backup-pass-XXXXXX")"
+printf 'test-passphrase' >"$PASS_FILE"
+chmod 600 "$PASS_FILE"
+
+OUTPUT="$(run_backup_in_project "$PROJECT" "$STAGING" "$PASS_FILE" "SETFACL_MOCK_FAIL=1" 2>&1)"
+STATUS=$?
+[[ "$STATUS" -eq 0 ]] || fail "backup should succeed when setfacl fails: $OUTPUT"
+echo "$OUTPUT" | grep -F 'ERROR: setfacl failed for manifest' >/dev/null || fail "expected setfacl failure error"
+echo "$OUTPUT" | grep -F 'ERROR: backup succeeded but Desk manifest read ACL was not applied' >/dev/null || fail "expected non-fatal ACL error"
+echo "$OUTPUT" | grep -F 'manifest read ACL applied for ravi' >/dev/null && fail "must not claim ACL success when setfacl fails"
+pass "setfacl failure is non-fatal and logs an explicit error"
+
+rm -rf "$PROJECT" "$STAGING"
+rm -f "$PASS_FILE"
+
+# --- manifest ACL can be disabled ---
+PROJECT="$(create_test_project)"
+STAGING="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-staging-XXXXXX")"
+PASS_FILE="$(mktemp "${TMPDIR:-/tmp}/radium-backup-pass-XXXXXX")"
+SETFACL_LOG="$(mktemp "${TMPDIR:-/tmp}/radium-backup-setfacl-log-XXXXXX")"
+printf 'test-passphrase' >"$PASS_FILE"
+chmod 600 "$PASS_FILE"
+
+OUTPUT="$(run_backup_in_project "$PROJECT" "$STAGING" "$PASS_FILE" "BACKUP_MANIFEST_ACL_ENABLED=false SETFACL_MOCK_LOG=$SETFACL_LOG" 2>&1)"
+STATUS=$?
+[[ "$STATUS" -eq 0 ]] || fail "backup failed when manifest ACL disabled: $OUTPUT"
+echo "$OUTPUT" | grep -F 'manifest read ACL skipped (disabled)' >/dev/null || fail "expected ACL disabled log message"
+[[ ! -s "$SETFACL_LOG" ]] || fail "setfacl should not run when manifest ACL is disabled"
+pass "manifest ACL can be disabled"
+
+rm -rf "$PROJECT" "$STAGING"
+rm -f "$PASS_FILE" "$SETFACL_LOG"
 
 echo "All backup-run checks passed."

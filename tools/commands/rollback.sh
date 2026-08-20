@@ -15,6 +15,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tools/lib.sh
 source "$SCRIPT_DIR/../lib.sh"
 
+if [[ "${DEPLOY_MODE:-}" == "kvm" ]]; then
+    print_error "Legacy shared-hosting rollback is disabled when DEPLOY_MODE=kvm."
+    print_error "Remote Git rollback is not available on KVM."
+    print_error "Future KVM rollback will redeploy a known-good release/tag through the KVM deployment flow."
+    print_error "To recover now, manually redeploy a known-good tag with: desk deploy"
+    exit 1
+fi
+
 steps="${1:-1}"
 
 if ! [[ "$steps" =~ ^[0-9]+$ ]] || [[ "$steps" -lt 1 ]]; then

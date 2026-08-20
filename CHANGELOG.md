@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.0.44 — 2026-08-20 — Backup Status, Cloud Inventory & KVM Deployment
+
+- Added Backup Status in Administration to review local and cloud backup health, last-run outcomes, and manifest visibility without shell access.
+- Improved backup manifest read access so completed runs can be verified while encrypted backup artifacts remain protected.
+- Added a read-only Cloud backup inventory table in Administration, built from a sanitized local index (no credentials or remote paths exposed).
+- After deployment, operators must run the Cloud inventory script on the KVM to populate the table; until then the page shows that inventory is not yet available.
+- Added manual restore guidance in Administration and the Backup Runbook; restore is not available from Desk.
+- Added KVM-native deployment via desk deploy using local Git and rsync to production, without remote git pull.
+- desk doctor now runs KVM-specific checks for public assets, /up health, the Supervisor queue worker, Redis, and database connectivity.
+- desk deploy and rollback routing block legacy shared-hosting git operations on KVM; recovery is by redeploying a known-good release tag (automated KVM rollback is not included).
+
 ## 4.0.43 — 2026-08-19 — Cloud Backup Retention
 
 - Added a standalone Cloud backup retention tool that reports what would be kept or removed without deleting anything by default.

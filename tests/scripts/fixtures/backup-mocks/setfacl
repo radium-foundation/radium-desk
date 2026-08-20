@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#
+# Mock setfacl for backup-run regression tests.
+#
+set -euo pipefail
+
+if [[ "${SETFACL_MOCK_FAIL:-}" == "1" ]]; then
+    echo "setfacl: simulated failure" >&2
+    exit 1
+fi
+
+if [[ -n "${SETFACL_MOCK_LOG:-}" ]]; then
+    printf '%s\n' "$*" >>"$SETFACL_MOCK_LOG"
+fi
+
+exit 0

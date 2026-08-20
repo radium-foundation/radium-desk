@@ -10,6 +10,44 @@
 set -euo pipefail
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=tools/config.sh
+source "$TOOLS_DIR/config.sh"
+
+desk_deploy() {
+    if [[ "${DEPLOY_MODE:-}" == "kvm" ]]; then
+        exec "$TOOLS_DIR/commands/deploy-kvm.sh" "$@"
+    fi
+
+    printf 'desk deploy requires DEPLOY_MODE=kvm (current: %s).\n' "${DEPLOY_MODE:-unset}" >&2
+    printf 'For legacy shared-hosting deployment, use: desk deploy-legacy\n' >&2
+    exit 1
+}
+
+desk_rollback() {
+    if [[ "${DEPLOY_MODE:-}" == "kvm" ]]; then
+        printf 'desk rollback is disabled when DEPLOY_MODE=kvm.\n' >&2
+        printf 'Remote Git rollback is not available on KVM.\n' >&2
+        printf 'Future KVM rollback will redeploy a known-good release/tag through the KVM deployment flow.\n' >&2
+        printf 'To recover now, manually redeploy a known-good tag with: desk deploy\n' >&2
+        exit 1
+    fi
+
+    printf 'desk rollback is not available in legacy mode.\n' >&2
+    printf 'For shared-hosting rollback, use: desk rollback-legacy\n' >&2
+    exit 1
+}
+
+desk_rollback_legacy() {
+    if [[ "${DEPLOY_MODE:-}" == "kvm" ]]; then
+        printf 'desk rollback-legacy is disabled when DEPLOY_MODE=kvm.\n' >&2
+        printf 'Remote Git rollback is not available on KVM.\n' >&2
+        printf 'Future KVM rollback will redeploy a known-good release/tag through the KVM deployment flow.\n' >&2
+        printf 'To recover now, manually redeploy a known-good tag with: desk deploy\n' >&2
+        exit 1
+    fi
+
+    exec "$TOOLS_DIR/commands/rollback.sh" "$@"
+}
 
 case "${1:-help}" in
     ssh)
@@ -20,6 +58,14 @@ case "${1:-help}" in
         ;;
     deploy)
         shift
+        desk_deploy "$@"
+        ;;
+    deploy-kvm)
+        shift
+        exec "$TOOLS_DIR/commands/deploy-kvm.sh" "$@"
+        ;;
+    deploy-legacy)
+        shift
         exec "$TOOLS_DIR/commands/deploy.sh" "$@"
         ;;
     logs)
@@ -29,19 +75,32 @@ case "${1:-help}" in
         exec "$TOOLS_DIR/commands/cache.sh" "$@"
         ;;
     rollback)
-        exec "$TOOLS_DIR/commands/rollback.sh" "$@"
+        shift
+        desk_rollback "$@"
+        ;;
+    rollback-legacy)
+        shift
+        desk_rollback_legacy "$@"
         ;;
     help|-h|--help)
-        cat <<'MENU'
+        cat <<MENU
 Radium Desk Toolkit
 
 Usage:
-  desk ssh       Open an interactive SSH session on the server
-  desk doctor    Verify local and remote deployment prerequisites
-  desk deploy    Build assets and deploy to production
-  desk logs      Tail remote Laravel logs
-  desk cache     Clear and rebuild remote Laravel caches
-  desk rollback  Roll back the remote repository one commit
+  desk ssh            Open an interactive SSH session on the server
+  desk doctor         Verify local and remote deployment prerequisites
+  desk deploy         Deploy to production (KVM rsync when DEPLOY_MODE=kvm)
+  desk deploy-kvm      Run the KVM rsync deployment script directly
+  desk deploy-legacy   Legacy shared-hosting deploy (git pull + public_html)
+  desk logs           Tail remote Laravel logs
+  desk cache          Clear and rebuild remote Laravel caches
+  desk rollback       Unavailable on KVM (future: tag redeploy rollback)
+  desk rollback-legacy Legacy shared-hosting rollback (remote git reset)
+
+Deployment routing:
+  DEPLOY_MODE=kvm     desk deploy -> deploy-kvm.sh (no remote git pull)
+  DEPLOY_MODE=kvm     desk rollback disabled (no remote git reset)
+  legacy config       use desk deploy-legacy / desk rollback-legacy explicitly
 
 Run from the project root:
   ./tools/desk <command>
