@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.46 — 2026-08-20 — KVM Doctor Redis Quoting Fix
+
+- Fixed the KVM doctor Redis connectivity check so remote shell quoting is handled correctly and healthy Redis no longer fails preflight.
+
 ## 4.0.45 — 2026-08-20 — KVM Doctor Redis Check
 
 - Fixed the KVM doctor Redis connectivity check so it reliably reports Laravel Redis connectivity instead of failing when Redis is healthy.
