@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.51 — 2026-08-21 — Super Admin Telegram Quiet Hours
+
+- Routine overnight operational risk alerts to Super Admin are suppressed from 21:00 to 08:00 IST, including high-priority SLA and open-case alerts.
+- Critical watchdog alerts continue at any time.
+- Quiet-hours timing follows the pinned scheduler timezone (Asia/Kolkata).
+
 ## 4.0.50 — 2026-08-20 — Scheduler Timezone Hardening
 
 - Pinned Laravel scheduler evaluation to Asia/Kolkata using a dedicated schedule timezone configuration.
