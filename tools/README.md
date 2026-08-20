@@ -6,7 +6,7 @@ Production deployment utilities for the Radium Service Desk Laravel application.
 >
 > **`desk deploy`** routes to the **KVM rsync deployment** when `DEPLOY_MODE=kvm` (current production). It does **not** run the legacy shared-hosting git-pull flow. Use **`desk deploy-legacy`** only for the old shared-hosting layout.
 >
-> **`desk rollback`** is **not KVM-ready** (remote `git reset`). Do not use it on the KVM until migrated.
+> **`desk rollback`** is **disabled on KVM** (no remote `git reset`). Future KVM rollback will redeploy a known-good release/tag through the KVM deployment flow (not automated yet). To recover now, manually redeploy a known-good tag with **`desk deploy`**. Use **`desk rollback-legacy`** only for the old shared-hosting layout when `DEPLOY_MODE` is not `kvm`.
 >
 > **Hostinger Shared Cloud** remains active separately for **encrypted backup storage** (`/root/.radium-backup.env` on the KVM). It is not the app deploy target and is not configured in this toolkit.
 
@@ -221,15 +221,31 @@ Runs `php artisan optimize:clear` followed by `php artisan optimize`. Use after 
 
 ### `desk rollback`
 
-Roll back the remote Git repository and refresh dependencies.
+**Unavailable when `DEPLOY_MODE=kvm`.** The KVM has no remote Git repository; `desk rollback` refuses immediately and does not run any remote `git` commands.
+
+Future KVM rollback will redeploy a known-good release/tag through the KVM deployment flow (`desk deploy`). That workflow is **not automated yet**.
+
+**KVM recovery today:** check out the desired release tag locally, then run `desk deploy` (same rsync flow as a forward deploy). Review migration impact before redeploying an older release.
+
+```bash
+./tools/desk rollback   # disabled when DEPLOY_MODE=kvm
+```
+
+---
+
+### `desk rollback-legacy`
+
+**Legacy shared-hosting only.** Requires `DEPLOY_MODE` **not** set to `kvm`. Runs [`commands/rollback.sh`](commands/rollback.sh): remote `git reset --hard`, then composer, migrate, and cache rebuild.
 
 ```bash
 # Roll back one commit (default)
-./tools/desk rollback
+./tools/desk rollback-legacy
 
 # Roll back three commits
-./tools/desk rollback 3
+./tools/desk rollback-legacy 3
 ```
+
+Blocked when `DEPLOY_MODE=kvm` — use manual tag redeploy via `desk deploy` instead.
 
 **What it does:**
 
@@ -260,7 +276,7 @@ tools/
 │   ├── ssh.sh        Interactive SSH session
 │   ├── logs.sh       Remote log tailing
 │   ├── cache.sh      Remote cache management
-│   └── rollback.sh   Remote git rollback
+│   └── rollback.sh   Legacy shared-hosting git rollback
 └── README.md         This file
 ```
 
