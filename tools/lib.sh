@@ -458,8 +458,9 @@ kvm_doctor_check_supervisor_program() {
 }
 
 # Verify Redis connectivity via Laravel's configured connection (no secret output).
+# Use throw-on-failure in tinker --execute; exit() does not propagate shell exit 0 on production PsySH.
 kvm_doctor_check_redis() {
-    php_exec tinker --execute="exit(Illuminate\\Support\\Facades\\Redis::connection()->ping() ? 0 : 1);" >/dev/null 2>&1
+    php_exec tinker --execute="if (! Illuminate\\Support\\Facades\\Redis::connection()->ping()) { throw new RuntimeException('Redis ping failed'); }" >/dev/null 2>&1
 }
 
 # Legacy shared-hosting doctor check: Laravel and public_html Vite manifests match.

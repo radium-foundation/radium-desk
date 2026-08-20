@@ -44,6 +44,16 @@ grep -q 'SUPERVISOR_PROGRAM' "$LIB" || fail "lib must use SUPERVISOR_PROGRAM for
 
 pass "doctor KVM/legacy branching guards present"
 
+# --- Redis check: throw-on-failure, not tinker exit() ---
+
+REDIS_FN="$(awk '/^kvm_doctor_check_redis\(\)/,/^}/' "$LIB")"
+echo "$REDIS_FN" | grep -q 'Redis::connection()->ping()' || fail "redis check must ping Laravel Redis connection"
+echo "$REDIS_FN" | grep -q 'throw new RuntimeException' || fail "redis check must throw on ping failure"
+if echo "$REDIS_FN" | grep -q 'exit('; then
+    fail "redis check must not use tinker exit() (false negative on production)"
+fi
+pass "redis check uses throw-on-failure, not tinker exit()"
+
 # --- mocked execution: KVM path skips legacy checks ---
 
 MOCK_BIN="$FIXTURES/bin"
@@ -162,6 +172,72 @@ if [[ "$DOCTOR_OUTPUT" != "failures=0" ]]; then
 fi
 
 pass "mocked KVM doctor helper checks succeed"
+
+# --- Redis check exit codes via mocked remote artisan ---
+
+cat > "$MOCK_BIN/php-redis" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$*" == *"artisan"* && "$*" == *"tinker"* ]]; then
+    if [[ "$*" == *"exit("* && "$*" == *"Redis::connection()->ping()"* ]]; then
+        exit 1
+    fi
+    exit 0
+fi
+exit 0
+EOF
+chmod +x "$MOCK_BIN/php-redis"
+
+run_mocked_redis_check() {
+    local php_bin="$1"
+    local expected_exit="$2"
+    local label="$3"
+    local actual_exit=0
+
+    (
+        export PATH="$MOCK_BIN:$PATH"
+        export SSH_HOST=mock-host SSH_PORT=22 SSH_USER=mock
+
+        # shellcheck source=tools/lib.sh
+        source "$LIB"
+
+        export REMOTE_PROJECT="$MOCK_PROJECT" PHP_BIN="$php_bin" COMPOSER_BIN=composer
+
+        ssh_exec() {
+            if [[ "$*" == *"Redis::connection()->ping()"* ]]; then
+                "$MOCK_BIN/$PHP_BIN" artisan tinker --execute="mock-redis-check"
+                return $?
+            fi
+            bash -c "$*"
+        }
+
+        if kvm_doctor_check_redis; then
+            actual_exit=0
+        else
+            actual_exit=1
+        fi
+
+        exit "$actual_exit"
+    ) && actual_exit=0 || actual_exit=1
+
+    if [[ "$actual_exit" -ne "$expected_exit" ]]; then
+        fail "${label}: expected exit ${expected_exit}, got ${actual_exit}"
+    fi
+}
+
+run_mocked_redis_check "php-redis" 0 "successful Redis ping"
+pass "successful Redis ping passes kvm_doctor_check_redis"
+
+cat > "$MOCK_BIN/php-redis-fail" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$*" == *"artisan"* && "$*" == *"tinker"* ]]; then
+    exit 1
+fi
+exit 0
+EOF
+chmod +x "$MOCK_BIN/php-redis-fail"
+
+run_mocked_redis_check "php-redis-fail" 1 "failed Redis ping"
+pass "failed Redis ping fails kvm_doctor_check_redis"
 
 # Legacy parity helper must use LEGACY_REMOTE_PUBLIC, not REMOTE_PUBLIC.
 if ! grep -q 'remote_public_manifest="${LEGACY_REMOTE_PUBLIC}/build/manifest.json"' "$LIB"; then

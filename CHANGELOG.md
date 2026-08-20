@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.45 — 2026-08-20 — KVM Doctor Redis Check
+
+- Fixed the KVM doctor Redis connectivity check so it reliably reports Laravel Redis connectivity instead of failing when Redis is healthy.
+
 ## 4.0.44 — 2026-08-20 — Backup Status, Cloud Inventory & KVM Deployment
 
 - Added Backup Status in Administration to review local and cloud backup health, last-run outcomes, and manifest visibility without shell access.
