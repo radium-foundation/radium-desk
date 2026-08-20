@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.50 — 2026-08-20 — Scheduler Timezone Hardening
+
+- Pinned Laravel scheduler evaluation to Asia/Kolkata using a dedicated schedule timezone configuration.
+- Added regression coverage to ensure scheduled Telegram and other IST-based jobs do not drift to UTC execution times.
+
 ## 4.0.49 — 2026-08-20 — KVM Deploy Ownership Hardening
 
 - KVM ownership traversal now skips excluded storage/logs and node_modules paths.
