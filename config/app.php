@@ -105,6 +105,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Scheduler Timezone
+    |--------------------------------------------------------------------------
+    |
+    | Cron expressions (dailyAt, hourly, etc.) are evaluated in this timezone.
+    | Kept separate from app.timezone so business schedules stay on Asia/Kolkata
+    | even when settings.general.timezone or APP_TIMEZONE changes at runtime.
+    |
+    */
+
+    'schedule_timezone' => env('APP_SCHEDULE_TIMEZONE', 'Asia/Kolkata'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |
