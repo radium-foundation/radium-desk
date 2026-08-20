@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.48 — 2026-08-20 — KVM Deploy Hardening
+
+- Excluded bootstrap/cache from deployment rsync so production-generated Laravel caches are preserved until optimize rebuilds them after deploy.
+- Fixed KVM deploy ownership handling to skip storage/logs and apply ownership using the configured SSH user, avoiding failures on Supervisor-owned log files.
+- Added regression tests for bootstrap/cache rsync protection and Supervisor-safe ownership handling.
+
 ## 4.0.47 — 2026-08-20 — Worktree-Safe Release Snapshot
 
 - Fixed release snapshot Git metadata detection so it works correctly from linked Git worktrees used during KVM deployment.
