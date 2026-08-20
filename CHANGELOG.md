@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.49 — 2026-08-20 — KVM Deploy Ownership Hardening
+
+- KVM ownership traversal now skips excluded storage/logs and node_modules paths.
+- This prevents deployment failure on Supervisor-owned logs and legacy dangling node_modules symlinks.
+- Regression coverage was extended for the excluded-path ownership handling.
+
 ## 4.0.48 — 2026-08-20 — KVM Deploy Hardening
 
 - Excluded bootstrap/cache from deployment rsync so production-generated Laravel caches are preserved until optimize rebuilds them after deploy.
