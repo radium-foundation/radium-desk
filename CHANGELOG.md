@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.56 — 2026-08-21 — Order Telegram Deep Link Fix
+
+- Order identifiers in operational Telegram messages now open the Dashboard with Customer-360 auto-loaded, instead of an unstyled fragment page.
+- Case and refund Telegram deep links are unchanged; text_link entity behavior is unchanged.
+
 ## 4.0.55 — 2026-08-21 — Clickable Operational Identifiers
 
 - Authorized case, refund, and order business identifiers in operational Telegram messages are now tappable using Telegram text_link entities.
