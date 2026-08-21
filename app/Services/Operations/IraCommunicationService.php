@@ -536,10 +536,10 @@ class IraCommunicationService
 
         return match ($input->event) {
             IraNotificationType::DailyBriefing,
-            IraNotificationType::RiskAlert,
-            IraNotificationType::UnusualBacklog,
             IraNotificationType::IntegrationFailure,
             IraNotificationType::CriticalSystemAlert => $this->ownerUsers(),
+            IraNotificationType::RiskAlert,
+            IraNotificationType::UnusualBacklog => collect(),
             IraNotificationType::UnassignedScheduledWork,
             IraNotificationType::WaitingCustomerRisk,
             IraNotificationType::TeamAvailabilityIssue,

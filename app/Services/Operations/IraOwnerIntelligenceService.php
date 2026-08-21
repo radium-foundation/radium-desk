@@ -10,10 +10,12 @@ use App\Enums\IncidentStatus;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\OperationQueue;
 use App\Enums\OperationsKpiProfile;
+use App\Enums\RefundStatus;
 use App\Enums\PerformancePeriod;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\LeaveRequest;
+use App\Models\RefundRequest;
 use App\Models\User;
 use App\Models\WorkforceAttendanceDay;
 use App\ReadModels\Cases\CaseQueueReadModel;
@@ -147,6 +149,9 @@ class IraOwnerIntelligenceService
      *     cases_created: int,
      *     cases_closed: int,
      *     escalated_today: int,
+     *     refunds_pending_approval: int,
+     *     refunds_pending_execution: int,
+     *     refunds_submitted_today: int,
      * }
      */
     private function buildMorningOperationsSection(IraMorningBriefing $briefing, Carbon $at): array
@@ -154,6 +159,7 @@ class IraOwnerIntelligenceService
         $operations = $briefing->snapshot->operations;
         $dashboard = DashboardSnapshot::load();
         $slaCounts = $this->caseQueueReadModel->slaCounts($at);
+        $refunds = $this->buildRefundSummarySection($at);
 
         return [
             'open_cases' => (int) ($operations['open_cases'] ?? $this->caseQueueReadModel->openCount()),
@@ -167,6 +173,9 @@ class IraOwnerIntelligenceService
             'cases_created' => 0,
             'cases_closed' => 0,
             'escalated_today' => 0,
+            'refunds_pending_approval' => $refunds['pending_approval'],
+            'refunds_pending_execution' => $refunds['pending_execution'],
+            'refunds_submitted_today' => $refunds['submitted_today'],
         ];
     }
 
@@ -182,6 +191,9 @@ class IraOwnerIntelligenceService
      *     cases_created: int,
      *     cases_closed: int,
      *     escalated_today: int,
+     *     refunds_pending_approval: int,
+     *     refunds_pending_execution: int,
+     *     refunds_submitted_today: int,
      * }
      */
     private function buildEveningOperationsSection(Carbon $at): array
@@ -190,6 +202,7 @@ class IraOwnerIntelligenceService
         $slaCounts = $this->caseQueueReadModel->slaCounts($at);
         $rangeStart = $at->copy()->startOfDay();
         $rangeEnd = $at->copy()->endOfDay();
+        $refunds = $this->buildRefundSummarySection($at);
 
         return [
             'open_cases' => $this->caseQueueReadModel->openCount(),
@@ -212,6 +225,9 @@ class IraOwnerIntelligenceService
                 ->where('auditable_type', Incident::class)
                 ->whereBetween('created_at', [$rangeStart, $rangeEnd])
                 ->count(),
+            'refunds_pending_approval' => $refunds['pending_approval'],
+            'refunds_pending_execution' => $refunds['pending_execution'],
+            'refunds_submitted_today' => $refunds['submitted_today'],
         ];
     }
 
@@ -463,6 +479,31 @@ class IraOwnerIntelligenceService
         }
 
         return $count;
+    }
+
+    /**
+     * @return array{
+     *     pending_approval: int,
+     *     pending_execution: int,
+     *     submitted_today: int,
+     * }
+     */
+    private function buildRefundSummarySection(Carbon $at): array
+    {
+        $rangeStart = $at->copy()->startOfDay();
+        $rangeEnd = $at->copy()->endOfDay();
+
+        return [
+            'pending_approval' => RefundRequest::query()
+                ->where('status', RefundStatus::Pending)
+                ->count(),
+            'pending_execution' => RefundRequest::query()
+                ->where('status', RefundStatus::PendingExecution)
+                ->count(),
+            'submitted_today' => RefundRequest::query()
+                ->whereBetween('created_at', [$rangeStart, $rangeEnd])
+                ->count(),
+        ];
     }
 
     private function timeoutCountForUser(

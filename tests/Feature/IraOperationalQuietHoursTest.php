@@ -50,26 +50,19 @@ class IraOperationalQuietHoursTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_high_priority_sla_risk_can_send_before_quiet_hours(): void
+    public function test_high_priority_sla_risk_remains_suppressed_outside_quiet_hours(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-09 20:59:00', 'Asia/Kolkata'));
 
-        Http::fake([
-            'api.telegram.org/*' => Http::response([
-                'ok' => true,
-                'result' => ['message_id' => 1],
-            ], 200),
-        ]);
+        Http::fake();
 
-        $owner = $this->createOwnerWithTelegram('100200300');
+        $this->createOwnerWithTelegram('100200300');
         $service = app(IraCommunicationService::class);
 
         $results = $service->sendRiskAlerts($this->briefingWithSlaDanger());
 
-        $this->assertCount(1, $results);
-        $this->assertSame(IraNotificationStatus::Sent, $results[0]->status);
-        $this->assertSame($owner->id, $results[0]->user_id);
-        Http::assertSentCount(1);
+        $this->assertSame([], $results);
+        Http::assertNothingSent();
     }
 
     public function test_high_priority_sla_risk_suppressed_at_quiet_hours_start(): void
@@ -123,26 +116,19 @@ class IraOperationalQuietHoursTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_routine_risk_can_send_again_at_quiet_hours_end(): void
+    public function test_routine_risk_remains_suppressed_after_quiet_hours_end(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-10 08:00:00', 'Asia/Kolkata'));
 
-        Http::fake([
-            'api.telegram.org/*' => Http::response([
-                'ok' => true,
-                'result' => ['message_id' => 2],
-            ], 200),
-        ]);
+        Http::fake();
 
-        $owner = $this->createOwnerWithTelegram('100200304');
+        $this->createOwnerWithTelegram('100200304');
         $service = app(IraCommunicationService::class);
 
         $results = $service->sendRiskAlerts($this->briefingWithSlaDanger());
 
-        $this->assertCount(1, $results);
-        $this->assertSame(IraNotificationStatus::Sent, $results[0]->status);
-        $this->assertSame($owner->id, $results[0]->user_id);
-        Http::assertSentCount(1);
+        $this->assertSame([], $results);
+        Http::assertNothingSent();
     }
 
     public function test_integration_failure_suppressed_during_quiet_hours(): void
@@ -207,16 +193,12 @@ class IraOperationalQuietHoursTest extends TestCase
         $owner = $this->createOwnerWithTelegram('100200307');
         $service = app(IraCommunicationService::class);
         $input = new IraCommunicationInput(
-            event: IraNotificationType::RiskAlert,
-            insight: new IraOperationalRisk(
-                key: 'customer.sla_danger',
-                title: 'SLA Breach Risk',
-                category: IraRiskCategory::Customer,
-                severity: AIRiskLevel::High,
-                message: '3 cases risk SLA breach.',
-                context: ['overdue' => 2, 'warning' => 1],
-            ),
-            context: ['dedupe_key' => 'customer.sla_danger'],
+            event: IraNotificationType::IntegrationFailure,
+            context: [
+                'label' => 'Email',
+                'message' => 'SMTP unavailable.',
+                'dedupe_key' => 'integration:email',
+            ],
         );
 
         $first = $service->dispatch($input);
