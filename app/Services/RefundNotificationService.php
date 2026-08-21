@@ -17,6 +17,7 @@ use App\Services\CommunicationActions\CommunicationActionVariableResolver;
 use App\Services\Notifications\NotificationAuthorityService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Telegram\TelegramBotService;
+use App\Support\Telegram\TelegramOperationalLinkFormatter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -33,6 +34,7 @@ class RefundNotificationService
         private readonly CommunicationActionVariableResolver $variableResolver,
         private readonly CommunicationActionLifecycleService $lifecycleService,
         private readonly NotificationDispatcher $notificationDispatcher,
+        private readonly TelegramOperationalLinkFormatter $operationalLinkFormatter,
     ) {}
 
     public function notifyApproversOfSubmission(RefundRequest $refund): void
@@ -43,7 +45,7 @@ class RefundNotificationService
                 refund: $refund,
                 inAppNotification: new RefundRequestSubmittedNotification($refund),
                 telegramTitle: 'Refund Request Submitted',
-                telegramMessage: $this->formatSubmittedTelegramMessage($refund),
+                telegramMessage: '',
                 trigger: 'submitted',
             );
         }
@@ -352,7 +354,7 @@ class RefundNotificationService
             && $this->telegramBot->isConfigured() && filled($recipient->telegram_chat_id)) {
             $sendResult = $this->telegramBot->sendMessage(
                 chatId: (string) $recipient->telegram_chat_id,
-                text: implode("\n", [$telegramTitle, '', $telegramMessage]),
+                text: $this->formatRefundTelegramMessage($recipient, $refund, $trigger),
             );
             $delivered = $delivered || $sendResult->success;
         }
@@ -372,11 +374,43 @@ class RefundNotificationService
         }
     }
 
-    private function formatSubmittedTelegramMessage(RefundRequest $refund): string
+    private function formatRefundTelegramMessage(User $recipient, RefundRequest $refund, string $trigger): string
     {
-        $requester = $refund->requester?->name ?? 'Agent';
+        if ($trigger !== 'submitted') {
+            return implode("\n", [
+                $this->decisionTelegramTitle($refund),
+                '',
+                $this->formatDecisionTelegramMessage($refund),
+            ]);
+        }
 
-        return "{$requester} submitted {$refund->reference_no} (₹".number_format($refund->displayAmount(), 2).').';
+        $refund->loadMissing(['requester', 'order']);
+        $lines = [
+            '💰 Refund submitted',
+            '',
+            'Refund: '.$refund->reference_no,
+            'Amount: ₹'.number_format($refund->displayAmount(), 2),
+        ];
+
+        $link = $this->operationalLinkFormatter->linkLine(
+            'Open Refund',
+            $this->operationalLinkFormatter->refundLink($recipient, $refund),
+        );
+
+        if ($link !== null) {
+            $lines[] = $link;
+        }
+
+        $orderLink = $this->operationalLinkFormatter->linkLine(
+            'Open Order',
+            $this->operationalLinkFormatter->orderLink($recipient, $refund->order),
+        );
+
+        if ($orderLink !== null) {
+            $lines[] = $orderLink;
+        }
+
+        return implode("\n", $lines);
     }
 
     private function shouldSendRefundTelegram(User $recipient, string $trigger): bool

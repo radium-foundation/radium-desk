@@ -8,9 +8,9 @@ use Illuminate\Console\Command;
 
 class SendIraOpsDigestCommand extends Command
 {
-    protected $signature = 'ira:send-ops-digest {--period=auto : Digest period key (open, close, or auto)}';
+    protected $signature = 'ira:send-ops-digest {--period=auto : Digest period key (morning, evening, open, close, or auto)}';
 
-    protected $description = 'Send Ira operations digest via Telegram to operational recipients';
+    protected $description = 'Send Ira operations summary via Telegram to operational recipients';
 
     public function handle(
         IraOperationsBrainService $brainService,
@@ -28,17 +28,17 @@ class SendIraOpsDigestCommand extends Command
             ));
         }
 
-        $this->info("Ira operations digest ({$period}) processed. {$sentCount} message(s) delivered.");
+        $this->info("Ira operations summary ({$period}) processed. {$sentCount} message(s) delivered.");
 
         return self::SUCCESS;
     }
 
     private function resolvePeriod(string $period): string
     {
-        if (in_array($period, ['open', 'close'], true)) {
-            return $period;
-        }
-
-        return (int) now()->format('G') < 14 ? 'open' : 'close';
+        return match ($period) {
+            'morning', 'open' => 'morning',
+            'evening', 'close' => 'evening',
+            default => (int) now()->format('G') < 14 ? 'morning' : 'evening',
+        };
     }
 }

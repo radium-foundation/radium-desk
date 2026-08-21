@@ -158,7 +158,7 @@ class IraTelegramCommunicationTest extends TestCase
 
     public function test_ops_digest_sent_to_operational_recipients_only(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-07-09 08:15:00', 'Asia/Kolkata'));
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
 
         Http::fake([
             'api.telegram.org/*' => Http::response([
@@ -193,7 +193,7 @@ class IraTelegramCommunicationTest extends TestCase
 
         $this->assertCount(1, $results);
         $this->assertSame(IraNotificationStatus::Sent, $results[0]->status);
-        $this->assertStringContainsString('Operations Digest', $results[0]->message);
+        $this->assertStringContainsString('Morning Operations Summary', $results[0]->message);
         $this->assertStringContainsString('Waiting backlog', $results[0]->message);
         $this->assertStringContainsString('SLA risk', $results[0]->message);
         $this->assertStringContainsString('Missed appointments', $results[0]->message);
@@ -263,7 +263,7 @@ class IraTelegramCommunicationTest extends TestCase
 
     public function test_ops_digest_cooldown_prevents_same_period_resend_within_day(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-07-09 08:15:00', 'Asia/Kolkata'));
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
 
         Http::fake([
             'api.telegram.org/*' => Http::response([

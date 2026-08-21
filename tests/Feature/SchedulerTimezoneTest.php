@@ -19,8 +19,8 @@ class SchedulerTimezoneTest extends TestCase
     /** @var list<string> */
     private const TELEGRAM_EVENT_NEEDLES = [
         'ira:send-daily-briefing',
-        'ira:send-ops-digest --period=open',
-        'ira:send-ops-digest --period=close',
+        'ira:send-ops-digest --period=morning',
+        'ira:send-ops-digest --period=evening',
         'ira:send-owner-intelligence --period=morning',
         'ira:send-owner-intelligence --period=evening',
         'ira:send-risk-alerts',

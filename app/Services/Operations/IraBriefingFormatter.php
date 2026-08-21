@@ -371,47 +371,182 @@ class IraBriefingFormatter
         return rtrim($recommendation->message, '.').'.';
     }
 
-    public function formatOpsDigest(IraMorningBriefing $briefing, ?string $recipientFirstName = null, ?Carbon $at = null): string
-    {
+    public function formatOpsDigest(
+        IraMorningBriefing $briefing,
+        string $period,
+        array $digestContext = [],
+        ?string $recipientFirstName = null,
+        ?Carbon $at = null,
+    ): string {
         $at = $this->appNow($at);
         $greeting = $this->greeting($recipientFirstName, $at);
-        $operations = $briefing->snapshot->operations;
+        $normalizedPeriod = in_array($period, ['morning', 'open'], true) ? 'morning' : 'evening';
+        $title = $normalizedPeriod === 'morning'
+            ? 'Morning Operations Summary'
+            : 'Evening Operations Summary';
 
-        $overdue = (int) ($operations['overdue'] ?? 0);
-        $warning = (int) ($operations['warning'] ?? 0);
-        $waiting = (int) ($operations['waiting'] ?? 0);
-        $missedAppointments = (int) ($operations['missed_appointments'] ?? 0);
-
-        $overloadLines = [];
-        foreach ($briefing->risks as $risk) {
-            if (! str_starts_with($risk->key, 'team.overload.')) {
-                continue;
-            }
-
-            $overloadLines[] = $risk->message;
-        }
+        $team = is_array($digestContext['team'] ?? null) ? $digestContext['team'] : [];
+        $operations = is_array($digestContext['operations'] ?? null)
+            ? $digestContext['operations']
+            : $briefing->snapshot->operations;
+        $refunds = is_array($digestContext['refunds'] ?? null) ? $digestContext['refunds'] : [];
+        $overloadLines = is_array($digestContext['overload_lines'] ?? null) ? $digestContext['overload_lines'] : [];
 
         $sections = [
             $greeting,
             '',
-            "Operations Digest\n".$this->bulletLines([
-                'SLA risk: '.$overdue.' overdue, '.$warning.' warning',
-                'Waiting backlog: '.$waiting,
-                'Missed appointments: '.$missedAppointments,
+            $title,
+            '',
+            '👥 Team',
+            $this->bulletLines([
+                'Present: '.$this->nameSummary($team['present'] ?? []),
+                'Absent: '.$this->nameSummary($team['absent'] ?? []),
+                'On leave: '.$this->nameSummary($team['on_leave'] ?? []),
+                'Pending leave approvals: '.(int) ($team['pending_leave_approvals'] ?? 0),
             ]),
         ];
 
-        if ($overloadLines !== []) {
-            $sections[] = "\nOverloaded agents\n".$this->bulletLines(array_slice($overloadLines, 0, 5));
+        $lateLines = $this->lateArrivalLines($team['late_arrivals'] ?? []);
+        if ($lateLines !== []) {
+            $sections[] = '';
+            $sections[] = '⏰ Late arrivals';
+            $sections[] = $this->bulletLines($lateLines);
         }
 
-        $message = implode('', $sections);
+        $shortfallLines = $this->attendanceShortfallLines($team['attendance_shortfalls'] ?? []);
+        if ($shortfallLines !== []) {
+            $sections[] = '';
+            $sections[] = '⌛ Attendance shortfall';
+            $sections[] = $this->bulletLines($shortfallLines);
+        }
+
+        $sections[] = '';
+        $sections[] = '📊 Operations';
+        $sections[] = $this->bulletLines([
+            'Open cases: '.(int) ($operations['open_cases'] ?? 0),
+            'SLA risk: '.(int) ($operations['overdue'] ?? 0).' overdue, '.(int) ($operations['warning'] ?? 0).' warning',
+            'Waiting backlog: '.(int) ($operations['waiting'] ?? 0),
+            'Missed appointments: '.(int) ($operations['missed_appointments'] ?? 0),
+            'Unassigned scheduled: '.(int) ($operations['unassigned_scheduled'] ?? 0),
+        ]);
+
+        if ($normalizedPeriod === 'evening') {
+            $sections[] = $this->bulletLines([
+                'Unassigned important: '.(int) ($operations['unassigned_important'] ?? 0),
+                'Escalations pending: '.(int) ($operations['escalations_pending'] ?? 0),
+            ]);
+        }
+
+        $sections[] = $this->bulletLines([
+            'Refunds: '.(int) ($refunds['pending_approval'] ?? 0).' pending approval, '
+                .(int) ($refunds['pending_execution'] ?? 0).' pending execution, '
+                .(int) ($refunds['submitted_today'] ?? 0).' submitted today',
+        ]);
+
+        if ($overloadLines !== []) {
+            $sections[] = '';
+            $sections[] = 'Overloaded agents';
+            $sections[] = $this->bulletLines(array_slice($overloadLines, 0, 5));
+        }
+
+        if ($normalizedPeriod === 'evening') {
+            $unresolved = array_values(array_filter([
+                (int) ($operations['escalations_pending'] ?? 0) > 0
+                    ? (int) $operations['escalations_pending'].' escalation(s) pending'
+                    : null,
+                (int) ($operations['unassigned_important'] ?? 0) > 0
+                    ? (int) $operations['unassigned_important'].' unassigned important case(s)'
+                    : null,
+                (int) ($operations['unassigned_scheduled'] ?? 0) > 0
+                    ? (int) $operations['unassigned_scheduled'].' unassigned scheduled case(s)'
+                    : null,
+            ]));
+
+            if ($unresolved !== []) {
+                $sections[] = '';
+                $sections[] = 'Needs handover';
+                $sections[] = $this->bulletLines($unresolved);
+            }
+        }
+
+        $message = implode("\n", $sections);
 
         if (strlen($message) > self::TELEGRAM_MAX_LENGTH) {
             $message = substr($message, 0, self::TELEGRAM_MAX_LENGTH - 3).'...';
         }
 
         return $message;
+    }
+
+    /**
+     * @param  list<string>  $names
+     */
+    private function nameSummary(array $names): string
+    {
+        if ($names === []) {
+            return 'none';
+        }
+
+        if (count($names) <= 3) {
+            return implode(', ', $names);
+        }
+
+        $visible = array_slice($names, 0, 3);
+
+        return implode(', ', $visible).' +'.(count($names) - 3).' more';
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $lateArrivals
+     * @return list<string>
+     */
+    private function lateArrivalLines(array $lateArrivals): array
+    {
+        $lines = [];
+
+        foreach ($lateArrivals as $entry) {
+            $name = (string) ($entry['name'] ?? 'Unknown');
+            $minutesLate = (int) ($entry['minutes_late'] ?? 0);
+            $loginAt = trim((string) ($entry['login_at'] ?? ''));
+            $lateDays = (int) ($entry['late_days_in_window'] ?? 0);
+            $evaluatedDays = (int) ($entry['evaluated_days'] ?? 0);
+
+            $line = "{$name} — late {$minutesLate} min";
+
+            if ($loginAt !== '') {
+                $line .= " (login {$loginAt})";
+            }
+
+            if ($evaluatedDays >= 3 && $lateDays >= 3) {
+                $line .= "; late on {$lateDays} of last {$evaluatedDays} working days";
+            }
+
+            $lines[] = $line;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $shortfalls
+     * @return list<string>
+     */
+    private function attendanceShortfallLines(array $shortfalls): array
+    {
+        $lines = [];
+
+        foreach ($shortfalls as $entry) {
+            $name = (string) ($entry['name'] ?? 'Unknown');
+            $minutes = (int) ($entry['shortfall_minutes'] ?? 0);
+
+            if ($minutes <= 0) {
+                continue;
+            }
+
+            $lines[] = "{$name} — expected shortfall {$minutes} min";
+        }
+
+        return $lines;
     }
 
     private function appNow(?Carbon $at): Carbon

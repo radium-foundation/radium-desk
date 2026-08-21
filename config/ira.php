@@ -98,6 +98,15 @@ return [
             'start' => '21:00',
             'end' => '08:00',
         ],
+        'admin_quiet_hours' => [
+            'enabled' => true,
+            'start' => '18:30',
+            'end' => '09:00',
+        ],
+        'admin_ops_digest' => [
+            'morning_time' => '10:00',
+            'evening_time' => '20:30',
+        ],
         'assignment_telegram_batch' => [
             'enabled' => (bool) env('IRA_ASSIGNMENT_TELEGRAM_BATCH_ENABLED', true),
             'delay_minutes' => max(1, (int) env('IRA_ASSIGNMENT_TELEGRAM_BATCH_DELAY_MINUTES', 5)),
