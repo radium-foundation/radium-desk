@@ -152,13 +152,13 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-daily-briefing.log'));
 
-        $schedule->command('ira:send-ops-digest --period=open')
-            ->dailyAt('08:15')
+        $schedule->command('ira:send-ops-digest --period=morning')
+            ->dailyAt(config('ira.communication.admin_ops_digest.morning_time', '10:00'))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-ops-digest.log'));
 
-        $schedule->command('ira:send-ops-digest --period=close')
-            ->dailyAt('18:30')
+        $schedule->command('ira:send-ops-digest --period=evening')
+            ->dailyAt(config('ira.communication.admin_ops_digest.evening_time', '20:30'))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-ops-digest.log'));
 

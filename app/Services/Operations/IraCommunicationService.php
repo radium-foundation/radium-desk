@@ -24,7 +24,9 @@ use App\Services\Notifications\IraNotificationCategoryMapper;
 use App\Services\Notifications\NotificationAuthorityService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Notifications\NotificationRecipientResolver;
+use App\Support\Telegram\TelegramOperationalLinkFormatter;
 use App\Services\Telegram\TelegramBotService;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -63,6 +65,9 @@ class IraCommunicationService
         private readonly NotificationAuthorityService $notificationAuthority,
         private readonly IraNotificationPolicyService $notificationPolicy,
         private readonly IraOperationalQuietHoursService $operationalQuietHours,
+        private readonly AdminOperationalQuietHoursService $adminOperationalQuietHours,
+        private readonly IraAdminOpsDigestContextService $adminOpsDigestContext,
+        private readonly TelegramOperationalLinkFormatter $operationalLinkFormatter,
     ) {}
 
     /**
@@ -78,6 +83,10 @@ class IraCommunicationService
             }
 
             if ($this->isOnCooldown($user, $input)) {
+                continue;
+            }
+
+            if ($this->shouldSuppressRoutineOperationalTelegram($user, $input)) {
                 continue;
             }
 
@@ -202,12 +211,17 @@ class IraCommunicationService
      */
     public function sendOpsDigest(User $user, IraMorningBriefing $briefing, string $period): array
     {
+        $normalizedPeriod = $this->normalizeOpsDigestPeriod($period);
+        $digestContext = $this->adminOpsDigestContext->build($briefing, $normalizedPeriod);
+
         return $this->dispatch(new IraCommunicationInput(
             event: IraNotificationType::OpsDigest,
             context: [
                 'user_id' => $user->id,
                 'briefing' => $briefing,
-                'dedupe_key' => 'ops_digest:'.$briefing->snapshot->date.':'.$period,
+                'period' => $normalizedPeriod,
+                'digest_context' => $digestContext,
+                'dedupe_key' => 'ops_digest:'.$briefing->snapshot->date.':'.$normalizedPeriod,
             ],
         ));
     }
@@ -566,6 +580,10 @@ class IraCommunicationService
             return false;
         }
 
+        if ($this->isAdminOpsRecipient($user)) {
+            return false;
+        }
+
         $incident = $this->resolveIncidentFromInput($input);
 
         return ! $this->notificationPolicy->canNotifyNowWithContext(
@@ -734,15 +752,26 @@ class IraCommunicationService
         $briefing = $input->context['briefing'] ?? null;
 
         if (! $briefing instanceof IraMorningBriefing) {
-            return ['Operations Digest', 'Operations digest is unavailable.'];
+            return ['Operations Summary', 'Operations summary is unavailable.'];
         }
+
+        $period = $this->normalizeOpsDigestPeriod((string) ($input->context['period'] ?? 'morning'));
+        $digestContext = is_array($input->context['digest_context'] ?? null)
+            ? $input->context['digest_context']
+            : [];
 
         $message = $this->briefingFormatter->formatOpsDigest(
             briefing: $briefing,
+            period: $period,
+            digestContext: $digestContext,
             recipientFirstName: $user->firstName() ?: null,
         );
 
-        return ['Operations Digest', $message];
+        $title = $period === 'morning'
+            ? 'Morning Operations Summary'
+            : 'Evening Operations Summary';
+
+        return [$title, $message];
     }
 
     /**
@@ -833,6 +862,20 @@ class IraCommunicationService
         $lines[] = 'Device: '.($input->context['device'] ?? 'Unknown');
         $lines[] = 'Time: '.($input->context['time'] ?? 'Unknown');
         $lines[] = 'Case: '.($input->context['case'] ?? 'Unknown');
+
+        $recipient = $this->resolveAssignmentRecipient($input);
+        $incident = $this->resolveIncidentFromInput($input);
+
+        if ($recipient !== null && $incident !== null) {
+            $link = $this->operationalLinkFormatter->linkLine(
+                'Open Case',
+                $this->operationalLinkFormatter->incidentLink($recipient, $incident),
+            );
+
+            if ($link !== null) {
+                $lines[] = $link;
+            }
+        }
 
         return ['Support Assigned', implode("\n", $lines)];
     }
@@ -1149,5 +1192,65 @@ class IraCommunicationService
     private function operationsAdminUsers(): Collection
     {
         return $this->recipientResolver->operationalRecipients();
+    }
+
+    private function isAdminOpsRecipient(User $user): bool
+    {
+        return $user->hasAnyRole([
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+        ]);
+    }
+
+    private function shouldSuppressRoutineOperationalTelegram(User $user, IraCommunicationInput $input): bool
+    {
+        if (! $this->isAdminOpsRecipient($user)) {
+            return false;
+        }
+
+        if ($input->event === IraNotificationType::OpsDigest) {
+            return false;
+        }
+
+        if (in_array($input->event, [
+            IraNotificationType::ManualAssignment,
+            IraNotificationType::Reassignment,
+            IraNotificationType::SmartAssignment,
+            IraNotificationType::IraAssignmentBatch,
+            IraNotificationType::TeamAnnouncement,
+        ], true)) {
+            return false;
+        }
+
+        if (! in_array($input->event, [
+            IraNotificationType::TeamAvailabilityIssue,
+            IraNotificationType::UnassignedScheduledWork,
+        ], true)) {
+            return false;
+        }
+
+        return $this->adminOperationalQuietHours->isQuietHours();
+    }
+
+    private function normalizeOpsDigestPeriod(string $period): string
+    {
+        return match ($period) {
+            'morning', 'open' => 'morning',
+            'evening', 'close' => 'evening',
+            default => (int) now()->format('G') < 14 ? 'morning' : 'evening',
+        };
+    }
+
+    private function resolveAssignmentRecipient(IraCommunicationInput $input): ?User
+    {
+        $userId = $input->context['user_id'] ?? null;
+
+        if (! is_numeric($userId)) {
+            return null;
+        }
+
+        return User::query()
+            ->where('is_active', true)
+            ->find((int) $userId);
     }
 }

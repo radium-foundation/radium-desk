@@ -226,16 +226,13 @@ class IraNotificationPolicyTest extends TestCase
         $this->createWorkSchedule($owner);
 
         $results = app(IraCommunicationService::class)->dispatch(new IraCommunicationInput(
-            event: IraNotificationType::RiskAlert,
-            insight: new IraOperationalRisk(
-                key: 'customer.sla_danger',
-                title: 'SLA Breach Risk',
-                category: IraRiskCategory::Customer,
-                severity: AIRiskLevel::High,
-                message: '3 cases risk SLA breach.',
-                context: ['overdue' => 2, 'warning' => 1],
-            ),
-            context: ['dedupe_key' => 'customer.sla_danger'],
+            event: IraNotificationType::CriticalSystemAlert,
+            context: [
+                'label' => 'Queue',
+                'message' => '3 failed job(s) in dead-letter queue.',
+                'affected_count' => 3,
+                'dedupe_key' => 'watchdog:queue:dead_letter',
+            ],
         ));
 
         $this->assertNotEmpty($results);
