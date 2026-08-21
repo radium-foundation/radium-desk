@@ -29,6 +29,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class AdminTelegramNotificationPolicyTest extends TestCase
@@ -480,6 +481,25 @@ class AdminTelegramNotificationPolicyTest extends TestCase
             'Open Case',
             $formatter->incidentLink($guest, $incident),
         ));
+    }
+
+    public function test_operational_link_lines_use_bare_https_urls_not_markdown(): void
+    {
+        config(['app.url' => 'https://desk.radiumbox.com']);
+        URL::forceRootUrl('https://desk.radiumbox.com');
+        URL::forceScheme('https');
+
+        $admin = $this->createOpsAdmin('810013');
+        $incident = $this->createOpenIncident('RD-ADMIN-LINK');
+        $formatter = app(TelegramOperationalLinkFormatter::class);
+
+        $caseUrl = $formatter->incidentLink($admin, $incident);
+        $line = $formatter->linkLine('Open Case', $caseUrl);
+
+        $this->assertNotNull($caseUrl);
+        $this->assertStringStartsWith('https://', $caseUrl);
+        $this->assertSame("Open Case: {$caseUrl}", $line);
+        $this->assertStringNotContainsString('[Open Case](', (string) $line);
     }
 
     public function test_scheduler_timezone_remains_asia_kolkata(): void

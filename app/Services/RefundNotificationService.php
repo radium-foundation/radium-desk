@@ -401,13 +401,12 @@ class RefundNotificationService
             $lines[] = $link;
         }
 
-        $orderLink = $this->operationalLinkFormatter->linkLine(
-            'Open Order',
-            $this->operationalLinkFormatter->orderLink($recipient, $refund->order),
-        );
+        $orderUrl = $this->operationalLinkFormatter->orderLink($recipient, $refund->order);
+        $orderLine = $this->operationalLinkFormatter->linkLine('Open Order', $orderUrl)
+            ?? $this->operationalLinkFormatter->orderIdentifierLine($refund->order);
 
-        if ($orderLink !== null) {
-            $lines[] = $orderLink;
+        if ($orderLine !== null) {
+            $lines[] = $orderLine;
         }
 
         return implode("\n", $lines);
