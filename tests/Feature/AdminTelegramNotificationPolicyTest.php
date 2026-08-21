@@ -483,6 +483,50 @@ class AdminTelegramNotificationPolicyTest extends TestCase
         ));
     }
 
+    public function test_assignment_telegram_uses_text_link_entity_for_case_reference(): void
+    {
+        config(['app.url' => 'https://desk.radiumbox.com']);
+        URL::forceRootUrl('https://desk.radiumbox.com');
+        URL::forceScheme('https');
+
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 1],
+            ], 200),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createOpsAdmin('810014');
+        $incident = $this->createOpenIncident('RD-ADMIN-ENTITY');
+
+        app(IraCommunicationService::class)->dispatch(new IraCommunicationInput(
+            event: IraNotificationType::Reassignment,
+            context: [
+                'user_id' => $admin->id,
+                'incident_id' => $incident->id,
+                'case' => $incident->reference_no,
+                'customer' => 'Mohammad Nesar',
+                'device' => 'Device',
+                'time' => '22:00',
+                'dedupe_key' => 'reassignment:entity:'.$admin->id,
+            ],
+        ));
+
+        Http::assertSent(function ($request) use ($incident): bool {
+            $payload = $request->data();
+            $entities = $payload['entities'] ?? [];
+
+            return str_contains((string) ($payload['text'] ?? ''), 'Case: '.$incident->reference_no)
+                && ! str_contains((string) ($payload['text'] ?? ''), 'Open Case:')
+                && ! array_key_exists('parse_mode', $payload)
+                && is_array($entities)
+                && ($entities[0]['type'] ?? null) === 'text_link'
+                && ($entities[0]['url'] ?? null) === route('incidents.show', $incident, absolute: true);
+        });
+    }
+
     public function test_operational_link_lines_use_bare_https_urls_not_markdown(): void
     {
         config(['app.url' => 'https://desk.radiumbox.com']);

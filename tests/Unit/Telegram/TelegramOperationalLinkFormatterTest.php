@@ -28,6 +28,37 @@ class TelegramOperationalLinkFormatterTest extends TestCase
         $this->formatter = app(TelegramOperationalLinkFormatter::class);
     }
 
+    public function test_authorized_operational_links_include_case_refund_and_order_identifiers(): void
+    {
+        $admin = $this->createAdmin();
+        $incident = $this->createIncident($admin, 'SC40157');
+        $refund = $this->createRefund($admin, 'REF-2026-000212');
+        $order = $this->createOrder($admin, 'RD3497836');
+
+        $links = $this->formatter->authorizedOperationalLinks($admin, $incident, $refund, $order);
+
+        $this->assertCount(3, $links);
+        $this->assertSame('SC40157', $links[0]['text']);
+        $this->assertSame('REF-2026-000212', $links[1]['text']);
+        $this->assertSame('RD3497836', $links[2]['text']);
+    }
+
+    public function test_outbound_message_adds_text_link_entities_without_visible_urls(): void
+    {
+        $admin = $this->createAdmin();
+        $incident = $this->createIncident($admin, 'SC40157');
+        $url = $this->formatter->incidentLink($admin, $incident);
+
+        $message = $this->formatter->outboundMessageWithTextLinks('Case: SC40157', [
+            ['text' => 'SC40157', 'url' => (string) $url],
+        ]);
+
+        $this->assertSame('Case: SC40157', $message->text);
+        $this->assertNotNull($message->entities);
+        $this->assertStringNotContainsString('https://', $message->text);
+        $this->assertSame('text_link', $message->entities[0]['type']);
+    }
+
     public function test_case_link_line_uses_bare_https_url(): void
     {
         $admin = $this->createAdmin();
