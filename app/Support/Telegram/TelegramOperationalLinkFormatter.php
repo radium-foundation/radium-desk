@@ -46,6 +46,27 @@ class TelegramOperationalLinkFormatter
             return null;
         }
 
-        return "[{$label}]({$url})";
+        $normalizedUrl = trim($url);
+
+        if (! preg_match('#^https?://#', $normalizedUrl)) {
+            return null;
+        }
+
+        return "{$label}: {$normalizedUrl}";
+    }
+
+    public function orderIdentifierLine(?Order $order): ?string
+    {
+        if ($order === null) {
+            return null;
+        }
+
+        $orderId = trim((string) ($order->order_id ?? ''));
+
+        if ($orderId === '') {
+            return null;
+        }
+
+        return "Order: {$orderId}";
     }
 }

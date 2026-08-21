@@ -51,5 +51,38 @@ class TelegramBotServiceTest extends TestCase
         $this->assertTrue($result->success);
         $this->assertFalse($result->skipped);
         Http::assertSentCount(1);
+
+        Http::assertSent(function ($request): bool {
+            $payload = $request->data();
+
+            return ! array_key_exists('parse_mode', $payload)
+                && ($payload['disable_web_page_preview'] ?? null) === true;
+        });
+    }
+
+    public function test_send_message_payload_remains_plain_text_compatible_with_bare_urls(): void
+    {
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 100],
+            ], 200),
+        ]);
+
+        $this->enableTelegramNotifications();
+
+        $message = implode("\n", [
+            'Case: SC40157',
+            'Open Case: https://desk.example.com/incidents/SC40157',
+        ]);
+
+        app(TelegramBotService::class)->sendMessage('123456789', $message);
+
+        Http::assertSent(function ($request) use ($message): bool {
+            $payload = $request->data();
+
+            return ($payload['text'] ?? null) === $message
+                && ! array_key_exists('parse_mode', $payload);
+        });
     }
 }
