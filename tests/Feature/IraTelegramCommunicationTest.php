@@ -75,16 +75,13 @@ class IraTelegramCommunicationTest extends TestCase
         $owner = $this->createOwnerWithTelegram('123456789');
 
         $results = app(IraCommunicationService::class)->dispatch(new IraCommunicationInput(
-            event: IraNotificationType::RiskAlert,
-            insight: new IraOperationalRisk(
-                key: 'customer.sla_danger',
-                title: 'SLA Breach Risk',
-                category: IraRiskCategory::Customer,
-                severity: AIRiskLevel::High,
-                message: '3 cases risk SLA breach.',
-                context: ['overdue' => 2, 'warning' => 1],
-            ),
-            context: ['dedupe_key' => 'customer.sla_danger'],
+            event: IraNotificationType::CriticalSystemAlert,
+            context: [
+                'label' => 'Queue',
+                'message' => '3 failed job(s) in dead-letter queue.',
+                'affected_count' => 3,
+                'dedupe_key' => 'watchdog:queue:dead_letter',
+            ],
         ));
 
         $this->assertCount(1, $results);
@@ -93,7 +90,7 @@ class IraTelegramCommunicationTest extends TestCase
 
         $this->assertDatabaseHas('ira_notifications', [
             'user_id' => $owner->id,
-            'notification_type' => IraNotificationType::RiskAlert->value,
+            'notification_type' => IraNotificationType::CriticalSystemAlert->value,
             'status' => IraNotificationStatus::Sent->value,
         ]);
     }
@@ -110,16 +107,13 @@ class IraTelegramCommunicationTest extends TestCase
         $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
         $results = app(IraCommunicationService::class)->dispatch(new IraCommunicationInput(
-            event: IraNotificationType::RiskAlert,
-            insight: new IraOperationalRisk(
-                key: 'customer.sla_danger',
-                title: 'SLA Breach Risk',
-                category: IraRiskCategory::Customer,
-                severity: AIRiskLevel::High,
-                message: '3 cases risk SLA breach.',
-                context: ['overdue' => 2, 'warning' => 1],
-            ),
-            context: ['dedupe_key' => 'customer.sla_danger'],
+            event: IraNotificationType::CriticalSystemAlert,
+            context: [
+                'label' => 'Queue',
+                'message' => '3 failed job(s) in dead-letter queue.',
+                'affected_count' => 3,
+                'dedupe_key' => 'watchdog:queue:dead_letter',
+            ],
         ));
 
         $this->assertCount(1, $results);
@@ -531,16 +525,12 @@ class IraTelegramCommunicationTest extends TestCase
         $owner = $this->createOwnerWithTelegram('444333222');
         $service = app(IraCommunicationService::class);
         $input = new IraCommunicationInput(
-            event: IraNotificationType::RiskAlert,
-            insight: new IraOperationalRisk(
-                key: 'customer.sla_danger',
-                title: 'SLA Breach Risk',
-                category: IraRiskCategory::Customer,
-                severity: AIRiskLevel::High,
-                message: '3 cases risk SLA breach.',
-                context: ['overdue' => 2, 'warning' => 1],
-            ),
-            context: ['dedupe_key' => 'customer.sla_danger'],
+            event: IraNotificationType::IntegrationFailure,
+            context: [
+                'label' => 'Email',
+                'message' => 'SMTP unavailable.',
+                'dedupe_key' => 'integration:email',
+            ],
         );
 
         $first = $service->dispatch($input);
@@ -565,16 +555,12 @@ class IraTelegramCommunicationTest extends TestCase
         $owner = $this->createOwnerWithTelegram('111222333');
 
         $results = app(IraCommunicationService::class)->dispatch(new IraCommunicationInput(
-            event: IraNotificationType::RiskAlert,
-            insight: new IraOperationalRisk(
-                key: 'customer.sla_danger',
-                title: 'SLA Breach Risk',
-                category: IraRiskCategory::Customer,
-                severity: AIRiskLevel::High,
-                message: '3 cases risk SLA breach.',
-                context: ['overdue' => 2, 'warning' => 1],
-            ),
-            context: ['dedupe_key' => 'customer.sla_danger'],
+            event: IraNotificationType::IntegrationFailure,
+            context: [
+                'label' => 'Email',
+                'message' => 'SMTP unavailable.',
+                'dedupe_key' => 'integration:email',
+            ],
         ));
 
         $this->assertCount(1, $results);

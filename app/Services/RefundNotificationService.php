@@ -348,7 +348,8 @@ class RefundNotificationService
             $recipient,
             NotificationCategory::Finance,
             NotificationChannelType::Telegram,
-        ) && $this->telegramBot->isConfigured() && filled($recipient->telegram_chat_id)) {
+        ) && $this->shouldSendRefundTelegram($recipient, $trigger)
+            && $this->telegramBot->isConfigured() && filled($recipient->telegram_chat_id)) {
             $sendResult = $this->telegramBot->sendMessage(
                 chatId: (string) $recipient->telegram_chat_id,
                 text: implode("\n", [$telegramTitle, '', $telegramMessage]),
@@ -376,6 +377,15 @@ class RefundNotificationService
         $requester = $refund->requester?->name ?? 'Agent';
 
         return "{$requester} submitted {$refund->reference_no} (₹".number_format($refund->displayAmount(), 2).').';
+    }
+
+    private function shouldSendRefundTelegram(User $recipient, string $trigger): bool
+    {
+        if ($trigger !== 'submitted') {
+            return true;
+        }
+
+        return ! $recipient->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN);
     }
 
     private function decisionTelegramTitle(RefundRequest $refund): string

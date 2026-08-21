@@ -58,6 +58,7 @@ class IraOwnerReportFormatter
             $this->bullet('Overdue cases: '.(int) ($operations['overdue_cases'] ?? 0)),
             $this->bullet('Escalations pending: '.(int) ($operations['escalations_pending'] ?? 0)),
             $this->bullet('Unassigned important: '.(int) ($operations['unassigned_important'] ?? 0)),
+            $this->refundSummaryBullet($operations),
         ];
 
         if ((int) ($operations['waiting_customers'] ?? 0) > 0) {
@@ -136,6 +137,7 @@ class IraOwnerReportFormatter
         $sections[] = $this->bullet('Pending cases: '.(int) ($operations['open_cases'] ?? 0));
         $sections[] = $this->bullet('Escalated today: '.(int) ($operations['escalated_today'] ?? 0));
         $sections[] = $this->bullet('SLA risk: '.(int) ($operations['sla_overdue'] ?? 0).' overdue, '.(int) ($operations['sla_warning'] ?? 0).' warning');
+        $sections[] = $this->refundSummaryBullet($operations, includeSubmittedToday: true);
 
         if ((int) ($operations['waiting_customers'] ?? 0) > 0) {
             $sections[] = $this->bullet('Customer waiting: '.(int) $operations['waiting_customers']);
@@ -308,6 +310,24 @@ class IraOwnerReportFormatter
         $visible = array_slice($names, 0, 3);
 
         return implode(', ', $visible).' +'.(count($names) - 3).' more';
+    }
+
+    /**
+     * @param  array<string, mixed>  $operations
+     */
+    private function refundSummaryBullet(array $operations, bool $includeSubmittedToday = false): string
+    {
+        $pendingApproval = (int) ($operations['refunds_pending_approval'] ?? 0);
+        $pendingExecution = (int) ($operations['refunds_pending_execution'] ?? 0);
+        $submittedToday = (int) ($operations['refunds_submitted_today'] ?? 0);
+
+        $summary = "{$pendingApproval} pending approval, {$pendingExecution} pending execution";
+
+        if ($includeSubmittedToday) {
+            $summary .= ", {$submittedToday} submitted today";
+        }
+
+        return $this->bullet('Refunds: '.$summary);
     }
 
     private function bullet(string $line): string

@@ -30,6 +30,9 @@ readonly class IraOwnerReportData
      *     cases_created: int,
      *     cases_closed: int,
      *     escalated_today: int,
+     *     refunds_pending_approval?: int,
+     *     refunds_pending_execution?: int,
+     *     refunds_submitted_today?: int,
      * }  $operations
      * @param  array{
      *     unresolved_carry_forward: int,
