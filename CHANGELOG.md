@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.53 — 2026-08-21 — Admin Telegram Notification Policy
+
+- Routine Admin operational alerts (staffing, unassigned scheduled work) are suppressed from 18:30 to 09:00 IST; assignments and reassignments remain immediate 24/7.
+- Admin morning and evening operations summaries replace the duplicate 08:15/18:30 digests, scheduled at 10:00 and 20:30 IST with attendance, workload, SLA, and refund totals.
+- Admin/Ops refund-submitted Telegram remains immediate; Super Admin notification policy from v4.0.52 is unchanged.
+- Case, refund, and order Telegram messages now include authorization-safe deep links where available.
+
 ## 4.0.52 — 2026-08-21 — Super Admin Telegram Notification Policy
 
 - Super Admin no longer receives standalone hourly SLA-risk or open-case Telegram alerts; these remain covered in morning and evening Owner Intelligence summaries.
