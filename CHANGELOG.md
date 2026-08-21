@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.54 — 2026-08-21 — Telegram Deep Link Clickability
+
+- Operational Telegram links (case, refund, order) now use bare HTTPS URLs that Telegram auto-links without requiring parse_mode.
+- Order identifiers are shown when no authorized canonical route is available.
+- Existing incoming-call, Admin, and Super Admin notification behavior is unchanged.
+
 ## 4.0.53 — 2026-08-21 — Admin Telegram Notification Policy
 
 - Routine Admin operational alerts (staffing, unassigned scheduled work) are suppressed from 18:30 to 09:00 IST; assignments and reassignments remain immediate 24/7.
