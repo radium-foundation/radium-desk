@@ -460,9 +460,27 @@ class AdminTelegramNotificationPolicyTest extends TestCase
     {
         $admin = $this->createOpsAdmin('810012');
         $order = $this->createOrder();
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Internal,
+            'title' => 'Policy test order link case',
+            'description' => 'Policy test order link case.',
+            'status' => IncidentStatus::Open,
+            'high_priority' => false,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+        ]);
         $formatter = app(TelegramOperationalLinkFormatter::class);
 
-        $this->assertNotNull($formatter->orderLink($admin, $order));
+        $url = $formatter->orderLink($admin, $order);
+
+        $this->assertNotNull($url);
+        $this->assertSame(route('dashboard', [
+            'open_customer_360' => $incident->id,
+            'open_customer_360_reference' => $incident->display_reference,
+        ], absolute: true), $url);
 
         $guest = User::factory()->create(['is_active' => true]);
         $guest->assignRole(RolePermissionSeeder::ROLE_EMPLOYEE);

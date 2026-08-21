@@ -33,7 +33,7 @@ class TelegramOperationalLinkFormatterTest extends TestCase
         $admin = $this->createAdmin();
         $incident = $this->createIncident($admin, 'SC40157');
         $refund = $this->createRefund($admin, 'REF-2026-000212');
-        $order = $this->createOrder($admin, 'RD3497836');
+        [$order] = $this->createOrderWithIncident($admin, 'RD3497836', 'SC40159');
 
         $links = $this->formatter->authorizedOperationalLinks($admin, $incident, $refund, $order);
 
@@ -41,6 +41,14 @@ class TelegramOperationalLinkFormatterTest extends TestCase
         $this->assertSame('SC40157', $links[0]['text']);
         $this->assertSame('REF-2026-000212', $links[1]['text']);
         $this->assertSame('RD3497836', $links[2]['text']);
+        $this->assertSame(
+            route('incidents.show', $incident, absolute: true),
+            $links[0]['url'],
+        );
+        $this->assertSame(
+            route('refunds.show', $refund, absolute: true),
+            $links[1]['url'],
+        );
     }
 
     public function test_outbound_message_adds_text_link_entities_without_visible_urls(): void
@@ -89,7 +97,7 @@ class TelegramOperationalLinkFormatterTest extends TestCase
     public function test_order_link_line_uses_bare_https_url_when_authorized(): void
     {
         $admin = $this->createAdmin();
-        $order = $this->createOrder($admin, 'RD3444319');
+        [$order, $incident] = $this->createOrderWithIncident($admin, 'RD3444319', 'SC40160');
 
         $url = $this->formatter->orderLink($admin, $order);
         $line = $this->formatter->linkLine('Open Order', $url);
@@ -97,6 +105,28 @@ class TelegramOperationalLinkFormatterTest extends TestCase
         $this->assertNotNull($url);
         $this->assertStringStartsWith('https://', $url);
         $this->assertSame("Open Order: {$url}", $line);
+        $this->assertSame($this->expectedDashboardAutoOpenUrl($incident), $url);
+    }
+
+    public function test_order_link_points_to_dashboard_auto_open_url(): void
+    {
+        $admin = $this->createAdmin();
+        [$order, $incident] = $this->createOrderWithIncident($admin, 'RD3497836', 'SC40161');
+
+        $url = $this->formatter->orderLink($admin, $order);
+
+        $this->assertSame($this->expectedDashboardAutoOpenUrl($incident), $url);
+        $this->assertStringContainsString('open_customer_360='.$incident->id, (string) $url);
+        $this->assertStringContainsString('open_customer_360_reference='.urlencode($incident->display_reference), (string) $url);
+        $this->assertStringNotContainsString('/dashboard/orders/', (string) $url);
+    }
+
+    public function test_order_link_is_null_when_order_has_no_service_case(): void
+    {
+        $admin = $this->createAdmin();
+        $order = $this->createOrder($admin, 'RD-NO-CASE');
+
+        $this->assertNull($this->formatter->orderLink($admin, $order));
     }
 
     public function test_order_identifier_fallback_when_route_is_not_authorized(): void
@@ -126,11 +156,19 @@ class TelegramOperationalLinkFormatterTest extends TestCase
 
         $incident = $this->createIncident($admin, 'SC40158');
         $refund = $this->createRefund($admin, 'REF-2026-000213');
-        $order = $this->createOrder($admin, 'RD3444320');
+        [$order] = $this->createOrderWithIncident($admin, 'RD3444320', 'SC40162');
 
         $this->assertNotNull($this->formatter->incidentLink($admin, $incident));
         $this->assertNotNull($this->formatter->refundLink($admin, $refund));
         $this->assertNotNull($this->formatter->orderLink($admin, $order));
+        $this->assertSame(
+            route('incidents.show', $incident, absolute: true),
+            $this->formatter->incidentLink($admin, $incident),
+        );
+        $this->assertSame(
+            route('refunds.show', $refund, absolute: true),
+            $this->formatter->refundLink($admin, $refund),
+        );
 
         $this->assertNull($this->formatter->incidentLink($guest, $incident));
         $this->assertNull($this->formatter->refundLink($guest, $refund));
@@ -156,6 +194,40 @@ class TelegramOperationalLinkFormatterTest extends TestCase
             'created_by' => $creator->id,
             'updated_by' => $creator->id,
         ]);
+    }
+
+    /**
+     * @return array{0: Order, 1: Incident}
+     */
+    private function createOrderWithIncident(User $creator, string $orderId, string $referenceNo): array
+    {
+        $order = $this->createOrder($creator, $orderId);
+        $incident = $this->createIncidentForOrder($creator, $order, $referenceNo);
+
+        return [$order, $incident];
+    }
+
+    private function createIncidentForOrder(User $creator, Order $order, string $referenceNo): Incident
+    {
+        return Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => $referenceNo,
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Internal,
+            'title' => 'Telegram link test',
+            'description' => 'Telegram link test.',
+            'status' => \App\Enums\IncidentStatus::Open,
+            'created_by' => $creator->id,
+            'updated_by' => $creator->id,
+        ]);
+    }
+
+    private function expectedDashboardAutoOpenUrl(Incident $incident): string
+    {
+        return route('dashboard', [
+            'open_customer_360' => $incident->id,
+            'open_customer_360_reference' => $incident->display_reference,
+        ], absolute: true);
     }
 
     private function createIncident(User $creator, string $referenceNo): Incident

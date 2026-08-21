@@ -42,7 +42,23 @@ class TelegramOperationalLinkFormatter
             return null;
         }
 
-        return route('dashboard.orders.customer-360', $order, absolute: true);
+        $incident = $order->incidents()->latest()->first();
+
+        if ($incident === null) {
+            return null;
+        }
+
+        $parameters = [
+            'open_customer_360' => $incident->id,
+        ];
+
+        $reference = trim($incident->display_reference);
+
+        if ($reference !== '') {
+            $parameters['open_customer_360_reference'] = $reference;
+        }
+
+        return route('dashboard', $parameters, absolute: true);
     }
 
     public function linkLine(string $label, ?string $url): ?string
