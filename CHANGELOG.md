@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.52 — 2026-08-21 — Super Admin Telegram Notification Policy
+
+- Super Admin no longer receives standalone hourly SLA-risk or open-case Telegram alerts; these remain covered in morning and evening Owner Intelligence summaries.
+- Super Admin no longer receives immediate Telegram when a refund request is submitted; refund pending counts and daily submission totals are now included in Owner Intelligence summaries.
+- Critical watchdog alerts and existing overnight quiet-hours behavior are unchanged.
+
 ## 4.0.51 — 2026-08-21 — Super Admin Telegram Quiet Hours
 
 - Routine overnight operational risk alerts to Super Admin are suppressed from 21:00 to 08:00 IST, including high-priority SLA and open-case alerts.
