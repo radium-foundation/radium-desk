@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.55 — 2026-08-21 — Clickable Operational Identifiers
+
+- Authorized case, refund, and order business identifiers in operational Telegram messages are now tappable using Telegram text_link entities.
+- URLs are no longer shown as separate “Open Case/Refund/Order” lines; unauthorized recipients still see plain identifiers only.
+- No parse_mode changes; incoming-call, Admin, and Super Admin notification behavior is unchanged.
+
 ## 4.0.54 — 2026-08-21 — Telegram Deep Link Clickability
 
 - Operational Telegram links (case, refund, order) now use bare HTTPS URLs that Telegram auto-links without requiring parse_mode.
