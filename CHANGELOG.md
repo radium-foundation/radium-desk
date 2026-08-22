@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.57 — 2026-08-22 — WhatsApp Outbound Cutoff
+
+- Added an optional WhatsApp outbound cutoff so historical customer journeys do not send after Interakt credentials are restored.
+- When configured, journeys that started before the cutoff skip new WhatsApp dispatches only; email and Telegram are unchanged.
+- Cutoff is disabled until explicitly set in environment configuration.
+
 ## 4.0.56 — 2026-08-21 — Order Telegram Deep Link Fix
 
 - Order identifiers in operational Telegram messages now open the Dashboard with Customer-360 auto-loaded, instead of an unstyled fragment page.

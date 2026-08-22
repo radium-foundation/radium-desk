@@ -12,6 +12,7 @@ use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Order;
 use App\Enums\NotificationLinkSource;
 use App\Services\Interakt\WhatsAppAutomationDispatcher;
+use App\Services\Interakt\WhatsAppOutboundCutoff;
 use App\Services\Interakt\WhatsAppTemplateConfigurationResolver;
 use App\Services\Notifications\NotificationLinkTrackingService;
 
@@ -23,6 +24,7 @@ class WhatsAppChannel implements NotificationChannel
         private readonly WhatsAppAutomationDispatcher $automationDispatcher,
         private readonly WhatsAppTemplateConfigurationResolver $templateConfigurationResolver,
         private readonly NotificationLinkTrackingService $linkTrackingService,
+        private readonly WhatsAppOutboundCutoff $outboundCutoff,
     ) {}
 
     public function supports(NotificationType $type): bool
@@ -50,6 +52,10 @@ class WhatsAppChannel implements NotificationChannel
 
         if (! $this->isTemplateConfigured($template)) {
             return $this->skippedTemplateResult($message, $template);
+        }
+
+        if ($this->outboundCutoff->shouldSkip($message)) {
+            return $this->skippedCutoffResult($message, $template);
         }
 
         $triggerSource = $this->resolveTriggerSource($message);
@@ -298,6 +304,22 @@ class WhatsAppChannel implements NotificationChannel
                 'incident_id' => $message->incident->id,
                 'template_key' => $template->value,
                 'status' => 'not_yet_configured',
+            ],
+        );
+    }
+
+    private function skippedCutoffResult(
+        NotificationMessage $message,
+        WhatsAppTemplate $template,
+    ): NotificationResult {
+        return NotificationResult::success(
+            channel: NotificationChannelType::WhatsApp,
+            message: WhatsAppOutboundCutoff::SKIPPED_MESSAGE,
+            metadata: [
+                'notification_type' => $message->type->value,
+                'incident_id' => $message->incident->id,
+                'template_key' => $template->value,
+                'status' => WhatsAppOutboundCutoff::SKIPPED_STATUS,
             ],
         );
     }

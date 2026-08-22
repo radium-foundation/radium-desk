@@ -70,7 +70,7 @@ readonly class NotificationResult
 
     public function isSkipped(): bool
     {
-        return $this->status() === 'not_yet_configured';
+        return in_array($this->status(), ['not_yet_configured', 'pre_cutoff'], true);
     }
 
     public function countsTowardSuccess(): bool

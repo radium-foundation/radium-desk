@@ -17,6 +17,9 @@ return [
     ),
     'flow_token_ttl_hours' => (int) env('INTERAKT_FLOW_TOKEN_TTL_HOURS', 24),
     'flow_id' => env('INTERAKT_FLOW_ID'),
+    // Empty/unset = disabled (current behaviour). When set, scheduler/automation
+    // journeys whose start is strictly before this instant skip WhatsApp only.
+    'outbound_not_before' => env('WHATSAPP_OUTBOUND_NOT_BEFORE'),
     'templates' => [
         'request_serial_number' => [
             'enabled' => filter_var(env('INTERAKT_TEMPLATE_REQUEST_SERIAL_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
