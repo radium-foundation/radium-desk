@@ -99,9 +99,15 @@ run_schedule() {
 validate_status() {
     local status_path="$1"
     local expected_outcome="$2"
+    local expected_exit_code="${3:-}"
 
-    php "$ROOT/tests/scripts/validate-backup-schedule-status.php" "$status_path" "$expected_outcome" \
-        || fail "status JSON validation failed for outcome=${expected_outcome}"
+    if [[ -n "$expected_exit_code" ]]; then
+        php "$ROOT/tests/scripts/validate-backup-schedule-status.php" "$status_path" "$expected_outcome" "$expected_exit_code" \
+            || fail "status JSON validation failed for outcome=${expected_outcome} exit_code=${expected_exit_code}"
+    else
+        php "$ROOT/tests/scripts/validate-backup-schedule-status.php" "$status_path" "$expected_outcome" \
+            || fail "status JSON validation failed for outcome=${expected_outcome}"
+    fi
 }
 
 STAGING="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-schedule-staging-XXXXXX")"
@@ -109,11 +115,15 @@ STATUS="${STAGING}/last-run-status.json"
 LOCK="${STAGING}/backup.lock"
 trap 'rm -rf "$STAGING"' EXIT
 
+set +e
 run_schedule "$STAGING" "$STATUS" "$LOCK" "$FIXTURES/success"
+SUCCESS_STATUS=$?
+set -e
+[[ "$SUCCESS_STATUS" -eq 0 ]] || fail "success should exit zero (got ${SUCCESS_STATUS})"
 [[ -f "$STATUS" ]] || fail "success status file missing"
-validate_status "$STATUS" "success"
+validate_status "$STATUS" "success" 0
 grep -q '"phase": "cloud_uploaded"' "$STATUS" || fail "expected cloud_uploaded phase"
-pass "records successful cloud backup"
+pass "records successful cloud backup with exit_code=0"
 
 rm -f "$STATUS"
 set +e
@@ -121,8 +131,8 @@ run_schedule "$STAGING" "$STATUS" "$LOCK" "$FIXTURES/local-failure"
 LOCAL_STATUS=$?
 set -e
 [[ "$LOCAL_STATUS" -ne 0 ]] || fail "local failure should exit non-zero"
-validate_status "$STATUS" "local_failure"
-pass "records local staging failure"
+validate_status "$STATUS" "local_failure" "$LOCAL_STATUS"
+pass "records local staging failure with matching exit_code"
 
 rm -f "$STATUS"
 set +e
@@ -130,8 +140,8 @@ run_schedule "$STAGING" "$STATUS" "$LOCK" "$FIXTURES/cloud-failure"
 CLOUD_STATUS=$?
 set -e
 [[ "$CLOUD_STATUS" -ne 0 ]] || fail "cloud failure should exit non-zero"
-validate_status "$STATUS" "cloud_upload_failure"
-pass "records cloud upload failure"
+validate_status "$STATUS" "cloud_upload_failure" "$CLOUD_STATUS"
+pass "records cloud upload failure with matching exit_code"
 
 rm -f "$STATUS"
 MOCK_STATE="${STAGING}/flock-held"
@@ -144,8 +154,8 @@ OVERLAP_STATUS=$?
 set -e
 rm -f "$MOCK_STATE"
 [[ "$OVERLAP_STATUS" -eq 0 ]] || fail "lock overlap should exit zero"
-validate_status "$STATUS" "lock_overlap"
-pass "records lock overlap without running backup"
+validate_status "$STATUS" "lock_overlap" 0
+pass "records lock overlap without running backup (exit_code=0)"
 
 grep -Ei 'passphrase|password|api[_-]?key|ssh|secret|sha256|\.gpg' "$STATUS" >/dev/null \
     && fail "status JSON must not contain sensitive fields"

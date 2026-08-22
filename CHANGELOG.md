@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.59 — 2026-08-22 — Backup Schedule Exit Code Fix
+
+- Fixed backup schedule status JSON so successful runs record `exit_code: 0` instead of incorrectly serializing zero as failure.
+
 ## 4.0.58 — 2026-08-22 — Backup Failure Alerting
 
 - Production watchdog now alerts via Telegram when scheduled backups fail, stall, overlap, or become unreadable.

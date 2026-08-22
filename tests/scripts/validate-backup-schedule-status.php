@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 $path = $argv[1] ?? '';
 $expectedOutcome = $argv[2] ?? '';
+$expectedExitCode = $argv[3] ?? null;
 
 if ($path === '' || ! is_file($path)) {
     fwrite(STDERR, "status path missing\n");
@@ -30,6 +31,11 @@ if ((int) ($data['version'] ?? 0) !== 1) {
 
 if (($data['outcome'] ?? '') !== $expectedOutcome) {
     fwrite(STDERR, "unexpected outcome: ".($data['outcome'] ?? 'null')."\n");
+    exit(1);
+}
+
+if ($expectedExitCode !== null && (int) ($data['exit_code'] ?? -1) !== (int) $expectedExitCode) {
+    fwrite(STDERR, 'unexpected exit_code: '.($data['exit_code'] ?? 'null')."\n");
     exit(1);
 }
 

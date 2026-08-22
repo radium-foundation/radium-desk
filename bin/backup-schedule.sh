@@ -430,11 +430,13 @@ write_status_json() {
             $phase = "";
         }
 
+        $exitCode = getenv("BACKUP_STATUS_EXIT_CODE");
+
         $payload = [
             "version" => 1,
             "generated_at" => getenv("BACKUP_STATUS_GENERATED_AT") ?: gmdate("c"),
             "outcome" => getenv("BACKUP_STATUS_OUTCOME") ?: "local_failure",
-            "exit_code" => (int) (getenv("BACKUP_STATUS_EXIT_CODE") ?: "1"),
+            "exit_code" => (int) ($exitCode !== false ? $exitCode : "1"),
             "duration_seconds" => max(0, (int) (getenv("BACKUP_STATUS_DURATION") ?: "0")),
             "lock_acquired" => (getenv("BACKUP_STATUS_LOCK_ACQUIRED") ?: "false") === "true",
             "cloud_upload_enabled" => (getenv("BACKUP_STATUS_CLOUD_UPLOAD_ENABLED") ?: "false") === "true",
