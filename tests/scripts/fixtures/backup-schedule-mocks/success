@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "backup-run.sh: starting backup 20260822T023001Z (database=radium_desk, encryption=gpg)" >&2
+echo "backup-run.sh: local backup completed: /var/backups/radium-desk/runs/20260822T023001Z" >&2
+echo "backup-run.sh: starting Cloud upload for 20260822T023001Z (host=example, remote=/remote/path)" >&2
+echo "backup-run.sh: backup completed with Cloud upload: /remote/path/20260822T023001Z" >&2
+exit 0
+

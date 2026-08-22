@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.58 — 2026-08-22 — Backup Failure Alerting
+
+- Production watchdog now alerts via Telegram when scheduled backups fail, stall, overlap, or become unreadable.
+- Added a backup schedule wrapper and last-run status file so backup health can be monitored without shell access.
+- Backup cron cutover to the new wrapper is documented in the Backup Runbook but not enabled in this release.
+
 ## 4.0.57 — 2026-08-22 — WhatsApp Outbound Cutoff
 
 - Added an optional WhatsApp outbound cutoff so historical customer journeys do not send after Interakt credentials are restored.

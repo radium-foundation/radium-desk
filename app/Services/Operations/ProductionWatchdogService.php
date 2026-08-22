@@ -15,6 +15,7 @@ use App\Models\BonvoiceWebhookLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
+use App\Services\Backup\BackupWatchdogService;
 use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use App\Services\Platform\Health\PlatformHealthSnapshotService;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
@@ -40,6 +41,7 @@ class ProductionWatchdogService
     private ?PlatformHealthSnapshot $sharedHealthSnapshot = null;
 
     public function __construct(
+        private readonly BackupWatchdogService $backupWatchdogService,
         private readonly CashfreeIntegrityReadModel $cashfreeIntegrityReadModel,
         private readonly OperationsIntegrationHealthService $integrationHealthService,
         private readonly OperationsSystemHealthService $systemHealthService,
@@ -60,6 +62,7 @@ class ProductionWatchdogService
             ...$this->bonvoiceAlerts(),
             ...$this->radiumBoxAlerts(),
             ...$this->interaktAlerts(),
+            ...$this->backupWatchdogService->collectAlerts(),
             ...$this->siteHealthAlerts(),
             ...$this->errorSpikeAlerts(),
         ];

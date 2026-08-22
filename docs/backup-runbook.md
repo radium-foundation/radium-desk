@@ -15,8 +15,9 @@
 | 4 — Remote retention | **Implemented** | Standalone Cloud prune (`backup-prune-cloud.sh`); dry-run default |
 | 5 — Desk read-only status | **Implemented** | Administration → Backups (`backups.view`, Super Admin only) |
 | 5A — Cloud inventory index | **Implemented** | `bin/backup-cloud-inventory.sh` writes sanitized local JSON; Desk shows read-only Cloud table |
+| 5B — Backup failure alerting | **Implemented** | `bin/backup-schedule.sh` + ProductionWatchdogService → Telegram critical alerts |
 | 6 — Manual backup UX | **Future** | Trigger `backup-run.sh` from Desk (not implemented) |
-| 7 — Restore drill + alerting | **Future** | Verification automation + operator restore CLI |
+| 7 — Restore drill + alerting | **Partial** | Restore drill proven on operator Mac; automated restore CLI still future |
 
 ---
 
@@ -227,7 +228,102 @@ Optional env overrides:
 | `BACKUP_MANIFEST_ACL_ENABLED` | `true` | Set `false` to skip manifest ACL (tests / non-KVM) |
 | `BACKUP_MANIFEST_ACL_USER` | `ravi` | PHP/web user granted read on `manifest.json` |
 
-**Future:** manual backup trigger (`backups.manage`), restore CLI, failure alerting.
+**Future:** manual backup trigger (`backups.manage`), restore CLI.
+
+---
+
+## Scheduled backup wrapper + failure alerting (Phase 5B)
+
+**Script:** [`bin/backup-schedule.sh`](../bin/backup-schedule.sh)
+
+Thin KVM cron wrapper around unchanged [`bin/backup-run.sh`](../bin/backup-run.sh). It does **not** modify backup behaviour, credentials, or remote storage.
+
+### Behaviour
+
+- Acquires a **non-blocking** `flock` on `BACKUP_LOCK_FILE` (default `/var/lock/radium-backup.lock`).
+- If the lock is held, records `outcome=lock_overlap` and exits **0** (skip without pile-up).
+- Otherwise runs `bin/backup-run.sh`, classifies the result, and writes sanitized `last-run-status.json` (default `{BACKUP_STAGING_ROOT}/last-run-status.json`).
+- Atomic write: `last-run-status.json.tmp.$$` → `mv`.
+- Status file mode `600`; staging parent `700`.
+
+- Restores staging traversal ACLs and grants read-only access to `last-run-status.json` for the web user (`u:ravi:r`), matching the manifest/inventory ACL model.
+- Sets `watchdog_accessible` in the status JSON. If the read ACL cannot be applied, the wrapper logs an explicit error and leaves `watchdog_accessible: false` (watchdog failure/lock alerts are suppressed; stale detection via manifests still works).
+
+### Status outcomes
+
+| `outcome` | Meaning |
+|-----------|---------|
+| `success` | Local staging succeeded (`local_staging` or `cloud_uploaded` phase recorded) |
+| `local_failure` | Local staging did not complete |
+| `cloud_upload_failure` | Local staging succeeded but Cloud upload failed when upload is enabled |
+| `lock_overlap` | Another run still holds the schedule lock |
+
+The status JSON includes only: `version`, `generated_at`, `outcome`, `exit_code`, `duration_seconds`, `lock_acquired`, `cloud_upload_enabled`, `watchdog_accessible`, `backup_id`, `phase`, `error_summary`.
+
+It never includes passphrases, API keys, SSH credentials, database passwords, remote paths, artifact hashes, or other secret-bearing paths.
+
+### Watchdog / Telegram alerts
+
+`App\Services\Backup\BackupWatchdogService` is collected by `ProductionWatchdogService` and delivered through the existing `watchdog:send-critical-alerts` → `WatchdogCriticalAlertGate` → Telegram critical-alert pipeline.
+
+| Alert key | When |
+|-----------|------|
+| `backup:local_failure` | Last scheduled run ended `local_failure` |
+| `backup:cloud_upload_failure` | Last scheduled run ended `cloud_upload_failure` |
+| `backup:lock_overlap` | Last scheduled attempt was skipped due to lock overlap |
+| `backup:stale` | No successful backup within `BACKUP_STALE_HOURS` (default **26**) |
+
+Alerts dedupe via fingerprint gate (notify once, suppress repeats, clear on resolve, notify again when state returns).
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BACKUP_LOCK_FILE` | `/var/lock/radium-backup.lock` | Schedule mutex (set to production path below) |
+| `BACKUP_SCHEDULE_SKIP_LOCK` | off | Set `true` when outer cron `flock` already holds `BACKUP_LOCK_FILE` |
+| `BACKUP_STATUS_PATH` | `{BACKUP_STAGING_ROOT}/last-run-status.json` | Sanitized last-run status |
+| `BACKUP_ENV_FILE` | — | Optional shell env file sourced before `backup-run.sh` (e.g. `/root/.radium-backup.env`) |
+| `BACKUP_MANIFEST_ACL_ENABLED` | `true` | Apply read ACL for status file (disable in tests only) |
+| `BACKUP_MANIFEST_ACL_USER` | `ravi` | Web user granted read on `last-run-status.json` |
+| `BACKUP_WATCHDOG_ENABLED` | `true` | Enable backup alerts in ProductionWatchdogService |
+| `BACKUP_STALE_HOURS` | `26` | Stale threshold (twice-daily schedule + buffer) |
+
+Laravel config: `config/backup.php` (`watchdog.*`, `status_path`, `schedule_lock_path`).
+
+### Production lock path and double-flock behaviour
+
+Production KVM cron today uses:
+
+- Outer lock: `/usr/bin/flock -n /var/lock/radium-desk-backup.lock`
+- Log: `/var/www/radium-desk/storage/logs/backup-run.log`
+
+GNU `flock` holds the lock in the **flock parent process** for the lifetime of the cron command. A child `backup-schedule.sh` that calls `flock -n` on the **same** lock file will fail while the outer lock is held, and the wrapper would record `lock_overlap` without running the backup.
+
+**Safe production invocation (keep existing outer flock unchanged):**
+
+```bash
+0 2 * * * /usr/bin/flock -n /var/lock/radium-desk-backup.lock sudo bash -c 'set -a; source /root/.radium-backup.env; set +a; cd /var/www/radium-desk && BACKUP_LOCK_FILE=/var/lock/radium-desk-backup.lock BACKUP_SCHEDULE_SKIP_LOCK=true ./bin/backup-schedule.sh' >> /var/www/radium-desk/storage/logs/backup-run.log 2>&1
+
+0 14 * * * /usr/bin/flock -n /var/lock/radium-desk-backup.lock sudo bash -c 'set -a; source /root/.radium-backup.env; set +a; cd /var/www/radium-desk && BACKUP_LOCK_FILE=/var/lock/radium-desk-backup.lock BACKUP_SCHEDULE_SKIP_LOCK=true ./bin/backup-schedule.sh' >> /var/www/radium-desk/storage/logs/backup-run.log 2>&1
+```
+
+- `BACKUP_LOCK_FILE` must match the existing production lock path (`/var/lock/radium-desk-backup.lock`).
+- `BACKUP_SCHEDULE_SKIP_LOCK=true` tells the wrapper to skip its inner flock because the outer cron flock already serializes runs.
+- Keep `storage/logs/backup-run.log` (do not switch to `/var/log/radium-backup.log`).
+- Manual runs without an outer flock should **not** set `BACKUP_SCHEDULE_SKIP_LOCK`.
+
+### Recommended KVM cron (ops — not applied by deploy)
+
+Replace bare `backup-run.sh` cron entries with the production-safe wrapper lines above.
+
+### Manual invocation (when ops approves)
+
+```bash
+cd /var/www/radium-desk
+sudo bash -c 'set -a; source /root/.radium-backup.env; set +a; cd /var/www/radium-desk && BACKUP_LOCK_FILE=/var/lock/radium-desk-backup.lock ./bin/backup-schedule.sh'
+```
+
+Do not set `BACKUP_SCHEDULE_SKIP_LOCK` for manual runs unless an outer flock is already held.
 
 ---
 
@@ -389,8 +485,10 @@ Do not run until encryption passphrase and SSH key are provisioned.
 
 ```bash
 bash tests/scripts/backup-run.test.sh
+bash tests/scripts/backup-schedule.test.sh
 bash tests/scripts/backup-prune-cloud.test.sh
 bash tests/scripts/backup-cloud-inventory.test.sh
+php artisan test --filter=BackupWatchdog
 ```
 
 Mock `mysqldump`, `mysql`, `gpg`, `rsync`, and `ssh` under `tests/scripts/fixtures/backup-mocks/`. **Does not connect to production or Hostinger Cloud.**
@@ -399,8 +497,7 @@ Mock `mysqldump`, `mysql`, `gpg`, `rsync`, and `ssh` under `tests/scripts/fixtur
 
 ## Future phases (not implemented)
 
-- KVM cron (twice daily) + `flock` for backup and (later) prune
-- Restore verification drill
-- Alerting on failure
+- Restore verification automation + operator restore CLI
+- Manual backup trigger from Desk
 
 See also: [`docs/infrastructure-readiness.md`](infrastructure-readiness.md) §12, [`docs/p18-08-001-database-growth-investigation.md`](p18-08-001-database-growth-investigation.md).
