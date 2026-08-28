@@ -13,6 +13,7 @@ class IraNotificationCategoryMapper
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing => NotificationCategory::DailySummary,
             IraNotificationType::OpsDigest,
+            IraNotificationType::ReadyQueueDigest,
             IraNotificationType::OwnerIntelligenceReport => NotificationCategory::DailySummary,
             IraNotificationType::SmartAssignment,
             IraNotificationType::IraAssignmentBatch,

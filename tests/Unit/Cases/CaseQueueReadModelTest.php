@@ -193,6 +193,8 @@ class CaseQueueReadModelTest extends TestCase
             'IraOwnerIntelligenceService.php',
             'TeamAvailabilityOverviewService.php',
             'Workforce360Service.php',
+            'IraReadyQueueDigestContextService.php',
+            'TeamActivityPendingMetricsService.php',
         ];
 
         $roots = [
@@ -241,6 +243,7 @@ class CaseQueueReadModelTest extends TestCase
         // Post H4-6D: every production DashboardSnapshot::load() must be intentional KEEP.
         $expectedKeep = collect([
             'DashboardService.php',
+            'IraAdminOpsDigestContextService.php',
             'IraCommunicationService.php',
             'IraOwnerIntelligenceService.php',
             'IraRecommendationEngineService.php',

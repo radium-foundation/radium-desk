@@ -7,15 +7,17 @@ use App\Data\Operations\IraMorningBriefing;
 use App\Data\Operations\IraOperationalRisk;
 use App\Data\Operations\IraOperationalSnapshotData;
 use App\Enums\AI\AIRiskLevel;
+use App\Enums\IncidentSource;
+use App\Enums\IncidentStatus;
 use App\Enums\IraNotificationStatus;
 use App\Enums\IraNotificationType;
 use App\Enums\IraRiskCategory;
 use App\Enums\RefundStatus;
-use App\Enums\IncidentSource;
-use App\Enums\IncidentStatus;
 use App\Models\Incident;
+use App\Models\IraNotification;
 use App\Models\Order;
 use App\Models\RefundRequest;
+use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\IraBriefingFormatter;
@@ -184,7 +186,7 @@ class AdminTelegramNotificationPolicyTest extends TestCase
         $this->assertSame([], $second);
         $this->assertSame(
             1,
-            \App\Models\IraNotification::query()
+            IraNotification::query()
                 ->where('user_id', $opsAdmin->id)
                 ->where('notification_type', IraNotificationType::OpsDigest->value)
                 ->count(),
@@ -278,6 +280,104 @@ class AdminTelegramNotificationPolicyTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_ira_ready_queue_assignment_to_admin_does_not_send_individual_telegram(): void
+    {
+        Http::fake();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 11:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createOpsAdmin('810013');
+        $incident = $this->createOpenIncident('RD-IRA-READY-ASSIGN');
+
+        $results = app(IraCommunicationService::class)->sendManualAssignment(
+            assignee: $admin,
+            customer: 'Dimpal Deka',
+            device: 'MFS110',
+            time: 'Unscheduled',
+            caseReference: $incident->reference_no,
+            context: [
+                'incident_id' => $incident->id,
+                'assigned_by' => 'IRA',
+                'override_reason' => 'shift_admin',
+                'task' => 'General',
+            ],
+        );
+
+        $this->assertSame([], $results);
+        Http::assertNothingSent();
+        $this->assertDatabaseMissing('ira_notifications', [
+            'user_id' => $admin->id,
+            'notification_type' => IraNotificationType::ManualAssignment->value,
+        ]);
+    }
+
+    public function test_ira_hardware_routing_assignment_to_admin_still_sends_telegram(): void
+    {
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 1],
+            ], 200),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 11:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createOpsAdmin('810015');
+        $incident = $this->createOpenIncident('RD-IRA-HARDWARE-ASSIGN');
+
+        $results = app(IraCommunicationService::class)->sendManualAssignment(
+            assignee: $admin,
+            customer: 'Dimpal Deka',
+            device: 'MFS110',
+            time: 'Unscheduled',
+            caseReference: $incident->reference_no,
+            context: [
+                'incident_id' => $incident->id,
+                'assigned_by' => 'IRA',
+                'override_reason' => 'hardware_routing',
+                'task' => 'General',
+            ],
+        );
+
+        $this->assertCount(1, $results);
+        $this->assertSame(IraNotificationStatus::Sent, $results[0]->status);
+        $this->assertStringContainsString('New support assigned', $results[0]->message);
+        Http::assertSentCount(1);
+    }
+
+    public function test_human_admin_assignment_telegram_still_sends(): void
+    {
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 1],
+            ], 200),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 11:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createOpsAdmin('810014');
+        $incident = $this->createOpenIncident('RD-HUMAN-ADMIN-ASSIGN');
+
+        $results = app(IraCommunicationService::class)->sendManualAssignment(
+            assignee: $admin,
+            customer: 'Dimpal Deka',
+            device: 'MFS110',
+            time: 'Unscheduled',
+            caseReference: $incident->reference_no,
+            context: [
+                'incident_id' => $incident->id,
+                'assigned_by' => 'Ravi (Admin)',
+                'task' => 'General',
+            ],
+        );
+
+        $this->assertCount(1, $results);
+        $this->assertSame(IraNotificationStatus::Sent, $results[0]->status);
+        $this->assertStringContainsString('New support assigned', $results[0]->message);
+        Http::assertSentCount(1);
+    }
+
     public function test_admin_reassignment_sends_immediately_outside_normal_work_hours(): void
     {
         Http::fake([
@@ -324,7 +424,7 @@ class AdminTelegramNotificationPolicyTest extends TestCase
         ]);
         $agent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
 
-        \App\Models\TeamMemberWorkSchedule::query()->create([
+        TeamMemberWorkSchedule::query()->create([
             'user_id' => $agent->id,
             'effective_from' => '2026-01-01',
             'work_start_time' => '10:00:00',

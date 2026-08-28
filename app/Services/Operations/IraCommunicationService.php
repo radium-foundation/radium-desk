@@ -8,7 +8,6 @@ use App\Data\Operations\IraOperationalRisk;
 use App\Data\Operations\IraOwnerReportData;
 use App\Data\Operations\SupportAppointmentReminderCandidate;
 use App\Data\Operations\SupportSlotReminderItem;
-use App\Support\Operations\AppointmentReminderMessageContext;
 use App\Data\Operations\TeamWorkBriefing;
 use App\Enums\AI\AIRiskLevel;
 use App\Enums\IraNotificationType;
@@ -24,9 +23,12 @@ use App\Services\Notifications\IraNotificationCategoryMapper;
 use App\Services\Notifications\NotificationAuthorityService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Notifications\NotificationRecipientResolver;
-use App\Support\Telegram\TelegramOperationalLinkFormatter;
 use App\Services\Telegram\TelegramBotService;
+use App\Support\AppDateFormatter;
+use App\Support\Operations\AppointmentReminderMessageContext;
+use App\Support\Telegram\TelegramOperationalLinkFormatter;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -67,6 +69,7 @@ class IraCommunicationService
         private readonly IraOperationalQuietHoursService $operationalQuietHours,
         private readonly AdminOperationalQuietHoursService $adminOperationalQuietHours,
         private readonly IraAdminOpsDigestContextService $adminOpsDigestContext,
+        private readonly IraReadyQueueDigestContextService $readyQueueDigestContext,
         private readonly TelegramOperationalLinkFormatter $operationalLinkFormatter,
     ) {}
 
@@ -119,6 +122,15 @@ class IraCommunicationService
                 $results[] = $this->notificationService->markSkipped(
                     $notification,
                     'Assignee is outside working hours; Telegram deferred.',
+                );
+
+                continue;
+            }
+
+            if ($this->shouldDeferReadyQueueDigestTelegram($user, $input)) {
+                $results[] = $this->notificationService->markSkipped(
+                    $notification,
+                    'Recipient is outside working hours; Ready Queue digest deferred.',
                 );
 
                 continue;
@@ -209,6 +221,37 @@ class IraCommunicationService
     /**
      * @return list<IraNotification>
      */
+    public function sendReadyQueueDigest(): array
+    {
+        $count = $this->readyQueueDigestContext->readyQueueCount();
+
+        if ($count <= 0) {
+            return [];
+        }
+
+        $latest = $this->readyQueueDigestContext->latestServiceReference();
+        $results = [];
+
+        foreach ($this->operationsAdminUsers() as $user) {
+            $results = [
+                ...$results,
+                ...$this->dispatch(new IraCommunicationInput(
+                    event: IraNotificationType::ReadyQueueDigest,
+                    context: [
+                        'user_id' => $user->id,
+                        'ready_queue_count' => $count,
+                        'latest_service_reference' => $latest?->serviceReference,
+                        'latest_agent_name' => $latest?->agentName,
+                        'latest_added_at' => $latest?->addedAt?->toIso8601String(),
+                        'dedupe_key' => $this->readyQueueDigestSlotKey(),
+                    ],
+                )),
+            ];
+        }
+
+        return $results;
+    }
+
     public function sendOpsDigest(User $user, IraMorningBriefing $briefing, string $period): array
     {
         $normalizedPeriod = $this->normalizeOpsDigestPeriod($period);
@@ -394,7 +437,7 @@ class IraCommunicationService
     /**
      * @param  list<array{incident_id?: int|string|null, case: string, task?: string|null}>  $items
      * @param  array<string, mixed>  $context
-     * @return list<\App\Models\IraNotification>
+     * @return list<IraNotification>
      */
     public function sendIraAssignmentBatch(
         User $assignee,
@@ -557,7 +600,8 @@ class IraCommunicationService
             IraNotificationType::UnassignedScheduledWork,
             IraNotificationType::WaitingCustomerRisk,
             IraNotificationType::TeamAvailabilityIssue,
-            IraNotificationType::OpsDigest => $this->operationsAdminUsers(),
+            IraNotificationType::OpsDigest,
+            IraNotificationType::ReadyQueueDigest => $this->operationsAdminUsers(),
             IraNotificationType::SmartAssignment,
             IraNotificationType::IraAssignmentBatch,
             IraNotificationType::ManualAssignment,
@@ -593,6 +637,45 @@ class IraCommunicationService
         );
     }
 
+    private function shouldDeferReadyQueueDigestTelegram(User $user, IraCommunicationInput $input): bool
+    {
+        if ($input->event !== IraNotificationType::ReadyQueueDigest) {
+            return false;
+        }
+
+        return ! $this->readyQueueDigestContext->isRecipientEligible($user);
+    }
+
+    private function shouldSuppressIraReadyQueueAssignmentTelegram(User $user, IraCommunicationInput $input): bool
+    {
+        if (! $this->isAdminOpsRecipient($user)) {
+            return false;
+        }
+
+        if ($input->event !== IraNotificationType::ManualAssignment) {
+            return false;
+        }
+
+        $assignedBy = trim((string) ($input->context['assigned_by'] ?? ''));
+        $overrideReason = (string) ($input->context['override_reason'] ?? '');
+
+        return $assignedBy === 'IRA' && $overrideReason === 'shift_admin';
+    }
+
+    private function readyQueueDigestSlotKey(): string
+    {
+        $timezone = (string) config('app.schedule_timezone', config('app.timezone', 'Asia/Kolkata'));
+        $at = now()->timezone($timezone);
+        $slotMinute = $at->minute < 30 ? 0 : 30;
+
+        return sprintf(
+            'ready_queue_digest:%s:%02d:%02d',
+            $at->toDateString(),
+            $at->hour,
+            $slotMinute,
+        );
+    }
+
     private function resolveIncidentFromInput(IraCommunicationInput $input): ?Incident
     {
         $incidentId = $input->context['incident_id'] ?? null;
@@ -610,6 +693,7 @@ class IraCommunicationService
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing,
             IraNotificationType::OpsDigest,
+            IraNotificationType::ReadyQueueDigest,
             IraNotificationType::OwnerIntelligenceReport,
             IraNotificationType::SmartAssignment,
             IraNotificationType::IraAssignmentBatch,
@@ -710,6 +794,7 @@ class IraCommunicationService
         return match ($input->event) {
             IraNotificationType::DailyBriefing => $this->formatDailyBriefing($user, $input),
             IraNotificationType::OpsDigest => $this->formatOpsDigest($user, $input),
+            IraNotificationType::ReadyQueueDigest => $this->formatReadyQueueDigest($input),
             IraNotificationType::OwnerIntelligenceReport => $this->formatOwnerIntelligenceReport($user, $input),
             IraNotificationType::TeamDailyBriefing => $this->formatTeamDailyBriefing($user, $input),
             IraNotificationType::SmartAssignment,
@@ -772,6 +857,44 @@ class IraCommunicationService
             : 'Evening Operations Summary';
 
         return [$title, $message];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function formatReadyQueueDigest(IraCommunicationInput $input): array
+    {
+        $count = (int) ($input->context['ready_queue_count'] ?? 0);
+        $serviceReference = trim((string) ($input->context['latest_service_reference'] ?? ''));
+        $agentName = trim((string) ($input->context['latest_agent_name'] ?? ''));
+        $addedAt = $this->formatReadyQueueDigestAddedAt($input->context['latest_added_at'] ?? null);
+
+        $lines = [
+            'Ready Queue Update',
+            '',
+            'Ready Queue: '.$count,
+            '',
+            'Latest Service Ref: '.($serviceReference !== '' ? $serviceReference : '—'),
+            'Agent: '.($agentName !== '' ? $agentName : '—'),
+            'Added: '.$addedAt,
+        ];
+
+        return ['Ready Queue Update', implode("\n", $lines)];
+    }
+
+    private function formatReadyQueueDigestAddedAt(mixed $addedAt): string
+    {
+        if (! is_string($addedAt) || trim($addedAt) === '') {
+            return '—';
+        }
+
+        try {
+            $parsed = Carbon::parse($addedAt);
+        } catch (\Throwable) {
+            return '—';
+        }
+
+        return AppDateFormatter::format($parsed, 'g:i A') ?? '—';
     }
 
     /**
@@ -1208,8 +1331,13 @@ class IraCommunicationService
             return false;
         }
 
-        if ($input->event === IraNotificationType::OpsDigest) {
+        if ($input->event === IraNotificationType::OpsDigest
+            || $input->event === IraNotificationType::ReadyQueueDigest) {
             return false;
+        }
+
+        if ($this->shouldSuppressIraReadyQueueAssignmentTelegram($user, $input)) {
+            return true;
         }
 
         if (in_array($input->event, [

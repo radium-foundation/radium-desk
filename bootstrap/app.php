@@ -7,11 +7,11 @@ use App\Infrastructure\Queue\QueueRouting;
 use App\Services\Platform\PlatformHealthCache;
 use App\Services\SystemSettingsService;
 use Illuminate\Console\Scheduling\Schedule;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
@@ -161,6 +161,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->dailyAt(config('ira.communication.admin_ops_digest.evening_time', '20:30'))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-ops-digest.log'));
+
+        $schedule->command('ira:send-ready-queue-digest')
+            ->everyThirtyMinutes()
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/ira-ready-queue-digest.log'));
 
         $schedule->command('workforce:send-short-attendance-evening-review')
             ->dailyAt(config('workforce.short_attendance.evening_review_time', '18:45'))

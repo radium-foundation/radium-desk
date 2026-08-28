@@ -21,6 +21,7 @@ class SchedulerTimezoneTest extends TestCase
         'ira:send-daily-briefing',
         'ira:send-ops-digest --period=morning',
         'ira:send-ops-digest --period=evening',
+        'ira:send-ready-queue-digest',
         'ira:send-owner-intelligence --period=morning',
         'ira:send-owner-intelligence --period=evening',
         'ira:send-risk-alerts',

@@ -12,12 +12,14 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\ServiceCaseAssignedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
+use App\Services\Assignment\ReadyQueueAdminAssignmentService;
 use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\IraCommunicationService;
 use App\Services\Operations\OperationsAssignmentEligibilityService;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\Operations\OperationsRoleService;
+use App\Services\Operations\TeamMemberActivityService;
 use App\Support\Operations\AppointmentReminderMessageContext;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
@@ -143,7 +145,7 @@ class ServiceCaseAssignmentService
             return $routed;
         }
 
-        $readyQueueAdmins = app(\App\Services\Assignment\ReadyQueueAdminAssignmentService::class);
+        $readyQueueAdmins = app(ReadyQueueAdminAssignmentService::class);
         $assignee = $readyQueueAdmins->resolveEligibleAdmin($at);
 
         if ($assignee === null) {
@@ -625,7 +627,7 @@ class ServiceCaseAssignmentService
         $incident = $incident->fresh(['order']);
 
         return $this->orderRoutingService->resolveAssignee($incident)
-            ?? app(\App\Services\Assignment\ReadyQueueAdminAssignmentService::class)->resolveEligibleAdmin($at);
+            ?? app(ReadyQueueAdminAssignmentService::class)->resolveEligibleAdmin($at);
     }
 
     /**
@@ -736,9 +738,7 @@ class ServiceCaseAssignmentService
             return null;
         }
 
-        $at ??= now();
-
-        return DB::transaction(function () use ($userIds, $cursorSettingKey, $at): ?User {
+        return DB::transaction(function () use ($userIds, $cursorSettingKey): ?User {
             $agents = User::query()
                 ->whereIn('id', $userIds)
                 ->where('is_active', true)
@@ -900,10 +900,10 @@ class ServiceCaseAssignmentService
 
             // Automation/IRA actors must not open presence sessions via assignment side-effects.
             if (! app(AutomationIdentityService::class)->isAutomationActor($actor)) {
-                app(\App\Services\Operations\TeamMemberActivityService::class)->recordCaseAction($actor);
+                app(TeamMemberActivityService::class)->recordCaseAction($actor);
             }
 
-            app(\App\Services\Operations\TeamMemberActivityService::class)->recordStatusChange($assignee);
+            app(TeamMemberActivityService::class)->recordStatusChange($assignee);
 
             $this->dashboardSnapshotStore->forget();
             $this->snapshotInvalidator->markCaseOrOrderChanged();
@@ -967,6 +967,7 @@ class ServiceCaseAssignmentService
             'appointment_id' => $appointment?->id,
             'assigned_by' => $this->telegramAssignedByLabel($actor, $extraNewValues),
             'task' => AppointmentReminderMessageContext::appointmentTypeLabel($incident),
+            'override_reason' => $extraNewValues['override_reason'] ?? null,
         ];
 
         $communicationService = app(IraCommunicationService::class);

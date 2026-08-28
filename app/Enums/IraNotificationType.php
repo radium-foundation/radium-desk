@@ -19,6 +19,7 @@ enum IraNotificationType: string
     case ManualAssignment = 'manual_assignment';
     case Reassignment = 'reassignment';
     case OpsDigest = 'ops_digest';
+    case ReadyQueueDigest = 'ready_queue_digest';
     case OwnerIntelligenceReport = 'owner_intelligence_report';
     case CriticalSystemAlert = 'critical_system_alert';
     case TeamAnnouncement = 'team_announcement';
@@ -41,6 +42,7 @@ enum IraNotificationType: string
             self::IntegrationFailure => 'Integration Failure',
             self::UnusualBacklog => 'Unusual Backlog',
             self::OpsDigest => 'Operations Digest',
+            self::ReadyQueueDigest => 'Ready Queue Digest',
             self::OwnerIntelligenceReport => 'Owner Intelligence Report',
             self::CriticalSystemAlert => 'Critical System Alert',
             self::TeamAnnouncement => 'Team Announcement',

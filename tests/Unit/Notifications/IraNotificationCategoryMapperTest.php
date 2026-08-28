@@ -43,6 +43,8 @@ class IraNotificationCategoryMapperTest extends TestCase
             'critical system alert' => [IraNotificationType::CriticalSystemAlert, NotificationCategory::SystemHealth],
             'team announcement' => [IraNotificationType::TeamAnnouncement, NotificationCategory::Assignment],
             'owner intelligence report' => [IraNotificationType::OwnerIntelligenceReport, NotificationCategory::DailySummary],
+            'ops digest' => [IraNotificationType::OpsDigest, NotificationCategory::DailySummary],
+            'ready queue digest' => [IraNotificationType::ReadyQueueDigest, NotificationCategory::DailySummary],
         ];
     }
 }

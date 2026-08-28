@@ -42,6 +42,16 @@ class IraNotificationPolicyServiceTest extends TestCase
         $this->assertTrue(app(IraNotificationPolicyService::class)->canNotifyNow($user));
     }
 
+    public function test_allows_notification_when_user_has_no_work_schedule(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
+
+        $this->assertTrue(app(IraNotificationPolicyService::class)->canNotifyNow($user));
+    }
+
     public function test_blocks_notification_outside_working_hours(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-09 20:00:00', 'Asia/Kolkata'));
