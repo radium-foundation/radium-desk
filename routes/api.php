@@ -17,3 +17,5 @@ Route::post('/webhooks/interakt/flow', [InteraktFlowWebhookController::class, 'h
 
 Route::post('/webhooks/bonvoice', [BonvoiceWebhookController::class, 'handle'])
     ->name('webhooks.bonvoice');
+
+require __DIR__.'/api/commerce.php';

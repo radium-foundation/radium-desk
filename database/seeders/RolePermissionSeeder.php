@@ -84,6 +84,12 @@ class RolePermissionSeeder extends Seeder
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
+    /** Commerce site registry — read settings (Super Admin only, future admin UI). */
+    public const PERMISSION_COMMERCE_SETTINGS_VIEW = 'commerce.settings.view';
+
+    /** Commerce site registry — manage settings (Super Admin only, future admin UI). */
+    public const PERMISSION_COMMERCE_SETTINGS_UPDATE = 'commerce.settings.update';
+
     public const PERMISSION_TODOS_VIEW = 'todos.view';
 
     public const PERMISSION_TODOS_CREATE = 'todos.create';
@@ -443,6 +449,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_BACKUPS_VIEW,
+            self::PERMISSION_COMMERCE_SETTINGS_VIEW,
+            self::PERMISSION_COMMERCE_SETTINGS_UPDATE,
         ],
     ];
 
