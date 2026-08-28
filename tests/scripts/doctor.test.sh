@@ -44,6 +44,20 @@ grep -q 'SUPERVISOR_PROGRAM' "$LIB" || fail "lib must use SUPERVISOR_PROGRAM for
 
 pass "doctor KVM/legacy branching guards present"
 
+# --- Redis check: throw-on-failure, not tinker exit() ---
+
+REDIS_FN="$(awk '/^kvm_doctor_check_redis\(\)/,/^}/' "$LIB")"
+echo "$REDIS_FN" | grep -q 'Redis::connection()->ping()' || fail "redis check must ping Laravel Redis connection"
+echo "$REDIS_FN" | grep -q 'throw new RuntimeException' || fail "redis check must throw on ping failure"
+if echo "$REDIS_FN" | grep -q 'exit('; then
+    fail "redis check must not use tinker exit() (false negative on production)"
+fi
+if echo "$REDIS_FN" | grep -q 'php_exec.*tinker'; then
+    fail "redis check must not use php_exec with tinker --execute (shell quoting breaks on remote bash)"
+fi
+echo "$REDIS_FN" | grep -q "tinker --execute='" || fail "redis check must single-quote remote tinker --execute for ssh_exec"
+pass "redis check uses throw-on-failure, not tinker exit()"
+
 # --- mocked execution: KVM path skips legacy checks ---
 
 MOCK_BIN="$FIXTURES/bin"
@@ -162,6 +176,83 @@ if [[ "$DOCTOR_OUTPUT" != "failures=0" ]]; then
 fi
 
 pass "mocked KVM doctor helper checks succeed"
+
+# --- Redis check exit codes via simulated remote shell (bash -c "$1") ---
+
+cat > "$MOCK_BIN/php-redis" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "artisan" && "$2" == "tinker" && "$3" == --execute=* ]]; then
+    if [[ "$3" == *"exit("* && "$3" == *"Redis::connection()->ping()"* ]]; then
+        exit 1
+    fi
+    if [[ "$3" == *"throw new RuntimeException"* && "$3" == *"Redis::connection()->ping()"* ]]; then
+        exit 0
+    fi
+    exit 1
+fi
+exit 0
+EOF
+chmod +x "$MOCK_BIN/php-redis"
+
+run_mocked_redis_check() {
+    local php_bin="$1"
+    local expected_exit="$2"
+    local label="$3"
+    local actual_exit=0
+
+    (
+        export PATH="$MOCK_BIN:$PATH"
+        export SSH_HOST=mock-host SSH_PORT=22 SSH_USER=mock
+
+        # shellcheck source=tools/lib.sh
+        source "$LIB"
+
+        export REMOTE_PROJECT="$MOCK_PROJECT" PHP_BIN="$php_bin" COMPOSER_BIN=composer
+
+        ssh_exec() {
+            bash -c "$1"
+        }
+
+        if kvm_doctor_check_redis; then
+            actual_exit=0
+        else
+            actual_exit=1
+        fi
+
+        exit "$actual_exit"
+    ) && actual_exit=0 || actual_exit=1
+
+    if [[ "$actual_exit" -ne "$expected_exit" ]]; then
+        fail "${label}: expected exit ${expected_exit}, got ${actual_exit}"
+    fi
+}
+
+run_mocked_redis_check "php-redis" 0 "successful Redis ping via remote shell quoting"
+pass "successful Redis ping passes kvm_doctor_check_redis through remote shell quoting"
+
+cat > "$MOCK_BIN/php-redis-fail" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "artisan" && "$2" == "tinker" && "$3" == --execute=* ]]; then
+    exit 1
+fi
+exit 0
+EOF
+chmod +x "$MOCK_BIN/php-redis-fail"
+
+run_mocked_redis_check "php-redis-fail" 1 "failed Redis ping via remote shell quoting"
+pass "failed Redis ping fails kvm_doctor_check_redis through remote shell quoting"
+
+# Reproduce php_exec-style unquoted --execute breaking remote bash parsing.
+(
+    export PATH="$MOCK_BIN:$PATH"
+    source "$LIB"
+    export REMOTE_PROJECT="$MOCK_PROJECT" PHP_BIN=php-redis
+    php_exec_broken="cd '$REMOTE_PROJECT' && $PHP_BIN artisan tinker --execute=if (! Illuminate\\Support\\Facades\\Redis::connection()->ping()) { throw new RuntimeException('Redis ping failed'); }"
+    if bash -c "$php_exec_broken" >/dev/null 2>&1; then
+        fail "php_exec-style unquoted tinker --execute must not parse on remote bash"
+    fi
+)
+pass "php_exec-style unquoted tinker --execute fails remote bash parsing (regression guard)"
 
 # Legacy parity helper must use LEGACY_REMOTE_PUBLIC, not REMOTE_PUBLIC.
 if ! grep -q 'remote_public_manifest="${LEGACY_REMOTE_PUBLIC}/build/manifest.json"' "$LIB"; then

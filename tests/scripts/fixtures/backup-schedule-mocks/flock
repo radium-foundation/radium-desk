@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#
+# Mock flock for backup-schedule overlap tests.
+#
+set -euo pipefail
+
+if [[ "${1:-}" != "-n" || "${2:-}" != "9" ]]; then
+    echo "unsupported mock flock invocation" >&2
+    exit 2
+fi
+
+state_file="${FLOCK_MOCK_STATE_FILE:-}"
+if [[ -z "$state_file" ]]; then
+    echo "FLOCK_MOCK_STATE_FILE is required" >&2
+    exit 2
+fi
+
+if [[ -f "$state_file" ]]; then
+    exit 1
+fi
+
+printf 'held\n' >"$state_file"
+exit 0

@@ -31,6 +31,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class AdminTelegramNotificationPolicyTest extends TestCase
@@ -559,9 +560,27 @@ class AdminTelegramNotificationPolicyTest extends TestCase
     {
         $admin = $this->createOpsAdmin('810012');
         $order = $this->createOrder();
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Internal,
+            'title' => 'Policy test order link case',
+            'description' => 'Policy test order link case.',
+            'status' => IncidentStatus::Open,
+            'high_priority' => false,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+        ]);
         $formatter = app(TelegramOperationalLinkFormatter::class);
 
-        $this->assertNotNull($formatter->orderLink($admin, $order));
+        $url = $formatter->orderLink($admin, $order);
+
+        $this->assertNotNull($url);
+        $this->assertSame(route('dashboard', [
+            'open_customer_360' => $incident->id,
+            'open_customer_360_reference' => $incident->display_reference,
+        ], absolute: true), $url);
 
         $guest = User::factory()->create(['is_active' => true]);
         $guest->assignRole(RolePermissionSeeder::ROLE_EMPLOYEE);
@@ -580,6 +599,69 @@ class AdminTelegramNotificationPolicyTest extends TestCase
             'Open Case',
             $formatter->incidentLink($guest, $incident),
         ));
+    }
+
+    public function test_assignment_telegram_uses_text_link_entity_for_case_reference(): void
+    {
+        config(['app.url' => 'https://desk.radiumbox.com']);
+        URL::forceRootUrl('https://desk.radiumbox.com');
+        URL::forceScheme('https');
+
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 1],
+            ], 200),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createOpsAdmin('810014');
+        $incident = $this->createOpenIncident('RD-ADMIN-ENTITY');
+
+        app(IraCommunicationService::class)->dispatch(new IraCommunicationInput(
+            event: IraNotificationType::Reassignment,
+            context: [
+                'user_id' => $admin->id,
+                'incident_id' => $incident->id,
+                'case' => $incident->reference_no,
+                'customer' => 'Mohammad Nesar',
+                'device' => 'Device',
+                'time' => '22:00',
+                'dedupe_key' => 'reassignment:entity:'.$admin->id,
+            ],
+        ));
+
+        Http::assertSent(function ($request) use ($incident): bool {
+            $payload = $request->data();
+            $entities = $payload['entities'] ?? [];
+
+            return str_contains((string) ($payload['text'] ?? ''), 'Case: '.$incident->reference_no)
+                && ! str_contains((string) ($payload['text'] ?? ''), 'Open Case:')
+                && ! array_key_exists('parse_mode', $payload)
+                && is_array($entities)
+                && ($entities[0]['type'] ?? null) === 'text_link'
+                && ($entities[0]['url'] ?? null) === route('incidents.show', $incident, absolute: true);
+        });
+    }
+
+    public function test_operational_link_lines_use_bare_https_urls_not_markdown(): void
+    {
+        config(['app.url' => 'https://desk.radiumbox.com']);
+        URL::forceRootUrl('https://desk.radiumbox.com');
+        URL::forceScheme('https');
+
+        $admin = $this->createOpsAdmin('810013');
+        $incident = $this->createOpenIncident('RD-ADMIN-LINK');
+        $formatter = app(TelegramOperationalLinkFormatter::class);
+
+        $caseUrl = $formatter->incidentLink($admin, $incident);
+        $line = $formatter->linkLine('Open Case', $caseUrl);
+
+        $this->assertNotNull($caseUrl);
+        $this->assertStringStartsWith('https://', $caseUrl);
+        $this->assertSame("Open Case: {$caseUrl}", $line);
+        $this->assertStringNotContainsString('[Open Case](', (string) $line);
     }
 
     public function test_scheduler_timezone_remains_asia_kolkata(): void

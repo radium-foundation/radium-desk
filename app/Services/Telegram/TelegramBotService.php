@@ -22,7 +22,10 @@ class TelegramBotService
         return is_string($token) && trim($token) !== '';
     }
 
-    public function sendMessage(string $chatId, string $text): TelegramSendResult
+    /**
+     * @param  list<array{type: string, offset: int, length: int, url?: string}>|null  $entities
+     */
+    public function sendMessage(string $chatId, string $text, ?array $entities = null): TelegramSendResult
     {
         if (! $this->systemSettings->getBool('notifications.telegram.enabled', false)) {
             return TelegramSendResult::skipped(self::DISABLED_BY_SYSTEM_SETTINGS);
@@ -35,14 +38,20 @@ class TelegramBotService
         $token = (string) config('services.telegram.bot_token');
         $url = "https://api.telegram.org/bot{$token}/sendMessage";
 
+        $payload = [
+            'chat_id' => $chatId,
+            'text' => $text,
+            'disable_web_page_preview' => true,
+        ];
+
+        if ($entities !== null && $entities !== []) {
+            $payload['entities'] = $entities;
+        }
+
         try {
             $response = Http::timeout(10)
                 ->asJson()
-                ->post($url, [
-                    'chat_id' => $chatId,
-                    'text' => $text,
-                    'disable_web_page_preview' => true,
-                ]);
+                ->post($url, $payload);
 
             if ($response->successful() && ($response->json('ok') === true)) {
                 $messageId = $response->json('result.message_id');

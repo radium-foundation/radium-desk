@@ -153,9 +153,11 @@ echo "$OWNERSHIP_BLOCK" | grep -q 'chown -R ravi:ravi' \
     && fail "fix_remote_ownership must not hardcode chown -R ravi:ravi"
 echo "$OWNERSHIP_BLOCK" | grep -q 'storage/logs' \
     || fail "fix_remote_ownership must reference storage/logs skip"
+echo "$OWNERSHIP_BLOCK" | grep -q 'node_modules' \
+    || fail "fix_remote_ownership must reference node_modules skip"
 echo "$OWNERSHIP_BLOCK" | grep -q '\-prune' \
-    || fail "fix_remote_ownership must prune storage/logs during ownership traversal"
+    || fail "fix_remote_ownership must prune excluded paths during ownership traversal"
 
-pass "fix_remote_ownership skips Supervisor-owned logs"
+pass "fix_remote_ownership skips excluded Supervisor logs and node_modules"
 
 echo "All deploy-kvm static checks passed."

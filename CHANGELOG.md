@@ -1,5 +1,86 @@
 # Changelog
 
+## 4.0.59 — 2026-08-22 — Backup Schedule Exit Code Fix
+
+- Fixed backup schedule status JSON so successful runs record `exit_code: 0` instead of incorrectly serializing zero as failure.
+
+## 4.0.58 — 2026-08-22 — Backup Failure Alerting
+
+- Production watchdog now alerts via Telegram when scheduled backups fail, stall, overlap, or become unreadable.
+- Added a backup schedule wrapper and last-run status file so backup health can be monitored without shell access.
+- Backup cron cutover to the new wrapper is documented in the Backup Runbook but not enabled in this release.
+
+## 4.0.57 — 2026-08-22 — WhatsApp Outbound Cutoff
+
+- Added an optional WhatsApp outbound cutoff so historical customer journeys do not send after Interakt credentials are restored.
+- When configured, journeys that started before the cutoff skip new WhatsApp dispatches only; email and Telegram are unchanged.
+- Cutoff is disabled until explicitly set in environment configuration.
+
+## 4.0.56 — 2026-08-21 — Order Telegram Deep Link Fix
+
+- Order identifiers in operational Telegram messages now open the Dashboard with Customer-360 auto-loaded, instead of an unstyled fragment page.
+- Case and refund Telegram deep links are unchanged; text_link entity behavior is unchanged.
+
+## 4.0.55 — 2026-08-21 — Clickable Operational Identifiers
+
+- Authorized case, refund, and order business identifiers in operational Telegram messages are now tappable using Telegram text_link entities.
+- URLs are no longer shown as separate “Open Case/Refund/Order” lines; unauthorized recipients still see plain identifiers only.
+- No parse_mode changes; incoming-call, Admin, and Super Admin notification behavior is unchanged.
+
+## 4.0.54 — 2026-08-21 — Telegram Deep Link Clickability
+
+- Operational Telegram links (case, refund, order) now use bare HTTPS URLs that Telegram auto-links without requiring parse_mode.
+- Order identifiers are shown when no authorized canonical route is available.
+- Existing incoming-call, Admin, and Super Admin notification behavior is unchanged.
+
+## 4.0.53 — 2026-08-21 — Admin Telegram Notification Policy
+
+- Routine Admin operational alerts (staffing, unassigned scheduled work) are suppressed from 18:30 to 09:00 IST; assignments and reassignments remain immediate 24/7.
+- Admin morning and evening operations summaries replace the duplicate 08:15/18:30 digests, scheduled at 10:00 and 20:30 IST with attendance, workload, SLA, and refund totals.
+- Admin/Ops refund-submitted Telegram remains immediate; Super Admin notification policy from v4.0.52 is unchanged.
+- Case, refund, and order Telegram messages now include authorization-safe deep links where available.
+
+## 4.0.52 — 2026-08-21 — Super Admin Telegram Notification Policy
+
+- Super Admin no longer receives standalone hourly SLA-risk or open-case Telegram alerts; these remain covered in morning and evening Owner Intelligence summaries.
+- Super Admin no longer receives immediate Telegram when a refund request is submitted; refund pending counts and daily submission totals are now included in Owner Intelligence summaries.
+- Critical watchdog alerts and existing overnight quiet-hours behavior are unchanged.
+
+## 4.0.51 — 2026-08-21 — Super Admin Telegram Quiet Hours
+
+- Routine overnight operational risk alerts to Super Admin are suppressed from 21:00 to 08:00 IST, including high-priority SLA and open-case alerts.
+- Critical watchdog alerts continue at any time.
+- Quiet-hours timing follows the pinned scheduler timezone (Asia/Kolkata).
+
+## 4.0.50 — 2026-08-20 — Scheduler Timezone Hardening
+
+- Pinned Laravel scheduler evaluation to Asia/Kolkata using a dedicated schedule timezone configuration.
+- Added regression coverage to ensure scheduled Telegram and other IST-based jobs do not drift to UTC execution times.
+
+## 4.0.49 — 2026-08-20 — KVM Deploy Ownership Hardening
+
+- KVM ownership traversal now skips excluded storage/logs and node_modules paths.
+- This prevents deployment failure on Supervisor-owned logs and legacy dangling node_modules symlinks.
+- Regression coverage was extended for the excluded-path ownership handling.
+
+## 4.0.48 — 2026-08-20 — KVM Deploy Hardening
+
+- Excluded bootstrap/cache from deployment rsync so production-generated Laravel caches are preserved until optimize rebuilds them after deploy.
+- Fixed KVM deploy ownership handling to skip storage/logs and apply ownership using the configured SSH user, avoiding failures on Supervisor-owned log files.
+- Added regression tests for bootstrap/cache rsync protection and Supervisor-safe ownership handling.
+
+## 4.0.47 — 2026-08-20 — Worktree-Safe Release Snapshot
+
+- Fixed release snapshot Git metadata detection so it works correctly from linked Git worktrees used during KVM deployment.
+
+## 4.0.46 — 2026-08-20 — KVM Doctor Redis Quoting Fix
+
+- Fixed the KVM doctor Redis connectivity check so remote shell quoting is handled correctly and healthy Redis no longer fails preflight.
+
+## 4.0.45 — 2026-08-20 — KVM Doctor Redis Check
+
+- Fixed the KVM doctor Redis connectivity check so it reliably reports Laravel Redis connectivity instead of failing when Redis is healthy.
+
 ## 4.0.44 — 2026-08-20 — Backup Status, Cloud Inventory & KVM Deployment
 
 - Added Backup Status in Administration to review local and cloud backup health, last-run outcomes, and manifest visibility without shell access.

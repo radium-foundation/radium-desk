@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "backup-run.sh: starting backup 20260822T023001Z (database=radium_desk, encryption=gpg)" >&2
+echo "backup-run.sh: ERROR: mysqldump failed" >&2
+exit 1
+

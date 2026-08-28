@@ -57,4 +57,36 @@ return [
 
     'restore_runbook_anchor' => 'how-to-restore-manual',
 
+    /*
+    |--------------------------------------------------------------------------
+    | Scheduled backup wrapper (bin/backup-schedule.sh)
+    |--------------------------------------------------------------------------
+    |
+    | Sanitized last-run-status.json is written by the cron wrapper after each
+    | scheduled attempt. ProductionWatchdogService reads it for Telegram alerts.
+    |
+    */
+
+    'schedule_lock_path' => env('BACKUP_LOCK_PATH', '/var/lock/radium-backup.lock'),
+
+    'status_path' => env(
+        'BACKUP_STATUS_PATH',
+        rtrim(env('BACKUP_STAGING_ROOT', '/var/backups/radium-desk'), '/').'/last-run-status.json',
+    ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Backup watchdog (ProductionWatchdogService / Telegram critical alerts)
+    |--------------------------------------------------------------------------
+    */
+
+    'watchdog' => [
+        'enabled' => filter_var(env('BACKUP_WATCHDOG_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'status_path' => env(
+            'BACKUP_STATUS_PATH',
+            rtrim(env('BACKUP_STAGING_ROOT', '/var/backups/radium-desk'), '/').'/last-run-status.json',
+        ),
+        'stale_hours' => max(1, (int) env('BACKUP_STALE_HOURS', 26)),
+    ],
+
 ];

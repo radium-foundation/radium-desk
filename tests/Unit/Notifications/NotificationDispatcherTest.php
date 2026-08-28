@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
 use App\Services\IncidentReferenceService;
 use App\Services\Interakt\WhatsAppAutomationDispatcher;
+use App\Services\Interakt\WhatsAppOutboundCutoff;
 use App\Services\Interakt\WhatsAppTemplateConfigurationResolver;
 use App\Services\Notifications\Channels\DesktopChannel;
 use App\Services\Notifications\Channels\EmailChannel;
@@ -117,6 +118,7 @@ class NotificationDispatcherTest extends TestCase
                     $automationDispatcher,
                     app(WhatsAppTemplateConfigurationResolver::class),
                     app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+                    app(\App\Services\Interakt\WhatsAppOutboundCutoff::class),
                 ),
                 app(EmailChannel::class),
                 app(DesktopChannel::class),
@@ -159,6 +161,7 @@ class NotificationDispatcherTest extends TestCase
                     $automationDispatcher,
                     app(WhatsAppTemplateConfigurationResolver::class),
                     app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+                    app(\App\Services\Interakt\WhatsAppOutboundCutoff::class),
                 ),
                 app(EmailChannel::class),
             ],
@@ -231,6 +234,7 @@ class NotificationDispatcherTest extends TestCase
                 $automationDispatcher,
                 app(WhatsAppTemplateConfigurationResolver::class),
                 app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+                app(\App\Services\Interakt\WhatsAppOutboundCutoff::class),
             )],
             app(NotificationAuditTrailService::class),
         );
@@ -266,6 +270,7 @@ class NotificationDispatcherTest extends TestCase
                     $automationDispatcher,
                     app(WhatsAppTemplateConfigurationResolver::class),
                     app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+                    app(\App\Services\Interakt\WhatsAppOutboundCutoff::class),
                 ),
                 app(EmailChannel::class),
             ],
@@ -281,6 +286,93 @@ class NotificationDispatcherTest extends TestCase
         $this->assertTrue($result->success);
         $this->assertCount(1, $result->results);
         $this->assertSame(NotificationChannelType::Email, $result->results[0]->channel);
+    }
+
+    public function test_pre_cutoff_whatsapp_skip_does_not_block_email(): void
+    {
+        $this->setNotificationChannelEnabled('notifications.whatsapp.enabled', true);
+        $this->setNotificationChannelEnabled('notifications.email.enabled', true);
+
+        config([
+            'interakt.outbound_not_before' => '2026-08-22 09:54:00',
+            'mail.enabled' => true,
+            'mail.default' => 'array',
+        ]);
+
+        [$message] = $this->makeMessage(
+            withDispatch: false,
+            customerEmail: 'customer@example.com',
+            firstRequestedAt: '2026-08-18 08:35:00',
+        );
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldNotReceive('dispatch');
+
+        $dispatcher = new NotificationDispatcher(
+            app(SystemSettingsService::class),
+            [
+                new WhatsAppChannel(
+                    $automationDispatcher,
+                    app(WhatsAppTemplateConfigurationResolver::class),
+                    app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+                    app(WhatsAppOutboundCutoff::class),
+                ),
+                app(EmailChannel::class),
+            ],
+            app(NotificationAuditTrailService::class),
+        );
+
+        $result = $dispatcher->send(NotificationType::RequestSerialNumber, $message);
+
+        $this->assertTrue($result->success);
+        $this->assertCount(2, $result->results);
+        $this->assertSame(NotificationChannelType::WhatsApp, $result->results[0]->channel);
+        $this->assertTrue($result->results[0]->isSkipped());
+        $this->assertSame(WhatsAppOutboundCutoff::SKIPPED_STATUS, $result->results[0]->metadata['status']);
+        $this->assertSame(NotificationChannelType::Email, $result->results[1]->channel);
+        $this->assertTrue($result->results[1]->success);
+        $this->assertFalse($result->results[1]->isSkipped());
+        $this->assertSame('Email notification sent successfully.', $result->results[1]->message);
+        $this->assertSame('Email notification sent successfully.', $result->message);
+        $this->assertSame(0, WhatsAppTemplateDispatch::query()->count());
+    }
+
+    public function test_pre_cutoff_whatsapp_skip_does_not_change_telegram(): void
+    {
+        $this->setNotificationChannelEnabled('notifications.whatsapp.enabled', true);
+        $this->setNotificationChannelEnabled('notifications.telegram.enabled', true);
+
+        config(['interakt.outbound_not_before' => '2026-08-22 09:54:00']);
+
+        [$message] = $this->makeMessage(firstRequestedAt: '2026-08-18 08:35:00');
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldNotReceive('dispatch');
+
+        $dispatcher = new NotificationDispatcher(
+            app(SystemSettingsService::class),
+            [
+                new WhatsAppChannel(
+                    $automationDispatcher,
+                    app(WhatsAppTemplateConfigurationResolver::class),
+                    app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+                    app(WhatsAppOutboundCutoff::class),
+                ),
+                app(TelegramChannel::class),
+            ],
+            app(NotificationAuditTrailService::class),
+        );
+
+        $result = $dispatcher->send(NotificationType::RequestSerialNumber, $message);
+
+        $this->assertCount(2, $result->results);
+        $this->assertSame(NotificationChannelType::WhatsApp, $result->results[0]->channel);
+        $this->assertTrue($result->results[0]->isSkipped());
+        $this->assertSame(NotificationChannelType::Telegram, $result->results[1]->channel);
+        $this->assertTrue($result->results[1]->success);
+        $this->assertTrue($result->results[1]->isSkipped());
+        $this->assertSame('Not Yet Configured', $result->results[1]->message);
+        $this->assertSame('not_yet_configured', $result->results[1]->metadata['status']);
     }
 
     public function test_dispatch_result_aggregation_prefers_successful_channel_message(): void
@@ -318,8 +410,11 @@ class NotificationDispatcherTest extends TestCase
     /**
      * @return array{0: NotificationMessage, 1: WhatsAppTemplateDispatch|null}
      */
-    private function makeMessage(bool $withDispatch = false, ?string $customerEmail = null): array
-    {
+    private function makeMessage(
+        bool $withDispatch = false,
+        ?string $customerEmail = null,
+        ?string $firstRequestedAt = null,
+    ): array {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
@@ -332,6 +427,7 @@ class NotificationDispatcherTest extends TestCase
             'customer_email' => $customerEmail,
             'status' => 'active',
             'created_by' => $agent->id,
+            'missing_serial_first_requested_at' => $firstRequestedAt,
         ]);
 
         $incident = Incident::query()->create([

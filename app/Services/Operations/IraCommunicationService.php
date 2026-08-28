@@ -27,6 +27,7 @@ use App\Services\Telegram\TelegramBotService;
 use App\Support\AppDateFormatter;
 use App\Support\Operations\AppointmentReminderMessageContext;
 use App\Support\Telegram\TelegramOperationalLinkFormatter;
+use App\Support\Telegram\TelegramTextLinkEntityBuilder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -71,6 +72,7 @@ class IraCommunicationService
         private readonly IraAdminOpsDigestContextService $adminOpsDigestContext,
         private readonly IraReadyQueueDigestContextService $readyQueueDigestContext,
         private readonly TelegramOperationalLinkFormatter $operationalLinkFormatter,
+        private readonly TelegramTextLinkEntityBuilder $textLinkEntityBuilder,
     ) {}
 
     /**
@@ -146,13 +148,15 @@ class IraCommunicationService
             }
 
             $telegramParts = $this->telegramMessageParts($user, $input, $message);
+            $telegramEntities = $this->telegramEntities($user, $input, $message);
             $deliveryFailed = false;
             $deliveryError = null;
 
-            foreach ($telegramParts as $part) {
+            foreach ($telegramParts as $partIndex => $part) {
                 $sendResult = $this->telegramBot->sendMessage(
                     chatId: (string) $user->telegram_chat_id,
                     text: $part,
+                    entities: $partIndex === 0 ? $telegramEntities : null,
                 );
 
                 if (! $sendResult->success) {
@@ -986,21 +990,46 @@ class IraCommunicationService
         $lines[] = 'Time: '.($input->context['time'] ?? 'Unknown');
         $lines[] = 'Case: '.($input->context['case'] ?? 'Unknown');
 
-        $recipient = $this->resolveAssignmentRecipient($input);
-        $incident = $this->resolveIncidentFromInput($input);
+        return ['Support Assigned', implode("\n", $lines)];
+    }
 
-        if ($recipient !== null && $incident !== null) {
-            $link = $this->operationalLinkFormatter->linkLine(
-                'Open Case',
-                $this->operationalLinkFormatter->incidentLink($recipient, $incident),
-            );
-
-            if ($link !== null) {
-                $lines[] = $link;
-            }
+    /**
+     * @return list<array{type: string, offset: int, length: int, url: string}>|null
+     */
+    private function telegramEntities(User $user, IraCommunicationInput $input, string $message): ?array
+    {
+        if (! in_array($input->event, [
+            IraNotificationType::ManualAssignment,
+            IraNotificationType::Reassignment,
+            IraNotificationType::SmartAssignment,
+            IraNotificationType::IraAssignmentBatch,
+        ], true)) {
+            return null;
         }
 
-        return ['Support Assigned', implode("\n", $lines)];
+        $incident = $this->resolveIncidentFromInput($input);
+
+        if ($incident === null) {
+            return null;
+        }
+
+        $caseReference = trim((string) ($input->context['case'] ?? $incident->reference_no ?? ''));
+
+        if ($caseReference === '') {
+            return null;
+        }
+
+        $url = $this->operationalLinkFormatter->incidentLink($user, $incident);
+
+        if ($url === null) {
+            return null;
+        }
+
+        $entities = $this->textLinkEntityBuilder->buildForText($message, [
+            ['text' => $caseReference, 'url' => $url],
+        ]);
+
+        return $entities === [] ? null : $entities;
     }
 
     /**

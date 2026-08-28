@@ -220,7 +220,7 @@ fix_remote_ownership() {
   fi
 
   print_warning "Applying ownership ${SSH_USER}:${SSH_USER} to deployed application tree..."
-  ssh_exec "find '$REMOTE_PROJECT' -path '$REMOTE_PROJECT/storage/logs' -prune -o -exec chown ${SSH_USER}:${SSH_USER} {} +"
+  ssh_exec "find '$REMOTE_PROJECT' \\( -path '$REMOTE_PROJECT/storage/logs' -o -path '$REMOTE_PROJECT/node_modules' \\) -prune -o -exec chown ${SSH_USER}:${SSH_USER} {} +"
   ssh_exec "find '$REMOTE_PROJECT/bin' -maxdepth 1 -type f -name '*.sh' -exec chmod 755 {} +"
   print_success "Ownership and bin permissions applied"
 }

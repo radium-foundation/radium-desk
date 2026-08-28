@@ -8,14 +8,18 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\NotificationChannelType;
 use App\Enums\NotificationType;
+use App\Enums\WaitingReason;
 use App\Enums\WhatsAppTemplate;
+use App\Enums\WhatsAppTemplateDispatchStatus;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
+use App\Models\IncidentWaitingState;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
 use App\Services\IncidentReferenceService;
 use App\Services\Interakt\WhatsAppAutomationDispatcher;
+use App\Services\Interakt\WhatsAppOutboundCutoff;
 use App\Services\Interakt\WhatsAppTemplateConfigurationResolver;
 use App\Services\Notifications\Channels\WhatsAppChannel;
 use Database\Seeders\RolePermissionSeeder;
@@ -81,6 +85,7 @@ class WhatsAppChannelTest extends TestCase
             $automationDispatcher,
             app(WhatsAppTemplateConfigurationResolver::class),
             app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+            app(\App\Services\Interakt\WhatsAppOutboundCutoff::class),
         );
         $result = $channel->send($message);
 
@@ -105,6 +110,7 @@ class WhatsAppChannelTest extends TestCase
             $automationDispatcher,
             app(WhatsAppTemplateConfigurationResolver::class),
             app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+            app(\App\Services\Interakt\WhatsAppOutboundCutoff::class),
         );
         $result = $channel->send($message);
 
@@ -128,6 +134,7 @@ class WhatsAppChannelTest extends TestCase
             $automationDispatcher,
             app(WhatsAppTemplateConfigurationResolver::class),
             app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+            app(\App\Services\Interakt\WhatsAppOutboundCutoff::class),
         );
         $result = $channel->send($message);
 
@@ -153,6 +160,7 @@ class WhatsAppChannelTest extends TestCase
             $automationDispatcher,
             app(WhatsAppTemplateConfigurationResolver::class),
             app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+            app(\App\Services\Interakt\WhatsAppOutboundCutoff::class),
         );
         $result = $channel->send($message);
 
@@ -202,6 +210,7 @@ class WhatsAppChannelTest extends TestCase
             $automationDispatcher,
             app(WhatsAppTemplateConfigurationResolver::class),
             app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+            app(\App\Services\Interakt\WhatsAppOutboundCutoff::class),
         );
         $result = $channel->send($message);
 
@@ -250,16 +259,153 @@ class WhatsAppChannelTest extends TestCase
             $automationDispatcher,
             app(WhatsAppTemplateConfigurationResolver::class),
             app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+            app(\App\Services\Interakt\WhatsAppOutboundCutoff::class),
         );
         $result = $channel->send($message);
 
         $this->assertTrue($result->success);
     }
 
+    public function test_send_skips_pre_cutoff_journey_without_creating_a_dispatch(): void
+    {
+        config(['interakt.outbound_not_before' => '2026-08-22 09:54:00']);
+
+        [$message] = $this->makeMessage(firstRequestedAt: '2026-08-18 08:35:00');
+        $existingFailed = $this->persistFailedDispatch($message);
+        $failedSnapshot = $existingFailed->only([
+            'id',
+            'status',
+            'error_message',
+            'interakt_message_id',
+            'dispatched_at',
+            'updated_at',
+        ]);
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldNotReceive('dispatch');
+
+        $result = $this->makeChannel($automationDispatcher)->send($message);
+
+        $this->assertTrue($result->success);
+        $this->assertTrue($result->isSkipped());
+        $this->assertFalse($result->countsTowardSuccess());
+        $this->assertSame(WhatsAppOutboundCutoff::SKIPPED_MESSAGE, $result->message);
+        $this->assertSame(WhatsAppOutboundCutoff::SKIPPED_STATUS, $result->metadata['status']);
+        $this->assertSame(1, WhatsAppTemplateDispatch::query()->count());
+        $existingFailed->refresh();
+        $this->assertSame($failedSnapshot['id'], $existingFailed->id);
+        $this->assertSame(WhatsAppTemplateDispatchStatus::Failed, $existingFailed->status);
+        $this->assertSame('Interakt API key is not configured.', $existingFailed->error_message);
+        $this->assertEquals($failedSnapshot['updated_at'], $existingFailed->updated_at);
+    }
+
+    public function test_send_allows_post_cutoff_journey(): void
+    {
+        config(['interakt.outbound_not_before' => '2026-08-22 09:54:00']);
+
+        [$message, $dispatch] = $this->makeMessage(firstRequestedAt: '2026-08-22 10:00:00');
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldReceive('dispatch')->once()->andReturn(
+            WhatsAppTemplateDispatchResult::success($dispatch, 'WhatsApp template sent successfully.'),
+        );
+
+        $result = $this->makeChannel($automationDispatcher)->send($message);
+
+        $this->assertTrue($result->success);
+        $this->assertFalse($result->isSkipped());
+        $this->assertTrue($result->countsTowardSuccess());
+        $this->assertSame('WhatsApp template sent successfully.', $result->message);
+    }
+
+    public function test_send_allows_journey_starting_at_exact_cutoff_boundary(): void
+    {
+        config(['interakt.outbound_not_before' => '2026-08-22 09:54:00']);
+
+        [$message, $dispatch] = $this->makeMessage(firstRequestedAt: '2026-08-22 09:54:00');
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldReceive('dispatch')->once()->andReturn(
+            WhatsAppTemplateDispatchResult::success($dispatch, 'WhatsApp template sent successfully.'),
+        );
+
+        $result = $this->makeChannel($automationDispatcher)->send($message);
+
+        $this->assertTrue($result->success);
+        $this->assertFalse($result->isSkipped());
+    }
+
+    public function test_send_skips_pre_cutoff_waiting_state_journey(): void
+    {
+        config(['interakt.outbound_not_before' => '2026-08-22 09:54:00']);
+
+        [$message] = $this->makeMessage();
+        IncidentWaitingState::query()->create([
+            'incident_id' => $message->incident->id,
+            'waiting_reason' => WaitingReason::SerialNumber,
+            'started_at' => '2026-08-18 08:35:00',
+            'sla_paused' => true,
+            'created_by' => $message->actor?->id,
+        ]);
+        $message->incident->unsetRelation('activeWaitingState');
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldNotReceive('dispatch');
+
+        $result = $this->makeChannel($automationDispatcher)->send($message);
+
+        $this->assertTrue($result->isSkipped());
+        $this->assertSame(0, WhatsAppTemplateDispatch::query()->count());
+    }
+
+    public function test_send_preserves_existing_behavior_when_cutoff_is_unset(): void
+    {
+        config(['interakt.outbound_not_before' => '']);
+
+        [$message, $dispatch] = $this->makeMessage(firstRequestedAt: '2026-08-18 08:35:00');
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldReceive('dispatch')->once()->andReturn(
+            WhatsAppTemplateDispatchResult::success($dispatch, 'WhatsApp template sent successfully.'),
+        );
+
+        $result = $this->makeChannel($automationDispatcher)->send($message);
+
+        $this->assertTrue($result->success);
+        $this->assertFalse($result->isSkipped());
+    }
+
+    public function test_send_allows_new_work_without_a_journey_timestamp(): void
+    {
+        config(['interakt.outbound_not_before' => '2026-08-22 09:54:00']);
+
+        [$message, $dispatch] = $this->makeMessage();
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldReceive('dispatch')->once()->andReturn(
+            WhatsAppTemplateDispatchResult::success($dispatch, 'WhatsApp template sent successfully.'),
+        );
+
+        $result = $this->makeChannel($automationDispatcher)->send($message);
+
+        $this->assertTrue($result->success);
+        $this->assertFalse($result->isSkipped());
+    }
+
+    private function makeChannel(WhatsAppAutomationDispatcher $automationDispatcher): WhatsAppChannel
+    {
+        return new WhatsAppChannel(
+            $automationDispatcher,
+            app(WhatsAppTemplateConfigurationResolver::class),
+            app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+            app(WhatsAppOutboundCutoff::class),
+        );
+    }
+
     /**
      * @return array{0: NotificationMessage, 1: WhatsAppTemplateDispatch}
      */
-    private function makeMessage(): array
+    private function makeMessage(?string $firstRequestedAt = null): array
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -272,6 +418,7 @@ class WhatsAppChannelTest extends TestCase
             'customer_phone' => '9876543210',
             'status' => 'active',
             'created_by' => $agent->id,
+            'missing_serial_first_requested_at' => $firstRequestedAt,
         ]);
 
         $incident = Incident::query()->create([
@@ -424,5 +571,22 @@ class WhatsAppChannelTest extends TestCase
         );
 
         return [$message];
+    }
+
+    private function persistFailedDispatch(NotificationMessage $message): WhatsAppTemplateDispatch
+    {
+        return WhatsAppTemplateDispatch::query()->create([
+            'incident_id' => $message->incident->id,
+            'order_id' => $message->incident->order_id,
+            'triggered_by_user_id' => $message->actor?->id,
+            'template_key' => WhatsAppTemplate::RequestSerialNumber->value,
+            'template_name' => 'order_update_request_serial',
+            'template_display_name' => 'Order Update',
+            'template_purpose' => 'Request Serial Number',
+            'trigger_source' => WhatsAppTemplateTriggerSource::Manual,
+            'status' => WhatsAppTemplateDispatchStatus::Failed,
+            'customer_phone' => '9876543210',
+            'error_message' => 'Interakt API key is not configured.',
+        ]);
     }
 }
