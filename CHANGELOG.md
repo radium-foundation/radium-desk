@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.60 — 2026-08-28 — Ready Queue Telegram Digest
+
+- IRA Ready Queue assignments to Admin no longer send an immediate Telegram; operational Admins receive a 30-minute Ready Queue digest during their working hours instead.
+- Human Admin assignment and reassignment Telegrams are unchanged.
+- The digest uses the Ready Queue count and the latest Service Reference, and is not sent when the queue is empty.
+
 ## 4.0.59 — 2026-08-22 — Backup Schedule Exit Code Fix
 
 - Fixed backup schedule status JSON so successful runs record `exit_code: 0` instead of incorrectly serializing zero as failure.
