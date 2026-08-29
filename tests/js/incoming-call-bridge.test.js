@@ -135,6 +135,22 @@ describe('incoming call bridge', () => {
         expect(document.querySelector('[data-call-id="call-bridge-001"]')).toBeNull();
     });
 
+    it.each(['noanswer', 'busy', 'cancel', 'cancelled', 'chanunavail', 'congestion'])(
+        'dismisses the card for hangup status %s',
+        (status) => {
+            maybeShowIncomingCallCardFromNotification({ call: incomingCallPayload });
+
+            maybeShowIncomingCallCardFromNotification({
+                interaction: {
+                    ...ringingInteraction,
+                    status,
+                },
+            });
+
+            expect(document.querySelector('[data-call-id="call-bridge-001"]')).toBeNull();
+        },
+    );
+
     it('does not recreate a ringing card after the call was marked terminal', () => {
         showIncomingCallCard(incomingCallPayload);
         maybeShowIncomingCallCardFromNotification({

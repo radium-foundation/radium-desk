@@ -145,7 +145,10 @@ class BonVoiceCallTimelineEventSourceTest extends TestCase
             'noinput' => ['NOINPUT', 'danger'],
             'failed' => ['FAILED', 'danger'],
             'busy' => ['BUSY', 'danger'],
+            'cancel' => ['CANCEL', 'danger'],
             'cancelled' => ['CANCELLED', 'danger'],
+            'chanunavail' => ['CHANUNAVAIL', 'danger'],
+            'congestion' => ['CONGESTION', 'danger'],
             'ringing' => ['RINGING', 'warning'],
             'unknown' => ['DIALING', 'neutral'],
         ];

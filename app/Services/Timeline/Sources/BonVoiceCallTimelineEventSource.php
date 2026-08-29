@@ -149,7 +149,7 @@ class BonVoiceCallTimelineEventSource implements TimelineEventSource
 
         return match ($normalized) {
             'ANSWERED', 'COMPLETED' => 'success',
-            'NOANSWER', 'NOINPUT', 'FAILED', 'BUSY', 'CANCELLED', 'CANCELED' => 'danger',
+            'NOANSWER', 'NOINPUT', 'FAILED', 'BUSY', 'CANCEL', 'CANCELLED', 'CANCELED', 'CHANUNAVAIL', 'CONGESTION' => 'danger',
             'RINGING', 'RING' => 'warning',
             default => 'neutral',
         };

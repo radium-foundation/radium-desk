@@ -27,7 +27,10 @@ class BonvoiceIncomingCallInteractionBuilder
     ): array {
         $alert->loadMissing(['order', 'incident', 'callEvent']);
 
-        $resolvedStatus = $status ?? self::resolveStatus($alert->callEvent?->status);
+        $resolvedStatus = $status ?? self::resolveStatus(
+            $alert->callEvent?->status,
+            $alert->callEvent?->call_type,
+        );
 
         return [
             'channel' => 'phone',
@@ -44,12 +47,12 @@ class BonvoiceIncomingCallInteractionBuilder
         ];
     }
 
-    private static function resolveStatus(?string $callStatus): string
+    private static function resolveStatus(?string $callStatus, ?string $callType = null): string
     {
         if (BonvoiceCallStatuses::isMissedStatus($callStatus)) {
             return 'missed';
         }
 
-        return BonvoiceCallStatuses::isAnsweredStatus($callStatus) ? 'answered' : 'ringing';
+        return BonvoiceCallStatuses::isAnsweredCall($callStatus, $callType) ? 'answered' : 'ringing';
     }
 }

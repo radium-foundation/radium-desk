@@ -2,6 +2,7 @@
 
 namespace App\Services\Bonvoice;
 
+use App\Enums\BonvoiceCallAlertType;
 use App\Enums\BonvoiceCallLinkType;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
@@ -12,13 +13,13 @@ use App\Models\IncidentBonvoiceCallLink;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\HighPriorityServiceCaseNotification;
+use App\Services\Assignment\UniversalAssignmentEngine;
 use App\Services\AuditLogService;
 use App\Services\AutomationIdentityService;
 use App\Services\CustomerIntakeService;
 use App\Services\Interakt\InteraktCustomerMatcher;
 use App\Services\QuickServiceRequestService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
-use App\Services\Assignment\UniversalAssignmentEngine;
 use App\Services\ServiceCaseStatusService;
 use App\Services\SettingService;
 use App\Support\BonvoiceCallStatuses;
@@ -50,7 +51,7 @@ class BonvoiceMissedCallRecoveryService
         private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
     ) {}
 
-    public function process(BonvoiceCallEvent $event, ?string $previousStatus): void
+    public function process(BonvoiceCallEvent $event, ?string $previousStatus, ?string $previousCallType = null): void
     {
         if (! config('bonvoice.missed_call_recovery_enabled', false)) {
             return;
@@ -60,14 +61,24 @@ class BonvoiceMissedCallRecoveryService
             if (BonvoiceCallStatuses::isInbound($event->direction)) {
                 if (BonvoiceCallStatuses::transitionedToMissed($previousStatus, $event->status)) {
                     $this->handleMissedCall($event);
-                } elseif (BonvoiceCallStatuses::transitionedToAnswered($previousStatus, $event->status)) {
+                } elseif (BonvoiceCallStatuses::transitionedToAnswered(
+                    $previousStatus,
+                    $event->status,
+                    $previousCallType,
+                    $event->call_type,
+                )) {
                     $this->maybeAutoResolveOnAnswered($event);
                 }
 
                 return;
             }
 
-            if (BonvoiceCallStatuses::transitionedToAnswered($previousStatus, $event->status)) {
+            if (BonvoiceCallStatuses::transitionedToAnswered(
+                $previousStatus,
+                $event->status,
+                $previousCallType,
+                $event->call_type,
+            )) {
                 $this->maybeAutoResolveOnAnswered($event);
             }
         } catch (Throwable $exception) {
@@ -123,7 +134,7 @@ class BonvoiceMissedCallRecoveryService
 
     /**
      * @param  array{
-     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     alert_type: BonvoiceCallAlertType,
      *     customer_phone: ?string,
      *     order_id: ?int,
      *     order_label: ?string,
@@ -268,7 +279,7 @@ class BonvoiceMissedCallRecoveryService
 
     /**
      * @param  array{
-     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     alert_type: BonvoiceCallAlertType,
      *     customer_phone: ?string,
      *     order_id: ?int,
      *     order_label: ?string,
@@ -461,7 +472,7 @@ class BonvoiceMissedCallRecoveryService
 
     /**
      * @param  array{
-     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     alert_type: BonvoiceCallAlertType,
      *     customer_phone: ?string,
      *     order_id: ?int,
      *     order_label: ?string,
@@ -533,7 +544,7 @@ class BonvoiceMissedCallRecoveryService
 
     /**
      * @param  array{
-     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     alert_type: BonvoiceCallAlertType,
      *     customer_phone: ?string,
      *     order_id: ?int,
      *     order_label: ?string,
@@ -649,7 +660,7 @@ class BonvoiceMissedCallRecoveryService
 
     /**
      * @param  array{
-     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     alert_type: BonvoiceCallAlertType,
      *     customer_phone: ?string,
      *     order_id: ?int,
      *     order_label: ?string,
@@ -687,7 +698,7 @@ class BonvoiceMissedCallRecoveryService
                     'reason' => $reason,
                 ],
             );
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Observability should not block webhook processing.
         }
     }

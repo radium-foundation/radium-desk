@@ -33,15 +33,19 @@ class BonvoiceWebhookProcessorService
             }
 
             $previousStatus = null;
+            $previousCallType = null;
 
             $callEvent = $this->incomingCallLatency->measure(
                 BonvoiceIncomingCallLatency::STAGE_PROCESS,
-                function () use ($webhookLog, $payload, &$previousStatus): BonvoiceCallEvent {
+                function () use ($webhookLog, $payload, &$previousStatus, &$previousCallType): BonvoiceCallEvent {
                     if ($this->payloadParser->hasRequiredIdentifiers($payload)) {
-                        $previousStatus = BonvoiceCallEvent::query()
+                        $previous = BonvoiceCallEvent::query()
                             ->where('call_id', $this->payloadParser->callId($payload))
                             ->where('leg', $this->payloadParser->leg($payload))
-                            ->value('status');
+                            ->first(['status', 'call_type']);
+
+                        $previousStatus = $previous?->status;
+                        $previousCallType = $previous?->call_type;
                     }
 
                     return DB::transaction(function () use ($webhookLog, $payload): BonvoiceCallEvent {
@@ -59,12 +63,20 @@ class BonvoiceWebhookProcessorService
 
             if (! $options->suppressNotifications) {
                 $this->liveCallAssistService->maybeNotify($callEvent);
-                $this->liveCallAssistService->maybeBroadcastAnsweredAutoOpen($callEvent, $previousStatus);
-                $this->liveCallAssistService->maybeBroadcastMissedPopupDismiss($callEvent, $previousStatus);
+                $this->liveCallAssistService->maybeBroadcastAnsweredAutoOpen(
+                    $callEvent,
+                    $previousStatus,
+                    $previousCallType,
+                );
+                $this->liveCallAssistService->maybeBroadcastMissedPopupDismiss(
+                    $callEvent,
+                    $previousStatus,
+                    $previousCallType,
+                );
             }
 
             if (! $options->suppressRecovery) {
-                $this->missedCallRecoveryService->process($callEvent, $previousStatus);
+                $this->missedCallRecoveryService->process($callEvent, $previousStatus, $previousCallType);
             }
 
             return $webhookLog->fresh();

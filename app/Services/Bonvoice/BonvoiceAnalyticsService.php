@@ -6,6 +6,7 @@ use App\Models\BonvoiceCallEvent;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Interakt\InteraktCustomerMatcher;
+use App\Support\BonvoiceCallStatuses;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -18,12 +19,6 @@ class BonvoiceAnalyticsService
     private const CACHE_TTL_SECONDS = 60;
 
     private const MISSED_CALLS_LIMIT = 15;
-
-    /** @var list<string> */
-    private const ANSWERED_STATUSES = ['ANSWERED', 'COMPLETED'];
-
-    /** @var list<string> */
-    private const MISSED_STATUSES = ['NOANSWER', 'NOINPUT', 'FAILED'];
 
     public function __construct(
         private readonly InteraktCustomerMatcher $customerMatcher,
@@ -67,17 +62,12 @@ class BonvoiceAnalyticsService
 
         $counts = DB::table('bonvoice_call_events')
             ->where('started_at', '>=', $todayStart)
-            ->selectRaw('
-                COUNT(*) as total_calls,
-                SUM(CASE WHEN UPPER(status) IN (?, ?) THEN 1 ELSE 0 END) as answered_count,
-                SUM(CASE WHEN UPPER(status) IN (?, ?, ?) THEN 1 ELSE 0 END) as missed_count
-            ', [
-                self::ANSWERED_STATUSES[0],
-                self::ANSWERED_STATUSES[1],
-                self::MISSED_STATUSES[0],
-                self::MISSED_STATUSES[1],
-                self::MISSED_STATUSES[2],
-            ])
+            ->selectRaw(
+                'COUNT(*) as total_calls,
+                SUM(CASE WHEN UPPER(status) IN ('.$this->statusInPlaceholders(BonvoiceCallStatuses::ANSWERED).') THEN 1 ELSE 0 END) as answered_count,
+                SUM(CASE WHEN UPPER(status) IN ('.$this->statusInPlaceholders(BonvoiceCallStatuses::MISSED).') THEN 1 ELSE 0 END) as missed_count',
+                [...BonvoiceCallStatuses::ANSWERED, ...BonvoiceCallStatuses::MISSED],
+            )
             ->first();
 
         $totalCalls = (int) ($counts->total_calls ?? 0);
@@ -110,18 +100,13 @@ class BonvoiceAnalyticsService
             ->where(function ($query): void {
                 $query->whereRaw('LOWER(direction) IN (?, ?, ?)', ['inbound', 'in', 'incoming']);
             })
-            ->selectRaw('
-                destination_number,
+            ->selectRaw(
+                'destination_number,
                 COUNT(*) as total_calls,
-                SUM(CASE WHEN UPPER(status) IN (?, ?) THEN 1 ELSE 0 END) as answered_count,
-                SUM(CASE WHEN UPPER(status) IN (?, ?, ?) THEN 1 ELSE 0 END) as missed_count
-            ', [
-                self::ANSWERED_STATUSES[0],
-                self::ANSWERED_STATUSES[1],
-                self::MISSED_STATUSES[0],
-                self::MISSED_STATUSES[1],
-                self::MISSED_STATUSES[2],
-            ])
+                SUM(CASE WHEN UPPER(status) IN ('.$this->statusInPlaceholders(BonvoiceCallStatuses::ANSWERED).') THEN 1 ELSE 0 END) as answered_count,
+                SUM(CASE WHEN UPPER(status) IN ('.$this->statusInPlaceholders(BonvoiceCallStatuses::MISSED).') THEN 1 ELSE 0 END) as missed_count',
+                [...BonvoiceCallStatuses::ANSWERED, ...BonvoiceCallStatuses::MISSED],
+            )
             ->groupBy('destination_number')
             ->get();
 
@@ -165,7 +150,7 @@ class BonvoiceAnalyticsService
     private function recentMissedCalls(): array
     {
         $calls = BonvoiceCallEvent::query()
-            ->whereRaw('UPPER(status) IN (?, ?, ?)', self::MISSED_STATUSES)
+            ->whereRaw('UPPER(status) IN ('.$this->statusInPlaceholders(BonvoiceCallStatuses::MISSED).')', BonvoiceCallStatuses::MISSED)
             ->orderByDesc('started_at')
             ->limit(self::MISSED_CALLS_LIMIT)
             ->get(['call_id', 'customer_phone', 'started_at', 'status']);
@@ -232,7 +217,7 @@ class BonvoiceAnalyticsService
     {
         $avg = DB::table('bonvoice_call_events')
             ->where('started_at', '>=', $todayStart)
-            ->whereRaw('UPPER(status) IN (?, ?)', self::ANSWERED_STATUSES)
+            ->whereRaw('UPPER(status) IN ('.$this->statusInPlaceholders(BonvoiceCallStatuses::ANSWERED).')', BonvoiceCallStatuses::ANSWERED)
             ->whereNotNull('payload')
             ->selectRaw($this->averageDurationSelectExpression())
             ->value('avg_duration');
@@ -290,5 +275,13 @@ class BonvoiceAnalyticsService
         }
 
         return null;
+    }
+
+    /**
+     * @param  list<string>  $statuses
+     */
+    private function statusInPlaceholders(array $statuses): string
+    {
+        return implode(', ', array_fill(0, count($statuses), '?'));
     }
 }

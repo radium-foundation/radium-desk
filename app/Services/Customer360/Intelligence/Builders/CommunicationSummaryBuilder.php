@@ -436,9 +436,12 @@ class CommunicationSummaryBuilder
                 'BUSY' => filled($actorName)
                     ? "{$actorName} called the customer{$when} but the line was busy."
                     : "Support called the customer{$when} but the line was busy.",
-                'CANCELLED', 'CANCELED' => filled($actorName)
+                'CANCEL', 'CANCELLED', 'CANCELED' => filled($actorName)
                     ? "{$actorName}'s outbound call was cancelled{$when}."
                     : "Outbound call was cancelled{$when}.",
+                'CHANUNAVAIL', 'CONGESTION' => filled($actorName)
+                    ? "{$actorName}'s outbound call could not be connected{$when}."
+                    : "Outbound call could not be connected{$when}.",
                 default => null,
             };
         }
@@ -451,7 +454,8 @@ class CommunicationSummaryBuilder
             'NOINPUT' => "Customer called support{$when} but no input was received.",
             'FAILED' => "Customer call failed{$when}.",
             'BUSY' => "Customer called but the line was busy{$when}.",
-            'CANCELLED', 'CANCELED' => "Customer call was cancelled{$when}.",
+            'CANCEL', 'CANCELLED', 'CANCELED' => "Customer call was cancelled{$when}.",
+            'CHANUNAVAIL', 'CONGESTION' => "Customer call could not be connected{$when}.",
             default => null,
         };
     }

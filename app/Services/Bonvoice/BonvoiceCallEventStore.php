@@ -3,8 +3,8 @@
 namespace App\Services\Bonvoice;
 
 use App\Models\BonvoiceCallEvent;
-use App\Models\BonvoiceWebhookLog;
 use App\Services\Interakt\InteraktCustomerMatcher;
+use App\Support\BonvoiceCallStatuses;
 use RuntimeException;
 
 class BonvoiceCallEventStore
@@ -38,6 +38,16 @@ class BonvoiceCallEventStore
             ->where('leg', $leg)
             ->first();
 
+        $incomingCallType = $this->payloadParser->callType($payload);
+        $incomingStatus = $this->payloadParser->status($payload);
+
+        if ($existing !== null && $this->isRegressingTerminalCall($existing, $incomingCallType)) {
+            return $existing;
+        }
+
+        $callType = $this->resolveCallType($incomingCallType, $existing?->call_type);
+        $lifecycleRegressed = $this->isLifecycleRegression($incomingCallType, $existing?->call_type);
+
         return BonvoiceCallEvent::query()->updateOrCreate(
             [
                 'call_id' => $callId,
@@ -49,20 +59,47 @@ class BonvoiceCallEventStore
                 'destination_number' => $this->payloadParser->destinationNumber($payload) ?? $existing?->destination_number,
                 'display_number' => $this->payloadParser->displayNumber($payload) ?? $existing?->display_number,
                 'direction' => $this->payloadParser->direction($payload) ?? $existing?->direction,
-                'status' => $this->payloadParser->status($payload) ?? $existing?->status,
-                'agent_status' => $this->payloadParser->agentStatus($payload) ?? $existing?->agent_status,
-                'call_type' => $this->payloadParser->callType($payload) ?? $existing?->call_type,
+                'status' => $incomingStatus ?? $existing?->status,
+                'agent_status' => $lifecycleRegressed
+                    ? $existing?->agent_status
+                    : ($this->payloadParser->agentStatus($payload) ?? $existing?->agent_status),
+                'call_type' => $callType,
                 'account_id' => $this->payloadParser->accountId($payload) ?? $existing?->account_id,
                 'data_source' => $this->payloadParser->dataSource($payload) ?? $existing?->data_source,
-                'event_id' => $this->payloadParser->eventId($payload) ?? $existing?->event_id,
+                'event_id' => $lifecycleRegressed
+                    ? $existing?->event_id
+                    : ($this->payloadParser->eventId($payload) ?? $existing?->event_id),
                 'callback_parent_id' => $this->payloadParser->callbackParentId($payload) ?? $existing?->callback_parent_id,
                 'callback_params' => $this->payloadParser->callbackParams($payload) ?? $existing?->callback_params,
                 'started_at' => $this->payloadParser->startedAt($payload) ?? $existing?->started_at,
                 'recording_url' => $this->payloadParser->recordingUrl($payload) ?? $existing?->recording_url,
-                'payload' => $payload,
-                'webhook_log_id' => $webhookLogId,
+                'payload' => $lifecycleRegressed ? ($existing?->payload ?? $payload) : $payload,
+                'webhook_log_id' => $lifecycleRegressed ? $existing?->webhook_log_id : $webhookLogId,
             ],
         );
+    }
+
+    private function isRegressingTerminalCall(BonvoiceCallEvent $existing, ?string $incomingCallType): bool
+    {
+        return BonvoiceCallStatuses::isHangupCallType($existing->call_type)
+            && ! BonvoiceCallStatuses::isHangupCallType($incomingCallType);
+    }
+
+    private function isLifecycleRegression(?string $incomingCallType, ?string $existingCallType): bool
+    {
+        $incomingRank = BonvoiceCallStatuses::lifecycleRank($incomingCallType);
+        $existingRank = BonvoiceCallStatuses::lifecycleRank($existingCallType);
+
+        return $incomingRank !== null && $existingRank !== null && $incomingRank < $existingRank;
+    }
+
+    private function resolveCallType(?string $incomingCallType, ?string $existingCallType): ?string
+    {
+        if ($this->isLifecycleRegression($incomingCallType, $existingCallType)) {
+            return $existingCallType;
+        }
+
+        return $incomingCallType ?? $existingCallType;
     }
 
     /**

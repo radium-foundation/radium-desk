@@ -9,6 +9,12 @@ const MISSED_POPUP_STATUSES = new Set([
     'noanswer',
     'noinput',
     'failed',
+    'busy',
+    'cancel',
+    'cancelled',
+    'canceled',
+    'chanunavail',
+    'congestion',
 ]);
 
 /** Answered ends the ringing popup permanently — never refresh or recreate. */

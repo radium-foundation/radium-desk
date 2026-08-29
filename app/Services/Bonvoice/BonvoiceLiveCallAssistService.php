@@ -12,9 +12,9 @@ use App\Notifications\IncomingCallAssistNotification;
 use App\Services\Alerts\IncomingCallTelegramMessageBuilder;
 use App\Services\Alerts\OperatorAlertCatalog;
 use App\Services\Alerts\OperatorAlertDispatcher;
+use App\Services\ConversationWorkspace\ConversationWorkspaceBootstrapService;
 use App\Services\DashboardBroadcastService;
 use App\Services\HybridRealtime\HybridRealtimeNotificationBroadcaster;
-use App\Services\ConversationWorkspace\ConversationWorkspaceBootstrapService;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Support\Bonvoice\BonvoiceIncomingCallInteractionBuilder;
 use App\Support\BonvoiceCallStatuses;
@@ -43,7 +43,7 @@ class BonvoiceLiveCallAssistService
             return null;
         }
 
-        if (! BonvoiceCallStatuses::isLiveAssistEligibleStatus($event->status)) {
+        if (! BonvoiceCallStatuses::isLiveAssistEligibleCall($event->status, $event->call_type)) {
             return null;
         }
 
@@ -109,8 +109,11 @@ class BonvoiceLiveCallAssistService
         return $alert;
     }
 
-    public function maybeBroadcastAnsweredAutoOpen(BonvoiceCallEvent $event, ?string $previousStatus): void
-    {
+    public function maybeBroadcastAnsweredAutoOpen(
+        BonvoiceCallEvent $event,
+        ?string $previousStatus,
+        ?string $previousCallType = null,
+    ): void {
         if (! config('bonvoice.auto_open_customer360')) {
             return;
         }
@@ -119,11 +122,16 @@ class BonvoiceLiveCallAssistService
             return;
         }
 
-        if (! BonvoiceCallStatuses::transitionedToAnswered($previousStatus, $event->status)) {
+        if (! BonvoiceCallStatuses::transitionedToAnswered(
+            $previousStatus,
+            $event->status,
+            $previousCallType,
+            $event->call_type,
+        )) {
             return;
         }
 
-        if ($previousStatus === null) {
+        if ($previousStatus === null && $previousCallType === null) {
             return;
         }
 
@@ -200,8 +208,11 @@ class BonvoiceLiveCallAssistService
      * Dismiss the ringing popup when the inbound call ends without answer.
      * Independent of auto-open — popup lifecycle ends with the ringing interaction.
      */
-    public function maybeBroadcastMissedPopupDismiss(BonvoiceCallEvent $event, ?string $previousStatus): void
-    {
+    public function maybeBroadcastMissedPopupDismiss(
+        BonvoiceCallEvent $event,
+        ?string $previousStatus,
+        ?string $previousCallType = null,
+    ): void {
         if (! BonvoiceCallStatuses::isInbound($event->direction)) {
             return;
         }
@@ -210,7 +221,11 @@ class BonvoiceLiveCallAssistService
             return;
         }
 
-        if ($previousStatus === null) {
+        $hadPriorRingingOrAnswer = $previousStatus !== null
+            || BonvoiceCallStatuses::isRingingCall($previousStatus, $previousCallType)
+            || BonvoiceCallStatuses::isAnsweredCall($previousStatus, $previousCallType);
+
+        if (! $hadPriorRingingOrAnswer) {
             return;
         }
 
