@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.62 — 2026-08-29 — Incoming Call Lifecycle Fix
+
+- Incoming call cards now appear when the call starts ringing, instead of waiting until hangup.
+- Answered calls are recognized as soon as the caller is connected, not only after the call ends.
+- A late ringing update can no longer overwrite a call that already ended as missed, busy, or answered.
+- Busy, cancelled, and could-not-connect hangups are treated as missed outcomes; answered calls stay answered.
+
 ## 4.0.61 — 2026-08-29 — Team Activity Session Selection Hotfix
 
 - Team Activity no longer shows Auto Logged Out when an open WorkSession exists for the same calendar day alongside a closed duplicate that shares the same login_at.
