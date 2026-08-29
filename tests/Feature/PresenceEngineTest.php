@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\PresenceActivityType;
 use App\Enums\PresenceStatus;
 use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WorkSessionEndReason;
@@ -456,6 +455,133 @@ class PresenceEngineTest extends TestCase
             ->assertJsonPath('presence.status', PresenceStatus::Active->value);
 
         $this->assertNotNull(WorkSession::query()->where('user_id', $agent->id)->value('last_activity_at'));
+    }
+
+    public function test_today_session_for_prefers_open_session_over_closed_duplicate_with_same_login_at(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-28 23:11:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentWithSchedule('Duplicate Login Agent');
+        $loginAt = now()->subHours(2);
+
+        $closedTwin = WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'logout_at' => $loginAt->copy()->addMinutes(16),
+            'last_activity_at' => $loginAt,
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 960,
+        ]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'logout_at' => $loginAt->copy()->addMinutes(16),
+            'last_activity_at' => $loginAt,
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 960,
+        ]);
+
+        $openSession = WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'last_activity_at' => now()->subMinutes(2),
+            'last_tick_at' => now()->subMinutes(2),
+            'session_duration_seconds' => 0,
+            'active_duration_seconds' => 3600,
+        ]);
+
+        $presenceEngine = app(PresenceEngineService::class);
+
+        $selected = $presenceEngine->todaySessionFor($agent);
+        $snapshot = $presenceEngine->snapshotFor($agent);
+
+        $this->assertNotNull($selected);
+        $this->assertSame($openSession->id, $selected->id);
+        $this->assertNotSame($closedTwin->id, $selected->id);
+        $this->assertTrue($selected->isOpen());
+        $this->assertTrue($snapshot['session_open']);
+    }
+
+    public function test_today_session_for_selects_latest_open_session_when_multiple_exist(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-28 23:11:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentWithSchedule('Multiple Open Agent');
+        $olderLogin = now()->subHours(3);
+        $newerLogin = now()->subHour();
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $olderLogin,
+            'last_activity_at' => now()->subMinutes(30),
+            'last_tick_at' => now()->subMinutes(30),
+        ]);
+
+        $latestOpen = WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $newerLogin,
+            'last_activity_at' => now()->subMinutes(2),
+            'last_tick_at' => now()->subMinutes(2),
+        ]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $newerLogin,
+            'logout_at' => $newerLogin->copy()->addMinutes(16),
+            'last_activity_at' => $newerLogin,
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 960,
+        ]);
+
+        $selected = app(PresenceEngineService::class)->todaySessionFor($agent);
+
+        $this->assertNotNull($selected);
+        $this->assertSame($latestOpen->id, $selected->id);
+        $this->assertTrue($selected->isOpen());
+    }
+
+    public function test_today_session_for_returns_latest_closed_when_no_open_session_exists(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-28 23:49:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentWithSchedule('Closed Only Agent');
+        $loginAt = now()->subHours(2);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'logout_at' => $loginAt->copy()->addMinutes(16),
+            'last_activity_at' => $loginAt,
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 960,
+        ]);
+
+        $latestClosed = WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'logout_at' => now(),
+            'last_activity_at' => now()->subMinutes(20),
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 7200,
+        ]);
+
+        $presenceEngine = app(PresenceEngineService::class);
+        $selected = $presenceEngine->todaySessionFor($agent);
+        $snapshot = $presenceEngine->snapshotFor($agent);
+
+        $this->assertNotNull($selected);
+        $this->assertSame($latestClosed->id, $selected->id);
+        $this->assertFalse($selected->isOpen());
+        $this->assertFalse($snapshot['session_open']);
     }
 
     private function createAgentWithSchedule(

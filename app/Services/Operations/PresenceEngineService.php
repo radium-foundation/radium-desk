@@ -10,6 +10,7 @@ use App\Enums\WorkSessionOrigin;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Models\WorkSession;
+use App\Services\Assignment\ReadyQueueAdminAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -87,7 +88,7 @@ class PresenceEngineService
         $this->refreshAttendanceRegister($user, $at, $session);
 
         app(DeferredSmartAssignmentService::class)->processPendingBatch();
-        app(\App\Services\Assignment\ReadyQueueAdminAssignmentService::class)
+        app(ReadyQueueAdminAssignmentService::class)
             ->pickupUnassignedReadyQueueCases($at);
 
         return $session;
@@ -327,10 +328,14 @@ class PresenceEngineService
             return $this->todaySessionCache[$cacheKey];
         }
 
+        // Prefer an open session over closed duplicates that share the same login_at.
+        // Deterministic order: open first, then latest login_at, then highest id.
         return $this->todaySessionCache[$cacheKey] = WorkSession::query()
             ->where('user_id', $user->id)
             ->whereDate('work_date', $at->toDateString())
-            ->latest('login_at')
+            ->orderByRaw('logout_at IS NULL DESC')
+            ->orderByDesc('login_at')
+            ->orderByDesc('id')
             ->first();
     }
 
