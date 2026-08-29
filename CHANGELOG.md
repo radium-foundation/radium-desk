@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.61 — 2026-08-29 — Team Activity Session Selection Hotfix
+
+- Team Activity no longer shows Auto Logged Out when an open WorkSession exists for the same calendar day alongside a closed duplicate that shares the same login_at.
+- Presence session selection now prefers an open session, then the latest login_at, then the highest session id, so away-timeout duplicates cannot mask an active desk session.
+- Genuine Auto Logged Out after the real open session times out, and Ready Queue digest behavior, are unchanged.
+
 ## 4.0.60 — 2026-08-28 — Ready Queue Telegram Digest
 
 - IRA Ready Queue assignments to Admin no longer send an immediate Telegram; operational Admins receive a 30-minute Ready Queue digest during their working hours instead.
