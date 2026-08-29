@@ -13,9 +13,13 @@ use App\Models\FinancePaymentMethod;
 use App\Services\Finance\FinanceExpenseService;
 use App\Support\Finance\FinanceAccess;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExpenseController extends Controller
 {
@@ -113,7 +117,7 @@ class ExpenseController extends Controller
 
         return view('finance.expenses.edit', [
             'expense' => $expense,
-            ...$this->formOptions(),
+            ...$this->formOptions($expense),
         ]);
     }
 
@@ -137,21 +141,73 @@ class ExpenseController extends Controller
             ->with('status', 'finance-expense-posted');
     }
 
+    public function receipt(FinanceExpense $expense): StreamedResponse
+    {
+        abort_unless($expense->hasReceipt(), 404);
+
+        $disk = $expense->receiptDisk();
+        abort_unless($disk !== null, 404);
+
+        $filename = basename((string) $expense->receipt_path);
+
+        return Storage::disk($disk)->response(
+            $expense->receipt_path,
+            $filename,
+            ['Content-Disposition' => 'inline; filename="'.$filename.'"'],
+        );
+    }
+
     /**
      * @return array{
-     *     categories: \Illuminate\Support\Collection<int, FinanceExpenseCategory>,
-     *     paymentMethods: \Illuminate\Support\Collection<int, FinancePaymentMethod>,
-     *     cashAccounts: \Illuminate\Support\Collection<int, FinanceCashAccount>,
-     *     bankAccounts: \Illuminate\Support\Collection<int, FinanceBankAccount>
+     *     categories: Collection<int, FinanceExpenseCategory>,
+     *     paymentMethods: Collection<int, FinancePaymentMethod>,
+     *     cashAccounts: Collection<int, FinanceCashAccount>,
+     *     bankAccounts: Collection<int, FinanceBankAccount>
      * }
      */
-    private function formOptions(): array
+    private function formOptions(?FinanceExpense $expense = null): array
     {
         return [
-            'categories' => FinanceExpenseCategory::query()->where('is_active', true)->ordered()->get(),
-            'paymentMethods' => FinancePaymentMethod::query()->where('is_active', true)->ordered()->get(),
-            'cashAccounts' => FinanceCashAccount::query()->where('is_active', true)->ordered()->get(),
-            'bankAccounts' => FinanceBankAccount::query()->where('is_active', true)->ordered()->get(),
+            'categories' => $this->formCategories($expense),
+            'paymentMethods' => $this->activeOrCurrent(
+                FinancePaymentMethod::query()->where('is_active', true)->ordered()->get(),
+                $expense?->paymentMethod,
+            ),
+            'cashAccounts' => $this->activeOrCurrent(
+                FinanceCashAccount::query()->where('is_active', true)->ordered()->get(),
+                $expense?->cashAccount,
+            ),
+            'bankAccounts' => $this->activeOrCurrent(
+                FinanceBankAccount::query()->where('is_active', true)->ordered()->get(),
+                $expense?->bankAccount,
+            ),
         ];
+    }
+
+    /**
+     * @return Collection<int, FinanceExpenseCategory>
+     */
+    private function formCategories(?FinanceExpense $expense): Collection
+    {
+        return $this->activeOrCurrent(
+            FinanceExpenseCategory::query()->where('is_active', true)->ordered()->get(),
+            $expense?->category,
+        );
+    }
+
+    /**
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  Collection<int, TModel>  $active
+     * @param  TModel|null  $current
+     * @return Collection<int, TModel>
+     */
+    private function activeOrCurrent(Collection $active, ?Model $current): Collection
+    {
+        if ($current === null || $active->contains(fn ($item): bool => (int) $item->getKey() === (int) $current->getKey())) {
+            return $active;
+        }
+
+        return $active->prepend($current)->unique(fn ($item) => $item->getKey())->values();
     }
 }

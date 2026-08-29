@@ -6,6 +6,7 @@ use App\Data\Telegram\TelegramOutboundMessage;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
+use App\Models\Todo;
 use App\Models\User;
 
 class TelegramOperationalLinkFormatter
@@ -30,6 +31,15 @@ class TelegramOperationalLinkFormatter
         }
 
         return route('refunds.show', $refund, absolute: true);
+    }
+
+    public function todoLink(User $user, ?Todo $todo): ?string
+    {
+        if ($todo === null || ! $user->can('view', $todo)) {
+            return null;
+        }
+
+        return route('todos.show', $todo, absolute: true);
     }
 
     public function orderLink(User $user, ?Order $order): ?string

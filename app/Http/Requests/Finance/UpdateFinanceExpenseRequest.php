@@ -4,8 +4,10 @@ namespace App\Http\Requests\Finance;
 
 use App\Enums\FinanceExpenseStatus;
 use App\Models\FinanceExpense;
+use App\Models\FinanceExpenseCategory;
 use App\Support\Finance\FinanceAccess;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -88,6 +90,39 @@ class UpdateFinanceExpenseRequest extends FormRequest
             if (! $this->filled('cash_account_id') && ! $this->filled('bank_account_id')) {
                 $validator->errors()->add('account_type', 'Select a cash account or a bank account.');
             }
+
+            /** @var FinanceExpense|null $expense */
+            $expense = $this->route('expense');
+            if ($expense instanceof FinanceExpense) {
+                $this->assertCurrentOrActive(
+                    $validator,
+                    'expense_category_id',
+                    FinanceExpenseCategory::class,
+                    (int) $expense->expense_category_id,
+                    'The selected category is inactive.',
+                );
+            }
         });
+    }
+
+    /**
+     * @param  class-string<Model>  $model
+     */
+    private function assertCurrentOrActive(
+        Validator $validator,
+        string $field,
+        string $model,
+        int $currentId,
+        string $message,
+    ): void {
+        $selectedId = $this->integer($field);
+        if ($selectedId <= 0 || $selectedId === $currentId) {
+            return;
+        }
+
+        $record = $model::query()->find($selectedId);
+        if ($record !== null && $record->getAttribute('is_active') === false) {
+            $validator->errors()->add($field, $message);
+        }
     }
 }

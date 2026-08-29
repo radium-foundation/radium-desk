@@ -19,6 +19,7 @@ class Todo extends Model
     protected $fillable = [
         'created_by',
         'assigned_to',
+        'todo_category_id',
         'title',
         'description',
         'priority',
@@ -45,6 +46,11 @@ class Todo extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(TodoCategory::class, 'todo_category_id');
     }
 
     public function reminders(): MorphMany

@@ -78,6 +78,7 @@ use App\Http\Controllers\TeamAvailabilityController;
 use App\Http\Controllers\TeamPerformanceController;
 use App\Http\Controllers\TeamTelegramBroadcastController;
 use App\Http\Controllers\TeamWorkScheduleController;
+use App\Http\Controllers\TodoCategoryController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserTelegramSettingsController;
@@ -323,6 +324,13 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('todos/{todo}/cancel', [TodoController::class, 'cancel'])->name('todos.cancel');
     Route::post('todos/{todo}/assign', [TodoController::class, 'assign'])->name('todos.assign');
 
+    Route::prefix('admin/todo-categories')->name('todo-categories.')->group(function () {
+        Route::get('/', [TodoCategoryController::class, 'index'])->name('index');
+        Route::post('/', [TodoCategoryController::class, 'store'])->name('store');
+        Route::put('{todoCategory}', [TodoCategoryController::class, 'update'])->name('update');
+        Route::patch('{todoCategory}/toggle', [TodoCategoryController::class, 'toggle'])->name('toggle');
+    });
+
     Route::prefix('admin/workforce')->name('admin.workforce.')->group(function () {
         Route::get('holidays', [CompanyHolidayController::class, 'index'])->name('holidays.index');
         Route::post('holidays', [CompanyHolidayController::class, 'store'])->name('holidays.store');
@@ -360,6 +368,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('expenses/create', [FinanceExpenseController::class, 'create'])->name('expenses.create');
         Route::post('expenses', [FinanceExpenseController::class, 'store'])->name('expenses.store');
         Route::get('expenses/{expense}', [FinanceExpenseController::class, 'show'])->name('expenses.show');
+        Route::get('expenses/{expense}/receipt', [FinanceExpenseController::class, 'receipt'])->name('expenses.receipt');
         Route::get('expenses/{expense}/edit', [FinanceExpenseController::class, 'edit'])->name('expenses.edit');
         Route::put('expenses/{expense}', [FinanceExpenseController::class, 'update'])->name('expenses.update');
         Route::post('expenses/{expense}/post', [FinanceExpenseController::class, 'post'])->name('expenses.post');

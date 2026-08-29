@@ -49,8 +49,8 @@
 
                         <dt class="col-sm-3">Receipt</dt>
                         <dd class="col-sm-9">
-                            @if($expense->receipt_path)
-                                <a href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($expense->receipt_path) }}" target="_blank" rel="noopener">
+                            @if($expense->hasReceipt())
+                                <a href="{{ route('finance.expenses.receipt', $expense) }}" target="_blank" rel="noopener">
                                     View receipt
                                 </a>
                             @else

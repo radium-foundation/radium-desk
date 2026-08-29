@@ -31,13 +31,18 @@ class StoreTodoRequest extends FormRequest
                 'integer',
                 Rule::exists('users', 'id')->where(fn ($query) => $query->where('is_active', true)),
             ],
+            'todo_category_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('todo_categories', 'id')->where('is_active', true),
+            ],
             'due_at' => ['nullable', 'date'],
             'remind_at' => ['nullable', 'date'],
         ];
     }
 
     /**
-     * @return array{title: string, description: ?string, priority: ?string, assigned_to: ?int, due_at: ?string, remind_at: ?string}
+     * @return array{title: string, description: ?string, priority: ?string, assigned_to: ?int, todo_category_id: ?int, due_at: ?string, remind_at: ?string}
      */
     public function todoData(): array
     {
@@ -48,6 +53,7 @@ class StoreTodoRequest extends FormRequest
             'description' => $validated['description'] ?? null,
             'priority' => $validated['priority'] ?? TodoPriority::Normal->value,
             'assigned_to' => isset($validated['assigned_to']) ? (int) $validated['assigned_to'] : $this->user()?->id,
+            'todo_category_id' => isset($validated['todo_category_id']) ? (int) $validated['todo_category_id'] : null,
             'due_at' => $validated['due_at'] ?? null,
             'remind_at' => $validated['remind_at'] ?? null,
         ];

@@ -1,6 +1,8 @@
 @php
     /** @var \Illuminate\Contracts\Pagination\LengthAwarePaginator<\App\Models\Todo> $todos */
-    /** @var array{status: string, scope: string} $filters */
+    /** @var array{status: string, scope: string, category: string} $filters */
+    /** @var \Illuminate\Support\Collection<int, \App\Models\TodoCategory> $categories */
+    $categories = $categories ?? collect();
 @endphp
 
 <div class="todo-panel" data-todo-panel="list">
@@ -20,14 +22,31 @@
                 <option value="assigned" @selected(($filters['scope'] ?? '') === 'assigned')>Assigned to me</option>
                 <option value="created" @selected(($filters['scope'] ?? '') === 'created')>Created by me</option>
             </select>
+            @if($categories->isNotEmpty())
+                <select name="category" class="form-select form-select-sm" aria-label="Category" onchange="this.form.requestSubmit()">
+                    <option value="" @selected(($filters['category'] ?? '') === '')>All categories</option>
+                    @foreach($categories as $category)
+                        <option value="{{ $category->id }}" @selected((string) ($filters['category'] ?? '') === (string) $category->id)>
+                            {{ $category->name }}@if(! $category->is_active) (inactive)@endif
+                        </option>
+                    @endforeach
+                </select>
+            @endif
         </form>
 
-        @can('create', \App\Models\Todo::class)
-            <a href="{{ route('todos.create') }}" class="btn btn-sm btn-primary" data-todo-panel-nav>
-                <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                <span>New</span>
-            </a>
-        @endcan
+        <div class="todo-panel__toolbar-actions">
+            @can('viewAny', \App\Models\TodoCategory::class)
+                <a href="{{ route('todo-categories.index') }}" class="btn btn-sm btn-outline-secondary">
+                    Categories
+                </a>
+            @endcan
+            @can('create', \App\Models\Todo::class)
+                <a href="{{ route('todos.create') }}" class="btn btn-sm btn-primary" data-todo-panel-nav>
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                    <span>New</span>
+                </a>
+            @endcan
+        </div>
     </div>
 
     <div class="todo-panel__list" role="list">
@@ -51,6 +70,9 @@
                     </div>
                     <div class="todo-panel__row-meta">
                         @include('todos.partials.priority-badge', ['priority' => $todo->priority])
+                        @if($todo->category)
+                            <span>{{ $todo->category->name }}</span>
+                        @endif
                         <span>{{ $todo->assignee?->name ?? 'Unassigned' }}</span>
                         @if($todo->due_at)
                             <span>Due {{ display_app_datetime_24($todo->due_at) }}</span>

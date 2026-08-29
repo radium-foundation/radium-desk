@@ -5,6 +5,7 @@ namespace App\Services\Finance;
 use App\Enums\FinanceExpenseStatus;
 use App\Enums\FinanceJournalSourceType;
 use App\Models\FinanceExpense;
+use App\Models\FinanceJournal;
 use App\Models\User;
 use App\Services\Finance\Data\JournalLineDraft;
 use Illuminate\Http\UploadedFile;
@@ -145,7 +146,7 @@ class FinanceExpenseService
         });
     }
 
-    private function postJournal(FinanceExpense $expense, User $actor): \App\Models\FinanceJournal
+    private function postJournal(FinanceExpense $expense, User $actor): FinanceJournal
     {
         $expense->loadMissing(['category', 'cashAccount', 'bankAccount']);
 
@@ -204,17 +205,28 @@ class FinanceExpenseService
 
     private function storeReceipt(FinanceExpense $expense, UploadedFile $file): string
     {
-        return $file->store("finance/expenses/{$expense->id}", 'public');
+        return $file->store("finance/expenses/{$expense->id}", FinanceExpense::RECEIPT_DISK);
     }
 
     private function replaceReceipt(FinanceExpense $expense, UploadedFile $file): void
     {
-        if (filled($expense->receipt_path)) {
-            Storage::disk('public')->delete($expense->receipt_path);
-        }
+        $this->deleteReceipt($expense);
 
         $expense->update([
             'receipt_path' => $this->storeReceipt($expense, $file),
         ]);
+    }
+
+    private function deleteReceipt(FinanceExpense $expense): void
+    {
+        if (! filled($expense->receipt_path)) {
+            return;
+        }
+
+        $disk = $expense->receiptDisk() ?? FinanceExpense::RECEIPT_DISK;
+
+        if (Storage::disk($disk)->exists($expense->receipt_path)) {
+            Storage::disk($disk)->delete($expense->receipt_path);
+        }
     }
 }

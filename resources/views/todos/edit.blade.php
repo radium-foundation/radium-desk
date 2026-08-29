@@ -7,6 +7,7 @@
         @include('todos.partials.panel-form', [
             'todo' => $todo,
             'assignableUsers' => $assignableUsers,
+            'categories' => $categories,
             'pendingReminder' => $pendingReminder,
         ])
     </div>

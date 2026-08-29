@@ -78,6 +78,10 @@
             <dd>{{ $todo->assignee?->name ?? '—' }}</dd>
         </div>
         <div>
+            <dt>Category</dt>
+            <dd>{{ $todo->category?->name ?? '—' }}</dd>
+        </div>
+        <div>
             <dt>Due</dt>
             <dd>{{ $todo->due_at ? display_app_datetime_24($todo->due_at) : '—' }}</dd>
         </div>

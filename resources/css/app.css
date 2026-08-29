@@ -21510,9 +21510,12 @@ body.customer-360-drawer-open .app-sidebar {
     min-width: 0;
 }
 
-.todo-panel__filters .form-select {
-    width: auto;
-    max-width: 9.5rem;
+.todo-panel__toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
 }
 
 .todo-panel__list {

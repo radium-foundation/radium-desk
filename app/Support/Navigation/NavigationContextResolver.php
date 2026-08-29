@@ -4,6 +4,7 @@ namespace App\Support\Navigation;
 
 use App\Models\AuditLog;
 use App\Models\CashfreeWebhookLog;
+use App\Models\CompanyHoliday;
 use App\Models\LeaveRequest;
 use App\Models\SystemSetting;
 use App\Models\Todo;
@@ -266,6 +267,10 @@ class NavigationContextResolver
             return [NavigationMenu::Personal, 'personal.todos', null];
         }
 
+        if ($request->routeIs('todo-categories.*')) {
+            return [NavigationMenu::Administration, 'administration.home', null];
+        }
+
         if ($request->routeIs('admin.administration.*')) {
             return [NavigationMenu::Administration, 'administration.home', null];
         }
@@ -485,7 +490,7 @@ class NavigationContextResolver
         return Gate::check('viewAny', User::class)
             || Gate::check('viewAny', SystemSetting::class)
             || $user->can('system-settings.manage')
-            || Gate::check('viewAny', \App\Models\CompanyHoliday::class);
+            || Gate::check('viewAny', CompanyHoliday::class);
     }
 
     private function canViewMyPerformance(?User $user): bool

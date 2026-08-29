@@ -5,9 +5,14 @@ namespace App\Models;
 use App\Enums\FinanceExpenseStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class FinanceExpense extends Model
 {
+    public const RECEIPT_DISK = 'local';
+
+    public const LEGACY_RECEIPT_DISK = 'public';
+
     protected $fillable = [
         'expense_no',
         'expense_date',
@@ -78,5 +83,27 @@ class FinanceExpense extends Model
     public function journal(): BelongsTo
     {
         return $this->belongsTo(FinanceJournal::class, 'journal_id');
+    }
+
+    public function hasReceipt(): bool
+    {
+        return $this->receiptDisk() !== null;
+    }
+
+    public function receiptDisk(): ?string
+    {
+        if (! filled($this->receipt_path)) {
+            return null;
+        }
+
+        if (Storage::disk(self::RECEIPT_DISK)->exists($this->receipt_path)) {
+            return self::RECEIPT_DISK;
+        }
+
+        if (Storage::disk(self::LEGACY_RECEIPT_DISK)->exists($this->receipt_path)) {
+            return self::LEGACY_RECEIPT_DISK;
+        }
+
+        return null;
     }
 }

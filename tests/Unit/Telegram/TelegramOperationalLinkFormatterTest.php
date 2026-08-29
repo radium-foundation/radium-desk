@@ -2,9 +2,13 @@
 
 namespace Tests\Unit\Telegram;
 
+use App\Enums\IncidentSource;
+use App\Enums\IncidentStatus;
+use App\Enums\RefundStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
+use App\Models\Todo;
 use App\Models\User;
 use App\Support\Telegram\TelegramOperationalLinkFormatter;
 use Database\Seeders\RolePermissionSeeder;
@@ -79,6 +83,31 @@ class TelegramOperationalLinkFormatterTest extends TestCase
         $this->assertStringStartsWith('https://', $url);
         $this->assertSame("Open Case: {$url}", $line);
         $this->assertStringNotContainsString('[', (string) $line);
+    }
+
+    public function test_todo_link_is_authorization_safe(): void
+    {
+        $admin = $this->createAdmin();
+        $owner = User::factory()->create(['is_active' => true]);
+        $owner->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $stranger = User::factory()->create(['is_active' => true]);
+        $stranger->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $todo = Todo::factory()->create([
+            'created_by' => $owner->id,
+            'assigned_to' => $owner->id,
+            'title' => 'Telegram to-do link',
+        ]);
+
+        $this->assertSame(
+            route('todos.show', $todo, absolute: true),
+            $this->formatter->todoLink($owner, $todo),
+        );
+        $this->assertSame(
+            route('todos.show', $todo, absolute: true),
+            $this->formatter->todoLink($admin, $todo),
+        );
+        $this->assertNull($this->formatter->todoLink($stranger, $todo));
     }
 
     public function test_refund_link_line_uses_bare_https_url(): void
@@ -213,10 +242,10 @@ class TelegramOperationalLinkFormatterTest extends TestCase
             'order_id' => $order->id,
             'reference_no' => $referenceNo,
             'category' => 'General',
-            'source' => \App\Enums\IncidentSource::Internal,
+            'source' => IncidentSource::Internal,
             'title' => 'Telegram link test',
             'description' => 'Telegram link test.',
-            'status' => \App\Enums\IncidentStatus::Open,
+            'status' => IncidentStatus::Open,
             'created_by' => $creator->id,
             'updated_by' => $creator->id,
         ]);
@@ -238,10 +267,10 @@ class TelegramOperationalLinkFormatterTest extends TestCase
             'order_id' => $order->id,
             'reference_no' => $referenceNo,
             'category' => 'General',
-            'source' => \App\Enums\IncidentSource::Internal,
+            'source' => IncidentSource::Internal,
             'title' => 'Telegram link test',
             'description' => 'Telegram link test.',
-            'status' => \App\Enums\IncidentStatus::Open,
+            'status' => IncidentStatus::Open,
             'created_by' => $creator->id,
             'updated_by' => $creator->id,
         ]);
@@ -254,7 +283,7 @@ class TelegramOperationalLinkFormatterTest extends TestCase
             'reference_no' => $referenceNo,
             'amount' => 499,
             'reason' => 'Telegram link test refund.',
-            'status' => \App\Enums\RefundStatus::Pending,
+            'status' => RefundStatus::Pending,
             'requested_by' => $creator->id,
         ]);
     }

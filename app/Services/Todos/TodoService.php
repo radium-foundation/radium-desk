@@ -7,6 +7,7 @@ use App\Enums\TodoPriority;
 use App\Enums\TodoStatus;
 use App\Models\Reminder;
 use App\Models\Todo;
+use App\Models\TodoCategory;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\Reminders\TodoReminderIdempotencyKeyGenerator;
@@ -35,6 +36,7 @@ class TodoService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly TodoReminderIdempotencyKeyGenerator $reminderIdempotencyKeyGenerator,
+        private readonly TodoNotificationService $todoNotificationService,
     ) {}
 
     /**
@@ -43,6 +45,7 @@ class TodoService
      *     description?: ?string,
      *     priority?: string|TodoPriority|null,
      *     assigned_to?: int|null,
+     *     todo_category_id?: int|null,
      *     due_at?: Carbon|string|null,
      *     remind_at?: Carbon|string|null
      * }  $data
@@ -66,13 +69,15 @@ class TodoService
         $this->assertAssigneeExists($assigneeId);
 
         $priority = $this->resolvePriority($data['priority'] ?? null);
+        $categoryId = $this->resolveCategoryId($data['todo_category_id'] ?? null, requireActive: true);
         $dueAt = $this->parseOptionalDateTime($data['due_at'] ?? null, 'due_at');
         $remindAt = $this->parseOptionalDateTime($data['remind_at'] ?? null, 'remind_at');
 
-        return DB::transaction(function () use ($actor, $data, $title, $assigneeId, $priority, $dueAt, $remindAt): Todo {
+        return DB::transaction(function () use ($actor, $data, $title, $assigneeId, $priority, $categoryId, $dueAt, $remindAt): Todo {
             $todo = Todo::query()->create([
                 'created_by' => $actor->id,
                 'assigned_to' => $assigneeId,
+                'todo_category_id' => $categoryId,
                 'title' => $title,
                 'description' => $this->nullableString($data['description'] ?? null),
                 'priority' => $priority,
@@ -83,7 +88,7 @@ class TodoService
 
             $this->syncReminder($todo, $remindAt);
 
-            $todo = $todo->fresh(['creator', 'assignee', 'reminders']) ?? $todo;
+            $todo = $todo->fresh(['creator', 'assignee', 'category', 'reminders']) ?? $todo;
 
             $this->auditLogService->log(
                 userId: $actor->id,
@@ -91,6 +96,11 @@ class TodoService
                 auditable: $todo,
                 newValues: $this->todoAuditValues($todo, $remindAt),
             );
+
+            $notifiable = $todo;
+            DB::afterCommit(function () use ($actor, $notifiable): void {
+                $this->todoNotificationService->notifyAssigned($notifiable, $actor, 'created');
+            });
 
             return $todo;
         });
@@ -102,6 +112,7 @@ class TodoService
      *     description?: ?string,
      *     priority?: string|TodoPriority|null,
      *     assigned_to?: int|null,
+     *     todo_category_id?: int|null,
      *     due_at?: Carbon|string|null,
      *     remind_at?: Carbon|string|null
      * }  $data
@@ -115,6 +126,7 @@ class TodoService
             $this->assertNotCancelled($locked);
 
             $oldValues = $this->todoAuditValues($locked);
+            $previousAssigneeId = (int) $locked->assigned_to;
 
             if (array_key_exists('assigned_to', $data)
                 && (int) $data['assigned_to'] !== (int) $locked->assigned_to
@@ -142,6 +154,14 @@ class TodoService
                 $locked->priority = $this->resolvePriority($data['priority']);
             }
 
+            if (array_key_exists('todo_category_id', $data)) {
+                $locked->todo_category_id = $this->resolveCategoryId(
+                    $data['todo_category_id'],
+                    requireActive: true,
+                    currentCategoryId: (int) ($locked->todo_category_id ?? 0) ?: null,
+                );
+            }
+
             if (array_key_exists('due_at', $data)) {
                 $locked->due_at = $this->parseOptionalDateTime($data['due_at'], 'due_at');
             }
@@ -156,7 +176,7 @@ class TodoService
                 $this->syncReminder($locked, $remindAt);
             }
 
-            $locked = $locked->fresh(['creator', 'assignee', 'reminders']) ?? $locked;
+            $locked = $locked->fresh(['creator', 'assignee', 'category', 'reminders']) ?? $locked;
 
             $this->auditLogService->log(
                 userId: $actor->id,
@@ -165,6 +185,13 @@ class TodoService
                 oldValues: $oldValues,
                 newValues: $this->todoAuditValues($locked, $remindAt),
             );
+
+            if ((int) $locked->assigned_to !== $previousAssigneeId) {
+                $notifiable = $locked;
+                DB::afterCommit(function () use ($actor, $notifiable): void {
+                    $this->todoNotificationService->notifyAssigned($notifiable, $actor, 'assigned');
+                });
+            }
 
             return $locked;
         });
@@ -190,7 +217,7 @@ class TodoService
 
             $this->syncReminder($locked, $this->currentPendingRemindAt($locked));
 
-            $locked = $locked->fresh(['creator', 'assignee', 'reminders']) ?? $locked;
+            $locked = $locked->fresh(['creator', 'assignee', 'category', 'reminders']) ?? $locked;
 
             $this->auditLogService->log(
                 userId: $actor->id,
@@ -199,6 +226,13 @@ class TodoService
                 oldValues: ['assigned_to' => $previousAssigneeId],
                 newValues: ['assigned_to' => (int) $locked->assigned_to],
             );
+
+            if ($previousAssigneeId !== (int) $locked->assigned_to) {
+                $notifiable = $locked;
+                DB::afterCommit(function () use ($actor, $notifiable): void {
+                    $this->todoNotificationService->notifyAssigned($notifiable, $actor, 'assigned');
+                });
+            }
 
             return $locked;
         });
@@ -499,6 +533,37 @@ class TodoService
         }
     }
 
+    private function resolveCategoryId(mixed $categoryId, bool $requireActive, ?int $currentCategoryId = null): ?int
+    {
+        if ($categoryId === null || $categoryId === '') {
+            return null;
+        }
+
+        $id = (int) $categoryId;
+
+        if ($id <= 0) {
+            throw ValidationException::withMessages([
+                'todo_category_id' => 'The selected category is invalid.',
+            ]);
+        }
+
+        $category = TodoCategory::query()->whereKey($id)->first();
+
+        if ($category === null) {
+            throw ValidationException::withMessages([
+                'todo_category_id' => 'The selected category is invalid.',
+            ]);
+        }
+
+        if ($requireActive && ! $category->is_active && $currentCategoryId !== $id) {
+            throw ValidationException::withMessages([
+                'todo_category_id' => 'The selected category is inactive.',
+            ]);
+        }
+
+        return $id;
+    }
+
     private function resolvePriority(TodoPriority|string|null $priority): TodoPriority
     {
         if ($priority instanceof TodoPriority) {
@@ -568,6 +633,7 @@ class TodoService
                 : $todo->status,
             'created_by' => (int) $todo->created_by,
             'assigned_to' => (int) $todo->assigned_to,
+            'todo_category_id' => $todo->todo_category_id !== null ? (int) $todo->todo_category_id : null,
             'due_at' => $todo->due_at?->toIso8601String(),
             'completed_at' => $todo->completed_at?->toIso8601String(),
             'remind_at' => $pendingRemindAt?->toIso8601String(),

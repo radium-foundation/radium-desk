@@ -11,6 +11,7 @@
         @include('todos.partials.panel-list', [
             'todos' => $todos,
             'filters' => $filters,
+            'categories' => $categories,
         ])
     </div>
 @endsection

@@ -1,6 +1,7 @@
 @php
     /** @var \App\Models\Todo|null $todo */
     /** @var \Illuminate\Support\Collection<int, \App\Models\User> $assignableUsers */
+    /** @var \Illuminate\Support\Collection<int, \App\Models\TodoCategory> $categories */
     /** @var \App\Models\Reminder|null $pendingReminder */
     $isEdit = isset($todo) && $todo !== null;
 @endphp
@@ -21,6 +22,7 @@
 
     @include('todos.partials.form', array_merge([
         'assignableUsers' => $assignableUsers,
+        'categories' => $categories ?? collect(),
         'pendingReminder' => $pendingReminder ?? null,
         'compact' => true,
     ], $isEdit ? ['todo' => $todo] : []))

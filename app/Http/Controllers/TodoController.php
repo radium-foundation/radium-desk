@@ -8,12 +8,15 @@ use App\Http\Requests\AssignTodoRequest;
 use App\Http\Requests\StoreTodoRequest;
 use App\Http\Requests\UpdateTodoRequest;
 use App\Models\Todo;
+use App\Models\TodoCategory;
 use App\Models\User;
 use App\Services\Todos\TodoService;
 use App\Support\Todos\TodoPanelRenderer;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class TodoController extends Controller
@@ -44,6 +47,7 @@ class TodoController extends Controller
 
         return view('todos.create', [
             'assignableUsers' => $this->panelRenderer->assignableUsers($request->user()),
+            'categories' => $this->panelRenderer->formCategories(),
         ]);
     }
 
@@ -69,7 +73,7 @@ class TodoController extends Controller
             return $this->panelRenderer->detail($request, $todo);
         }
 
-        $todo->load(['creator', 'assignee', 'reminders']);
+        $todo->load(['creator', 'assignee', 'category', 'reminders']);
 
         return view('todos.show', [
             'todo' => $todo,
@@ -85,11 +89,12 @@ class TodoController extends Controller
             return $this->panelRenderer->editForm($request, $todo);
         }
 
-        $todo->load(['reminders']);
+        $todo->load(['reminders', 'category']);
 
         return view('todos.edit', [
             'todo' => $todo,
             'assignableUsers' => $this->panelRenderer->assignableUsers($request->user()),
+            'categories' => $this->panelRenderer->formCategories($todo),
             'pendingReminder' => $todo->reminders
                 ->first(fn ($reminder) => $reminder->status === ReminderStatus::Pending),
         ]);
@@ -203,8 +208,9 @@ class TodoController extends Controller
 
     /**
      * @return array{
-     *     todos: \Illuminate\Contracts\Pagination\LengthAwarePaginator,
-     *     filters: array{status: string, scope: string}
+     *     todos: LengthAwarePaginator,
+     *     filters: array{status: string, scope: string, category: string},
+     *     categories: Collection<int, TodoCategory>
      * }
      */
     private function indexData(Request $request): array
@@ -213,7 +219,7 @@ class TodoController extends Controller
         $filters = TodoPanelRenderer::filtersFromRequest($request);
 
         $todos = TodoPanelRenderer::applyIndexScopes(
-            Todo::query()->with(['creator', 'assignee', 'reminders']),
+            Todo::query()->with(['creator', 'assignee', 'category', 'reminders']),
             $request,
             $user,
         )
@@ -226,6 +232,7 @@ class TodoController extends Controller
         return [
             'todos' => $todos,
             'filters' => $filters,
+            'categories' => $this->panelRenderer->filterCategories(),
         ];
     }
 

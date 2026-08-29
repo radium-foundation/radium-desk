@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.62 — 2026-08-29 — To-Do Categories and Expense Hardening
+
+- To-do creation now sends an assignment Telegram to the assignee, using the same opt-in and work-hour rules as other assignment notices. Reassignment notifies the new assignee the same way.
+- Admins can add, rename, activate, and deactivate to-do categories from Administration. Categories are never hard-deleted, so existing to-dos keep their label after a category is retired.
+- Expense receipts are stored privately and opened through an authorized download. Draft expenses still show their current category after that category is deactivated.
+
 ## 4.0.61 — 2026-08-29 — Team Activity Session Selection Hotfix
 
 - Team Activity no longer shows Auto Logged Out when an open WorkSession exists for the same calendar day alongside a closed duplicate that shares the same login_at.

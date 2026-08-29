@@ -44,6 +44,9 @@
         @error('expense_category_id')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
+        @if($categories->isEmpty())
+            <div class="form-text">No active expense categories are available. Add one in Finance Settings before saving.</div>
+        @endif
     </div>
 
     <div class="col-md-4">

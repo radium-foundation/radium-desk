@@ -38,6 +38,13 @@
         ];
     }
 
+    if ($isAdminTeam && Gate::check('viewAny', \App\Models\TodoCategory::class)) {
+        $tabs['todo_categories'] = [
+            'label' => 'To-Do Categories',
+            'url' => route('todo-categories.index'),
+        ];
+    }
+
     if ($canViewSettings) {
         $tabs['operational_settings'] = [
             'label' => 'Operational Settings',

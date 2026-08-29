@@ -180,7 +180,7 @@ class FinanceExpenseTest extends TestCase
 
     public function test_receipt_can_be_uploaded_on_create(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
 
         $this->actingAs($this->admin)
             ->post(route('finance.expenses.store'), array_merge($this->validPayload(), [
@@ -190,7 +190,57 @@ class FinanceExpenseTest extends TestCase
 
         $expense = FinanceExpense::query()->firstOrFail();
         $this->assertNotNull($expense->receipt_path);
-        Storage::disk('public')->assertExists($expense->receipt_path);
+        Storage::disk('local')->assertExists($expense->receipt_path);
+
+        $this->actingAs($this->admin)
+            ->get(route('finance.expenses.receipt', $expense))
+            ->assertOk();
+    }
+
+    public function test_legacy_public_receipt_remains_downloadable(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+
+        $expense = $this->createDraftExpense([
+            'receipt_path' => 'finance/expenses/legacy/receipt.pdf',
+        ]);
+        Storage::disk('public')->put($expense->receipt_path, 'legacy-bytes');
+
+        $this->actingAs($this->admin)
+            ->get(route('finance.expenses.receipt', $expense))
+            ->assertOk();
+    }
+
+    public function test_edit_form_keeps_inactive_category_for_existing_draft(): void
+    {
+        $expense = $this->createDraftExpense();
+        $this->category->update(['is_active' => false]);
+
+        $this->actingAs($this->admin)
+            ->get(route('finance.expenses.edit', $expense))
+            ->assertOk()
+            ->assertSee($this->category->name);
+
+        $this->actingAs($this->admin)
+            ->put(route('finance.expenses.update', $expense), array_merge($this->validPayload(), [
+                'expense_category_id' => $this->category->id,
+                'description' => 'Still using inactive category',
+            ]))
+            ->assertRedirect(route('finance.expenses.show', $expense));
+
+        $this->assertSame($this->category->id, $expense->fresh()->expense_category_id);
+    }
+
+    public function test_new_expense_cannot_use_inactive_category(): void
+    {
+        $this->category->update(['is_active' => false]);
+
+        $this->actingAs($this->admin)
+            ->from(route('finance.expenses.create'))
+            ->post(route('finance.expenses.store'), $this->validPayload())
+            ->assertRedirect(route('finance.expenses.create'))
+            ->assertSessionHasErrors('expense_category_id');
     }
 
     /**

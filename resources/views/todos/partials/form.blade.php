@@ -1,17 +1,21 @@
 @php
     /** @var \App\Models\Todo|null $todo */
     /** @var \Illuminate\Support\Collection<int, \App\Models\User> $assignableUsers */
+    /** @var \Illuminate\Support\Collection<int, \App\Models\TodoCategory> $categories */
     /** @var \App\Models\Reminder|null $pendingReminder */
     /** @var bool $compact */
     $isEdit = isset($todo) && $todo !== null;
     $compact = $compact ?? false;
+    $categories = $categories ?? collect();
     $action = $isEdit ? route('todos.update', $todo) : route('todos.store');
     $canAssign = auth()->user()?->can('todos.assign') ?? false;
+    $canManageCategories = auth()->user()?->can('todos.manage') ?? false;
     $defaultDue = old('due_at', $isEdit && $todo->due_at ? $todo->due_at->timezone(config('app.timezone'))->format('Y-m-d\TH:i') : '');
     $defaultRemind = old('remind_at', $isEdit && $pendingReminder?->remind_at
         ? $pendingReminder->remind_at->timezone(config('app.timezone'))->format('Y-m-d\TH:i')
         : '');
     $defaultAssignee = old('assigned_to', $isEdit ? $todo->assigned_to : auth()->id());
+    $defaultCategory = old('todo_category_id', $isEdit ? $todo->todo_category_id : '');
     $cancelUrl = $isEdit ? route('todos.show', $todo) : route('todos.index');
 @endphp
 
@@ -44,6 +48,30 @@
         </div>
 
         <div class="{{ $compact ? 'col-12' : 'col-md-4' }}">
+            <label for="todo_category_id" class="form-label">
+                Category <span class="text-muted">(optional)</span>
+            </label>
+            <select id="todo_category_id" name="todo_category_id" class="form-select @error('todo_category_id') is-invalid @enderror">
+                <option value="">No category</option>
+                @foreach($categories as $category)
+                    <option value="{{ $category->id }}" @selected((string) $defaultCategory === (string) $category->id)>
+                        {{ $category->name }}@if(! $category->is_active) (inactive)@endif
+                    </option>
+                @endforeach
+            </select>
+            @error('todo_category_id')
+                <div class="invalid-feedback">{{ $message }}</div>
+            @enderror
+            @if($canManageCategories)
+                <div class="form-text">
+                    <a href="{{ route('todo-categories.index') }}">Manage categories</a>
+                </div>
+            @elseif($categories->isEmpty())
+                <div class="form-text">Categories are added by an admin.</div>
+            @endif
+        </div>
+
+        <div class="{{ $compact ? 'col-12' : 'col-md-4' }}">
             <label for="priority" class="form-label">Priority</label>
             <select id="priority" name="priority" class="form-select @error('priority') is-invalid @enderror" required>
                 @foreach(\App\Enums\TodoPriority::cases() as $priority)
@@ -59,7 +87,7 @@
         </div>
 
         @if($canAssign && $assignableUsers->isNotEmpty())
-            <div class="{{ $compact ? 'col-12' : 'col-md-8' }}">
+            <div class="{{ $compact ? 'col-12' : 'col-md-4' }}">
                 <label for="assigned_to" class="form-label">Assignee</label>
                 <select id="assigned_to" name="assigned_to" class="form-select @error('assigned_to') is-invalid @enderror">
                     @foreach($assignableUsers as $user)
