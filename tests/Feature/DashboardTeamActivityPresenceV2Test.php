@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Data\TeamActivityAgentRow;
 use App\Enums\IncidentSource;
 use App\Enums\TeamActivityStatus;
 use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WorkSessionEndReason;
+use App\Enums\WorkSessionOrigin;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -14,6 +16,7 @@ use App\Models\User;
 use App\Models\WorkSession;
 use App\Services\Dashboard\TeamActivityPanelService;
 use App\Services\IncidentReferenceService;
+use App\Services\Operations\AttendanceRegisterService;
 use App\Services\Operations\PresenceEngineService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -103,7 +106,7 @@ class DashboardTeamActivityPresenceV2Test extends TestCase
             'login_at' => now()->startOfDay()->addHours(9),
             'logout_at' => now()->startOfDay()->addHours(10),
             'ended_reason' => WorkSessionEndReason::ManualLogout,
-            'origin' => \App\Enums\WorkSessionOrigin::Login,
+            'origin' => WorkSessionOrigin::Login,
             'is_attributable' => true,
             'session_duration_seconds' => 3600,
             'active_duration_seconds' => 3600,
@@ -114,7 +117,7 @@ class DashboardTeamActivityPresenceV2Test extends TestCase
             now()->subMinutes(20),
         );
 
-        app(\App\Services\Operations\AttendanceRegisterService::class)
+        app(AttendanceRegisterService::class)
             ->refreshDay($agent, now()->startOfDay(), now());
 
         $row = $this->agentRow($agent);
@@ -156,6 +159,130 @@ class DashboardTeamActivityPresenceV2Test extends TestCase
         $this->assertSame(8, $row->sessionsToday);
     }
 
+    public function test_open_session_wins_over_closed_duplicate_with_same_login_at(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-28 23:11:00', 'Asia/Kolkata'));
+
+        $agent = $this->createTrackedAgent();
+        $loginAt = now()->subHours(2);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'logout_at' => $loginAt->copy()->addMinutes(16),
+            'last_activity_at' => $loginAt,
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 960,
+        ]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'logout_at' => $loginAt->copy()->addMinutes(16),
+            'last_activity_at' => $loginAt,
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 960,
+        ]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'last_activity_at' => now()->subMinutes(2),
+            'last_tick_at' => now()->subMinutes(2),
+            'session_duration_seconds' => 0,
+            'active_duration_seconds' => 3600,
+        ]);
+
+        [$incident] = $this->createIncident($agent);
+        AuditLog::query()->create([
+            'user_id' => $agent->id,
+            'event' => 'refund.approved',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+            'created_at' => now(),
+        ]);
+
+        $row = $this->agentRow($agent);
+
+        $this->assertSame(TeamActivityStatus::Working, $row->status);
+        $this->assertNotSame(TeamActivityStatus::AutoLogout, $row->status);
+        $this->assertNotNull($row->latest);
+        $this->assertStringContainsString('Refund', $row->latest->label);
+    }
+
+    public function test_same_login_at_closed_twins_with_open_session_resolve_to_idle_when_stale(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-28 23:20:00', 'Asia/Kolkata'));
+
+        config([
+            'presence.active_threshold_minutes' => 5,
+            'presence.away_timeout_minutes' => 15,
+        ]);
+
+        $agent = $this->createTrackedAgent();
+        $loginAt = now()->subHours(2);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'logout_at' => $loginAt->copy()->addMinutes(16),
+            'last_activity_at' => $loginAt,
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 960,
+        ]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'last_activity_at' => now()->subMinutes(10),
+            'last_tick_at' => now()->subMinutes(10),
+            'session_duration_seconds' => 0,
+            'active_duration_seconds' => 3600,
+        ]);
+
+        $row = $this->agentRow($agent);
+
+        $this->assertSame(TeamActivityStatus::Idle, $row->status);
+        $this->assertNotSame(TeamActivityStatus::AutoLogout, $row->status);
+    }
+
+    public function test_all_sessions_closed_with_latest_away_timeout_still_shows_auto_logout(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-28 23:49:00', 'Asia/Kolkata'));
+
+        $agent = $this->createTrackedAgent();
+        $loginAt = now()->subHours(2);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'logout_at' => $loginAt->copy()->addMinutes(16),
+            'last_activity_at' => $loginAt,
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 960,
+        ]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => $loginAt,
+            'logout_at' => now(),
+            'last_activity_at' => now()->subMinutes(20),
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 7200,
+        ]);
+
+        $row = $this->agentRow($agent);
+
+        $this->assertSame(TeamActivityStatus::AutoLogout, $row->status);
+    }
+
     public function test_latest_activity_never_contradicts_status(): void
     {
         $agent = $this->createWeeklyOffAgent();
@@ -188,7 +315,7 @@ class DashboardTeamActivityPresenceV2Test extends TestCase
         $this->assertStringContainsString('Reassigned', $row->latest->label);
     }
 
-    private function agentRow(User $agent): \App\Data\TeamActivityAgentRow
+    private function agentRow(User $agent): TeamActivityAgentRow
     {
         $panel = app(TeamActivityPanelService::class)->build();
         $row = collect($panel->agents)->firstWhere('id', $agent->id);
