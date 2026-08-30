@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.63 — 2026-08-30 — RDService Order Enrichment
+
+- After Cashfree payment, new RD orders can be enriched from RDService.net when the integration is configured.
+- Cashfree remains the source of truth for payment fields; enrichment only fills missing order identity and commercial details.
+- Admin lookup remains the fallback when RDService is unconfigured, unavailable, or incomplete.
+- The RDService integration stays inactive until production environment configuration is set.
+
 ## 4.0.62 — 2026-08-29 — Incoming Call Lifecycle Fix
 
 - Incoming call cards now appear when the call starts ringing, instead of waiting until hangup.
