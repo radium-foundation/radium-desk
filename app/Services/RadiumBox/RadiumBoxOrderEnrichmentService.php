@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\Cashfree\CashfreeRadiumBoxBypassMetrics;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\RadiumBox\Exceptions\RadiumBoxEnrichmentRetryException;
+use App\Services\RdService\RdServiceFetchResult;
 use App\Services\ServiceCaseAssignmentEligibilityService;
 use App\Services\ServiceCaseAutomationMonitorService;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
@@ -417,7 +418,7 @@ class RadiumBoxOrderEnrichmentService
      *         applied: bool,
      *         enrichment: ?RadiumBoxOrderEnrichment,
      *         fetch_result: RadiumBoxOrderEnrichmentFetchResult,
-     *         persistence: \App\Data\EnrichmentPersistenceResult,
+     *         persistence: EnrichmentPersistenceResult,
      *     },
      *     fetch_result: RadiumBoxOrderEnrichmentFetchResult,
      *     metadata: array<string, mixed>,
@@ -451,13 +452,17 @@ class RadiumBoxOrderEnrichmentService
             $metadata['duplicate_serial'] = true;
         }
 
+        if ($fetchResult->provider === RdServiceFetchResult::PROVIDER) {
+            $metadata['enrichment_provider'] = RdServiceFetchResult::PROVIDER;
+        }
+
         if ($fetchResult->isNotFound()) {
             $metadata['lookup_result'] = 'order_not_found';
             $metadata['error_type'] = 'order_not_found';
         } elseif ($fetchResult->errorType === 'disabled') {
             $metadata['lookup_result'] = 'disabled';
             $metadata['error_type'] = 'disabled';
-        } elseif ($enrichment !== null && $enrichment->hasData()) {
+        } elseif ($enrichment !== null && ($enrichment->hasData() || $enrichment->hasLegacyPreviewData())) {
             $metadata['lookup_result'] = 'data_received';
         } else {
             $metadata['lookup_result'] = 'no_data';
@@ -480,7 +485,7 @@ class RadiumBoxOrderEnrichmentService
      *         applied: bool,
      *         enrichment: ?RadiumBoxOrderEnrichment,
      *         fetch_result: RadiumBoxOrderEnrichmentFetchResult,
-     *         persistence: \App\Data\EnrichmentPersistenceResult,
+     *         persistence: EnrichmentPersistenceResult,
      *     },
      *     fetch_result: RadiumBoxOrderEnrichmentFetchResult,
      *     metadata: array<string, mixed>,

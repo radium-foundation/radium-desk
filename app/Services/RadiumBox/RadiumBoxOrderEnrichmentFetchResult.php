@@ -11,6 +11,7 @@ readonly class RadiumBoxOrderEnrichmentFetchResult
         public ?string $errorType = null,
         public ?int $httpStatus = null,
         public ?int $retryAfterSeconds = null,
+        public ?string $provider = null,
     ) {}
 
     public function succeeded(): bool

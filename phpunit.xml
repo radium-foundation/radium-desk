@@ -42,5 +42,8 @@
         <env name="CASHFREE_VERIFY_SIGNATURE" value="false"/>
         <!-- Deterministic Cashfree automation actor; force so local .env cannot leak. -->
         <env name="CASHFREE_SYSTEM_USER_EMAIL" value="superadmin@radium.local" force="true"/>
+        <env name="RDSERVICE_ENABLED" value="false" force="true"/>
+        <env name="DESK_ORDER_API_TOKEN" value="" force="true"/>
+        <env name="RDSERVICE_BASE_URL" value="https://rdservice.net" force="true"/>
     </php>
 </phpunit>
