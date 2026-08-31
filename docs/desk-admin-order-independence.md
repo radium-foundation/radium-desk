@@ -198,7 +198,7 @@ Until then, Admin fallback stays.
 
 ## Tests
 
-Targeted: **114 passed**, 598 assertions.
+Targeted: **125 passed**, 634 assertions.
 
 - `tests/Unit/OrderLookup` + `tests/Feature/OrderLookup`
 - `tests/Unit/RdService` + `tests/Feature/RdService`
@@ -221,3 +221,9 @@ Pint on intended PHP files. PHP syntax (`php -l`) on new/changed services. PHPSt
 - Add an Admin API token requirement
 - Enable the IP allowlist
 - Remove Admin fallback
+
+---
+
+## Validation (RadiumDesk-P-31-08-10)
+
+Inspected `feat/desk-admin-order-independence` at `43e773dd`. Implementation architecture was already complete. This ticket added shared-lookup coverage for 401 / 429 / 5xx / malformed / incomplete / RIN / unresolved (null, no destructive write). Customer 360 WIP was left untouched. RDService was not activated. Admin `/api/search/order` was not disabled. Production was not deployed.

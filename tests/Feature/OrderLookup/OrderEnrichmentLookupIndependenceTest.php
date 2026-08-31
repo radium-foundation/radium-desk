@@ -241,6 +241,63 @@ class OrderEnrichmentLookupIndependenceTest extends TestCase
         $this->assertAdminCalled();
     }
 
+    public function test_hardware_rin_intake_stays_on_admin_when_rdservice_is_enabled(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/*' => Http::response($this->rdServicePayload('RIN1001'), 200),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPreviewPayload('RIN1001'), 200),
+        ]);
+
+        $agent = $this->agent();
+
+        $this->actingAs($agent)
+            ->postJson(route('service-requests.intake.search'), [
+                'order_id' => 'RIN1001',
+            ])
+            ->assertOk()
+            ->assertJsonPath('legacy_preview.serial_number', 'ADMIN-SN');
+
+        $this->assertRdServiceNotCalled();
+        $this->assertAdminCalled();
+    }
+
+    public function test_unresolved_identity_repair_does_not_mutate_existing_desk_fields(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/*' => Http::response([
+                'status' => 404,
+                'message' => 'RD Order not found',
+            ], 404),
+            'admin.radiumbox.com/api/search/order*' => Http::response([
+                'status' => 404,
+                'message' => 'RadiumBox order not found.',
+            ], 404),
+        ]);
+
+        $actor = User::factory()->create();
+        $this->createActiveIncident($actor, [
+            'order_id' => 'RD3000098',
+            'serial_number' => null,
+            'product_name' => null,
+            'device_model' => null,
+            'customer_name' => 'Keep Me',
+            'gst_number' => '27DESK1234F1Z5',
+        ]);
+
+        $this->artisan('orders:repair-identity --force')->assertSuccessful();
+
+        $order = Order::query()->where('order_id', 'RD3000098')->firstOrFail();
+        $this->assertNull($order->serial_number);
+        $this->assertSame('Keep Me', $order->customer_name);
+        $this->assertSame('27DESK1234F1Z5', $order->gst_number);
+        $this->assertRdServiceCalled();
+        $this->assertAdminCalled();
+    }
+
     private function enableRdService(): void
     {
         config([
@@ -282,9 +339,6 @@ class OrderEnrichmentLookupIndependenceTest extends TestCase
         ]);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     /**
      * @return array<string, mixed>
      */

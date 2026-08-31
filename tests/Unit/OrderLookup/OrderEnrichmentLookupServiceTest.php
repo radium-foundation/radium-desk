@@ -158,6 +158,164 @@ class OrderEnrichmentLookupServiceTest extends TestCase
         $this->assertAdminCalled();
     }
 
+    public function test_hardware_rin_uses_admin_without_rdservice_http(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/*' => Http::response($this->rdServicePayload('RIN1001'), 200),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RIN1001'), 200),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RIN1001');
+
+        $this->assertSame('ADMIN-SN', $enrichment?->serialNumber);
+        $this->assertRdServiceNotCalled();
+        $this->assertAdminCalled();
+    }
+
+    public function test_rdservice_401_falls_back_to_admin(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/*' => Http::response(['message' => 'Unauthenticated'], 401),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RD3395988'), 200),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RD3395988');
+
+        $this->assertSame('ADMIN-SN', $enrichment?->serialNumber);
+        $this->assertRdServiceCalled();
+        $this->assertAdminCalled();
+    }
+
+    public function test_interactive_429_falls_back_to_admin(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/*' => Http::response(['message' => 'Too Many Attempts.'], 429),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RD3395988'), 200),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RD3395988');
+
+        $this->assertSame('ADMIN-SN', $enrichment?->serialNumber);
+        $this->assertAdminCalled();
+    }
+
+    public function test_background_429_does_not_call_admin(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/*' => Http::response(['message' => 'Too Many Attempts.'], 429, ['Retry-After' => '30']),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RD3395988'), 200),
+        ]);
+
+        $result = app(OrderEnrichmentLookupService::class)->fetchForBackgroundSync('RD3395988');
+
+        $this->assertTrue($result->retriable);
+        $this->assertTrue($result->isRateLimited());
+        $this->assertSame(RdServiceFetchResult::PROVIDER, $result->provider);
+        $this->assertAdminNotCalled();
+    }
+
+    public function test_interactive_5xx_falls_back_to_admin(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/*' => Http::response('error', 502),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RD3395988'), 200),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RD3395988');
+
+        $this->assertSame('ADMIN-SN', $enrichment?->serialNumber);
+        $this->assertAdminCalled();
+    }
+
+    public function test_background_5xx_does_not_call_admin(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/*' => Http::response('error', 503),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RD3395988'), 200),
+        ]);
+
+        $result = app(OrderEnrichmentLookupService::class)->fetchForBackgroundSync('RD3395988');
+
+        $this->assertTrue($result->retriable);
+        $this->assertSame('http_error', $result->errorType);
+        $this->assertAdminNotCalled();
+    }
+
+    public function test_malformed_rdservice_response_falls_back_to_admin(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/*' => Http::response(['status' => 200, 'data' => []], 200),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RD3395988'), 200),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RD3395988');
+
+        $this->assertSame('ADMIN-SN', $enrichment?->serialNumber);
+        $this->assertRdServiceCalled();
+        $this->assertAdminCalled();
+    }
+
+    public function test_incomplete_rdservice_payload_falls_back_to_admin(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/*' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'correlation' => ['rdorderid' => 'RD3395988'],
+                    'rd_order' => [
+                        'rdorderid' => 'RD3395988',
+                        'order_id' => 'RD3395988',
+                    ],
+                ],
+            ], 200),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RD3395988'), 200),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RD3395988');
+
+        $this->assertSame('ADMIN-SN', $enrichment?->serialNumber);
+        $this->assertRdServiceCalled();
+        $this->assertAdminCalled();
+    }
+
+    public function test_unresolved_lookup_returns_null_without_enrichment(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/*' => Http::response([
+                'status' => 404,
+                'message' => 'RD Order not found',
+            ], 404),
+            'admin.radiumbox.com/api/search/order*' => Http::response([
+                'status' => 404,
+                'message' => 'RadiumBox order not found.',
+            ], 404),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RD3395988');
+
+        $this->assertNull($enrichment);
+        $this->assertRdServiceCalled();
+        $this->assertAdminCalled();
+    }
+
     private function enableRdService(): void
     {
         config([
