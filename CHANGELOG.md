@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.64 — 2026-08-31 — Desk Order Lookup Independence (Admin Default)
+
+- Desk still looks up missing order details from Admin by default, so live support behavior is unchanged.
+- Desk can later prefer its own saved order data, then RDService.net, then Admin, once RDService is explicitly enabled.
+- Hardware (RDE/RIN) and inquiry (INQ) orders continue to use Admin.
+- RDService.net stays off until production configuration is set; Cashfree remains the source of truth for payment fields.
+
 ## 4.0.63 — 2026-08-30 — RDService Order Enrichment
 
 - After Cashfree payment, new RD orders can be enriched from RDService.net when the integration is configured.
