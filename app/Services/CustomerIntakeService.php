@@ -10,7 +10,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\LegacyOrder\LegacyOrderImportService;
-use App\Services\RadiumBox\RadiumBoxClient;
+use App\Services\OrderLookup\OrderEnrichmentLookupService;
 use App\Services\SerialValidation\SerialValidationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -22,7 +22,7 @@ class CustomerIntakeService
         private readonly QuickServiceRequestService $quickServiceRequestService,
         private readonly IncidentReferenceService $incidentReferenceService,
         private readonly AuditLogService $auditLogService,
-        private readonly RadiumBoxClient $radiumBoxClient,
+        private readonly OrderEnrichmentLookupService $orderEnrichmentLookup,
         private readonly LegacyOrderImportService $legacyOrderImportService,
         private readonly SerialValidationService $serialValidationService,
         private readonly OrderIdentityLifecycleService $identityLifecycle,
@@ -77,7 +77,7 @@ class CustomerIntakeService
                 );
             }
 
-            $enrichment = $this->radiumBoxClient->fetchOrderEnrichment($orderId);
+            $enrichment = $this->orderEnrichmentLookup->fetchInteractive($orderId);
 
             $order = Order::query()->create([
                 'order_id' => $orderId,

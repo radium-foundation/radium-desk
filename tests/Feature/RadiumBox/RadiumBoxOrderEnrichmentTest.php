@@ -4,6 +4,7 @@ namespace Tests\Feature\RadiumBox;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Services\RadiumBox\RadiumBoxService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -90,6 +91,7 @@ class RadiumBoxOrderEnrichmentTest extends TestCase
             'serial_number' => 'LOCAL-SERIAL-1',
             'product_name' => 'Local Product',
             'device_model' => 'Local Model',
+            'service_history' => ['1 Year'],
             'status' => 'active',
             'created_by' => $agent->id,
         ]);
@@ -205,7 +207,7 @@ class RadiumBoxOrderEnrichmentTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        $service = app(\App\Services\RadiumBox\RadiumBoxService::class);
+        $service = app(RadiumBoxService::class);
 
         $service->enrichOrderForWorkspace($order);
         $service->enrichOrderForWorkspace($order->fresh());
@@ -237,7 +239,7 @@ class RadiumBoxOrderEnrichmentTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        $service = app(\App\Services\RadiumBox\RadiumBoxService::class);
+        $service = app(RadiumBoxService::class);
         $result = $service->enrichOrderFromBackgroundSync($order);
 
         $order->refresh();
@@ -282,7 +284,7 @@ class RadiumBoxOrderEnrichmentTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        $service = app(\App\Services\RadiumBox\RadiumBoxService::class);
+        $service = app(RadiumBoxService::class);
         $result = $service->enrichOrderFromBackgroundSync($incomingOrder);
 
         $incomingOrder->refresh();
@@ -335,7 +337,7 @@ class RadiumBoxOrderEnrichmentTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        $service = app(\App\Services\RadiumBox\RadiumBoxService::class);
+        $service = app(RadiumBoxService::class);
         $result = $service->enrichOrderFromBackgroundSync($incomingOrder);
 
         $incomingOrder->refresh();

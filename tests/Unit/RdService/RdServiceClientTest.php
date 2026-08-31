@@ -64,6 +64,47 @@ class RdServiceClientTest extends TestCase
         $result = app(RdServiceClient::class)->fetch('RDE1001');
 
         $this->assertSame('invalid_order_id', $result->errorType);
+        $this->assertTrue($result->fallbackToAdmin);
+        $this->assertFalse($result->retriable);
+        Http::assertNothingSent();
+    }
+
+    public function test_it_skips_inquiry_order_ids_without_http(): void
+    {
+        Http::fake();
+
+        $this->assertFalse(app(RdServiceClient::class)->isEligible('INQ-SC1001'));
+
+        $result = app(RdServiceClient::class)->fetch('INQ-SC1001');
+
+        $this->assertSame('invalid_order_id', $result->errorType);
+        $this->assertTrue($result->fallbackToAdmin);
+        $this->assertFalse($result->retriable);
+        Http::assertNothingSent();
+    }
+
+    public function test_production_config_default_is_disabled(): void
+    {
+        $source = file_get_contents(base_path('config/rdservice.php'));
+
+        $this->assertIsString($source);
+        $this->assertStringContainsString("env('RDSERVICE_ENABLED', false)", $source);
+        $this->assertStringNotContainsString("env('RDSERVICE_ENABLED', true)", $source);
+    }
+
+    public function test_disabled_flag_skips_http_and_falls_back_to_admin(): void
+    {
+        config(['rdservice.enabled' => false]);
+        Http::fake();
+
+        $this->assertFalse(app(RdServiceClient::class)->isConfigured());
+        $this->assertFalse(app(RdServiceClient::class)->isEligible('RD3000003'));
+
+        $result = app(RdServiceClient::class)->fetch('RD3000003');
+
+        $this->assertSame('disabled', $result->errorType);
+        $this->assertTrue($result->fallbackToAdmin);
+        $this->assertFalse($result->retriable);
         Http::assertNothingSent();
     }
 
@@ -142,6 +183,7 @@ class RdServiceClientTest extends TestCase
         $result = app(RdServiceClient::class)->fetch('RD3000003');
 
         $this->assertTrue($result->retriable);
+        $this->assertFalse($result->fallbackToAdmin);
         $this->assertSame('http_error', $result->errorType);
         $this->assertSame(503, $result->httpStatus);
     }
@@ -155,6 +197,7 @@ class RdServiceClientTest extends TestCase
         $result = app(RdServiceClient::class)->fetch('RD3000003');
 
         $this->assertTrue($result->retriable);
+        $this->assertFalse($result->fallbackToAdmin);
         $this->assertSame('connection_error', $result->errorType);
         $this->assertStringNotContainsString(self::TOKEN, (string) $result->errorMessage);
     }
@@ -181,6 +224,7 @@ class RdServiceClientTest extends TestCase
         $result = app(RdServiceClient::class)->fetch('RD3000003');
 
         $this->assertSame('not_configured', $result->errorType);
+        $this->assertTrue($result->fallbackToAdmin);
         Http::assertNothingSent();
     }
 

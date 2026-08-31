@@ -13,7 +13,12 @@ return [
     |
     */
 
-    'enabled' => filter_var(env('RDSERVICE_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+    /*
+     * Production default is off so deploying this config does not change the
+     * live Admin /api/search/order enrichment path. Activation is a separate
+     * gate: set RDSERVICE_ENABLED=true and a verified DESK_ORDER_API_TOKEN.
+     */
+    'enabled' => filter_var(env('RDSERVICE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
     'base_url' => rtrim((string) env('RDSERVICE_BASE_URL', 'https://rdservice.net'), '/'),
 

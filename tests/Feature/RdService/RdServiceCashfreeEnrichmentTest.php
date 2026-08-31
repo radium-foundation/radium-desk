@@ -17,6 +17,7 @@ use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -288,6 +289,33 @@ class RdServiceCashfreeEnrichmentTest extends TestCase
         $this->assertAdminNotCalled();
     }
 
+    public function test_rdservice_timeout_does_not_call_admin_or_mutate_payment(): void
+    {
+        Http::fake(function (Request $request) {
+            if (str_contains($request->url(), 'rdservice.net')) {
+                throw new ConnectionException('cURL error 28: Operation timed out');
+            }
+
+            return Http::response($this->adminPayload('RD3000006'), 200);
+        });
+
+        $order = $this->createPaidOrderWithoutEnrichment('RD3000006', 'cf-3000006');
+        $originalAmount = $order->payment_amount;
+
+        try {
+            $this->runEnrichmentJob($order);
+            $this->fail('Expected RadiumBoxEnrichmentRetryException.');
+        } catch (RadiumBoxEnrichmentRetryException $exception) {
+            $this->assertStringContainsString('timed out', strtolower($exception->getMessage()));
+        }
+
+        $order->refresh();
+        $this->assertSame('cf-3000006', $order->cashfree_payment_id);
+        $this->assertSame($originalAmount, $order->payment_amount);
+        $this->assertNull($order->serial_number);
+        $this->assertAdminNotCalled();
+    }
+
     public function test_malformed_rdservice_response_falls_back_to_admin(): void
     {
         Http::fake([
@@ -319,6 +347,112 @@ class RdServiceCashfreeEnrichmentTest extends TestCase
         $order = Order::query()->where('order_id', 'RD3478381')->firstOrFail();
         $this->assertSame('ADMIN-SN', $order->serial_number);
         $this->assertAdminCalled();
+    }
+
+    public function test_hardware_rde_order_uses_admin_without_rdservice_http(): void
+    {
+        Http::fake([
+            'https://rdservice.net/*' => Http::response($this->rdServicePayload('RDE1001'), 200),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RDE1001'), 200),
+        ]);
+
+        $order = $this->createPaidOrderWithoutEnrichment('RDE1001', 'cf-rde-1');
+        $originalAmount = $order->payment_amount;
+        $this->runEnrichmentJob($order);
+
+        $order->refresh();
+        $this->assertSame('ADMIN-SN', $order->serial_number);
+        $this->assertSame('cf-rde-1', $order->cashfree_payment_id);
+        $this->assertSame($originalAmount, $order->payment_amount);
+        $this->assertAdminCalled();
+        $this->assertRdServiceNotCalled();
+    }
+
+    public function test_inq_order_uses_admin_without_rdservice_http(): void
+    {
+        Http::fake([
+            'https://rdservice.net/*' => Http::response($this->rdServicePayload('INQ-SC1001'), 200),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('INQ-SC1001'), 200),
+        ]);
+
+        $order = $this->createPaidOrderWithoutEnrichment('INQ-SC1001', 'cf-inq-1');
+        $originalAmount = $order->payment_amount;
+        $this->runEnrichmentJob($order);
+
+        $order->refresh();
+        $this->assertSame('ADMIN-SN', $order->serial_number);
+        $this->assertSame('cf-inq-1', $order->cashfree_payment_id);
+        $this->assertSame($originalAmount, $order->payment_amount);
+        $this->assertAdminCalled();
+        $this->assertRdServiceNotCalled();
+    }
+
+    public function test_existing_desk_data_is_not_overwritten_by_rdservice_or_empty_admin_fields(): void
+    {
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/*' => Http::response(
+                $this->rdServicePayload('RD3000007', paymentStatus: 'pending', paymentId: 'cf-from-rdservice', total: '1'),
+                200,
+            ),
+            'admin.radiumbox.com/api/search/order*' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'rd_order' => [
+                        'order_id' => 'RD3000007',
+                        'serial_no' => '',
+                        'product_name' => '',
+                        'rd_service_name' => '',
+                        'gst_no' => '',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $order = $this->createPaidOrderWithoutEnrichment('RD3000007', 'cf-3000007');
+        $order->update([
+            'serial_number' => 'DESK-SN',
+            'product_name' => 'Desk Product',
+            'device_model' => 'Desk Model',
+            'gst_number' => '27DESK1234F1Z5',
+            'invoice_number' => 'DESK-INV',
+            'customer_name' => 'Desk Customer',
+            'customer_name_locked_at' => now(),
+        ]);
+
+        $originalAmount = $order->fresh()->payment_amount;
+        $this->runEnrichmentJob($order->fresh());
+
+        $order->refresh();
+        $this->assertSame('DESK-SN', $order->serial_number);
+        $this->assertSame('Desk Product', $order->product_name);
+        $this->assertSame('Desk Model', $order->device_model);
+        $this->assertSame('27DESK1234F1Z5', $order->gst_number);
+        $this->assertSame('DESK-INV', $order->invoice_number);
+        $this->assertSame('Desk Customer', $order->customer_name);
+        $this->assertSame('cf-3000007', $order->cashfree_payment_id);
+        $this->assertSame($originalAmount, $order->payment_amount);
+        $this->assertNotSame('SN1', $order->serial_number);
+        $this->assertNotSame('INV-1', $order->invoice_number);
+    }
+
+    public function test_enrichment_disabled_uses_admin_without_rdservice_http(): void
+    {
+        config(['rdservice.enabled' => false]);
+
+        Http::fake([
+            'https://rdservice.net/*' => Http::response($this->rdServicePayload('RD3000008'), 200),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RD3000008'), 200),
+        ]);
+
+        $this->postJson('/api/webhooks/cashfree', $this->cashfreePayload('cf-3000008', 'RD3000008'))
+            ->assertOk();
+
+        $order = Order::query()->where('order_id', 'RD3000008')->firstOrFail();
+        $this->assertSame('ADMIN-SN', $order->serial_number);
+        $this->assertSame('cf-3000008', $order->cashfree_payment_id);
+        $this->assertSame('499.00', $order->payment_amount);
+        $this->assertAdminCalled();
+        $this->assertRdServiceNotCalled();
     }
 
     public function test_desk_has_no_rdservice_net_prod_database_connection(): void
@@ -534,6 +668,11 @@ class RdServiceCashfreeEnrichmentTest extends TestCase
     private function assertRdServiceCalled(): void
     {
         Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'rdservice.net/api/integrations/v1/rd-orders/'));
+    }
+
+    private function assertRdServiceNotCalled(): void
+    {
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'rdservice.net'));
     }
 
     private function assertAdminCalled(): void

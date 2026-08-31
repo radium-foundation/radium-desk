@@ -12,9 +12,9 @@ use App\Notifications\HighPriorityServiceCaseNotification;
 use App\Services\AuditLogService;
 use App\Services\DashboardBroadcastService;
 use App\Services\IncidentReferenceService;
-use App\Services\OrderIdentityLifecycleService;
 use App\Services\Interakt\InteraktCustomerMatcher;
-use App\Services\RadiumBox\RadiumBoxClient;
+use App\Services\OrderIdentityLifecycleService;
+use App\Services\OrderLookup\OrderEnrichmentLookupService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
 use App\Services\ServiceCaseAssignmentService;
 use App\Services\SettingService;
@@ -25,7 +25,7 @@ use Illuminate\Validation\ValidationException;
 class LegacyOrderImportService
 {
     public function __construct(
-        private readonly RadiumBoxClient $radiumBoxClient,
+        private readonly OrderEnrichmentLookupService $orderEnrichmentLookup,
         private readonly InteraktCustomerMatcher $customerMatcher,
         private readonly IncidentReferenceService $incidentReferenceService,
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
@@ -51,7 +51,7 @@ class LegacyOrderImportService
                 ]);
             }
 
-            $enrichment = $this->radiumBoxClient->fetchOrderEnrichment($orderId);
+            $enrichment = $this->orderEnrichmentLookup->fetchInteractive($orderId);
 
             if ($enrichment === null || ! $enrichment->hasLegacyPreviewData()) {
                 throw ValidationException::withMessages([

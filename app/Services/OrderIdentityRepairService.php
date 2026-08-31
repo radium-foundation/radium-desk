@@ -17,7 +17,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
-use App\Services\RadiumBox\RadiumBoxClient;
+use App\Services\OrderLookup\OrderEnrichmentLookupService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentFetchResult;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -49,7 +49,7 @@ class OrderIdentityRepairService
     private const PROGRESS_INTERVAL = 25;
 
     public function __construct(
-        private readonly RadiumBoxClient $radiumBoxClient,
+        private readonly OrderEnrichmentLookupService $orderEnrichmentLookup,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
         private readonly SerialValidationService $serialValidationService,
         private readonly SerialPlaceholderService $placeholderService,
@@ -265,7 +265,7 @@ class OrderIdentityRepairService
             }
         }
 
-        $query->chunkById(100, function (Collection $orders) use (&$candidateCount, $options): bool {
+        $query->chunkById(100, function (Collection $orders) use (&$candidateCount): bool {
             foreach ($orders as $order) {
                 if ($this->eligibilityService->passesValidationForOrder($order)) {
                     continue;
@@ -562,7 +562,7 @@ class OrderIdentityRepairService
         $rateLimitPauses = 0;
 
         while (true) {
-            $result = $this->radiumBoxClient->fetchOrderEnrichmentForBackgroundSync($orderId);
+            $result = $this->orderEnrichmentLookup->fetchForBackgroundSync($orderId);
 
             if ($result->isRateLimited()) {
                 $rateLimitPauses++;
@@ -691,9 +691,6 @@ class OrderIdentityRepairService
             || str_contains($message, 'timed out');
     }
 
-    /**
-     * @return OrderIdentityRepairFailure
-     */
     private function duplicateSerialFailure(Order $order, string $serialNumber): OrderIdentityRepairFailure
     {
         $existingOwner = Order::query()

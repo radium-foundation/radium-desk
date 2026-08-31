@@ -18,7 +18,7 @@ class RdServiceClient
 
     public function isConfigured(): bool
     {
-        if (! (bool) config('rdservice.enabled', true)) {
+        if (! (bool) config('rdservice.enabled', false)) {
             return false;
         }
 
@@ -40,7 +40,7 @@ class RdServiceClient
 
     public function fetch(string $orderId): RdServiceFetchResult
     {
-        if (! (bool) config('rdservice.enabled', true)) {
+        if (! (bool) config('rdservice.enabled', false)) {
             return $this->skip('disabled', 'RDService integration is disabled.');
         }
 
