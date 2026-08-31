@@ -14,5 +14,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-31-08-12 | 2026-08-31 | Prepare Desk production release/deployment gate | Source/changelog only. Do not deskd. Do not tag unless documented+approved. Do not activate RDService. |
 | RadiumDesk-P-31-08-13 | 2026-08-31 | Release and deploy v4.0.64 | Annotated tag `v4.0.64` on `0d734f85`. `deskd` to KVM. Do not activate RDService. |
 | RadiumDesk-P-31-08-14 | 2026-08-31 | Investigate RDService.net successful orders and invoice generation | Read-only. `docs/rdservice-successful-orders-invoice-path-investigation.md`. Do not activate RDService. Do not generate invoice. |
+| RadiumDesk-P-31-08-15 | 2026-08-31 | Recognize RA{n} RDService.net order namespace on Desk | Supplied chat id was P-31-08-13; ledger already used 13 (v4.0.64) and 14. `docs/rdservice-ra-namespace-compatibility.md`. Does not activate RDService. Does not rename historical RD ids. |
 
 Do not renumber or overwrite earlier rows. Append only.

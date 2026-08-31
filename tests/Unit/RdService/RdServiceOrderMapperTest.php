@@ -48,6 +48,20 @@ class RdServiceOrderMapperTest extends TestCase
         $this->mapper->map($payload, 'RD3000003');
     }
 
+    public function test_it_maps_historical_rd_numeric_by_exact_stored_id(): void
+    {
+        $enrichment = $this->mapper->map(
+            $this->payload(
+                cashfreeOrderId: 'RD3506000',
+                storedProviderId: 'RD3506000',
+                numericId: 3506000,
+            ),
+            'RD3506000',
+        );
+
+        $this->assertSame('SN1', $enrichment->serialNumber);
+    }
+
     public function test_it_rejects_missing_rd_order(): void
     {
         $this->expectException(RadiumBoxInvalidResponseException::class);
@@ -58,28 +72,117 @@ class RdServiceOrderMapperTest extends TestCase
         ], 'RD3000003');
     }
 
+    public function test_it_maps_ra_numeric_when_stored_identifier_is_ra(): void
+    {
+        $enrichment = $this->mapper->map(
+            $this->payload(
+                customerOrderId: 'RA3506771',
+                cashfreeOrderId: 'RA3506771T6a9522b8',
+                storedProviderId: 'RA3506771T6a9522b8',
+                numericId: 3506771,
+            ),
+            'RA3506771',
+        );
+
+        $this->assertSame('SN1', $enrichment->serialNumber);
+        $this->assertTrue($enrichment->hasLegacyPreviewData());
+    }
+
+    public function test_it_maps_ra_t_suffix_by_exact_provider_id(): void
+    {
+        $enrichment = $this->mapper->map(
+            $this->payload(
+                customerOrderId: 'RA3506771',
+                cashfreeOrderId: 'RA3506771T6a9522b8',
+                storedProviderId: 'RA3506771T6a9522b8',
+                numericId: 3506771,
+            ),
+            'RA3506771T6a9522b8',
+        );
+
+        $this->assertSame('SN1', $enrichment->serialNumber);
+    }
+
+    public function test_it_maps_historical_rd_t_suffix_by_exact_provider_id(): void
+    {
+        $enrichment = $this->mapper->map(
+            $this->payload(
+                customerOrderId: null,
+                cashfreeOrderId: 'RD3506770T6a9522b8',
+                storedProviderId: 'RD3506770T6a9522b8',
+                numericId: 3506770,
+            ),
+            'RD3506770T6a9522b8',
+        );
+
+        $this->assertSame('SN1', $enrichment->serialNumber);
+    }
+
+    public function test_it_rejects_ra_numeric_when_payload_is_historical_rd(): void
+    {
+        $this->expectException(RadiumBoxOrderNotFoundException::class);
+
+        $this->mapper->map(
+            $this->payload(
+                customerOrderId: null,
+                cashfreeOrderId: 'RD3506771',
+                storedProviderId: 'RD3506771',
+                numericId: 3506771,
+            ),
+            'RA3506771',
+        );
+    }
+
+    public function test_it_rejects_ra_numeric_when_payload_is_historical_rd_t_suffix(): void
+    {
+        $this->expectException(RadiumBoxOrderNotFoundException::class);
+
+        $this->mapper->map(
+            $this->payload(
+                customerOrderId: null,
+                cashfreeOrderId: 'RD3506771T6a9522b8',
+                storedProviderId: 'RD3506771T6a9522b8',
+                numericId: 3506771,
+            ),
+            'RA3506771',
+        );
+    }
+
     /**
      * @return array<string, mixed>
      */
-    private function payload(): array
-    {
+    private function payload(
+        ?string $customerOrderId = null,
+        ?string $cashfreeOrderId = 'RD3000003',
+        string $storedProviderId = 'RD3000003',
+        int $numericId = 3,
+    ): array {
+        $correlation = [
+            'rdorderid' => $storedProviderId,
+            'cashfree_payment_id' => 'cf-pay-1',
+            'orders_id' => 10,
+            'ordercode' => 'RD10',
+        ];
+
+        if ($customerOrderId !== null) {
+            $correlation['customer_order_id'] = $customerOrderId;
+        }
+
+        if ($cashfreeOrderId !== null) {
+            $correlation['cashfree_order_id'] = $cashfreeOrderId;
+        }
+
         return [
             'status' => 200,
             'spec_version' => '1.0',
             'website_id' => 'rdservice.net',
             'message' => 'OK',
             'data' => [
-                'correlation' => [
-                    'rdorderid' => 'RD3000003',
-                    'cashfree_order_id' => 'RD3000003',
-                    'cashfree_payment_id' => 'cf-pay-1',
-                    'orders_id' => 10,
-                    'ordercode' => 'RD10',
-                ],
+                'correlation' => $correlation,
                 'rd_order' => [
-                    'id' => 3,
-                    'rdorderid' => 'RD3000003',
-                    'order_id' => 'RD3000003',
+                    'id' => $numericId,
+                    'rdorderid' => $storedProviderId,
+                    'order_id' => $storedProviderId,
                     'product_name' => 'MFS110',
                     'rd_service_name' => '1 Year',
                     'amc_service_name' => 'AMC',
@@ -107,7 +210,7 @@ class RdServiceOrderMapperTest extends TestCase
                     'orderdate' => '2026-08-30 10:00:00',
                 ],
                 'snapshot' => [
-                    'rdorderid' => 'RD3000003',
+                    'rdorderid' => $storedProviderId,
                     'customer_name' => 'Payer',
                     'email' => 'payer@example.com',
                     'phone' => '9999999999',

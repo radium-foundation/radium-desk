@@ -50,7 +50,10 @@ class RdServiceOrderMapper
 
         $this->assertCorrelationMatches($data, $rdOrder, $expectedOrderId);
 
-        $mapped = $this->adminMapper->map($payload, $expectedOrderId);
+        $mapped = $this->adminMapper->map(
+            $payload,
+            $this->adminExpectedOrderId($data, $rdOrder, $expectedOrderId),
+        );
 
         return $this->overlaySnapshot($mapped, is_array($data['snapshot'] ?? null) ? $data['snapshot'] : []);
     }
@@ -61,23 +64,72 @@ class RdServiceOrderMapper
      */
     private function assertCorrelationMatches(array $data, array $rdOrder, string $expectedOrderId): void
     {
-        $correlation = is_array($data['correlation'] ?? null) ? $data['correlation'] : [];
+        $correlation = $this->correlation($data);
 
-        $responseOrderId = $correlation['rdorderid']
-            ?? $correlation['cashfree_order_id']
-            ?? $rdOrder['rdorderid']
-            ?? $rdOrder['order_id']
-            ?? null;
-
-        if (! is_string($responseOrderId) || trim($responseOrderId) === '') {
-            return;
-        }
-
-        if (strcasecmp(trim($responseOrderId), trim($expectedOrderId)) !== 0) {
+        if (! RdServiceOrderCorrelation::matches(
+            $expectedOrderId,
+            $this->stringId($correlation['customer_order_id'] ?? null),
+            $this->stringId($correlation['cashfree_order_id'] ?? null),
+            $this->storedProviderIds($correlation, $rdOrder),
+            $rdOrder['id'] ?? null,
+        )) {
             throw new RadiumBoxOrderNotFoundException(
                 'RDService returned data for a different order.',
             );
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $rdOrder
+     */
+    private function adminExpectedOrderId(array $data, array $rdOrder, string $expectedOrderId): string
+    {
+        $correlation = $this->correlation($data);
+
+        return RdServiceOrderCorrelation::adminExpectedOrderId(
+            $expectedOrderId,
+            $this->stringId($correlation['customer_order_id'] ?? null),
+            $this->stringId($correlation['cashfree_order_id'] ?? null),
+            $this->storedProviderIds($correlation, $rdOrder),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function correlation(array $data): array
+    {
+        return is_array($data['correlation'] ?? null) ? $data['correlation'] : [];
+    }
+
+    /**
+     * Stored provider rdorderid candidates. Kept distinct from customer_order_id
+     * and cashfree_order_id — never collapsed with ??.
+     *
+     * @param  array<string, mixed>  $correlation
+     * @param  array<string, mixed>  $rdOrder
+     * @return list<string|null>
+     */
+    private function storedProviderIds(array $correlation, array $rdOrder): array
+    {
+        return [
+            $this->stringId($correlation['rdorderid'] ?? null),
+            $this->stringId($rdOrder['rdorderid'] ?? null),
+            $this->stringId($rdOrder['order_id'] ?? null),
+        ];
+    }
+
+    private function stringId(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     /**

@@ -43,6 +43,105 @@ class RdServiceClientTest extends TestCase
         });
     }
 
+    public function test_it_sends_ra_numeric_order_reference(): void
+    {
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RA3506771' => Http::response(
+                $this->okPayload(
+                    customerOrderId: 'RA3506771',
+                    cashfreeOrderId: 'RA3506771T6a9522b8',
+                    storedProviderId: 'RA3506771T6a9522b8',
+                    numericId: 3506771,
+                ),
+                200,
+            ),
+        ]);
+
+        $client = app(RdServiceClient::class);
+
+        $this->assertTrue($client->isEligible('RA3506771'));
+
+        $result = $client->fetch('RA3506771');
+
+        $this->assertTrue($result->succeeded());
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://rdservice.net/api/integrations/v1/rd-orders/RA3506771');
+    }
+
+    public function test_it_sends_ra_t_suffix_order_reference(): void
+    {
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RA3506771T6a9522b8' => Http::response(
+                $this->okPayload(
+                    customerOrderId: 'RA3506771',
+                    cashfreeOrderId: 'RA3506771T6a9522b8',
+                    storedProviderId: 'RA3506771T6a9522b8',
+                    numericId: 3506771,
+                ),
+                200,
+            ),
+        ]);
+
+        $result = app(RdServiceClient::class)->fetch('RA3506771T6a9522b8');
+
+        $this->assertTrue($result->succeeded());
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://rdservice.net/api/integrations/v1/rd-orders/RA3506771T6a9522b8');
+    }
+
+    public function test_it_sends_historical_rd_t_suffix_order_reference(): void
+    {
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD3506770T6a9522b8' => Http::response(
+                $this->okPayload(
+                    cashfreeOrderId: 'RD3506770T6a9522b8',
+                    storedProviderId: 'RD3506770T6a9522b8',
+                    numericId: 3506770,
+                ),
+                200,
+            ),
+        ]);
+
+        $result = app(RdServiceClient::class)->fetch('RD3506770T6a9522b8');
+
+        $this->assertTrue($result->succeeded());
+        Http::assertSent(fn ($request): bool => $request->url() === 'https://rdservice.net/api/integrations/v1/rd-orders/RD3506770T6a9522b8');
+    }
+
+    public function test_ra_numeric_does_not_accept_historical_rd_payload(): void
+    {
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RA3506771' => Http::response(
+                $this->okPayload(
+                    cashfreeOrderId: 'RD3506771',
+                    storedProviderId: 'RD3506771',
+                    numericId: 3506771,
+                ),
+                200,
+            ),
+        ]);
+
+        $result = app(RdServiceClient::class)->fetch('RA3506771');
+
+        $this->assertFalse($result->succeeded());
+        $this->assertSame('order_not_found', $result->errorType);
+        $this->assertTrue($result->fallbackToAdmin);
+    }
+
+    public function test_unknown_ra_404_falls_back_to_admin(): void
+    {
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RA3506771' => Http::response([
+                'status' => 404,
+                'message' => 'RD Order not found',
+            ], 404),
+        ]);
+
+        $result = app(RdServiceClient::class)->fetch('RA3506771');
+
+        $this->assertSame('order_not_found', $result->errorType);
+        $this->assertTrue($result->fallbackToAdmin);
+        $this->assertFalse($result->retriable);
+    }
+
     public function test_it_skips_invalid_order_id_without_http(): void
     {
         Http::fake();
@@ -60,12 +159,26 @@ class RdServiceClientTest extends TestCase
         Http::fake();
 
         $this->assertFalse(app(RdServiceClient::class)->isEligible('RDE1001'));
+        $this->assertFalse(app(RdServiceClient::class)->isEligible('RIN1001'));
 
         $result = app(RdServiceClient::class)->fetch('RDE1001');
 
         $this->assertSame('invalid_order_id', $result->errorType);
         $this->assertTrue($result->fallbackToAdmin);
         $this->assertFalse($result->retriable);
+        Http::assertNothingSent();
+    }
+
+    public function test_it_skips_hardware_rin_order_ids_without_http(): void
+    {
+        Http::fake();
+
+        $this->assertFalse(app(RdServiceClient::class)->isEligible('RIN1001'));
+
+        $result = app(RdServiceClient::class)->fetch('RIN1001');
+
+        $this->assertSame('invalid_order_id', $result->errorType);
+        $this->assertTrue($result->fallbackToAdmin);
         Http::assertNothingSent();
     }
 
@@ -99,6 +212,7 @@ class RdServiceClientTest extends TestCase
 
         $this->assertFalse(app(RdServiceClient::class)->isConfigured());
         $this->assertFalse(app(RdServiceClient::class)->isEligible('RD3000003'));
+        $this->assertFalse(app(RdServiceClient::class)->isEligible('RA3506771'));
 
         $result = app(RdServiceClient::class)->fetch('RD3000003');
 
@@ -231,18 +345,29 @@ class RdServiceClientTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function okPayload(): array
-    {
+    private function okPayload(
+        ?string $customerOrderId = null,
+        string $cashfreeOrderId = 'RD3000003',
+        string $storedProviderId = 'RD3000003',
+        int $numericId = 3,
+    ): array {
+        $correlation = [
+            'rdorderid' => $storedProviderId,
+            'cashfree_order_id' => $cashfreeOrderId,
+        ];
+
+        if ($customerOrderId !== null) {
+            $correlation['customer_order_id'] = $customerOrderId;
+        }
+
         return [
             'status' => 200,
             'data' => [
-                'correlation' => [
-                    'rdorderid' => 'RD3000003',
-                    'cashfree_order_id' => 'RD3000003',
-                ],
+                'correlation' => $correlation,
                 'rd_order' => [
-                    'rdorderid' => 'RD3000003',
-                    'order_id' => 'RD3000003',
+                    'id' => $numericId,
+                    'rdorderid' => $storedProviderId,
+                    'order_id' => $storedProviderId,
                     'serial_no' => 'SN1',
                     'product_name' => 'MFS110',
                     'rd_service_name' => '1 Year',

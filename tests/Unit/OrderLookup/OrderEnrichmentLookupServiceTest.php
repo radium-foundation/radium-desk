@@ -40,6 +40,82 @@ class OrderEnrichmentLookupServiceTest extends TestCase
         $this->assertAdminCalled();
     }
 
+    public function test_ra_lookup_default_uses_admin_without_rdservice_http(): void
+    {
+        Http::fake([
+            'https://rdservice.net/*' => Http::response($this->rdServicePayload('RA3506771'), 200),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RA3506771'), 200),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RA3506771');
+
+        $this->assertSame('ADMIN-SN', $enrichment?->serialNumber);
+        $this->assertRdServiceNotCalled();
+        $this->assertAdminCalled();
+    }
+
+    public function test_enabled_rdservice_prefers_ra_payload_and_skips_admin(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RA3506771' => Http::response(
+                $this->rdServicePayload(
+                    'RA3506771T6a9522b8',
+                    customerOrderId: 'RA3506771',
+                    cashfreeOrderId: 'RA3506771T6a9522b8',
+                    numericId: 3506771,
+                ),
+                200,
+            ),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RA3506771'), 200),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RA3506771');
+
+        $this->assertSame('SN1', $enrichment?->serialNumber);
+        $this->assertRdServiceCalled();
+        $this->assertAdminNotCalled();
+    }
+
+    public function test_ra_lookup_does_not_apply_historical_rd_payload_and_falls_back_to_admin(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RA3506771' => Http::response(
+                $this->rdServicePayload('RD3506771', numericId: 3506771),
+                200,
+            ),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RA3506771'), 200),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RA3506771');
+
+        $this->assertSame('ADMIN-SN', $enrichment?->serialNumber);
+        $this->assertRdServiceCalled();
+        $this->assertAdminCalled();
+    }
+
+    public function test_unknown_ra_404_falls_back_to_admin(): void
+    {
+        $this->enableRdService();
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RA3506771' => Http::response([
+                'status' => 404,
+                'message' => 'RD Order not found',
+            ], 404),
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->adminPayload('RA3506771'), 200),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RA3506771');
+
+        $this->assertSame('ADMIN-SN', $enrichment?->serialNumber);
+        $this->assertRdServiceCalled();
+        $this->assertAdminCalled();
+    }
+
     public function test_empty_token_keeps_admin_path_even_when_flag_is_on(): void
     {
         config([
@@ -328,26 +404,47 @@ class OrderEnrichmentLookupServiceTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function rdServicePayload(string $orderId): array
-    {
+    private function rdServicePayload(
+        string $orderId,
+        ?string $customerOrderId = null,
+        ?string $cashfreeOrderId = null,
+        ?int $numericId = null,
+    ): array {
+        $storedProviderId = $orderId;
+        $correlation = ['rdorderid' => $storedProviderId];
+
+        if ($customerOrderId !== null) {
+            $correlation['customer_order_id'] = $customerOrderId;
+        }
+
+        if ($cashfreeOrderId !== null) {
+            $correlation['cashfree_order_id'] = $cashfreeOrderId;
+        }
+
+        $rdOrder = [
+            'rdorderid' => $storedProviderId,
+            'order_id' => $storedProviderId,
+            'product_name' => 'MFS110',
+            'rd_service_name' => '1 Year',
+            'serial_no' => 'SN1',
+            'gst_no' => '07ABCDE1234F1Z5',
+            'status' => 'Processing',
+            'userdetails' => json_encode([
+                'name' => 'Payer',
+                'email' => 'payer@example.com',
+                'phone' => '9999999999',
+            ]),
+        ];
+
+        if ($numericId !== null) {
+            $rdOrder['id'] = $numericId;
+        }
+
         return [
             'status' => 200,
             'data' => [
-                'correlation' => ['rdorderid' => $orderId],
-                'rd_order' => [
-                    'rdorderid' => $orderId,
-                    'order_id' => $orderId,
-                    'product_name' => 'MFS110',
-                    'rd_service_name' => '1 Year',
-                    'serial_no' => 'SN1',
-                    'gst_no' => '07ABCDE1234F1Z5',
-                    'status' => 'Processing',
-                    'userdetails' => json_encode([
-                        'name' => 'Payer',
-                        'email' => 'payer@example.com',
-                        'phone' => '9999999999',
-                    ]),
-                ],
+                'correlation' => $correlation,
+                'rd_order' => $rdOrder,
                 'order' => [
                     'invoicecode' => 'INV-1',
                     'orderdate' => '2026-08-30 10:00:00',
