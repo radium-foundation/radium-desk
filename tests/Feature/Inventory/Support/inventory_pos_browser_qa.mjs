@@ -106,13 +106,21 @@ const browser = await chromium.launch({
 });
 
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+function ignorableConsole(detail) {
+  return /favicon\.ico/i.test(detail)
+    || /\/presence\/heartbeat/i.test(detail)
+    || /\/notifications\/poll/i.test(detail)
+    || /status of 429 \(Too Many Requests\)/i.test(detail)
+    || /status of 403 \(Forbidden\)/i.test(detail);
+}
+
 page.on("console", (msg) => {
   if (msg.type() !== "error") {
     return;
   }
   const location = msg.location();
   const detail = `${msg.text()} ${location.url || ""}`;
-  if (/favicon\.ico/i.test(detail) || msg.text() === "Failed to load resource: the server responded with a status of 404 (Not Found)") {
+  if (ignorableConsole(detail) || msg.text() === "Failed to load resource: the server responded with a status of 404 (Not Found)") {
     return;
   }
   consoleErrors.push(detail.trim());
@@ -340,6 +348,9 @@ try {
   }
   notes.push("saw:completed-total");
   notes.push(`sale:ok:posts=${completePosts}`);
+  if (completePosts !== 1) {
+    issues.push(`POS complete posted ${completePosts} times; expected one request after the submit lock.`);
+  }
 
   await page.goto(`${baseUrl}/pos/counter`, { waitUntil: "networkidle" });
   await page.fill("#customer_phone", "9111199001");
@@ -364,11 +375,30 @@ try {
   await page.goto(`${baseUrl}/pos/sales`, { waitUntil: "networkidle" });
   await page.locator("a", { hasText: "POS-" }).first().click();
   await page.waitForURL(/pos\/sales\/\d+/);
-  await page.fill('input[name="reason"]', "Browser QA cancel restock");
-  await page.locator("form button.btn-outline-danger", { hasText: "Cancel sale" }).click();
+  await page.fill('form[action*="cancel"] input[name="reason"]', "Browser QA cancel restock");
+  await page.locator('form[action*="cancel"] button.btn-outline-danger', { hasText: "Cancel sale" }).click();
   await page.waitForURL(/pos\/sales\/\d+/);
   mustInclude(await page.content(), "Cancelled", "cancelled");
+  mustInclude(await page.content(), "Reversed", "cancel-finance-reversed");
   notes.push("cancel:ok");
+
+  await page.goto(`${baseUrl}/pos/counter`, { waitUntil: "networkidle" });
+  await page.fill("#pos-product-search", "MFS110");
+  await page.waitForSelector("#pos-product-results button");
+  await page.click("#pos-product-results button");
+  await page.waitForSelector("#pos-serial-results button");
+  await page.locator("#pos-serial-results button", { hasText: "QA-BR-HOLD" }).click();
+  await page.fill("#customer_phone", "9111199003");
+  await page.fill("#customer_name", "Browser QA Return Customer");
+  await page.selectOption("#payment_method", "Cash");
+  await page.click("#pos-complete");
+  await page.waitForURL(/pos\/sales\/\d+/, { timeout: 20000 });
+  await page.fill('form[action*="return"] input[name="reason"]', "Browser QA return restock");
+  await page.locator('form[action*="return"] button.btn-outline-secondary', { hasText: "Return sale" }).click();
+  await page.waitForFunction(() => document.body.innerText.includes("Returned"), { timeout: 20000 });
+  mustInclude(await page.content(), "Returned", "returned");
+  mustInclude(await page.content(), "Reversed", "return-finance-reversed");
+  notes.push("return:ok");
 
   await page.goto(`${baseUrl}/inventory/serials`, { waitUntil: "networkidle" });
   mustInclude(await page.content(), "QA-BR-001", "serial-after-cancel");

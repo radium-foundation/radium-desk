@@ -97,7 +97,7 @@ sqlite `:memory:` PHPUnit (not production MySQL):
 - `tests/Feature/Finance/PosSaleJournalReversalTest.php` — cancel/return reverse, skipped posting, fail-closed missing journal, idempotent reverse
 - `tests/Feature/Finance` — remaining ledger tests, including `JournalPostingServiceTest`
 
-This gate plus P-01-09-12: inventory/POS + finance reverse **54 passed, 294 assertions**; `InventoryPosMysqlConcurrencyTest` host gate plus 5 skipped InnoDB cases unless disposable `radium_desk_inventory_pos_test` is reachable.
+This gate: inventory/POS + finance reverse **59 passed, 5 skipped, 331 assertions** (`InventoryPosMysqlConcurrencyTest` InnoDB cases skip unless disposable `radium_desk_inventory_pos_test` is reachable; five cases VERIFIED earlier on MariaDB 11.8.8).
 
 ---
 

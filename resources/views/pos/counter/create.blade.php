@@ -488,6 +488,15 @@
                     }, 250);
                 });
 
+                if (completeButton) {
+                    completeButton.addEventListener('click', function (event) {
+                        if (submitting || form.dataset.submitting === '1') {
+                            event.preventDefault();
+                            event.stopImmediatePropagation();
+                        }
+                    }, true);
+                }
+
                 form.addEventListener('submit', function (event) {
                     syncFields();
                     if (!cart.length) {
@@ -495,14 +504,16 @@
                         alert('Add at least one item to the cart.');
                         return;
                     }
-                    if (form.dataset.submitting === '1') {
+                    if (submitting || form.dataset.submitting === '1') {
                         event.preventDefault();
                         return;
                     }
+                    submitting = true;
                     form.dataset.submitting = '1';
-                    const complete = document.getElementById('pos-complete');
-                    if (complete) {
-                        complete.textContent = 'Completing…';
+                    if (completeButton) {
+                        completeButton.disabled = true;
+                        completeButton.setAttribute('aria-busy', 'true');
+                        completeButton.textContent = 'Completing…';
                     }
                 });
 

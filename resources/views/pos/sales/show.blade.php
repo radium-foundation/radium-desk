@@ -93,3 +93,21 @@
         </div>
     @endif
 @endsection
+
+@push('scripts')
+    <script>
+        document.querySelectorAll('form[data-once-submit]').forEach(function (form) {
+            form.addEventListener('submit', function (event) {
+                if (form.dataset.submitting === '1') {
+                    event.preventDefault();
+                    return;
+                }
+                form.dataset.submitting = '1';
+                form.querySelectorAll('button[type="submit"], button:not([type])').forEach(function (button) {
+                    button.disabled = true;
+                    button.setAttribute('aria-busy', 'true');
+                });
+            });
+        });
+    </script>
+@endpush
