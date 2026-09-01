@@ -169,6 +169,12 @@ class InventoryPosOperationalWorkflowTest extends TestCase
             ->assertJsonPath('products.0.available_qty', 2);
 
         $this->actingAs($this->hardware)
+            ->getJson(route('pos.products.search', ['branch_id' => $this->branchA->id, 'q' => 'OTG-QA-1M']))
+            ->assertOk()
+            ->assertJsonPath('products.0.sku', 'OTG-QA')
+            ->assertJsonPath('products.0.variants.0.sku', 'OTG-QA-1M');
+
+        $this->actingAs($this->hardware)
             ->getJson(route('pos.serials.search', ['branch_id' => $this->branchA->id, 'q' => 'QA-SN']))
             ->assertOk()
             ->assertJsonPath('serials.0.serial_number', 'QA-SN-001');

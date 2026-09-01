@@ -161,6 +161,32 @@ class PosSaleServiceTest extends TestCase
         );
     }
 
+    public function test_sold_serial_cannot_be_transferred(): void
+    {
+        $product = $this->serializedProduct('MFS110-XFER', 'Mantra sold transfer');
+        $this->stock->stockInSerialized($product, $this->branch, ['POS-XFER-1'], $this->actor);
+        $this->sales->completeSale(
+            branch: $this->branch,
+            customer: ['name' => 'Buyer', 'phone' => '9999955555'],
+            lines: [[
+                'product_id' => $product->id,
+                'qty' => 1,
+                'serials' => ['POS-XFER-1'],
+            ]],
+            paymentMethod: 'Cash',
+            actor: $this->actor,
+        );
+
+        $destination = InventoryBranch::query()->create([
+            'code' => 'XFRB',
+            'name' => 'Transfer dest',
+            'is_active' => true,
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->stock->transferSerials($this->branch, $destination, ['POS-XFER-1'], $this->actor);
+    }
+
     public function test_sale_can_consume_matching_reservation(): void
     {
         $product = $this->serializedProduct('MFS110-USE', 'Mantra reserved use');

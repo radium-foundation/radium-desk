@@ -202,6 +202,108 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
         $this->assertNoDuplicateSerialOwnership($pdo);
     }
 
+    public function test_sale_versus_transfer_of_the_same_serial_has_one_winner(): void
+    {
+        $context = $this->prepareSafeMysqlContextOrSkip();
+
+        $results = $this->runTwoWorkers($context, [
+            [
+                'action' => 'complete',
+                'serial' => $context['contended_serial'],
+                'phone' => '9111100601',
+                'name' => 'Sale racer',
+            ],
+            [
+                'action' => 'transfer',
+                'serial' => $context['contended_serial'],
+                'to_branch_id' => $context['branch_b_id'],
+                'phone' => '9111100602',
+                'name' => 'Transfer racer',
+            ],
+        ]);
+
+        $wins = array_values(array_filter($results, fn (array $row): bool => $row['ok'] === true));
+        $losses = array_values(array_filter($results, fn (array $row): bool => $row['ok'] !== true));
+
+        $this->assertCount(1, $wins, 'Sale vs transfer of one serial must have exactly one winner. Results: '.json_encode($results));
+        $this->assertCount(1, $losses, 'The loser must fail closed. Results: '.json_encode($results));
+        $this->assertIndependentConnections($results);
+
+        $pdo = $this->safePdo();
+        $rows = (int) $pdo->query("select count(*) from inventory_serials where serial_number = 'INNODB-SAME-1'")->fetchColumn();
+        $soldAtA = (int) $pdo->query(
+            'select count(*) from inventory_serials where serial_number = '.$pdo->quote('INNODB-SAME-1').
+            ' and status = '.$pdo->quote('sold').
+            ' and branch_id = '.(int) $context['branch_id']
+        )->fetchColumn();
+        $availableAtB = (int) $pdo->query(
+            'select count(*) from inventory_serials where serial_number = '.$pdo->quote('INNODB-SAME-1').
+            ' and status = '.$pdo->quote('available').
+            ' and branch_id = '.(int) $context['branch_b_id']
+        )->fetchColumn();
+        $soldAtB = (int) $pdo->query(
+            'select count(*) from inventory_serials where serial_number = '.$pdo->quote('INNODB-SAME-1').
+            ' and status = '.$pdo->quote('sold').
+            ' and branch_id = '.(int) $context['branch_b_id']
+        )->fetchColumn();
+
+        $this->assertSame(1, $rows);
+        $this->assertSame(0, $soldAtB, 'A transferred serial must not be sold at the destination in the same race.');
+        $this->assertSame(1, $soldAtA + $availableAtB);
+        $this->assertNoNegativeBalances($pdo);
+    }
+
+    public function test_cancel_versus_resale_of_the_same_serial_never_double_owns(): void
+    {
+        $context = $this->prepareSafeMysqlContextOrSkip();
+
+        $seeded = $this->runWorkers($context, [
+            [
+                'action' => 'complete',
+                'serial' => $context['contended_serial'],
+                'phone' => '9111100700',
+                'name' => 'Seed sale',
+            ],
+        ]);
+        $this->assertTrue($seeded[0]['ok'] ?? false, 'Seed sale must complete. Results: '.json_encode($seeded));
+        $saleId = (int) $seeded[0]['sale_id'];
+
+        $results = $this->runTwoWorkers($context, [
+            [
+                'action' => 'cancel',
+                'sale_id' => $saleId,
+                'phone' => '9111100701',
+                'name' => 'Cancel racer',
+            ],
+            [
+                'action' => 'complete',
+                'serial' => $context['contended_serial'],
+                'phone' => '9111100702',
+                'name' => 'Resale racer',
+            ],
+        ]);
+
+        $this->assertIndependentConnections($results);
+
+        $pdo = $this->safePdo();
+        $rows = (int) $pdo->query("select count(*) from inventory_serials where serial_number = 'INNODB-SAME-1'")->fetchColumn();
+        $sold = (int) $pdo->query("select count(*) from inventory_serials where serial_number = 'INNODB-SAME-1' and status = 'sold'")->fetchColumn();
+        $available = (int) $pdo->query("select count(*) from inventory_serials where serial_number = 'INNODB-SAME-1' and status = 'available'")->fetchColumn();
+        $completed = (int) $pdo->query("select count(*) from inventory_sales where status = 'completed'")->fetchColumn();
+        $cancelled = (int) $pdo->query("select count(*) from inventory_sales where status = 'cancelled'")->fetchColumn();
+
+        $this->assertSame(1, $rows);
+        $this->assertSame(1, $sold + $available);
+        $this->assertLessThanOrEqual(1, $sold);
+        $this->assertSame(1, $cancelled, 'The seeded sale must be cancelled. Results: '.json_encode($results));
+        if ($sold === 1) {
+            $this->assertSame(1, $completed);
+        } else {
+            $this->assertSame(0, $completed);
+        }
+        $this->assertNoNegativeBalances($pdo);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -214,12 +316,25 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
 
         $prepare = $this->process(
             [PHP_BINARY, base_path('tests/Feature/Inventory/Support/mysql_pos_prepare.php')],
-            120
+            180
         );
         $prepare->mustRun();
 
-        $context = json_decode(trim($prepare->getOutput()), true);
-        $this->assertIsArray($context);
+        $output = trim($prepare->getOutput());
+        $jsonLine = $output;
+        if ($output !== '' && ! str_starts_with($output, '{')) {
+            $lines = preg_split("/\r\n|\n|\r/", $output) ?: [];
+            $candidates = array_values(array_filter(
+                $lines,
+                fn (string $line): bool => str_starts_with(ltrim($line), '{'),
+            ));
+            $jsonLine = $candidates === [] ? $output : (string) end($candidates);
+        }
+        $context = json_decode($jsonLine, true);
+        $this->assertIsArray(
+            $context,
+            'Prepare did not return JSON context. stdout='.$output.' stderr='.trim($prepare->getErrorOutput())
+        );
         $this->assertArrayHasKey('contended_serial', $context);
 
         return $context;
@@ -247,16 +362,16 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
     private function probeSafeMysqlOrSkip(): PDO
     {
         $host = getenv('INVENTORY_POS_MYSQL_HOST') ?: '127.0.0.1';
-        $port = getenv('INVENTORY_POS_MYSQL_PORT') ?: '3306';
+        $port = getenv('INVENTORY_POS_MYSQL_PORT') ?: '';
         $database = getenv('INVENTORY_POS_MYSQL_DATABASE') ?: self::SAFE_DATABASE;
         $username = getenv('INVENTORY_POS_MYSQL_USERNAME') ?: '';
         $password = getenv('INVENTORY_POS_MYSQL_PASSWORD') !== false ? (string) getenv('INVENTORY_POS_MYSQL_PASSWORD') : '';
 
-        if ($username === '') {
+        if ($username === '' || $port === '' || $port === '3306') {
             $this->markTestSkipped(
                 'MySQL test environment unavailable → UNKNOWN/BLOCKER. No loopback InnoDB listener and no dedicated '.
                 self::SAFE_DATABASE.' user. This suite does not start brew services, does not use radium_desk_local, '.
-                'and does not touch production. A disposable MariaDB/MySQL on 127.0.0.1 (any port) with only '.
+                'and does not touch production. A disposable MariaDB/MySQL on 127.0.0.1 with a non-3306 port and only '.
                 self::SAFE_DATABASE.' is required, plus INVENTORY_POS_MYSQL_USERNAME / PORT.'
             );
         }
@@ -326,6 +441,16 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
      */
     private function runTwoWorkers(array $context, array $attempts): array
     {
+        return $this->runWorkers($context, $attempts);
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     * @param  list<array<string, mixed>>  $attempts
+     * @return list<array<string, mixed>>
+     */
+    private function runWorkers(array $context, array $attempts): array
+    {
         $dir = sys_get_temp_dir().'/inventory-pos-mysql-'.bin2hex(random_bytes(6));
         mkdir($dir, 0700);
 
@@ -344,12 +469,19 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
                 'branch_id' => $context['branch_id'],
                 'product_id' => $attempt['product_id'] ?? $context['serialized_product_id'],
                 'qty' => $attempt['qty'] ?? 1,
-                'customer_name' => $attempt['name'],
-                'customer_phone' => $attempt['phone'],
+                'customer_name' => $attempt['name'] ?? 'InnoDB worker',
+                'customer_phone' => $attempt['phone'] ?? ('91111'.str_pad((string) $index, 5, '0', STR_PAD_LEFT)),
                 'idempotency_key' => $attempt['idempotency_key'] ?? ('innodb-'.$index.'-'.bin2hex(random_bytes(4))),
+                'action' => $attempt['action'] ?? 'complete',
             ];
             if (isset($attempt['serial'])) {
                 $payload['serial'] = $attempt['serial'];
+            }
+            if (isset($attempt['sale_id'])) {
+                $payload['sale_id'] = $attempt['sale_id'];
+            }
+            if (isset($attempt['to_branch_id'])) {
+                $payload['to_branch_id'] = $attempt['to_branch_id'];
             }
 
             file_put_contents($payloadPath, json_encode($payload, JSON_THROW_ON_ERROR));
@@ -406,12 +538,22 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
             $env = [];
         }
 
+        $host = (string) (getenv('INVENTORY_POS_MYSQL_HOST') ?: '127.0.0.1');
+        $port = (string) (getenv('INVENTORY_POS_MYSQL_PORT') ?: '');
+        $username = (string) (getenv('INVENTORY_POS_MYSQL_USERNAME') ?: '');
+        $password = getenv('INVENTORY_POS_MYSQL_PASSWORD') !== false ? (string) getenv('INVENTORY_POS_MYSQL_PASSWORD') : '';
+
+        $env['INVENTORY_POS_MYSQL_HOST'] = $host;
+        $env['INVENTORY_POS_MYSQL_PORT'] = $port;
+        $env['INVENTORY_POS_MYSQL_DATABASE'] = self::SAFE_DATABASE;
+        $env['INVENTORY_POS_MYSQL_USERNAME'] = $username;
+        $env['INVENTORY_POS_MYSQL_PASSWORD'] = $password;
         $env['DB_CONNECTION'] = 'mysql';
-        $env['DB_HOST'] = getenv('INVENTORY_POS_MYSQL_HOST') ?: '127.0.0.1';
-        $env['DB_PORT'] = getenv('INVENTORY_POS_MYSQL_PORT') ?: '3306';
+        $env['DB_HOST'] = $host;
+        $env['DB_PORT'] = $port;
         $env['DB_DATABASE'] = self::SAFE_DATABASE;
-        $env['DB_USERNAME'] = (string) getenv('INVENTORY_POS_MYSQL_USERNAME');
-        $env['DB_PASSWORD'] = getenv('INVENTORY_POS_MYSQL_PASSWORD') !== false ? (string) getenv('INVENTORY_POS_MYSQL_PASSWORD') : '';
+        $env['DB_USERNAME'] = $username;
+        $env['DB_PASSWORD'] = $password;
         $env['DB_URL'] = '';
         $env['DB_SOCKET'] = '';
         $env['APP_ENV'] = 'testing';

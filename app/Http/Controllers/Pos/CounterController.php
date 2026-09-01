@@ -137,7 +137,14 @@ class CounterController extends Controller
             ->where('is_active', true)
             ->where(function ($query) use ($q) {
                 $query->where('sku', 'like', '%'.$q.'%')
-                    ->orWhere('name', 'like', '%'.$q.'%');
+                    ->orWhere('name', 'like', '%'.$q.'%')
+                    ->orWhereHas('variants', function ($variants) use ($q) {
+                        $variants->where('is_active', true)
+                            ->where(function ($inner) use ($q) {
+                                $inner->where('sku', 'like', '%'.$q.'%')
+                                    ->orWhere('name', 'like', '%'.$q.'%');
+                            });
+                    });
             })
             ->orderBy('name')
             ->limit(20)

@@ -48,6 +48,11 @@ $branch = InventoryBranch::query()->create([
     'name' => 'InnoDB Test Counter',
     'is_active' => true,
 ]);
+$branchB = InventoryBranch::query()->create([
+    'code' => 'INNB',
+    'name' => 'InnoDB Warehouse B',
+    'is_active' => true,
+]);
 
 $serialized = InventoryProduct::query()->create([
     'sku' => 'INNODB-SCANNER',
@@ -78,6 +83,7 @@ $stock->stockInQuantity($quantity, $branch, 10, $actor);
 echo json_encode([
     'actor_id' => $actor->id,
     'branch_id' => $branch->id,
+    'branch_b_id' => $branchB->id,
     'serialized_product_id' => $serialized->id,
     'quantity_product_id' => $quantity->id,
     'contended_serial' => 'INNODB-SAME-1',

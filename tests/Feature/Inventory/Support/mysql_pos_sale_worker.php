@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\InventoryBranch;
+use App\Models\InventorySale;
 use App\Models\User;
+use App\Services\Inventory\InventoryStockService;
 use App\Services\Inventory\PosSaleService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -46,17 +48,60 @@ while (! is_file($goPath)) {
 }
 
 $started = microtime(true);
-
-$qty = max(1, (int) ($payload['qty'] ?? 1));
-$line = [
-    'product_id' => (int) $payload['product_id'],
-    'qty' => $qty,
-];
-if (isset($payload['serial']) && is_string($payload['serial']) && $payload['serial'] !== '') {
-    $line['serials'] = [$payload['serial']];
-}
+$action = (string) ($payload['action'] ?? 'complete');
+$actor = User::query()->findOrFail((int) $payload['actor_id']);
 
 try {
+    $connectionId = DB::selectOne('select connection_id() as id')?->id;
+
+    if ($action === 'cancel') {
+        $sale = app(PosSaleService::class)->cancelSale(
+            InventorySale::query()->findOrFail((int) $payload['sale_id']),
+            $actor,
+            (string) ($payload['reason'] ?? 'InnoDB cancel race'),
+        );
+
+        file_put_contents($resultPath, json_encode([
+            'ok' => true,
+            'action' => 'cancel',
+            'sale_id' => $sale->id,
+            'invoice_number' => $sale->invoice_number,
+            'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
+            'connection_id' => $connectionId,
+        ], JSON_THROW_ON_ERROR));
+        exit(0);
+    }
+
+    if ($action === 'transfer') {
+        $from = InventoryBranch::query()->findOrFail((int) $payload['branch_id']);
+        $to = InventoryBranch::query()->findOrFail((int) $payload['to_branch_id']);
+        $transfer = app(InventoryStockService::class)->transferSerials(
+            $from,
+            $to,
+            [(string) $payload['serial']],
+            $actor,
+            'InnoDB transfer race',
+        );
+
+        file_put_contents($resultPath, json_encode([
+            'ok' => true,
+            'action' => 'transfer',
+            'transfer_id' => $transfer->id,
+            'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
+            'connection_id' => $connectionId,
+        ], JSON_THROW_ON_ERROR));
+        exit(0);
+    }
+
+    $qty = max(1, (int) ($payload['qty'] ?? 1));
+    $line = [
+        'product_id' => (int) $payload['product_id'],
+        'qty' => $qty,
+    ];
+    if (isset($payload['serial']) && is_string($payload['serial']) && $payload['serial'] !== '') {
+        $line['serials'] = [$payload['serial']];
+    }
+
     $sale = app(PosSaleService::class)->completeSale(
         branch: InventoryBranch::query()->findOrFail((int) $payload['branch_id']),
         customer: [
@@ -65,16 +110,17 @@ try {
         ],
         lines: [$line],
         paymentMethod: 'Cash',
-        actor: User::query()->findOrFail((int) $payload['actor_id']),
+        actor: $actor,
         idempotencyKey: isset($payload['idempotency_key']) ? (string) $payload['idempotency_key'] : null,
     );
 
     file_put_contents($resultPath, json_encode([
         'ok' => true,
+        'action' => 'complete',
         'sale_id' => $sale->id,
         'invoice_number' => $sale->invoice_number,
         'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
-        'connection_id' => DB::selectOne('select connection_id() as id')?->id,
+        'connection_id' => $connectionId,
     ], JSON_THROW_ON_ERROR));
 } catch (ValidationException $exception) {
     file_put_contents($resultPath, json_encode([

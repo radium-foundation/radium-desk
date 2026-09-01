@@ -98,6 +98,18 @@ class InventoryStockServiceTest extends TestCase
         $this->assertTrue(InventoryMovement::query()->where('type', InventoryMovementType::TransferIn)->where('to_branch_id', $this->store->id)->exists());
     }
 
+    public function test_transfer_locks_serials_in_sorted_order_regardless_of_input(): void
+    {
+        $product = $this->serializedProduct();
+        $this->stock->stockInSerialized($product, $this->hq, ['ZZ-LAST', 'AA-FIRST'], $this->actor);
+
+        $this->stock->transferSerials($this->hq, $this->store, ['ZZ-LAST', 'AA-FIRST'], $this->actor);
+
+        $this->assertSame($this->store->id, InventorySerial::query()->where('serial_number', 'AA-FIRST')->value('branch_id'));
+        $this->assertSame($this->store->id, InventorySerial::query()->where('serial_number', 'ZZ-LAST')->value('branch_id'));
+        $this->assertSame(2, InventorySerial::query()->whereIn('serial_number', ['AA-FIRST', 'ZZ-LAST'])->count());
+    }
+
     public function test_cannot_transfer_serial_from_wrong_branch(): void
     {
         $product = $this->serializedProduct();

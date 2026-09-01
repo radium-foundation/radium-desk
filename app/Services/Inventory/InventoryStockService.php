@@ -26,6 +26,8 @@ use Illuminate\Validation\ValidationException;
 
 class InventoryStockService
 {
+    private const LOCK_ATTEMPTS = 5;
+
     /**
      * @param  list<string>|string  $serials
      * @return list<InventorySerial>
@@ -159,6 +161,7 @@ class InventoryStockService
                 'serials' => 'Enter at least one serial number to transfer.',
             ]);
         }
+        sort($numbers, SORT_STRING);
 
         return DB::transaction(function () use ($from, $to, $numbers, $actor, $notes): InventoryTransfer {
             $transfer = InventoryTransfer::query()->create([
@@ -237,7 +240,7 @@ class InventoryStockService
             }
 
             return $transfer->fresh(['lines', 'fromBranch', 'toBranch']) ?? $transfer;
-        });
+        }, self::LOCK_ATTEMPTS);
     }
 
     public function transferQuantity(
@@ -312,7 +315,7 @@ class InventoryStockService
             );
 
             return $transfer->fresh(['lines']) ?? $transfer;
-        });
+        }, self::LOCK_ATTEMPTS);
     }
 
     /**
@@ -330,6 +333,7 @@ class InventoryStockService
                 'serials' => 'Enter at least one serial number to reserve.',
             ]);
         }
+        sort($numbers, SORT_STRING);
 
         return DB::transaction(function () use ($branch, $numbers, $actor, $notes): InventoryReservation {
             $reservation = InventoryReservation::query()->create([
@@ -374,7 +378,7 @@ class InventoryStockService
             }
 
             return $reservation->fresh(['lines']) ?? $reservation;
-        });
+        }, self::LOCK_ATTEMPTS);
     }
 
     public function releaseReservation(InventoryReservation $reservation, User $actor, ?string $notes = null): InventoryReservation
@@ -588,7 +592,7 @@ class InventoryStockService
         $this->assertProductSerialized($product);
         $locked = [];
         $ordered = $serialNumbers;
-        sort($ordered);
+        sort($ordered, SORT_STRING);
 
         foreach ($ordered as $number) {
             $serial = $this->lockSerialByNumber($number);

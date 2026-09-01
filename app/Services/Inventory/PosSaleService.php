@@ -106,6 +106,18 @@ class PosSaleService
                     ]);
                 }
 
+                $allSerialNumbers = [];
+                foreach ($lines as $line) {
+                    foreach (InventorySerialNumber::parseList($line['serials'] ?? []) as $number) {
+                        $allSerialNumbers[] = $number;
+                    }
+                }
+                $allSerialNumbers = array_values(array_unique($allSerialNumbers));
+                sort($allSerialNumbers, SORT_STRING);
+                foreach ($allSerialNumbers as $number) {
+                    $this->stock->lockSerialByNumber($number);
+                }
+
                 $inventoryCustomer = $this->findOrCreateCustomer($customer);
 
                 $sale = InventorySale::query()->create([
@@ -331,7 +343,11 @@ class PosSaleService
             $sale->load(['lines.product', 'lines.variant', 'serials.serial', 'branch']);
             $branch = $sale->branch;
 
-            foreach ($sale->serials as $assignment) {
+            $orderedAssignments = $sale->serials
+                ->sortBy(fn ($assignment) => (string) ($assignment->serial?->serial_number ?? ''))
+                ->values();
+
+            foreach ($orderedAssignments as $assignment) {
                 $serial = $this->stock->lockSerialById($assignment->serial_id);
                 if ($serial->status !== InventorySerialStatus::Sold) {
                     throw ValidationException::withMessages([
@@ -382,7 +398,7 @@ class PosSaleService
             ]);
 
             return $sale->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $sale;
-        });
+        }, self::COMPLETION_ATTEMPTS);
     }
 
     /**

@@ -2,7 +2,7 @@
 
 **Project:** Radium Desk  
 **Ticket:** RD-FRESH-01  
-**Ledger:** RadiumDesk-P-01-09-11 (final operator QA on disposable sqlite) · RadiumDesk-P-01-09-12 (POS cancel/return finance reverse). Branch `feat/rd-fresh-01-inventory-pos`.  
+**Ledger:** RadiumDesk-P-01-09-13 (final non-inventory Day-1 blocker audit) · P-01-09-11 (operator QA) · P-01-09-12 (cancel/return finance reverse). Branch `feat/rd-fresh-01-inventory-pos`.  
 **Date:** 2026-09-01  
 **Branch:** `feat/rd-fresh-01-inventory-pos`  
 **Canvas:** [`rd-fresh-01-inventory-pos-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-inventory-pos-foundation.canvas.tsx)
@@ -36,7 +36,7 @@ Status: **VERIFIED** = exercised in this repo’s tests or read from Desk/Admin 
 | Finance post | Admin accounting | Cash/bank + revenue 2-line `pos_sale` journal; fail-closed | VERIFIED | No GST payable account | Do not invent GST accounts |
 | Cancel / return | Credit note; restock often manual | Restores stock; invoice number kept; reversing `pos_sale` journal (Cash Book pattern); not a GST credit note | VERIFIED | No IRN / GST credit note | Do not invent e-invoice credit notes |
 | Permissions | Admin roles | Admin: full inventory/POS/finance. Hardware: view/in/transfer/reserve/sell. Agent: none | VERIFIED | No dedicated serial.manage or invoice.view | Keep current map |
-| Concurrency | App checks | `lockForUpdate` on existing rows + unique serial/idempotency; two-process MariaDB worker test | VERIFIED (sqlite sequential + five InnoDB two-connection cases on MariaDB 11.8.8) | Branch row still serializes invoice numbers per counter | Accept for 1–2 cashiers; do not gap-lock missing unique keys |
+| Concurrency | App checks | `lockForUpdate` on existing rows + unique serial/idempotency; sorted serial lock order; two-process MariaDB worker test | VERIFIED (sqlite sequential + seven InnoDB two-connection cases on MariaDB 11.8.8, including sale vs transfer and cancel vs resale) | Branch row still serializes invoice numbers per counter | Accept for 1–2 cashiers; do not gap-lock missing unique keys |
 | Support orders | POS wrote orders | POS does not write `orders.serial_number` | VERIFIED | No C360 link | Future ticket |
 | Admin stock migration | N/A | Not imported | VERIFIED | Entire Admin stock still in Admin | Later phase |
 
@@ -115,7 +115,7 @@ Existing tables **not** altered: `orders`, `device_models`, finance ledger table
 - One serial = one physical unit = one row.
 - Global unique `serial_number`. Cannot exist at two branches. Transfer relocates `branch_id`.
 - Sale requires status Available at the selling branch, or Reserved **only** when this sale consumes that reservation.
-- Cannot sell the same serial twice (`lockForUpdate`, sorted lock order).
+- Cannot sell the same serial twice (`lockForUpdate`, sorted lock order on sale, transfer, reserve, and cancel/return).
 - Cancel/return restores Available at the selling branch.
 - Movements remain append-only.
 
@@ -329,9 +329,11 @@ Command for a future environment: `php artisan db:seed --class=RolePermissionSee
 2. Empty catalog until SKUs are created in Desk (no Admin import)
 3. Ledger cash/bank + revenue must exist before live POS (fail-closed)
 4. Invoice is not GST e-invoice (internal `INV-` only; cancel is not a GST credit note)
-5. InnoDB concurrent serial sale **VERIFIED** on disposable MariaDB 11.8.8 (P-01-09-09); production still not cut over
-6. No production inventory migration
+5. InnoDB concurrent serial sale **VERIFIED** on disposable MariaDB 11.8.8 (P-01-09-09 + P-01-09-13 sale↔transfer and cancel↔resale); production still not cut over
+6. No production inventory migration / opening-workbook import
 7. Stock-in of a parent-with-variants now requires selecting the child SKU (operators must use the new field)
+8. Counter cannot consume a reservation in one click (release, then sell). Not an integrity hole.
+9. Invoice is internal only: no HSN on the printed sale line; not GST e-invoice / IRN
 
 ## Verification gate (P-01-09-12)
 
@@ -408,7 +410,7 @@ Regression: the five two-connection cases above, plus existing sqlite `PosSaleSe
 | Unique `idempotency_key` + insert race catch | Counter retry does not double-sell | VERIFIED |
 | `inventory_branches` `lockForUpdate` for invoice sequence | Serializes all completes at one branch; safe; throughput ceiling of about one in-flight complete per branch | VERIFIED (behavior) / INFERRED (enough for 1–2 cashiers) |
 | Deadlock retry | Required for InnoDB; cashiers must not see 1213 | VERIFIED |
-| Sale↔cancel or sale↔transfer of the same serial at once | Not raced in this gate | UNKNOWN |
+| Sale↔cancel or sale↔transfer of the same serial at once | One winner, no double ownership (P-01-09-13) | VERIFIED |
 | Production `innodb_lock_wait_timeout` / live cashier latency | Not measured on KVM | UNKNOWN |
 
 **Sufficient for intended high-volume hardware-counter POS (one or two cashiers per branch).** Not a warehouse-scale parallel checkout: invoice numbers stay on the branch row, so completes at the same branch queue. Do not remove that lock to “go faster.”
@@ -433,7 +435,7 @@ Regression: the five two-connection cases above, plus existing sqlite `PosSaleSe
 - Auto-create / link support `orders` from POS serials for Customer 360
 - Bulk B2B sales workflow
 - Full Reports module
-- sqlite PHPUnit cannot prove true MySQL concurrent interleaving; P-01-09-09 ran the two-process harness against disposable `radium_desk_inventory_pos_test` on MariaDB 11.8.8
+- sqlite PHPUnit cannot prove true MySQL concurrent interleaving; P-01-09-09 and P-01-09-13 ran the two-process harness against disposable `radium_desk_inventory_pos_test` on MariaDB 11.8.8
 
 ## Risks / rollback
 
@@ -461,7 +463,7 @@ PHPUnit (sqlite `:memory:`, `RefreshDatabase` — not production MySQL):
 - `tests/Feature/Inventory/InventoryPosAuthorizationTest.php`
 - `tests/Feature/Inventory/InventoryPosOperationalWorkflowTest.php`
 - `tests/Feature/Finance/PosSaleJournalReversalTest.php`
-- `tests/Feature/Inventory/InventoryPosMysqlConcurrencyTest.php` (gate always runs; five two-process InnoDB cases **VERIFIED** on disposable `radium_desk_inventory_pos_test`, MariaDB 11.8.8)
+- `tests/Feature/Inventory/InventoryPosMysqlConcurrencyTest.php` (gate always runs; seven two-process InnoDB cases **VERIFIED** on disposable `radium_desk_inventory_pos_test`, MariaDB 11.8.8)
 - `tests/Feature/Inventory/Support/mysql_pos_prepare.php` / `mysql_pos_sale_worker.php`
 - `tests/Feature/Inventory/Support/inventory_pos_browser_qa.mjs` (local Chrome operator path; sqlite file only)
 - `tests/Unit/Inventory/InventorySerialNumberTest.php`
@@ -518,3 +520,51 @@ LOGIN (session) → expand sidebar → Inventory nav → SKU list → serialized
 | `radium_desk_local` / `radiumbox_prod` / production | No |
 | Opening-inventory workbook | No |
 | Deploy / `deskd` / git tag | No |
+
+## Verification gate (P-01-09-13)
+
+Final non-inventory Day-1 blocker audit. Opening-inventory Excel was not opened or imported. Admin, radiumbox_prod, Desk production, and historical finance tables were not modified. No `deskd`. No tag. No merge.
+
+Canvas: [`rd-fresh-01-inventory-pos-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-inventory-pos-foundation.canvas.tsx)
+
+| Check | Result |
+|---|---|
+| Prompt ID | RadiumDesk-P-01-09-13 (unused before this gate) |
+| Branch | `feat/rd-fresh-01-inventory-pos` |
+| Inventory / serial import | **NO** |
+| Production DB / deploy | **NO** |
+
+### Area verdicts
+
+| Area | Status | Finding |
+|---|---|---|
+| 1. Permissions / access | VERIFIED | Every inventory/POS mutation route `abort_unless`s the matching permission. Hardware: view/in/transfer/reserve/sell only. Branch assignment (or operate-all) is enforced. Seeder is idempotent. `tools/commands/deploy.sh` and `deploy-kvm.sh` already run `db:seed --class=RolePermissionSeeder --force` during `deskd`. Not run against production from this ticket. Hardware still needs branch assignment after seed. |
+| 2. Finance readiness | VERIFIED | `completeSale` posts `pos_sale:{id}` fail-closed inside the sale transaction. Missing cash/bank or revenue rolls the sale back. Cancel/return appends `pos_sale:reverse:{sale}:{journal}`; original journal kept; `finance_journal_id` unchanged; idempotent; posted sale with missing original journal fails closed. Not a GST credit note. |
+| 3. POS concurrency / serial safety | VERIFIED | P-01-09-09 five two-connection cases still pass. Deterministic lock-order deadlock on overlapping multi-serial sale vs transfer: **fixed** by sorting serial numbers (and cancel/return assignments) before `FOR UPDATE`, and retrying transfer/reserve/cancel transactions up to 5 times (sale already retried). Sale vs transfer of one serial: exactly one winner. Cancel vs resale: seeded sale always cancelled; serial never double-owned. Disposable MariaDB 11.8.8 on `127.0.0.1:33118` only. |
+| 4. Customer / tax / invoice | VERIFIED | Phone find-or-create without gap-lock. Tax formula unchanged: exclusive line price → GST on (qty×price−line discount) → header discount after tax. Invoice labelled internal / not e-invoice. Variant identity via `catalogLabel()`. Branch GSTIN prints when set. **HSN** is stored on the product and is **not** printed on the invoice (GST-invoice gap, not Day-1). Child SKU search (`OTG-QA-1M`) now finds the parent product. |
+| 5. Reservation / stock safety | VERIFIED | POS serial pick is Available at the operating branch. Reserved/transferred serials stay hidden. Counter does not pass a reservation id (release then sell). Not an integrity hole; not expanded. Sold serial cannot be transferred (`PosSaleServiceTest`). |
+| 6. Deployment / migrations | VERIFIED | Only `2026_09_01_120000` and `2026_09_01_140000`. Additive. `down()` drops those objects only. `orders` and finance ledger schema untouched. Post-deploy permission seed is already part of `deskd`; do not invent extra production commands. Do not run production migrations from this ticket. |
+| 7. Documentation | VERIFIED | This file + paired canvas updated with the findings above only. |
+
+### Defects found / fixed
+
+1. **Sorted serial locks.** Transfer/reserve previously locked serials in request order; sale sorted. Overlapping multi-serial carts could deadlock (1213). Sale, transfer, reserve, and cancel/return now lock in `SORT_STRING` order. Transfer/reserve/cancel retry 5 times on deadlock.
+2. **POS product search missed child SKUs.** Typing `OTG-QA-1M` did not find the parent. `searchProducts` now matches active variant sku/name.
+3. **InnoDB harness could inherit an incomplete child env** (`getenv()` without arguments). Workers now receive explicit `INVENTORY_POS_MYSQL_*` and refuse port `3306`.
+
+### Tests
+
+- `php artisan test --filter='Inventory\|PosSale'` (sqlite) — **65 passed**, 7 skipped when disposable MariaDB is down
+- `InventoryPosMysqlConcurrencyTest` on throwaway `radium_desk_inventory_pos_test` / MariaDB 11.8.8 `:33118` — **8 passed, 164 assertions** (gate + five original races + sale vs transfer + cancel vs resale)
+- Pint on touched PHP; `php -l` on changed services/controllers/helpers; `php artisan view:cache` then `view:clear`
+
+### Isolation (this gate)
+
+| Surface | Touched |
+|---|---|
+| Disposable `radium_desk_inventory_pos_test` on 33118 | Yes — created, migrated by tests, dropped; datadir removed |
+| Homebrew `mysql` / `mariadb@11.8` services | Left `none` |
+| Listener 3306 / `radium_desk_local` / `radiumbox` / `radiumbox_prod` / production | No |
+| Opening-inventory workbook | No |
+| Admin / other projects | No |
+| Deploy / `deskd` / git tag / merge | No |
