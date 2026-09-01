@@ -21,5 +21,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-01-09-05 | 2026-09-01 | Inventory + POS MySQL concurrency + browser QA | `feat/rd-fresh-01-inventory-pos`. Two-process InnoDB harness ready; local mysqld absent → UNKNOWN/BLOCKER. Chrome operator QA on disposable sqlite. Stock-in variant select fix. Do not deploy. |
 | RadiumDesk-P-01-09-06 | 2026-09-01 | RadiumBox inventory migration assessment | Read-only SQL against `radiumbox_prod`. `docs/rd-fresh-01-radiumbox-inventory-investigation.md`. Do not import. Do not deploy. Do not modify RadiumBox / radiumbox_prod / Desk production. |
 | RadiumDesk-P-01-09-07 | 2026-09-01 | RadiumBox available-inventory Excel export | Read-only. Workbook generated locally, not committed. Do not import. Do not deploy. Do not modify radiumbox_prod / Desk production. |
+| RadiumDesk-P-01-09-08 | 2026-09-01 | Opening-inventory field matrix + empty Excel template | Read-only Admin/POS field reference. `docs/rd-fresh-01-inventory-opening-field-matrix.md`. Empty xlsx gitignored under `storage/app/private/inventory-opening/`. Do not migrate stock. Do not deploy. Do not modify Admin / radiumbox_prod / Desk production. |
 
 Do not renumber or overwrite earlier rows. Append only.
