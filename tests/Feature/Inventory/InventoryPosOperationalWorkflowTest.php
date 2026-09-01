@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Inventory;
 
+use App\Enums\FinanceJournalSourceType;
 use App\Enums\InventoryFinanceHandoffStatus;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventorySaleStatus;
@@ -219,6 +220,7 @@ class InventoryPosOperationalWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('QA Customer')
             ->assertSee($sale->invoice_number)
+            ->assertSee('OTG-QA-1M')
             ->assertDontSee('Cancel sale');
 
         $this->actingAs($this->hardware)
@@ -226,7 +228,8 @@ class InventoryPosOperationalWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee($sale->invoice_number)
             ->assertSee('Internal Desk invoice')
-            ->assertSee('QA-SN-001');
+            ->assertSee('QA-SN-001')
+            ->assertSee('OTG-QA-1M');
 
         $this->actingAs($this->hardware)
             ->get(route('pos.sales.index'))
@@ -296,11 +299,17 @@ class InventoryPosOperationalWorkflowTest extends TestCase
         $this->assertSame(InventorySaleStatus::Cancelled, $sale->status);
         $this->assertSame($invoice, $sale->invoice_number);
         $this->assertSame($journalId, $sale->finance_journal_id);
-        $this->assertSame(InventoryFinanceHandoffStatus::Posted, $sale->finance_handoff_status);
+        $this->assertSame(InventoryFinanceHandoffStatus::Reversed, $sale->finance_handoff_status);
         $this->assertSame(InventorySerialStatus::Available, InventorySerial::query()->where('serial_number', 'QA-CAN-1')->value('status'));
         $this->assertTrue(InventoryMovement::query()->where('sale_id', $sale->id)->where('type', InventoryMovementType::SaleCancel)->exists());
         $this->assertSame(1, FinanceJournal::query()->where('id', $journalId)->count());
-        $this->assertSame(1, FinanceJournal::query()->count());
+        $this->assertTrue(
+            FinanceJournal::query()
+                ->where('source_type', FinanceJournalSourceType::PosSale)
+                ->where('idempotency_key', 'pos_sale:reverse:'.$sale->id.':'.$journalId)
+                ->exists()
+        );
+        $this->assertSame(2, FinanceJournal::query()->count());
 
         $this->actingAs($this->admin)
             ->get(route('pos.sales.invoice', $sale))
@@ -309,7 +318,7 @@ class InventoryPosOperationalWorkflowTest extends TestCase
             ->assertSee('Cancelled');
     }
 
-    public function test_return_restores_quantity_without_creating_a_reverse_journal(): void
+    public function test_return_restores_quantity_and_posts_a_reverse_journal(): void
     {
         $product = InventoryProduct::query()->create([
             'sku' => 'OTG-RET',
@@ -337,7 +346,14 @@ class InventoryPosOperationalWorkflowTest extends TestCase
 
         $this->assertSame(InventorySaleStatus::Returned, $sale->fresh()->status);
         $this->assertSame(4, (int) $product->balances()->where('branch_id', $this->branchA->id)->value('available_qty'));
-        $this->assertSame(1, FinanceJournal::query()->count());
+        $this->assertSame(InventoryFinanceHandoffStatus::Reversed, $sale->fresh()->finance_handoff_status);
+        $this->assertSame(2, FinanceJournal::query()->count());
+        $this->assertTrue(
+            FinanceJournal::query()
+                ->where('source_type', FinanceJournalSourceType::PosSale)
+                ->where('idempotency_key', 'like', 'pos_sale:reverse:'.$sale->id.':%')
+                ->exists()
+        );
         $this->assertTrue(InventoryMovement::query()->where('sale_id', $sale->id)->where('type', InventoryMovementType::Return)->exists());
     }
 

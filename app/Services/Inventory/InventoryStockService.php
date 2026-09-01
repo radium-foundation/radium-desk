@@ -599,7 +599,7 @@ class InventoryStockService
                 ]);
             }
 
-            if ($variant !== null && $serial->variant_id !== $variant->id) {
+            if ((int) ($serial->variant_id ?? 0) !== (int) ($variant?->id ?? 0)) {
                 throw ValidationException::withMessages([
                     'serials' => "Serial {$number} belongs to a different variant.",
                 ]);

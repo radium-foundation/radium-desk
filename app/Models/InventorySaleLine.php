@@ -51,4 +51,15 @@ class InventorySaleLine extends Model
     {
         return $this->hasMany(InventorySaleSerial::class, 'sale_line_id');
     }
+
+    public function catalogLabel(): string
+    {
+        $sku = (string) ($this->product?->sku ?? '');
+        $name = (string) ($this->product?->name ?? '');
+        if ($this->variant === null) {
+            return trim($sku.' — '.$name);
+        }
+
+        return trim($sku.' / '.$this->variant->sku.' — '.$name.' ('.$this->variant->name.')');
+    }
 }

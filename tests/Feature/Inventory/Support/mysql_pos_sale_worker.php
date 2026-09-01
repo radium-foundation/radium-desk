@@ -28,7 +28,7 @@ if (! is_array($payload)) {
 $credentials = inventory_pos_mysql_credentials_from_env();
 inventory_pos_mysql_boot_app($credentials);
 
-DB::statement('set session innodb_lock_wait_timeout = 8');
+DB::statement('set session innodb_lock_wait_timeout = 50');
 DB::statement('set session transaction isolation level repeatable read');
 
 file_put_contents($readyPath, (string) getmypid());
@@ -47,6 +47,15 @@ while (! is_file($goPath)) {
 
 $started = microtime(true);
 
+$qty = max(1, (int) ($payload['qty'] ?? 1));
+$line = [
+    'product_id' => (int) $payload['product_id'],
+    'qty' => $qty,
+];
+if (isset($payload['serial']) && is_string($payload['serial']) && $payload['serial'] !== '') {
+    $line['serials'] = [$payload['serial']];
+}
+
 try {
     $sale = app(PosSaleService::class)->completeSale(
         branch: InventoryBranch::query()->findOrFail((int) $payload['branch_id']),
@@ -54,11 +63,7 @@ try {
             'name' => (string) $payload['customer_name'],
             'phone' => (string) $payload['customer_phone'],
         ],
-        lines: [[
-            'product_id' => (int) $payload['product_id'],
-            'qty' => 1,
-            'serials' => [(string) $payload['serial']],
-        ]],
+        lines: [$line],
         paymentMethod: 'Cash',
         actor: User::query()->findOrFail((int) $payload['actor_id']),
         idempotencyKey: isset($payload['idempotency_key']) ? (string) $payload['idempotency_key'] : null,
@@ -80,10 +85,18 @@ try {
     ], JSON_THROW_ON_ERROR));
     exit(0);
 } catch (Throwable $exception) {
+    $connectionId = null;
+    try {
+        $connectionId = DB::selectOne('select connection_id() as id')?->id;
+    } catch (Throwable) {
+        $connectionId = null;
+    }
+
     file_put_contents($resultPath, json_encode([
         'ok' => false,
         'error' => $exception->getMessage(),
         'elapsed_ms' => (int) round((microtime(true) - $started) * 1000),
+        'connection_id' => $connectionId,
     ], JSON_THROW_ON_ERROR));
     exit(0);
 }

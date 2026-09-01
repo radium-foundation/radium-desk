@@ -2,7 +2,7 @@
 
 **Project:** Radium Desk  
 **Ticket:** RD-FRESH-01  
-**Ledger:** RadiumDesk-P-01-09-05 (MySQL concurrency + browser QA gate on `feat/rd-fresh-01-inventory-pos`; builds on P-01-09-04)  
+**Ledger:** RadiumDesk-P-01-09-12 (POS cancel/return finance reverse on `feat/rd-fresh-01-inventory-pos`; builds on P-01-09-09)  
 **Date:** 2026-09-01  
 **Branch:** `feat/rd-fresh-01-inventory-pos`  
 **Canvas:** [`rd-fresh-01-inventory-pos-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-inventory-pos-foundation.canvas.tsx)
@@ -33,10 +33,10 @@ Status: **VERIFIED** = exercised in this repo’s tests or read from Desk/Admin 
 | POS counter | `ordertype=POS` then serials later | Search, cart, branch banner, complete | VERIFIED | No split tender / hold-on-add | Use Retail counter |
 | Price / tax | Line GST + header discount + shipping 18% reverse GST + TCS | Line GST from `gst_percentage`; header discount after line tax; no shipping/TCS | VERIFIED (Desk formula) | Shipping/TCS/wallet/coupons missing | Do not fake Admin extras |
 | Invoice | GST + e-invoice / IRN | Internal `INV-{branch}-{year}-{seq}` printable; labelled not e-invoice | VERIFIED | Not GST-compliant | Do not issue as IRN |
-| Finance post | Admin accounting | Cash/bank + revenue 2-line `pos_sale` journal; fail-closed | VERIFIED | No GST payable account; no cancel reverse | Do not invent accounts |
-| Cancel / return | Credit note; restock often manual | Restores stock; invoice number kept; journal **not** reversed | VERIFIED | No GL reverse | Finance follow-on |
+| Finance post | Admin accounting | Cash/bank + revenue 2-line `pos_sale` journal; fail-closed | VERIFIED | No GST payable account | Do not invent GST accounts |
+| Cancel / return | Credit note; restock often manual | Restores stock; invoice number kept; reversing `pos_sale` journal (Cash Book pattern); not a GST credit note | VERIFIED | No IRN / GST credit note | Do not invent e-invoice credit notes |
 | Permissions | Admin roles | Admin: full inventory/POS/finance. Hardware: view/in/transfer/reserve/sell. Agent: none | VERIFIED | No dedicated serial.manage or invoice.view | Keep current map |
-| Concurrency | App checks | `lockForUpdate` + unique serial; two-process MySQL worker test | VERIFIED (sqlite sequential + worker harness); UNKNOWN (InnoDB — local mysqld not listening) | No loopback MySQL; test DB was not created | Start local mysqld only; create disposable `radium_desk_inventory_pos_test` |
+| Concurrency | App checks | `lockForUpdate` on existing rows + unique serial/idempotency; two-process MariaDB worker test | VERIFIED (sqlite sequential + five InnoDB two-connection cases on MariaDB 11.8.8) | Branch row still serializes invoice numbers per counter | Accept for 1–2 cashiers; do not gap-lock missing unique keys |
 | Support orders | POS wrote orders | POS does not write `orders.serial_number` | VERIFIED | No C360 link | Future ticket |
 | Admin stock migration | N/A | Not imported | VERIFIED | Entire Admin stock still in Admin | Later phase |
 
@@ -70,7 +70,7 @@ Status: **VERIFIED** = exercised in this repo’s tests or read from Desk/Admin 
 - Invoice number + printable **internal** invoice (not GST e-invoice)
 - Stock deduction and serial assignment on complete
 - Sale history scoped to allowed branches
-- Cancel/return restores stock (no GL reverse)
+- Cancel/return restores stock and posts a reversing finance journal when the sale was posted (original journal kept; not a GST credit note)
 - Finance handoff **inside** the sale transaction when ledger posting is enabled
 
 ## Schema changes
@@ -123,26 +123,26 @@ Existing tables **not** altered: `orders`, `device_models`, finance ledger table
 
 A POS complete is one DB transaction:
 
-1. Idempotency lookup (`lockForUpdate` on existing key)
+1. Idempotency lookup (no `FOR UPDATE` on a missing unique key)
 2. Lock branch (invoice sequence)
 3. Create sale + lines
 4. Lock serials / deduct quantity
 5. Assign invoice number `INV-{branch}-{year}-{seq}`
 6. Consume reservation if provided
 7. `PosSaleJournalService::postForSale(..., failClosed: true)`
-8. Dispatch `InventorySaleCompleted` (listener no-ops if already Posted/Skipped)
+8. Dispatch `InventorySaleCompleted` (listener no-ops if already Posted/Skipped/Reversed)
 
 If finance posting is **enabled** and cash/bank or revenue accounts are missing, the service throws and **the whole sale rolls back** (serials stay available). If posting is **disabled**, handoff is `skipped` and the sale still completes.
 
 Unique `idempotency_key` collisions after commit return the existing sale.
 
-Cancel/return is a separate transaction that restores stock only. **No journal reverse** (not invented).
+Cancel/return is a separate transaction: restore stock, then `PosSaleJournalService::reverseForSale(..., failClosed: true)` using the Cash Book reversing-entry pattern. Original `finance_journal_id` is kept. Handoff becomes `reversed`. Missing original journal fails closed (stock not restored). Skipped sales are a finance no-op. **Not** a GST credit note / IRN.
 
 ## Invoice / finance boundary
 
 - Printable internal invoice only. **Not** GST e-invoice, IRN, or e-way.
 - Do not generate real production invoices or POS sales during development against production data.
-- Journal source `pos_sale:{sale_id}` is idempotent in Finance.
+- Journal source `pos_sale:{sale_id}` is idempotent in Finance. Cancel/return posts `pos_sale:reverse:{sale_id}:{journal_id}` and does not rewrite the original journal.
 - Existing finance history is not rewritten.
 
 ## Permissions
@@ -222,15 +222,15 @@ Printable internal invoice remains after cancel. Page states it is **not** a GST
 
 ### Cancellation / return / finance (VERIFIED)
 
-Cancel/return restore serial or quantity and write movement rows. `invoice_number` and `finance_journal_id` stay. **No reverse journal** is created. Do not invent GL reversal.
+Cancel/return restore serial or quantity and write movement rows. `invoice_number` and original `finance_journal_id` stay. A reversing `pos_sale` journal is posted (Cash Book debit/credit swap). Handoff becomes `reversed`. Not a GST credit note.
 
 ### Idempotency / failure safety (VERIFIED)
 
-Same `idempotency_key` returns the existing sale and does not resell the serial. Finance throw inside `completeSale` rolls inventory back (`PosSaleServiceTest`). Retry after rollback is a new attempt because the rolled-back key does not exist.
+Same `idempotency_key` returns the existing sale and does not resell the serial. Concurrent duplicate keys on two MariaDB connections also return one sale (P-01-09-09). Finance throw inside `completeSale` rolls inventory back (`PosSaleServiceTest`). Retry after rollback is a new attempt because the rolled-back key does not exist. Do **not** `lockForUpdate` a missing unique idempotency key — that gap-locks InnoDB and deadlocks the other counter.
 
 ### Concurrency result (P-01-09-04)
 
-sqlite sequential double-sell is covered. InnoDB two-counter interleaving was **UNKNOWN**.
+sqlite sequential double-sell is covered. InnoDB two-counter interleaving was **UNKNOWN** here; **VERIFIED** in P-01-09-09.
 
 ### Browser QA result (P-01-09-04)
 
@@ -278,7 +278,7 @@ The harness refuses any other host or database name, uses two PHP processes with
 
 ### InnoDB concurrency result
 
-**UNKNOWN** (not executed — no local InnoDB server).
+**UNKNOWN** at P-01-09-05 (no local InnoDB server). **Superseded by P-01-09-09: VERIFIED.**
 
 The test is no longer a skip-only gate. When the throwaway DB is reachable it:
 
@@ -321,18 +321,107 @@ Command for a future environment: `php artisan db:seed --class=RolePermissionSee
 
 ### Finance readiness
 
-**VERIFIED** (sqlite tests + browser QA sale). Existing accounts only: cash `1000`, bank clearing `1100`, revenue `4000`. Ledger posting enabled in `FinanceMasterDataSeeder`. Missing cash/bank or revenue fails closed and rolls the sale back (`PosSaleServiceTest`). Browser QA sale posted one `pos_sale` journal at 3034.40; cancel restocked and **did not** reverse GL.
+**VERIFIED** (sqlite tests + browser QA sale). Existing accounts only: cash `1000`, bank clearing `1100`, revenue `4000`. Ledger posting enabled in `FinanceMasterDataSeeder`. Missing cash/bank or revenue fails closed and rolls the sale back (`PosSaleServiceTest`). Browser QA sale posted one `pos_sale` journal at 3034.40. P-01-09-12: cancel/return posts a reversing journal; original journal kept; cash/revenue net to the pre-sale balance.
 
 ### Production-readiness blockers
 
 1. Re-seed permissions; assign hardware to branches
 2. Empty catalog until SKUs are created in Desk (no Admin import)
 3. Ledger cash/bank + revenue must exist before live POS (fail-closed)
-4. Invoice is not GST e-invoice
-5. No GL reverse on cancel/return
-6. InnoDB concurrent serial sale not proven (local MySQL unavailable)
-7. No production inventory migration
-8. Stock-in of a parent-with-variants now requires selecting the child SKU (operators must use the new field)
+4. Invoice is not GST e-invoice (internal `INV-` only; cancel is not a GST credit note)
+5. InnoDB concurrent serial sale **VERIFIED** on disposable MariaDB 11.8.8 (P-01-09-09); production still not cut over
+6. No production inventory migration
+7. Stock-in of a parent-with-variants now requires selecting the child SKU (operators must use the new field)
+
+## Verification gate (P-01-09-12)
+
+Not a production deployment. Opening-inventory Excel was not opened or modified. Admin, radiumbox_prod, Desk production, and inventory import were not touched.
+
+Highest remaining **non-inventory** Day-1 blocker after P-01-09-09: a completed POS sale posted cash/bank + revenue, but cancel/return only restored stock. Cash-in-hand and revenue stayed overstated.
+
+Admin parity used: Admin issues a credit note and restock is often manual (**VERIFIED** in the matrix). Desk does **not** invent GST e-invoice / IRN credit notes. Desk posts a reversing ledger entry using the already-shipped Cash Book pattern (`CashBookEntryService::reverseCurrentJournal`): append-only, original journal kept, debit/credit swapped, unique idempotency key.
+
+| Check | Result |
+|---|---|
+| Prompt ID | RadiumDesk-P-01-09-12 |
+| Original `pos_sale` journal | Kept on `inventory_sales.finance_journal_id` |
+| Reverse journal | `pos_sale:reverse:{sale_id}:{journal_id}`; source_type still `pos_sale` |
+| Handoff | `reversed` when original was posted; `skipped` stays skipped |
+| Fail-closed | Missing original journal aborts cancel; serial stays Sold |
+| GST credit note / IRN / TCS / wallet | Not implemented (not invented) |
+| Inventory import / workbook / radiumbox_prod | Untouched |
+
+## Verification gate (P-01-09-09)
+
+Not a production deployment. Opening-inventory Excel was not opened or modified. Admin, radiumbox_prod, `radium_desk_local`, and Desk production were not contacted.
+
+### Environment
+
+| Check | Result |
+|---|---|
+| Prompt ID | RadiumDesk-P-01-09-09 (unused before this gate) |
+| Branch / HEAD | `feat/rd-fresh-01-inventory-pos` @ `7d69a528` plus this gate’s uncommitted work |
+| brew services | `mysql` and `mariadb@11.8` left `none` (not started) |
+| Existing Homebrew datadir `/opt/homebrew/var/mysql` | **Not started.** Contains `radium_desk_local`, `radiumbox`, and other local schemas — never opened |
+| Listener 3306 | None for the whole gate |
+| Disposable engine | Homebrew `mariadb@11.8` binary **11.8.8-MariaDB**, already installed; `--no-defaults` so a MySQL `my.cnf` could not leak `mysqlx-bind-address` |
+| Bind | `127.0.0.1:33118` only; datadir `/tmp/radium_desk_inventory_pos_test_mariadb` |
+| Database created | **Only** `radium_desk_inventory_pos_test` |
+| Test user | `rd_inv_pos_test@127.0.0.1` granted **only** on that database |
+| Production MariaDB | 11.8.8 on KVM — **not contacted**. Version match is **VERIFIED** from prior docs, not from this connection |
+| Harness | Two PHP processes, ready/go barrier, independent `connection_id()` values, Repeatable Read |
+
+The disposable instance was dropped and the datadir removed after the tests.
+
+### Two-connection cases
+
+| # | Case | Result | Status |
+|---|---|---|---|
+| 1 | Same serialized SKU + same serial | Exactly one sale, one sold serial, one sale movement, one invoice, one `pos_sale` journal, no negative stock; loser fail-closed | VERIFIED |
+| 2 | Same SKU, two different serials | Both complete; distinct sale ids, invoices, connection ids; both serials sold | VERIFIED |
+| 3 | Same quantity SKU oversell (6+6 against 10) | Exactly one sale of 6, remainder 4, no negative balance | VERIFIED |
+| 4 | Duplicate idempotency key | Both workers return success with the same `sale_id` / invoice; one sale row; serial sold once | VERIFIED |
+| 5 | Independent SKUs (serial + quantity) | Both complete; serial sold; quantity 10→8; two invoices | VERIFIED |
+
+PHPUnit: `InventoryPosMysqlConcurrencyTest` **OK (6 tests, 122 assertions)** including the host/database gate. sqlite inventory suite **43 tests** (PosSale 13 + other Feature 30) plus serial unit test **VERIFIED** after the deadlock fix.
+
+### Defect found and fixed
+
+First InnoDB run after the harness could actually race: independent sales and duplicate-key retries died with **SQLSTATE 40001 / 1213 Deadlock** on `SELECT * FROM inventory_branches … FOR UPDATE`.
+
+Cause: `completeSale` did `lockForUpdate()` on a **missing** unique `idempotency_key`. On an empty unique index InnoDB gap-locks the supremum. The other connection then INSERT-waits on that gap while holding (or waiting for) the branch row → deadlock. `findOrCreateCustomer` had the same pattern on a missing unique phone.
+
+Fix (does **not** weaken uniqueness, serial locks, or branch invoice locking):
+
+- Look up an existing idempotency row **without** `FOR UPDATE` on a miss; uniqueness + `UniqueConstraintViolationException` still collapse duplicate keys to one sale.
+- Create a new customer without gap-locking a missing phone; lock by primary key only after the row exists.
+- Retry the completion transaction up to 5 times on InnoDB deadlock / lock-wait (`DB::transaction(..., 5)`).
+
+Regression: the five two-connection cases above, plus existing sqlite `PosSaleServiceTest` idempotency and double-sell tests.
+
+### High-volume counter POS (design review)
+
+| Mechanism | Verdict | Status |
+|---|---|---|
+| Global unique `serial_number` + sorted `lockForUpdate` | Prevents double ownership of one serial | VERIFIED |
+| Balance `lockForUpdate` + unsigned qty | Prevents quantity oversell | VERIFIED |
+| Unique `idempotency_key` + insert race catch | Counter retry does not double-sell | VERIFIED |
+| `inventory_branches` `lockForUpdate` for invoice sequence | Serializes all completes at one branch; safe; throughput ceiling of about one in-flight complete per branch | VERIFIED (behavior) / INFERRED (enough for 1–2 cashiers) |
+| Deadlock retry | Required for InnoDB; cashiers must not see 1213 | VERIFIED |
+| Sale↔cancel or sale↔transfer of the same serial at once | Not raced in this gate | UNKNOWN |
+| Production `innodb_lock_wait_timeout` / live cashier latency | Not measured on KVM | UNKNOWN |
+
+**Sufficient for intended high-volume hardware-counter POS (one or two cashiers per branch).** Not a warehouse-scale parallel checkout: invoice numbers stay on the branch row, so completes at the same branch queue. Do not remove that lock to “go faster.”
+
+### Isolation (this gate)
+
+| Surface | Touched |
+|---|---|
+| Disposable `radium_desk_inventory_pos_test` on 33118 | Yes — created, migrated, dropped |
+| `radium_desk_local` / `radiumbox` / `radiumbox_prod` / production | No |
+| Admin / other projects | No |
+| Opening-inventory workbook | No |
+| Deploy / `deskd` / git tag | No |
 
 ## Remaining gaps / next migration phase
 
@@ -342,10 +431,9 @@ Command for a future environment: `php artisan db:seed --class=RolePermissionSee
 - Two-step in-transit transfer
 - Counter UI: consume an existing reservation in one click
 - Auto-create / link support `orders` from POS serials for Customer 360
-- Finance journal reversal on cancel/return (do not invent)
 - Bulk B2B sales workflow
 - Full Reports module
-- sqlite PHPUnit cannot prove true MySQL concurrent interleaving; the two-process harness is ready for `radium_desk_inventory_pos_test` on loopback only
+- sqlite PHPUnit cannot prove true MySQL concurrent interleaving; P-01-09-09 ran the two-process harness against disposable `radium_desk_inventory_pos_test` on MariaDB 11.8.8
 
 ## Risks / rollback
 
@@ -356,8 +444,9 @@ Command for a future environment: `php artisan db:seed --class=RolePermissionSee
 | Permission seeder not run | Module 403s until seeded |
 | Hardware unassigned | Empty branch lists + warning; no silent all-branch access |
 | Ledger posting on without accounts | Sale rolls back; stock not taken |
-| Cancel does not reverse GL | Documented; stock is restored |
-| Empty production inventory after deploy | Expected; no silent stock move |
+| Cancel reverse fails (missing original journal) | Fail-closed; stock stays sold |
+| Cancel reverse is not a GST credit note | Internal GL only; do not issue as IRN |
+| InnoDB gap lock on missing unique key | Do not `SELECT … FOR UPDATE` a missing idempotency/phone; unique insert + retry |
 
 **Rollback:** `php artisan migrate:rollback` for `2026_09_01_140000` then `2026_09_01_120000` (drops only the new inventory/POS tables and assignment/idempotency additions) and revert the application commits. Existing `orders` / finance data are untouched.
 
@@ -371,8 +460,19 @@ PHPUnit (sqlite `:memory:`, `RefreshDatabase` — not production MySQL):
 - `tests/Feature/Inventory/InventoryBranchIsolationTest.php`
 - `tests/Feature/Inventory/InventoryPosAuthorizationTest.php`
 - `tests/Feature/Inventory/InventoryPosOperationalWorkflowTest.php`
-- `tests/Feature/Inventory/InventoryPosMysqlConcurrencyTest.php` (gate always runs; two-process InnoDB cases skip without loopback `radium_desk_inventory_pos_test`)
+- `tests/Feature/Finance/PosSaleJournalReversalTest.php`
+- `tests/Feature/Inventory/InventoryPosMysqlConcurrencyTest.php` (gate always runs; five two-process InnoDB cases **VERIFIED** on disposable `radium_desk_inventory_pos_test`, MariaDB 11.8.8)
 - `tests/Feature/Inventory/Support/mysql_pos_prepare.php` / `mysql_pos_sale_worker.php`
 - `tests/Feature/Inventory/Support/inventory_pos_browser_qa.mjs` (local Chrome operator path; sqlite file only)
 - `tests/Unit/Inventory/InventorySerialNumberTest.php`
 - navigation coverage in `NavigationContextResolverTest`
+
+## Verification gate (P-01-09-10)
+
+POS / Finance final gap audit against verified Admin/POS behaviour only. Physical-count workbook, radiumbox_prod, and production were not touched. GST e-invoice, TCS, wallet, shipping, and coupons were not implemented.
+
+**Defects fixed:** parent SKU with variants cannot complete without `variant_id`; serial lock matches variant including null; sale show + invoice print the child SKU via `catalogLabel()`. P-01-09-09 InnoDB gap-lock fix is included in this close-out.
+
+Admin `CalculateFinal` (shipping=0) remains the Desk tax formula: header discount after line GST. Regression: ₹100 + 18% − ₹10 header = ₹108, tax still ₹18.
+
+Full 20-point matrix: [`rd-fresh-01-pos-finance-gap-audit.md`](rd-fresh-01-pos-finance-gap-audit.md). Canvas: [`rd-fresh-01-pos-finance-gap-audit.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-pos-finance-gap-audit.canvas.tsx).

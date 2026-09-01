@@ -43,7 +43,7 @@
             @foreach($sale->lines as $line)
                 <tr>
                     <td>
-                        {{ $line->product?->name }}
+                        {{ $line->catalogLabel() }}
                         @if($line->serials->isNotEmpty())
                             <div class="muted">
                                 @foreach($line->serials as $assignment)

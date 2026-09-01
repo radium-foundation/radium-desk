@@ -255,6 +255,150 @@ class PosSaleServiceTest extends TestCase
         $this->assertSame(3, (int) $product->balances()->where('branch_id', $this->branch->id)->where('variant_id', $variant->id)->value('available_qty'));
     }
 
+    public function test_header_discount_does_not_reduce_line_gst(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'OTG-TAX',
+            'name' => 'OTG tax',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+        $this->stock->stockInQuantity($product, $this->branch, 2, $this->actor);
+
+        $sale = $this->sales->completeSale(
+            branch: $this->branch,
+            customer: ['name' => 'Tax', 'phone' => '9999967000'],
+            lines: [[
+                'product_id' => $product->id,
+                'qty' => 1,
+            ]],
+            paymentMethod: 'Cash',
+            actor: $this->actor,
+            headerDiscount: 10,
+        );
+
+        $this->assertSame(100.00, (float) $sale->subtotal);
+        $this->assertSame(10.00, (float) $sale->discount);
+        $this->assertSame(18.00, (float) $sale->tax);
+        $this->assertSame(108.00, (float) $sale->total);
+    }
+
+    public function test_variant_product_cannot_be_sold_without_selecting_the_child_sku(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'CABLE-PARENT-REQ',
+            'name' => 'USB Cable required variant',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+        $variant = $product->variants()->create([
+            'sku' => 'CABLE-REQ-1M',
+            'name' => '1 metre',
+            'unit_price' => 90,
+            'is_active' => true,
+        ]);
+        $this->stock->stockInQuantity($product, $this->branch, 3, $this->actor, $variant);
+
+        try {
+            $this->sales->completeSale(
+                branch: $this->branch,
+                customer: ['name' => 'No variant', 'phone' => '9999967001'],
+                lines: [[
+                    'product_id' => $product->id,
+                    'qty' => 1,
+                ]],
+                paymentMethod: 'Cash',
+                actor: $this->actor,
+            );
+            $this->fail('Expected a parent SKU with variants to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('lines.0.variant_id', $exception->errors());
+        }
+
+        $this->assertSame(0, InventorySale::query()->count());
+        $this->assertSame(3, (int) $product->balances()->where('branch_id', $this->branch->id)->where('variant_id', $variant->id)->value('available_qty'));
+    }
+
+    public function test_serialized_variant_cannot_be_sold_against_the_parent_sku(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'SCAN-PARENT',
+            'name' => 'Scanner parent',
+            'gst_percentage' => 18,
+            'unit_price' => 2500,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        $variant = $product->variants()->create([
+            'sku' => 'SCAN-BLK',
+            'name' => 'Black',
+            'unit_price' => 2500,
+            'is_active' => true,
+        ]);
+        $this->stock->stockInSerialized($product, $this->branch, ['SCAN-VAR-1'], $this->actor, $variant);
+
+        try {
+            $this->sales->completeSale(
+                branch: $this->branch,
+                customer: ['name' => 'Wrong variant', 'phone' => '9999967002'],
+                lines: [[
+                    'product_id' => $product->id,
+                    'qty' => 1,
+                    'serials' => ['SCAN-VAR-1'],
+                ]],
+                paymentMethod: 'Cash',
+                actor: $this->actor,
+            );
+            $this->fail('Expected a variant serial sold without variant_id to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('lines.0.variant_id', $exception->errors());
+        }
+
+        $this->assertSame(InventorySerialStatus::Available, InventorySerial::query()->where('serial_number', 'SCAN-VAR-1')->value('status'));
+        $this->assertSame(0, InventorySale::query()->count());
+    }
+
+    public function test_serialized_variant_sale_records_the_child_sku(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'SCAN-PARENT-OK',
+            'name' => 'Scanner parent ok',
+            'gst_percentage' => 18,
+            'unit_price' => 2500,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        $variant = $product->variants()->create([
+            'sku' => 'SCAN-BLK-OK',
+            'name' => 'Black',
+            'unit_price' => 2400,
+            'is_active' => true,
+        ]);
+        $this->stock->stockInSerialized($product, $this->branch, ['SCAN-OK-1'], $this->actor, $variant);
+
+        $sale = $this->sales->completeSale(
+            branch: $this->branch,
+            customer: ['name' => 'Variant serial', 'phone' => '9999967003'],
+            lines: [[
+                'product_id' => $product->id,
+                'variant_id' => $variant->id,
+                'qty' => 1,
+                'serials' => ['SCAN-OK-1'],
+            ]],
+            paymentMethod: 'Cash',
+            actor: $this->actor,
+        );
+
+        $line = $sale->lines()->firstOrFail();
+        $this->assertSame($variant->id, $line->variant_id);
+        $this->assertSame('SCAN-PARENT-OK / SCAN-BLK-OK — Scanner parent ok (Black)', $line->catalogLabel());
+        $this->assertSame(InventorySerialStatus::Sold, InventorySerial::query()->where('serial_number', 'SCAN-OK-1')->value('status'));
+    }
+
     public function test_concurrent_serialized_sale_protection_second_complete_fails(): void
     {
         $product = $this->serializedProduct('MFS110-CON', 'Mantra concurrent');
@@ -367,6 +511,9 @@ class PosSaleServiceTest extends TestCase
         $this->assertSame(InventorySerialStatus::Available, $serial->status);
         $this->assertSame($this->branch->id, $serial->branch_id);
         $this->assertSame(1, (int) $product->balances()->where('branch_id', $this->branch->id)->value('available_qty'));
+        $this->assertSame(InventoryFinanceHandoffStatus::Reversed, $cancelled->finance_handoff_status);
+        $this->assertNotNull($sale->finance_journal_id);
+        $this->assertSame($sale->finance_journal_id, $cancelled->finance_journal_id);
     }
 
     public function test_return_restores_quantity_stock(): void
@@ -396,6 +543,7 @@ class PosSaleServiceTest extends TestCase
         $this->assertSame(InventorySaleStatus::Returned, $sale->fresh()->status);
         $this->assertSame(3, (int) $product->balances()->where('branch_id', $this->branch->id)->value('available_qty'));
         $this->assertSame(1, InventorySale::query()->count());
+        $this->assertSame(InventoryFinanceHandoffStatus::Reversed, $sale->fresh()->finance_handoff_status);
     }
 
     public function test_serialized_line_requires_matching_serial_count(): void

@@ -31,11 +31,15 @@ class PosSaleJournalService
         if (in_array($sale->finance_handoff_status, [
             InventoryFinanceHandoffStatus::Posted,
             InventoryFinanceHandoffStatus::Skipped,
+            InventoryFinanceHandoffStatus::Reversed,
         ], true) && $sale->finance_journal_id !== null) {
             return $sale->financeJournal;
         }
 
-        if ($sale->finance_handoff_status === InventoryFinanceHandoffStatus::Posted) {
+        if (in_array($sale->finance_handoff_status, [
+            InventoryFinanceHandoffStatus::Posted,
+            InventoryFinanceHandoffStatus::Reversed,
+        ], true)) {
             return $sale->financeJournal;
         }
 
@@ -97,6 +101,84 @@ class PosSaleJournalService
         ]);
 
         return $journal;
+    }
+
+    /**
+     * Post a reversing journal for a posted POS sale.
+     *
+     * Same append-only pattern as Cash Book: original journal stays; debit/credit
+     * are swapped. Not a GST credit note. Idempotent on pos_sale:reverse:{sale}:{journal}.
+     * When the original handoff was skipped, this is a no-op.
+     */
+    public function reverseForSale(InventorySale $sale, User $actor, bool $failClosed = true): ?FinanceJournal
+    {
+        if ($sale->finance_handoff_status === InventoryFinanceHandoffStatus::Skipped) {
+            return null;
+        }
+
+        if ($sale->finance_handoff_status !== InventoryFinanceHandoffStatus::Posted
+            && $sale->finance_handoff_status !== InventoryFinanceHandoffStatus::Reversed) {
+            return null;
+        }
+
+        $journal = FinanceJournal::query()
+            ->with('lines')
+            ->find($sale->finance_journal_id);
+
+        if ($journal === null || $journal->lines->isEmpty()) {
+            Log::warning('[Finance] POS sale reverse journal missing original.', [
+                'sale_id' => $sale->id,
+                'finance_journal_id' => $sale->finance_journal_id,
+            ]);
+
+            if ($failClosed && $sale->finance_handoff_status === InventoryFinanceHandoffStatus::Posted) {
+                throw ValidationException::withMessages([
+                    'finance' => 'The original POS journal is missing. The cancel was not completed and stock was not restored.',
+                ]);
+            }
+
+            return null;
+        }
+
+        $lines = [];
+        foreach ($journal->lines as $line) {
+            $debit = round((float) $line->debit, 2);
+            $credit = round((float) $line->credit, 2);
+
+            if ($debit > 0) {
+                $lines[] = JournalLineDraft::credit((int) $line->account_id, $debit, 'POS sale reversal');
+            } elseif ($credit > 0) {
+                $lines[] = JournalLineDraft::debit((int) $line->account_id, $credit, 'POS sale reversal');
+            }
+        }
+
+        if ($lines === []) {
+            if ($failClosed && $sale->finance_handoff_status === InventoryFinanceHandoffStatus::Posted) {
+                throw ValidationException::withMessages([
+                    'finance' => 'The original POS journal has no lines to reverse. The cancel was not completed and stock was not restored.',
+                ]);
+            }
+
+            return null;
+        }
+
+        $reverse = $this->journals->post(
+            sourceType: FinanceJournalSourceType::PosSale,
+            sourceId: $sale->id,
+            idempotencyKey: 'pos_sale:reverse:'.$sale->id.':'.$journal->id,
+            memo: 'Reversal of POS sale '.$sale->sale_no,
+            entryDate: now(),
+            lines: $lines,
+            actor: $actor,
+        );
+
+        if ($sale->finance_handoff_status !== InventoryFinanceHandoffStatus::Reversed) {
+            $sale->update([
+                'finance_handoff_status' => InventoryFinanceHandoffStatus::Reversed,
+            ]);
+        }
+
+        return $reverse;
     }
 
     private function settlementAccount(InventorySale $sale): ?FinanceAccount

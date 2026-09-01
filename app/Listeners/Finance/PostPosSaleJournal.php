@@ -24,6 +24,7 @@ class PostPosSaleJournal
         if (in_array($sale->finance_handoff_status, [
             InventoryFinanceHandoffStatus::Posted,
             InventoryFinanceHandoffStatus::Skipped,
+            InventoryFinanceHandoffStatus::Reversed,
         ], true)) {
             return;
         }

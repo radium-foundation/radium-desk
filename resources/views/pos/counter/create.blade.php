@@ -191,12 +191,14 @@
                 const emailInput = document.getElementById('customer_email');
                 const customerStatus = document.getElementById('pos-customer-status');
                 const form = document.getElementById('pos-counter-form');
+                const completeButton = document.getElementById('pos-complete');
 
                 let cart = [];
                 let pendingProduct = null;
                 let searchTimer = null;
                 let serialTimer = null;
                 let phoneTimer = null;
+                let submitting = false;
 
                 function money(value) {
                     return (Math.round(value * 100) / 100).toFixed(2);
@@ -357,8 +359,17 @@
                 function loadProducts(query) {
                     const url = productSearchUrl + '?branch_id=' + encodeURIComponent(branchId) + '&q=' + encodeURIComponent(query);
                     fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
-                        .then(function (response) { return response.json(); })
-                        .then(function (data) { showProductResults(data.products || []); });
+                        .then(function (response) {
+                            if (!response.ok) {
+                                throw new Error('product-search-failed');
+                            }
+                            return response.json();
+                        })
+                        .then(function (data) { showProductResults(data.products || []); })
+                        .catch(function () {
+                            productResults.innerHTML = '<div class="list-group-item text-danger">Could not search products. Try again.</div>';
+                            productResults.classList.remove('d-none');
+                        });
                 }
 
                 function loadSerials(query) {
@@ -374,7 +385,12 @@
                         params.set('variant_id', String(pendingProduct.variant.id));
                     }
                     fetch(serialSearchUrl + '?' + params.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
-                        .then(function (response) { return response.json(); })
+                        .then(function (response) {
+                            if (!response.ok) {
+                                throw new Error('serial-search-failed');
+                            }
+                            return response.json();
+                        })
                         .then(function (data) {
                             serialResults.innerHTML = '';
                             (data.serials || []).forEach(function (serial) {
@@ -391,6 +407,9 @@
                             if (!(data.serials || []).length) {
                                 serialResults.innerHTML = '<div class="list-group-item text-muted">No available serials at this branch.</div>';
                             }
+                        })
+                        .catch(function () {
+                            serialResults.innerHTML = '<div class="list-group-item text-danger">Could not search serials. Try again.</div>';
                         });
                 }
 
@@ -448,7 +467,12 @@
                     }
                     phoneTimer = setTimeout(function () {
                         fetch(customerLookupUrl + '?phone=' + encodeURIComponent(phone), { headers: { 'Accept': 'application/json' } })
-                            .then(function (response) { return response.json(); })
+                            .then(function (response) {
+                                if (!response.ok) {
+                                    throw new Error('customer-lookup-failed');
+                                }
+                                return response.json();
+                            })
                             .then(function (data) {
                                 if (data.found) {
                                     nameInput.value = data.name || nameInput.value;
@@ -457,6 +481,9 @@
                                 } else {
                                     customerStatus.textContent = 'New customer will be created on complete.';
                                 }
+                            })
+                            .catch(function () {
+                                customerStatus.textContent = 'Could not look up this phone. You can still complete the sale.';
                             });
                     }, 250);
                 });
@@ -466,6 +493,16 @@
                     if (!cart.length) {
                         event.preventDefault();
                         alert('Add at least one item to the cart.');
+                        return;
+                    }
+                    if (form.dataset.submitting === '1') {
+                        event.preventDefault();
+                        return;
+                    }
+                    form.dataset.submitting = '1';
+                    const complete = document.getElementById('pos-complete');
+                    if (complete) {
+                        complete.textContent = 'Completing…';
                     }
                 });
 

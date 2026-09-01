@@ -208,6 +208,27 @@ class InventoryStockServiceTest extends TestCase
         $this->assertTrue(InventoryMovement::query()->where('adjustment_id', $adjustment->id)->exists());
     }
 
+    public function test_sale_lock_rejects_a_variant_serial_without_that_variant(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'SCAN-LOCK',
+            'name' => 'Scanner lock',
+            'gst_percentage' => 18,
+            'unit_price' => 2500,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        $variant = $product->variants()->create([
+            'sku' => 'SCAN-LOCK-BLK',
+            'name' => 'Black',
+            'is_active' => true,
+        ]);
+        $this->stock->stockInSerialized($product, $this->hq, ['LOCK-VAR-1'], $this->actor, $variant);
+
+        $this->expectException(ValidationException::class);
+        $this->stock->lockAvailableSerialsForSale($product, $this->hq, ['LOCK-VAR-1']);
+    }
+
     private function serializedProduct(): InventoryProduct
     {
         return InventoryProduct::query()->create([

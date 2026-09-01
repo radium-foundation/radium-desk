@@ -41,11 +41,7 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
 
         $this->assertCount(1, $wins, 'Exactly one concurrent sale of the same serial must succeed. Results: '.json_encode($results));
         $this->assertCount(1, $losses, 'The losing attempt must fail closed. Results: '.json_encode($results));
-        $this->assertNotSame(
-            $results[0]['connection_id'] ?? null,
-            $results[1]['connection_id'] ?? null,
-            'Workers must use independent MySQL connections.'
-        );
+        $this->assertIndependentConnections($results);
 
         $pdo = $this->safePdo();
         $saleCount = (int) $pdo->query('select count(*) from inventory_sales')->fetchColumn();
@@ -64,9 +60,10 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
         $this->assertSame(1, $journals);
         $this->assertSame(0, $negative);
         $this->assertNotEmpty($losses[0]['error'] ?? null);
+        $this->assertNoDuplicateSerialOwnership($pdo);
     }
 
-    public function test_different_serials_complete_on_independent_connections(): void
+    public function test_same_sku_two_different_serials_complete_on_independent_connections(): void
     {
         $context = $this->prepareSafeMysqlContextOrSkip();
 
@@ -78,13 +75,131 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
         $this->assertTrue($results[0]['ok'] && $results[1]['ok'], 'Independent serials must both complete. Results: '.json_encode($results));
         $this->assertNotSame($results[0]['sale_id'], $results[1]['sale_id']);
         $this->assertNotSame($results[0]['invoice_number'], $results[1]['invoice_number']);
-        $this->assertNotSame($results[0]['connection_id'] ?? null, $results[1]['connection_id'] ?? null);
+        $this->assertIndependentConnections($results);
 
         $pdo = $this->safePdo();
         $soldA = (int) $pdo->query("select count(*) from inventory_serials where serial_number = 'INNODB-IND-A' and status = 'sold'")->fetchColumn();
         $soldB = (int) $pdo->query("select count(*) from inventory_serials where serial_number = 'INNODB-IND-B' and status = 'sold'")->fetchColumn();
         $this->assertSame(1, $soldA);
         $this->assertSame(1, $soldB);
+        $this->assertNoNegativeBalances($pdo);
+        $this->assertNoDuplicateSerialOwnership($pdo);
+    }
+
+    public function test_same_quantity_sku_cannot_oversell_under_two_connections(): void
+    {
+        $context = $this->prepareSafeMysqlContextOrSkip();
+
+        $results = $this->runTwoWorkers($context, [
+            [
+                'product_id' => $context['quantity_product_id'],
+                'qty' => 6,
+                'phone' => '9111100301',
+                'name' => 'Qty Counter A',
+            ],
+            [
+                'product_id' => $context['quantity_product_id'],
+                'qty' => 6,
+                'phone' => '9111100302',
+                'name' => 'Qty Counter B',
+            ],
+        ]);
+
+        $wins = array_values(array_filter($results, fn (array $row): bool => $row['ok'] === true));
+        $losses = array_values(array_filter($results, fn (array $row): bool => $row['ok'] !== true));
+
+        $this->assertCount(1, $wins, 'Exactly one concurrent oversell attempt may succeed. Results: '.json_encode($results));
+        $this->assertCount(1, $losses, 'The losing quantity sale must fail closed. Results: '.json_encode($results));
+        $this->assertIndependentConnections($results);
+
+        $pdo = $this->safePdo();
+        $soldQty = (int) $pdo->query('select coalesce(sum(qty), 0) from inventory_sale_lines')->fetchColumn();
+        $available = (int) $pdo->query(
+            'select available_qty from inventory_stock_balances where product_id = '.(int) $context['quantity_product_id']
+        )->fetchColumn();
+        $saleCount = (int) $pdo->query('select count(*) from inventory_sales')->fetchColumn();
+
+        $this->assertSame(6, $soldQty);
+        $this->assertSame(4, $available);
+        $this->assertSame(1, $saleCount);
+        $this->assertNoNegativeBalances($pdo);
+        $this->assertNotEmpty($losses[0]['error'] ?? null);
+    }
+
+    public function test_duplicate_idempotency_key_returns_one_sale_without_reselling(): void
+    {
+        $context = $this->prepareSafeMysqlContextOrSkip();
+        $sharedKey = 'innodb-shared-'.bin2hex(random_bytes(6));
+
+        $results = $this->runTwoWorkers($context, [
+            [
+                'serial' => $context['contended_serial'],
+                'phone' => '9111100401',
+                'name' => 'Retry A',
+                'idempotency_key' => $sharedKey,
+            ],
+            [
+                'serial' => $context['contended_serial'],
+                'phone' => '9111100401',
+                'name' => 'Retry A',
+                'idempotency_key' => $sharedKey,
+            ],
+        ]);
+
+        $this->assertTrue($results[0]['ok'] && $results[1]['ok'], 'Duplicate key retries must both return success. Results: '.json_encode($results));
+        $this->assertSame($results[0]['sale_id'], $results[1]['sale_id']);
+        $this->assertSame($results[0]['invoice_number'], $results[1]['invoice_number']);
+        $this->assertIndependentConnections($results);
+
+        $pdo = $this->safePdo();
+        $saleCount = (int) $pdo->query('select count(*) from inventory_sales')->fetchColumn();
+        $sold = (int) $pdo->query("select count(*) from inventory_serials where serial_number = 'INNODB-SAME-1' and status = 'sold'")->fetchColumn();
+        $keys = (int) $pdo->query('select count(*) from inventory_sales where idempotency_key = '.$pdo->quote($sharedKey))->fetchColumn();
+        $saleMovements = (int) $pdo->query("select count(*) from inventory_movements where type = 'sale' and serial_id = (select id from inventory_serials where serial_number = 'INNODB-SAME-1')")->fetchColumn();
+
+        $this->assertSame(1, $saleCount);
+        $this->assertSame(1, $sold);
+        $this->assertSame(1, $keys);
+        $this->assertSame(1, $saleMovements);
+        $this->assertNoNegativeBalances($pdo);
+        $this->assertNoDuplicateSerialOwnership($pdo);
+    }
+
+    public function test_independent_skus_complete_on_independent_connections(): void
+    {
+        $context = $this->prepareSafeMysqlContextOrSkip();
+
+        $results = $this->runTwoWorkers($context, [
+            [
+                'serial' => $context['independent_serial_a'],
+                'phone' => '9111100501',
+                'name' => 'Scanner buyer',
+            ],
+            [
+                'product_id' => $context['quantity_product_id'],
+                'qty' => 2,
+                'phone' => '9111100502',
+                'name' => 'OTG buyer',
+            ],
+        ]);
+
+        $this->assertTrue($results[0]['ok'] && $results[1]['ok'], 'Independent SKUs must both complete. Results: '.json_encode($results));
+        $this->assertNotSame($results[0]['sale_id'], $results[1]['sale_id']);
+        $this->assertNotSame($results[0]['invoice_number'], $results[1]['invoice_number']);
+        $this->assertIndependentConnections($results);
+
+        $pdo = $this->safePdo();
+        $soldSerial = (int) $pdo->query("select count(*) from inventory_serials where serial_number = 'INNODB-IND-A' and status = 'sold'")->fetchColumn();
+        $qtyAvailable = (int) $pdo->query(
+            'select available_qty from inventory_stock_balances where product_id = '.(int) $context['quantity_product_id']
+        )->fetchColumn();
+        $saleCount = (int) $pdo->query('select count(*) from inventory_sales')->fetchColumn();
+
+        $this->assertSame(1, $soldSerial);
+        $this->assertSame(8, $qtyAvailable);
+        $this->assertSame(2, $saleCount);
+        $this->assertNoNegativeBalances($pdo);
+        $this->assertNoDuplicateSerialOwnership($pdo);
     }
 
     /**
@@ -139,10 +254,10 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
 
         if ($username === '') {
             $this->markTestSkipped(
-                'MySQL test environment unavailable → UNKNOWN/BLOCKER. No mysqld on loopback and no dedicated '.
-                self::SAFE_DATABASE.' user. This suite does not start brew MySQL, does not use radium_desk_local, '.
-                'and does not touch production. When a local server exists: create only '.self::SAFE_DATABASE.
-                ' on 127.0.0.1 and run with INVENTORY_POS_MYSQL_USERNAME set.'
+                'MySQL test environment unavailable → UNKNOWN/BLOCKER. No loopback InnoDB listener and no dedicated '.
+                self::SAFE_DATABASE.' user. This suite does not start brew services, does not use radium_desk_local, '.
+                'and does not touch production. A disposable MariaDB/MySQL on 127.0.0.1 (any port) with only '.
+                self::SAFE_DATABASE.' is required, plus INVENTORY_POS_MYSQL_USERNAME / PORT.'
             );
         }
 
@@ -170,8 +285,43 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
     }
 
     /**
+     * @param  list<array<string, mixed>>  $results
+     */
+    private function assertIndependentConnections(array $results): void
+    {
+        $this->assertNotSame(
+            $results[0]['connection_id'] ?? null,
+            $results[1]['connection_id'] ?? null,
+            'Workers must use independent MariaDB connections.'
+        );
+        $this->assertNotEmpty($results[0]['connection_id'] ?? null);
+        $this->assertNotEmpty($results[1]['connection_id'] ?? null);
+    }
+
+    private function assertNoNegativeBalances(PDO $pdo): void
+    {
+        $negative = (int) $pdo->query('select count(*) from inventory_stock_balances where available_qty < 0 or reserved_qty < 0')->fetchColumn();
+        $this->assertSame(0, $negative, 'Stock balances must not go negative.');
+    }
+
+    private function assertNoDuplicateSerialOwnership(PDO $pdo): void
+    {
+        $duplicateAssignments = (int) $pdo->query(
+            'select count(*) from (select serial_id from inventory_sale_serials group by serial_id having count(*) > 1) d'
+        )->fetchColumn();
+        $duplicateSold = (int) $pdo->query(
+            "select count(*) from inventory_serials where status = 'sold' and serial_number in (
+                select serial_number from inventory_serials group by serial_number having count(*) > 1
+            )"
+        )->fetchColumn();
+
+        $this->assertSame(0, $duplicateAssignments, 'A serial must not be owned by two sales.');
+        $this->assertSame(0, $duplicateSold, 'A serial number must not exist on two rows.');
+    }
+
+    /**
      * @param  array<string, mixed>  $context
-     * @param  list<array{serial: string, phone: string, name: string}>  $attempts
+     * @param  list<array<string, mixed>>  $attempts
      * @return list<array<string, mixed>>
      */
     private function runTwoWorkers(array $context, array $attempts): array
@@ -189,15 +339,20 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
             $resultPath = $dir.'/result-'.$index.'.json';
             $resultPaths[] = $resultPath;
 
-            file_put_contents($payloadPath, json_encode([
+            $payload = [
                 'actor_id' => $context['actor_id'],
                 'branch_id' => $context['branch_id'],
-                'product_id' => $context['serialized_product_id'],
-                'serial' => $attempt['serial'],
+                'product_id' => $attempt['product_id'] ?? $context['serialized_product_id'],
+                'qty' => $attempt['qty'] ?? 1,
                 'customer_name' => $attempt['name'],
                 'customer_phone' => $attempt['phone'],
-                'idempotency_key' => 'innodb-'.$index.'-'.bin2hex(random_bytes(4)),
-            ], JSON_THROW_ON_ERROR));
+                'idempotency_key' => $attempt['idempotency_key'] ?? ('innodb-'.$index.'-'.bin2hex(random_bytes(4))),
+            ];
+            if (isset($attempt['serial'])) {
+                $payload['serial'] = $attempt['serial'];
+            }
+
+            file_put_contents($payloadPath, json_encode($payload, JSON_THROW_ON_ERROR));
 
             $process = $this->process([
                 PHP_BINARY,
@@ -206,12 +361,12 @@ class InventoryPosMysqlConcurrencyTest extends TestCase
                 '--ready='.$readyPath,
                 '--go='.$go,
                 '--result='.$resultPath,
-            ], 60);
+            ], 90);
             $process->start();
             $processes[] = ['process' => $process, 'ready' => $readyPath];
         }
 
-        $deadline = microtime(true) + 20;
+        $deadline = microtime(true) + 60;
         foreach ($processes as $item) {
             while (! is_file($item['ready'])) {
                 if (microtime(true) > $deadline) {

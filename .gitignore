@@ -37,3 +37,7 @@ Thumbs.db
 .env.sqlite
 .env.production
 .env.testing.local
+
+# Disposable Inventory/POS browser QA sqlite (never production)
+/database/inventory-pos-browser-qa.sqlite
+/database/inventory-pos-browser-qa.sqlite-*

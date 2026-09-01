@@ -63,6 +63,22 @@ $hardware = User::factory()->create([
 ]);
 $hardware->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
 
+$unassignedHardware = User::factory()->create([
+    'name' => 'QA Hardware Unassigned',
+    'email' => 'qa-inventory-pos-unassigned@radium.local',
+    'password' => Hash::make('password'),
+    'is_active' => true,
+]);
+$unassignedHardware->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+
+$agent = User::factory()->create([
+    'name' => 'QA Agent',
+    'email' => 'qa-inventory-pos-agent@radium.local',
+    'password' => Hash::make('password'),
+    'is_active' => true,
+]);
+$agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
 $branchA = InventoryBranch::query()->create([
     'code' => 'QAA',
     'name' => 'QA Counter A',
@@ -105,6 +121,8 @@ $quantity->variants()->create([
 echo json_encode([
     'admin_email' => $admin->email,
     'hardware_email' => $hardware->email,
+    'unassigned_email' => $unassignedHardware->email,
+    'agent_email' => $agent->email,
     'branch_a' => $branchA->code,
     'branch_b' => $branchB->code,
 ], JSON_THROW_ON_ERROR).PHP_EOL;

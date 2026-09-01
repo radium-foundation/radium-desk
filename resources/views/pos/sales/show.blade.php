@@ -57,7 +57,7 @@
                 <tbody>
                     @foreach($sale->lines as $line)
                         <tr>
-                            <td>{{ $line->product?->sku }} — {{ $line->product?->name }}</td>
+                            <td>{{ $line->catalogLabel() }}</td>
                             <td>{{ $line->qty }}</td>
                             <td>{{ number_format((float) $line->unit_price, 2) }}</td>
                             <td>{{ number_format((float) $line->tax, 2) }}</td>
@@ -77,14 +77,14 @@
     @if($canCancel && $sale->status === \App\Enums\InventorySaleStatus::Completed)
         <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <h2 class="h6">Cancel / return foundation</h2>
-                <p class="text-muted small">Restores serials and quantity to the selling branch. Does not reverse the finance journal in this gate.</p>
-                <form method="POST" action="{{ route('pos.sales.cancel', $sale) }}" class="d-flex flex-wrap gap-2 mb-2">
+                <h2 class="h6">Cancel / return</h2>
+                <p class="text-muted small">Restores serials and quantity to the selling branch and posts a reversing finance journal when the sale was posted. Invoice number is kept. This is not a GST credit note.</p>
+                <form method="POST" action="{{ route('pos.sales.cancel', $sale) }}" class="d-flex flex-wrap gap-2 mb-2" data-once-submit>
                     @csrf
                     <input type="text" name="reason" class="form-control" style="max-width: 24rem;" required placeholder="Cancel reason">
                     <button class="btn btn-outline-danger">Cancel sale</button>
                 </form>
-                <form method="POST" action="{{ route('pos.sales.return', $sale) }}" class="d-flex flex-wrap gap-2">
+                <form method="POST" action="{{ route('pos.sales.return', $sale) }}" class="d-flex flex-wrap gap-2" data-once-submit>
                     @csrf
                     <input type="text" name="reason" class="form-control" style="max-width: 24rem;" required placeholder="Return reason">
                     <button class="btn btn-outline-secondary">Return sale</button>

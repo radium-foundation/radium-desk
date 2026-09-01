@@ -8,6 +8,7 @@ enum InventoryFinanceHandoffStatus: string
     case Posted = 'posted';
     case Skipped = 'skipped';
     case Failed = 'failed';
+    case Reversed = 'reversed';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum InventoryFinanceHandoffStatus: string
             self::Posted => 'Posted',
             self::Skipped => 'Skipped',
             self::Failed => 'Failed',
+            self::Reversed => 'Reversed',
         };
     }
 }

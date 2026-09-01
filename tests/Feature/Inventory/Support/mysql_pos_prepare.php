@@ -21,7 +21,17 @@ if (! is_object($connected) || ! InventoryPosMysqlGate::isAllowedDatabase((strin
     exit(2);
 }
 
-Artisan::call('migrate:fresh', ['--force' => true]);
+$wipe = Artisan::call('db:wipe', ['--force' => true, '--drop-views' => true]);
+if ($wipe !== 0) {
+    fwrite(STDERR, "db:wipe failed:\n".Artisan::output());
+    exit(2);
+}
+
+$migrate = Artisan::call('migrate', ['--force' => true]);
+if ($migrate !== 0) {
+    fwrite(STDERR, "migrate failed:\n".Artisan::output());
+    exit(2);
+}
 
 app()->make(RolePermissionSeeder::class)->run();
 app()->make(FinanceMasterDataSeeder::class)->run();

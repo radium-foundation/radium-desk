@@ -22,6 +22,8 @@ use Illuminate\Validation\ValidationException;
 
 class PosSaleService
 {
+    private const COMPLETION_ATTEMPTS = 5;
+
     public function __construct(
         private readonly InventoryStockService $stock,
         private readonly PosSaleJournalService $journals,
@@ -87,9 +89,10 @@ class PosSaleService
                 $idempotencyKey,
             ): InventorySale {
                 if ($idempotencyKey !== null) {
+                    // Do not lockForUpdate a missing unique key: InnoDB gap-locks the
+                    // empty index and deadlocks the other counter's INSERT.
                     $existing = InventorySale::query()
                         ->where('idempotency_key', $idempotencyKey)
-                        ->lockForUpdate()
                         ->first();
                     if ($existing !== null) {
                         return $existing->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $existing;
@@ -128,7 +131,9 @@ class PosSaleService
                 $lineDiscountTotal = 0.0;
 
                 foreach ($lines as $index => $line) {
-                    $product = InventoryProduct::query()->find($line['product_id'] ?? null);
+                    $product = InventoryProduct::query()
+                        ->with(['variants' => fn ($variants) => $variants->where('is_active', true)])
+                        ->find($line['product_id'] ?? null);
                     if ($product === null || ! $product->is_active) {
                         throw ValidationException::withMessages([
                             "lines.{$index}.product_id" => 'Product is missing or inactive.',
@@ -143,6 +148,10 @@ class PosSaleService
                                 "lines.{$index}.variant_id" => 'Variant is missing or inactive.',
                             ]);
                         }
+                    } elseif ($product->variants->isNotEmpty()) {
+                        throw ValidationException::withMessages([
+                            "lines.{$index}.variant_id" => 'Select a variant. POS sells child SKUs separately from the parent product.',
+                        ]);
                     }
 
                     $qty = (int) ($line['qty'] ?? 0);
@@ -271,7 +280,7 @@ class PosSaleService
                 InventorySaleCompleted::dispatch($sale->fresh() ?? $sale);
 
                 return $sale->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $sale;
-            });
+            }, self::COMPLETION_ATTEMPTS);
         } catch (UniqueConstraintViolationException $exception) {
             if ($idempotencyKey !== null) {
                 $existing = InventorySale::query()
@@ -364,6 +373,8 @@ class PosSaleService
                 );
             }
 
+            $this->journals->reverseForSale($sale, $actor, failClosed: true);
+
             $sale->update([
                 'status' => $toStatus,
                 'cancel_reason' => $reason,
@@ -388,22 +399,38 @@ class PosSaleService
             ]);
         }
 
-        $existing = InventoryCustomer::query()->where('phone', $phone)->lockForUpdate()->first();
+        $existing = InventoryCustomer::query()->where('phone', $phone)->first();
         if ($existing !== null) {
-            $existing->fill([
+            $locked = InventoryCustomer::query()->lockForUpdate()->find($existing->id) ?? $existing;
+            $locked->fill([
                 'name' => $name,
-                'email' => $customer['email'] ?? $existing->email,
-                'gstin' => $customer['gstin'] ?? $existing->gstin,
+                'email' => $customer['email'] ?? $locked->email,
+                'gstin' => $customer['gstin'] ?? $locked->gstin,
             ])->save();
 
-            return $existing;
+            return $locked;
         }
 
-        return InventoryCustomer::query()->create([
-            'name' => $name,
-            'phone' => $phone,
-            'email' => $customer['email'] ?? null,
-            'gstin' => $customer['gstin'] ?? null,
-        ]);
+        try {
+            return InventoryCustomer::query()->create([
+                'name' => $name,
+                'phone' => $phone,
+                'email' => $customer['email'] ?? null,
+                'gstin' => $customer['gstin'] ?? null,
+            ]);
+        } catch (UniqueConstraintViolationException $exception) {
+            $locked = InventoryCustomer::query()->where('phone', $phone)->lockForUpdate()->first();
+            if ($locked !== null) {
+                $locked->fill([
+                    'name' => $name,
+                    'email' => $customer['email'] ?? $locked->email,
+                    'gstin' => $customer['gstin'] ?? $locked->gstin,
+                ])->save();
+
+                return $locked;
+            }
+
+            throw $exception;
+        }
     }
 }
