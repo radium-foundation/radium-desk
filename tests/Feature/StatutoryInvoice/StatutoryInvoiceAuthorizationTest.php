@@ -42,14 +42,21 @@ class StatutoryInvoiceAuthorizationTest extends TestCase
         $this->actingAs($user)->get(route('finance.invoices.index'))->assertOk();
         $this->actingAs($user)->get(route('finance.reports.index'))->assertOk();
         $this->actingAs($user)->get(route('finance.invoices.export'))->assertOk();
+        $this->actingAs($user)->get(route('finance.reports.export', ['report' => 'summary']))->assertOk();
+        $this->actingAs($user)->get(route('finance.reports.export', ['report' => 'lines']))->assertOk();
         $this->actingAs($user)->get('/finance')->assertRedirect(route('finance.invoices.index'));
         $this->actingAs($user)->get(route('finance.dashboard'))->assertForbidden();
         $this->actingAs($user)->get(route('finance.settings.cash-accounts'))->assertForbidden();
+        $this->actingAs($user)->get(route('finance.payments.index'))->assertForbidden();
+        $this->actingAs($user)->get(route('finance.expenses.index'))->assertForbidden();
+        $this->actingAs($user)->post(route('finance.expenses.store'))->assertForbidden();
         $this->actingAs($user)->get(route('pos.counter.create'))->assertForbidden();
         $this->actingAs($user)->get(route('inventory.stock.index'))->assertForbidden();
         $this->actingAs($user)->get(route('inventory.adjustments.create'))->assertForbidden();
+        $this->actingAs($user)->get(route('users.index'))->assertForbidden();
         $this->actingAs($user)->post(route('finance.invoices.index'))->assertStatus(405);
         $this->actingAs($user)->delete(route('finance.invoices.show', ['invoice' => 1]))->assertStatus(405);
+        $this->actingAs($user)->post(route('finance.reports.export'))->assertStatus(405);
     }
 
     public function test_hardware_pos_user_cannot_view_statutory_invoices_or_numbering_reports(): void
@@ -64,6 +71,7 @@ class StatutoryInvoiceAuthorizationTest extends TestCase
         $this->actingAs($user)->get(route('finance.invoices.index'))->assertForbidden();
         $this->actingAs($user)->get(route('finance.reports.index'))->assertForbidden();
         $this->actingAs($user)->get(route('finance.invoices.export'))->assertForbidden();
+        $this->actingAs($user)->get(route('finance.reports.export', ['report' => 'channel_orders']))->assertForbidden();
         $this->actingAs($user)->get(route('pos.counter.create'))->assertOk();
     }
 

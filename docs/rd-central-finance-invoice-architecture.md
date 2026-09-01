@@ -2,9 +2,9 @@
 
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  
-**Prompt:** User-labelled `RadiumDesk-P-01-09-13` (already used on this branch for the inventory Day-1 blocker audit). Ledger ID for this investigation: **RadiumDesk-P-01-09-14**. Implementation foundation: **RadiumDesk-P-01-09-15**.  
+**Prompt:** User-labelled `RadiumDesk-P-01-09-13` (already used on this branch for the inventory Day-1 blocker audit). Ledger ID for this investigation: **RadiumDesk-P-01-09-14**. Implementation foundation: **RadiumDesk-P-01-09-15**. Channel ingest: **RadiumDesk-P-01-09-16**. Accountant month-end reports: **RadiumDesk-P-01-09-17**.  
 **Date:** 2026-09-01  
-**Type:** Investigation (P-01-09-14) plus Desk-only implementation foundation (P-01-09-15). Not the final legal invoice-series decision. No production, Admin, RadiumBox, rdservice.in, or radiumsign.com changes.  
+**Type:** Investigation (P-01-09-14) plus Desk-only implementation foundation (P-01-09-15 through P-01-09-17). Not the final legal invoice-series decision. No production, Admin, RadiumBox, rdservice.in, or radiumsign.com changes.  
 **Canvas:** [`rd-central-finance-invoice-architecture.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-central-finance-invoice-architecture.canvas.tsx)
 
 Classification used throughout: **VERIFIED** (read from Desk/Admin-documented code or prior production inspections already in this repo), **INFERRED** (consistent with code/docs but not re-executed here), **UNKNOWN** (owner/CA/legal or unreinspectable).
@@ -1119,6 +1119,56 @@ No `JournalPostingService` call. No `source_type = commerce_order` journals. POS
 ### 22.9 Rollback
 
 Env secrets empty → ingest disabled. Code: revert this commit. Schema: rollback `2026_09_01_180000` on the same non-prod database. Statutory tables and POS data are untouched.
+
+---
+
+## 23. P-01-09-17 accountant / month-end reporting foundation
+
+Desk-only GET reporting. Statutory numbering stays unset/fail-closed. POS journals and production channel ingest are unchanged.
+
+### 23.1 What shipped
+
+| Report | Source | Date filter | CSV |
+|--------|--------|-------------|-----|
+| Invoice register | `statutory_invoices` | `issued_at` (`date_from` / `date_to`, app timezone) | Yes (`register` + existing `finance.invoices.export`) |
+| Invoice lines | `statutory_invoice_items` | Same invoice period | Yes (`lines`) |
+| Sales by date and channel | Issued + cancelled statutory invoices | Same | Yes (`sales`) |
+| GST / tax totals | Invoice lines; cancelled excluded from GST | Same | Yes (`gst`) |
+| Collections | Invoice payment fields + paid commerce-order payment fields **already stored** | Invoice `issued_at` / order `received_at` | Yes (`collections`) |
+| Cancelled invoices | Status cancelled; number kept | Same | Yes (`cancelled`) |
+| Channel orders | `commerce_orders` (not GST invoices) | `received_at` | Yes (`channel_orders`) |
+| Period summary | Counts/totals from the above | Same filters | Yes (`summary`) |
+
+Audit columns on the invoice register: invoice number, document type, date, channel, source type, source id, source order id, customer name/phone/GSTIN, place of supply, branch, seller GSTIN/name, HSN/SAC, amounts, CGST/SGST/IGST **blank unless supplied**, tax, total, payment mode/reference, status, cancelled at/reason, POS internal receipt (labelled, not a GST number).
+
+CGST/SGST/IGST are not invented. Unclassified tax is a separate column.
+
+### 23.2 Authorization
+
+Unchanged accountant grants: `finance.accountant.access`, `finance.invoices.view`, `finance.gst.reports`, `finance.reports.sales`, `finance.reports.export`. Still **no** `finance.view` (settings, expenses, cash/bank mutation, customer-payments placeholder). Controller middleware + per-export permission checks. POS, inventory, users, and finance settings remain 403. Routes are GET-only.
+
+### 23.3 Channel-order eligibility (not fabricated)
+
+Ingest still requires the channel to send paid + seller GSTIN + place of supply + HSN/SAC on every line before `invoice_eligible`. Missing fields are stored as null and explained on `status_reason`. Desk does not fill seller GSTIN, HSN, tax rates, invoice series, IRN, or place of supply. Eligible orders stay `invoice_pending` because auto-issue is disabled and the legal series is unset.
+
+### 23.4 Remaining concrete blocker for month-end use
+
+**An accountant cannot file or close a live GST month from Desk today.** The reporting portal can export empty or test-only registers. Live source documents are not in Desk yet:
+
+1. Legal series unset → statutory mint fails closed → invoice register has no production rows.
+2. POS `INV-*` is an internal receipt and is **excluded** from the GST register (by design).
+3. Channel ingest is **disabled** without per-channel secrets and cutover approval → no commerce orders in production.
+4. Historical Admin invoices are **not imported**.
+5. Place of supply / CGST-SGST-IGST / complete HSN remain UNKNOWN until CA rules and channels send them.
+6. GST credit notes / debit notes are not issued; cancel keeps the tax-invoice number only.
+7. Customer Payments UI is still a placeholder; collections CSV only repeats stored payment mode/reference.
+8. Cash/bank/UPI ledgers stay hidden from accountant (P-01-09-15: no `finance.view`).
+
+CA decisions in §18 still block statutory go-live. Reporting itself is no longer the missing layer.
+
+### 23.5 Rollback
+
+Revert the P-01-09-17 commit on this branch. No schema change. POS journals, statutory tables, and channel-ingest tables are untouched.
 
 ---
 

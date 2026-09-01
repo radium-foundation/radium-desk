@@ -9,10 +9,23 @@
         <p class="text-muted mb-0">
             {{ $invoice->document_type->label() }} · {{ $invoice->status->label() }} ·
             {{ $invoice->channel->label() }} · source {{ $invoice->source_type }} {{ $invoice->source_id }}
+            @if($invoice->source_order_id)
+                · channel order {{ $invoice->source_order_id }}
+            @endif
         </p>
     </div>
 
     @include('finance.partials.workspace-nav', ['active' => 'invoices'])
+
+    @if($invoice->status->value === 'cancelled')
+        <div class="alert alert-warning">
+            Cancelled on {{ $invoice->cancelled_at?->timezone(config('app.timezone'))->format('d M Y H:i') }}.
+            The invoice number is kept and is not reused.
+            @if($invoice->cancel_reason)
+                Reason: {{ $invoice->cancel_reason }}
+            @endif
+        </div>
+    @endif
 
     <div class="row g-3 mb-3">
         <div class="col-md-6">
@@ -33,7 +46,10 @@
                     <div>{{ $invoice->seller_name ?: '—' }}</div>
                     <div>GSTIN {{ $invoice->seller_gstin ?: '—' }}</div>
                     <div>{{ $invoice->payment_method ?: '—' }} {{ $invoice->payment_reference }}</div>
-                    <div class="small text-muted mt-2">CGST/SGST/IGST split is stored only when provided. Unclassified tax is not fabricated.</div>
+                    @if($invoice->inventorySale?->invoice_number)
+                        <div class="small text-muted mt-2">POS internal receipt {{ $invoice->inventorySale->invoice_number }} (not a GST number)</div>
+                    @endif
+                    <div class="small text-muted mt-2">CGST/SGST/IGST split is stored only when provided. Unclassified tax is not fabricated. GST credit notes are not issued yet.</div>
                 </div>
             </div>
         </div>

@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\StatutoryInvoice;
 use App\ReadModels\Finance\StatutoryInvoiceRegisterReadModel;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
+use App\Support\Finance\CsvDownload;
 use App\Support\Finance\FinanceAccess;
+use App\Support\Finance\ReportPeriod;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -25,9 +27,14 @@ class StatutoryInvoiceController extends Controller
 
     public function index(Request $request): View
     {
+        $period = ReportPeriod::fromRequest($request);
+
         return view('finance.invoices.index', [
             'invoices' => $this->register->paginate($request),
-            'filters' => $request->only(['q', 'channel', 'status']),
+            'filters' => array_merge(
+                $period->filters(),
+                $request->only(['q', 'channel', 'status']),
+            ),
             'canExport' => FinanceAccess::allowsReportExport($request->user()),
             'numberingConfigured' => app(StatutoryInvoiceNumberingService::class)->isConfigured(),
         ]);
@@ -35,7 +42,7 @@ class StatutoryInvoiceController extends Controller
 
     public function show(StatutoryInvoice $invoice): View
     {
-        $invoice->load(['items', 'branch', 'inventorySale', 'issuedBy']);
+        $invoice->load(['items', 'branch', 'inventorySale', 'issuedBy', 'cancelledBy']);
 
         return view('finance.invoices.show', [
             'invoice' => $invoice,
@@ -46,22 +53,20 @@ class StatutoryInvoiceController extends Controller
     {
         abort_unless(FinanceAccess::allowsReportExport($request->user()), 403);
 
-        $filename = 'statutory-invoice-register-'.now()->timezone(config('app.timezone'))->format('Ymd-His').'.csv';
-        $headers = $this->register->registerHeaders();
-        $rows = $this->register->exportRows($request);
+        $filename = 'statutory-invoice-register-'.$this->stamp().'.csv';
 
-        return response()->streamDownload(function () use ($headers, $rows): void {
-            $handle = fopen('php://output', 'w');
-            if ($handle === false) {
-                return;
-            }
-            fputcsv($handle, $headers);
-            foreach ($rows as $invoice) {
-                fputcsv($handle, $this->register->registerRow($invoice));
-            }
-            fclose($handle);
-        }, $filename, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-        ]);
+        return CsvDownload::stream(
+            $filename,
+            $this->register->registerHeaders(),
+            array_map(
+                fn ($invoice): array => $this->register->registerRow($invoice),
+                $this->register->exportRows($request),
+            ),
+        );
+    }
+
+    private function stamp(): string
+    {
+        return now()->timezone((string) config('app.timezone'))->format('Ymd-His');
     }
 }

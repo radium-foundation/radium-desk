@@ -17,23 +17,16 @@
         </div>
     @endunless
 
-    <form method="get" class="row g-2 mb-3">
-        <div class="col-md-4">
-            <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" class="form-control" placeholder="Number, customer, GSTIN, source">
-        </div>
-        <div class="col-md-2">
-            <input type="text" name="channel" value="{{ $filters['channel'] ?? '' }}" class="form-control" placeholder="Channel">
-        </div>
-        <div class="col-md-2">
-            <input type="text" name="status" value="{{ $filters['status'] ?? '' }}" class="form-control" placeholder="Status">
-        </div>
-        <div class="col-md-4 d-flex gap-2">
-            <button type="submit" class="btn btn-outline-secondary">Filter</button>
-            @if($canExport)
-                <a href="{{ route('finance.invoices.export', request()->query()) }}" class="btn btn-outline-primary">Export CSV</a>
-            @endif
-        </div>
-    </form>
+    @include('finance.partials.report-filters', [
+        'action' => route('finance.invoices.index'),
+        'filters' => $filters,
+    ])
+
+    @if($canExport)
+        <p class="mb-3">
+            <a href="{{ route('finance.invoices.export', request()->query()) }}" class="btn btn-outline-primary">Export CSV</a>
+        </p>
+    @endif
 
     <div class="table-responsive">
         <table class="table table-sm align-middle">
@@ -42,11 +35,13 @@
                     <th>Invoice</th>
                     <th>Date</th>
                     <th>Channel</th>
+                    <th>Source</th>
                     <th>Customer</th>
                     <th>GSTIN</th>
                     <th>Taxable</th>
                     <th>Tax</th>
                     <th>Total</th>
+                    <th>Payment</th>
                     <th>Status</th>
                 </tr>
             </thead>
@@ -56,16 +51,23 @@
                         <td><a href="{{ route('finance.invoices.show', $invoice) }}">{{ $invoice->invoice_number }}</a></td>
                         <td>{{ $invoice->issued_at?->timezone(config('app.timezone'))->format('d M Y') }}</td>
                         <td>{{ $invoice->channel->label() }}</td>
+                        <td class="small">
+                            {{ $invoice->source_id }}
+                            @if($invoice->source_order_id)
+                                <div class="text-muted">{{ $invoice->source_order_id }}</div>
+                            @endif
+                        </td>
                         <td>{{ $invoice->buyer_name ?: '—' }}</td>
                         <td>{{ $invoice->buyer_gstin ?: '—' }}</td>
                         <td>{{ number_format((float) $invoice->taxable_value, 2) }}</td>
                         <td>{{ number_format((float) $invoice->tax_total, 2) }}</td>
                         <td>{{ number_format((float) $invoice->invoice_value, 2) }}</td>
+                        <td class="small">{{ $invoice->payment_method ?: '—' }} {{ $invoice->payment_reference }}</td>
                         <td>{{ $invoice->status->label() }}</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9" class="text-muted">No statutory invoices. Historical Admin invoices are not imported.</td>
+                        <td colspan="11" class="text-muted">No statutory invoices. Historical Admin invoices are not imported. POS INV-* receipts are excluded.</td>
                     </tr>
                 @endforelse
             </tbody>

@@ -384,6 +384,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('invoices/export', [StatutoryInvoiceController::class, 'export'])->name('invoices.export');
         Route::get('invoices', [StatutoryInvoiceController::class, 'index'])->name('invoices.index');
         Route::get('invoices/{invoice}', [StatutoryInvoiceController::class, 'show'])->name('invoices.show');
+        Route::get('reports/export', [StatutoryInvoiceReportController::class, 'export'])->name('reports.export');
         Route::get('reports', [StatutoryInvoiceReportController::class, 'index'])->name('reports.index');
         Route::get('payments', [CustomerPaymentController::class, 'index'])->name('payments.index');
         Route::get('expenses', [FinanceExpenseController::class, 'index'])->name('expenses.index');
