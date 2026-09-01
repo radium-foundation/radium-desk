@@ -2,7 +2,7 @@
 
 **Project:** Radium Desk  
 **Ticket:** RD-FRESH-01  
-**Ledger:** RadiumDesk-P-01-09-03 (continuation of the foundation in `006e5bf3`; the user prompt was labelled P-01-09-02, which is already used on the BonVoice branch)  
+**Ledger:** RadiumDesk-P-01-09-04 (controlled operational test gate on `feat/rd-fresh-01-inventory-pos`; builds on P-01-09-03)  
 **Date:** 2026-09-01  
 **Branch:** `feat/rd-fresh-01-inventory-pos`  
 **Canvas:** [`rd-fresh-01-inventory-pos-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-inventory-pos-foundation.canvas.tsx)
@@ -19,32 +19,26 @@ POS does **not** create a second stock table or a separate application. Support 
 
 Admin architecture and tables were **not** copied. Desk keeps its own `inventory_*` engine.
 
-| Feature | Old Admin behavior | Current Desk implementation | Gap | Required action |
-|---|---|---|---|---|
-| One login | Separate Admin session | Same Desk session for inventory, POS, finance, branches | None for this gate | Re-seed permissions on each environment |
-| Branch / location | `radium_branch`; operators not hard-isolated in Desk | `inventory_branches` + `inventory_user_branches`; `inventory.branches.operate-all` for admin team | Hardware must be assigned or they see no stock | Assign operators on branch edit |
-| SKU / product / variant | Admin catalog + RD/AMC/OTG add-ons | `inventory_products` + optional variants | Admin add-on SKU model not cloned | Create Desk SKUs; do not import Admin catalog yet |
-| Serial inventory | `product_stock`; serial can be cloned on move | One `inventory_serials` row, global unique `serial_number`, one branch | Stricter than Admin | Do not import colliding serials |
-| Stock-in | Paste serials / qty; PO Excel | Stock-in UI (serials or qty) | No PO / supplier import | Use stock-in; PO is a later phase |
-| Transfer | Clones serial at destination | Relocates the same serial; ledger has from + to | No two-step in-transit | Accept immediate complete, or add in-transit later |
-| Adjustment | Per-serial status + log | Adjustment records + movement ledger | None for internal ops | Use Inventory → Adjust |
-| Reservation | Not in Admin | Reserve / release; sale can consume matching reservation | Counter UI does not pick an existing hold in one click | Reserve then complete with reservation in service; UI follow-on |
-| Available / reserved / sold | Mixed with order assignment | Balance columns + serial status | None | Use stock and serial screens |
-| Movement ledger | `product_stock_log` | `inventory_movements` append-only | None | Use Movements / serial history |
-| POS counter | Form creates `ordertype=POS` then serials later | Search, cart, totals, customer, payment, complete | No hold-on-add / split tender | Use Retail counter |
-| Serial on sale | Assign after order | Must be available at the selling branch; reserved only if this sale consumes that reservation | Stricter than Admin | Train operators: scan available serials |
-| Quantity products | Qty lines | Qty lines deduct available | None | — |
-| Price / discount / tax | Line GST + header discount + shipping reverse-GST 18% + TCS | Line GST from product; line + header discount; header discount **after** line tax | No shipping, TCS, coupons, wallet | Do not fake those rules |
-| Multi-item sale | Yes | Yes | None | — |
-| Invoice | GST invoice + e-invoice / IRN / e-way | Internal `INV-{branch}-{year}-{seq}` printable only | **Not GST e-invoice compliant** | Document boundary; do not issue as IRN |
-| Sale complete | Order first, stock later | One DB transaction: stock, sale, invoice number, finance post | None vs requirement | — |
-| Cancel / return | Credit note; restock often manual | Restores serial/qty at selling branch | No credit note / GL reverse | Stock restore only until finance defines reverse journals |
-| Finance posting | Admin accounting | `PosSaleJournalService` `pos_sale` inside the sale transaction; fail-closed if ledger posting is on and accounts missing | Cancel does not reverse GL | Do not invent reverse rules |
-| Permissions | Admin roles | Desk permissions; hardware cannot adjust/cancel/manage products | None vs requirement | Re-seed roles |
-| Branch isolation | Weak / application | Scoped lists + `requireBranchId` on mutations | Users with operate-all see every branch | Assign hardware; do not grant operate-all to counters |
-| Concurrency | Application checks | `lockForUpdate` on serials (sorted) + unique serial | sqlite tests cannot prove MySQL interleaving | Rely on row locks in production MySQL |
-| Support `orders` | POS wrote order rows | POS does **not** write `orders.serial_number`; `support_order_id` reserved | No C360 link from POS serial yet | Future linking ticket |
-| Production catalog migration | N/A | Not imported | Entire Admin stock still in Admin | Later migration phase only |
+Status: **VERIFIED** = exercised in this repo’s tests or read from Desk/Admin code. **INFERRED** = consistent with code but not re-opened in Admin this gate. **UNKNOWN** = not inspected here.
+
+| Feature | Old Admin | Desk | Status | Gap | Required next action |
+|---|---|---|---|---|---|
+| One login | Separate Admin session | Same Desk session | VERIFIED | None | Re-seed permissions per environment |
+| Branch / assignment | `radium_branch` | `inventory_branches` + `inventory_user_branches`; `operate-all` for admin team | VERIFIED | Hardware must be assigned | Assign operators on branch edit |
+| SKU / variant | Admin catalog + RD/AMC/OTG add-ons | `inventory_products` + optional variants; GST % and unit price on product | VERIFIED | Admin add-on model not cloned | Create Desk SKUs; no Admin import yet |
+| Serial inventory | `product_stock`; clone on move | One row, global unique serial, relocate on transfer | VERIFIED | Stricter than Admin | Do not import colliding serials |
+| Stock-in | Paste serials / qty; PO Excel | Stock-in UI | VERIFIED | No PO import | Use stock-in |
+| Transfer | Clones serial | Relocates same serial | VERIFIED | No in-transit hop | Accept immediate complete or add later |
+| Reservation | Not in Admin | Reserve / release / consume-in-service | VERIFIED | Counter UI cannot pick a hold | UI follow-on |
+| POS counter | `ordertype=POS` then serials later | Search, cart, branch banner, complete | VERIFIED | No split tender / hold-on-add | Use Retail counter |
+| Price / tax | Line GST + header discount + shipping 18% reverse GST + TCS | Line GST from `gst_percentage`; header discount after line tax; no shipping/TCS | VERIFIED (Desk formula) | Shipping/TCS/wallet/coupons missing | Do not fake Admin extras |
+| Invoice | GST + e-invoice / IRN | Internal `INV-{branch}-{year}-{seq}` printable; labelled not e-invoice | VERIFIED | Not GST-compliant | Do not issue as IRN |
+| Finance post | Admin accounting | Cash/bank + revenue 2-line `pos_sale` journal; fail-closed | VERIFIED | No GST payable account; no cancel reverse | Do not invent accounts |
+| Cancel / return | Credit note; restock often manual | Restores stock; invoice number kept; journal **not** reversed | VERIFIED | No GL reverse | Finance follow-on |
+| Permissions | Admin roles | Admin: full inventory/POS/finance. Hardware: view/in/transfer/reserve/sell. Agent: none | VERIFIED | No dedicated serial.manage or invoice.view | Keep current map |
+| Concurrency | App checks | `lockForUpdate` + unique serial | VERIFIED (sqlite sequential); UNKNOWN (InnoDB interleaving on this machine) | mysqld not listening locally | Provide `radium_desk_inventory_pos_test` MySQL |
+| Support orders | POS wrote orders | POS does not write `orders.serial_number` | VERIFIED | No C360 link | Future ticket |
+| Admin stock migration | N/A | Not imported | VERIFIED | Entire Admin stock still in Admin | Later phase |
 
 ## Implemented inventory capabilities
 
@@ -191,6 +185,60 @@ Support `orders.serial_number` remains **device identity for service**. Warehous
 - Re-seed roles/permissions so hardware/admin receive operate-all vs assignment grants.
 - When ledger posting is enabled, configure default cash/bank + revenue **before** taking live POS sales, or completes will fail closed.
 
+## Controlled operational test (P-01-09-04)
+
+This gate used **sqlite `:memory:` PHPUnit** as the controlled environment. It did **not** write to `radium_desk_local`, Admin, RadiumBox, or production. `.env` points at `DB_DATABASE=radium_desk_local` on `127.0.0.1:3306`, but **mysqld was not listening** (PDO 2002). No local app server was running for a real browser session.
+
+### Test setup
+
+- `RolePermissionSeeder` (idempotent `findOrCreate` + `syncPermissions`)
+- `FinanceMasterDataSeeder` / chart of accounts: cash `1000`, bank clearing `1100`, revenue `4000`, `ledger_posting_enabled=1`
+- Controlled branches `TSTA` / `TSTB`, hardware assigned only to `TSTA`
+- Catalog: serialized `MFS110-QA` (₹2500, GST 18%), non-serialized `OTG-QA` with variant `OTG-QA-1M` (₹40)
+
+POS does **not** require `finance.view`. Hardware must not be given finance rights. Journal posting is an internal hook.
+
+### Serial lifecycle (VERIFIED)
+
+stock-in → Available → reserve → Reserved → release → Available → sell → Sold. Transfer relocates the same row. Duplicate serial rejected. Sold serial cannot be sold again. Branch A cannot sell a serial that lives on Branch B.
+
+### POS lifecycle and tax (VERIFIED)
+
+Desk formula, not Admin shipping/TCS: line tax = `(unit_price * qty - line_discount) * gst% / 100`; header discount applied after line tax.
+
+QA sale: scanner 2500 + variant 40×2 = subtotal 2580; header discount 10; tax 464.40; total **3034.40**; cash journal balanced; invoice `INV-TSTA-…`; serial `QA-SN-001` sold.
+
+### Invoice behavior (VERIFIED)
+
+Printable internal invoice remains after cancel. Page states it is **not** a GST e-invoice / IRN. Hardware can open invoices for assigned-branch sales; cancel button is hidden without `pos.cancel`.
+
+### Cancellation / return / finance (VERIFIED)
+
+Cancel/return restore serial or quantity and write movement rows. `invoice_number` and `finance_journal_id` stay. **No reverse journal** is created. Do not invent GL reversal.
+
+### Idempotency / failure safety (VERIFIED)
+
+Same `idempotency_key` returns the existing sale and does not resell the serial. Finance throw inside `completeSale` rolls inventory back (`PosSaleServiceTest`). Retry after rollback is a new attempt because the rolled-back key does not exist.
+
+### Concurrency result (BLOCKER on this machine)
+
+`InventoryPosMysqlConcurrencyTest` is skipped unless `INVENTORY_POS_MYSQL_TEST=1` and database name is exactly `radium_desk_inventory_pos_test`. Starting or migrating production MySQL was refused. sqlite sequential double-sell is covered; InnoDB two-counter interleaving is **UNKNOWN** until that throwaway schema exists.
+
+### Browser QA result
+
+No IDE browser tools and no `artisan serve` / port 80/8000 listener. Operator UI was exercised as HTTP feature tests (counter labels, search JSON, invoice HTML, permission-hidden cancel). Real click/JS layout QA is still outstanding.
+
+### Production-readiness blockers
+
+1. Re-seed permissions; assign hardware to branches
+2. Empty catalog until SKUs are created in Desk (no Admin import)
+3. Ledger cash/bank + revenue must exist before live POS (fail-closed)
+4. Invoice is not GST e-invoice
+5. No GL reverse on cancel/return
+6. InnoDB concurrent serial sale not proven here
+7. Live browser QA not run
+8. No production inventory migration
+
 ## Remaining gaps / next migration phase
 
 - Admin production catalog/stock/POS data migration (not this ticket)
@@ -226,5 +274,8 @@ PHPUnit (sqlite `:memory:`, `RefreshDatabase` — not production MySQL):
 - `tests/Feature/Inventory/PosSaleServiceTest.php`
 - `tests/Feature/Inventory/InventoryPosAccessTest.php`
 - `tests/Feature/Inventory/InventoryBranchIsolationTest.php`
+- `tests/Feature/Inventory/InventoryPosAuthorizationTest.php`
+- `tests/Feature/Inventory/InventoryPosOperationalWorkflowTest.php`
+- `tests/Feature/Inventory/InventoryPosMysqlConcurrencyTest.php` (skipped without safe MySQL)
 - `tests/Unit/Inventory/InventorySerialNumberTest.php`
 - navigation coverage in `NavigationContextResolverTest`
