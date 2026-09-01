@@ -2,48 +2,49 @@
 
 **Project:** Radium Desk  
 **Ticket:** RD-FRESH-01  
+**Ledger:** RadiumDesk-P-01-09-03 (continuation of the foundation in `006e5bf3`; the user prompt was labelled P-01-09-02, which is already used on the BonVoice branch)  
 **Date:** 2026-09-01  
 **Branch:** `feat/rd-fresh-01-inventory-pos`  
 **Canvas:** [`rd-fresh-01-inventory-pos-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-inventory-pos-foundation.canvas.tsx)
 
-This is the first implementation gate before migrating RadiumBox.com and rdservice.in operational inventory/POS into Desk. Admin remains a **read-only reference**. No Admin, RadiumBox, or production database was modified.
+This is an implementation continuation, **not** a production deployment. Admin remains a **read-only reference**. No Admin, RadiumBox, rdservice.in, or production inventory was modified or imported.
 
 ## Verdict
 
-Desk previously had **no warehouse inventory engine and no POS**. Support `orders` remain customer/device identity records. This gate adds **one inventory engine** used by both Inventory and POS, inside the existing Desk login, behind new permissions.
+Desk has **one inventory engine** used by Inventory and POS, inside the existing Desk login. The foundation (`006e5bf3`) added the schema and services. This continuation makes the workflow **operator-usable** and enforces branch isolation, atomic sales, finance fail-closed posting, sale idempotency, and a real counter UI.
 
-POS does **not** create a second stock table or a separate application.
+POS does **not** create a second stock table or a separate application. Support `orders` are unchanged.
 
-## Old Admin → Desk feature matrix
+## Admin parity matrix
 
-| Admin feature | Desk before | Desk after RD-FRESH-01 | Classification |
-|---|---|---|---|
-| Product catalog (SKU, HSN, GST %, price) | Support product names + device models only | `inventory_products` (+ optional link to `device_models`) | **VERIFIED MISSING → implemented (foundation)** |
-| Variants / child SKUs | None | Optional `inventory_product_variants` | **PARTIALLY MOVED** (Admin parent/child + RD/AMC/OTG add-ons not cloned) |
-| Brands / attributes / website split lists | None | Not implemented | **OBSOLETE for this gate** / remaining |
-| Company branches (`radium_branch`) | None (dashboard “warehouse” was a queue alias) | `inventory_branches` | **VERIFIED MISSING → implemented** |
-| Serial-per-unit stock (`product_stock`) | Order serial = device identity | `inventory_serials` — one row, one branch, unique serial | **VERIFIED MISSING → implemented (safer than Admin)** |
-| Stock by branch report | None | Stock balances + serial list | **VERIFIED MISSING → implemented** |
-| Batch / lot | None in Admin | Optional `batch_code` when product `tracks_batch` | **VERIFIED MISSING → implemented (minimal)** |
-| Stock-in (paste serials / qty) | None | Inventory → Stock in | **VERIFIED MISSING → implemented** |
-| Purchase-order-linked serial import | Admin Excel + `purchase_id` | Not implemented | **VERIFIED MISSING (remaining)** |
-| Transfer / move stock | Admin clones serial row at destination | Desk **relocates the same serial**; ledger has source + destination | **VERIFIED MISSING → implemented (improved)** |
-| Reservation | None in Admin | Serial reservation + release | **VERIFIED MISSING → implemented** |
-| Adjustment with audit | Per-serial status + `product_stock_log` | Adjustment records + movement ledger | **VERIFIED MISSING → implemented** |
-| POS counter sale | Admin form creates `ordertype=POS` | Desk POS counter; `inventory_sales` | **VERIFIED MISSING → implemented (foundation)** |
-| Stock-out on sale | Admin: after order, assign serials later | Desk: complete sale assigns serials **and** deducts in one transaction | **VERIFIED MISSING → implemented (stricter)** |
-| Serial assignment uniqueness | Application-only; duplicates after move | DB unique `serial_number` + `lockForUpdate` | **VERIFIED MISSING → implemented (stricter)** |
-| Serial history / movement ledger | `product_stock_log` | `inventory_movements` append-only | **VERIFIED MISSING → implemented** |
-| Customer select/create | Existing Admin user required | `inventory_customers` find-or-create by phone | **VERIFIED MISSING → implemented (POS customers)** |
-| Payment method | Admin split payments / wallet | Single method; prefers `finance_payment_methods` | **PARTIALLY MOVED** |
-| Discount / tax | Line GST + header discount + TCS | Line GST from product + line/header discount | **PARTIALLY MOVED** (no TCS) |
-| Invoice generation | Per-branch GST invoice, e-invoice, e-way | `INV-{branch}-{year}-{seq}` printable invoice | **PARTIALLY MOVED** |
-| Cancellation / return | Credit note; restock often manual | Cancel/return restores stock; no credit note / journal reverse | **PARTIALLY MOVED (foundation)** |
-| GST e-invoice / IRN / e-way | Admin | Not implemented | **VERIFIED MISSING (remaining)** |
-| Wallet / coupons / shipping | Admin POS | Not implemented | **VERIFIED MISSING (remaining)** |
-| Support order identity (`orders`) | Already in Desk | Unchanged. POS does not write `orders.serial_number` | **VERIFIED MOVED** (support only) |
-| Cashfree order payments | Already in Desk | Unchanged | **VERIFIED MOVED** |
-| Finance GL hook | Order payment journals | `InventorySaleCompleted` → `PosSaleJournalService` (`pos_sale`) | **Implemented interface** |
+Admin architecture and tables were **not** copied. Desk keeps its own `inventory_*` engine.
+
+| Feature | Old Admin behavior | Current Desk implementation | Gap | Required action |
+|---|---|---|---|---|
+| One login | Separate Admin session | Same Desk session for inventory, POS, finance, branches | None for this gate | Re-seed permissions on each environment |
+| Branch / location | `radium_branch`; operators not hard-isolated in Desk | `inventory_branches` + `inventory_user_branches`; `inventory.branches.operate-all` for admin team | Hardware must be assigned or they see no stock | Assign operators on branch edit |
+| SKU / product / variant | Admin catalog + RD/AMC/OTG add-ons | `inventory_products` + optional variants | Admin add-on SKU model not cloned | Create Desk SKUs; do not import Admin catalog yet |
+| Serial inventory | `product_stock`; serial can be cloned on move | One `inventory_serials` row, global unique `serial_number`, one branch | Stricter than Admin | Do not import colliding serials |
+| Stock-in | Paste serials / qty; PO Excel | Stock-in UI (serials or qty) | No PO / supplier import | Use stock-in; PO is a later phase |
+| Transfer | Clones serial at destination | Relocates the same serial; ledger has from + to | No two-step in-transit | Accept immediate complete, or add in-transit later |
+| Adjustment | Per-serial status + log | Adjustment records + movement ledger | None for internal ops | Use Inventory → Adjust |
+| Reservation | Not in Admin | Reserve / release; sale can consume matching reservation | Counter UI does not pick an existing hold in one click | Reserve then complete with reservation in service; UI follow-on |
+| Available / reserved / sold | Mixed with order assignment | Balance columns + serial status | None | Use stock and serial screens |
+| Movement ledger | `product_stock_log` | `inventory_movements` append-only | None | Use Movements / serial history |
+| POS counter | Form creates `ordertype=POS` then serials later | Search, cart, totals, customer, payment, complete | No hold-on-add / split tender | Use Retail counter |
+| Serial on sale | Assign after order | Must be available at the selling branch; reserved only if this sale consumes that reservation | Stricter than Admin | Train operators: scan available serials |
+| Quantity products | Qty lines | Qty lines deduct available | None | — |
+| Price / discount / tax | Line GST + header discount + shipping reverse-GST 18% + TCS | Line GST from product; line + header discount; header discount **after** line tax | No shipping, TCS, coupons, wallet | Do not fake those rules |
+| Multi-item sale | Yes | Yes | None | — |
+| Invoice | GST invoice + e-invoice / IRN / e-way | Internal `INV-{branch}-{year}-{seq}` printable only | **Not GST e-invoice compliant** | Document boundary; do not issue as IRN |
+| Sale complete | Order first, stock later | One DB transaction: stock, sale, invoice number, finance post | None vs requirement | — |
+| Cancel / return | Credit note; restock often manual | Restores serial/qty at selling branch | No credit note / GL reverse | Stock restore only until finance defines reverse journals |
+| Finance posting | Admin accounting | `PosSaleJournalService` `pos_sale` inside the sale transaction; fail-closed if ledger posting is on and accounts missing | Cancel does not reverse GL | Do not invent reverse rules |
+| Permissions | Admin roles | Desk permissions; hardware cannot adjust/cancel/manage products | None vs requirement | Re-seed roles |
+| Branch isolation | Weak / application | Scoped lists + `requireBranchId` on mutations | Users with operate-all see every branch | Assign hardware; do not grant operate-all to counters |
+| Concurrency | Application checks | `lockForUpdate` on serials (sorted) + unique serial | sqlite tests cannot prove MySQL interleaving | Rely on row locks in production MySQL |
+| Support `orders` | POS wrote order rows | POS does **not** write `orders.serial_number`; `support_order_id` reserved | No C360 link from POS serial yet | Future linking ticket |
+| Production catalog migration | N/A | Not imported | Entire Admin stock still in Admin | Later migration phase only |
 
 ## Implemented inventory capabilities
 
@@ -60,25 +61,27 @@ POS does **not** create a second stock table or a separate application.
 - Append-only movement ledger
 - Serial history page
 - Available / reserved / sold / damaged / returned statuses
-- Permissions for view, products, branches, stock-in, transfer, adjust, reserve
+- Permissions for view, products, branches, stock-in, transfer, adjust, reserve, **operate-all-branches**
+- User-to-branch assignment (`inventory_user_branches`) so hardware cannot see or mutate other locations
 
 ## Implemented POS capabilities
 
 - Same login; Inventory + POS sidebar modules
-- Select product, quantity, and available serials
+- Operator counter: visible branch context, product/SKU search, serial search, cart, live totals, customer lookup, payment, complete
 - Customer name/phone find-or-create
-- Retail sale completion in one transaction
+- Retail sale completion in one transaction (stock, invoice number, finance post)
+- Idempotent complete via `inventory_sales.idempotency_key`
 - Payment method + optional reference
-- Discount and GST using product `gst_percentage`
-- Invoice number + printable invoice
+- Discount and GST using product `gst_percentage` (header discount after line tax)
+- Invoice number + printable **internal** invoice (not GST e-invoice)
 - Stock deduction and serial assignment on complete
-- Sale history
-- Cancel/return foundation (restores stock)
-- Finance handoff event + journal post when ledger defaults exist
+- Sale history scoped to allowed branches
+- Cancel/return restores stock (no GL reverse)
+- Finance handoff **inside** the sale transaction when ledger posting is enabled
 
 ## Schema changes
 
-New tables (migration `2026_09_01_120000_create_inventory_and_pos_foundation_tables`):
+Foundation tables (migration `2026_09_01_120000_create_inventory_and_pos_foundation_tables`):
 
 | Table | Role |
 |---|---|
@@ -94,9 +97,59 @@ New tables (migration `2026_09_01_120000_create_inventory_and_pos_foundation_tab
 | `inventory_adjustments` / `inventory_adjustment_lines` | Audited corrections |
 | `inventory_movements` | Append-only ledger |
 
-Existing tables **not** altered: `orders`, `device_models`, finance ledger tables. `finance_journals.source_type` accepts new enum value `pos_sale` (string column; no finance migration).
+Continuation (migration `2026_09_01_140000_add_inventory_branch_assignments_and_sale_idempotency`):
 
-**Down():** drops the new inventory/POS tables only.
+| Change | Role |
+|---|---|
+| `inventory_user_branches` | `user_id` + `branch_id` unique; FK to `users` and `inventory_branches`, cascade delete |
+| `inventory_sales.idempotency_key` | Nullable unique string (80); concurrent retries return the same sale |
+
+Existing tables **not** altered: `orders`, `device_models`, finance ledger tables. `finance_journals.source_type` accepts `pos_sale` (string column; no finance migration).
+
+**Down():** 140000 drops `idempotency_key` and `inventory_user_branches`; 120000 drops the foundation inventory/POS tables only.
+
+## Branch model
+
+- Admin team receives `inventory.branches.operate-all` and can operate every branch without an assignment row.
+- Hardware (and any user without operate-all) only sees and mutates assigned branches.
+- Transfers require access to **both** from and to.
+- Unassigned operators see a clear warning; stock/POS lists are empty rather than leaking other locations.
+- Assign operators on Inventory → Branches → edit.
+
+## Serial model
+
+- One serial = one physical unit = one row.
+- Global unique `serial_number`. Cannot exist at two branches. Transfer relocates `branch_id`.
+- Sale requires status Available at the selling branch, or Reserved **only** when this sale consumes that reservation.
+- Cannot sell the same serial twice (`lockForUpdate`, sorted lock order).
+- Cancel/return restores Available at the selling branch.
+- Movements remain append-only.
+
+## Transaction boundaries
+
+A POS complete is one DB transaction:
+
+1. Idempotency lookup (`lockForUpdate` on existing key)
+2. Lock branch (invoice sequence)
+3. Create sale + lines
+4. Lock serials / deduct quantity
+5. Assign invoice number `INV-{branch}-{year}-{seq}`
+6. Consume reservation if provided
+7. `PosSaleJournalService::postForSale(..., failClosed: true)`
+8. Dispatch `InventorySaleCompleted` (listener no-ops if already Posted/Skipped)
+
+If finance posting is **enabled** and cash/bank or revenue accounts are missing, the service throws and **the whole sale rolls back** (serials stay available). If posting is **disabled**, handoff is `skipped` and the sale still completes.
+
+Unique `idempotency_key` collisions after commit return the existing sale.
+
+Cancel/return is a separate transaction that restores stock only. **No journal reverse** (not invented).
+
+## Invoice / finance boundary
+
+- Printable internal invoice only. **Not** GST e-invoice, IRN, or e-way.
+- Do not generate real production invoices or POS sales during development against production data.
+- Journal source `pos_sale:{sale_id}` is idempotent in Finance.
+- Existing finance history is not rewritten.
 
 ## Permissions
 
@@ -104,7 +157,8 @@ Existing tables **not** altered: `orders`, `device_models`, finance ledger table
 |---|---|---|
 | `inventory.view` | Module gate | admin, operations_admin, superadmin, hardware_team |
 | `inventory.products.manage` | SKUs | admin team |
-| `inventory.branches.manage` | Branches | admin team |
+| `inventory.branches.manage` | Branches + operator assignment | admin team |
+| `inventory.branches.operate-all` | Skip per-branch assignment | admin team |
 | `inventory.stock.in` | Receive stock | admin team, hardware_team |
 | `inventory.stock.transfer` | Transfer | admin team, hardware_team |
 | `inventory.stock.adjust` | Adjust | admin team |
@@ -120,11 +174,11 @@ Support agents do **not** receive inventory/POS. Re-run `RolePermissionSeeder` (
 ```
 Desk login
 ├── Inventory  (stock, serials, transfers, movements, products, branches)
-├── POS        (counter, sale history, invoice)
+├── POS        (counter with search/cart, sale history, invoice)
 ├── Orders     (existing support orders — unchanged)
 ├── Customers  (existing C360 / order identity — unchanged)
-├── Finance    (existing GL + new pos_sale journal source)
-└── Reports    (not built in this gate; stock/movement screens cover ops lists)
+├── Finance    (existing GL + pos_sale journal inside the sale transaction)
+└── Reports    (not built; stock/movement screens cover ops lists)
 ```
 
 Support `orders.serial_number` remains **device identity for service**. Warehouse serials live in `inventory_serials`. A later ticket may link a POS sale to a support order (`inventory_sales.support_order_id` is reserved).
@@ -133,21 +187,22 @@ Support `orders.serial_number` remains **device identity for service**. Warehous
 
 - Safe additive schema. No existing Desk rows rewritten.
 - Do **not** import Admin `product_stock` in this ticket.
-- After deploy, operators must create branches and SKUs, then stock-in. Empty inventory is expected.
-- Re-seed roles/permissions so hardware/admin receive the new grants.
-- Finance posting uses existing default cash/bank + revenue accounts; if those settings are missing, the sale still completes and handoff status is `skipped`.
+- After deploy, create branches, assign hardware users, create SKUs, then stock-in. Empty inventory is expected.
+- Re-seed roles/permissions so hardware/admin receive operate-all vs assignment grants.
+- When ledger posting is enabled, configure default cash/bank + revenue **before** taking live POS sales, or completes will fail closed.
 
-## Remaining gaps
+## Remaining gaps / next migration phase
 
-- Admin production catalog/stock/POS data migration
+- Admin production catalog/stock/POS data migration (not this ticket)
 - Purchase orders and supplier serial import
 - GST e-invoice, IRN, e-way bill, TCS, split payments, wallet, coupons, shipping
-- Two-step in-transit transfer (current transfer completes immediately with two ledger lines)
-- POS consuming an existing reservation in one click
-- Auto-create / link support `orders` from POS serials for Customer 360 lookup
-- Finance journal reversal on cancel/return
-- Bulk B2B sales workflow (this gate is the foundation only)
+- Two-step in-transit transfer
+- Counter UI: consume an existing reservation in one click
+- Auto-create / link support `orders` from POS serials for Customer 360
+- Finance journal reversal on cancel/return (do not invent)
+- Bulk B2B sales workflow
 - Full Reports module
+- sqlite PHPUnit cannot prove true MySQL concurrent interleaving; production relies on `lockForUpdate`
 
 ## Risks / rollback
 
@@ -156,17 +211,20 @@ Support `orders.serial_number` remains **device identity for service**. Warehous
 | Serial uniqueness is stricter than Admin (global, not per product) | Intentional; do not import colliding Admin serials without cleanup |
 | Mixing support order serials with warehouse serials | Separate tables; documented |
 | Permission seeder not run | Module 403s until seeded |
-| Cancel does not reverse GL | Documented foundation; stock is restored |
+| Hardware unassigned | Empty branch lists + warning; no silent all-branch access |
+| Ledger posting on without accounts | Sale rolls back; stock not taken |
+| Cancel does not reverse GL | Documented; stock is restored |
 | Empty production inventory after deploy | Expected; no silent stock move |
 
-**Rollback:** `php artisan migrate:rollback` for this migration (drops only the new tables) and revert the application commit. Existing `orders` / finance data are untouched.
+**Rollback:** `php artisan migrate:rollback` for `2026_09_01_140000` then `2026_09_01_120000` (drops only the new inventory/POS tables and assignment/idempotency additions) and revert the application commits. Existing `orders` / finance data are untouched.
 
 ## Tests
 
-PHPUnit (sqlite `:memory:`, `RefreshDatabase` — not production):
+PHPUnit (sqlite `:memory:`, `RefreshDatabase` — not production MySQL):
 
 - `tests/Feature/Inventory/InventoryStockServiceTest.php`
 - `tests/Feature/Inventory/PosSaleServiceTest.php`
 - `tests/Feature/Inventory/InventoryPosAccessTest.php`
+- `tests/Feature/Inventory/InventoryBranchIsolationTest.php`
 - `tests/Unit/Inventory/InventorySerialNumberTest.php`
 - navigation coverage in `NavigationContextResolverTest`

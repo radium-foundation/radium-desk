@@ -14,5 +14,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-31-08-12 | 2026-08-31 | Prepare Desk production release/deployment gate | Source/changelog only. Do not deskd. Do not tag unless documented+approved. Do not activate RDService. |
 | RadiumDesk-P-31-08-13 | 2026-08-31 | Release and deploy v4.0.64 | Annotated tag `v4.0.64` on `0d734f85`. `deskd` to KVM. Do not activate RDService. |
 | RadiumDesk-P-31-08-14 | 2026-08-31 | Investigate RDService.net successful orders and invoice generation | Read-only. `docs/rdservice-successful-orders-invoice-path-investigation.md`. Do not activate RDService. Do not generate invoice. |
+| RadiumDesk-P-01-09-01 | 2026-09-01 | BonVoice MariaDB 1020 persist race | Recorded on `fix/bonvoice-call-event-1020-race`. Not this inventory branch. |
+| RadiumDesk-P-01-09-02 | 2026-09-01 | BonVoice 1020 fix review | Recorded on `fix/bonvoice-call-event-1020-race`. Not reused here. |
+| RadiumDesk-P-01-09-03 | 2026-09-01 | Inventory + POS operational continuation | `feat/rd-fresh-01-inventory-pos`. Builds on `006e5bf3`. User prompt was labelled P-01-09-02; next free ID is P-01-09-03. `docs/rd-fresh-01-inventory-pos-foundation.md`. Do not deploy. Do not migrate Admin stock. |
 
 Do not renumber or overwrite earlier rows. Append only.
