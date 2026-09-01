@@ -148,6 +148,8 @@ class NavigationContextResolverTest extends TestCase
                 $sidebar['operations']['items'],
                 $sidebar['mission_control']['items'],
                 $sidebar['workforce_management']['items'],
+                $sidebar['inventory']['items'],
+                $sidebar['pos']['items'],
                 $sidebar['finance']['items'],
                 $sidebar['administration']['items'],
                 $sidebar['personal']['items'],
@@ -158,6 +160,8 @@ class NavigationContextResolverTest extends TestCase
         $this->assertContains('mission_control.home', $keys);
         $this->assertContains('workforce_management.attendance', $keys);
         $this->assertContains('finance.dashboard', $keys);
+        $this->assertContains('inventory.stock', $keys);
+        $this->assertContains('pos.counter', $keys);
         $this->assertContains('administration.home', $keys);
         $this->assertNotContains('super_admin.audit_logs', $keys);
         $this->assertNotContains('super_admin.automation', $keys);
@@ -212,6 +216,36 @@ class NavigationContextResolverTest extends TestCase
         $this->assertSame('finance.dashboard', $context->activeItemKey);
         $this->assertTrue($sidebar['finance']['visible']);
         $this->assertTrue($this->sidebarItemIsActive($sidebar, 'finance.dashboard'));
+    }
+
+    public function test_inventory_stock_resolves_dedicated_menu(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $request = $this->requestFor($user, route('inventory.stock.index'));
+        $context = $this->resolver->resolve($request, 'Stock');
+        $sidebar = $this->resolver->sidebar($request, $context);
+
+        $this->assertSame(NavigationMenu::Inventory, $context->menu);
+        $this->assertSame('inventory.stock', $context->activeItemKey);
+        $this->assertTrue($sidebar['inventory']['visible']);
+        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'inventory.stock'));
+    }
+
+    public function test_pos_counter_resolves_dedicated_menu(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $request = $this->requestFor($user, route('pos.counter.create'));
+        $context = $this->resolver->resolve($request, 'POS counter');
+        $sidebar = $this->resolver->sidebar($request, $context);
+
+        $this->assertSame(NavigationMenu::Pos, $context->menu);
+        $this->assertSame('pos.counter', $context->activeItemKey);
+        $this->assertTrue($sidebar['pos']['visible']);
+        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'pos.counter'));
     }
 
     /**

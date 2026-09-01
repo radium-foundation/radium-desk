@@ -42,6 +42,14 @@ use App\Http\Controllers\GmailAdminActionsController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\IncomingEmailAdminController;
 use App\Http\Controllers\IncomingEmailContentController;
+use App\Http\Controllers\Inventory\AdjustmentController as InventoryAdjustmentController;
+use App\Http\Controllers\Inventory\BranchController as InventoryBranchController;
+use App\Http\Controllers\Inventory\MovementController as InventoryMovementController;
+use App\Http\Controllers\Inventory\ProductController as InventoryProductController;
+use App\Http\Controllers\Inventory\ReservationController as InventoryReservationController;
+use App\Http\Controllers\Inventory\SerialController as InventorySerialController;
+use App\Http\Controllers\Inventory\StockController as InventoryStockController;
+use App\Http\Controllers\Inventory\TransferController as InventoryTransferController;
 use App\Http\Controllers\IraMemoryAdminController;
 use App\Http\Controllers\IraOperationsBrainController;
 use App\Http\Controllers\LeaveRequestAmendmentController;
@@ -58,6 +66,8 @@ use App\Http\Controllers\OrderLegacyVerificationController;
 use App\Http\Controllers\OrderSerialController;
 use App\Http\Controllers\OrderTransactionController;
 use App\Http\Controllers\PlatformDashboardController;
+use App\Http\Controllers\Pos\CounterController as PosCounterController;
+use App\Http\Controllers\Pos\SaleController as PosSaleController;
 use App\Http\Controllers\PresenceHeartbeatController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuickServiceRequestController;
@@ -401,6 +411,55 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::get('journals', [FinanceSettingsController::class, 'journals'])->name('journals');
             Route::get('journals/{journal}', [FinanceSettingsController::class, 'showJournal'])->name('journals.show');
         });
+    });
+
+    Route::prefix('inventory')->name('inventory.')->group(function () {
+        Route::redirect('/', '/inventory/stock');
+        Route::get('stock', [InventoryStockController::class, 'index'])->name('stock.index');
+        Route::get('stock/in', [InventoryStockController::class, 'create'])->name('stock.create');
+        Route::post('stock/in', [InventoryStockController::class, 'store'])->name('stock.store');
+
+        Route::get('serials', [InventorySerialController::class, 'index'])->name('serials.index');
+        Route::get('serials/{serial}', [InventorySerialController::class, 'show'])->name('serials.show');
+
+        Route::get('movements', [InventoryMovementController::class, 'index'])->name('movements.index');
+
+        Route::get('transfers', [InventoryTransferController::class, 'index'])->name('transfers.index');
+        Route::get('transfers/create', [InventoryTransferController::class, 'create'])->name('transfers.create');
+        Route::post('transfers', [InventoryTransferController::class, 'store'])->name('transfers.store');
+        Route::get('transfers/{transfer}', [InventoryTransferController::class, 'show'])->name('transfers.show');
+
+        Route::get('adjustments', [InventoryAdjustmentController::class, 'index'])->name('adjustments.index');
+        Route::get('adjustments/create', [InventoryAdjustmentController::class, 'create'])->name('adjustments.create');
+        Route::post('adjustments', [InventoryAdjustmentController::class, 'store'])->name('adjustments.store');
+
+        Route::get('reservations', [InventoryReservationController::class, 'index'])->name('reservations.index');
+        Route::get('reservations/create', [InventoryReservationController::class, 'create'])->name('reservations.create');
+        Route::post('reservations', [InventoryReservationController::class, 'store'])->name('reservations.store');
+        Route::post('reservations/{reservation}/release', [InventoryReservationController::class, 'release'])->name('reservations.release');
+
+        Route::get('products', [InventoryProductController::class, 'index'])->name('products.index');
+        Route::get('products/create', [InventoryProductController::class, 'create'])->name('products.create');
+        Route::post('products', [InventoryProductController::class, 'store'])->name('products.store');
+        Route::get('products/{product}/edit', [InventoryProductController::class, 'edit'])->name('products.edit');
+        Route::put('products/{product}', [InventoryProductController::class, 'update'])->name('products.update');
+
+        Route::get('branches', [InventoryBranchController::class, 'index'])->name('branches.index');
+        Route::get('branches/create', [InventoryBranchController::class, 'create'])->name('branches.create');
+        Route::post('branches', [InventoryBranchController::class, 'store'])->name('branches.store');
+        Route::get('branches/{branch}/edit', [InventoryBranchController::class, 'edit'])->name('branches.edit');
+        Route::put('branches/{branch}', [InventoryBranchController::class, 'update'])->name('branches.update');
+    });
+
+    Route::prefix('pos')->name('pos.')->group(function () {
+        Route::redirect('/', '/pos/counter');
+        Route::get('counter', [PosCounterController::class, 'create'])->name('counter.create');
+        Route::post('counter', [PosCounterController::class, 'store'])->name('counter.store');
+        Route::get('sales', [PosSaleController::class, 'index'])->name('sales.index');
+        Route::get('sales/{sale}', [PosSaleController::class, 'show'])->name('sales.show');
+        Route::get('sales/{sale}/invoice', [PosSaleController::class, 'invoice'])->name('sales.invoice');
+        Route::post('sales/{sale}/cancel', [PosSaleController::class, 'cancel'])->name('sales.cancel');
+        Route::post('sales/{sale}/return', [PosSaleController::class, 'returnSale'])->name('sales.return');
     });
 
     Route::get('/my-performance', [MyPerformanceController::class, 'index'])->name('my-performance.index');
