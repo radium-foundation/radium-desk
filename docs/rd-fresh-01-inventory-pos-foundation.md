@@ -2,7 +2,7 @@
 
 **Project:** Radium Desk  
 **Ticket:** RD-FRESH-01  
-**Ledger:** RadiumDesk-P-01-09-04 (controlled operational test gate on `feat/rd-fresh-01-inventory-pos`; builds on P-01-09-03)  
+**Ledger:** RadiumDesk-P-01-09-05 (MySQL concurrency + browser QA gate on `feat/rd-fresh-01-inventory-pos`; builds on P-01-09-04)  
 **Date:** 2026-09-01  
 **Branch:** `feat/rd-fresh-01-inventory-pos`  
 **Canvas:** [`rd-fresh-01-inventory-pos-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-inventory-pos-foundation.canvas.tsx)
@@ -36,7 +36,7 @@ Status: **VERIFIED** = exercised in this repo’s tests or read from Desk/Admin 
 | Finance post | Admin accounting | Cash/bank + revenue 2-line `pos_sale` journal; fail-closed | VERIFIED | No GST payable account; no cancel reverse | Do not invent accounts |
 | Cancel / return | Credit note; restock often manual | Restores stock; invoice number kept; journal **not** reversed | VERIFIED | No GL reverse | Finance follow-on |
 | Permissions | Admin roles | Admin: full inventory/POS/finance. Hardware: view/in/transfer/reserve/sell. Agent: none | VERIFIED | No dedicated serial.manage or invoice.view | Keep current map |
-| Concurrency | App checks | `lockForUpdate` + unique serial | VERIFIED (sqlite sequential); UNKNOWN (InnoDB interleaving on this machine) | mysqld not listening locally | Provide `radium_desk_inventory_pos_test` MySQL |
+| Concurrency | App checks | `lockForUpdate` + unique serial; two-process MySQL worker test | VERIFIED (sqlite sequential + worker harness); UNKNOWN (InnoDB — local mysqld not listening) | No loopback MySQL; test DB was not created | Start local mysqld only; create disposable `radium_desk_inventory_pos_test` |
 | Support orders | POS wrote orders | POS does not write `orders.serial_number` | VERIFIED | No C360 link | Future ticket |
 | Admin stock migration | N/A | Not imported | VERIFIED | Entire Admin stock still in Admin | Later phase |
 
@@ -161,7 +161,15 @@ Cancel/return is a separate transaction that restores stock only. **No journal r
 | `pos.sell` | Complete a sale | admin team, hardware_team |
 | `pos.cancel` | Cancel/return | admin team |
 
-Support agents do **not** receive inventory/POS. Re-run `RolePermissionSeeder` (or equivalent permission sync) on each environment after deploy. No production seed of products or stock.
+Support agents do **not** receive inventory/POS.
+
+Later production permission sync (do **not** run against production from this ticket):
+
+```bash
+php artisan db:seed --class=RolePermissionSeeder --no-interaction
+```
+
+The seeder is idempotent (`Permission::findOrCreate`, `Role::findOrCreate`, `syncPermissions`). After seeding, assign hardware users on Inventory → Branches → edit. Hardware without an assignment and without `inventory.branches.operate-all` sees empty lists plus the warning. POS/inventory mutation is branch-scoped. No production seed of products or stock.
 
 ## Architecture notes
 
@@ -220,13 +228,100 @@ Cancel/return restore serial or quantity and write movement rows. `invoice_numbe
 
 Same `idempotency_key` returns the existing sale and does not resell the serial. Finance throw inside `completeSale` rolls inventory back (`PosSaleServiceTest`). Retry after rollback is a new attempt because the rolled-back key does not exist.
 
-### Concurrency result (BLOCKER on this machine)
+### Concurrency result (P-01-09-04)
 
-`InventoryPosMysqlConcurrencyTest` is skipped unless `INVENTORY_POS_MYSQL_TEST=1` and database name is exactly `radium_desk_inventory_pos_test`. Starting or migrating production MySQL was refused. sqlite sequential double-sell is covered; InnoDB two-counter interleaving is **UNKNOWN** until that throwaway schema exists.
+sqlite sequential double-sell is covered. InnoDB two-counter interleaving was **UNKNOWN**.
+
+### Browser QA result (P-01-09-04)
+
+HTTP feature tests only. Real click/JS layout QA was outstanding.
+
+### Production-readiness blockers (superseded in part by P-01-09-05)
+
+See P-01-09-05 below.
+
+## Verification gate (P-01-09-05)
+
+Not a production deployment. Production data/DB were not touched. BonVoice branch was not modified. `radium_desk_local` was not migrated.
+
+### MySQL environment
+
+| Check | Result |
+|---|---|
+| Host | `127.0.0.1:3306` — nothing listening |
+| brew `mysql` / `mariadb@11.8` | status `none` (not started) |
+| PDO | `SQLSTATE[HY000] [2002] Connection refused` |
+| `.env` `DB_DATABASE` | `radium_desk_local` — **not used** |
+| Created `radium_desk_inventory_pos_test` | No |
+| Dedicated test user | No |
+| Production MySQL | Not contacted |
+
+Local mysqld was **not** started or installed to satisfy this ticket.
+
+**MySQL test environment unavailable → UNKNOWN/BLOCKER**
+
+When a genuine local server exists later:
+
+1. Create only database `radium_desk_inventory_pos_test` on `127.0.0.1` / `localhost`
+2. Create a dedicated user granted only on that database
+3. Run:
+
+```bash
+INVENTORY_POS_MYSQL_HOST=127.0.0.1 \
+INVENTORY_POS_MYSQL_DATABASE=radium_desk_inventory_pos_test \
+INVENTORY_POS_MYSQL_USERNAME=… \
+INVENTORY_POS_MYSQL_PASSWORD=… \
+php artisan test --filter=InventoryPosMysqlConcurrencyTest
+```
+
+The harness refuses any other host or database name, uses two PHP processes with independent connections, and `migrate:fresh` only after `select database()` returns the allowlisted name. Credentials are not recorded here.
+
+### InnoDB concurrency result
+
+**UNKNOWN** (not executed — no local InnoDB server).
+
+The test is no longer a skip-only gate. When the throwaway DB is reachable it:
+
+- seeds one contended serial and two independent serials
+- starts two workers, waits for a ready barrier, then releases both
+- same serial: exactly one sale, one sold serial, one sale movement, one invoice, one `pos_sale` journal, no negative stock; the loser fails closed
+- different serials: both complete on distinct connection IDs
+
+sqlite sequential coverage remains **VERIFIED**.
 
 ### Browser QA result
 
-No IDE browser tools and no `artisan serve` / port 80/8000 listener. Operator UI was exercised as HTTP feature tests (counter labels, search JSON, invoice HTML, permission-hidden cancel). Real click/JS layout QA is still outstanding.
+**VERIFIED** on a disposable local sqlite file `database/inventory-pos-browser-qa.sqlite` (gitignored). PHP built-in server bound to `127.0.0.1:8765` only. Google Chrome (headless, system binary) drove the operator path. `.env` MySQL was not used (`artisan serve` children dropped env overrides; a local router forced sqlite).
+
+Workflow exercised:
+
+LOGIN → product list → serialized stock-in → variant quantity stock-in → serial list → transfer QAA→QAB → reserve → release → POS branch banner → product/serial search → multi-item cart → live totals → payment Cash → complete → invoice (internal, not e-invoice) → sale history → cancel/return restock
+
+Serialized + non-serialized (variant `OTG-BROWSER-1M`). Live totals matched the verified Desk formula: subtotal 2580.00, tax 464.40, header discount 10, total **3034.40**. After cancel: invoice `INV-QAA-2026-00001` kept, finance handoff **posted**, serial `QA-BR-001` restored to Available. No page JavaScript exceptions. Root `/favicon.ico` 404 on the standalone invoice page is unrelated chrome, not an inventory defect.
+
+Hardware assignment was not click-tested in Chrome (admin `operate-all` was used so cancel was visible). Hardware-without-assignment remains **VERIFIED** in `InventoryBranchIsolationTest`.
+
+### Defects found / fixed
+
+Stock-in UI accepted quantity on a parent SKU that has variants, while the POS counter only adds those child SKUs. Completing a cart with `OTG-BROWSER-1M` then failed: “Insufficient stock for OTG-BROWSER at QAA.”
+
+Fix: stock-in shows a variant select; when the product has active variants, `variant_id` is required and must belong to the product. Regression: `test_stock_in_form_exposes_variant_select_and_requires_it_when_product_has_variants`.
+
+### Permission readiness
+
+Ready to seed later; not seeded on production.
+
+| Role | Inventory / POS |
+|---|---|
+| admin / operations_admin / superadmin | Full inventory + POS + `inventory.branches.operate-all` + finance.view |
+| hardware_team | view, stock-in, transfer, reserve, pos.view, pos.sell. No catalog, adjust, cancel, operate-all, finance |
+| agent | none |
+
+Command for a future environment: `php artisan db:seed --class=RolePermissionSeeder --no-interaction`. Then assign hardware on branch edit. Branch assignment (or operate-all) is required for POS/inventory access.
+
+### Finance readiness
+
+**VERIFIED** (sqlite tests + browser QA sale). Existing accounts only: cash `1000`, bank clearing `1100`, revenue `4000`. Ledger posting enabled in `FinanceMasterDataSeeder`. Missing cash/bank or revenue fails closed and rolls the sale back (`PosSaleServiceTest`). Browser QA sale posted one `pos_sale` journal at 3034.40; cancel restocked and **did not** reverse GL.
 
 ### Production-readiness blockers
 
@@ -235,9 +330,9 @@ No IDE browser tools and no `artisan serve` / port 80/8000 listener. Operator UI
 3. Ledger cash/bank + revenue must exist before live POS (fail-closed)
 4. Invoice is not GST e-invoice
 5. No GL reverse on cancel/return
-6. InnoDB concurrent serial sale not proven here
-7. Live browser QA not run
-8. No production inventory migration
+6. InnoDB concurrent serial sale not proven (local MySQL unavailable)
+7. No production inventory migration
+8. Stock-in of a parent-with-variants now requires selecting the child SKU (operators must use the new field)
 
 ## Remaining gaps / next migration phase
 
@@ -250,7 +345,7 @@ No IDE browser tools and no `artisan serve` / port 80/8000 listener. Operator UI
 - Finance journal reversal on cancel/return (do not invent)
 - Bulk B2B sales workflow
 - Full Reports module
-- sqlite PHPUnit cannot prove true MySQL concurrent interleaving; production relies on `lockForUpdate`
+- sqlite PHPUnit cannot prove true MySQL concurrent interleaving; the two-process harness is ready for `radium_desk_inventory_pos_test` on loopback only
 
 ## Risks / rollback
 
@@ -276,6 +371,8 @@ PHPUnit (sqlite `:memory:`, `RefreshDatabase` — not production MySQL):
 - `tests/Feature/Inventory/InventoryBranchIsolationTest.php`
 - `tests/Feature/Inventory/InventoryPosAuthorizationTest.php`
 - `tests/Feature/Inventory/InventoryPosOperationalWorkflowTest.php`
-- `tests/Feature/Inventory/InventoryPosMysqlConcurrencyTest.php` (skipped without safe MySQL)
+- `tests/Feature/Inventory/InventoryPosMysqlConcurrencyTest.php` (gate always runs; two-process InnoDB cases skip without loopback `radium_desk_inventory_pos_test`)
+- `tests/Feature/Inventory/Support/mysql_pos_prepare.php` / `mysql_pos_sale_worker.php`
+- `tests/Feature/Inventory/Support/inventory_pos_browser_qa.mjs` (local Chrome operator path; sqlite file only)
 - `tests/Unit/Inventory/InventorySerialNumberTest.php`
 - navigation coverage in `NavigationContextResolverTest`
