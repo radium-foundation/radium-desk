@@ -6,6 +6,7 @@ use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\User;
 use App\Services\Inventory\InventoryStockService;
+use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -19,6 +20,7 @@ class InventoryPosAccessTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->seed(FinanceMasterDataSeeder::class);
     }
 
     public function test_admin_can_open_inventory_and_pos_pages(): void
@@ -54,7 +56,8 @@ class InventoryPosAccessTest extends TestCase
 
         $this->actingAs($user)->get(route('inventory.stock.index'))->assertOk();
         $this->actingAs($user)->get(route('inventory.products.index'))->assertForbidden();
-        $this->actingAs($user)->get(route('pos.counter.create'))->assertOk();
+        $this->actingAs($user)->get(route('pos.counter.create'))->assertOk()->assertSee('Retail counter');
+        $this->assertFalse($user->can(RolePermissionSeeder::PERMISSION_POS_CANCEL));
     }
 
     public function test_admin_can_complete_pos_sale_through_http(): void

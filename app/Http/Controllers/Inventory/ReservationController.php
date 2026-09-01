@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Models\InventoryBranch;
 use App\Models\InventoryReservation;
 use App\Services\Inventory\InventoryStockService;
 use App\Support\Inventory\InventoryAccess;
+use App\Support\Inventory\InventoryBranchScope;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,20 +30,26 @@ class ReservationController extends Controller
         });
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $user = $request->user();
+
         return view('inventory.reservations.index', [
-            'reservations' => InventoryReservation::query()
-                ->with(['branch', 'createdBy', 'sale'])
+            'reservations' => InventoryBranchScope::constrain(
+                InventoryReservation::query()->with(['branch', 'createdBy', 'sale']),
+                $user,
+            )
                 ->latest('id')
                 ->paginate(30),
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($user),
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         return view('inventory.reservations.create', [
-            'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('name')->get(),
+            'branches' => InventoryBranchScope::allowedBranches($request->user()),
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($request->user()),
         ]);
     }
 
@@ -56,7 +62,7 @@ class ReservationController extends Controller
         ]);
 
         $reservation = $this->stock->reserveSerials(
-            branch: InventoryBranch::query()->findOrFail($data['branch_id']),
+            branch: InventoryBranchScope::requireBranchId($data['branch_id'], $request->user()),
             serials: $data['serials'],
             actor: $request->user(),
             notes: $data['notes'] ?? null,
@@ -68,6 +74,8 @@ class ReservationController extends Controller
 
     public function release(Request $request, InventoryReservation $reservation): RedirectResponse
     {
+        $reservation->load('branch');
+        InventoryBranchScope::assertCanOperate($request->user(), $reservation->branch);
         $this->stock->releaseReservation($reservation, $request->user(), $request->string('notes')->toString() ?: null);
 
         return redirect()->route('inventory.reservations.index')->with('status', 'Reservation released.');

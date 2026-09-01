@@ -13,6 +13,7 @@
         @endif
     </div>
     @include('pos.partials.workspace-nav', ['active' => 'sales'])
+    @include('inventory.partials.branch-scope-empty')
 
     <form method="GET" class="row g-2 mb-3">
         <div class="col-md-4">

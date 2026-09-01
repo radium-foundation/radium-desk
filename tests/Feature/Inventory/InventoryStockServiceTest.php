@@ -146,6 +146,33 @@ class InventoryStockServiceTest extends TestCase
         $this->assertSame(3, (int) $product->balances()->where('branch_id', $this->store->id)->value('available_qty'));
     }
 
+    public function test_variant_stock_in_is_tracked_on_the_variant_balance(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'CABLE-VAR',
+            'name' => 'USB Cable variants',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+        $variant = $product->variants()->create([
+            'sku' => 'CABLE-VAR-2M',
+            'name' => '2 metre',
+            'unit_price' => 140,
+            'is_active' => true,
+        ]);
+
+        $this->stock->stockInQuantity($product, $this->hq, 7, $this->actor, $variant);
+
+        $this->assertDatabaseHas('inventory_stock_balances', [
+            'product_id' => $product->id,
+            'variant_id' => $variant->id,
+            'branch_id' => $this->hq->id,
+            'available_qty' => 7,
+        ]);
+    }
+
     public function test_quantity_cannot_go_negative(): void
     {
         $product = InventoryProduct::query()->create([

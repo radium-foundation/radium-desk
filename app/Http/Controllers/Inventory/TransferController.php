@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventoryProductVariant;
 use App\Models\InventoryTransfer;
 use App\Services\Inventory\InventoryStockService;
 use App\Support\Inventory\InventoryAccess;
+use App\Support\Inventory\InventoryBranchScope;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,17 +26,22 @@ class TransferController extends Controller
         });
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $user = $request->user();
+
         return view('inventory.transfers.index', [
-            'transfers' => InventoryTransfer::query()
-                ->with(['fromBranch', 'toBranch', 'createdBy'])
+            'transfers' => InventoryBranchScope::constrainTransfer(
+                InventoryTransfer::query()->with(['fromBranch', 'toBranch', 'createdBy']),
+                $user,
+            )
                 ->latest('id')
                 ->paginate(30),
             'canTransfer' => InventoryAccess::allowsPermission(
-                request()->user(),
+                $user,
                 RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_TRANSFER,
             ),
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($user),
         ]);
     }
 
@@ -48,8 +53,9 @@ class TransferController extends Controller
         );
 
         return view('inventory.transfers.create', [
-            'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('name')->get(),
+            'branches' => InventoryBranchScope::allowedBranches($request->user()),
             'products' => InventoryProduct::query()->with('variants')->where('is_active', true)->orderBy('name')->get(),
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($request->user()),
         ]);
     }
 
@@ -71,8 +77,9 @@ class TransferController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $from = InventoryBranch::query()->findOrFail($data['from_branch_id']);
-        $to = InventoryBranch::query()->findOrFail($data['to_branch_id']);
+        $from = InventoryBranchScope::requireBranchId($data['from_branch_id'], $request->user(), 'from_branch_id');
+        $to = InventoryBranchScope::requireBranchId($data['to_branch_id'], $request->user(), 'to_branch_id');
+        InventoryBranchScope::assertCanTransfer($request->user(), $from, $to);
 
         if ($data['mode'] === 'serial') {
             $transfer = $this->stock->transferSerials(
@@ -101,9 +108,17 @@ class TransferController extends Controller
         return redirect()->route('inventory.transfers.show', $transfer)->with('status', 'Transfer completed.');
     }
 
-    public function show(InventoryTransfer $transfer): View
+    public function show(Request $request, InventoryTransfer $transfer): View
     {
         $transfer->load(['fromBranch', 'toBranch', 'createdBy', 'lines.product', 'lines.serial']);
+
+        $user = $request->user();
+        if (
+            ! InventoryBranchScope::allows($user, $transfer->fromBranch)
+            && ! InventoryBranchScope::allows($user, $transfer->toBranch)
+        ) {
+            abort(403, 'You cannot view this transfer.');
+        }
 
         return view('inventory.transfers.show', ['transfer' => $transfer]);
     }

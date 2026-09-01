@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InventoryBranch extends Model
@@ -36,5 +37,11 @@ class InventoryBranch extends Model
     public function sales(): HasMany
     {
         return $this->hasMany(InventorySale::class, 'branch_id');
+    }
+
+    public function assignedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'inventory_user_branches', 'branch_id', 'user_id')
+            ->withTimestamps();
     }
 }

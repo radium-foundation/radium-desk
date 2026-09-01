@@ -104,6 +104,9 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_POS_CANCEL = 'pos.cancel';
 
+    /** Operate stock and POS at every branch without a per-branch assignment. */
+    public const PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES = 'inventory.branches.operate-all';
+
     public const PERMISSION_TODOS_VIEW = 'todos.view';
 
     public const PERMISSION_TODOS_CREATE = 'todos.create';
@@ -177,6 +180,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_POS_VIEW,
         self::PERMISSION_POS_SELL,
         self::PERMISSION_POS_CANCEL,
+        self::PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES,
     ];
 
     /**

@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventoryProductVariant;
 use App\Models\InventoryStockBalance;
 use App\Services\Inventory\InventoryStockService;
 use App\Support\Inventory\InventoryAccess;
+use App\Support\Inventory\InventoryBranchScope;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,9 +28,17 @@ class StockController extends Controller
 
     public function index(Request $request): View
     {
-        $balances = InventoryStockBalance::query()
-            ->with(['product', 'variant', 'branch'])
-            ->when($request->filled('branch_id'), fn ($q) => $q->where('branch_id', $request->integer('branch_id')))
+        $user = $request->user();
+        $branches = InventoryBranchScope::allowedBranches($user);
+
+        $balances = InventoryBranchScope::constrain(
+            InventoryStockBalance::query()->with(['product', 'variant', 'branch']),
+            $user,
+        )
+            ->when($request->filled('branch_id'), function ($q) use ($request, $user) {
+                $branch = InventoryBranchScope::requireBranchId($request->integer('branch_id'), $user);
+                $q->where('branch_id', $branch->id);
+            })
             ->when($request->filled('product_id'), fn ($q) => $q->where('product_id', $request->integer('product_id')))
             ->orderByDesc('available_qty')
             ->paginate(40)
@@ -38,12 +46,13 @@ class StockController extends Controller
 
         return view('inventory.stock.index', [
             'balances' => $balances,
-            'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('name')->get(),
+            'branches' => $branches,
             'products' => InventoryProduct::query()->where('is_active', true)->orderBy('name')->get(),
             'filters' => $request->only(['branch_id', 'product_id']),
-            'canStockIn' => InventoryAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_IN),
-            'canAdjust' => InventoryAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_ADJUST),
-            'canReserve' => InventoryAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_RESERVE),
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($user),
+            'canStockIn' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_IN),
+            'canAdjust' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_ADJUST),
+            'canReserve' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_RESERVE),
         ]);
     }
 
@@ -55,8 +64,9 @@ class StockController extends Controller
         );
 
         return view('inventory.stock.create', [
-            'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('name')->get(),
+            'branches' => InventoryBranchScope::allowedBranches($request->user()),
             'products' => InventoryProduct::query()->with('variants')->where('is_active', true)->orderBy('name')->get(),
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($request->user()),
         ]);
     }
 
@@ -77,7 +87,7 @@ class StockController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $branch = InventoryBranch::query()->findOrFail($data['branch_id']);
+        $branch = InventoryBranchScope::requireBranchId($data['branch_id'], $request->user());
         $product = InventoryProduct::query()->findOrFail($data['product_id']);
         $variant = ! empty($data['variant_id'])
             ? InventoryProductVariant::query()->findOrFail($data['variant_id'])

@@ -10,6 +10,7 @@
     </div>
 
     @include('inventory.partials.workspace-nav', ['active' => 'movements'])
+    @include('inventory.partials.branch-scope-empty')
 
     <form method="GET" class="row g-2 mb-3">
         <div class="col-md-3">

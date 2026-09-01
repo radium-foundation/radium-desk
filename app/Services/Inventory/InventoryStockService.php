@@ -583,11 +583,14 @@ class InventoryStockService
         InventoryBranch $branch,
         array $serialNumbers,
         ?InventoryProductVariant $variant = null,
+        ?int $reservationId = null,
     ): array {
         $this->assertProductSerialized($product);
         $locked = [];
+        $ordered = $serialNumbers;
+        sort($ordered);
 
-        foreach ($serialNumbers as $number) {
+        foreach ($ordered as $number) {
             $serial = $this->lockSerialByNumber($number);
 
             if ($serial->product_id !== $product->id) {
@@ -602,7 +605,7 @@ class InventoryStockService
                 ]);
             }
 
-            $this->assertSerialAvailableAt($serial, $branch, $number);
+            $this->assertSerialAvailableAt($serial, $branch, $number, $reservationId);
             $locked[] = $serial;
         }
 
@@ -724,19 +727,33 @@ class InventoryStockService
         return $serial;
     }
 
-    private function assertSerialAvailableAt(InventorySerial $serial, InventoryBranch $branch, string $number): void
-    {
+    private function assertSerialAvailableAt(
+        InventorySerial $serial,
+        InventoryBranch $branch,
+        string $number,
+        ?int $reservationId = null,
+    ): void {
         if ($serial->branch_id !== $branch->id) {
             throw ValidationException::withMessages([
                 'serials' => "Serial {$number} is not available at {$branch->code}.",
             ]);
         }
 
-        if (! $serial->status->isAssignable()) {
-            throw ValidationException::withMessages([
-                'serials' => "Serial {$number} is {$serial->status->label()} and cannot be assigned.",
-            ]);
+        if ($serial->status === InventorySerialStatus::Available) {
+            return;
         }
+
+        if (
+            $serial->status === InventorySerialStatus::Reserved
+            && $reservationId !== null
+            && (int) $serial->reserved_reservation_id === $reservationId
+        ) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'serials' => "Serial {$number} is {$serial->status->label()} and cannot be assigned.",
+        ]);
     }
 
     private function adjustBalance(

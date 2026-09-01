@@ -12,6 +12,7 @@ class InventorySale extends Model
 {
     protected $fillable = [
         'sale_no',
+        'idempotency_key',
         'invoice_number',
         'branch_id',
         'customer_id',

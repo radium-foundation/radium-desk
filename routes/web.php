@@ -455,6 +455,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::redirect('/', '/pos/counter');
         Route::get('counter', [PosCounterController::class, 'create'])->name('counter.create');
         Route::post('counter', [PosCounterController::class, 'store'])->name('counter.store');
+        Route::get('products/search', [PosCounterController::class, 'searchProducts'])->name('products.search');
+        Route::get('serials/search', [PosCounterController::class, 'searchSerials'])->name('serials.search');
+        Route::get('customers/lookup', [PosCounterController::class, 'lookupCustomer'])->name('customers.lookup');
         Route::get('sales', [PosSaleController::class, 'index'])->name('sales.index');
         Route::get('sales/{sale}', [PosSaleController::class, 'show'])->name('sales.show');
         Route::get('sales/{sale}/invoice', [PosSaleController::class, 'invoice'])->name('sales.invoice');

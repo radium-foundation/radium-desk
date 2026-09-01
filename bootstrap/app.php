@@ -254,6 +254,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*')
-                || ($request->is('service-requests/quick') && ($request->expectsJson() || $request->ajax())),
+                || ($request->is('service-requests/quick') && ($request->expectsJson() || $request->ajax()))
+                || ($request->is('pos/products/search', 'pos/serials/search', 'pos/customers/lookup')
+                    && ($request->expectsJson() || $request->ajax())),
         );
     })->create();

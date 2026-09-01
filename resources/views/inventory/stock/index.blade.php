@@ -24,6 +24,8 @@
 
     @include('inventory.partials.workspace-nav', ['active' => 'stock'])
 
+    @include('inventory.partials.branch-scope-empty')
+
     <form method="GET" class="row g-2 mb-3">
         <div class="col-md-4">
             <select name="branch_id" class="form-select">
@@ -69,7 +71,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-muted p-4">No stock recorded yet. Receive stock in to start.</td>
+                            <td colspan="5" class="text-muted p-4">{{ !empty($needsBranchAssignment) ? 'No branch assignment — stock for other locations is hidden.' : 'No stock recorded yet. Receive stock in to start.' }}</td>
                         </tr>
                     @endforelse
                 </tbody>

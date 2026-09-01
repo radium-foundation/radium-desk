@@ -10,6 +10,8 @@
 
     @include('inventory.partials.workspace-nav', ['active' => 'transfers'])
 
+    @include('inventory.partials.branch-scope-empty')
+
     <div class="card border-0 shadow-sm">
         <div class="card-body">
             <form method="POST" action="{{ route('inventory.transfers.store') }}">

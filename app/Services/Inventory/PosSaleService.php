@@ -14,7 +14,9 @@ use App\Models\InventoryProductVariant;
 use App\Models\InventoryReservation;
 use App\Models\InventorySale;
 use App\Models\User;
+use App\Services\Finance\PosSaleJournalService;
 use App\Support\Inventory\InventorySerialNumber;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +24,7 @@ class PosSaleService
 {
     public function __construct(
         private readonly InventoryStockService $stock,
+        private readonly PosSaleJournalService $journals,
     ) {}
 
     /**
@@ -46,6 +49,7 @@ class PosSaleService
         ?string $paymentReference = null,
         ?string $notes = null,
         ?InventoryReservation $reservation = null,
+        ?string $idempotencyKey = null,
     ): InventorySale {
         if ($lines === []) {
             throw ValidationException::withMessages([
@@ -65,183 +69,221 @@ class PosSaleService
             ]);
         }
 
-        return DB::transaction(function () use (
-            $branch,
-            $customer,
-            $lines,
-            $paymentMethod,
-            $actor,
-            $headerDiscount,
-            $paymentReference,
-            $notes,
-            $reservation,
-        ): InventorySale {
-            $lockedBranch = InventoryBranch::query()->lockForUpdate()->findOrFail($branch->id);
-            if (! $lockedBranch->is_active) {
-                throw ValidationException::withMessages([
-                    'branch_id' => 'Branch is inactive.',
-                ]);
-            }
+        $idempotencyKey = $idempotencyKey !== null && trim($idempotencyKey) !== ''
+            ? trim($idempotencyKey)
+            : null;
 
-            $inventoryCustomer = $this->findOrCreateCustomer($customer);
-
-            $sale = InventorySale::query()->create([
-                'sale_no' => 'POS-TMP-'.strtoupper(bin2hex(random_bytes(6))),
-                'branch_id' => $lockedBranch->id,
-                'customer_id' => $inventoryCustomer->id,
-                'status' => InventorySaleStatus::Completed,
-                'subtotal' => 0,
-                'discount' => $headerDiscount,
-                'tax' => 0,
-                'total' => 0,
-                'payment_method' => $paymentMethod,
-                'payment_reference' => $paymentReference,
-                'finance_handoff_status' => InventoryFinanceHandoffStatus::Pending,
-                'notes' => $notes,
-                'created_by' => $actor->id,
-                'completed_at' => now(),
-            ]);
-
-            $subtotal = 0.0;
-            $tax = 0.0;
-            $lineDiscountTotal = 0.0;
-
-            foreach ($lines as $index => $line) {
-                $product = InventoryProduct::query()->find($line['product_id'] ?? null);
-                if ($product === null || ! $product->is_active) {
-                    throw ValidationException::withMessages([
-                        "lines.{$index}.product_id" => 'Product is missing or inactive.',
-                    ]);
-                }
-
-                $variant = null;
-                if (! empty($line['variant_id'])) {
-                    $variant = InventoryProductVariant::query()->find($line['variant_id']);
-                    if ($variant === null || $variant->product_id !== $product->id || ! $variant->is_active) {
-                        throw ValidationException::withMessages([
-                            "lines.{$index}.variant_id" => 'Variant is missing or inactive.',
-                        ]);
+        try {
+            return DB::transaction(function () use (
+                $branch,
+                $customer,
+                $lines,
+                $paymentMethod,
+                $actor,
+                $headerDiscount,
+                $paymentReference,
+                $notes,
+                $reservation,
+                $idempotencyKey,
+            ): InventorySale {
+                if ($idempotencyKey !== null) {
+                    $existing = InventorySale::query()
+                        ->where('idempotency_key', $idempotencyKey)
+                        ->lockForUpdate()
+                        ->first();
+                    if ($existing !== null) {
+                        return $existing->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $existing;
                     }
                 }
 
-                $qty = (int) ($line['qty'] ?? 0);
-                if ($qty < 1) {
+                $lockedBranch = InventoryBranch::query()->lockForUpdate()->findOrFail($branch->id);
+                if (! $lockedBranch->is_active) {
                     throw ValidationException::withMessages([
-                        "lines.{$index}.qty" => 'Quantity must be at least 1.',
+                        'branch_id' => 'Branch is inactive.',
                     ]);
                 }
 
-                $unitPrice = $line['unit_price'] ?? $product->priceFor($variant);
-                $unitPrice = round((float) $unitPrice, 2);
-                $lineDiscount = round((float) ($line['discount'] ?? 0), 2);
-                if ($lineDiscount < 0) {
-                    throw ValidationException::withMessages([
-                        "lines.{$index}.discount" => 'Line discount cannot be negative.',
-                    ]);
-                }
+                $inventoryCustomer = $this->findOrCreateCustomer($customer);
 
-                $lineSubtotal = round($unitPrice * $qty, 2);
-                $taxable = round($lineSubtotal - $lineDiscount, 2);
-                if ($taxable < 0) {
-                    throw ValidationException::withMessages([
-                        "lines.{$index}.discount" => 'Discount cannot exceed line subtotal.',
-                    ]);
-                }
-
-                $gst = (float) $product->gst_percentage;
-                $lineTax = round($taxable * ($gst / 100), 2);
-                $lineTotal = round($taxable + $lineTax, 2);
-
-                $saleLine = $sale->lines()->create([
-                    'product_id' => $product->id,
-                    'variant_id' => $variant?->id,
-                    'qty' => $qty,
-                    'unit_price' => $unitPrice,
-                    'gst_percentage' => $gst,
-                    'discount' => $lineDiscount,
-                    'tax' => $lineTax,
-                    'line_total' => $lineTotal,
+                $sale = InventorySale::query()->create([
+                    'sale_no' => 'POS-TMP-'.strtoupper(bin2hex(random_bytes(6))),
+                    'idempotency_key' => $idempotencyKey,
+                    'branch_id' => $lockedBranch->id,
+                    'customer_id' => $inventoryCustomer->id,
+                    'status' => InventorySaleStatus::Completed,
+                    'subtotal' => 0,
+                    'discount' => $headerDiscount,
+                    'tax' => 0,
+                    'total' => 0,
+                    'payment_method' => $paymentMethod,
+                    'payment_reference' => $paymentReference,
+                    'finance_handoff_status' => InventoryFinanceHandoffStatus::Pending,
+                    'notes' => $notes,
+                    'created_by' => $actor->id,
+                    'completed_at' => now(),
                 ]);
 
-                if ($product->is_serialized) {
-                    $serialNumbers = InventorySerialNumber::parseList($line['serials'] ?? []);
-                    if (count($serialNumbers) !== $qty) {
+                $subtotal = 0.0;
+                $tax = 0.0;
+                $lineDiscountTotal = 0.0;
+
+                foreach ($lines as $index => $line) {
+                    $product = InventoryProduct::query()->find($line['product_id'] ?? null);
+                    if ($product === null || ! $product->is_active) {
                         throw ValidationException::withMessages([
-                            "lines.{$index}.serials" => "Provide exactly {$qty} available serial(s) for {$product->sku}.",
+                            "lines.{$index}.product_id" => 'Product is missing or inactive.',
                         ]);
                     }
 
-                    $serials = $this->stock->lockAvailableSerialsForSale($product, $lockedBranch, $serialNumbers, $variant);
-                    foreach ($serials as $serial) {
-                        $this->stock->markSerialSold($serial, $lockedBranch);
-                        $sale->serials()->create([
-                            'sale_line_id' => $saleLine->id,
-                            'serial_id' => $serial->id,
+                    $variant = null;
+                    if (! empty($line['variant_id'])) {
+                        $variant = InventoryProductVariant::query()->find($line['variant_id']);
+                        if ($variant === null || $variant->product_id !== $product->id || ! $variant->is_active) {
+                            throw ValidationException::withMessages([
+                                "lines.{$index}.variant_id" => 'Variant is missing or inactive.',
+                            ]);
+                        }
+                    }
+
+                    $qty = (int) ($line['qty'] ?? 0);
+                    if ($qty < 1) {
+                        throw ValidationException::withMessages([
+                            "lines.{$index}.qty" => 'Quantity must be at least 1.',
                         ]);
+                    }
+
+                    $unitPrice = $line['unit_price'] ?? $product->priceFor($variant);
+                    $unitPrice = round((float) $unitPrice, 2);
+                    $lineDiscount = round((float) ($line['discount'] ?? 0), 2);
+                    if ($lineDiscount < 0) {
+                        throw ValidationException::withMessages([
+                            "lines.{$index}.discount" => 'Line discount cannot be negative.',
+                        ]);
+                    }
+
+                    $lineSubtotal = round($unitPrice * $qty, 2);
+                    $taxable = round($lineSubtotal - $lineDiscount, 2);
+                    if ($taxable < 0) {
+                        throw ValidationException::withMessages([
+                            "lines.{$index}.discount" => 'Discount cannot exceed line subtotal.',
+                        ]);
+                    }
+
+                    $gst = (float) $product->gst_percentage;
+                    $lineTax = round($taxable * ($gst / 100), 2);
+                    $lineTotal = round($taxable + $lineTax, 2);
+
+                    $saleLine = $sale->lines()->create([
+                        'product_id' => $product->id,
+                        'variant_id' => $variant?->id,
+                        'qty' => $qty,
+                        'unit_price' => $unitPrice,
+                        'gst_percentage' => $gst,
+                        'discount' => $lineDiscount,
+                        'tax' => $lineTax,
+                        'line_total' => $lineTotal,
+                    ]);
+
+                    if ($product->is_serialized) {
+                        $serialNumbers = InventorySerialNumber::parseList($line['serials'] ?? []);
+                        if (count($serialNumbers) !== $qty) {
+                            throw ValidationException::withMessages([
+                                "lines.{$index}.serials" => "Provide exactly {$qty} available serial(s) for {$product->sku}.",
+                            ]);
+                        }
+
+                        $serials = $this->stock->lockAvailableSerialsForSale(
+                            $product,
+                            $lockedBranch,
+                            $serialNumbers,
+                            $variant,
+                            $reservation?->id,
+                        );
+                        foreach ($serials as $serial) {
+                            $fromStatus = $serial->status;
+                            $this->stock->markSerialSold($serial, $lockedBranch);
+                            $sale->serials()->create([
+                                'sale_line_id' => $saleLine->id,
+                                'serial_id' => $serial->id,
+                            ]);
+                            $this->stock->recordMovement(
+                                type: InventoryMovementType::Sale,
+                                product: $product,
+                                branch: $lockedBranch,
+                                qty: -1,
+                                actor: $actor,
+                                variant: $variant,
+                                serial: $serial,
+                                sale: $sale,
+                                fromStatus: $fromStatus,
+                                toStatus: InventorySerialStatus::Sold,
+                                notes: $notes,
+                            );
+                        }
+                    } else {
+                        $this->stock->deductQuantity($product, $lockedBranch, $qty, $variant);
                         $this->stock->recordMovement(
                             type: InventoryMovementType::Sale,
                             product: $product,
                             branch: $lockedBranch,
-                            qty: -1,
+                            qty: -$qty,
                             actor: $actor,
                             variant: $variant,
-                            serial: $serial,
                             sale: $sale,
-                            fromStatus: InventorySerialStatus::Available,
-                            toStatus: InventorySerialStatus::Sold,
                             notes: $notes,
                         );
                     }
-                } else {
-                    $this->stock->deductQuantity($product, $lockedBranch, $qty, $variant);
-                    $this->stock->recordMovement(
-                        type: InventoryMovementType::Sale,
-                        product: $product,
-                        branch: $lockedBranch,
-                        qty: -$qty,
-                        actor: $actor,
-                        variant: $variant,
-                        sale: $sale,
-                        notes: $notes,
-                    );
+
+                    $subtotal += $lineSubtotal;
+                    $tax += $lineTax;
+                    $lineDiscountTotal += $lineDiscount;
                 }
 
-                $subtotal += $lineSubtotal;
-                $tax += $lineTax;
-                $lineDiscountTotal += $lineDiscount;
-            }
+                $discount = round($headerDiscount + $lineDiscountTotal, 2);
+                $total = round($subtotal - $discount + $tax, 2);
+                if ($total < 0) {
+                    throw ValidationException::withMessages([
+                        'discount' => 'Discount cannot exceed sale total.',
+                    ]);
+                }
 
-            $discount = round($headerDiscount + $lineDiscountTotal, 2);
-            $total = round($subtotal - $discount + $tax, 2);
-            if ($total < 0) {
-                throw ValidationException::withMessages([
-                    'discount' => 'Discount cannot exceed sale total.',
+                $invoiceYear = (int) now()->format('Y');
+                $next = $lockedBranch->invoice_sequence + 1;
+                $lockedBranch->update(['invoice_sequence' => $next]);
+                $invoiceNumber = sprintf('INV-%s-%d-%05d', $lockedBranch->code, $invoiceYear, $next);
+
+                $sale->update([
+                    'sale_no' => sprintf('POS-%06d', $sale->id),
+                    'invoice_number' => $invoiceNumber,
+                    'subtotal' => $subtotal,
+                    'discount' => $discount,
+                    'tax' => $tax,
+                    'total' => $total,
                 ]);
+
+                if ($reservation !== null) {
+                    $reservation->update(['sale_id' => $sale->id]);
+                    $this->stock->consumeReservation($reservation);
+                }
+
+                $this->journals->postForSale($sale, $actor, failClosed: true);
+
+                InventorySaleCompleted::dispatch($sale->fresh() ?? $sale);
+
+                return $sale->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $sale;
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            if ($idempotencyKey !== null) {
+                $existing = InventorySale::query()
+                    ->where('idempotency_key', $idempotencyKey)
+                    ->first();
+                if ($existing !== null) {
+                    return $existing->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $existing;
+                }
             }
 
-            $invoiceYear = (int) now()->format('Y');
-            $next = $lockedBranch->invoice_sequence + 1;
-            $lockedBranch->update(['invoice_sequence' => $next]);
-            $invoiceNumber = sprintf('INV-%s-%d-%05d', $lockedBranch->code, $invoiceYear, $next);
-
-            $sale->update([
-                'sale_no' => sprintf('POS-%06d', $sale->id),
-                'invoice_number' => $invoiceNumber,
-                'subtotal' => $subtotal,
-                'discount' => $discount,
-                'tax' => $tax,
-                'total' => $total,
-            ]);
-
-            if ($reservation !== null) {
-                $reservation->update(['sale_id' => $sale->id]);
-                $this->stock->consumeReservation($reservation);
-            }
-
-            InventorySaleCompleted::dispatch($sale->fresh() ?? $sale);
-
-            return $sale->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $sale;
-        });
+            throw $exception;
+        }
     }
 
     public function cancelSale(InventorySale $sale, User $actor, string $reason): InventorySale

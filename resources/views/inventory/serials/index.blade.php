@@ -11,6 +11,8 @@
 
     @include('inventory.partials.workspace-nav', ['active' => 'serials'])
 
+    @include('inventory.partials.branch-scope-empty')
+
     <form method="GET" class="row g-2 mb-3">
         <div class="col-md-3">
             <input type="text" name="q" class="form-control" placeholder="Serial" value="{{ $filters['q'] ?? '' }}">

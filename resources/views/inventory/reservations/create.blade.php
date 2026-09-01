@@ -9,6 +9,7 @@
     </div>
 
     @include('inventory.partials.workspace-nav', ['active' => 'reservations'])
+    @include('inventory.partials.branch-scope-empty')
 
     <div class="card border-0 shadow-sm">
         <div class="card-body">

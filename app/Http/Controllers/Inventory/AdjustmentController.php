@@ -6,11 +6,11 @@ use App\Enums\InventoryAdjustmentReason;
 use App\Enums\InventorySerialStatus;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryAdjustment;
-use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventoryProductVariant;
 use App\Services\Inventory\InventoryStockService;
 use App\Support\Inventory\InventoryAccess;
+use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\InventorySerialNumber;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
@@ -35,20 +35,25 @@ class AdjustmentController extends Controller
         });
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $user = $request->user();
+
         return view('inventory.adjustments.index', [
-            'adjustments' => InventoryAdjustment::query()
-                ->with(['branch', 'createdBy'])
+            'adjustments' => InventoryBranchScope::constrain(
+                InventoryAdjustment::query()->with(['branch', 'createdBy']),
+                $user,
+            )
                 ->latest('id')
                 ->paginate(30),
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($user),
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         return view('inventory.adjustments.create', [
-            'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('name')->get(),
+            'branches' => InventoryBranchScope::allowedBranches($request->user()),
             'products' => InventoryProduct::query()->where('is_active', true)->orderBy('name')->get(),
             'reasons' => InventoryAdjustmentReason::cases(),
             'statuses' => [
@@ -56,6 +61,7 @@ class AdjustmentController extends Controller
                 InventorySerialStatus::Damaged,
                 InventorySerialStatus::Returned,
             ],
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($request->user()),
         ]);
     }
 
@@ -79,6 +85,7 @@ class AdjustmentController extends Controller
             $serial = $this->stock->lockSerialByNumber(
                 InventorySerialNumber::normalize((string) ($data['serial_number'] ?? '')),
             );
+            InventoryBranchScope::assertCanOperate($request->user(), $serial->branch);
             $toStatus = InventorySerialStatus::from((string) $data['to_status']);
             $adjustment = $this->stock->adjustSerialStatus(
                 serial: $serial,
@@ -88,9 +95,10 @@ class AdjustmentController extends Controller
                 notes: $data['notes'] ?? null,
             );
         } else {
+            $branch = InventoryBranchScope::requireBranchId($data['branch_id'] ?? 0, $request->user());
             $adjustment = $this->stock->adjustQuantity(
                 product: InventoryProduct::query()->findOrFail($data['product_id'] ?? 0),
-                branch: InventoryBranch::query()->findOrFail($data['branch_id'] ?? 0),
+                branch: $branch,
                 qtyDelta: (int) ($data['qty_delta'] ?? 0),
                 reason: $reason,
                 actor: $request->user(),
