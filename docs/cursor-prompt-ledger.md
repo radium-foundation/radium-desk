@@ -14,5 +14,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-31-08-12 | 2026-08-31 | Prepare Desk production release/deployment gate | Source/changelog only. Do not deskd. Do not tag unless documented+approved. Do not activate RDService. |
 | RadiumDesk-P-31-08-13 | 2026-08-31 | Release and deploy v4.0.64 | Annotated tag `v4.0.64` on `0d734f85`. `deskd` to KVM. Do not activate RDService. |
 | RadiumDesk-P-31-08-14 | 2026-08-31 | Investigate RDService.net successful orders and invoice generation | Read-only. `docs/rdservice-successful-orders-invoice-path-investigation.md`. Do not activate RDService. Do not generate invoice. |
+| RadiumDesk-P-01-09-01 | 2026-09-01 | Fix BonVoice webhook call-event MariaDB 1020 persistence race | Concurrent lifecycle POSTs for the same `call_id`+`leg`. Retry the persist transaction on 1020; `lockForUpdate` per call/leg. Do not replay production webhook 37369. Do not change auth, watchdog, or Telegram. Does not deploy. |
 
 Do not renumber or overwrite earlier rows. Append only.

@@ -5,6 +5,7 @@ namespace App\Services\Bonvoice;
 use App\Models\BonvoiceCallEvent;
 use App\Services\Interakt\InteraktCustomerMatcher;
 use App\Support\BonvoiceCallStatuses;
+use Illuminate\Database\QueryException;
 use RuntimeException;
 
 class BonvoiceCallEventStore
@@ -15,6 +16,11 @@ class BonvoiceCallEventStore
     ) {}
 
     /**
+     * Upsert one call_id+leg row. Must run inside a DB transaction so
+     * lockForUpdate is held until commit. Callers retry the whole transaction
+     * on MariaDB 1020 — retrying this method inside the same transaction
+     * cannot refresh REPEATABLE READ.
+     *
      * @param  array<string, mixed>  $payload
      */
     public function upsertFromWebhook(array $payload, int $webhookLogId): BonvoiceCallEvent
@@ -33,50 +39,124 @@ class BonvoiceCallEventStore
             phoneNumber: $customerPhoneNumber,
         );
 
-        $existing = BonvoiceCallEvent::query()
-            ->where('call_id', $callId)
-            ->where('leg', $leg)
-            ->first();
-
         $incomingCallType = $this->payloadParser->callType($payload);
         $incomingStatus = $this->payloadParser->status($payload);
 
-        if ($existing !== null && $this->isRegressingTerminalCall($existing, $incomingCallType)) {
+        $existing = $this->lockExisting($callId, $leg);
+
+        if ($existing === null) {
+            try {
+                return BonvoiceCallEvent::query()->create($this->attributesForWrite(
+                    payload: $payload,
+                    webhookLogId: $webhookLogId,
+                    callId: $callId,
+                    leg: $leg,
+                    existing: null,
+                    storedPhone: $storedPhone,
+                    customerPhoneNumber: $customerPhoneNumber,
+                    incomingCallType: $incomingCallType,
+                    incomingStatus: $incomingStatus,
+                    includeIdentity: true,
+                ));
+            } catch (QueryException $exception) {
+                if (! $this->isDuplicateCallEvent($exception)) {
+                    throw $exception;
+                }
+
+                $existing = $this->lockExisting($callId, $leg);
+
+                if ($existing === null) {
+                    throw $exception;
+                }
+            }
+        }
+
+        if ($this->isRegressingTerminalCall($existing, $incomingCallType)) {
             return $existing;
         }
 
+        $existing->fill($this->attributesForWrite(
+            payload: $payload,
+            webhookLogId: $webhookLogId,
+            callId: $callId,
+            leg: $leg,
+            existing: $existing,
+            storedPhone: $storedPhone,
+            customerPhoneNumber: $customerPhoneNumber,
+            incomingCallType: $incomingCallType,
+            incomingStatus: $incomingStatus,
+            includeIdentity: false,
+        ));
+        $existing->save();
+
+        return $existing;
+    }
+
+    private function lockExisting(string $callId, string $leg): ?BonvoiceCallEvent
+    {
+        return BonvoiceCallEvent::query()
+            ->where('call_id', $callId)
+            ->where('leg', $leg)
+            ->lockForUpdate()
+            ->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function attributesForWrite(
+        array $payload,
+        int $webhookLogId,
+        string $callId,
+        string $leg,
+        ?BonvoiceCallEvent $existing,
+        ?string $storedPhone,
+        ?string $customerPhoneNumber,
+        ?string $incomingCallType,
+        ?string $incomingStatus,
+        bool $includeIdentity,
+    ): array {
         $callType = $this->resolveCallType($incomingCallType, $existing?->call_type);
         $lifecycleRegressed = $this->isLifecycleRegression($incomingCallType, $existing?->call_type);
 
-        return BonvoiceCallEvent::query()->updateOrCreate(
-            [
-                'call_id' => $callId,
-                'leg' => $leg,
-            ],
-            [
-                'customer_phone' => $storedPhone ?? $existing?->customer_phone ?? $customerPhoneNumber,
-                'source_number' => $this->payloadParser->sourceNumber($payload) ?? $existing?->source_number,
-                'destination_number' => $this->payloadParser->destinationNumber($payload) ?? $existing?->destination_number,
-                'display_number' => $this->payloadParser->displayNumber($payload) ?? $existing?->display_number,
-                'direction' => $this->payloadParser->direction($payload) ?? $existing?->direction,
-                'status' => $incomingStatus ?? $existing?->status,
-                'agent_status' => $lifecycleRegressed
-                    ? $existing?->agent_status
-                    : ($this->payloadParser->agentStatus($payload) ?? $existing?->agent_status),
-                'call_type' => $callType,
-                'account_id' => $this->payloadParser->accountId($payload) ?? $existing?->account_id,
-                'data_source' => $this->payloadParser->dataSource($payload) ?? $existing?->data_source,
-                'event_id' => $lifecycleRegressed
-                    ? $existing?->event_id
-                    : ($this->payloadParser->eventId($payload) ?? $existing?->event_id),
-                'callback_parent_id' => $this->payloadParser->callbackParentId($payload) ?? $existing?->callback_parent_id,
-                'callback_params' => $this->payloadParser->callbackParams($payload) ?? $existing?->callback_params,
-                'started_at' => $this->payloadParser->startedAt($payload) ?? $existing?->started_at,
-                'recording_url' => $this->payloadParser->recordingUrl($payload) ?? $existing?->recording_url,
-                'payload' => $lifecycleRegressed ? ($existing?->payload ?? $payload) : $payload,
-                'webhook_log_id' => $lifecycleRegressed ? $existing?->webhook_log_id : $webhookLogId,
-            ],
-        );
+        $attributes = [
+            'customer_phone' => $storedPhone ?? $existing?->customer_phone ?? $customerPhoneNumber,
+            'source_number' => $this->payloadParser->sourceNumber($payload) ?? $existing?->source_number,
+            'destination_number' => $this->payloadParser->destinationNumber($payload) ?? $existing?->destination_number,
+            'display_number' => $this->payloadParser->displayNumber($payload) ?? $existing?->display_number,
+            'direction' => $this->payloadParser->direction($payload) ?? $existing?->direction,
+            'status' => $incomingStatus ?? $existing?->status,
+            'agent_status' => $lifecycleRegressed
+                ? $existing?->agent_status
+                : ($this->payloadParser->agentStatus($payload) ?? $existing?->agent_status),
+            'call_type' => $callType,
+            'account_id' => $this->payloadParser->accountId($payload) ?? $existing?->account_id,
+            'data_source' => $this->payloadParser->dataSource($payload) ?? $existing?->data_source,
+            'event_id' => $lifecycleRegressed
+                ? $existing?->event_id
+                : ($this->payloadParser->eventId($payload) ?? $existing?->event_id),
+            'callback_parent_id' => $this->payloadParser->callbackParentId($payload) ?? $existing?->callback_parent_id,
+            'callback_params' => $this->payloadParser->callbackParams($payload) ?? $existing?->callback_params,
+            'started_at' => $this->payloadParser->startedAt($payload) ?? $existing?->started_at,
+            'recording_url' => $this->payloadParser->recordingUrl($payload) ?? $existing?->recording_url,
+            'payload' => $lifecycleRegressed ? ($existing?->payload ?? $payload) : $payload,
+            'webhook_log_id' => $lifecycleRegressed ? $existing?->webhook_log_id : $webhookLogId,
+        ];
+
+        if ($includeIdentity) {
+            $attributes['call_id'] = $callId;
+            $attributes['leg'] = $leg;
+        }
+
+        return $attributes;
+    }
+
+    private function isDuplicateCallEvent(QueryException $exception): bool
+    {
+        $errorCode = (string) ($exception->errorInfo[1] ?? '');
+
+        return in_array($errorCode, ['1062', '19', '2067', '1555'], true);
     }
 
     private function isRegressingTerminalCall(BonvoiceCallEvent $existing, ?string $incomingCallType): bool

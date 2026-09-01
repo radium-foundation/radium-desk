@@ -4,7 +4,10 @@ namespace App\Services\Bonvoice;
 
 use App\Models\BonvoiceCallEvent;
 use App\Models\BonvoiceWebhookLog;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class BonvoiceWebhookProcessorService
 {
@@ -38,26 +41,12 @@ class BonvoiceWebhookProcessorService
             $callEvent = $this->incomingCallLatency->measure(
                 BonvoiceIncomingCallLatency::STAGE_PROCESS,
                 function () use ($webhookLog, $payload, &$previousStatus, &$previousCallType): BonvoiceCallEvent {
-                    if ($this->payloadParser->hasRequiredIdentifiers($payload)) {
-                        $previous = BonvoiceCallEvent::query()
-                            ->where('call_id', $this->payloadParser->callId($payload))
-                            ->where('leg', $this->payloadParser->leg($payload))
-                            ->first(['status', 'call_type']);
-
-                        $previousStatus = $previous?->status;
-                        $previousCallType = $previous?->call_type;
-                    }
-
-                    return DB::transaction(function () use ($webhookLog, $payload): BonvoiceCallEvent {
-                        if (! $this->payloadParser->hasRequiredIdentifiers($payload)) {
-                            throw new \RuntimeException('BonVoice webhook payload is missing callID.');
-                        }
-
-                        $callEvent = $this->callEventStore->upsertFromWebhook($payload, $webhookLog->id);
-                        $this->markProcessed($webhookLog);
-
-                        return $callEvent;
-                    });
+                    return $this->persistCallEvent(
+                        $webhookLog,
+                        $payload,
+                        $previousStatus,
+                        $previousCallType,
+                    );
                 },
             );
 
@@ -88,6 +77,70 @@ class BonvoiceWebhookProcessorService
             ]);
 
             throw $exception;
+        }
+    }
+
+    /**
+     * Persist one call_id+leg row in a new transaction per attempt.
+     * MariaDB 1020 cannot be recovered inside the failed REPEATABLE READ
+     * snapshot; Laravel may also wrap it as DeadlockException when this
+     * unit of work is nested inside another transaction.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function persistCallEvent(
+        BonvoiceWebhookLog $webhookLog,
+        array $payload,
+        ?string &$previousStatus,
+        ?string &$previousCallType,
+    ): BonvoiceCallEvent {
+        $maxAttempts = max(1, (int) config('bonvoice.call_event_write_retry.max_attempts', 5));
+        $sleepMilliseconds = max(0, (int) config('bonvoice.call_event_write_retry.sleep_milliseconds', 25));
+        $attempt = 0;
+
+        while (true) {
+            $attempt++;
+
+            if ($this->payloadParser->hasRequiredIdentifiers($payload)) {
+                $previous = BonvoiceCallEvent::query()
+                    ->where('call_id', $this->payloadParser->callId($payload))
+                    ->where('leg', $this->payloadParser->leg($payload))
+                    ->first(['status', 'call_type']);
+
+                $previousStatus = $previous?->status;
+                $previousCallType = $previous?->call_type;
+            }
+
+            try {
+                return DB::transaction(function () use ($webhookLog, $payload): BonvoiceCallEvent {
+                    if (! $this->payloadParser->hasRequiredIdentifiers($payload)) {
+                        throw new \RuntimeException('BonVoice webhook payload is missing callID.');
+                    }
+
+                    $callEvent = $this->callEventStore->upsertFromWebhook($payload, $webhookLog->id);
+                    $this->markProcessed($webhookLog);
+
+                    return $callEvent;
+                });
+            } catch (Throwable $exception) {
+                if (! BonvoiceCallEventWriteContention::isRetryable($exception) || $attempt >= $maxAttempts) {
+                    throw $exception;
+                }
+
+                Log::warning('[BonVoice Webhook] Retrying call event persistence after DB contention.', [
+                    'webhook_log_id' => $webhookLog->id,
+                    'attempt' => $attempt,
+                    'max_attempts' => $maxAttempts,
+                    'error_code' => $exception instanceof QueryException
+                        ? ($exception->errorInfo[1] ?? null)
+                        : null,
+                    'message' => $exception->getMessage(),
+                ]);
+
+                if ($sleepMilliseconds > 0) {
+                    usleep($sleepMilliseconds * 1000 * $attempt);
+                }
+            }
         }
     }
 

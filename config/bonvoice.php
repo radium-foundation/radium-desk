@@ -19,4 +19,20 @@ return [
         env('BONVOICE_INCOMING_LATENCY_LOG', true),
         FILTER_VALIDATE_BOOLEAN,
     ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Call-event write contention retries
+    |--------------------------------------------------------------------------
+    |
+    | Concurrent BonVoice lifecycle webhooks for the same call_id+leg can hit
+    | MariaDB 1020 (record changed since last read) or 1213 (deadlock) while
+    | upserting bonvoice_call_events. The persist transaction is retried in a
+    | new unit of work. Outbox retry remains the safety net if attempts exhaust.
+    |
+    */
+    'call_event_write_retry' => [
+        'max_attempts' => max(1, (int) env('BONVOICE_CALL_EVENT_WRITE_RETRY_MAX_ATTEMPTS', 5)),
+        'sleep_milliseconds' => max(0, (int) env('BONVOICE_CALL_EVENT_WRITE_RETRY_SLEEP_MS', 25)),
+    ],
 ];
