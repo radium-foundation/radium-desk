@@ -378,4 +378,50 @@ class InventoryPosOperationalWorkflowTest extends TestCase
             ])
             ->assertSessionHasErrors();
     }
+
+    public function test_stock_in_form_exposes_variant_select_and_requires_it_when_product_has_variants(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'OTG-VAR',
+            'name' => 'OTG with variant',
+            'gst_percentage' => 18,
+            'unit_price' => 50,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+        $variant = $product->variants()->create([
+            'sku' => 'OTG-VAR-1M',
+            'name' => '1 metre',
+            'unit_price' => 40,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($this->hardware)
+            ->get(route('inventory.stock.create'))
+            ->assertOk()
+            ->assertSee('name="variant_id"', false)
+            ->assertSee('POS sells those variants from this stock.');
+
+        $this->actingAs($this->hardware)
+            ->from(route('inventory.stock.create'))
+            ->post(route('inventory.stock.store'), [
+                'branch_id' => $this->branchA->id,
+                'product_id' => $product->id,
+                'qty' => 5,
+            ])
+            ->assertRedirect(route('inventory.stock.create'))
+            ->assertSessionHasErrors('variant_id');
+
+        $this->actingAs($this->hardware)
+            ->post(route('inventory.stock.store'), [
+                'branch_id' => $this->branchA->id,
+                'product_id' => $product->id,
+                'variant_id' => $variant->id,
+                'qty' => 5,
+            ])
+            ->assertRedirect(route('inventory.stock.index'));
+
+        $this->assertSame(5, (int) $product->balances()->where('branch_id', $this->branchA->id)->where('variant_id', $variant->id)->value('available_qty'));
+        $this->assertNull($product->balances()->where('branch_id', $this->branchA->id)->whereNull('variant_id')->value('available_qty'));
+    }
 }

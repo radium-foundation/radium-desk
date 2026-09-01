@@ -12,6 +12,7 @@ use App\Support\Inventory\InventoryBranchScope;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class StockController extends Controller
@@ -63,9 +64,22 @@ class StockController extends Controller
             403,
         );
 
+        $products = InventoryProduct::query()->with('variants')->where('is_active', true)->orderBy('name')->get();
+
         return view('inventory.stock.create', [
             'branches' => InventoryBranchScope::allowedBranches($request->user()),
-            'products' => InventoryProduct::query()->with('variants')->where('is_active', true)->orderBy('name')->get(),
+            'products' => $products,
+            'productVariantOptions' => $products->map(fn (InventoryProduct $product): array => [
+                'id' => $product->id,
+                'variants' => $product->variants
+                    ->where('is_active', true)
+                    ->map(fn ($variant): array => [
+                        'id' => $variant->id,
+                        'label' => trim($variant->sku.' — '.$variant->name),
+                    ])
+                    ->values()
+                    ->all(),
+            ])->values()->all(),
             'needsBranchAssignment' => InventoryBranchScope::needsAssignment($request->user()),
         ]);
     }
@@ -88,10 +102,22 @@ class StockController extends Controller
         ]);
 
         $branch = InventoryBranchScope::requireBranchId($data['branch_id'], $request->user());
-        $product = InventoryProduct::query()->findOrFail($data['product_id']);
+        $product = InventoryProduct::query()->with('variants')->findOrFail($data['product_id']);
         $variant = ! empty($data['variant_id'])
             ? InventoryProductVariant::query()->findOrFail($data['variant_id'])
             : null;
+
+        if ($variant !== null && (int) $variant->product_id !== (int) $product->id) {
+            throw ValidationException::withMessages([
+                'variant_id' => 'That variant does not belong to the selected product.',
+            ]);
+        }
+
+        if ($variant === null && $product->variants->where('is_active', true)->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'variant_id' => 'Select a variant. POS sells child SKUs separately from the parent product.',
+            ]);
+        }
 
         if ($product->is_serialized) {
             $this->stock->stockInSerialized(

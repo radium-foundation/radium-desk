@@ -41,6 +41,14 @@
                         @error('product_id')<div class="text-danger small">{{ $message }}</div>@enderror
                     </div>
                     <div class="col-md-6">
+                        <label class="form-label" for="variant_id">Variant</label>
+                        <select name="variant_id" id="variant_id" class="form-select">
+                            <option value="">No variant</option>
+                        </select>
+                        <p class="small text-muted mb-0">Required when the product has child SKUs. POS sells those variants from this stock.</p>
+                        @error('variant_id')<div class="text-danger small">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-6">
                         <label class="form-label" for="qty">Quantity (non-serialised)</label>
                         <input type="number" min="1" name="qty" id="qty" class="form-control" value="{{ old('qty') }}">
                         @error('qty')<div class="text-danger small">{{ $message }}</div>@enderror
@@ -68,3 +76,38 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        (function () {
+            const products = @json($productVariantOptions);
+            const productSelect = document.getElementById('product_id');
+            const variantSelect = document.getElementById('variant_id');
+            const selected = @json(old('variant_id'));
+
+            function renderVariants() {
+                const productId = parseInt(productSelect.value || '0', 10);
+                const product = products.find(function (row) { return row.id === productId; });
+                const variants = product ? product.variants : [];
+                variantSelect.innerHTML = '';
+                const blank = document.createElement('option');
+                blank.value = '';
+                blank.textContent = variants.length ? 'Select variant' : 'No variant';
+                variantSelect.appendChild(blank);
+                variants.forEach(function (variant) {
+                    const option = document.createElement('option');
+                    option.value = String(variant.id);
+                    option.textContent = variant.label;
+                    if (String(selected) === String(variant.id)) {
+                        option.selected = true;
+                    }
+                    variantSelect.appendChild(option);
+                });
+                variantSelect.required = variants.length > 0;
+            }
+
+            productSelect.addEventListener('change', renderVariants);
+            renderVariants();
+        })();
+    </script>
+@endpush
