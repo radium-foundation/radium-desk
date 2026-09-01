@@ -45,5 +45,9 @@
         <env name="RDSERVICE_ENABLED" value="false" force="true"/>
         <env name="DESK_ORDER_API_TOKEN" value="" force="true"/>
         <env name="RDSERVICE_BASE_URL" value="https://rdservice.net" force="true"/>
+        <env name="STATUTORY_INVOICE_SERIES_CODE" value="" force="true"/>
+        <env name="STATUTORY_INVOICE_NUMBER_FORMAT" value="" force="true"/>
+        <env name="STATUTORY_INVOICE_GSTIN_SCOPE" value="" force="true"/>
+        <env name="STATUTORY_INVOICE_FINANCIAL_YEAR" value="" force="true"/>
     </php>
 </phpunit>

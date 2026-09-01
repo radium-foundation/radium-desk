@@ -14,6 +14,7 @@ class InventorySale extends Model
         'sale_no',
         'idempotency_key',
         'invoice_number',
+        'statutory_invoice_id',
         'branch_id',
         'customer_id',
         'support_order_id',
@@ -60,6 +61,11 @@ class InventorySale extends Model
     public function supportOrder(): BelongsTo
     {
         return $this->belongsTo(Order::class, 'support_order_id');
+    }
+
+    public function statutoryInvoice(): BelongsTo
+    {
+        return $this->belongsTo(StatutoryInvoice::class, 'statutory_invoice_id');
     }
 
     public function financeJournal(): BelongsTo

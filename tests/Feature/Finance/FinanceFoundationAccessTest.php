@@ -30,6 +30,10 @@ class FinanceFoundationAccessTest extends TestCase
             ->assertSee('Pending Approvals');
 
         $this->actingAs($user)
+            ->get(route('finance.home'))
+            ->assertRedirect(route('finance.dashboard'));
+
+        $this->actingAs($user)
             ->get(route('finance.payments.index'))
             ->assertOk();
 

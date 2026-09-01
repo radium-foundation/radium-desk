@@ -27,6 +27,8 @@ class RolePermissionSeeder extends Seeder
 
     public const ROLE_EMPLOYEE = 'employee';
 
+    public const ROLE_ACCOUNTANT = 'accountant';
+
     public const PERMISSION_CORRECT_ORDER_IDENTITY = 'orders.correct-identity';
 
     public const PERMISSION_TEAM_ACTIVITY_VIEW = 'team-activity.view';
@@ -106,6 +108,16 @@ class RolePermissionSeeder extends Seeder
 
     /** Operate stock and POS at every branch without a per-branch assignment. */
     public const PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES = 'inventory.branches.operate-all';
+
+    public const PERMISSION_FINANCE_ACCOUNTANT_ACCESS = 'finance.accountant.access';
+
+    public const PERMISSION_FINANCE_INVOICES_VIEW = 'finance.invoices.view';
+
+    public const PERMISSION_FINANCE_GST_REPORTS = 'finance.gst.reports';
+
+    public const PERMISSION_FINANCE_SALES_REPORTS = 'finance.reports.sales';
+
+    public const PERMISSION_FINANCE_REPORTS_EXPORT = 'finance.reports.export';
 
     public const PERMISSION_TODOS_VIEW = 'todos.view';
 
@@ -195,6 +207,20 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_INVENTORY_STOCK_RESERVE,
         self::PERMISSION_POS_VIEW,
         self::PERMISSION_POS_SELL,
+    ];
+
+    /**
+     * Read-only statutory invoice + CA reporting. Not expanded from finance.view
+     * so accountants do not inherit settings/expense mutations.
+     *
+     * @var list<string>
+     */
+    private const ACCOUNTANT_REPORTING_PERMISSIONS = [
+        self::PERMISSION_FINANCE_ACCOUNTANT_ACCESS,
+        self::PERMISSION_FINANCE_INVOICES_VIEW,
+        self::PERMISSION_FINANCE_GST_REPORTS,
+        self::PERMISSION_FINANCE_SALES_REPORTS,
+        self::PERMISSION_FINANCE_REPORTS_EXPORT,
     ];
 
     /**
@@ -339,6 +365,12 @@ class RolePermissionSeeder extends Seeder
             ...self::INVENTORY_HARDWARE_PERMISSIONS,
         ],
         // Non-support staff: own attendance + leave only (profile/notifications are auth-gated).
+        self::ROLE_ACCOUNTANT => [
+            'leave-requests.view',
+            'leave-requests.create',
+            'workforce.self',
+            ...self::ACCOUNTANT_REPORTING_PERMISSIONS,
+        ],
         self::ROLE_EMPLOYEE => [
             'leave-requests.view',
             'leave-requests.create',
@@ -386,6 +418,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_SHORT_ATTENDANCE_VIEW,
             self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_FINANCE_VIEW,
+            ...self::ACCOUNTANT_REPORTING_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
@@ -437,6 +470,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
             self::PERMISSION_FINANCE_VIEW,
+            ...self::ACCOUNTANT_REPORTING_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_EMAIL_REPLY,
@@ -493,6 +527,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
             self::PERMISSION_WORKFORCE_PAYROLL_REOPEN,
             self::PERMISSION_FINANCE_VIEW,
+            ...self::ACCOUNTANT_REPORTING_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
@@ -515,6 +550,7 @@ class RolePermissionSeeder extends Seeder
             ->merge(self::DIRECT_ASSIGNABLE_PERMISSIONS)
             ->merge(self::WORKFORCE_TEAM_VISIBILITY_PERMISSIONS)
             ->merge(self::FINANCE_MODULE_VIEW_PERMISSIONS)
+            ->merge(self::ACCOUNTANT_REPORTING_PERMISSIONS)
             ->merge(self::INVENTORY_ADMIN_PERMISSIONS)
             ->merge(self::INVENTORY_HARDWARE_PERMISSIONS)
             ->merge(self::TODO_BASELINE_PERMISSIONS)

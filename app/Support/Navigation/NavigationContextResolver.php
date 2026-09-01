@@ -116,15 +116,35 @@ class NavigationContextResolver
             : [];
 
         $financeItems = FinanceAccess::allows($user)
-            ? [
-                $this->sidebarItem(
-                    'finance.dashboard',
-                    'Finance',
-                    'bi-wallet2',
-                    route('finance.dashboard'),
-                    $context,
-                ),
-            ]
+            ? array_values(array_filter([
+                FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_DASHBOARD_VIEW)
+                    ? $this->sidebarItem(
+                        'finance.dashboard',
+                        'Finance',
+                        'bi-wallet2',
+                        route('finance.dashboard'),
+                        $context,
+                    )
+                    : null,
+                FinanceAccess::allowsInvoices($user)
+                    ? $this->sidebarItem(
+                        'finance.invoices',
+                        'Invoices',
+                        'bi-receipt-cutoff',
+                        route('finance.invoices.index'),
+                        $context,
+                    )
+                    : null,
+                (FinanceAccess::allowsGstReports($user) || FinanceAccess::allowsSalesReports($user))
+                    ? $this->sidebarItem(
+                        'finance.reports',
+                        'Reports',
+                        'bi-file-earmark-bar-graph',
+                        route('finance.reports.index'),
+                        $context,
+                    )
+                    : null,
+            ]))
             : [];
 
         $inventoryItems = InventoryAccess::allows($user)
@@ -266,7 +286,7 @@ class NavigationContextResolver
             ],
             'finance' => [
                 'label' => NavigationMenu::Finance->label(),
-                'home_url' => route(NavigationMenu::Finance->homeRoute()),
+                'home_url' => $financeItems[0]['url'] ?? route(NavigationMenu::Finance->homeRoute()),
                 'visible' => $financeItems !== [],
                 'items' => $financeItems,
             ],
@@ -371,6 +391,14 @@ class NavigationContextResolver
 
         if ($request->routeIs('pos.*')) {
             return [NavigationMenu::Pos, 'pos.counter', null];
+        }
+
+        if ($request->routeIs('finance.invoices.*')) {
+            return [NavigationMenu::Finance, 'finance.invoices', null];
+        }
+
+        if ($request->routeIs('finance.reports.*')) {
+            return [NavigationMenu::Finance, 'finance.reports', null];
         }
 
         if ($request->routeIs('finance.*')) {
@@ -492,6 +520,19 @@ class NavigationContextResolver
             return null;
         }
 
+        if ($menu === NavigationMenu::Finance) {
+            $user = $request->user();
+            if (FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_DASHBOARD_VIEW)) {
+                return route('finance.dashboard');
+            }
+            if (FinanceAccess::allowsInvoices($user)) {
+                return route('finance.invoices.index');
+            }
+            if (FinanceAccess::allowsGstReports($user) || FinanceAccess::allowsSalesReports($user)) {
+                return route('finance.reports.index');
+            }
+        }
+
         return route($menu->homeRoute());
     }
 
@@ -586,7 +627,7 @@ class NavigationContextResolver
             NavigationMenu::WorkforceManagement => in_array($pageTitle, ['Workforce Management', 'Attendance'], true),
             NavigationMenu::Inventory => in_array($pageTitle, ['Inventory', 'Stock'], true),
             NavigationMenu::Pos => in_array($pageTitle, ['POS', 'POS counter'], true),
-            NavigationMenu::Finance => in_array($pageTitle, ['Finance', 'Dashboard'], true),
+            NavigationMenu::Finance => in_array($pageTitle, ['Finance', 'Dashboard', 'Invoices', 'Reports'], true),
             NavigationMenu::Administration => $pageTitle === 'Administration',
             NavigationMenu::Personal => in_array($pageTitle, ['My Workforce', 'My Performance', 'Leave Requests', 'To-Dos'], true),
         };

@@ -2,9 +2,9 @@
 
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  
-**Prompt:** User-labelled `RadiumDesk-P-01-09-13` (already used on this branch for the inventory Day-1 blocker audit). Ledger ID for this investigation: **RadiumDesk-P-01-09-14**.  
+**Prompt:** User-labelled `RadiumDesk-P-01-09-13` (already used on this branch for the inventory Day-1 blocker audit). Ledger ID for this investigation: **RadiumDesk-P-01-09-14**. Implementation foundation: **RadiumDesk-P-01-09-15**.  
 **Date:** 2026-09-01  
-**Type:** Investigation + target architecture only. No engine implementation. No migrations. No invoices created. No production, Admin, RadiumBox, rdservice.in, or other website changes.  
+**Type:** Investigation (P-01-09-14) plus Desk-only implementation foundation (P-01-09-15). Not the final legal invoice-series decision. No production, Admin, RadiumBox, rdservice.in, or radiumsign.com changes.  
 **Canvas:** [`rd-central-finance-invoice-architecture.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-central-finance-invoice-architecture.canvas.tsx)
 
 Classification used throughout: **VERIFIED** (read from Desk/Admin-documented code or prior production inspections already in this repo), **INFERRED** (consistent with code/docs but not re-executed here), **UNKNOWN** (owner/CA/legal or unreinspectable).
@@ -938,11 +938,11 @@ Inventory/POS Day-1 work on `feat/rd-fresh-01-inventory-pos` is **untouched** by
 
 ---
 
-## Safety record (this ticket)
+## Safety record (P-01-09-14 investigation)
 
 | Action | Done? |
 |--------|-------|
-| Implement statutory invoice engine | No |
+| Implement statutory invoice engine | No (investigation only) |
 | Create migrations | No |
 | Create invoices | No |
 | Change production numbering | No |
@@ -951,6 +951,94 @@ Inventory/POS Day-1 work on `feat/rd-fresh-01-inventory-pos` is **untouched** by
 | Modify inventory/POS PHP behaviour | No |
 | Query production databases | No |
 | Commit secrets | No |
+
+---
+
+## 21. P-01-09-15 implementation foundation (shipped)
+
+Desk-only foundation. This is **not** statutory go-live. `TEST-{seq}` is a test-only format used in PHPUnit. Production minting **fails closed** until the CA sets `STATUTORY_INVOICE_SERIES_CODE` and `STATUTORY_INVOICE_NUMBER_FORMAT`.
+
+### 21.1 Implemented boundaries
+
+| Boundary | What shipped | What did not |
+|----------|--------------|--------------|
+| Domain | `StatutoryInvoiceService::mint` / `issueFromPosSale` / `cancel`. One engine for POS + channel source keys. | HTTP ingest from rdservice.in / radiumbox.com / radiumsign.com |
+| Numbering | `StatutoryInvoiceNumberingService`: atomic `lockForUpdate`, pre-create sequence row, append-only `invoice_sequence_allocations`, idempotent allocate, unique `invoice_number`. Format tokens `{series}` `{seq}` `{seq:N}` `{gstin}` `{fy}`. | Legal prefix, FY reset, per-GSTIN series, credit-note format |
+| POS vs GST | POS still allocates `INV-{branch}-{year}-{seq}`. Print copy says internal receipt. POS complete never mints. `INV-[A-Z0-9]+-\d{4}-\d{5}` is rejected as a statutory number. | Invoice-on-payment vs dispatch policy |
+| Idempotency | Unique `(channel, source_type, source_id)` and `statutory:{channel}:{source_type}:{source_id}` | Second numbering mechanism |
+| Finance | Existing `pos_sale` / Cashfree journals unchanged. `post_finance_journals` is hard-false; mint throws if enabled. No tax/revenue journal from mint. | GST payable GL, recognition on invoice |
+| E-invoice | `EInvoiceGateway` + `NullEInvoiceGateway` (`provider = none`). Not called on mint. | GSP, IRN, QR, e-way |
+| Accountant | Role `accountant` with `finance.accountant.access`, `finance.invoices.view`, `finance.gst.reports`, `finance.reports.sales`, `finance.reports.export`. GET-only invoice/report/export routes. | Cash/bank mutation, settings, POS, inventory, users |
+| Reports | Register + CSV from `statutory_invoices` only. Columns: number, date, channel, customer, GSTIN, branch/seller GSTIN, HSN/SAC, taxable, CGST/SGST/IGST (blank unless provided), total, payment ref/mode, status, source id. Unclassified tax is not fabricated into CGST/SGST/IGST. | Historical Admin import, GSTR-1 filing file |
+
+### 21.2 Channel integration contract (service API now)
+
+Channels must not allocate GST numbers. Call `StatutoryInvoiceService::mint` with:
+
+- `channel`: `desk_pos` \| `rdservice_in` \| `radiumbox_com` \| `rdservice_net` \| `radiumsign_com` \| `future`
+- `source_type` + `source_id` (stable business key)
+- lines including HSN/SAC when known
+- CGST/SGST/IGST only when the caller already knows the split; otherwise leave null
+
+HTTP channel ingest, commerce-order tables, and other-repo changes are **out of this ticket**.
+
+### 21.3 Invoice idempotency model
+
+1. Lookup by `(channel, source_type, source_id)`.
+2. If found, return that invoice (no new number).
+3. Else allocate by the same idempotency key inside a DB transaction.
+4. Unique constraints recover races; duplicate mint returns the winner.
+5. Outer transaction rollback also rolls back the allocation (savepoints / InnoDB).
+
+### 21.4 Accountant / CA permission model
+
+| May | Must not |
+|-----|----------|
+| View statutory invoices | Inventory admin, POS sell/cancel, stock adjust |
+| GST summary + sales-by-channel reports | User / permission / configuration admin |
+| Export CSV of Desk invoice register | Delete invoices, rewrite numbers, mutate posted fields |
+| Login (leave/workforce.self) | Cash Book create, expense post, finance settings |
+
+`finance.view` is **not** granted to accountant, so settings/expense/cash tabs stay hidden. Admin / operations_admin / superadmin also receive the reporting permissions.
+
+### 21.5 Current finance treatment (guard)
+
+POS complete posts Dr cash `1000` / bank `1100`, Cr revenue `4000` via `PosSaleJournalService` (fail-closed). Cancel/return posts a reversing journal. Statutory mint sets `finance_journal_id = null` and asserts no `source_type = statutory_invoice` journal exists. Enabling `statutory_invoices.post_finance_journals` **refuses mint** rather than double-posting. CA recognition policy is still required before any invoice-side GL.
+
+### 21.6 Schema (additive, Desk only)
+
+Migration `2026_09_01_160000_create_statutory_invoice_foundation_tables`: `invoice_sequences`, `statutory_invoices`, `invoice_sequence_allocations`, `statutory_invoice_items`, `e_invoice_records`, plus nullable `inventory_sales.statutory_invoice_id`. No Admin / `radiumbox_prod` schema. No historical backfill.
+
+### 21.7 Migration / cutover implications
+
+- Applying this migration on a **non-production** Desk database is additive.
+- Production migrate is **not** done in this ticket and should wait for owner/CA go-live.
+- Existing POS `INV-*` rows stay internal receipts; they are not rewritten.
+- Admin continues to issue live GST numbers until cutover. Desk must not copy `rd_no`.
+- After CA sets series + format in env, minting can be used from services. POS still will not auto-issue until invoice-on-payment vs dispatch is decided.
+- Optional read-only import of historical Admin invoices remains a later ticket.
+
+### 21.8 Rollback
+
+1. Do not mint in production (env series/format empty).
+2. Code rollback: revert this commit on the feature branch.
+3. Schema rollback: `php artisan migrate:rollback` for `2026_09_01_160000` on the **same non-prod** database only. That drops the new tables and the `inventory_sales.statutory_invoice_id` column. POS `invoice_number` and finance journals are untouched.
+4. Permission rollback: re-run `RolePermissionSeeder` from the previous revision to remove `accountant` reporting grants.
+
+### 21.9 CA decisions still blocking statutory go-live
+
+Unchanged from §18. Especially: legal series format, FY reset, per-GSTIN series, credit-note numbering, invoice-on-payment vs dispatch, revenue recognition, GSP provider, GSTIN data (Bihar clone), cutover date.
+
+### 21.10 Remaining risks / blockers
+
+| Risk | Status |
+|------|--------|
+| Legal series unset | Intended; mint fails closed |
+| Two issuers if Desk mints while Admin still numbers | Do not enable production series until cutover |
+| MySQL concurrency harness skipped without disposable MariaDB | Same `INVENTORY_POS_MYSQL_*` gate as inventory POS tests |
+| Channel websites not integrated | Separate tickets; this repo only the Desk service |
+| CGST/SGST/IGST blank on POS-issued invoices | Place of supply is a CA decision; not fabricated |
+| Accountant `/finance` now redirects to invoices | Dashboard remains admin-only |
 
 ---
 

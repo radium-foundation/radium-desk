@@ -49,6 +49,16 @@
             'url' => route('finance.settings.cash-accounts'),
             'visible' => FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_SETTINGS_VIEW),
         ],
+        'invoices' => [
+            'label' => 'Invoices',
+            'url' => route('finance.invoices.index'),
+            'visible' => FinanceAccess::allowsInvoices($user),
+        ],
+        'reports' => [
+            'label' => 'Reports',
+            'url' => route('finance.reports.index'),
+            'visible' => FinanceAccess::allowsGstReports($user) || FinanceAccess::allowsSalesReports($user),
+        ],
     ];
 @endphp
 

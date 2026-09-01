@@ -15,6 +15,7 @@ use App\Models\InventoryReservation;
 use App\Models\InventorySale;
 use App\Models\User;
 use App\Services\Finance\PosSaleJournalService;
+use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class PosSaleService
     public function __construct(
         private readonly InventoryStockService $stock,
         private readonly PosSaleJournalService $journals,
+        private readonly StatutoryInvoiceAccountingPolicy $statutoryAccounting,
     ) {}
 
     /**
@@ -53,6 +55,8 @@ class PosSaleService
         ?InventoryReservation $reservation = null,
         ?string $idempotencyKey = null,
     ): InventorySale {
+        $this->statutoryAccounting->assertMustNotAutoIssueOnPosComplete();
+
         if ($lines === []) {
             throw ValidationException::withMessages([
                 'lines' => 'Add at least one product line.',
@@ -272,6 +276,9 @@ class PosSaleService
                 $next = $lockedBranch->invoice_sequence + 1;
                 $lockedBranch->update(['invoice_sequence' => $next]);
                 $invoiceNumber = sprintf('INV-%s-%d-%05d', $lockedBranch->code, $invoiceYear, $next);
+
+                // Internal POS receipt only. Statutory GST invoices are minted by
+                // StatutoryInvoiceService when numbering is configured. Never auto-issue here.
 
                 $sale->update([
                     'sale_no' => sprintf('POS-%06d', $sale->id),

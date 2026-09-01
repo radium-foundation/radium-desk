@@ -9,6 +9,7 @@ use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventorySale;
 use App\Models\InventorySerial;
+use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\Finance\PosSaleJournalService;
 use App\Services\Inventory\InventoryStockService;
@@ -585,6 +586,60 @@ class PosSaleServiceTest extends TestCase
                 'product_id' => $product->id,
                 'qty' => 1,
                 'serials' => [],
+            ]],
+            paymentMethod: 'Cash',
+            actor: $this->actor,
+        );
+    }
+
+    public function test_complete_does_not_mint_a_statutory_invoice_even_when_test_series_is_configured(): void
+    {
+        config([
+            'statutory_invoices.series_code' => 'TEST',
+            'statutory_invoices.number_format' => '{series}-{seq:5}',
+            'statutory_invoices.auto_issue_on_pos_complete' => false,
+        ]);
+
+        $product = $this->serializedProduct('MFS110-STAT', 'Mantra statutory gate');
+        $this->stock->stockInSerialized($product, $this->branch, ['POS-STAT-1'], $this->actor);
+
+        $sale = $this->sales->completeSale(
+            branch: $this->branch,
+            customer: ['name' => 'Statutory Gate', 'phone' => '9999933333'],
+            lines: [[
+                'product_id' => $product->id,
+                'qty' => 1,
+                'serials' => ['POS-STAT-1'],
+            ]],
+            paymentMethod: 'Cash',
+            actor: $this->actor,
+        );
+
+        $this->assertMatchesRegularExpression('/^INV-HQ-\d{4}-\d{5}$/', (string) $sale->invoice_number);
+        $this->assertNull($sale->statutory_invoice_id);
+        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertDatabaseHas('finance_journals', [
+            'source_type' => 'pos_sale',
+            'source_id' => $sale->id,
+        ]);
+    }
+
+    public function test_complete_fails_closed_if_auto_issue_flag_is_enabled(): void
+    {
+        config(['statutory_invoices.auto_issue_on_pos_complete' => true]);
+
+        $product = $this->serializedProduct('MFS110-AUTO', 'Mantra auto-issue gate');
+        $this->stock->stockInSerialized($product, $this->branch, ['POS-AUTO-1'], $this->actor);
+
+        $this->expectException(ValidationException::class);
+
+        $this->sales->completeSale(
+            branch: $this->branch,
+            customer: ['name' => 'Auto Issue', 'phone' => '9999933334'],
+            lines: [[
+                'product_id' => $product->id,
+                'qty' => 1,
+                'serials' => ['POS-AUTO-1'],
             ]],
             paymentMethod: 'Cash',
             actor: $this->actor,

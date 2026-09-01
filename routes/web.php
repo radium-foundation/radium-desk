@@ -37,6 +37,8 @@ use App\Http\Controllers\Finance\ExpenseCategoryController;
 use App\Http\Controllers\Finance\ExpenseController as FinanceExpenseController;
 use App\Http\Controllers\Finance\PaymentMethodController;
 use App\Http\Controllers\Finance\SettingsController as FinanceSettingsController;
+use App\Http\Controllers\Finance\StatutoryInvoiceController;
+use App\Http\Controllers\Finance\StatutoryInvoiceReportController;
 use App\Http\Controllers\Finance\VendorPaymentController;
 use App\Http\Controllers\GmailAdminActionsController;
 use App\Http\Controllers\IncidentController;
@@ -100,6 +102,7 @@ use App\Http\Controllers\Workforce\WorkRecognitionController;
 use App\Http\Controllers\Workforce360Controller;
 use App\Http\Controllers\WorkspaceActionController;
 use App\Http\Controllers\WorkspaceComponentController;
+use App\Support\Finance\FinanceAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\Route;
 
@@ -363,8 +366,25 @@ Route::middleware(['auth', 'active'])->group(function () {
     });
 
     Route::prefix('finance')->name('finance.')->group(function () {
-        Route::redirect('/', '/finance/dashboard');
+        Route::get('/', function () {
+            $user = request()->user();
+            if (FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_DASHBOARD_VIEW)) {
+                return redirect()->route('finance.dashboard');
+            }
+            if (FinanceAccess::allowsInvoices($user)) {
+                return redirect()->route('finance.invoices.index');
+            }
+            if (FinanceAccess::allowsGstReports($user) || FinanceAccess::allowsSalesReports($user)) {
+                return redirect()->route('finance.reports.index');
+            }
+
+            abort(403);
+        })->name('home');
         Route::get('dashboard', FinanceDashboardController::class)->name('dashboard');
+        Route::get('invoices/export', [StatutoryInvoiceController::class, 'export'])->name('invoices.export');
+        Route::get('invoices', [StatutoryInvoiceController::class, 'index'])->name('invoices.index');
+        Route::get('invoices/{invoice}', [StatutoryInvoiceController::class, 'show'])->name('invoices.show');
+        Route::get('reports', [StatutoryInvoiceReportController::class, 'index'])->name('reports.index');
         Route::get('payments', [CustomerPaymentController::class, 'index'])->name('payments.index');
         Route::get('expenses', [FinanceExpenseController::class, 'index'])->name('expenses.index');
         Route::get('expenses/create', [FinanceExpenseController::class, 'create'])->name('expenses.create');

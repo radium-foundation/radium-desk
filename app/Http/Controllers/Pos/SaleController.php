@@ -67,7 +67,7 @@ class SaleController extends Controller
         InventoryBranchScope::assertCanOperate($request->user(), $sale->branch);
 
         return view('pos.sales.show', [
-            'sale' => $sale,
+            'sale' => $sale->loadMissing('statutoryInvoice'),
             'canCancel' => PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_CANCEL),
         ]);
     }
@@ -77,7 +77,7 @@ class SaleController extends Controller
         $sale->load(['branch', 'customer', 'createdBy', 'lines.product', 'lines.variant', 'lines.serials.serial', 'serials.serial']);
         InventoryBranchScope::assertCanOperate($request->user(), $sale->branch);
 
-        return view('pos.sales.invoice', ['sale' => $sale]);
+        return view('pos.sales.invoice', ['sale' => $sale->loadMissing('statutoryInvoice')]);
     }
 
     public function cancel(Request $request, InventorySale $sale): RedirectResponse

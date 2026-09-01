@@ -19,7 +19,33 @@ final class FinanceAccess
             return false;
         }
 
-        return $user->can(RolePermissionSeeder::PERMISSION_FINANCE_VIEW);
+        return $user->can(RolePermissionSeeder::PERMISSION_FINANCE_VIEW)
+            || self::allowsAccountantPortal($user);
+    }
+
+    public static function allowsAccountantPortal(?User $user): bool
+    {
+        return $user?->can(RolePermissionSeeder::PERMISSION_FINANCE_ACCOUNTANT_ACCESS) === true;
+    }
+
+    public static function allowsInvoices(?User $user): bool
+    {
+        return $user?->can(RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_VIEW) === true;
+    }
+
+    public static function allowsGstReports(?User $user): bool
+    {
+        return $user?->can(RolePermissionSeeder::PERMISSION_FINANCE_GST_REPORTS) === true;
+    }
+
+    public static function allowsSalesReports(?User $user): bool
+    {
+        return $user?->can(RolePermissionSeeder::PERMISSION_FINANCE_SALES_REPORTS) === true;
+    }
+
+    public static function allowsReportExport(?User $user): bool
+    {
+        return $user?->can(RolePermissionSeeder::PERMISSION_FINANCE_REPORTS_EXPORT) === true;
     }
 
     public static function allowsPermission(?User $user, string $permission): bool

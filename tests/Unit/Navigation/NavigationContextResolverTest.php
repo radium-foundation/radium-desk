@@ -160,6 +160,8 @@ class NavigationContextResolverTest extends TestCase
         $this->assertContains('mission_control.home', $keys);
         $this->assertContains('workforce_management.attendance', $keys);
         $this->assertContains('finance.dashboard', $keys);
+        $this->assertContains('finance.invoices', $keys);
+        $this->assertContains('finance.reports', $keys);
         $this->assertContains('inventory.stock', $keys);
         $this->assertContains('pos.counter', $keys);
         $this->assertContains('administration.home', $keys);
@@ -246,6 +248,35 @@ class NavigationContextResolverTest extends TestCase
         $this->assertSame('pos.counter', $context->activeItemKey);
         $this->assertTrue($sidebar['pos']['visible']);
         $this->assertTrue($this->sidebarItemIsActive($sidebar, 'pos.counter'));
+    }
+
+    public function test_accountant_sees_invoices_and_reports_without_pos_or_inventory(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ACCOUNTANT);
+
+        $request = $this->requestFor($user, route('finance.invoices.index'));
+        $context = $this->resolver->resolve($request, 'Invoices');
+        $sidebar = $this->resolver->sidebar($request, $context);
+        $keys = array_map(
+            static fn (array $item): string => $item['key'],
+            array_merge(
+                $sidebar['finance']['items'],
+                $sidebar['inventory']['items'],
+                $sidebar['pos']['items'],
+                $sidebar['administration']['items'],
+            ),
+        );
+
+        $this->assertSame(NavigationMenu::Finance, $context->menu);
+        $this->assertSame('finance.invoices', $context->activeItemKey);
+        $this->assertContains('finance.invoices', $keys);
+        $this->assertContains('finance.reports', $keys);
+        $this->assertNotContains('finance.dashboard', $keys);
+        $this->assertNotContains('inventory.stock', $keys);
+        $this->assertNotContains('pos.counter', $keys);
+        $this->assertNotContains('administration.home', $keys);
+        $this->assertSame(route('finance.invoices.index'), $context->menuHomeUrl());
     }
 
     /**

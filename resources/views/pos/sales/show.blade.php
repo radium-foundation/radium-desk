@@ -8,8 +8,13 @@
             <p class="text-muted small text-uppercase fw-semibold mb-1">POS</p>
             <h1 class="h3 mb-1">{{ $sale->sale_no }}</h1>
             <p class="text-muted mb-0">
-                Invoice {{ $sale->invoice_number }} · {{ $sale->status->label() }} ·
+                Internal receipt {{ $sale->invoice_number }} · {{ $sale->status->label() }} ·
                 Finance {{ $sale->finance_handoff_status->label() }}
+                @if($sale->statutoryInvoice)
+                    · GST invoice {{ $sale->statutoryInvoice->invoice_number }}
+                @else
+                    · No statutory GST invoice
+                @endif
             </p>
         </div>
         <a href="{{ route('pos.sales.invoice', $sale) }}" class="btn btn-outline-secondary">Invoice</a>
