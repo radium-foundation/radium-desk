@@ -34,11 +34,19 @@ final class StatutoryInvoiceMintRequest
 
     public function idempotencyKey(): string
     {
+        return self::sourceKey($this->channel, $this->sourceType, $this->sourceId);
+    }
+
+    public static function sourceKey(
+        StatutoryInvoiceChannel $channel,
+        StatutoryInvoiceSourceType $sourceType,
+        string $sourceId,
+    ): string {
         return sprintf(
             'statutory:%s:%s:%s',
-            $this->channel->value,
-            $this->sourceType->value,
-            $this->sourceId,
+            $channel->value,
+            $sourceType->value,
+            $sourceId,
         );
     }
 }

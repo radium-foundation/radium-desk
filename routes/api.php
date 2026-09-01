@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\ChannelOrderIngestController;
 use App\Http\Controllers\Webhooks\BonvoiceWebhookController;
 use App\Http\Controllers\Webhooks\CashfreeWebhookController;
 use App\Http\Controllers\Webhooks\InteraktFlowWebhookController;
@@ -17,3 +18,6 @@ Route::post('/webhooks/interakt/flow', [InteraktFlowWebhookController::class, 'h
 
 Route::post('/webhooks/bonvoice', [BonvoiceWebhookController::class, 'handle'])
     ->name('webhooks.bonvoice');
+
+Route::post('/v1/channel-orders', [ChannelOrderIngestController::class, 'store'])
+    ->name('api.v1.channel-orders.store');

@@ -1042,6 +1042,86 @@ Unchanged from §18. Especially: legal series format, FY reset, per-GSTIN series
 
 ---
 
+## 22. P-01-09-16 channel order ingest foundation
+
+User prompt labelled **P-01-09-15**; that ID was already used for the statutory engine. Ledger ID: **RadiumDesk-P-01-09-16**.
+
+Desk-only HTTPS ingest. Other websites are **not** modified. Statutory minting remains fail-closed.
+
+### 22.1 Endpoint / contract
+
+`POST /api/v1/channel-orders`
+
+JSON object. Channels never allocate GST numbers. Desk POS is **not** an HTTP ingest channel (in-process only).
+
+### 22.2 Authentication
+
+Per-channel HMAC secret in Desk env (never logged, never reuse `DESK_ORDER_API_TOKEN` / Cashfree / BonVoice):
+
+| Channel | Env |
+|---------|-----|
+| rdservice.in | `CHANNEL_INGEST_SECRET_RDSERVICE_IN` |
+| radiumbox.com | `CHANNEL_INGEST_SECRET_RADIUMBOX_COM` |
+| rdservice.net | `CHANNEL_INGEST_SECRET_RDSERVICE_NET` |
+| radiumsign.com | `CHANNEL_INGEST_SECRET_RADIUMSIGN_COM` |
+| future | `CHANNEL_INGEST_SECRET_FUTURE` |
+
+Headers:
+
+- `X-Desk-Channel` — must match payload `channel`
+- `X-Desk-Timestamp` — unix seconds
+- `X-Desk-Signature` — hex HMAC-SHA256 of `{timestamp}{rawBody}` (same concatenation pattern as Cashfree webhooks)
+- Optional `Idempotency-Key` — if sent, **must** equal `statutory:{channel}:{source_type}:{source_id}`
+
+Empty secret → channel disabled (401). Timestamp skew beyond `CHANNEL_INGEST_REPLAY_WINDOW_SECONDS` (default 300) → 401 `replay`. No database access for channels.
+
+### 22.3 Request fields
+
+Required: `channel`, `source_type` (`commerce_order` \| `support_order` \| `external`), `source_id`, `payment_status` (`paid` \| `pending` \| `failed` \| `refunded`), `currency` (`INR` only; others rejected, not converted), `customer.name` **or** `customer.phone`, `lines[]` with `description`, `qty` ≥ 1, `unit_price` ≥ 0.
+
+Optional (stored when provided, never invented): `source_order_id` / `external_order_id`, payment provider/reference/method, GSTIN, billing/shipping address, seller GSTIN/name, `branch_code`, `place_of_supply_state`, line SKU/variant/HSN/SAC, taxable/tax/CGST/SGST/IGST, `metadata` (keys matching password/secret/token/authorization/api_key are dropped).
+
+### 22.4 Status model
+
+Stored on `commerce_orders.status`:
+
+| Status | Meaning |
+|--------|---------|
+| `validated` | Accepted; not invoice-eligible (missing paid / seller GSTIN / place of supply / HSN) |
+| `invoice_pending` | Eligible, **not minted** (series unset and/or auto-issue off) |
+| `invoiced` | Reserved for a later mint step |
+| `rejected` / `failed` | Attempt log; invalid bodies are not stored as orders |
+| `received` / `eligible` | Enum exists for the prompt vocabulary; ingest writes `validated` or `invoice_pending` |
+
+`channel_ingest_attempts` records every HTTP/service outcome: accepted, duplicate, rejected, unauthorized, replay, conflict, failed.
+
+### 22.5 Idempotency and retry
+
+Uses the **same** statutory key: `statutory:{channel}:{source_type}:{source_id}`. Unique on `commerce_orders`.
+
+- Same source + same payload hash → 200 duplicate, same `order_no`
+- Same source + different payload → 409 conflict
+- New source → 201
+- Client retries with a fresh timestamp (new HMAC) and the same body
+
+### 22.6 Invoice eligibility and minting
+
+Ingest **never** calls `StatutoryInvoiceService`. `channel_ingest.auto_issue_invoice` is hard-false; enabling it **fails closed** rather than minting. Legal series unset is not required to accept an order. Eligibility requires paid + seller GSTIN + place of supply + HSN/SAC on every line. Missing CGST/SGST/IGST is not fabricated.
+
+### 22.7 Finance
+
+No `JournalPostingService` call. No `source_type = commerce_order` journals. POS `INV-*` unchanged.
+
+### 22.8 Failure handling
+
+401 auth/replay, 400 invalid JSON, 422 validation, 409 payload conflict, 500 unexpected (logged without secrets). Outer DB transaction rollback also rolls back the commerce order.
+
+### 22.9 Rollback
+
+Env secrets empty → ingest disabled. Code: revert this commit. Schema: rollback `2026_09_01_180000` on the same non-prod database. Statutory tables and POS data are untouched.
+
+---
+
 ## References
 
 - `docs/rd-fresh-01-inventory-pos-foundation.md`

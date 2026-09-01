@@ -49,5 +49,11 @@
         <env name="STATUTORY_INVOICE_NUMBER_FORMAT" value="" force="true"/>
         <env name="STATUTORY_INVOICE_GSTIN_SCOPE" value="" force="true"/>
         <env name="STATUTORY_INVOICE_FINANCIAL_YEAR" value="" force="true"/>
+        <env name="CHANNEL_INGEST_SECRET_RDSERVICE_IN" value="" force="true"/>
+        <env name="CHANNEL_INGEST_SECRET_RADIUMBOX_COM" value="" force="true"/>
+        <env name="CHANNEL_INGEST_SECRET_RDSERVICE_NET" value="" force="true"/>
+        <env name="CHANNEL_INGEST_SECRET_RADIUMSIGN_COM" value="" force="true"/>
+        <env name="CHANNEL_INGEST_SECRET_FUTURE" value="" force="true"/>
+        <env name="CHANNEL_INGEST_CUTOVER_APPROVED" value="false" force="true"/>
     </php>
 </phpunit>
