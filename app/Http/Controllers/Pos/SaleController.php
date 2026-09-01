@@ -63,7 +63,7 @@ class SaleController extends Controller
 
     public function show(Request $request, InventorySale $sale): View
     {
-        $sale->load(['branch', 'customer', 'createdBy', 'lines.product', 'lines.variant', 'serials.serial']);
+        $sale->load(['branch', 'customer', 'createdBy', 'lines.product', 'lines.variant', 'lines.serials.serial', 'serials.serial']);
         InventoryBranchScope::assertCanOperate($request->user(), $sale->branch);
 
         return view('pos.sales.show', [
@@ -74,7 +74,7 @@ class SaleController extends Controller
 
     public function invoice(Request $request, InventorySale $sale): View
     {
-        $sale->load(['branch', 'customer', 'createdBy', 'lines.product', 'lines.variant', 'serials.serial']);
+        $sale->load(['branch', 'customer', 'createdBy', 'lines.product', 'lines.variant', 'lines.serials.serial', 'serials.serial']);
         InventoryBranchScope::assertCanOperate($request->user(), $sale->branch);
 
         return view('pos.sales.invoice', ['sale' => $sale]);

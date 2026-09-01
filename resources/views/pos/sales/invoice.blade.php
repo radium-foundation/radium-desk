@@ -16,7 +16,8 @@
 <body>
     <p class="no-print"><a href="{{ route('pos.sales.show', $sale) }}">Back to sale</a> · <button type="button" onclick="window.print()">Print</button></p>
     <h1>Invoice {{ $sale->invoice_number }}</h1>
-    <p class="muted">{{ $sale->sale_no }} · {{ $sale->completed_at?->timezone(config('app.timezone'))->format('d M Y H:i') }}</p>
+    <p class="muted">{{ $sale->sale_no }} · {{ $sale->status->label() }} · {{ $sale->completed_at?->timezone(config('app.timezone'))->format('d M Y H:i') }}</p>
+    <p class="muted">Internal Desk invoice — not a GST e-invoice / IRN.</p>
     <p>
         <strong>{{ $sale->branch?->name }}</strong><br>
         Branch {{ $sale->branch?->code }}

@@ -267,6 +267,7 @@
                         add('qty', item.qty);
                         add('unit_price', money(item.unit_price));
                         add('discount', money(item.discount));
+                        add('gst_percentage', String(item.gst_percentage));
                         add('serials', item.serials.join('\n'));
                     });
                 }
@@ -481,7 +482,7 @@
                             name: 'Line',
                             variant_name: '',
                             is_serialized: serials.length > 0,
-                            gst_percentage: 18,
+                            gst_percentage: parseFloat(line.gst_percentage || '18') || 18,
                             unit_price: parseFloat(line.unit_price || '0') || 0,
                             qty: parseInt(line.qty, 10) || 1,
                             discount: parseFloat(line.discount || '0') || 0,
