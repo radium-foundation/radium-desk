@@ -375,7 +375,7 @@ try {
   await page.goto(`${baseUrl}/pos/sales`, { waitUntil: "networkidle" });
   await page.locator("a", { hasText: "POS-" }).first().click();
   await page.waitForURL(/pos\/sales\/\d+/);
-  await page.fill('form[action*="cancel"] input[name="reason"]', "Browser QA cancel restock");
+  await page.fill("#cancel-reason", "Browser QA cancel restock");
   await page.locator('form[action*="cancel"] button.btn-outline-danger', { hasText: "Cancel sale" }).click();
   await page.waitForURL(/pos\/sales\/\d+/);
   mustInclude(await page.content(), "Cancelled", "cancelled");
@@ -393,7 +393,7 @@ try {
   await page.selectOption("#payment_method", "Cash");
   await page.click("#pos-complete");
   await page.waitForURL(/pos\/sales\/\d+/, { timeout: 20000 });
-  await page.fill('form[action*="return"] input[name="reason"]', "Browser QA return restock");
+  await page.fill("#return-reason", "Browser QA return restock");
   await page.locator('form[action*="return"] button.btn-outline-secondary', { hasText: "Return sale" }).click();
   await page.waitForFunction(() => document.body.innerText.includes("Returned"), { timeout: 20000 });
   mustInclude(await page.content(), "Returned", "returned");

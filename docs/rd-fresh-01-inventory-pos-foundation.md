@@ -2,7 +2,7 @@
 
 **Project:** Radium Desk  
 **Ticket:** RD-FRESH-01  
-**Ledger:** RadiumDesk-P-01-09-12 (POS cancel/return finance reverse on `feat/rd-fresh-01-inventory-pos`; builds on P-01-09-09)  
+**Ledger:** RadiumDesk-P-01-09-11 (final operator QA on disposable sqlite) · RadiumDesk-P-01-09-12 (POS cancel/return finance reverse). Branch `feat/rd-fresh-01-inventory-pos`.  
 **Date:** 2026-09-01  
 **Branch:** `feat/rd-fresh-01-inventory-pos`  
 **Canvas:** [`rd-fresh-01-inventory-pos-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-inventory-pos-foundation.canvas.tsx)
@@ -476,3 +476,45 @@ POS / Finance final gap audit against verified Admin/POS behaviour only. Physica
 Admin `CalculateFinal` (shipping=0) remains the Desk tax formula: header discount after line GST. Regression: ₹100 + 18% − ₹10 header = ₹108, tax still ₹18.
 
 Full 20-point matrix: [`rd-fresh-01-pos-finance-gap-audit.md`](rd-fresh-01-pos-finance-gap-audit.md). Canvas: [`rd-fresh-01-pos-finance-gap-audit.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-pos-finance-gap-audit.canvas.tsx).
+
+## Verification gate (P-01-09-11)
+
+Final operator QA. Inventory import remained paused. `radiumbox_prod`, `radium_desk_local`, Admin, and Desk production were not contacted. No `deskd`.
+
+Canvas: [`rd-fresh-01-inventory-pos-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-inventory-pos-foundation.canvas.tsx)
+
+### Environment
+
+| Check | Result |
+|---|---|
+| Prompt ID | RadiumDesk-P-01-09-11 |
+| Branch | `feat/rd-fresh-01-inventory-pos` |
+| App | PHP built-in server `127.0.0.1:8765` with sqlite router `tests/Feature/Inventory/Support/inventory_pos_browser_qa_router.php` |
+| Database | Disposable `database/inventory-pos-browser-qa.sqlite` (gitignored). `.env` MySQL `radium_desk_local` unused |
+| Browser | Google Chrome (system binary) via Playwright, headless 1440×900 |
+
+### Browser QA result
+
+**VERIFIED** (`ok: true`). Workflow:
+
+LOGIN (session) → expand sidebar → Inventory nav → SKU list → serialized stock-in → duplicate serial rejected → parent-with-variants blocked until child SKU → quantity stock-in → serial list → transfer QAA→QAB → reserve → reserved/transferred serials hidden on POS pick → release → POS branch banner → product/serial search → cart → live totals **2580.00 / 464.40 / 3034.40** → empty customer blocked → customer create + existing lookup → payment Cash → double-click Complete → one POST → internal invoice + Print → cancel restock + finance **Reversed** → return restock + finance **Reversed** → hardware (no catalog/branches/adjust/cancel; QAA only; 403s) → hardware UPI sale → unassigned warning → agent 403
+
+### Defects found / fixed
+
+1. **Double Complete sale.** First Chrome run posted `/pos/counter` twice (`completePosts=2`). Backend idempotency still returned one sale. UI did not disable the button. Fix: capture-phase click lock, `data-submitting`, disable Complete, label Completing…. Re-test: `clicks:1`, `disabled:true`, first sale `posts=1`. Validation was not weakened.
+2. **Cancel vs return reason fields.** Two `name="reason"` inputs; a second submit could fill the wrong box. Fix: `id="cancel-reason"` / `id="return-reason"` plus `data-once-submit` disable. Return path **VERIFIED**.
+3. **Search fetch failures** were silent. Fix: product/serial/customer fetch now shows an operator-visible error.
+
+### Tests
+
+- Chrome operator script `tests/Feature/Inventory/Support/inventory_pos_browser_qa.mjs` — **VERIFIED**
+- `php artisan test --filter='Inventory|PosSale'` — **63 passed**, 5 skipped (InnoDB harness; disposable MariaDB not running this gate)
+
+### Isolation
+
+| Surface | Touched |
+|---|---|
+| Disposable sqlite + loopback `:8765` | Yes |
+| `radium_desk_local` / `radiumbox_prod` / production | No |
+| Opening-inventory workbook | No |
+| Deploy / `deskd` / git tag | No |

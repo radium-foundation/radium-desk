@@ -81,12 +81,12 @@
                 <p class="text-muted small">Restores serials and quantity to the selling branch and posts a reversing finance journal when the sale was posted. Invoice number is kept. This is not a GST credit note.</p>
                 <form method="POST" action="{{ route('pos.sales.cancel', $sale) }}" class="d-flex flex-wrap gap-2 mb-2" data-once-submit>
                     @csrf
-                    <input type="text" name="reason" class="form-control" style="max-width: 24rem;" required placeholder="Cancel reason">
+                    <input type="text" name="reason" id="cancel-reason" class="form-control" style="max-width: 24rem;" required placeholder="Cancel reason" aria-label="Cancel reason">
                     <button class="btn btn-outline-danger">Cancel sale</button>
                 </form>
                 <form method="POST" action="{{ route('pos.sales.return', $sale) }}" class="d-flex flex-wrap gap-2" data-once-submit>
                     @csrf
-                    <input type="text" name="reason" class="form-control" style="max-width: 24rem;" required placeholder="Return reason">
+                    <input type="text" name="reason" id="return-reason" class="form-control" style="max-width: 24rem;" required placeholder="Return reason" aria-label="Return reason">
                     <button class="btn btn-outline-secondary">Return sale</button>
                 </form>
             </div>
