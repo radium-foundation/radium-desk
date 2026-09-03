@@ -53,14 +53,18 @@ Reviewed:
 | MariaDB | Single live `mariadbd` pid 1976167; schema `radium_desk` |
 | Restore acceptable? | **NO — Forbidden** (explicit gate rule; shared production datadir) |
 
-### B — Hostinger Cloud backup storage `187.127.183.72`
+### B — Hostinger Cloud `187.127.183.72` (re-verified P-03-09-28)
 
 | Check | Result |
 |-------|--------|
 | Documented in | `docs/backup-runbook.md` as **Cloud upload target** (port 65002, user `u215544208`) |
-| Classification | **Backup storage only** — not a database server |
-| MariaDB | **Not documented** — storage/rsync role only |
-| Restore acceptable? | **NO** — artifact source only; not an import target |
+| Live hostname | `in-mum2-web2219.main-hosting.eu` — **shared Hostinger hosting**, not dedicated VM |
+| Classification | **Backup storage + legacy shared web/DB host** — **not** an isolated restore target |
+| Legacy Desk | `/home/u215544208/laravel/radium-desk`; `APP_ENV=production`; `desk.radiumbox.com` |
+| MariaDB | **11.8.8** shared service; live schema `u215544208_desk` (**4.71 GiB**); `CREATE DATABASE` **denied** |
+| Public 3306 | **OPEN** from operator network (P-03-09-28) |
+| Backup SHA-256 on host | **VERIFIED** matches `20260903T083001Z` gate |
+| Restore acceptable? | **NO** — shared production-adjacent host; no isolated datadir/schema; see [`desk-phase1-restore-cloud-host-187-investigation.md`](desk-phase1-restore-cloud-host-187-investigation.md) |
 
 ### C — Operator Mac Homebrew MySQL/MariaDB
 

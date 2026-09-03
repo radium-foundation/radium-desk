@@ -516,7 +516,7 @@ Full candidate scan of **documented/authorized** Desk infrastructure only. **No 
 | Candidate | Role | Isolated restore host? |
 |-----------|------|------------------------|
 | `187.127.129.16` production KVM | Live Desk + shared `mariadbd` | **NO — Forbidden** |
-| `187.127.183.72` Cloud storage | Backup rsync target only | **NO — storage only** |
+| `187.127.183.72` Cloud host | Backup rsync target + legacy shared Desk/MariaDB (P-03-09-28) | **NO — REJECTED** — see [`desk-phase1-restore-cloud-host-187-investigation.md`](desk-phase1-restore-cloud-host-187-investigation.md) |
 | Operator Mac Homebrew | Dev `radium_desk_local`; shared datadir; stopped; 10 GiB free | **NO** |
 | Docker/Colima | Not provisioned | **NO** |
 | `148.113.8.82` | Undocumented; P-03-09-24 NOT VERIFIED | **NO** |
