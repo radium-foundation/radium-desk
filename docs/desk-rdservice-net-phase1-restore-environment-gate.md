@@ -3,10 +3,10 @@
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  
 **Worktree:** `/Users/ravi/RadiumWebsites/radium-desk-phase1-clean`  
-**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** (re-verification)  
+**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** (re-verification), **RadiumDesk-P-03-09-19** (re-verification)  
 **Date:** 2026-09-03  
 **Type:** Isolated restore-environment discovery only. **No production migrate, decrypt, import, or invented infrastructure.**  
-**Latest verdict (P-03-09-18):** restore rehearsal still **BLOCKED**. Production migrate still **BLOCKED**.
+**Latest verdict (P-03-09-19):** restore rehearsal still **BLOCKED**. Production migrate still **BLOCKED**.
 
 **Canvas:** [`desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk-phase1-clean/canvases/desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx)
 
@@ -278,3 +278,33 @@ This section does **not** rewrite P-03-09-17 findings. It records a second inspe
 No candidate became a dedicated, already-running, isolated MariaDB. Critical restore-target identity remains UNKNOWN. Per prompt rule: **STOP.** Do not decrypt, copy, import, start, stop, or create a database service.
 
 Production migration may **not** advance past this restore gate.
+
+---
+
+## P-03-09-19 re-verification (2026-09-03 18:05 IST)
+
+This section does **not** rewrite P-03-09-17 or P-03-09-18 findings. It records a third inspect after the owner had another chance to provide a dedicated already-running isolated MariaDB.
+
+| Item | P-03-09-19 result | Class |
+|------|-------------------|-------|
+| Clean HEAD | `0a9db9d33f78f5c58046a4612fd22edec9f3a269` | VERIFIED |
+| Worktree status | Clean before this docs update; ahead of `origin/main` by 4 | VERIFIED |
+| Dirty tree | Still `feat/rd-fresh-01-inventory-pos` `b9bd2f43`. Not modified | VERIFIED |
+| Backup `20260903T083001Z` | Still at `/var/backups/radium-desk/runs/20260903T083001Z/` | VERIFIED |
+| Manifest | `phase=cloud_uploaded`; upload `completed` | VERIFIED |
+| Ciphertext SHA-256 | Database and secrets hashes still match the manifest | VERIFIED |
+| Homebrew `mariadb@11.8` / `mysql` | `brew services`: **none**. Nothing on 3306/3307/33060 | VERIFIED |
+| Docker / Colima / Podman | Binaries still absent | VERIFIED |
+| Local copy of this backup ID | Still not found | VERIFIED |
+| Local GPG passphrase | Env unset; no `$HOME` passphrase file | VERIFIED |
+| KVM `/root/.radium-backup-passphrase` | File still exists; contents not read | VERIFIED |
+| Mac free disk | **10 GiB** (unchanged from P-03-09-18; below the 20 GiB requirement) | VERIFIED |
+| Isolated running MariaDB | **NONE** | VERIFIED as a search result |
+| Target host / socket / datadir / schema / user | **UNKNOWN** — no eligible target | UNKNOWN |
+| Restore rehearsal | **NO — Not performed** | VERIFIED |
+| Decryptability | **UNKNOWN** | UNKNOWN |
+| Production migrate | **Still BLOCKED** | VERIFIED |
+
+No owner-provided isolated target appeared. Eligibility items that remain UNKNOWN or failed: dedicated running instance, host/socket/datadir/schema/version, isolation from other products, ≥20 GiB free, safe local GPG mechanism.
+
+**BLOCKED — restore rehearsal not performed; production migration remains BLOCKED.**
