@@ -3,10 +3,10 @@
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  
 **Worktree:** `/Users/ravi/RadiumWebsites/radium-desk-phase1-clean`  
-**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** / **P-03-09-19** (re-verification), **RadiumDesk-P-03-09-20** (capacity), **RadiumDesk-P-03-09-21** (target verify)  
+**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** / **P-03-09-19** (re-verification), **RadiumDesk-P-03-09-20** (capacity), **RadiumDesk-P-03-09-21** (target verify), **RadiumDesk-P-03-09-23** (gate resolution), **RadiumDesk-P-03-09-24** (148.113.8.82 investigation)  
 **Date:** 2026-09-03  
-**Type:** Isolated restore-environment discovery / capacity assessment only. **No production migrate, decrypt, import, or invented infrastructure.**  
-**Latest verdict (P-03-09-21):** restore target **INVALID / BLOCKED**. Restore rehearsal still **BLOCKED**. Production migrate still **BLOCKED**. Not READY FOR RESTORE.
+**Type:** Isolated restore-environment discovery / capacity assessment / gate resolution. **No production migrate, decrypt, import, or invented infrastructure.**  
+**Latest verdict (P-03-09-24):** `148.113.8.82` investigated read-only — **NOT VERIFIED** as restore host. Restore rehearsal still **BLOCKED**. Production migrate still **BLOCKED**. See [`desk-phase1-restore-host-148-investigation.md`](desk-phase1-restore-host-148-investigation.md).
 
 **Canvas:** [`desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk-phase1-clean/canvases/desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx)
 
@@ -459,5 +459,50 @@ A valid target needs every row VERIFIED. Any UNKNOWN makes the target INVALID.
 6. Explicit cleanup permission for the temporary datadir/schema.
 
 `148.113.8.82` is **not** accepted as the restore target unless the owner names it and the full checklist can be VERIFIED without inspecting other products.
+
+Production migration remains **BLOCKED**.
+
+---
+
+## P-03-09-23 gate resolution (2026-09-03 20:24 IST)
+
+Gate-resolution ticket. **No decrypt, import, start, provision, or production write.**
+
+| Item | P-03-09-23 result | Class |
+|------|-------------------|-------|
+| Clean HEAD | `db7a15e8b2b8750dd2431ee8e9a416fbe35b917b` | VERIFIED |
+| Backup `20260903T083001Z` SHA-256 | Still `03091ad39adf407b57d98705f823b909c52183db085568f4a658f62a4811ef43` | VERIFIED |
+| Homebrew / Docker / local ports | Unchanged — none running; Docker absent | VERIFIED |
+| Mac free disk | **10 GiB** | VERIFIED |
+| KVM MariaDB | Single `mariadbd` on `127.0.0.1:3306` only | VERIFIED |
+| KVM `/root/.radium-backup-passphrase` | EXISTS (sudo; not read) | VERIFIED |
+| Isolated running target | **NONE** | VERIFIED |
+| Restore rehearsal | **NO — Not performed** | VERIFIED |
+| Migration rehearsal on backup copy | **NO — Not performed** | VERIFIED |
+| SQLite Phase-1 migration tests | 37 passed (partial; not backup restore) | VERIFIED |
+
+Prior blocker **not safely resolved**. Full report: [`desk-phase1-restore-gate-resolution.md`](desk-phase1-restore-gate-resolution.md).
+
+Production migration remains **BLOCKED**.
+
+---
+
+## P-03-09-24 restore-host investigation — 148.113.8.82 (2026-09-03 20:30 IST)
+
+Read-only external + SSH-handshake probe. **No login, no MariaDB client, no host modification.**
+
+| Item | Result | Class |
+|------|--------|-------|
+| PTR | `ns5022270.ip-148-113-8.net` | VERIFIED |
+| SSH config | `radium-1` / `rvs` → port **20097** | VERIFIED (config) |
+| SSH live port 20097 | **Connection refused** | VERIFIED |
+| SSH live port 22 | Open; **Permission denied** for operator keys | VERIFIED |
+| TCP 3306 | Open from Mac and from production KVM | VERIFIED (connect only) |
+| HTTP | Caddy on port 80 | VERIFIED |
+| Host OS / disk / MariaDB version / datadir / schemas | **UNKNOWN** (no shell) | UNKNOWN |
+| Isolation / non-production role | **UNKNOWN** | UNKNOWN |
+| Restore host suitability | **NOT VERIFIED** | VERIFIED verdict |
+
+Full report: [`desk-phase1-restore-host-148-investigation.md`](desk-phase1-restore-host-148-investigation.md).
 
 Production migration remains **BLOCKED**.
