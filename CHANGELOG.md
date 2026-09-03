@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.65 — 2026-09-03 — Channel Order Hub (Phase 1)
+
+- Desk can receive paid channel orders from rdservice.net and rdservice.in via HMAC-authenticated ingest (disabled until channel secrets are configured).
+- Commerce orders persist for manual statutory tax-invoice issuance; automatic invoice minting remains off.
+- Finance can issue statutory invoices and private PDFs for eligible September-2026 onward orders.
+- B2B invoices queue IRN foundation work only; no live IRN provider is enabled.
+
 ## 4.0.64 — 2026-08-31 — Desk Order Lookup Independence (Admin Default)
 
 - Desk still looks up missing order details from Admin by default, so live support behavior is unchanged.
