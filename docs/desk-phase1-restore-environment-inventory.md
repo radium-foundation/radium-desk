@@ -108,7 +108,9 @@ Reviewed:
 
 ## Owner provisioning requirements
 
-To clear the restore gate, the owner must **provision and document** a dedicated environment that satisfies **all** of:
+**Full specification:** [`desk-phase1-restore-host-provisioning-spec.md`](desk-phase1-restore-host-provisioning-spec.md) (RadiumDesk-P-03-09-27).
+
+Summary — the owner must **provision and document** a dedicated environment that satisfies **all** of:
 
 1. **Named host** — VM/container/bare metal **not** `187.127.129.16`, **not** shared Homebrew datadir, **not** `148.113.8.82` until independently verified, **not** another product’s production DB.
 2. **MariaDB 11.8.x** (or owner-approved match to production backup engine) on a **dedicated datadir**.

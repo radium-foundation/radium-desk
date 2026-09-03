@@ -6,7 +6,7 @@
 **Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** / **P-03-09-19** (re-verification), **RadiumDesk-P-03-09-20** (capacity), **RadiumDesk-P-03-09-21** (target verify), **RadiumDesk-P-03-09-23** (gate resolution), **RadiumDesk-P-03-09-24** (148.113.8.82 investigation), **RadiumDesk-P-03-09-26** (documented inventory)  
 **Date:** 2026-09-03  
 **Type:** Isolated restore-environment discovery / capacity assessment / gate resolution. **No production migrate, decrypt, import, or invented infrastructure.**  
-**Latest verdict (P-03-09-26):** No approved isolated MariaDB restore host in documented infrastructure. **RESTORE ENVIRONMENT NOT AVAILABLE — OWNER PROVISIONING REQUIRED.** See [`desk-phase1-restore-environment-inventory.md`](desk-phase1-restore-environment-inventory.md).
+**Latest verdict (P-03-09-27):** Owner provisioning specification published. **Dedicated isolated restore host still required.** See [`desk-phase1-restore-host-provisioning-spec.md`](desk-phase1-restore-host-provisioning-spec.md).
 
 **Canvas:** [`desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk-phase1-clean/canvases/desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx)
 
