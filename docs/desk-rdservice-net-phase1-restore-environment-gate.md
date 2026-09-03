@@ -3,10 +3,10 @@
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  
 **Worktree:** `/Users/ravi/RadiumWebsites/radium-desk-phase1-clean`  
-**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** (re-verification), **RadiumDesk-P-03-09-19** (re-verification)  
+**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** / **P-03-09-19** (re-verification), **RadiumDesk-P-03-09-20** (capacity assessment)  
 **Date:** 2026-09-03  
-**Type:** Isolated restore-environment discovery only. **No production migrate, decrypt, import, or invented infrastructure.**  
-**Latest verdict (P-03-09-19):** restore rehearsal still **BLOCKED**. Production migrate still **BLOCKED**.
+**Type:** Isolated restore-environment discovery / capacity assessment only. **No production migrate, decrypt, import, or invented infrastructure.**  
+**Latest verdict (P-03-09-20):** restore rehearsal still **BLOCKED**. Production migrate still **BLOCKED**. This ticket did **not** authorize or perform a restore.
 
 **Canvas:** [`desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk-phase1-clean/canvases/desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx)
 
@@ -308,3 +308,100 @@ This section does **not** rewrite P-03-09-17 or P-03-09-18 findings. It records 
 No owner-provided isolated target appeared. Eligibility items that remain UNKNOWN or failed: dedicated running instance, host/socket/datadir/schema/version, isolation from other products, ≥20 GiB free, safe local GPG mechanism.
 
 **BLOCKED — restore rehearsal not performed; production migration remains BLOCKED.**
+
+---
+
+## P-03-09-20 capacity assessment (2026-09-03 18:10 IST)
+
+Evidence-only. **No decrypt, no import, no MariaDB start, no restore.** Production migrate remains **BLOCKED**.
+
+### Evidence inspected
+
+| Source | What was read | Class |
+|--------|----------------|-------|
+| This worktree | `feat/rdservice-net-phase1-clean` `f77cbf32`; ahead of `origin/main` by 5 | VERIFIED |
+| Dirty tree | Still `feat/rd-fresh-01-inventory-pos` `b9bd2f43`. Not modified | VERIFIED |
+| Artifact `stat` | `database.sql.gz.gpg` **401508879** bytes; `secrets.tar.gz.gpg` **6806**; `manifest.json` **1223** | VERIFIED |
+| SHA-256 | Both `.gpg` files still match the manifest | VERIFIED |
+| Manifest | Stores **ciphertext** `size_bytes` only. No gzip size, no SQL size, no InnoDB size | VERIFIED |
+| `bin/backup-run.sh` | Pipeline is `mysqldump --single-transaction --quick` → plaintext `database.sql` → `gzip -c` → GPG → delete plaintext and `.gz` | VERIFIED |
+| `docs/backup-runbook.md` | Restore is manual: copy bundle, decrypt offline, import dump into a clean non-production MariaDB | VERIFIED |
+| GPG packet list (no decrypt) | `symkey enc packet` + encrypted data packet **length 401508858**. Pinentry failed; ciphertext was not decrypted | VERIFIED |
+| Live schema dir `du` | `/var/lib/mysql/radium_desk` **6079525526** bytes (**5.7G** / **5.66 GiB**). Read-only `du`; no `mysql` client | VERIFIED as of this inspect (~10 h after the backup) |
+| Live datadir `du` | `/var/lib/mysql` **12G** (includes sibling product schemas; **not** the restore footprint) | VERIFIED |
+| P18-08-001 (2026-08-18) | Then `radium_desk/` ibd **5.2 GB**; `information_schema` **5.02 GB**; unbounded growth **~78 MB/day** | Prior VERIFIED; **not** re-measured as table breakdown here |
+| Local Homebrew datadir | Still **6.7G** total; `radium_desk_restore_drill` **3.7G** (2026-08-21 MySQL 9.6). Not this backup ID | VERIFIED size; **not** a restore of `20260903T083001Z` |
+| This Mac free disk | **10 GiB** | VERIFIED |
+
+`gpg --list-packets` launched pinentry and failed with “Bad session key”. **No passphrase was supplied, printed, or copied.**
+
+### What can and cannot be established without decrypt
+
+| Question | Result | Class |
+|----------|--------|-------|
+| Encrypted database artifact size | 401508879 bytes (382.92 MiB / 0.374 GiB) | VERIFIED |
+| Encrypted secrets size | 6806 bytes | VERIFIED |
+| GPG overhead vs payload | File is 21 bytes larger than the encrypted-data packet (401508858). AES256+MDC overhead is small | VERIFIED packet length; gzip size **INFERRED** ≈ 401.5 MiB |
+| `database.sql.gz` exact size | Not in the manifest. Approximately the GPG payload | INFERRED |
+| Uncompressed `database.sql` size | gzip ISIZE is **inside** the ciphertext. Manifest does not record it | **UNKNOWN** |
+| InnoDB restore footprint at backup time | Not recorded. Live schema dir is 5.66 GiB now | INFERRED ≈ 5.7 GiB (hours after backup; not a point-in-time `du` at 08:30Z) |
+| SQL dump vs InnoDB ratio | Text-heavy log tables often gzip well; ratio not measured | UNKNOWN |
+| Decryptability / gzip validity | Not tested | UNKNOWN |
+
+Additional evidence that would replace the UNKNOWN SQL size, still without importing:
+
+1. On a trusted isolated machine, decrypt to `database.sql.gz` only.
+2. Run `gzip -l database.sql.gz` (compressed / uncompressed / ratio).
+3. Delete or avoid keeping the plaintext `.sql` unless needed.
+4. Future backups: record plaintext SQL bytes and gzip bytes in `manifest.json`.
+
+### Restore storage stages (documented procedure)
+
+The runbook decrypts offline, then imports. Inverse of `backup-run.sh` is three layers. Peak disk depends on whether intermediates are kept.
+
+| Stage | What occupies disk | Size |
+|-------|--------------------|------|
+| A. Ciphertext copy | `database.sql.gz.gpg` (+ tiny secrets/manifest) | **0.37 GiB** VERIFIED |
+| B. Decrypt | `database.sql.gz` | **≈ 0.37 GiB** INFERRED |
+| C. `gunzip` | `database.sql` | **UNKNOWN** |
+| D. Import | Isolated `radium_desk` datadir | **≈ 5.66 GiB** INFERRED from live `du` |
+| E. Import working space | InnoDB redo/undo/tmp, sort files | **1–2 GiB** INFERRED (P-03-09-17 local drill saturated a 100 MiB redo) |
+| F. Sibling products on a shared datadir | Must be **zero** on the isolated target | Required; not optional |
+
+**Streamed path** (not written as a CLI in the runbook, but compatible): `gpg -d \| gunzip \| mysql`. Peak ≈ A (if retained) + D + E. SQL file is not materialized.
+
+**Materialized path** (runbook “decrypt offline” then import): peak ≈ A + B + C + D + E at once if nothing is deleted between steps.
+
+### Calculated requirement
+
+| Model | Arithmetic | Class |
+|-------|------------|-------|
+| Streamed, 25% headroom | (0.37 + 5.66 + 2.0) × 1.25 ≈ **10.0 GiB** | INFERRED |
+| Streamed, recommended | Round up for UNKNOWN spool-if-pipe-breaks | **12 GiB** INFERRED |
+| Materialized, if SQL were 5 GiB | (0.37 + 0.37 + 5.0 + 5.66 + 2.0) × 1.25 ≈ **16.8 GiB** | INFERRED illustration only — SQL size UNKNOWN |
+| Materialized, conservative floor while C is UNKNOWN | Keep a single number that still covers a large SQL file + import | **20 GiB** operational floor |
+
+This Mac’s **10 GiB** free is at or below the streamed estimate and **below** the materialized floor. This ticket does **not** try to make the Mac suitable for restore.
+
+### Is 20 GiB still appropriate?
+
+**Yes, as a conservative operational floor for a non-streamed restore while uncompressed SQL size is UNKNOWN.** It is **not** a measured restore size for `20260903T083001Z`.
+
+| Claim | Assessment |
+|-------|------------|
+| 20 GiB is empirically required | **No.** Not measured. SQL size UNKNOWN |
+| 20 GiB is too low | **Unlikely** if the operator streams and the live 5.66 GiB `du` is representative; **not proven** if a large `.sql` is materialized |
+| 20 GiB is unnecessarily high | **Possibly** for a streamed import (12 GiB INFERRED). **Not** unnecessarily high until `gzip -l` exists |
+| 20 GiB as planning floor | **Still appropriate** for the runbook’s decrypt-then-import path |
+
+### Recommended minimum free disk (eventual isolated environment)
+
+| Restore method | Recommended free disk | Why |
+|----------------|----------------------|-----|
+| Streamed `gpg -d \| gunzip \| mysql`, delete intermediates | **12 GiB** | Live schema 5.66 GiB + ciphertext 0.37 GiB + import working space + margin. SQL not kept |
+| Runbook materialized decrypt + import | **20 GiB** | SQL size UNKNOWN. 20 GiB remains the conservative floor |
+| After `gzip -l` is known | Recompute: A + B + C + D + E, then × 1.25 | Replaces the 20 GiB floor with a measured number |
+
+Do **not** use production KVM `mariadbd`, the 12G shared `/var/lib/mysql` (sibling products), or the 6.7G Homebrew datadir.
+
+This assessment does **not** authorize a restore. Restore rehearsal remains **NO — Not performed**. Production migration remains **BLOCKED**.
