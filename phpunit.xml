@@ -20,6 +20,7 @@
     <php>
         <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" force="true"/>
         <env name="APP_NAME" value="Radium Desk"/>
         <!-- Optional fallback only; prefer Git tags / release snapshot / CHANGELOG -->
         <env name="APP_VERSION" value="4.0.0"/>
@@ -45,5 +46,17 @@
         <env name="RDSERVICE_ENABLED" value="false" force="true"/>
         <env name="DESK_ORDER_API_TOKEN" value="" force="true"/>
         <env name="RDSERVICE_BASE_URL" value="https://rdservice.net" force="true"/>
+        <env name="CHANNEL_INGEST_SECRET_RDSERVICE_IN" value="" force="true"/>
+        <env name="CHANNEL_INGEST_SECRET_RDSERVICE_NET" value="" force="true"/>
+        <env name="CHANNEL_INGEST_SECRET_RADIUMBOX_COM" value="" force="true"/>
+        <env name="CHANNEL_INGEST_SECRET_RADIUMSIGN_COM" value="" force="true"/>
+        <env name="CHANNEL_INGEST_SECRET_FUTURE" value="" force="true"/>
+        <env name="CHANNEL_INGEST_CUTOVER_APPROVED" value="false" force="true"/>
+        <env name="STATUTORY_EINVOICE_PROVIDER" value="none" force="true"/>
+        <env name="STATUTORY_INVOICE_SERIES_CODE" value="" force="true"/>
+        <env name="STATUTORY_INVOICE_NUMBER_FORMAT" value="" force="true"/>
+        <env name="STATUTORY_INVOICE_GSTIN_SCOPE" value="" force="true"/>
+        <env name="STATUTORY_INVOICE_LEGAL_NAME" value="" force="true"/>
+        <env name="STATUTORY_INVOICE_SCOPE_STARTS_AT" value="2026-09-01 00:00:00" force="true"/>
     </php>
 </phpunit>

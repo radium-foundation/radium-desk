@@ -3,10 +3,10 @@
 namespace App\Services\Outbox;
 
 use App\Enums\OutboxEventStatus;
-use App\Models\OutboxEvent;
-use App\Models\InteraktWebhookLog;
 use App\Models\BonvoiceWebhookLog;
 use App\Models\IncomingEmailMessage;
+use App\Models\InteraktWebhookLog;
+use App\Models\OutboxEvent;
 use App\Services\Bonvoice\BonvoiceIncomingCallLatency;
 use App\Services\Bonvoice\BonvoiceWebhookOutboxWriter;
 use App\Services\Bonvoice\BonvoiceWebhookProcessorService;
@@ -20,6 +20,8 @@ use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\Interakt\InteraktOutboundProcessorService;
 use App\Services\Interakt\InteraktWebhookOutboxWriter;
 use App\Services\Interakt\InteraktWebhookProcessorService;
+use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
+use App\Services\StatutoryInvoice\EInvoiceProcessor;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -43,6 +45,7 @@ class OutboxProcessorService
         private readonly BonvoiceWebhookProcessorService $bonvoiceWebhookProcessorService,
         private readonly IncomingEmailProcessorService $incomingEmailProcessorService,
         private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
+        private readonly EInvoiceProcessor $einvoiceProcessor,
     ) {}
 
     public function process(?int $limit = null): int
@@ -185,6 +188,7 @@ class OutboxProcessorService
             InteraktOutboundOutboxWriter::EVENT_TYPE => $this->dispatchInteraktTemplateSend($event),
             BonvoiceWebhookOutboxWriter::EVENT_TYPE => $this->dispatchBonvoiceWebhookProcessing($event, $processedBeforeInBatch),
             IncomingEmailOutboxWriter::EVENT_TYPE => $this->dispatchIncomingEmailProcessing($event),
+            EInvoiceOutboxWriter::EVENT_TYPE => $this->einvoiceProcessor->process($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
     }
