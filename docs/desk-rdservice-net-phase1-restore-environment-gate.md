@@ -3,10 +3,10 @@
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  
 **Worktree:** `/Users/ravi/RadiumWebsites/radium-desk-phase1-clean`  
-**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** / **P-03-09-19** (re-verification), **RadiumDesk-P-03-09-20** (capacity), **RadiumDesk-P-03-09-21** (target verify), **RadiumDesk-P-03-09-23** (gate resolution), **RadiumDesk-P-03-09-24** (148.113.8.82 investigation)  
+**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** / **P-03-09-19** (re-verification), **RadiumDesk-P-03-09-20** (capacity), **RadiumDesk-P-03-09-21** (target verify), **RadiumDesk-P-03-09-23** (gate resolution), **RadiumDesk-P-03-09-24** (148.113.8.82 investigation), **RadiumDesk-P-03-09-26** (documented inventory)  
 **Date:** 2026-09-03  
 **Type:** Isolated restore-environment discovery / capacity assessment / gate resolution. **No production migrate, decrypt, import, or invented infrastructure.**  
-**Latest verdict (P-03-09-24):** `148.113.8.82` investigated read-only — **NOT VERIFIED** as restore host. Restore rehearsal still **BLOCKED**. Production migrate still **BLOCKED**. See [`desk-phase1-restore-host-148-investigation.md`](desk-phase1-restore-host-148-investigation.md).
+**Latest verdict (P-03-09-26):** No approved isolated MariaDB restore host in documented infrastructure. **RESTORE ENVIRONMENT NOT AVAILABLE — OWNER PROVISIONING REQUIRED.** See [`desk-phase1-restore-environment-inventory.md`](desk-phase1-restore-environment-inventory.md).
 
 **Canvas:** [`desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk-phase1-clean/canvases/desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx)
 
@@ -504,5 +504,26 @@ Read-only external + SSH-handshake probe. **No login, no MariaDB client, no host
 | Restore host suitability | **NOT VERIFIED** | VERIFIED verdict |
 
 Full report: [`desk-phase1-restore-host-148-investigation.md`](desk-phase1-restore-host-148-investigation.md).
+
+Production migration remains **BLOCKED**.
+
+---
+
+## P-03-09-26 documented restore-environment inventory (2026-09-03 20:35 IST)
+
+Full candidate scan of **documented/authorized** Desk infrastructure only. **No host modification.**
+
+| Candidate | Role | Isolated restore host? |
+|-----------|------|------------------------|
+| `187.127.129.16` production KVM | Live Desk + shared `mariadbd` | **NO — Forbidden** |
+| `187.127.183.72` Cloud storage | Backup rsync target only | **NO — storage only** |
+| Operator Mac Homebrew | Dev `radium_desk_local`; shared datadir; stopped; 10 GiB free | **NO** |
+| Docker/Colima | Not provisioned | **NO** |
+| `148.113.8.82` | Undocumented; P-03-09-24 NOT VERIFIED | **NO** |
+| Named Desk staging host | Not in docs | **NO** |
+
+Backup `20260903T083001Z` SHA-256 re-verified on KVM. **Approved isolated host: NONE.**
+
+Full report: [`desk-phase1-restore-environment-inventory.md`](desk-phase1-restore-environment-inventory.md).
 
 Production migration remains **BLOCKED**.
