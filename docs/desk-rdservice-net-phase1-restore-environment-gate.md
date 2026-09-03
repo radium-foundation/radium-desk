@@ -3,10 +3,10 @@
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  
 **Worktree:** `/Users/ravi/RadiumWebsites/radium-desk-phase1-clean`  
-**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** / **P-03-09-19** (re-verification), **RadiumDesk-P-03-09-20** (capacity assessment)  
+**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** / **P-03-09-19** (re-verification), **RadiumDesk-P-03-09-20** (capacity), **RadiumDesk-P-03-09-21** (target verify)  
 **Date:** 2026-09-03  
 **Type:** Isolated restore-environment discovery / capacity assessment only. **No production migrate, decrypt, import, or invented infrastructure.**  
-**Latest verdict (P-03-09-20):** restore rehearsal still **BLOCKED**. Production migrate still **BLOCKED**. This ticket did **not** authorize or perform a restore.
+**Latest verdict (P-03-09-21):** restore target **INVALID / BLOCKED**. Restore rehearsal still **BLOCKED**. Production migrate still **BLOCKED**. Not READY FOR RESTORE.
 
 **Canvas:** [`desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk-phase1-clean/canvases/desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx)
 
@@ -405,3 +405,59 @@ This Mac’s **10 GiB** free is at or below the streamed estimate and **below** 
 Do **not** use production KVM `mariadbd`, the 12G shared `/var/lib/mysql` (sibling products), or the 6.7G Homebrew datadir.
 
 This assessment does **not** authorize a restore. Restore rehearsal remains **NO — Not performed**. Production migration remains **BLOCKED**.
+
+---
+
+## P-03-09-21 isolated-target verification (2026-09-03 19:02 IST)
+
+Verify gate only. **No provision, start, decrypt, or import.** This ticket does **not** mark any target READY FOR RESTORE.
+
+| Item | P-03-09-21 result | Class |
+|------|-------------------|-------|
+| Clean HEAD | `901209effb9facd777cc2d3e24e5dfb43f1a3cbd` | VERIFIED |
+| Worktree | Clean before this docs update; ahead of `origin/main` by 6 | VERIFIED |
+| Dirty tree | Still `feat/rd-fresh-01-inventory-pos` `b9bd2f43`. Not modified | VERIFIED |
+| Backup `20260903T083001Z` | Still at `/var/backups/radium-desk/runs/20260903T083001Z/` | VERIFIED |
+| Ciphertext SHA-256 | Database hash still `03091ad39adf407b57d98705f823b909c52183db085568f4a658f62a4811ef43` | VERIFIED |
+| Homebrew `mariadb@11.8` / `mysql` | `brew services`: **none**. Nothing on 3306/3307/33060 | VERIFIED |
+| Docker / Colima / Podman / Lima | Binaries still absent | VERIFIED |
+| This Mac free disk | **10 GiB** (below the 20 GiB materialized floor from P-03-09-20) | VERIFIED |
+| Local GPG / local backup copy | Env unset; no local passphrase file; no local copy of this backup ID | VERIFIED |
+| Production KVM | `srv1910783` / `187.127.129.16` — live Desk. **Not a restore target** | VERIFIED |
+| SSH alias `deskvps` | Same host as production Desk KVM | VERIFIED |
+| SSH aliases `radium-1` / `rvs` | `HostName 148.113.8.82` exists in `~/.ssh/config`. **Not** documented as a Desk restore host. **Not** probed (may be another product; schema inventory would violate isolation rules) | VERIFIED as an alias only; restore eligibility **UNKNOWN** → treated as **INVALID** |
+
+### Eligibility checklist
+
+A valid target needs every row VERIFIED. Any UNKNOWN makes the target INVALID.
+
+| Required property | Status |
+|-------------------|--------|
+| Dedicated host/VM/container, demonstrably isolated | **UNKNOWN** — none named and running |
+| Explicit host identity | **UNKNOWN** |
+| Dedicated MariaDB/MySQL instance | **UNKNOWN** — none running locally; production KVM forbidden |
+| Dedicated datadir | **UNKNOWN** |
+| Dedicated restore schema | **UNKNOWN** |
+| Known MariaDB version | **UNKNOWN** |
+| ≥20 GiB free (materialized floor) | Failed on this Mac (**10 GiB**). No other target measured |
+| Not production / not KVM `/var/lib/mysql` | Production exists and is forbidden |
+| Not shared Homebrew datadir | Homebrew datadir still shared and **not running** |
+| Safe GPG on the target | **UNKNOWN** on any non-production host. KVM file exists; using it there is unsafe |
+| Backup accessible to the target | Artifact is on the KVM only. No isolated-host copy |
+| Disposable after validation | **UNKNOWN** — no target |
+| No production application traffic | **UNKNOWN** — no target |
+
+**Restore target status: INVALID / BLOCKED.** Not READY FOR RESTORE. Decrypt/import **NO — Not performed.**
+
+### Owner still must provide
+
+1. A named dedicated host/VM/container that is not `187.127.129.16` and not this Mac’s Homebrew datadir.
+2. An already-running MariaDB on a dedicated datadir, with a disposable restore schema.
+3. ≥20 GiB free (or a measured floor after `gzip -l`).
+4. Ciphertext copy of `20260903T083001Z` on that host.
+5. GPG passphrase already safely available **on that host** (not pasted into chat).
+6. Explicit cleanup permission for the temporary datadir/schema.
+
+`148.113.8.82` is **not** accepted as the restore target unless the owner names it and the full checklist can be VERIFIED without inspecting other products.
+
+Production migration remains **BLOCKED**.
