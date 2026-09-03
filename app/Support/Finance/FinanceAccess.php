@@ -30,4 +30,14 @@ final class FinanceAccess
 
         return $user->can($permission);
     }
+
+    public static function allowsInvoices(?User $user): bool
+    {
+        return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_VIEW);
+    }
+
+    public static function allowsInvoiceIssue(?User $user): bool
+    {
+        return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE);
+    }
 }

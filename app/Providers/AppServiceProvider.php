@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Contracts\AI\AIProvider;
 use App\Contracts\Customer360\CaseIntelligenceLanguageEnhancer;
 use App\Contracts\Operations\IraReasoningProvider;
+use App\Contracts\StatutoryInvoice\EInvoiceGateway;
 use App\Events\Finance\OrderPaid;
 use App\Events\Finance\RefundCompleted;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
@@ -57,6 +58,7 @@ use App\Services\CommunicationActions\Targets\DeviceModelProductTargetProvider;
 use App\Services\CommunicationActions\Targets\DeviceModelRdServiceTargetProvider;
 use App\Services\CommunicationActions\Targets\ReviewPlatformTargetProvider;
 use App\Services\SettingService;
+use App\Services\StatutoryInvoice\NullEInvoiceGateway;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\SystemSettingsAdminCollection;
 use App\Services\SystemSettingsService;
@@ -253,6 +255,8 @@ class AppServiceProvider extends ServiceProvider
                 availabilityService: $app->make(\App\Services\CommunicationActions\CommunicationActionAvailabilityService::class),
             );
         });
+
+        $this->app->bind(EInvoiceGateway::class, NullEInvoiceGateway::class);
     }
 
     /**

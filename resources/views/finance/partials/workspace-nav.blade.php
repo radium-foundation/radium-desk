@@ -44,6 +44,11 @@
             'url' => route('finance.vendor-payments.index'),
             'visible' => FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_VENDOR_PAYMENTS_VIEW),
         ],
+        'invoices' => [
+            'label' => 'Statutory invoices',
+            'url' => route('finance.invoices.pending'),
+            'visible' => FinanceAccess::allowsInvoices($user),
+        ],
         'settings' => [
             'label' => 'Settings',
             'url' => route('finance.settings.cash-accounts'),
