@@ -3,9 +3,10 @@
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  
 **Worktree:** `/Users/ravi/RadiumWebsites/radium-desk-phase1-clean`  
-**Prompt ID:** **RadiumDesk-P-03-09-17**  
+**Prompt IDs:** **RadiumDesk-P-03-09-17** (discovery), **RadiumDesk-P-03-09-18** (re-verification)  
 **Date:** 2026-09-03  
-**Type:** Isolated restore-environment discovery only. **No production migrate, decrypt, import, or invented infrastructure.**
+**Type:** Isolated restore-environment discovery only. **No production migrate, decrypt, import, or invented infrastructure.**  
+**Latest verdict (P-03-09-18):** restore rehearsal still **BLOCKED**. Production migrate still **BLOCKED**.
 
 **Canvas:** [`desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk-phase1-clean/canvases/desk-rdservice-net-phase1-restore-environment-gate.canvas.tsx)
 
@@ -245,3 +246,35 @@ A later ticket may rehearse restore only after the owner names a dedicated isola
 | Push / deploy | **NO — Not performed** |
 | Dirty feature-branch change | **NO — Not performed** |
 | rdservice.net / Admin / Sign / Stocky application change | **NO — Not performed** |
+
+---
+
+## P-03-09-18 re-verification (2026-09-03 17:54 IST)
+
+This section does **not** rewrite P-03-09-17 findings. It records a second inspect to see whether a dedicated, already-running, isolated MariaDB had become available.
+
+`docs/cursor-prompt-log.md` is **absent** in both worktrees. The live ledger remains `docs/cursor-prompt-ledger.md`. This ticket did **not** create `cursor-prompt-log.md` in the dirty worktree.
+
+| Item | P-03-09-18 result | Class |
+|------|-------------------|-------|
+| Clean HEAD | `c42e79d210f1c7f142d4de0028b27ac486659ee0` | VERIFIED |
+| Worktree status | Clean before this docs update; ahead of `origin/main` by 3 | VERIFIED |
+| Dirty tree | Still `feat/rd-fresh-01-inventory-pos` `b9bd2f43`. Not modified | VERIFIED |
+| Backup `20260903T083001Z` | Still at `/var/backups/radium-desk/runs/20260903T083001Z/` | VERIFIED |
+| Manifest | `phase=cloud_uploaded`; upload `completed` `2026-09-03T08:32:02Z` | VERIFIED |
+| Ciphertext SHA-256 | Database and secrets hashes still match the manifest | VERIFIED |
+| Homebrew `mariadb@11.8` / `mysql` | `brew services`: **none**. Nothing on 3306/3307/33060 | VERIFIED |
+| Docker / Colima / Podman | Binaries still absent | VERIFIED |
+| Local copy of this backup ID | Still not found | VERIFIED |
+| Local GPG passphrase | Env unset; no `$HOME` passphrase file | VERIFIED |
+| KVM `/root/.radium-backup-passphrase` | File still exists; contents not read | VERIFIED |
+| Mac free disk | **10 GiB** (was 11 GiB at P-03-09-17) | VERIFIED |
+| Isolated running MariaDB | **NONE** | VERIFIED as a search result |
+| Target host / socket / datadir / schema / user | **UNKNOWN** — no eligible target | UNKNOWN |
+| Restore rehearsal | **NO — Not performed** | VERIFIED |
+| Decryptability | **UNKNOWN** | UNKNOWN |
+| Production migrate | **Still BLOCKED** | VERIFIED |
+
+No candidate became a dedicated, already-running, isolated MariaDB. Critical restore-target identity remains UNKNOWN. Per prompt rule: **STOP.** Do not decrypt, copy, import, start, stop, or create a database service.
+
+Production migration may **not** advance past this restore gate.
