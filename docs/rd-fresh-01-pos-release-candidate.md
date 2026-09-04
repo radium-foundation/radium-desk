@@ -7,7 +7,9 @@
 **Release worktree:** `/Users/ravi/RadiumWebsites/radium-desk-pos-release`  
 **Base:** `origin/main` `91c5117d` (v4.0.65)  
 **Source POS SHA:** `b56072dd` on `feat/rd-fresh-01-inventory-pos`  
-**Original feature worktree:** `/Users/ravi/RadiumWebsites/radium-desk` (left dirty; not deployed)
+**Original feature worktree:** `/Users/ravi/RadiumWebsites/radium-desk` (left dirty; not deployed)  
+**Commit / remote:** `f376327e` = `origin/release/pos-4.0.66`  
+**Canvas:** [`rd-fresh-01-pos-release-candidate.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-pos-release-candidate.canvas.tsx)
 
 This is a **release candidate**, not a live production cutover.
 
