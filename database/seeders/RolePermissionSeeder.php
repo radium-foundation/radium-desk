@@ -88,6 +88,31 @@ class RolePermissionSeeder extends Seeder
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
+    public const PERMISSION_INVENTORY_VIEW = 'inventory.view';
+
+    public const PERMISSION_INVENTORY_PRODUCTS_MANAGE = 'inventory.products.manage';
+
+    public const PERMISSION_INVENTORY_BRANCHES_MANAGE = 'inventory.branches.manage';
+
+    public const PERMISSION_INVENTORY_STOCK_IN = 'inventory.stock.in';
+
+    public const PERMISSION_INVENTORY_STOCK_TRANSFER = 'inventory.stock.transfer';
+
+    public const PERMISSION_INVENTORY_STOCK_ADJUST = 'inventory.stock.adjust';
+
+    public const PERMISSION_INVENTORY_STOCK_RESERVE = 'inventory.stock.reserve';
+
+    public const PERMISSION_INVENTORY_OPENING_IMPORT = 'inventory.opening.import';
+
+    public const PERMISSION_POS_VIEW = 'pos.view';
+
+    public const PERMISSION_POS_SELL = 'pos.sell';
+
+    public const PERMISSION_POS_CANCEL = 'pos.cancel';
+
+    /** Operate stock and POS at every branch without a per-branch assignment. */
+    public const PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES = 'inventory.branches.operate-all';
+
     public const PERMISSION_TODOS_VIEW = 'todos.view';
 
     public const PERMISSION_TODOS_CREATE = 'todos.create';
@@ -107,6 +132,40 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_TODOS_VIEW,
         self::PERMISSION_TODOS_CREATE,
         self::PERMISSION_TODOS_UPDATE,
+    ];
+
+    /**
+     * Inventory + POS action permissions for admin-team roles.
+     *
+     * @var list<string>
+     */
+    private const INVENTORY_ADMIN_PERMISSIONS = [
+        self::PERMISSION_INVENTORY_VIEW,
+        self::PERMISSION_INVENTORY_PRODUCTS_MANAGE,
+        self::PERMISSION_INVENTORY_BRANCHES_MANAGE,
+        self::PERMISSION_INVENTORY_STOCK_IN,
+        self::PERMISSION_INVENTORY_STOCK_TRANSFER,
+        self::PERMISSION_INVENTORY_STOCK_ADJUST,
+        self::PERMISSION_INVENTORY_STOCK_RESERVE,
+        self::PERMISSION_INVENTORY_OPENING_IMPORT,
+        self::PERMISSION_POS_VIEW,
+        self::PERMISSION_POS_SELL,
+        self::PERMISSION_POS_CANCEL,
+        self::PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES,
+    ];
+
+    /**
+     * Counter + warehouse operations for hardware team.
+     *
+     * @var list<string>
+     */
+    private const INVENTORY_HARDWARE_PERMISSIONS = [
+        self::PERMISSION_INVENTORY_VIEW,
+        self::PERMISSION_INVENTORY_STOCK_IN,
+        self::PERMISSION_INVENTORY_STOCK_TRANSFER,
+        self::PERMISSION_INVENTORY_STOCK_RESERVE,
+        self::PERMISSION_POS_VIEW,
+        self::PERMISSION_POS_SELL,
     ];
 
     /**
@@ -285,6 +344,7 @@ class RolePermissionSeeder extends Seeder
             ...self::TODO_BASELINE_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
+            ...self::INVENTORY_HARDWARE_PERMISSIONS,
         ],
         // Non-support staff: own attendance + leave only (profile/notifications are auth-gated).
         self::ROLE_EMPLOYEE => [
@@ -342,6 +402,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
+            ...self::INVENTORY_ADMIN_PERMISSIONS,
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -391,6 +452,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
+            ...self::INVENTORY_ADMIN_PERMISSIONS,
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -450,6 +512,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_BACKUPS_VIEW,
+            ...self::INVENTORY_ADMIN_PERMISSIONS,
         ],
     ];
 

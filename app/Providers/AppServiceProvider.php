@@ -14,9 +14,11 @@ use App\Contracts\Workforce\WorkforceEventPublisher;
 use App\Enums\ContributionSignalId;
 use App\Events\Finance\OrderPaid;
 use App\Events\Finance\RefundCompleted;
+use App\Events\Inventory\InventorySaleCompleted;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Listeners\BroadcastNotificationCreated;
 use App\Listeners\Finance\PostOrderPaidJournal;
+use App\Listeners\Finance\PostPosSaleJournal;
 use App\Listeners\Finance\PostRefundCompletedJournal;
 use App\Listeners\LogScheduledTaskTiming;
 use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
@@ -321,6 +323,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(SupportAppointmentSmartAssigned::class, DispatchIraSmartAssignmentNotification::class);
         Event::listen(OrderPaid::class, PostOrderPaidJournal::class);
         Event::listen(RefundCompleted::class, PostRefundCompletedJournal::class);
+        Event::listen(InventorySaleCompleted::class, PostPosSaleJournal::class);
         Event::listen([
             ScheduledTaskStarting::class,
             ScheduledTaskFinished::class,

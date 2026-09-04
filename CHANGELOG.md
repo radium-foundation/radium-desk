@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.66 — 2026-09-04 — Desk Inventory and POS
+
+- Inventory and POS are available in Desk: products, branches, serial and quantity stock, transfers, adjustments, reservations, and the sales counter.
+- Opening inventory can be previewed and applied from the owner Excel workbook without inventing branches or GSTINs.
+- Cash, UPI, Card, and Cashfree checkout post to Finance; only Cash uses the cash account, and Cashfree uses bank clearing.
+- Cancel and return restore stock and reverse the POS journal. Receipts are internal Desk receipts, not GST tax invoices.
+- This release does not import opening stock, assign operators, or turn on GST e-invoice.
+
 ## 4.0.65 — 2026-09-03 — Channel Order Hub (Phase 1)
 
 - Desk can receive paid channel orders from rdservice.net and rdservice.in via HMAC-authenticated ingest (disabled until channel secrets are configured).

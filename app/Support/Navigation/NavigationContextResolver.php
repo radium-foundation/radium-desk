@@ -4,6 +4,7 @@ namespace App\Support\Navigation;
 
 use App\Models\AuditLog;
 use App\Models\CashfreeWebhookLog;
+use App\Models\CompanyHoliday;
 use App\Models\LeaveRequest;
 use App\Models\SystemSetting;
 use App\Models\Todo;
@@ -11,6 +12,8 @@ use App\Models\User;
 use App\Services\Operations\OperationsRoleService;
 use App\Support\Finance\FinanceAccess;
 use App\Support\IncomingEmail\IncomingEmailAccess;
+use App\Support\Inventory\InventoryAccess;
+use App\Support\Inventory\PosAccess;
 use App\Support\Workforce\AttendanceManagementAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\Request;
@@ -47,6 +50,8 @@ class NavigationContextResolver
      *     operations: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     mission_control: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     workforce_management: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
+     *     inventory: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
+     *     pos: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     finance: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     administration: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     personal: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
@@ -108,6 +113,76 @@ class NavigationContextResolver
                     )
                     : null,
             ]))
+            : [];
+
+        $inventoryItems = InventoryAccess::allows($user)
+            ? array_values(array_filter([
+                $this->sidebarItem(
+                    'inventory.stock',
+                    'Stock',
+                    'bi-box-seam',
+                    route('inventory.stock.index'),
+                    $context,
+                ),
+                $this->sidebarItem(
+                    'inventory.serials',
+                    'Serials',
+                    'bi-upc-scan',
+                    route('inventory.serials.index'),
+                    $context,
+                ),
+                $this->sidebarItem(
+                    'inventory.transfers',
+                    'Transfers',
+                    'bi-arrow-left-right',
+                    route('inventory.transfers.index'),
+                    $context,
+                ),
+                $this->sidebarItem(
+                    'inventory.movements',
+                    'Movements',
+                    'bi-journal-text',
+                    route('inventory.movements.index'),
+                    $context,
+                ),
+                InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_PRODUCTS_MANAGE)
+                    ? $this->sidebarItem(
+                        'inventory.products',
+                        'Products',
+                        'bi-tags',
+                        route('inventory.products.index'),
+                        $context,
+                    )
+                    : null,
+                InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_BRANCHES_MANAGE)
+                    ? $this->sidebarItem(
+                        'inventory.branches',
+                        'Branches',
+                        'bi-geo-alt',
+                        route('inventory.branches.index'),
+                        $context,
+                    )
+                    : null,
+            ]))
+            : [];
+
+        $posItems = PosAccess::allows($user)
+            ? [
+                $this->sidebarItem(
+                    'pos.counter',
+                    'Counter',
+                    'bi-cart-check',
+                    route('pos.counter.create'),
+                    $context,
+                ),
+                $this->sidebarItem(
+                    'pos.sales',
+                    'Sales',
+                    'bi-receipt',
+                    route('pos.sales.index'),
+                    $context,
+                ),
+            ]
             : [];
 
         $financeItems = FinanceAccess::allows($user)
@@ -176,6 +251,18 @@ class NavigationContextResolver
                 'home_url' => route(NavigationMenu::WorkforceManagement->homeRoute()),
                 'visible' => $workforceManagementItems !== [],
                 'items' => $workforceManagementItems,
+            ],
+            'inventory' => [
+                'label' => NavigationMenu::Inventory->label(),
+                'home_url' => $inventoryItems[0]['url'] ?? route(NavigationMenu::Inventory->homeRoute()),
+                'visible' => $inventoryItems !== [],
+                'items' => $inventoryItems,
+            ],
+            'pos' => [
+                'label' => NavigationMenu::Pos->label(),
+                'home_url' => $posItems[0]['url'] ?? route(NavigationMenu::Pos->homeRoute()),
+                'visible' => $posItems !== [],
+                'items' => $posItems,
             ],
             'finance' => [
                 'label' => NavigationMenu::Finance->label(),
@@ -248,6 +335,42 @@ class NavigationContextResolver
 
         if ($request->routeIs('workforce-management.*')) {
             return [NavigationMenu::WorkforceManagement, 'workforce_management.attendance', null];
+        }
+
+        if ($request->routeIs('inventory.products.*')) {
+            return [NavigationMenu::Inventory, 'inventory.products', null];
+        }
+
+        if ($request->routeIs('inventory.branches.*')) {
+            return [NavigationMenu::Inventory, 'inventory.branches', null];
+        }
+
+        if ($request->routeIs('inventory.serials.*')) {
+            return [NavigationMenu::Inventory, 'inventory.serials', null];
+        }
+
+        if ($request->routeIs('inventory.transfers.*')) {
+            return [NavigationMenu::Inventory, 'inventory.transfers', null];
+        }
+
+        if ($request->routeIs('inventory.adjustments.*', 'inventory.reservations.*')) {
+            return [NavigationMenu::Inventory, 'inventory.stock', null];
+        }
+
+        if ($request->routeIs('inventory.movements.*')) {
+            return [NavigationMenu::Inventory, 'inventory.movements', null];
+        }
+
+        if ($request->routeIs('inventory.*')) {
+            return [NavigationMenu::Inventory, 'inventory.stock', null];
+        }
+
+        if ($request->routeIs('pos.sales.*')) {
+            return [NavigationMenu::Pos, 'pos.sales', null];
+        }
+
+        if ($request->routeIs('pos.*')) {
+            return [NavigationMenu::Pos, 'pos.counter', null];
         }
 
         if ($request->routeIs('finance.*')) {
@@ -461,6 +584,8 @@ class NavigationContextResolver
             NavigationMenu::Operations => false,
             NavigationMenu::MissionControl => in_array($pageTitle, ['Command Center', 'Mission Control'], true),
             NavigationMenu::WorkforceManagement => in_array($pageTitle, ['Workforce Management', 'Attendance'], true),
+            NavigationMenu::Inventory => in_array($pageTitle, ['Inventory', 'Stock'], true),
+            NavigationMenu::Pos => in_array($pageTitle, ['POS', 'POS counter'], true),
             NavigationMenu::Finance => in_array($pageTitle, ['Finance', 'Dashboard'], true),
             NavigationMenu::Administration => $pageTitle === 'Administration',
             NavigationMenu::Personal => in_array($pageTitle, ['My Workforce', 'My Performance', 'Leave Requests', 'To-Dos'], true),
@@ -485,7 +610,7 @@ class NavigationContextResolver
         return Gate::check('viewAny', User::class)
             || Gate::check('viewAny', SystemSetting::class)
             || $user->can('system-settings.manage')
-            || Gate::check('viewAny', \App\Models\CompanyHoliday::class);
+            || Gate::check('viewAny', CompanyHoliday::class);
     }
 
     private function canViewMyPerformance(?User $user): bool

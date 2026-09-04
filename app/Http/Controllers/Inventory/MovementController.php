@@ -1,0 +1,55 @@
+<?php
+
+namespace App\Http\Controllers\Inventory;
+
+use App\Http\Controllers\Controller;
+use App\Models\InventoryMovement;
+use App\Models\InventoryProduct;
+use App\Support\Inventory\InventoryAccess;
+use App\Support\Inventory\InventoryBranchScope;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+
+class MovementController extends Controller
+{
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            abort_unless(InventoryAccess::allows($request->user()), 403);
+
+            return $next($request);
+        });
+    }
+
+    public function index(Request $request): View
+    {
+        $user = $request->user();
+
+        $movements = InventoryBranchScope::constrain(
+            InventoryMovement::query()->with(['product', 'serial', 'branch', 'fromBranch', 'toBranch', 'actor', 'sale']),
+            $user,
+        )
+            ->when($request->filled('branch_id'), function ($q) use ($request, $user) {
+                $branch = InventoryBranchScope::requireBranchId($request->integer('branch_id'), $user);
+                $q->where('branch_id', $branch->id);
+            })
+            ->when($request->filled('product_id'), fn ($q) => $q->where('product_id', $request->integer('product_id')))
+            ->when($request->filled('type'), fn ($q) => $q->where('type', $request->string('type')))
+            ->when($request->filled('serial'), fn ($q) => $q->whereHas(
+                'serial',
+                fn ($serial) => $serial->where('serial_number', 'like', '%'.$request->string('serial')->trim().'%'),
+            ))
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('id')
+            ->paginate(50)
+            ->withQueryString();
+
+        return view('inventory.movements.index', [
+            'movements' => $movements,
+            'branches' => InventoryBranchScope::allowedBranches($user, activeOnly: false),
+            'products' => InventoryProduct::query()->orderBy('name')->get(),
+            'filters' => $request->only(['branch_id', 'product_id', 'type', 'serial']),
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($user),
+        ]);
+    }
+}

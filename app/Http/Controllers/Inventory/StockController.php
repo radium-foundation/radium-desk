@@ -1,0 +1,145 @@
+<?php
+
+namespace App\Http\Controllers\Inventory;
+
+use App\Http\Controllers\Controller;
+use App\Models\InventoryProduct;
+use App\Models\InventoryProductVariant;
+use App\Models\InventoryStockBalance;
+use App\Services\Inventory\InventoryStockService;
+use App\Support\Inventory\InventoryAccess;
+use App\Support\Inventory\InventoryBranchScope;
+use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
+
+class StockController extends Controller
+{
+    public function __construct(
+        private readonly InventoryStockService $stock,
+    ) {
+        $this->middleware(function ($request, $next) {
+            abort_unless(InventoryAccess::allows($request->user()), 403);
+
+            return $next($request);
+        });
+    }
+
+    public function index(Request $request): View
+    {
+        $user = $request->user();
+        $branches = InventoryBranchScope::allowedBranches($user);
+
+        $balances = InventoryBranchScope::constrain(
+            InventoryStockBalance::query()->with(['product', 'variant', 'branch']),
+            $user,
+        )
+            ->when($request->filled('branch_id'), function ($q) use ($request, $user) {
+                $branch = InventoryBranchScope::requireBranchId($request->integer('branch_id'), $user);
+                $q->where('branch_id', $branch->id);
+            })
+            ->when($request->filled('product_id'), fn ($q) => $q->where('product_id', $request->integer('product_id')))
+            ->orderByDesc('available_qty')
+            ->paginate(40)
+            ->withQueryString();
+
+        return view('inventory.stock.index', [
+            'balances' => $balances,
+            'branches' => $branches,
+            'products' => InventoryProduct::query()->where('is_active', true)->orderBy('name')->get(),
+            'filters' => $request->only(['branch_id', 'product_id']),
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($user),
+            'canStockIn' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_IN),
+            'canAdjust' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_ADJUST),
+            'canReserve' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_RESERVE),
+        ]);
+    }
+
+    public function create(Request $request): View
+    {
+        abort_unless(
+            InventoryAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_IN),
+            403,
+        );
+
+        $products = InventoryProduct::query()->with('variants')->where('is_active', true)->orderBy('name')->get();
+
+        return view('inventory.stock.create', [
+            'branches' => InventoryBranchScope::allowedBranches($request->user()),
+            'products' => $products,
+            'productVariantOptions' => $products->map(fn (InventoryProduct $product): array => [
+                'id' => $product->id,
+                'variants' => $product->variants
+                    ->where('is_active', true)
+                    ->map(fn ($variant): array => [
+                        'id' => $variant->id,
+                        'label' => trim($variant->sku.' — '.$variant->name),
+                    ])
+                    ->values()
+                    ->all(),
+            ])->values()->all(),
+            'needsBranchAssignment' => InventoryBranchScope::needsAssignment($request->user()),
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        abort_unless(
+            InventoryAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_IN),
+            403,
+        );
+
+        $data = $request->validate([
+            'branch_id' => ['required', 'exists:inventory_branches,id'],
+            'product_id' => ['required', 'exists:inventory_products,id'],
+            'variant_id' => ['nullable', 'exists:inventory_product_variants,id'],
+            'qty' => ['nullable', 'integer', 'min:1'],
+            'serials' => ['nullable', 'string'],
+            'batch_code' => ['nullable', 'string', 'max:64'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $branch = InventoryBranchScope::requireBranchId($data['branch_id'], $request->user());
+        $product = InventoryProduct::query()->with('variants')->findOrFail($data['product_id']);
+        $variant = ! empty($data['variant_id'])
+            ? InventoryProductVariant::query()->findOrFail($data['variant_id'])
+            : null;
+
+        if ($variant !== null && (int) $variant->product_id !== (int) $product->id) {
+            throw ValidationException::withMessages([
+                'variant_id' => 'That variant does not belong to the selected product.',
+            ]);
+        }
+
+        if ($variant === null && $product->variants->where('is_active', true)->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'variant_id' => 'Select a variant. POS sells child SKUs separately from the parent product.',
+            ]);
+        }
+
+        if ($product->is_serialized) {
+            $this->stock->stockInSerialized(
+                product: $product,
+                branch: $branch,
+                serials: $data['serials'] ?? '',
+                actor: $request->user(),
+                variant: $variant,
+                batchCode: $data['batch_code'] ?? null,
+                notes: $data['notes'] ?? null,
+            );
+        } else {
+            $this->stock->stockInQuantity(
+                product: $product,
+                branch: $branch,
+                qty: (int) ($data['qty'] ?? 0),
+                actor: $request->user(),
+                variant: $variant,
+                notes: $data['notes'] ?? null,
+            );
+        }
+
+        return redirect()->route('inventory.stock.index')->with('status', 'Stock received.');
+    }
+}
