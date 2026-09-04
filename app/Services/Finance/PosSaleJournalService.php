@@ -183,8 +183,8 @@ class PosSaleJournalService
 
     private function settlementAccount(InventorySale $sale): ?FinanceAccount
     {
-        $method = strtolower((string) $sale->payment_method);
-        if (str_contains($method, 'cash')) {
+        $method = strtolower(trim((string) $sale->payment_method));
+        if ($method === 'cash') {
             return $this->settings->defaultCashAccount() ?? $this->settings->defaultBankClearingAccount();
         }
 

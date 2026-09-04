@@ -95,6 +95,22 @@ class PosSaleJournalReversalTest extends TestCase
         $this->assertSame(2, FinanceJournal::query()->where('source_type', FinanceJournalSourceType::PosSale)->count());
     }
 
+    public function test_cashfree_posts_to_bank_clearing_not_cash(): void
+    {
+        $cashId = $this->accountId(FinanceChartOfAccountsSeeder::CODE_CASH_ON_HAND);
+        $bankId = $this->accountId(FinanceChartOfAccountsSeeder::CODE_BANK_CLEARING);
+        $cashBefore = $this->balances->compute($cashId);
+        $bankBefore = $this->balances->compute($bankId);
+
+        $product = $this->serializedProduct('MFS-CFREE', 'Cashfree scanner');
+        $this->stock->stockInSerialized($product, $this->branch, ['FIN-CFREE-1'], $this->actor);
+        $sale = $this->completeSerializedSale('FIN-CFREE-1', 'Cashfree', '9999910006', 'MFS-CFREE');
+
+        $this->assertSame(InventoryFinanceHandoffStatus::Posted, $sale->finance_handoff_status);
+        $this->assertEqualsWithDelta($cashBefore, $this->balances->compute($cashId), 0.001);
+        $this->assertEqualsWithDelta($bankBefore + (float) $sale->total, $this->balances->compute($bankId), 0.001);
+    }
+
     public function test_return_reverses_bank_clearing_for_a_card_sale(): void
     {
         $bankId = $this->accountId(FinanceChartOfAccountsSeeder::CODE_BANK_CLEARING);
