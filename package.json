@@ -21,6 +21,7 @@
         "bootstrap": "^5.3.8",
         "bootstrap-icons": "^1.13.1",
         "laravel-echo": "^2.3.7",
-        "pusher-js": "^8.5.0"
+        "pusher-js": "^8.5.0",
+        "qrcode": "^1.5.4"
     }
 }

@@ -241,6 +241,57 @@ class InventoryStockServiceTest extends TestCase
         $this->stock->lockAvailableSerialsForSale($product, $this->hq, ['LOCK-VAR-1']);
     }
 
+    public function test_reserve_for_cart_holds_quantity_and_release_restores_it(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'CABLE-HOLD',
+            'name' => 'USB Cable hold',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+        $this->stock->stockInQuantity($product, $this->hq, 5, $this->actor);
+
+        $reservation = $this->stock->reserveForCart($this->hq, [[
+            'product_id' => $product->id,
+            'qty' => 2,
+        ]], $this->actor);
+
+        $this->assertSame(InventoryReservationStatus::Active, $reservation->status);
+        $this->assertSame(3, (int) $product->balances()->where('branch_id', $this->hq->id)->value('available_qty'));
+        $this->assertSame(2, (int) $product->balances()->where('branch_id', $this->hq->id)->value('reserved_qty'));
+
+        $this->stock->releaseReservation($reservation, $this->actor);
+
+        $this->assertSame(5, (int) $product->balances()->where('branch_id', $this->hq->id)->value('available_qty'));
+        $this->assertSame(0, (int) $product->balances()->where('branch_id', $this->hq->id)->value('reserved_qty'));
+    }
+
+    public function test_quantity_reservation_blocks_oversell_of_available_stock(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'CABLE-RACE',
+            'name' => 'USB Cable race',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+        $this->stock->stockInQuantity($product, $this->hq, 1, $this->actor);
+
+        $this->stock->reserveForCart($this->hq, [[
+            'product_id' => $product->id,
+            'qty' => 1,
+        ]], $this->actor);
+
+        $this->expectException(ValidationException::class);
+        $this->stock->reserveForCart($this->hq, [[
+            'product_id' => $product->id,
+            'qty' => 1,
+        ]], $this->actor);
+    }
+
     private function serializedProduct(): InventoryProduct
     {
         return InventoryProduct::query()->create([

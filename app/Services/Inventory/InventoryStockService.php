@@ -514,6 +514,186 @@ class InventoryStockService
         }, self::LOCK_ATTEMPTS);
     }
 
+    /**
+     * Hold serials and quantity-only stock for one pending cart using the existing
+     * reserved_qty / reservation-line model. Locks balances and serials in sorted order.
+     *
+     * @param  list<array{
+     *     product_id: int,
+     *     variant_id?: int|null,
+     *     qty: int,
+     *     serials?: list<string>|string|null
+     * }>  $lines
+     */
+    public function reserveForCart(
+        InventoryBranch $branch,
+        array $lines,
+        User $actor,
+        ?string $notes = null,
+    ): InventoryReservation {
+        if ($lines === []) {
+            throw ValidationException::withMessages([
+                'lines' => 'Add at least one product line to reserve.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($branch, $lines, $actor, $notes): InventoryReservation {
+            $reservation = InventoryReservation::query()->create([
+                'reservation_no' => 'RSV-TMP-'.strtoupper(bin2hex(random_bytes(6))),
+                'branch_id' => $branch->id,
+                'status' => InventoryReservationStatus::Active,
+                'notes' => $notes,
+                'created_by' => $actor->id,
+            ]);
+            $reservation->update(['reservation_no' => sprintf('RSV-%06d', $reservation->id)]);
+
+            $quantityHolds = [];
+            $serialNumbers = [];
+
+            foreach ($lines as $index => $line) {
+                $product = InventoryProduct::query()->find($line['product_id'] ?? null);
+                if ($product === null || ! $product->is_active) {
+                    throw ValidationException::withMessages([
+                        "lines.{$index}.product_id" => 'Product is missing or inactive.',
+                    ]);
+                }
+
+                $variant = null;
+                if (! empty($line['variant_id'])) {
+                    $variant = InventoryProductVariant::query()->find($line['variant_id']);
+                    if ($variant === null || $variant->product_id !== $product->id || ! $variant->is_active) {
+                        throw ValidationException::withMessages([
+                            "lines.{$index}.variant_id" => 'Variant is missing or inactive.',
+                        ]);
+                    }
+                }
+
+                $qty = (int) ($line['qty'] ?? 0);
+                if ($qty < 1) {
+                    throw ValidationException::withMessages([
+                        "lines.{$index}.qty" => 'Quantity must be at least 1.',
+                    ]);
+                }
+
+                if ($product->is_serialized) {
+                    $numbers = InventorySerialNumber::parseList($line['serials'] ?? []);
+                    if (count($numbers) !== $qty) {
+                        throw ValidationException::withMessages([
+                            "lines.{$index}.serials" => "Provide exactly {$qty} available serial(s) for {$product->sku}.",
+                        ]);
+                    }
+                    foreach ($numbers as $number) {
+                        $serialNumbers[] = $number;
+                    }
+                } else {
+                    $quantityHolds[] = [
+                        'product' => $product,
+                        'variant' => $variant,
+                        'qty' => $qty,
+                    ];
+                }
+            }
+
+            $serialNumbers = array_values(array_unique($serialNumbers));
+            sort($serialNumbers, SORT_STRING);
+            foreach ($serialNumbers as $number) {
+                $this->lockSerialByNumber($number);
+            }
+
+            usort($quantityHolds, function (array $left, array $right): int {
+                return InventoryStockBalance::keyFor($left['product']->id, $left['variant']?->id, $branch->id)
+                    <=> InventoryStockBalance::keyFor($right['product']->id, $right['variant']?->id, $branch->id);
+            });
+
+            foreach ($quantityHolds as $hold) {
+                $this->adjustBalance(
+                    $hold['product'],
+                    $hold['variant'],
+                    $branch,
+                    availableDelta: -$hold['qty'],
+                    reservedDelta: $hold['qty'],
+                );
+                $reservation->lines()->create([
+                    'product_id' => $hold['product']->id,
+                    'variant_id' => $hold['variant']?->id,
+                    'serial_id' => null,
+                    'qty' => $hold['qty'],
+                ]);
+                $this->recordMovement(
+                    type: InventoryMovementType::Reserve,
+                    product: $hold['product'],
+                    branch: $branch,
+                    qty: $hold['qty'],
+                    actor: $actor,
+                    variant: $hold['variant'],
+                    reservation: $reservation,
+                    notes: $notes,
+                );
+            }
+
+            foreach ($serialNumbers as $number) {
+                $serial = $this->lockSerialByNumber($number);
+                $this->assertSerialAvailableAt($serial, $branch, $number);
+
+                $serial->update([
+                    'status' => InventorySerialStatus::Reserved,
+                    'reserved_reservation_id' => $reservation->id,
+                ]);
+                $this->adjustBalance($serial->product, $serial->variant, $branch, availableDelta: -1, reservedDelta: 1);
+
+                $reservation->lines()->create([
+                    'product_id' => $serial->product_id,
+                    'variant_id' => $serial->variant_id,
+                    'serial_id' => $serial->id,
+                    'qty' => 1,
+                ]);
+
+                $this->recordMovement(
+                    type: InventoryMovementType::Reserve,
+                    product: $serial->product,
+                    branch: $branch,
+                    qty: 0,
+                    actor: $actor,
+                    variant: $serial->variant,
+                    serial: $serial,
+                    reservation: $reservation,
+                    fromStatus: InventorySerialStatus::Available,
+                    toStatus: InventorySerialStatus::Reserved,
+                    notes: $notes,
+                );
+            }
+
+            return $reservation->fresh(['lines']) ?? $reservation;
+        }, self::LOCK_ATTEMPTS);
+    }
+
+    public function consumeReservedQuantity(
+        InventoryReservation $reservation,
+        InventoryProduct $product,
+        InventoryBranch $branch,
+        int $qty,
+        ?InventoryProductVariant $variant = null,
+    ): void {
+        $this->assertProductQuantity($product);
+
+        $reservation->loadMissing('lines');
+        $held = (int) $reservation->lines
+            ->filter(function ($line) use ($product, $variant): bool {
+                return $line->serial_id === null
+                    && (int) $line->product_id === (int) $product->id
+                    && (int) ($line->variant_id ?? 0) === (int) ($variant?->id ?? 0);
+            })
+            ->sum('qty');
+
+        if ($held < $qty) {
+            throw ValidationException::withMessages([
+                'qty' => "Reservation does not hold {$qty} of {$product->sku}.",
+            ]);
+        }
+
+        $this->adjustBalance($product, $variant, $branch, availableDelta: 0, reservedDelta: -$qty);
+    }
+
     public function releaseReservation(InventoryReservation $reservation, User $actor, ?string $notes = null): InventoryReservation
     {
         return DB::transaction(function () use ($reservation, $actor, $notes): InventoryReservation {
@@ -525,11 +705,34 @@ class InventoryStockService
                 ]);
             }
 
-            $reservation->load('lines.serial.product', 'lines.serial.variant', 'branch');
+            $reservation->load('lines.serial.product', 'lines.serial.variant', 'lines.product', 'lines.variant', 'branch');
 
             foreach ($reservation->lines as $line) {
                 $serial = $line->serial;
                 if ($serial === null) {
+                    $product = $line->product;
+                    if ($product === null) {
+                        continue;
+                    }
+
+                    $this->adjustBalance(
+                        $product,
+                        $line->variant,
+                        $reservation->branch,
+                        availableDelta: $line->qty,
+                        reservedDelta: -$line->qty,
+                    );
+                    $this->recordMovement(
+                        type: InventoryMovementType::Unreserve,
+                        product: $product,
+                        branch: $reservation->branch,
+                        qty: $line->qty,
+                        actor: $actor,
+                        variant: $line->variant,
+                        reservation: $reservation,
+                        notes: $notes,
+                    );
+
                     continue;
                 }
 

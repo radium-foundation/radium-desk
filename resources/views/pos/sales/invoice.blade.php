@@ -70,6 +70,17 @@
         <div>Tax {{ number_format((float) $sale->tax, 2) }}</div>
         <div><strong>Total {{ number_format((float) $sale->total, 2) }}</strong></div>
         <div class="muted">Paid by {{ $sale->payment_method }}</div>
+        @if($sale->upiIntent)
+            <div class="muted">
+                UPI {{ $sale->upiIntent->public_ref }}
+                · {{ $sale->upiIntent->receivingAccountLabel() }}
+                @if($sale->payment_reference)
+                    · UTR {{ $sale->payment_reference }}
+                @endif
+            </div>
+        @elseif($sale->payment_reference)
+            <div class="muted">Ref {{ $sale->payment_reference }}</div>
+        @endif
     </div>
 </body>
 </html>

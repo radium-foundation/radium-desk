@@ -11,6 +11,7 @@ use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
 use App\Models\InventoryStockBalance;
 use App\Services\Inventory\PosSaleService;
+use App\Services\Pos\PosUpiIntentService;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\PosAccess;
 use Database\Seeders\RolePermissionSeeder;
@@ -25,6 +26,7 @@ class CounterController extends Controller
 {
     public function __construct(
         private readonly PosSaleService $sales,
+        private readonly PosUpiIntentService $upiIntents,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(PosAccess::allows($request->user()), 403);
@@ -53,6 +55,8 @@ class CounterController extends Controller
             'searchProductsUrl' => route('pos.products.search'),
             'searchSerialsUrl' => route('pos.serials.search'),
             'lookupCustomerUrl' => route('pos.customers.lookup'),
+            'upiReceivingAccounts' => $this->upiIntents->enabledReceivingAccounts(),
+            'canVerifyUpi' => PosAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_POS_PAYMENTS_VERIFY),
         ]);
     }
 
@@ -70,6 +74,7 @@ class CounterController extends Controller
             'customer_email' => ['nullable', 'email', 'max:160'],
             'payment_method' => ['required', 'string', 'max:64'],
             'payment_reference' => ['nullable', 'string', 'max:128'],
+            'receiving_bank_account_id' => ['nullable', 'integer', 'exists:finance_bank_accounts,id'],
             'discount' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:500'],
             'idempotency_key' => ['nullable', 'string', 'max:80'],
@@ -100,13 +105,31 @@ class CounterController extends Controller
             ];
         }
 
+        $customer = [
+            'name' => $data['customer_name'],
+            'phone' => $data['customer_phone'],
+            'email' => $data['customer_email'] ?? null,
+        ];
+
+        if (strcasecmp(trim($data['payment_method']), 'UPI') === 0) {
+            $intent = $this->upiIntents->create(
+                branch: $branch,
+                customer: $customer,
+                lines: $lines,
+                receivingBankAccountId: (int) ($data['receiving_bank_account_id'] ?? 0),
+                actor: $request->user(),
+                headerDiscount: (float) ($data['discount'] ?? 0),
+                notes: $data['notes'] ?? null,
+                saleIdempotencyKey: $data['idempotency_key'] ?? null,
+            );
+
+            return redirect()->route('pos.upi.intents.show', $intent)
+                ->with('status', 'UPI payment created. The QR is an instruction only — it is not payment confirmation.');
+        }
+
         $sale = $this->sales->completeSale(
             branch: $branch,
-            customer: [
-                'name' => $data['customer_name'],
-                'phone' => $data['customer_phone'],
-                'email' => $data['customer_email'] ?? null,
-            ],
+            customer: $customer,
             lines: $lines,
             paymentMethod: $data['payment_method'],
             actor: $request->user(),

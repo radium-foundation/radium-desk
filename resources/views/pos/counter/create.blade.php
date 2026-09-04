@@ -130,7 +130,23 @@
                                         @endforeach
                                     </select>
                                 </div>
-                                <div class="mb-2">
+                                <div class="mb-2" id="upi-receiving-account-wrap" hidden>
+                                    <label class="form-label" for="receiving_bank_account_id">Receiving bank account</label>
+                                    <select name="receiving_bank_account_id" id="receiving_bank_account_id" class="form-select">
+                                        <option value="">Select account</option>
+                                        @foreach($upiReceivingAccounts as $account)
+                                            <option value="{{ $account->id }}" @selected((string) old('receiving_bank_account_id') === (string) $account->id)>
+                                                {{ $account->bank_name }} · {{ $account->last_four }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <p class="small text-muted mb-0 mt-1">UPI creates an unpaid intent and a local QR. It does not complete the sale.</p>
+                                    @if($upiReceivingAccounts->isEmpty())
+                                        <p class="small text-danger mb-0">No UPI-enabled receiving accounts are configured yet.</p>
+                                    @endif
+                                    @error('receiving_bank_account_id')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="mb-2" id="payment-reference-wrap">
                                     <label class="form-label" for="payment_reference">Reference</label>
                                     <input type="text" name="payment_reference" id="payment_reference" class="form-control" value="{{ old('payment_reference') }}">
                                 </div>
@@ -159,6 +175,7 @@
 
                         <button class="btn btn-primary w-100" id="pos-complete" type="submit">Complete sale</button>
                         <a href="{{ route('pos.sales.index') }}" class="btn btn-outline-secondary w-100 mt-2">Sale history</a>
+                        <a href="{{ route('pos.upi.intents.index') }}" class="btn btn-outline-secondary w-100 mt-2">Recover pending UPI</a>
                     </div>
                 </div>
             </form>
@@ -192,6 +209,20 @@
                 const customerStatus = document.getElementById('pos-customer-status');
                 const form = document.getElementById('pos-counter-form');
                 const completeButton = document.getElementById('pos-complete');
+                const paymentMethod = document.getElementById('payment_method');
+                const upiAccountWrap = document.getElementById('upi-receiving-account-wrap');
+                const upiAccount = document.getElementById('receiving_bank_account_id');
+                const paymentReferenceWrap = document.getElementById('payment-reference-wrap');
+
+                function syncPaymentMethod() {
+                    const isUpi = (paymentMethod.value || '').toUpperCase() === 'UPI';
+                    upiAccountWrap.hidden = !isUpi;
+                    upiAccount.required = isUpi;
+                    paymentReferenceWrap.hidden = isUpi;
+                    completeButton.textContent = isUpi ? 'Create UPI QR' : 'Complete sale';
+                }
+                paymentMethod.addEventListener('change', syncPaymentMethod);
+                syncPaymentMethod();
 
                 let cart = [];
                 let pendingProduct = null;

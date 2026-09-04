@@ -36,4 +36,9 @@ class InventoryReservationLine extends Model
     {
         return $this->belongsTo(InventorySerial::class, 'serial_id');
     }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(InventoryProductVariant::class, 'variant_id');
+    }
 }

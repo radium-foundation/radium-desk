@@ -70,6 +70,8 @@ use App\Http\Controllers\OrderTransactionController;
 use App\Http\Controllers\PlatformDashboardController;
 use App\Http\Controllers\Pos\CounterController as PosCounterController;
 use App\Http\Controllers\Pos\SaleController as PosSaleController;
+use App\Http\Controllers\Pos\UpiIntentController as PosUpiIntentController;
+use App\Http\Controllers\Pos\UpiPaymentVerificationController as PosUpiPaymentVerificationController;
 use App\Http\Controllers\PresenceHeartbeatController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuickServiceRequestController;
@@ -472,6 +474,13 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('sales/{sale}/invoice', [PosSaleController::class, 'invoice'])->name('sales.invoice');
         Route::post('sales/{sale}/cancel', [PosSaleController::class, 'cancel'])->name('sales.cancel');
         Route::post('sales/{sale}/return', [PosSaleController::class, 'returnSale'])->name('sales.return');
+        Route::get('upi/intents', [PosUpiIntentController::class, 'index'])->name('upi.intents.index');
+        Route::get('upi/intents/{intent}', [PosUpiIntentController::class, 'show'])->name('upi.intents.show');
+        Route::post('upi/intents/{intent}/abandon', [PosUpiIntentController::class, 'abandon'])->name('upi.intents.abandon');
+        Route::post('upi/intents/{intent}/cancel', [PosUpiIntentController::class, 'cancel'])->name('upi.intents.cancel');
+        Route::get('upi/payments', [PosUpiPaymentVerificationController::class, 'index'])->name('upi.payments.index');
+        Route::get('upi/payments/{intent}', [PosUpiPaymentVerificationController::class, 'show'])->name('upi.payments.show');
+        Route::post('upi/payments/{intent}/verify', [PosUpiPaymentVerificationController::class, 'confirm'])->name('upi.payments.verify');
     });
 
     Route::get('/my-performance', [MyPerformanceController::class, 'index'])->name('my-performance.index');

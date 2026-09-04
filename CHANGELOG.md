@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.67 — 2026-09-04 — POS UPI intent and bank verification
+
+- UPI on the POS counter creates a persisted unpaid payment intent and a local `upi://pay` QR. The QR is an instruction only and is never treated as payment confirmation.
+- An authorized verifier checks the live bank account, enters the UTR, and only then does existing `completeSale()` run once.
+- Cash, Card, and Bank Transfer still complete immediately. Cashfree stays on the existing non-POS orders path.
+- Receiving accounts reuse `finance_bank_accounts` plus a 1:1 UPI profile. Production bank rows and `pos.payments.verify` assignments are a separate gate.
+- Desk cancel/return of a completed UPI sale still reverses stock and the journal only. It does not refund UPI.
+
 ## 4.0.66 — 2026-09-04 — Desk Inventory and POS
 
 - Inventory and POS are available in Desk: products, branches, serial and quantity stock, transfers, adjustments, reservations, and the sales counter.

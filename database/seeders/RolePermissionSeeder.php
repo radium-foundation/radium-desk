@@ -110,6 +110,9 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_POS_CANCEL = 'pos.cancel';
 
+    /** Confirm a pending UPI POS intent after checking the live bank. Assigned to no role. */
+    public const PERMISSION_POS_PAYMENTS_VERIFY = 'pos.payments.verify';
+
     /** Operate stock and POS at every branch without a per-branch assignment. */
     public const PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES = 'inventory.branches.operate-all';
 
@@ -527,6 +530,7 @@ class RolePermissionSeeder extends Seeder
             ->merge(self::FINANCE_MODULE_VIEW_PERMISSIONS)
             ->merge(self::TODO_BASELINE_PERMISSIONS)
             ->merge(self::TODO_ADMIN_PERMISSIONS)
+            ->merge([self::PERMISSION_POS_PAYMENTS_VERIFY])
             ->unique()
             ->values();
 

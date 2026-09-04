@@ -30,6 +30,17 @@
                     <div>{{ $sale->customer?->phone }}</div>
                     <div>{{ $sale->customer?->email ?: '—' }}</div>
                     <div class="mt-2 small text-muted">{{ $sale->branch?->name }} · {{ $sale->payment_method }}</div>
+                    @if($sale->upiIntent)
+                        <div class="small mt-2">
+                            UPI {{ $sale->upiIntent->public_ref }}
+                            · {{ $sale->upiIntent->receivingAccountLabel() }}
+                            @if($sale->payment_reference)
+                                · UTR {{ $sale->payment_reference }}
+                            @endif
+                        </div>
+                    @elseif($sale->payment_reference)
+                        <div class="small text-muted">Ref {{ $sale->payment_reference }}</div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -84,6 +95,11 @@
             <div class="card-body">
                 <h2 class="h6">Cancel / return</h2>
                 <p class="text-muted small">Restores serials and quantity to the selling branch and posts a reversing finance journal when the sale was posted. Invoice number is kept. This is not a GST credit note.</p>
+                @if($sale->upiIntent || strcasecmp((string) $sale->payment_method, 'UPI') === 0)
+                    <div class="alert alert-warning">
+                        Cancelling or returning this UPI sale reverses Desk stock and the finance journal only. It does <strong>not</strong> refund the customer through UPI or the bank. Refund any bank credit separately.
+                    </div>
+                @endif
                 <form method="POST" action="{{ route('pos.sales.cancel', $sale) }}" class="d-flex flex-wrap gap-2 mb-2" data-once-submit>
                     @csrf
                     <input type="text" name="reason" id="cancel-reason" class="form-control" style="max-width: 24rem;" required placeholder="Cancel reason" aria-label="Cancel reason">

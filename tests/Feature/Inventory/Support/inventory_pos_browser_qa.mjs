@@ -475,8 +475,8 @@ try {
   await page.locator("#pos-serial-results button", { hasText: "QA-HW-001" }).click();
   await page.fill("#customer_phone", "9111199002");
   await page.fill("#customer_name", "Hardware QA Customer");
-  await page.selectOption("#payment_method", "UPI");
-  await page.fill("#payment_reference", "UPI-QA-001");
+  await page.selectOption("#payment_method", "Cash");
+  await page.fill("#payment_reference", "CASH-QA-001");
   await page.click("#pos-complete");
   await page.waitForURL(/pos\/sales\/\d+/, { timeout: 20000 });
   mustInclude(await page.content(), "INV-QAA-", "hardware-invoice");

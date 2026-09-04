@@ -246,7 +246,11 @@ class PosSaleService
                             );
                         }
                     } else {
-                        $this->stock->deductQuantity($product, $lockedBranch, $qty, $variant);
+                        if ($reservation !== null) {
+                            $this->stock->consumeReservedQuantity($reservation, $product, $lockedBranch, $qty, $variant);
+                        } else {
+                            $this->stock->deductQuantity($product, $lockedBranch, $qty, $variant);
+                        }
                         $this->stock->recordMovement(
                             type: InventoryMovementType::Sale,
                             product: $product,
@@ -406,6 +410,107 @@ class PosSaleService
 
             return $sale->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $sale;
         }, self::COMPLETION_ATTEMPTS);
+    }
+
+    /**
+     * Authoritative POS total using the same line math as completeSale.
+     *
+     * @param  list<array{
+     *     product_id: int,
+     *     variant_id?: int|null,
+     *     qty: int,
+     *     unit_price?: float|string|null,
+     *     discount?: float|string|null
+     * }>  $lines
+     * @return array{subtotal: float, discount: float, tax: float, total: float}
+     */
+    public function quoteTotals(array $lines, float $headerDiscount = 0): array
+    {
+        if ($lines === []) {
+            throw ValidationException::withMessages([
+                'lines' => 'Add at least one product line.',
+            ]);
+        }
+
+        if ($headerDiscount < 0) {
+            throw ValidationException::withMessages([
+                'discount' => 'Discount cannot be negative.',
+            ]);
+        }
+
+        $subtotal = 0.0;
+        $tax = 0.0;
+        $lineDiscountTotal = 0.0;
+
+        foreach ($lines as $index => $line) {
+            $product = InventoryProduct::query()
+                ->with(['variants' => fn ($variants) => $variants->where('is_active', true)])
+                ->find($line['product_id'] ?? null);
+            if ($product === null || ! $product->is_active) {
+                throw ValidationException::withMessages([
+                    "lines.{$index}.product_id" => 'Product is missing or inactive.',
+                ]);
+            }
+
+            $variant = null;
+            if (! empty($line['variant_id'])) {
+                $variant = InventoryProductVariant::query()->find($line['variant_id']);
+                if ($variant === null || $variant->product_id !== $product->id || ! $variant->is_active) {
+                    throw ValidationException::withMessages([
+                        "lines.{$index}.variant_id" => 'Variant is missing or inactive.',
+                    ]);
+                }
+            } elseif ($product->variants->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    "lines.{$index}.variant_id" => 'Select a variant. POS sells child SKUs separately from the parent product.',
+                ]);
+            }
+
+            $qty = (int) ($line['qty'] ?? 0);
+            if ($qty < 1) {
+                throw ValidationException::withMessages([
+                    "lines.{$index}.qty" => 'Quantity must be at least 1.',
+                ]);
+            }
+
+            $unitPrice = $line['unit_price'] ?? $product->priceFor($variant);
+            $unitPrice = round((float) $unitPrice, 2);
+            $lineDiscount = round((float) ($line['discount'] ?? 0), 2);
+            if ($lineDiscount < 0) {
+                throw ValidationException::withMessages([
+                    "lines.{$index}.discount" => 'Line discount cannot be negative.',
+                ]);
+            }
+
+            $lineSubtotal = round($unitPrice * $qty, 2);
+            $taxable = round($lineSubtotal - $lineDiscount, 2);
+            if ($taxable < 0) {
+                throw ValidationException::withMessages([
+                    "lines.{$index}.discount" => 'Discount cannot exceed line subtotal.',
+                ]);
+            }
+
+            $gst = (float) $product->gst_percentage;
+            $lineTax = round($taxable * ($gst / 100), 2);
+            $subtotal += $lineSubtotal;
+            $tax += $lineTax;
+            $lineDiscountTotal += $lineDiscount;
+        }
+
+        $discount = round($headerDiscount + $lineDiscountTotal, 2);
+        $total = round($subtotal - $discount + $tax, 2);
+        if ($total < 0) {
+            throw ValidationException::withMessages([
+                'discount' => 'Discount cannot exceed sale total.',
+            ]);
+        }
+
+        return [
+            'subtotal' => round($subtotal, 2),
+            'discount' => $discount,
+            'tax' => round($tax, 2),
+            'total' => $total,
+        ];
     }
 
     /**

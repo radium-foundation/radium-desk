@@ -54,6 +54,7 @@ class InventoryPosAuthorizationTest extends TestCase
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_POS_VIEW));
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_POS_SELL));
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_POS_CANCEL));
+        $this->assertFalse($user->can(RolePermissionSeeder::PERMISSION_POS_PAYMENTS_VERIFY));
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_VIEW));
 
         $this->actingAs($user)->get(route('inventory.adjustments.create'))->assertOk();
@@ -77,6 +78,7 @@ class InventoryPosAuthorizationTest extends TestCase
         $this->assertFalse($user->can(RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_ADJUST));
         $this->assertFalse($user->can(RolePermissionSeeder::PERMISSION_INVENTORY_OPENING_IMPORT));
         $this->assertFalse($user->can(RolePermissionSeeder::PERMISSION_POS_CANCEL));
+        $this->assertFalse($user->can(RolePermissionSeeder::PERMISSION_POS_PAYMENTS_VERIFY));
         $this->assertFalse($user->can(RolePermissionSeeder::PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES));
         $this->assertFalse($user->can(RolePermissionSeeder::PERMISSION_FINANCE_VIEW));
 

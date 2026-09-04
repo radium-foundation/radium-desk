@@ -369,6 +369,14 @@ class NavigationContextResolver
             return [NavigationMenu::Pos, 'pos.sales', null];
         }
 
+        if ($request->routeIs('pos.upi.payments.*')) {
+            return [NavigationMenu::Pos, 'pos.counter', null];
+        }
+
+        if ($request->routeIs('pos.upi.*')) {
+            return [NavigationMenu::Pos, 'pos.counter', null];
+        }
+
         if ($request->routeIs('pos.*')) {
             return [NavigationMenu::Pos, 'pos.counter', null];
         }

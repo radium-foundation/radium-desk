@@ -25,6 +25,7 @@ class InventorySale extends Model
         'total',
         'payment_method',
         'payment_reference',
+        'upi_intent_id',
         'finance_handoff_status',
         'finance_journal_id',
         'notes',
@@ -86,5 +87,10 @@ class InventorySale extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function upiIntent(): BelongsTo
+    {
+        return $this->belongsTo(PosPaymentIntent::class, 'upi_intent_id');
     }
 }
