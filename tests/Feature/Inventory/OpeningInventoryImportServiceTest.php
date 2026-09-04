@@ -326,6 +326,65 @@ class OpeningInventoryImportServiceTest extends TestCase
         $this->assertTrue(collect($result->issues)->contains(fn ($issue) => $issue->code === 'sku_unknown'));
     }
 
+    public function test_blank_serial_unit_cost_is_not_copied_from_catalog(): void
+    {
+        InventoryProduct::query()->create([
+            'sku' => 'PMTMFS110Z',
+            'name' => 'Existing name',
+            'gst_percentage' => 18,
+            'unit_price' => 1000,
+            'unit_cost' => '999.00',
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+
+        $path = $this->workbookPath(
+            [$this->serializedOpeningRow(['Unit Cost' => ''])],
+            [$this->skuMasterRow()],
+            [$this->branchRow()],
+        );
+        $this->imports->apply($path, $this->actor);
+
+        $serial = InventorySerial::query()->where('serial_number', 'SN-OPEN-1')->first();
+        $this->assertNull($serial?->unit_cost);
+    }
+
+    public function test_desk_variant_on_another_parent_is_blocking(): void
+    {
+        $parent = InventoryProduct::query()->create([
+            'sku' => 'PMTMFS110Z',
+            'name' => 'Mantra MFS 110',
+            'gst_percentage' => 18,
+            'unit_price' => 2117.80,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        $other = InventoryProduct::query()->create([
+            'sku' => 'PMTMFS100Z',
+            'name' => 'Mantra MFS 100',
+            'gst_percentage' => 18,
+            'unit_price' => 1800,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        $other->variants()->create([
+            'sku' => 'PMTMFS100Z-BLK',
+            'name' => 'Black',
+            'is_active' => true,
+        ]);
+
+        $path = $this->workbookPath(
+            [$this->serializedOpeningRow(['Variant SKU' => 'PMTMFS100Z-BLK'])],
+            [$this->skuMasterRow()],
+            [$this->branchRow()],
+        );
+        $result = $this->imports->preview($path, $this->actor);
+
+        $this->assertFalse($result->canApply);
+        $this->assertTrue(collect($result->issues)->contains(fn ($issue) => $issue->code === 'variant_parent'));
+        $this->assertSame($parent->id, InventoryProduct::query()->where('sku', 'PMTMFS110Z')->value('id'));
+    }
+
     public function test_serialized_mismatch_on_existing_sku_blocks_import(): void
     {
         InventoryProduct::query()->create([

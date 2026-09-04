@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Services\Inventory\Opening\OpeningInventoryImportService;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -86,6 +87,18 @@ class OpeningInventoryImportCommand extends Command
         if ($user === null) {
             throw ValidationException::withMessages([
                 'actor' => 'Actor was not found.',
+            ]);
+        }
+
+        if (! $user->is_active) {
+            throw ValidationException::withMessages([
+                'actor' => 'Actor is inactive. Import will not invent an operator.',
+            ]);
+        }
+
+        if (! $user->can(RolePermissionSeeder::PERMISSION_INVENTORY_OPENING_IMPORT)) {
+            throw ValidationException::withMessages([
+                'actor' => 'Actor does not have inventory.opening.import. Hardware and agents cannot import opening stock.',
             ]);
         }
 

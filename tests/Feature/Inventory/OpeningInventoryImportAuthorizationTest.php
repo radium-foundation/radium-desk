@@ -87,6 +87,84 @@ class OpeningInventoryImportAuthorizationTest extends TestCase
         $this->assertDatabaseCount('inventory_serials', 0);
     }
 
+    public function test_artisan_preview_rejects_hardware_actor(): void
+    {
+        InventoryBranch::query()->create([
+            'code' => 'DELHI-WH',
+            'name' => 'Delhi Warehouse',
+            'is_active' => true,
+        ]);
+
+        $hardware = User::factory()->create(['is_active' => true]);
+        $hardware->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+        $path = $this->workbookPath();
+
+        $this->artisan('inventory:opening-import', [
+            'path' => $path,
+            '--actor' => $hardware->email,
+        ])->assertFailed();
+
+        $this->assertDatabaseCount('inventory_serials', 0);
+        $this->assertDatabaseCount('inventory_opening_import_batches', 0);
+    }
+
+    public function test_artisan_preview_rejects_inactive_admin(): void
+    {
+        InventoryBranch::query()->create([
+            'code' => 'DELHI-WH',
+            'name' => 'Delhi Warehouse',
+            'is_active' => true,
+        ]);
+
+        $admin = User::factory()->create(['is_active' => false]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->artisan('inventory:opening-import', [
+            'path' => $this->workbookPath(),
+            '--actor' => $admin->email,
+        ])->assertFailed();
+
+        $this->assertDatabaseCount('inventory_opening_import_batches', 0);
+    }
+
+    public function test_artisan_preview_allows_admin_without_applying_stock(): void
+    {
+        InventoryBranch::query()->create([
+            'code' => 'DELHI-WH',
+            'name' => 'Delhi Warehouse',
+            'is_active' => true,
+        ]);
+
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->artisan('inventory:opening-import', [
+            'path' => $this->workbookPath(),
+            '--actor' => $admin->email,
+        ])->assertSuccessful();
+
+        $this->assertDatabaseCount('inventory_serials', 0);
+        $this->assertDatabaseCount('inventory_opening_import_batches', 1);
+    }
+
+    private function workbookPath(): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'opening').'.xlsx';
+        app(OpeningInventoryWorkbookWriter::class)->write(
+            $path,
+            [[
+                '2026-09-04', 'DELHI-WH', 'Warehouse', 'PMTMFS110Z', '', 'Mantra MFS 110', 'Y',
+                'New', 'Available', 'SN-AUTH-1', 1, '1800.00', '', '18', '84716050', 'QA', '', '',
+            ]],
+            [[
+                'PMTMFS110Z', 'Mantra MFS 110', '', 'Y', '84716050', '18', '2117.80', '1800.00', 'Y', '',
+            ]],
+            [['DELHI-WH', 'Delhi Warehouse', 'Warehouse', '', 'Delhi', 'New Delhi', '', 'Y', '']],
+        );
+
+        return $path;
+    }
+
     private function uploadedWorkbook(): UploadedFile
     {
         $path = tempnam(sys_get_temp_dir(), 'opening').'.xlsx';

@@ -83,7 +83,7 @@ class OpeningInventoryImportService
                             condition: $row->condition,
                             status: $row->stockStatus ?? InventorySerialStatus::Available,
                             variant: $variant,
-                            unitCost: $row->unitCost ?? $product->unit_cost,
+                            unitCost: $row->unitCost,
                             notes: $notes,
                             occurredAt: $occurredAt,
                             openingImportBatchId: $batch->id,
@@ -405,6 +405,11 @@ class OpeningInventoryImportService
                 $issues[] = $this->openingIssue($row, 'variant_unknown', "Variant SKU {$row->variantSku} is not on SKU Master and does not exist in Desk.");
             } elseif (isset($variantBySku[$row->variantSku]) && $variantBySku[$row->variantSku]->sku !== $row->sku) {
                 $issues[] = $this->openingIssue($row, 'variant_parent', "Variant SKU {$row->variantSku} does not belong to {$row->sku}.");
+            } else {
+                $deskVariant = InventoryProductVariant::query()->where('sku', $row->variantSku)->first();
+                if ($deskVariant !== null && $product !== null && (int) $deskVariant->product_id !== (int) $product->id) {
+                    $issues[] = $this->openingIssue($row, 'variant_parent', "Variant SKU {$row->variantSku} does not belong to {$row->sku}.");
+                }
             }
         } elseif ($product !== null && $product->variants()->where('is_active', true)->exists()) {
             $issues[] = $this->openingIssue($row, 'variant_required', "SKU {$row->sku} has variants. Select a Variant SKU.");

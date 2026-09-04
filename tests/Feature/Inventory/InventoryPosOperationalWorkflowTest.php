@@ -233,7 +233,7 @@ class InventoryPosOperationalWorkflowTest extends TestCase
             ->get(route('pos.sales.invoice', $sale))
             ->assertOk()
             ->assertSee($sale->invoice_number)
-            ->assertSee('Internal Desk invoice')
+            ->assertSee('Internal Desk POS receipt')
             ->assertSee('QA-SN-001')
             ->assertSee('OTG-QA-1M');
 

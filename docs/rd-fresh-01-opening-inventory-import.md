@@ -1,7 +1,7 @@
 # RD-FRESH-01 — Opening inventory import foundation
 
 **Project:** Radium Desk  
-**Ledger:** RadiumDesk-P-04-09-06 · P-04-09-05  
+**Ledger:** RadiumDesk-P-04-09-11 · P-04-09-07 · P-04-09-06 · P-04-09-05  
 **Date:** 2026-09-04  
 **Branch:** `feat/rd-fresh-01-inventory-pos`  
 **Canvas:** [`rd-fresh-01-pos-production-readiness.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-pos-production-readiness.canvas.tsx)  
@@ -11,7 +11,7 @@ This is the safe import foundation for the agreed opening-inventory Excel templa
 
 **Actual inventory workbook import:** **NO** — the completed physical-count workbook path/source was not provided or verified. Only the empty agreed template at `storage/app/private/inventory-opening/rd-fresh-01-opening-inventory-template.xlsx` was opened (gitignored; headers verified).
 
-**Commit:** the new import files are in the worktree with this ticket. A POS-only Git commit was **not** created because `RolePermissionSeeder.php`, `routes/web.php`, `inventory/partials/workspace-nav.blade.php`, and `InventoryProduct.php` also contain unrelated statutory WIP. Those files were not staged.
+**Commit:** foundation checkpoint `11d14223`. P-04-09-11 added CLI permission enforcement, stopped copying catalog unit cost onto blank serials, and fail-closes a Desk variant that belongs to another parent.
 
 ## Verdict
 
@@ -39,7 +39,7 @@ Non-serialized: blank serial, qty≥1. Damaged quantity is **rejected** (Desk ha
 - Quantity identity (`sku|variant|branch|date|status|condition|qty|unit_cost|remarks`) cannot be applied twice.
 - Missing Desk branch → block. Suggested template GSTINs are not copied (Bihar GSTIN remains an owner confirmation).
 - Existing SKU name/price is not overwritten. Serialized flag or GST % mismatch vs SKU Master is blocking.
-- Selling price / unit cost on an opening row do not change catalog price. Unit cost may be stored on the serial when provided.
+- Selling price / unit cost on an opening row do not change catalog price. Unit cost may be stored on the serial when provided. A blank serial unit cost stays null; catalog cost is not copied.
 - Opening movements use `occurred_at` = Opening Date and `opening_import_batch_id` for audit. History is append-only.
 
 ## How to run (later, when the filled workbook path is verified)
@@ -49,7 +49,7 @@ php artisan inventory:opening-import /absolute/path/to/workbook.xlsx --actor=adm
 php artisan inventory:opening-import /absolute/path/to/workbook.xlsx --apply --actor=admin@example.com
 ```
 
-Admin UI: Inventory → Opening import (permission `inventory.opening.import`, admin team only). Hardware and agents are 403.
+Admin UI: Inventory → Opening import (permission `inventory.opening.import`, admin team only). Hardware and agents are 403. The artisan command uses the same permission and refuses inactive actors.
 
 ## Schema added
 
