@@ -114,6 +114,31 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        /*
+         * Read-only RadiumBox repository (KVM8 radiumbox_prod). Never reuse
+         * DB_DATABASE / DB_USERNAME / the full-privilege radiumbox_prod user.
+         * Feature stays off until RADIUMBOX_READ_ENABLED and a SELECT-only DSN exist.
+         */
+        'radiumbox_read' => [
+            'driver' => env('DB_RADIUMBOX_READ_DRIVER', 'mariadb'),
+            'url' => env('DB_RADIUMBOX_READ_URL'),
+            'host' => env('DB_RADIUMBOX_READ_HOST', ''),
+            'port' => env('DB_RADIUMBOX_READ_PORT', '3306'),
+            'database' => env('DB_RADIUMBOX_READ_DATABASE', ''),
+            'username' => env('DB_RADIUMBOX_READ_USERNAME', ''),
+            'password' => env('DB_RADIUMBOX_READ_PASSWORD', ''),
+            'unix_socket' => env('DB_RADIUMBOX_READ_SOCKET', ''),
+            'charset' => env('DB_RADIUMBOX_READ_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_RADIUMBOX_READ_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
     ],
 
     /*

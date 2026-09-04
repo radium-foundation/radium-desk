@@ -216,7 +216,7 @@ Accountant / CA portal  (restricted role, month-end export)
 
 1. One statutory invoice engine, in Desk.
 2. Channels never allocate GST invoice numbers.
-3. No direct DB coupling to Admin, rdservice_net_prod, or radiumbox_prod.
+3. No direct DB coupling to Admin, rdservice_net_prod, or radiumbox_prod **for operational writes, invoicing, or live enrichment**. A scoped read-only exception exists for the RadiumBox Read API (`radiumbox.read`, named connection `radiumbox_read`, default OFF): SELECT-only access to the KVM8 replica through Desk’s application boundary. It is not a merge into `radium_desk` and must not replace `RadiumBoxClient`. See [desk-radiumbox-read-api.md](desk-radiumbox-read-api.md).
 4. POS `INV-*` remains internal and unique in `inventory_sales`.
 5. Support `orders` remains the service case; it may **reference** a commerce order and a statutory invoice.
 6. Cancelled statutory numbers remain auditable; they are not recycled.

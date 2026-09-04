@@ -55,5 +55,10 @@
         <env name="CHANNEL_INGEST_SECRET_RADIUMSIGN_COM" value="" force="true"/>
         <env name="CHANNEL_INGEST_SECRET_FUTURE" value="" force="true"/>
         <env name="CHANNEL_INGEST_CUTOVER_APPROVED" value="false" force="true"/>
+        <env name="RADIUMBOX_READ_ENABLED" value="false" force="true"/>
+        <env name="DB_RADIUMBOX_READ_DATABASE" value="" force="true"/>
+        <env name="DB_RADIUMBOX_READ_USERNAME" value="" force="true"/>
+        <env name="DB_RADIUMBOX_READ_PASSWORD" value="" force="true"/>
+        <env name="DB_RADIUMBOX_READ_HOST" value="" force="true"/>
     </php>
 </phpunit>

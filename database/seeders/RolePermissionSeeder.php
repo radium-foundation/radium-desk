@@ -86,6 +86,9 @@ class RolePermissionSeeder extends Seeder
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
+    /** Read-only RadiumBox repository API. Not orders.view. Admin team only. */
+    public const PERMISSION_RADIUMBOX_READ = 'radiumbox.read';
+
     public const PERMISSION_INVENTORY_VIEW = 'inventory.view';
 
     public const PERMISSION_INVENTORY_PRODUCTS_MANAGE = 'inventory.products.manage';
@@ -426,6 +429,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
+            self::PERMISSION_RADIUMBOX_READ,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
         ],
         self::ROLE_OPERATIONS_ADMIN => [
@@ -477,6 +481,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
+            self::PERMISSION_RADIUMBOX_READ,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
         ],
         self::ROLE_SUPERADMIN => [
@@ -537,6 +542,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_BACKUPS_VIEW,
+            self::PERMISSION_RADIUMBOX_READ,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
         ],
     ];
