@@ -22,6 +22,7 @@ class InventoryMovement extends Model
         'transfer_id',
         'reservation_id',
         'adjustment_id',
+        'opening_import_batch_id',
         'from_status',
         'to_status',
         'notes',

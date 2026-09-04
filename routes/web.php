@@ -47,6 +47,7 @@ use App\Http\Controllers\IncomingEmailContentController;
 use App\Http\Controllers\Inventory\AdjustmentController as InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\BranchController as InventoryBranchController;
 use App\Http\Controllers\Inventory\MovementController as InventoryMovementController;
+use App\Http\Controllers\Inventory\OpeningImportController as InventoryOpeningImportController;
 use App\Http\Controllers\Inventory\ProductController as InventoryProductController;
 use App\Http\Controllers\Inventory\ReservationController as InventoryReservationController;
 use App\Http\Controllers\Inventory\SerialController as InventorySerialController;
@@ -439,6 +440,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('stock', [InventoryStockController::class, 'index'])->name('stock.index');
         Route::get('stock/in', [InventoryStockController::class, 'create'])->name('stock.create');
         Route::post('stock/in', [InventoryStockController::class, 'store'])->name('stock.store');
+
+        Route::get('opening-import', [InventoryOpeningImportController::class, 'create'])->name('opening-import.create');
+        Route::post('opening-import/preview', [InventoryOpeningImportController::class, 'preview'])->name('opening-import.preview');
+        Route::post('opening-import/{batch}/apply', [InventoryOpeningImportController::class, 'apply'])->name('opening-import.apply');
 
         Route::get('serials', [InventorySerialController::class, 'index'])->name('serials.index');
         Route::get('serials/{serial}', [InventorySerialController::class, 'show'])->name('serials.show');

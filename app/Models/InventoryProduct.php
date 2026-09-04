@@ -14,6 +14,7 @@ class InventoryProduct extends Model
         'hsn_code',
         'gst_percentage',
         'unit_price',
+        'unit_cost',
         'is_serialized',
         'tracks_batch',
         'is_active',
@@ -25,6 +26,7 @@ class InventoryProduct extends Model
         return [
             'gst_percentage' => 'decimal:2',
             'unit_price' => 'decimal:2',
+            'unit_cost' => 'decimal:2',
             'is_serialized' => 'boolean',
             'tracks_batch' => 'boolean',
             'is_active' => 'boolean',

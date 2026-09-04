@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\InventorySerialCondition;
 use App\Enums\InventorySerialStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +16,8 @@ class InventorySerial extends Model
         'serial_number',
         'branch_id',
         'status',
+        'condition',
+        'unit_cost',
         'batch_code',
         'reserved_reservation_id',
     ];
@@ -23,6 +26,8 @@ class InventorySerial extends Model
     {
         return [
             'status' => InventorySerialStatus::class,
+            'condition' => InventorySerialCondition::class,
+            'unit_cost' => 'decimal:2',
         ];
     }
 

@@ -34,6 +34,11 @@
             'url' => route('inventory.adjustments.index'),
             'visible' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_ADJUST),
         ],
+        'opening-import' => [
+            'label' => 'Opening import',
+            'url' => route('inventory.opening-import.create'),
+            'visible' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_OPENING_IMPORT),
+        ],
         'movements' => [
             'label' => 'Movements',
             'url' => route('inventory.movements.index'),

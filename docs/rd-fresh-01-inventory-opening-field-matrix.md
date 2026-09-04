@@ -419,7 +419,7 @@ Desk schema: `database/migrations/2026_09_01_120000_create_inventory_and_pos_fou
 
 | Gap | Impact | Opening template |
 |-----|--------|------------------|
-| **Condition** New / Used / Refurbished | Cannot store what the team will count | Column **included**; import blocked until a Desk field or remarks convention is chosen |
+| **Condition** New / Used / Refurbished | Cannot store what the team will count | Column **included**; Desk field added in P-04-09-05 (`inventory_serials.condition`). Import foundation is ready; filled workbook was not applied. |
 | **Unit cost** | No stock valuation / profit vs `purchase_price` | Optional column |
 | **Branch location type** | Warehouse vs retail | Optional column; Desk has no type |
 | **Branch address / city / state / pincode** | Future GST invoice | On Branches sheet only |

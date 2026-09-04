@@ -5,6 +5,7 @@ namespace App\Enums;
 enum InventoryMovementType: string
 {
     case StockIn = 'stock_in';
+    case Opening = 'opening';
     case TransferOut = 'transfer_out';
     case TransferIn = 'transfer_in';
     case Reserve = 'reserve';
@@ -18,6 +19,7 @@ enum InventoryMovementType: string
     {
         return match ($this) {
             self::StockIn => 'Stock in',
+            self::Opening => 'Opening inventory',
             self::TransferOut => 'Transfer out',
             self::TransferIn => 'Transfer in',
             self::Reserve => 'Reserve',

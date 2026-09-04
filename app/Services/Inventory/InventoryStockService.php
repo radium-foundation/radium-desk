@@ -5,6 +5,7 @@ namespace App\Services\Inventory;
 use App\Enums\InventoryAdjustmentReason;
 use App\Enums\InventoryMovementType;
 use App\Enums\InventoryReservationStatus;
+use App\Enums\InventorySerialCondition;
 use App\Enums\InventorySerialStatus;
 use App\Enums\InventoryTransferStatus;
 use App\Models\InventoryAdjustment;
@@ -19,6 +20,7 @@ use App\Models\InventoryStockBalance;
 use App\Models\InventoryTransfer;
 use App\Models\User;
 use App\Support\Inventory\InventorySerialNumber;
+use DateTimeInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -128,6 +130,137 @@ class InventoryStockService
                 actor: $actor,
                 variant: $variant,
                 notes: $notes,
+            );
+
+            return $balance;
+        });
+    }
+
+    public function receiveOpeningSerialized(
+        InventoryProduct $product,
+        InventoryBranch $branch,
+        string $serialNumber,
+        User $actor,
+        InventorySerialCondition $condition,
+        InventorySerialStatus $status,
+        ?InventoryProductVariant $variant = null,
+        ?string $unitCost = null,
+        ?string $notes = null,
+        ?DateTimeInterface $occurredAt = null,
+        ?int $openingImportBatchId = null,
+    ): InventorySerial {
+        $this->assertProductSerialized($product);
+        $this->assertActive($product, $branch, $variant);
+
+        if (! in_array($status, [InventorySerialStatus::Available, InventorySerialStatus::Damaged], true)) {
+            throw ValidationException::withMessages([
+                'stock_status' => 'Opening serials may only be Available or Damaged.',
+            ]);
+        }
+
+        $number = InventorySerialNumber::normalize($serialNumber);
+        if ($number === '') {
+            throw ValidationException::withMessages([
+                'serials' => 'Serial number is required for serialized opening stock.',
+            ]);
+        }
+
+        return DB::transaction(function () use (
+            $product,
+            $branch,
+            $number,
+            $actor,
+            $condition,
+            $status,
+            $variant,
+            $unitCost,
+            $notes,
+            $occurredAt,
+            $openingImportBatchId,
+        ): InventorySerial {
+            try {
+                $serial = InventorySerial::query()->create([
+                    'product_id' => $product->id,
+                    'variant_id' => $variant?->id,
+                    'serial_number' => $number,
+                    'branch_id' => $branch->id,
+                    'status' => $status,
+                    'condition' => $condition,
+                    'unit_cost' => $unitCost,
+                ]);
+            } catch (UniqueConstraintViolationException|QueryException $exception) {
+                if (! $exception instanceof UniqueConstraintViolationException
+                    && ! str_contains(strtolower($exception->getMessage()), 'unique')) {
+                    throw $exception;
+                }
+
+                throw ValidationException::withMessages([
+                    'serials' => "Serial {$number} already exists in inventory.",
+                ]);
+            }
+
+            if ($status === InventorySerialStatus::Available) {
+                $this->adjustBalance($product, $variant, $branch, availableDelta: 1);
+            }
+
+            $this->recordMovement(
+                type: InventoryMovementType::Opening,
+                product: $product,
+                branch: $branch,
+                qty: 1,
+                actor: $actor,
+                variant: $variant,
+                serial: $serial,
+                toStatus: $status,
+                notes: $notes,
+                occurredAt: $occurredAt,
+                openingImportBatchId: $openingImportBatchId,
+            );
+
+            return $serial;
+        });
+    }
+
+    public function receiveOpeningQuantity(
+        InventoryProduct $product,
+        InventoryBranch $branch,
+        int $qty,
+        User $actor,
+        ?InventoryProductVariant $variant = null,
+        ?string $notes = null,
+        ?DateTimeInterface $occurredAt = null,
+        ?int $openingImportBatchId = null,
+    ): InventoryStockBalance {
+        $this->assertProductQuantity($product);
+        $this->assertActive($product, $branch, $variant);
+
+        if ($qty < 1) {
+            throw ValidationException::withMessages([
+                'qty' => 'Quantity must be at least 1.',
+            ]);
+        }
+
+        return DB::transaction(function () use (
+            $product,
+            $branch,
+            $qty,
+            $actor,
+            $variant,
+            $notes,
+            $occurredAt,
+            $openingImportBatchId,
+        ): InventoryStockBalance {
+            $balance = $this->adjustBalance($product, $variant, $branch, availableDelta: $qty);
+            $this->recordMovement(
+                type: InventoryMovementType::Opening,
+                product: $product,
+                branch: $branch,
+                qty: $qty,
+                actor: $actor,
+                variant: $variant,
+                notes: $notes,
+                occurredAt: $occurredAt,
+                openingImportBatchId: $openingImportBatchId,
             );
 
             return $balance;
@@ -676,9 +809,11 @@ class InventoryStockService
         ?InventorySerialStatus $fromStatus = null,
         ?InventorySerialStatus $toStatus = null,
         ?string $notes = null,
+        ?DateTimeInterface $occurredAt = null,
+        ?int $openingImportBatchId = null,
     ): InventoryMovement {
         return InventoryMovement::query()->create([
-            'occurred_at' => now(),
+            'occurred_at' => $occurredAt ?? now(),
             'type' => $type,
             'product_id' => $product->id,
             'variant_id' => $variant?->id ?? $serial?->variant_id,
@@ -691,6 +826,7 @@ class InventoryStockService
             'transfer_id' => $transfer?->id,
             'reservation_id' => $reservation?->id,
             'adjustment_id' => $adjustment?->id,
+            'opening_import_batch_id' => $openingImportBatchId,
             'from_status' => $fromStatus,
             'to_status' => $toStatus,
             'notes' => $notes,

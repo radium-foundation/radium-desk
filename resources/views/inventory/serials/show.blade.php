@@ -6,7 +6,7 @@
     <div class="mb-4">
         <p class="text-muted small text-uppercase fw-semibold mb-1">Inventory</p>
         <h1 class="h3 mb-1">{{ $serial->serial_number }}</h1>
-        <p class="text-muted mb-0">{{ $serial->product?->sku }} · {{ $serial->branch?->name }} · {{ $serial->status->label() }}</p>
+        <p class="text-muted mb-0">{{ $serial->product?->sku }} · {{ $serial->branch?->name }} · {{ $serial->status->label() }}@if($serial->condition) · {{ $serial->condition->label() }}@endif</p>
     </div>
 
     @include('inventory.partials.workspace-nav', ['active' => 'serials'])

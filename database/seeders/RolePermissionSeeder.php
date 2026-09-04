@@ -103,6 +103,8 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_INVENTORY_STOCK_RESERVE = 'inventory.stock.reserve';
 
+    public const PERMISSION_INVENTORY_OPENING_IMPORT = 'inventory.opening.import';
+
     public const PERMISSION_POS_VIEW = 'pos.view';
 
     public const PERMISSION_POS_SELL = 'pos.sell';
@@ -192,6 +194,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_INVENTORY_STOCK_TRANSFER,
         self::PERMISSION_INVENTORY_STOCK_ADJUST,
         self::PERMISSION_INVENTORY_STOCK_RESERVE,
+        self::PERMISSION_INVENTORY_OPENING_IMPORT,
         self::PERMISSION_POS_VIEW,
         self::PERMISSION_POS_SELL,
         self::PERMISSION_POS_CANCEL,

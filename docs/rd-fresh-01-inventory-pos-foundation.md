@@ -2,7 +2,7 @@
 
 **Project:** Radium Desk  
 **Ticket:** RD-FRESH-01  
-**Ledger:** RadiumDesk-P-01-09-13 (final non-inventory Day-1 blocker audit) · P-01-09-11 (operator QA) · P-01-09-12 (cancel/return finance reverse). Branch `feat/rd-fresh-01-inventory-pos`.  
+**Ledger:** RadiumDesk-P-04-09-05 (POS production readiness + opening-import foundation) · P-01-09-13 (final non-inventory Day-1 blocker audit) · P-01-09-11 (operator QA) · P-01-09-12 (cancel/return finance reverse). Branch `feat/rd-fresh-01-inventory-pos`.  
 **Date:** 2026-09-01  
 **Branch:** `feat/rd-fresh-01-inventory-pos`  
 **Canvas:** [`rd-fresh-01-inventory-pos-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-inventory-pos-foundation.canvas.tsx)
@@ -568,3 +568,11 @@ Canvas: [`rd-fresh-01-inventory-pos-foundation.canvas.tsx`](/Users/ravi/.cursor/
 | Opening-inventory workbook | No |
 | Admin / other projects | No |
 | Deploy / `deskd` / git tag / merge | No |
+
+## Verification gate (P-04-09-05)
+
+POS production-readiness audit plus opening-import foundation. The completed physical-count workbook was **not** imported (path not verified). Statutory/shipping dirty WIP was left in the worktree. AWS, `radiumbox_prod`, websites, and Desk production were not touched.
+
+Full report: [`rd-fresh-01-pos-production-readiness.md`](rd-fresh-01-pos-production-readiness.md). Import contract: [`rd-fresh-01-opening-inventory-import.md`](rd-fresh-01-opening-inventory-import.md). Canvas: [`rd-fresh-01-pos-production-readiness.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-RadiumWebsites-radium-desk/canvases/rd-fresh-01-pos-production-readiness.canvas.tsx).
+
+POS is **not** production-ready until the filled workbook is previewed clean, applied once, branches/GSTIN are confirmed, permissions are seeded, and finance accounts exist. Passing sqlite tests is not a cutover.
