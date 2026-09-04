@@ -1,8 +1,10 @@
 # RD-FRESH-01 — POS UPI intent (implemented)
 
-**Ledger:** RadiumDesk-P-04-09-31  
+**Ledger:** RadiumDesk-P-04-09-31; FK name fix RadiumDesk-P-04-09-36  
 **Baseline:** `v4.0.66` / `0392d549` plus this implementation  
-**Status:** Implemented and validated locally. Not deployed. No production bank/VPA data.
+**Status:** Implemented and validated locally. Production leftover empty `finance_bank_account_upi_profiles` table from the failed first migrate is a separate recovery gate.
+
+The UPI profile FK uses the explicit MariaDB-safe name `fba_upi_profiles_account_fk` (the Laravel default name is 68 characters).
 
 ## Operator model
 
