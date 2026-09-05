@@ -57,7 +57,14 @@ class HistoricalInvoiceReprintTest extends TestCase
             ->assertOk()
             ->assertSee('INV6745886', false)
             ->assertSee('Historical reprint', false)
-            ->assertSee('MFS110', false);
+            ->assertSee('MFS110', false)
+            ->assertSee('Phil Technologies (P) Limited', false)
+            ->assertSee('Nareshkumar', false)
+            ->assertSee('brand/logo.svg', false)
+            ->assertSee('size: A4', false)
+            ->assertSee('481.00', false)
+            ->assertDontSee('CGST', false)
+            ->assertDontSee('admin.radiumbox.com', false);
     }
 
     public function test_unauthorized_user_cannot_open_historical_reprint(): void
@@ -233,6 +240,8 @@ class HistoricalInvoiceReprintTest extends TestCase
             ->assertOk()
             ->assertSee('INV6745886', false)
             ->assertSee('Historical reprint', false)
+            ->assertSee('brand/logo.svg', false)
+            ->assertSee('Not a new tax invoice', false)
             ->assertDontSee('admin.radiumbox.com', false);
 
         $this->assertDatabaseCount('statutory_invoices', 0);
