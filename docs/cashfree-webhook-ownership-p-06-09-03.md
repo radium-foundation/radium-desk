@@ -4,9 +4,13 @@
 **Date:** 2026-09-06  
 **Type:** Read-only. No application, Cashfree, DNS, Cloudflare, AWS, database, queue, or payment change.
 
-**Retirement gate (single account webhook transferred to Desk):** **UNKNOWN**
+**Retirement gate (single account webhook transferred to Desk):** **PASS — verified from Cashfree Merchant Dashboard**
 
-Companion: `docs/cashfree-retirement-gate-p-06-09-01.md`. That ticket listed all notify/return hosts. This ticket asks only whether **Cashfree’s single account webhook** now points at Desk instead of Old Admin.
+Recorded on `RadiumDesk-P-06-09-04` from authenticated Merchant Dashboard screenshots. `P-06-09-03` left this gate **UNKNOWN** because the dashboard was login-walled in that session.
+
+Companion: `docs/cashfree-retirement-gate-p-06-09-01.md`. That ticket listed all notify/return hosts. This file covers only whether **Cashfree’s single account webhook** now points at Desk instead of Old Admin.
+
+This **does not** retire Old Admin. It closes the Cashfree account-webhook gate only.
 
 ---
 
@@ -52,31 +56,44 @@ Customer return/callback URLs are out of scope for this gate.
 | Exact historical dashboard URL | Not present in surviving Admin config as a static webhook URL | **UNKNOWN** |
 | Corresponds to “the single Cashfree webhook”? | Admin helper used **per-order** `order_meta.notify_url`, which is not the same object as Merchant Dashboard **account** webhook endpoints. Whether a dashboard row once pointed at `admin.radiumbox.com/...` is not in source. | **INFERRED** they are different; dashboard history **UNKNOWN** |
 
-Do not treat the missing Admin route as proof that Cashfree’s dashboard has no leftover Admin URL.
+P-06-09-03: do not treat the missing Admin route as dashboard proof. P-06-09-04 dashboard configuration supersedes that caution for the **active** account webhook only.
 
 ---
 
 ## Phase 4 / 5 — Merchant Dashboard
 
-**Cashfree Dashboard Verification: UNKNOWN — dashboard configuration could not be directly inspected.**
+### P-06-09-03 session (superseded)
 
-Chrome had **no** Cashfree tabs. No authenticated merchant session was available. Login was not attempted.
+That session: **UNKNOWN — dashboard configuration could not be directly inspected.** Chrome had no Cashfree tabs. Login was not attempted.
+
+### P-06-09-04 — authenticated dashboard screenshots
+
+**Cashfree Dashboard Verification: VERIFIED** from Owner-supplied authenticated Merchant Dashboard screenshots. This ticket did not open Cashfree, change any setting, or send a test webhook.
 
 | Item | Finding |
 |---|---|
-| Cashfree environment | **UNKNOWN** |
-| Configured webhook URL | **UNKNOWN** |
-| Current owner | **UNKNOWN** (Desk is receiving account-style events; dashboard list unseen) |
-| Matches Desk endpoint? | **UNKNOWN** |
-| Points to Old Admin? | **UNKNOWN** |
-| Evidence | Login wall / no session. Desk live receipt is application evidence only. |
+| Cashfree environment | Live Merchant Dashboard account-webhook configuration (success-payment) |
+| Configured webhook URL | `https://desk.radiumbox.com/api/webhooks/cashfree` |
+| Webhook version | `2025-01-01` |
+| Policy | `DEFAULT` |
+| Event | `success payment` |
+| Current owner | Radium Desk |
+| Matches Desk endpoint? | **YES** |
+| Points to Old Admin? | **NO** — the configured active success-payment webhook is the Desk URL |
+| Delivery | Cashfree delivery to Desk returns HTTP **200** |
+| Domain Health (active Desk webhook) | `Good 100%` |
+| Domain Health (older RadiumBox endpoints) | `Severe 0%` — historical/delivery-health rows only; **not** the configured active success-payment webhook |
+
+Account-level webhook **configuration** is now **VERIFIED**. Domain Health may still list older RadiumBox endpoints as failed/severe delivery history. Those rows are not the active configured destination and must not be treated as a second live account webhook.
+
+No secrets, signing keys, or dashboard credentials are recorded here.
 
 ---
 
 ## Phase 6 — gate
 
-**UNKNOWN**
+**PASS — verified from Cashfree Merchant Dashboard**
 
-Desk **does** own and process a live account-style Cashfree webhook at `https://desk.radiumbox.com/api/webhooks/cashfree`. That is not sufficient for PASS. PASS requires seeing the Merchant Dashboard webhook list and confirming the single active destination is that Desk URL and not Old Admin.
+The single configured Cashfree account-level success-payment webhook points at `https://desk.radiumbox.com/api/webhooks/cashfree` and does not point at Old Admin.
 
-Do not retire Old Admin on this ticket.
+Do not retire Old Admin on this ticket. Other Old Admin gates (DNS, origin, reprint, leftover helpers, Domain Health history) remain separate.
