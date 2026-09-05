@@ -124,5 +124,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-05-09-20 | 2026-09-05 | Activate Desk → rdservice.net order-search with Admin fallback retained | Companion `RadiumServiceNet-P-05-09-02`. Do not remove Admin fallback. Do not mint/remint. Do not shut down AWS. Do not flush DLQ. |
 | RadiumDesk-P-05-09-21 | 2026-09-05 | Old Admin replacement — order lookup + historical invoice reprint | Companions `rdservice.in-P05-09-01`, `radiumbox.com-P-05-09-17`. Remove live Admin fallback. Route RD/RA → net then in then Box; RDE → Box; RIN → in. Historical INV* reprint is read-only. No mint/IRN/payment/DLQ flush. |
 | RadiumDesk-P-05-09-22 | 2026-09-05 | Deploy and verify Old Admin replacement (lookup + historical reprint) | Companions `rdservice.in-P05-09-02`, `radiumbox.com-P-05-09-18`. Surgical overlay, not full deskd. Flip Admin off; enable in/Box spokes. No mint/IRN/payment/DLQ flush. Do not retire Old Admin DNS. |
+| RadiumDesk-P-05-09-23 | 2026-09-05 | Owner-browser reprint + Cashfree merchant URL retirement gates | No browser automation and no Cashfree dashboard access in this session. App-side notify/return hosts are not Admin. Flags unchanged. failed_jobs 57 untouched. Do not retire Old Admin. |
 
 Do not renumber or overwrite earlier rows. Append only.
