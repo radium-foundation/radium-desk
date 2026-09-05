@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RadiumBoxSyncTrigger;
 use App\Http\Requests\Customer360AIWorkbenchAuditRequest;
 use App\Http\Requests\Customer360ExecutiveSummaryTranslationRequest;
 use App\Models\Incident;
@@ -13,7 +14,6 @@ use App\Services\Customer360\Customer360DrawerProfiler;
 use App\Services\Customer360Service;
 use App\Services\IncomingEmail\IncomingEmailConversationService;
 use App\Services\IncomingEmail\IncomingEmailWorkspaceReadState;
-use App\Enums\RadiumBoxSyncTrigger;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use Illuminate\Http\JsonResponse;
@@ -44,9 +44,12 @@ class Customer360Controller extends Controller
         $profiler = new Customer360DrawerProfiler;
         $startedAt = microtime(true);
 
+        $historicalInvoice = $request->string('historical_invoice')->trim()->toString();
+
         $context = [
             'live_incoming_call' => $request->boolean('cw'),
             'call_id' => $request->string('call_id')->toString() ?: null,
+            'historical_invoice' => $historicalInvoice !== '' ? $historicalInvoice : null,
         ];
 
         $data = $profiler->measure(

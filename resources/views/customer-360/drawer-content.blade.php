@@ -19,6 +19,7 @@
         'email' => $email !== '' ? $email : null,
         'serial' => filled($serial) ? $serial : null,
         'customerName' => filled($customerName) ? $customerName : null,
+        'historicalInvoice' => is_array($historicalInvoice ?? null) ? ($historicalInvoice['invoice_number'] ?? null) : null,
         'actions' => $searchPaletteActions,
     ];
 @endphp
@@ -106,6 +107,9 @@
             'healthCard' => $healthCard,
             'activeServices' => $activeServices ?? [],
             'summary' => $summary ?? [],
+        ])
+        @include('customer-360.partials.historical-invoice', [
+            'historicalInvoice' => $historicalInvoice ?? null,
         ])
         @include('customer-360.partials.communication-section', [
             'communicationSection' => $communicationSection ?? null,

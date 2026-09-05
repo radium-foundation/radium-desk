@@ -2,7 +2,12 @@
 
 namespace Tests\Feature\HistoricalInvoice;
 
+use App\Enums\IncidentSource;
+use App\Enums\IncidentStatus;
+use App\Models\Incident;
+use App\Models\Order;
 use App\Models\User;
+use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -120,9 +125,14 @@ class HistoricalInvoiceReprintTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_header_search_offers_historical_reprint_without_spoke_call(): void
+    public function test_header_search_offers_historical_reprint_when_no_desk_case_exists(): void
     {
-        Http::fake();
+        Http::fake([
+            'https://radiumbox.com/api/integrations/v1/historical-invoices/INV6745886' => Http::response($this->invoicePayload(), 200),
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD268507' => Http::response($this->spokeOrderPayload('RD268507', 'INV6745886'), 200),
+            'https://rdservice.in/*' => Http::response(['status' => 404], 404),
+            'https://radiumbox.com/api/integrations/v1/rd-orders/*' => Http::response(['status' => 404], 404),
+        ]);
 
         $this->actingAs($this->actor)
             ->getJson(route('search.index', ['q' => 'inv6745886']))
@@ -142,18 +152,19 @@ class HistoricalInvoiceReprintTest extends TestCase
             ->get(route('search.index', ['q' => 'INV6745886']))
             ->assertRedirect(route('finance.invoices.historical', ['q' => 'INV6745886']));
 
-        Http::assertNothingSent();
-
         $this->actingAs($this->actor)
             ->getJson(route('search.index', ['q' => 'RD268507']))
             ->assertOk()
+            ->assertJsonPath('match_count', 0)
             ->assertJsonPath('historical.query', 'RD268507')
             ->assertJsonPath('historical.kind', 'order');
     }
 
-    public function test_agent_header_search_does_not_offer_historical_reprint(): void
+    public function test_agent_header_search_does_not_offer_historical_reprint_without_desk_case(): void
     {
-        Http::fake();
+        Http::fake([
+            'https://radiumbox.com/api/integrations/v1/historical-invoices/INV6745886' => Http::response($this->invoicePayload(), 200),
+        ]);
 
         $agent = User::factory()->create(['is_active' => true]);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -161,6 +172,89 @@ class HistoricalInvoiceReprintTest extends TestCase
         $this->actingAs($agent)
             ->getJson(route('search.index', ['q' => 'INV6745886']))
             ->assertOk()
+            ->assertJsonPath('match_count', 0)
+            ->assertJsonMissingPath('historical');
+    }
+
+    public function test_header_search_opens_customer_360_for_historical_invoice_and_order(): void
+    {
+        Http::fake([
+            'https://radiumbox.com/api/integrations/v1/historical-invoices/INV6745886' => Http::response($this->invoicePayload(), 200),
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD268507' => Http::response($this->spokeOrderPayload('RD268507', 'INV6745886'), 200),
+            'https://rdservice.in/*' => Http::response(['status' => 404], 404),
+            'https://radiumbox.com/api/integrations/v1/rd-orders/*' => Http::response(['status' => 404], 404),
+        ]);
+
+        $incident = $this->createMappedHistoricalCase();
+        $customer360Url = route('dashboard.service-cases.customer-360', [
+            'incident' => $incident,
+            'historical_invoice' => 'INV6745886',
+        ]);
+
+        foreach (['INV6745886', 'RD268507'] as $query) {
+            $this->actingAs($this->actor)
+                ->getJson(route('search.index', ['q' => $query]))
+                ->assertOk()
+                ->assertJsonPath('match_count', 1)
+                ->assertJsonPath('incident_ids.0', $incident->id)
+                ->assertJsonPath('results.0.type', 'service_case')
+                ->assertJsonPath('results.0.customer', 'Nareshkumar')
+                ->assertJsonPath('results.0.actions.historical_invoice', 'INV6745886')
+                ->assertJsonPath('results.0.actions.customer_360_url', $customer360Url)
+                ->assertJsonMissingPath('historical');
+        }
+
+        $this->actingAs($this->actor)
+            ->get(route('search.index', ['q' => 'INV6745886']))
+            ->assertRedirect(route('dashboard', ['q' => 'INV6745886']));
+    }
+
+    public function test_customer_360_shows_historical_invoice_and_read_only_print(): void
+    {
+        Http::fake([
+            'https://radiumbox.com/api/integrations/v1/historical-invoices/INV6745886' => Http::response($this->invoicePayload(), 200),
+        ]);
+
+        $incident = $this->createMappedHistoricalCase();
+
+        $this->actingAs($this->actor)
+            ->get(route('dashboard.service-cases.customer-360', [
+                'incident' => $incident,
+                'historical_invoice' => 'INV6745886',
+            ]))
+            ->assertOk()
+            ->assertSee('INV6745886', false)
+            ->assertSee('read-only reprint', false)
+            ->assertSee(route('finance.invoices.historical.print', 'INV6745886'), false)
+            ->assertDontSee('admin.radiumbox.com', false);
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.historical.print', 'INV6745886'))
+            ->assertOk()
+            ->assertSee('INV6745886', false)
+            ->assertSee('Historical reprint', false)
+            ->assertDontSee('admin.radiumbox.com', false);
+
+        $this->assertDatabaseCount('statutory_invoices', 0);
+        $this->assertSame('INV6745886', $this->invoicePayload()['data']['invoice']['invoice_number']);
+    }
+
+    public function test_current_desk_order_search_still_opens_customer_360_without_historical_lookup(): void
+    {
+        Http::fake();
+
+        $incident = $this->createMappedHistoricalCase('RD3434509', 'Current Desk Customer');
+
+        $this->actingAs($this->actor)
+            ->getJson(route('search.index', ['q' => 'RD3434509']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $incident->id)
+            ->assertJsonPath(
+                'results.0.actions.customer_360_url',
+                route('dashboard.service-cases.customer-360', $incident),
+            )
+            ->assertJsonMissingPath('results.0.actions.historical_invoice')
             ->assertJsonMissingPath('historical');
 
         Http::assertNothingSent();
@@ -203,6 +297,73 @@ class HistoricalInvoiceReprintTest extends TestCase
 
         $this->assertDatabaseCount('statutory_invoices', 0);
         Http::assertSentCount(1);
+    }
+
+    private function createMappedHistoricalCase(string $orderId = 'RD3449705', string $customerName = 'Nareshkumar'): Incident
+    {
+        $order = Order::query()->create([
+            'order_id' => $orderId,
+            'serial_number' => 'SN-'.$orderId,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => $customerName,
+            'customer_phone' => '9999999999',
+            'status' => 'active',
+            'created_by' => $this->actor->id,
+        ]);
+
+        return Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Historical mapped case',
+            'description' => 'Historical mapped case.',
+            'status' => IncidentStatus::Closed,
+            'created_by' => $this->actor->id,
+            'assigned_to_user_id' => $this->actor->id,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function spokeOrderPayload(string $orderId, string $invoice): array
+    {
+        return [
+            'status' => 200,
+            'spec_version' => '1.0',
+            'website_id' => 'rdservice.net',
+            'message' => 'OK',
+            'data' => [
+                'correlation' => ['rdorderid' => $orderId],
+                'rd_order' => [
+                    'rdorderid' => $orderId,
+                    'order_id' => $orderId,
+                    'serial_no' => '7710951',
+                    'product_name' => 'MFS110',
+                    'status' => 'Completed',
+                    'payment_status' => 'Paid',
+                    'userdetails' => json_encode([
+                        'name' => 'Nareshkumar',
+                        'phone' => '9999999999',
+                    ]),
+                ],
+                'order' => [
+                    'id' => 268507,
+                    'invoicecode' => $invoice,
+                    'payment_status' => 'Paid',
+                    'status' => 'Completed',
+                ],
+                'snapshot' => [
+                    'rdorderid' => $orderId,
+                    'serial_number' => '7710951',
+                    'invoice_number' => $invoice,
+                    'payment_status' => 'Paid',
+                    'model' => 'MFS110',
+                ],
+            ],
+        ];
     }
 
     /**

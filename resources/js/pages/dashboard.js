@@ -453,7 +453,11 @@ export const bootDashboard = () => {
                 applyRows(rows, options);
             },
             restoreDashboard: () => refreshDashboard(pageRoot),
-            openDrawer: (incidentId, referenceLabel) => customer360Drawer?.open(incidentId, referenceLabel),
+            openDrawer: (incidentId, referenceLabel, options) => (
+                options === undefined
+                    ? customer360Drawer?.open(incidentId, referenceLabel)
+                    : customer360Drawer?.open(incidentId, referenceLabel, options)
+            ),
             closeDrawer: () => customer360Drawer?.close(),
             onRowsUpdated: dashboardLiveHooks.onRowsUpdated,
         } : null,
@@ -492,7 +496,11 @@ export const bootDashboard = () => {
     initCustomerIntake({
         showToast: showAppToast,
         dashboardIntegration: pageRoot.querySelector('.dashboard-service-cases-card') ? {
-            openDrawer: (incidentId, referenceLabel) => customer360Drawer?.open(incidentId, referenceLabel),
+            openDrawer: (incidentId, referenceLabel, options) => (
+                options === undefined
+                    ? customer360Drawer?.open(incidentId, referenceLabel)
+                    : customer360Drawer?.open(incidentId, referenceLabel, options)
+            ),
         } : null,
     });
 

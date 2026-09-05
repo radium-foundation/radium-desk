@@ -3,61 +3,63 @@
 namespace App\Services;
 
 use App\Data\AI\AIContextBuildSnapshot;
-use App\Data\AI\CustomerJourneyBuildContext;
 use App\Data\AI\AIWorkbenchDTO;
+use App\Data\AI\CustomerJourneyBuildContext;
 use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Customer360\Intelligence\CaseIntelligenceSnapshot;
 use App\Data\Timeline\BusinessTimelineViewModel;
 use App\Data\TimelineViewModel;
+use App\Enums\ApprovedRefundMethod;
+use App\Enums\CommercialState;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SupportAppointmentStatus;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\User;
 use App\Services\AI\AIService;
 use App\Services\AI\AIWorkbenchService;
 use App\Services\AI\CustomerScopeQueryCache;
 use App\Services\AI\IRAExecutiveSummaryService;
 use App\Services\Bonvoice\BonvoiceCustomerCallService;
 use App\Services\Bonvoice\BonvoiceCustomerContactIntelligenceService;
+use App\Services\Commercial\CommercialStateResolver;
+use App\Services\CommunicationActions\CommunicationActionEligibilityService;
+use App\Services\ConversationWorkspace\ConversationWorkspaceModeResolver;
+use App\Services\ConversationWorkspace\ConversationWorkspaceSessionService;
 use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\Customer360\Customer360RecentCommunicationService;
 use App\Services\Customer360\Intelligence\CaseIntelligenceEngine;
-use App\Enums\ApprovedRefundMethod;
-use App\Enums\CommercialState;
-use App\Services\Commercial\CommercialStateResolver;
-use App\Services\CommunicationActions\CommunicationActionEligibilityService;
-use Database\Seeders\RolePermissionSeeder;
-use App\Services\Operations\OperationsAdvisorService;
+use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
+use App\Services\IncomingEmail\IncomingEmailWorkspaceReadState;
+use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
+use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
-use App\Services\Interakt\CustomerNotRespondingEligibilityService;
-use App\Services\IncomingEmail\IncomingEmailWorkspaceReadState;
-use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
+use App\Services\Operations\OperationsAdvisorService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
-use App\Services\ConversationWorkspace\ConversationWorkspaceModeResolver;
-use App\Services\ConversationWorkspace\ConversationWorkspaceSessionService;
-use App\Support\ConversationWorkspace\ConversationWorkspacePresenter;
-use App\Support\Commercial\CommercialStatePresenter;
-use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use App\Services\Timeline\Customer360TimelineService;
-use App\Services\Timeline\TimelineService;
-use App\Support\Customer360\Customer360CommunicationSectionPresenter;
-use App\Support\Customer360\Customer360CommunicationActionStatusPresenter;
-use App\Support\Customer360\Customer360HealthCardPresenter;
-use App\Support\Customer360\Customer360InsightsPresenter;
+use App\Support\AppDateFormatter;
+use App\Support\Commercial\CommercialStatePresenter;
+use App\Support\ConversationWorkspace\ConversationWorkspacePresenter;
 use App\Support\Customer360\CaseIntelligenceAssembler;
 use App\Support\Customer360\CaseIntelligenceV2OverviewPresenter;
+use App\Support\Customer360\Customer360CommunicationActionStatusPresenter;
+use App\Support\Customer360\Customer360CommunicationSectionPresenter;
+use App\Support\Customer360\Customer360HealthCardPresenter;
+use App\Support\Customer360\Customer360InsightsPresenter;
 use App\Support\Customer360\Customer360IraAdvisorPresenter;
 use App\Support\Customer360\Customer360IraPanelPresenter;
 use App\Support\Customer360\Customer360OverflowMenuPresenter;
 use App\Support\Customer360\Journey\CustomerJourneyBuilder;
 use App\Support\Customer360\RdServiceStatusResolver;
 use App\Support\Customer360\ScheduledSupportAppointmentContext;
-use App\Support\AppDateFormatter;
 use App\Support\DeviceModelFormatter;
+use App\Support\Finance\FinanceAccess;
+use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 
 class Customer360Service
@@ -102,7 +104,7 @@ class Customer360Service
     ) {}
 
     /**
-     * @param  array{live_incoming_call?: bool, call_id?: string|null}  $context
+     * @param  array{live_incoming_call?: bool, call_id?: string|null, historical_invoice?: string|null}  $context
      * @return array<string, mixed>
      */
     public function drawerData(Incident $incident, array $context = []): array
@@ -111,13 +113,18 @@ class Customer360Service
         $data['conversationWorkspace'] = $this->conversationWorkspacePayload($incident, $data, $context);
 
         $user = auth()->user();
-        $data['emailUnreadCount'] = $user instanceof \App\Models\User
+        $data['emailUnreadCount'] = $user instanceof User
             ? app(IncomingEmailWorkspaceReadState::class)->unreadInboundCount($incident, $user)
             : 0;
         $data['emailThreadUrl'] = route('dashboard.service-cases.email-thread', $incident);
         $data['emailThreadReadUrl'] = route('dashboard.service-cases.email-thread.read', $incident);
         $data['communicationSection'] = app(Customer360CommunicationSectionPresenter::class)
-            ->forIncident($incident, $user instanceof \App\Models\User ? $user : null);
+            ->forIncident($incident, $user instanceof User ? $user : null);
+        $data['historicalInvoice'] = $this->historicalInvoiceCard(
+            $incident,
+            is_string($context['historical_invoice'] ?? null) ? $context['historical_invoice'] : null,
+            $user instanceof User ? $user : null,
+        );
 
         return $data;
     }
@@ -419,7 +426,6 @@ class Customer360Service
             $operationsAdvisorInsights,
         );
     }
-
 
     /**
      * @return array{timeline: TimelineViewModel|BusinessTimelineViewModel, html: string, business: bool}
@@ -972,7 +978,7 @@ class Customer360Service
     }
 
     /**
-     * @return array{label: string, occurred_at: \Illuminate\Support\Carbon}|null
+     * @return array{label: string, occurred_at: Carbon}|null
      */
     private function resolveLastPayment(Order $order): ?array
     {
@@ -1013,7 +1019,7 @@ class Customer360Service
     /**
      * @return array{
      *     requested: bool,
-     *     requested_at: \Illuminate\Support\Carbon|null,
+     *     requested_at: Carbon|null,
      *     requested_at_label: string|null,
      * }
      */
@@ -1070,7 +1076,7 @@ class Customer360Service
     /**
      * @return array{
      *     requested: bool,
-     *     requested_at: \Illuminate\Support\Carbon|null,
+     *     requested_at: Carbon|null,
      *     requested_at_label: string|null,
      * }
      */
@@ -1249,5 +1255,31 @@ class Customer360Service
             : null;
 
         return $presented;
+    }
+
+    /**
+     * @return array{invoice_number: string, read_only: true, print_url: ?string}|null
+     */
+    private function historicalInvoiceCard(Incident $incident, ?string $requested, ?User $user): ?array
+    {
+        $number = null;
+
+        if (is_string($requested) && HistoricalInvoiceLookupService::looksLikeHistoricalInvoiceNumber($requested)) {
+            $number = HistoricalInvoiceLookupService::normalizeLookupQuery($requested);
+        } elseif (HistoricalInvoiceLookupService::looksLikeHistoricalInvoiceNumber((string) $incident->order?->invoice_number)) {
+            $number = HistoricalInvoiceLookupService::normalizeLookupQuery((string) $incident->order?->invoice_number);
+        }
+
+        if ($number === null) {
+            return null;
+        }
+
+        return [
+            'invoice_number' => $number,
+            'read_only' => true,
+            'print_url' => FinanceAccess::allowsInvoices($user)
+                ? route('finance.invoices.historical.print', $number)
+                : null,
+        ];
     }
 }

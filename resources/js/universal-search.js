@@ -141,9 +141,16 @@ const openCustomer360FromSearch = (actions, dashboardIntegration) => {
 
     const incidentId = actions.incident_id;
     const referenceLabel = actions.display_reference ?? '';
+    const historicalInvoice = typeof actions.historical_invoice === 'string' && actions.historical_invoice !== ''
+        ? actions.historical_invoice
+        : null;
 
     if (dashboardIntegration?.openDrawer) {
-        dashboardIntegration.openDrawer(incidentId, referenceLabel);
+        if (historicalInvoice) {
+            dashboardIntegration.openDrawer(incidentId, referenceLabel, { historicalInvoice });
+        } else {
+            dashboardIntegration.openDrawer(incidentId, referenceLabel);
+        }
 
         return;
     }
@@ -152,6 +159,7 @@ const openCustomer360FromSearch = (actions, dashboardIntegration) => {
         detail: {
             incidentId,
             referenceLabel,
+            ...(historicalInvoice ? { historicalInvoice } : {}),
         },
     }));
 };
@@ -571,8 +579,16 @@ export const initUniversalSearch = ({
 
             const row = document.getElementById(`service-case-row-${incidentId}`);
             const referenceLabel = row?.querySelector('.case-reference-link')?.textContent?.trim() ?? '';
+            const historicalInvoice = typeof results[0]?.actions?.historical_invoice === 'string'
+                && results[0].actions.historical_invoice !== ''
+                ? results[0].actions.historical_invoice
+                : null;
 
-            await dashboardIntegration.openDrawer?.(incidentId, referenceLabel);
+            if (historicalInvoice) {
+                await dashboardIntegration.openDrawer?.(incidentId, referenceLabel, { historicalInvoice });
+            } else {
+                await dashboardIntegration.openDrawer?.(incidentId, referenceLabel);
+            }
         } else {
             clearSearchMatchHighlight(card);
         }

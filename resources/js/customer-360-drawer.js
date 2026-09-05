@@ -35,6 +35,10 @@ const drawerContentUrl = (baseUrl, incidentId, options = {}) => {
         url.searchParams.set('call_id', options.callId);
     }
 
+    if (typeof options.historicalInvoice === 'string' && options.historicalInvoice !== '') {
+        url.searchParams.set('historical_invoice', options.historicalInvoice);
+    }
+
     return `${url.pathname}${url.search}`;
 };
 
@@ -203,6 +207,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     let pendingOpenOptions = {};
     let activeConversationWorkspace = false;
     let activeCallId = null;
+    let activeHistoricalInvoice = null;
     let previouslyFocusedElement = null;
     let devicePollTimer = null;
     let timelinePollTimer = null;
@@ -1374,6 +1379,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         const url = drawerContentUrl(baseUrl, incidentId, {
             conversationWorkspace: activeConversationWorkspace,
             callId: activeCallId,
+            historicalInvoice: activeHistoricalInvoice,
         });
 
         try {
@@ -1420,6 +1426,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         const url = drawerContentUrl(baseUrl, incidentId, {
             conversationWorkspace: activeConversationWorkspace,
             callId: activeCallId,
+            historicalInvoice: activeHistoricalInvoice,
         });
         const previousHtml = contentHost.innerHTML;
 
@@ -1470,6 +1477,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         activeIncidentId = null;
         activeConversationWorkspace = false;
         activeCallId = null;
+        activeHistoricalInvoice = null;
 
         drawer.classList.remove('is-open');
         drawer.setAttribute('aria-hidden', 'true');
@@ -1502,7 +1510,17 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     };
 
     const open = async (incidentId, referenceLabel = '', options = {}) => {
+        options = options ?? {};
+        const nextHistoricalInvoice = typeof options.historicalInvoice === 'string' && options.historicalInvoice !== ''
+            ? options.historicalInvoice
+            : null;
+
         if (activeIncidentId === incidentId && drawer.classList.contains('is-open')) {
+            if (nextHistoricalInvoice !== activeHistoricalInvoice) {
+                activeHistoricalInvoice = nextHistoricalInvoice;
+                await loadInitialContent(incidentId);
+            }
+
             if (options.openMoreMenu) {
                 openMoreMenuForHost(contentHost);
             }
@@ -1527,6 +1545,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         activeCallId = typeof options.callId === 'string' && options.callId !== ''
             ? options.callId
             : null;
+        activeHistoricalInvoice = nextHistoricalInvoice;
 
         if (String(previousIncidentId) !== String(incidentId)) {
             clearPersistedTab();
@@ -1657,6 +1676,9 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             openMoreMenu: event.detail?.openMoreMenu ?? false,
             conversationWorkspace: event.detail?.conversationWorkspace === true,
             callId: typeof event.detail?.callId === 'string' ? event.detail.callId : null,
+            historicalInvoice: typeof event.detail?.historicalInvoice === 'string'
+                ? event.detail.historicalInvoice
+                : null,
         });
     }, { signal: customer360RefreshAbortController.signal });
 

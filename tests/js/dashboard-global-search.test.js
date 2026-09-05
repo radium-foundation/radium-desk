@@ -116,7 +116,11 @@ describe('dashboard global search integration', () => {
                     applyRows(rows, options);
                 },
                 restoreDashboard: () => refreshDashboard(pageRoot),
-                openDrawer: (incidentId, referenceLabel) => customer360Drawer?.open(incidentId, referenceLabel),
+                openDrawer: (incidentId, referenceLabel, options) => (
+                    options === undefined
+                        ? customer360Drawer?.open(incidentId, referenceLabel)
+                        : customer360Drawer?.open(incidentId, referenceLabel, options)
+                ),
                 closeDrawer: () => customer360Drawer?.close(),
                 onRowsUpdated: vi.fn(),
             },
@@ -1071,6 +1075,63 @@ describe('dashboard global search integration', () => {
         expect(document.getElementById('intake_order_id')?.value).toBe('RD3395988');
     });
 
+    it('auto-opens Customer 360 with the historical invoice when search returns a mapped case', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 1,
+                    incident_ids: [11178],
+                    results: [{
+                        type: 'service_case',
+                        incident_id: 11178,
+                        service_case: 'SC11077',
+                        order_id: 'RD3449705',
+                        actions: {
+                            incident_id: 11178,
+                            display_reference: 'SC11077',
+                            historical_invoice: 'INV6745886',
+                            customer_360_url: '/dashboard/service-cases/11178/customer-360?historical_invoice=INV6745886',
+                        },
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [{
+                        incident_id: 11178,
+                        html: `
+                            <tr id="service-case-row-11178" data-incident-id="11178">
+                                <td><a href="/incidents/11178" class="case-reference-link">SC11077</a></td>
+                                <td>RD3449705</td>
+                            </tr>
+                        `,
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => '<div data-customer-360-content data-customer-360-section="historical-invoice">INV6745886</div>',
+            });
+
+        await submitSearch('INV6745886');
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-customer-360-drawer]')?.classList.contains('is-open')).toBe(true);
+        });
+
+        expect(fetch.mock.calls.some(([url]) => (
+            typeof url === 'string'
+            && url.includes('/dashboard/service-cases/11178/customer-360')
+            && url.includes('historical_invoice=INV6745886')
+        ))).toBe(true);
+        expect(document.querySelector('[data-dashboard-search-historical-fallback]')).toBeNull();
+    });
+
     it('shows historical reprint link for historical invoice searches', async () => {
         mountDashboard();
 
@@ -1752,7 +1813,7 @@ describe('dashboard global search integration', () => {
         });
 
         expect(fetch).toHaveBeenCalledWith(
-            'http://localhost/dashboard/service-cases/43/customer-360',
+            '/dashboard/service-cases/43/customer-360',
             expect.any(Object),
         );
     });

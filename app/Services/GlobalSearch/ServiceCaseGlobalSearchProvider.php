@@ -33,7 +33,12 @@ class ServiceCaseGlobalSearchProvider implements GlobalSearchProvider
             ->map(fn (Incident $serviceCase): GlobalSearchResult => $this->toResult($serviceCase, $user));
     }
 
-    private function toResult(Incident $serviceCase, User $user): GlobalSearchResult
+    public function resultFor(Incident $serviceCase, User $user, ?string $historicalInvoice = null): GlobalSearchResult
+    {
+        return $this->toResult($serviceCase, $user, $historicalInvoice);
+    }
+
+    private function toResult(Incident $serviceCase, User $user, ?string $historicalInvoice = null): GlobalSearchResult
     {
         $order = $serviceCase->order;
 
@@ -51,7 +56,11 @@ class ServiceCaseGlobalSearchProvider implements GlobalSearchProvider
                 'assigned_to' => $serviceCase->assignee?->name ?? '—',
                 'status' => $serviceCase->status->label(),
                 'age' => Order::formatCompactDurationBetween($serviceCase->created_at) ?? '—',
-                'actions' => $this->customerIntakeSearchService->formatServiceCaseActions($serviceCase, $user),
+                'actions' => $this->customerIntakeSearchService->formatServiceCaseActions(
+                    $serviceCase,
+                    $user,
+                    $historicalInvoice,
+                ),
             ],
         );
     }

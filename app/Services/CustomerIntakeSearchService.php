@@ -5,11 +5,12 @@ namespace App\Services;
 use App\Data\CustomerIntakeSearchResult;
 use App\Enums\CustomerIdentityType;
 use App\Enums\IncidentStatus;
-use App\Enums\WorkspaceContext;
 use App\Enums\RadiumBoxSyncTrigger;
+use App\Enums\WorkspaceContext;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
 use App\Services\Interakt\InteraktCustomerMatcher;
 use App\Services\LegacyOrder\LegacyOrderLookupService;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
@@ -293,11 +294,12 @@ class CustomerIntakeSearchService
      *     can_reopen: bool,
      *     reopen_url: ?string,
      *     reopen_workspace_context: string,
+     *     historical_invoice?: string,
      * }
      */
-    public function formatServiceCaseActions(Incident $incident, ?User $user): array
+    public function formatServiceCaseActions(Incident $incident, ?User $user, ?string $historicalInvoice = null): array
     {
-        return $this->formatExistingCase($incident, $user);
+        return $this->formatExistingCase($incident, $user, $historicalInvoice);
     }
 
     /**
@@ -312,27 +314,43 @@ class CustomerIntakeSearchService
      *     can_reopen: bool,
      *     reopen_url: ?string,
      *     reopen_workspace_context: string,
+     *     historical_invoice?: string,
      * }
      */
-    private function formatExistingCase(Incident $incident, ?User $user): array
+    private function formatExistingCase(Incident $incident, ?User $user, ?string $historicalInvoice = null): array
     {
         $isClosed = $incident->status === IncidentStatus::Closed;
         $canReopen = $user !== null
             && $isClosed
             && $user->can('update', $incident);
 
-        return [
+        $normalizedInvoice = is_string($historicalInvoice) && HistoricalInvoiceLookupService::looksLikeHistoricalInvoiceNumber($historicalInvoice)
+            ? HistoricalInvoiceLookupService::normalizeLookupQuery($historicalInvoice)
+            : null;
+
+        $actions = [
             'incident_id' => $incident->id,
             'reference_no' => $incident->reference_no,
             'display_reference' => $incident->display_reference,
             'status' => $incident->status->value,
             'status_label' => $incident->status->label(),
             'is_closed' => $isClosed,
-            'customer_360_url' => route('dashboard.service-cases.customer-360', $incident),
+            'customer_360_url' => $normalizedInvoice === null
+                ? route('dashboard.service-cases.customer-360', $incident)
+                : route('dashboard.service-cases.customer-360', [
+                    'incident' => $incident,
+                    'historical_invoice' => $normalizedInvoice,
+                ]),
             'can_reopen' => $canReopen,
             'reopen_url' => $canReopen ? route('incidents.workspace.action', $incident) : null,
             'reopen_workspace_context' => WorkspaceContext::ServiceCase->value,
         ];
+
+        if ($normalizedInvoice !== null) {
+            $actions['historical_invoice'] = $normalizedInvoice;
+        }
+
+        return $actions;
     }
 
     public function identityTypeForOrder(Order $order): CustomerIdentityType
