@@ -68,6 +68,7 @@ class StatutoryInvoiceIssueController extends Controller
         return view('finance.invoices.commerce-order', [
             'order' => $order,
             'canIssue' => FinanceAccess::allowsInvoiceIssue(request()->user()),
+            'eligibility' => $this->eligibility->evaluateOrder($order),
         ]);
     }
 
