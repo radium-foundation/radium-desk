@@ -54,6 +54,7 @@ class PosSaleService
         ?string $notes = null,
         ?InventoryReservation $reservation = null,
         ?string $idempotencyKey = null,
+        array $statutory = [],
     ): InventorySale {
         $this->statutoryAccounting->assertMustNotAutoIssueOnPosComplete();
 
@@ -91,6 +92,7 @@ class PosSaleService
                 $notes,
                 $reservation,
                 $idempotencyKey,
+                $statutory,
             ): InventorySale {
                 if ($idempotencyKey !== null) {
                     // Do not lockForUpdate a missing unique key: InnoDB gap-locks the
@@ -124,11 +126,16 @@ class PosSaleService
 
                 $inventoryCustomer = $this->findOrCreateCustomer($customer);
 
+                $snapshot = $this->statutorySnapshot($inventoryCustomer, $statutory);
+
                 $sale = InventorySale::query()->create([
                     'sale_no' => 'POS-TMP-'.strtoupper(bin2hex(random_bytes(6))),
                     'idempotency_key' => $idempotencyKey,
                     'branch_id' => $lockedBranch->id,
                     'customer_id' => $inventoryCustomer->id,
+                    'buyer_gstin' => $snapshot['buyer_gstin'],
+                    'billing_address' => $snapshot['billing_address'],
+                    'place_of_supply_state' => $snapshot['place_of_supply_state'],
                     'status' => InventorySaleStatus::Completed,
                     'subtotal' => 0,
                     'discount' => $headerDiscount,
@@ -511,6 +518,36 @@ class PosSaleService
             'tax' => round($tax, 2),
             'total' => $total,
         ];
+    }
+
+    /**
+     * Optional Finance Hub snapshot only. Does not mint a GST invoice.
+     *
+     * @param  array<string, mixed>  $statutory
+     * @return array{buyer_gstin: ?string, billing_address: ?string, place_of_supply_state: ?string}
+     */
+    private function statutorySnapshot(InventoryCustomer $customer, array $statutory): array
+    {
+        $buyerGstin = $this->nullableString($statutory['buyer_gstin'] ?? null)
+            ?? $this->nullableString($customer->gstin);
+        $billingAddress = $this->nullableString($statutory['billing_address'] ?? null);
+
+        return [
+            'buyer_gstin' => $buyerGstin,
+            'billing_address' => $billingAddress,
+            'place_of_supply_state' => $this->nullableString($statutory['place_of_supply_state'] ?? null),
+        ];
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
     }
 
     /**

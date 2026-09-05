@@ -46,6 +46,11 @@
         ],
         'invoices' => [
             'label' => 'Statutory invoices',
+            'url' => route('finance.invoices.index'),
+            'visible' => FinanceAccess::allowsInvoices($user),
+        ],
+        'issue' => [
+            'label' => 'Issue invoices',
             'url' => route('finance.invoices.pending'),
             'visible' => FinanceAccess::allowsInvoices($user),
         ],

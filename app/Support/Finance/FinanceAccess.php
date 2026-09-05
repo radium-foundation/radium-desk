@@ -40,4 +40,14 @@ final class FinanceAccess
     {
         return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE);
     }
+
+    public static function allowsReportExport(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return $user->can(RolePermissionSeeder::PERMISSION_FINANCE_REPORTS_EXPORT)
+            || $user->can(RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE);
+    }
 }

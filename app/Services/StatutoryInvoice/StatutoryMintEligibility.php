@@ -3,7 +3,9 @@
 namespace App\Services\StatutoryInvoice;
 
 use App\Enums\CommerceOrderStatus;
+use App\Enums\InventorySaleStatus;
 use App\Models\CommerceOrder;
+use App\Models\InventorySale;
 use App\Services\StatutoryInvoice\Data\StatutoryMintEligibilityResult;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -13,6 +15,70 @@ class StatutoryMintEligibility
     public function __construct(
         private readonly StatutoryInvoiceNumberingService $numbering,
     ) {}
+
+    public function evaluateSale(InventorySale $sale): StatutoryMintEligibilityResult
+    {
+        $errors = [];
+        $sale->loadMissing(['lines.product', 'customer']);
+
+        if ($sale->status !== InventorySaleStatus::Completed) {
+            $errors[] = match ($sale->status) {
+                InventorySaleStatus::Cancelled => 'Sale is cancelled.',
+                InventorySaleStatus::Returned => 'Sale is returned.',
+                default => 'Sale is not completed.',
+            };
+        }
+
+        if (! $this->numbering->isConfigured()) {
+            $errors[] = 'Desk statutory numbering is unset.';
+        }
+
+        if ($this->configString('gstin_scope') === null) {
+            $errors[] = 'Desk seller GSTIN is unset.';
+        }
+
+        if ($this->configString('legal_name') === null) {
+            $errors[] = 'Desk seller legal name is unset.';
+        }
+
+        $place = is_string($sale->place_of_supply_state) ? trim($sale->place_of_supply_state) : '';
+        if ($place === '') {
+            $errors[] = 'Place of supply is missing.';
+        }
+
+        $buyerGstin = BuyerGstin::normalize($sale->buyer_gstin ?? $sale->customer?->gstin);
+        if (($sale->buyer_gstin ?? $sale->customer?->gstin) !== null
+            && trim((string) ($sale->buyer_gstin ?? $sale->customer?->gstin)) !== ''
+            && ! BuyerGstin::isValid($buyerGstin)) {
+            $errors[] = 'Buyer GSTIN is present but is not a valid 15-character GSTIN.';
+        }
+
+        if ($sale->lines->isEmpty()) {
+            $errors[] = 'Sale has no invoice lines.';
+        }
+
+        foreach ($sale->lines as $line) {
+            $hsn = is_string($line->product?->hsn_code) ? trim($line->product->hsn_code) : '';
+            if ($hsn === '') {
+                $errors[] = 'A line is missing HSN/SAC.';
+                break;
+            }
+        }
+
+        return new StatutoryMintEligibilityResult($errors === [], array_values(array_unique($errors)));
+    }
+
+    public function assertSaleCanMint(InventorySale $sale): void
+    {
+        $result = $this->evaluateSale($sale);
+        if ($result->eligible) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'eligibility' => $result->errors,
+        ]);
+    }
 
     public function evaluateOrder(CommerceOrder $order): StatutoryMintEligibilityResult
     {

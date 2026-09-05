@@ -166,4 +166,9 @@ class StatutoryInvoice extends Model
     {
         return $this->belongsTo(User::class, 'issued_by');
     }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
 }

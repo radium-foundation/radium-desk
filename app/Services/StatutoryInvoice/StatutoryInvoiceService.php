@@ -11,6 +11,7 @@ use App\Enums\StatutoryInvoiceStatus;
 use App\Models\CommerceOrder;
 use App\Models\EInvoiceRecord;
 use App\Models\FinanceJournal;
+use App\Models\InventorySale;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
@@ -155,6 +156,78 @@ class StatutoryInvoiceService
 
             throw $exception;
         }
+    }
+
+    public function issueFromPosSale(InventorySale $sale, ?User $actor = null): StatutoryInvoice
+    {
+        if ($sale->statutory_invoice_id !== null) {
+            $existing = StatutoryInvoice::query()->find($sale->statutory_invoice_id);
+            if ($existing === null) {
+                throw ValidationException::withMessages([
+                    'sale' => 'The POS sale already links a statutory invoice that could not be loaded. No new invoice number was allocated.',
+                ]);
+            }
+
+            $this->generateDocumentSafely($existing);
+            $this->queueEinvoiceIfEligible($existing);
+
+            return $existing->load(['items', 'allocation', 'document']);
+        }
+
+        $this->eligibility->assertSaleCanMint($sale);
+        $sale->loadMissing(['lines.product', 'lines.variant', 'customer']);
+
+        $lines = [];
+        foreach ($sale->lines as $line) {
+            $qty = (int) $line->qty;
+            $unit = (float) $line->unit_price;
+            $discount = (float) $line->discount;
+            $taxable = round(($unit * $qty) - $discount, 2);
+
+            $lines[] = new StatutoryInvoiceLineDraft(
+                description: $line->catalogLabel(),
+                qty: $qty,
+                unitPrice: $unit,
+                gstPercentage: (float) $line->gst_percentage,
+                taxTotal: (float) $line->tax,
+                lineTotal: (float) $line->line_total,
+                taxableValue: $taxable,
+                discount: $discount,
+                sku: $line->variant?->sku ?? $line->product?->sku,
+                hsnSac: $line->product?->hsn_code,
+            );
+        }
+
+        $headerDiscount = round((float) $sale->discount - $sale->lines->sum(fn ($line) => (float) $line->discount), 2);
+        if ($headerDiscount < 0) {
+            $headerDiscount = 0.0;
+        }
+
+        $invoice = $this->mint(new StatutoryInvoiceMintRequest(
+            channel: StatutoryInvoiceChannel::DeskPos,
+            sourceType: StatutoryInvoiceSourceType::InventorySale,
+            sourceId: (string) $sale->id,
+            lines: $lines,
+            sourceOrderId: $sale->sale_no,
+            inventorySaleId: $sale->id,
+            branchId: $sale->branch_id,
+            sellerGstin: $this->deskSellerGstin(),
+            sellerName: $this->deskSellerName(),
+            buyerName: $sale->customer?->name,
+            buyerPhone: $sale->customer?->phone,
+            buyerGstin: BuyerGstin::normalize($sale->buyer_gstin ?? $sale->customer?->gstin),
+            billingAddress: $sale->billing_address,
+            placeOfSupplyState: $sale->place_of_supply_state,
+            discount: $headerDiscount,
+            paymentMethod: $sale->payment_method,
+            paymentReference: $sale->payment_reference,
+            internalReceiptNumber: $sale->invoice_number,
+        ), $actor);
+
+        $this->generateDocumentSafely($invoice);
+        $this->queueEinvoiceIfEligible($invoice);
+
+        return $invoice->load(['items', 'allocation', 'document']);
     }
 
     public function issueFromCommerceOrder(CommerceOrder $order, ?User $actor = null): StatutoryInvoice

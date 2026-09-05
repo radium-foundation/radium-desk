@@ -37,6 +37,7 @@ use App\Http\Controllers\Finance\ExpenseCategoryController;
 use App\Http\Controllers\Finance\ExpenseController as FinanceExpenseController;
 use App\Http\Controllers\Finance\PaymentMethodController;
 use App\Http\Controllers\Finance\SettingsController as FinanceSettingsController;
+use App\Http\Controllers\Finance\StatutoryInvoiceController;
 use App\Http\Controllers\Finance\StatutoryInvoiceIssueController;
 use App\Http\Controllers\Finance\VendorPaymentController;
 use App\Http\Controllers\GmailAdminActionsController;
@@ -382,8 +383,13 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('bank', [BankLedgerController::class, 'index'])->name('bank.index');
         Route::get('vendor-payments', [VendorPaymentController::class, 'index'])->name('vendor-payments.index');
         Route::get('invoices/pending', [StatutoryInvoiceIssueController::class, 'pending'])->name('invoices.pending');
+        Route::get('invoices/export', [StatutoryInvoiceController::class, 'export'])->name('invoices.export');
         Route::get('invoices/commerce-orders/{order}', [StatutoryInvoiceIssueController::class, 'show'])->name('invoices.commerce-orders.show');
         Route::post('invoices/commerce-orders/{order}/issue', [StatutoryInvoiceIssueController::class, 'issue'])->name('invoices.commerce-orders.issue');
+        Route::post('invoices/sales/{sale}/issue', [StatutoryInvoiceIssueController::class, 'issuePos'])->name('invoices.sales.issue');
+        Route::get('invoices', [StatutoryInvoiceController::class, 'index'])->name('invoices.index');
+        Route::get('invoices/{invoice}/pdf', [StatutoryInvoiceController::class, 'download'])->name('invoices.pdf');
+        Route::get('invoices/{invoice}', [StatutoryInvoiceController::class, 'show'])->name('invoices.show');
 
         Route::prefix('settings')->name('settings.')->group(function () {
             Route::redirect('/', '/finance/settings/cash-accounts');

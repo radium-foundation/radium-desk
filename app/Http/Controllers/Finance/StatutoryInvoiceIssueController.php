@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Finance;
 
+use App\Enums\InventorySaleStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CommerceOrder;
+use App\Models\InventorySale;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
+use App\Services\StatutoryInvoice\StatutoryMintEligibility;
 use App\Support\Finance\FinanceAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +19,7 @@ class StatutoryInvoiceIssueController extends Controller
 {
     public function __construct(
         private readonly StatutoryInvoiceService $invoices,
+        private readonly StatutoryMintEligibility $eligibility,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(FinanceAccess::allowsInvoices($request->user()), 403);
@@ -26,13 +30,32 @@ class StatutoryInvoiceIssueController extends Controller
 
     public function pending(): View
     {
+        $sales = InventorySale::query()
+            ->with(['branch', 'customer', 'lines.product'])
+            ->where('status', InventorySaleStatus::Completed)
+            ->whereNull('statutory_invoice_id')
+            ->latest('id')
+            ->limit(50)
+            ->get()
+            ->map(fn (InventorySale $sale): array => [
+                'kind' => 'pos',
+                'sale' => $sale,
+                'eligibility' => $this->eligibility->evaluateSale($sale),
+            ]);
+
         $orders = CommerceOrder::query()
             ->whereNull('statutory_invoice_id')
             ->orderByDesc('id')
             ->limit(100)
-            ->get();
+            ->get()
+            ->map(fn (CommerceOrder $order): array => [
+                'kind' => 'commerce',
+                'order' => $order,
+                'eligibility' => $this->eligibility->evaluateOrder($order),
+            ]);
 
         return view('finance.invoices.pending', [
+            'sales' => $sales,
             'orders' => $orders,
             'canIssue' => FinanceAccess::allowsInvoiceIssue(request()->user()),
         ]);
@@ -46,6 +69,25 @@ class StatutoryInvoiceIssueController extends Controller
             'order' => $order,
             'canIssue' => FinanceAccess::allowsInvoiceIssue(request()->user()),
         ]);
+    }
+
+    public function issuePos(Request $request, InventorySale $sale): RedirectResponse
+    {
+        abort_unless(
+            FinanceAccess::allowsInvoiceIssue($request->user())
+                && $request->user()?->can(RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE),
+            403,
+        );
+
+        try {
+            $invoice = $this->invoices->issueFromPosSale($sale, $request->user());
+        } catch (ValidationException $exception) {
+            return back()->withErrors($exception->errors());
+        }
+
+        return redirect()
+            ->route('finance.invoices.show', $invoice)
+            ->with('status', 'Issued statutory invoice '.$invoice->invoice_number.'. Automatic issuance remains OFF.');
     }
 
     public function issue(Request $request, CommerceOrder $order): RedirectResponse
