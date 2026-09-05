@@ -5,10 +5,10 @@ namespace App\Services\StatutoryInvoice;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Owner-finalized Delhi / Mumbai statutory series (2026-09-01).
+ * Owner-finalized Delhi / Mumbai statutory series.
  *
- * Maps only the documented Desk branch codes. Unmapped locations fail closed.
- * This is not a GSTIN, legal-name, or historical Admin remint table.
+ * Number = INV-{GST_STATE}{FY_CODE}{RUNNING_SERIAL}
+ * FY 2026-27 Delhi serial 1 = INV-07671. Serial starts at 1 each FY.
  */
 final class StatutoryLocationSeries
 {
@@ -49,39 +49,43 @@ final class StatutoryLocationSeries
         }
 
         throw ValidationException::withMessages([
-            'location' => 'Statutory numbering requires a Delhi or Mumbai branch. Unmapped locations fail closed.',
+            'location' => 'Product statutory numbering requires a Delhi or Mumbai branch. Unmapped locations fail closed.',
         ]);
     }
 
-    public function prefix(string $location): string
+    public function gstStateCode(string $location): string
     {
-        return $this->location($location)['prefix'];
+        return $this->location($location)['gst_state_code'];
     }
 
-    public function firstSeq(string $location): int
+    public function prefix(string $location, StatutoryFinancialYear $year): string
     {
-        return $this->location($location)['first_seq'];
+        return 'INV-'.$this->gstStateCode($location).$year->code();
     }
 
-    public function sequenceKey(string $location): string
+    public function formatNumber(string $location, StatutoryFinancialYear $year, int $seq): string
     {
-        $config = $this->location($location);
+        if ($seq < 1) {
+            throw ValidationException::withMessages([
+                'number' => 'Statutory running serial must start at 1.',
+            ]);
+        }
 
+        return $this->prefix($location, $year).$seq;
+    }
+
+    public function sequenceKey(string $location, StatutoryFinancialYear $year): string
+    {
         return implode('|', [
             'tax_invoice',
             'location:'.$location,
-            $config['prefix'],
-            '*',
+            $this->prefix($location, $year),
+            $year->token(),
         ]);
     }
 
-    public function formatNumber(string $location, int $seq): string
-    {
-        return $this->prefix($location).$seq;
-    }
-
     /**
-     * @return array<string, array{prefix: string, first_seq: int, branch_codes: list<string>}>
+     * @return array<string, array{gst_state_code: string, branch_codes: list<string>}>
      */
     public function locations(): array
     {
@@ -95,15 +99,13 @@ final class StatutoryLocationSeries
             if (! is_string($key) || ! is_array($config)) {
                 continue;
             }
-            $prefix = trim((string) ($config['prefix'] ?? ''));
-            $firstSeq = (int) ($config['first_seq'] ?? 0);
+            $state = trim((string) ($config['gst_state_code'] ?? ''));
             $codes = $config['branch_codes'] ?? [];
-            if ($prefix === '' || $firstSeq < 1 || ! is_array($codes) || $codes === []) {
+            if (preg_match('/^\d{2}$/', $state) !== 1 || ! is_array($codes) || $codes === []) {
                 continue;
             }
             $locations[$key] = [
-                'prefix' => $prefix,
-                'first_seq' => $firstSeq,
+                'gst_state_code' => $state,
                 'branch_codes' => array_values(array_filter(
                     array_map(static fn ($code): string => trim((string) $code), $codes),
                     static fn (string $code): bool => $code !== '',
@@ -115,7 +117,7 @@ final class StatutoryLocationSeries
     }
 
     /**
-     * @return array{prefix: string, first_seq: int, branch_codes: list<string>}
+     * @return array{gst_state_code: string, branch_codes: list<string>}
      */
     private function location(string $location): array
     {

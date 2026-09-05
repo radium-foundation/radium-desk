@@ -33,7 +33,7 @@ class StatutoryInvoiceService
         private readonly StatutoryDocumentService $documents,
         private readonly EInvoiceEligibility $einvoiceEligibility,
         private readonly EInvoiceOutboxWriter $einvoiceOutbox,
-        private readonly StatutoryLocationSeries $locations,
+        private readonly StatutoryBillingIssuer $issuer,
     ) {}
 
     public function findBySource(
@@ -70,6 +70,7 @@ class StatutoryInvoiceService
                     $request->idempotencyKey(),
                     $actor,
                     $request->numberingLocation,
+                    $this->financialYear($request),
                 );
 
                 if ($request->internalReceiptNumber !== null
@@ -227,7 +228,10 @@ class StatutoryInvoiceService
             paymentMethod: $sale->payment_method,
             paymentReference: $sale->payment_reference,
             internalReceiptNumber: $sale->invoice_number,
-            numberingLocation: $this->locations->requireFromBranchCode($sale->branch?->code),
+            numberingLocation: $this->issuer->requireForProductBranch($sale->branch?->code),
+            financialYearToken: $sale->completed_at !== null
+                ? StatutoryFinancialYear::containing($sale->completed_at)->token()
+                : null,
         ), $actor);
 
         $this->generateDocumentSafely($invoice);
@@ -289,7 +293,15 @@ class StatutoryInvoiceService
             discount: (float) ($order->discount ?? 0),
             paymentMethod: $order->payment_method,
             paymentReference: $order->payment_reference,
-            numberingLocation: $this->locations->requireFromBranchCode($order->branch_code),
+            numberingLocation: $this->issuer->requireForCommerceOrder(
+                $order->branch_code,
+                $order->buyer_gstin,
+                null,
+                $order->items->pluck('hsn_sac')->all(),
+            ),
+            financialYearToken: $this->eligibility->commercialDate($order) !== null
+                ? StatutoryFinancialYear::containing($this->eligibility->commercialDate($order))->token()
+                : null,
         ), $actor);
 
         $this->linkCommerceOrder($order, $invoice);
@@ -362,6 +374,19 @@ class StatutoryInvoiceService
             ],
         );
         $this->einvoiceOutbox->write($invoice);
+    }
+
+    private function financialYear(StatutoryInvoiceMintRequest $request): ?StatutoryFinancialYear
+    {
+        if ($request->numberingLocation === null) {
+            return null;
+        }
+
+        if ($request->financialYearToken !== null && trim($request->financialYearToken) !== '') {
+            return StatutoryFinancialYear::fromToken($request->financialYearToken);
+        }
+
+        return StatutoryFinancialYear::containing(now());
     }
 
     private function deskSellerGstin(): string

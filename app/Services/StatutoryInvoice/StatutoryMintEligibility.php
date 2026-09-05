@@ -16,7 +16,7 @@ class StatutoryMintEligibility
 
     public function __construct(
         private readonly StatutoryInvoiceNumberingService $numbering,
-        private readonly StatutoryLocationSeries $locations,
+        private readonly StatutoryBillingIssuer $issuer,
     ) {}
 
     public function evaluateSale(InventorySale $sale): StatutoryMintEligibilityResult
@@ -40,8 +40,9 @@ class StatutoryMintEligibility
             $errors[] = 'Desk statutory numbering is unset.';
         }
 
-        if ($this->locations->enabled() && $this->locations->resolveFromBranchCode($sale->branch?->code) === null) {
-            $errors[] = 'Sale branch is not mapped to a Delhi or Mumbai statutory series.';
+        $issuerError = $this->issuer->errorForSale($sale->branch?->code);
+        if ($issuerError !== null) {
+            $errors[] = $issuerError;
         }
 
         if ($this->configString('gstin_scope') === null) {
@@ -111,8 +112,15 @@ class StatutoryMintEligibility
             $errors[] = 'Desk statutory numbering is unset.';
         }
 
-        if ($this->locations->enabled() && $this->locations->resolveFromBranchCode($order->branch_code) === null) {
-            $errors[] = 'Order branch is not mapped to a Delhi or Mumbai statutory series.';
+        $order->loadMissing('items');
+        $issuerError = $this->issuer->errorForCommerceOrder(
+            $order->branch_code,
+            $order->buyer_gstin,
+            null,
+            $order->items->pluck('hsn_sac')->all(),
+        );
+        if ($issuerError !== null) {
+            $errors[] = $issuerError;
         }
 
         if ($this->configString('gstin_scope') === null) {

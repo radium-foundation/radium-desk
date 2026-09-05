@@ -31,6 +31,8 @@ final class StatutoryInvoiceMintRequest
         public readonly ?string $paymentReference = null,
         public readonly ?string $internalReceiptNumber = null,
         public readonly ?string $numberingLocation = null,
+        public readonly ?string $financialYearToken = null,
+        public readonly ?string $customerState = null,
     ) {}
 
     public function idempotencyKey(): string

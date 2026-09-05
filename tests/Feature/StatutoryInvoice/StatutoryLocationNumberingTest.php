@@ -13,6 +13,7 @@ use App\Services\Inventory\InventoryStockService;
 use App\Services\Inventory\PosSaleService;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
+use App\Services\StatutoryInvoice\StatutoryFinancialYear;
 use App\Services\StatutoryInvoice\StatutoryInvoiceScope;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Services\StatutoryInvoice\StatutoryLocationSeries;
@@ -60,8 +61,8 @@ class StatutoryLocationNumberingTest extends TestCase
 
         $this->assertSame('INV-07671', $first->invoice_number);
         $this->assertSame('INV-07672', $second->invoice_number);
-        $this->assertSame(671, $first->allocation?->seq_int);
-        $this->assertSame(672, $second->allocation?->seq_int);
+        $this->assertSame(1, $first->allocation?->seq_int);
+        $this->assertSame(2, $second->allocation?->seq_int);
     }
 
     public function test_mumbai_starts_at_inv_27671_and_increments_independently(): void
@@ -99,7 +100,7 @@ class StatutoryLocationNumberingTest extends TestCase
         $this->assertSame($first->id, $again->id);
         $this->assertSame('INV-07671', $again->invoice_number);
         $this->assertSame(1, StatutoryInvoice::query()->count());
-        $this->assertSame(671, (int) InvoiceSequence::query()->where('series_code', 'INV-07')->value('current_value'));
+        $this->assertSame(1, (int) InvoiceSequence::query()->where('series_code', 'INV-0767')->value('current_value'));
     }
 
     public function test_location_numbers_are_not_pos_internal_receipts(): void
@@ -196,7 +197,67 @@ class StatutoryLocationNumberingTest extends TestCase
         $this->assertSame('INV-07671', $this->invoices->mint($this->request('keep-number', StatutoryLocationSeries::DELHI), $this->actor)->invoice_number);
     }
 
-    private function request(string $sourceId, string $location): StatutoryInvoiceMintRequest
+    public function test_delhi_serials_five_999_and_1000_use_unpadded_running_serial(): void
+    {
+        $series = app(StatutoryLocationSeries::class);
+        $year = StatutoryFinancialYear::fromToken('2026-2027');
+        InvoiceSequence::query()->create([
+            'sequence_key' => $series->sequenceKey(StatutoryLocationSeries::DELHI, $year),
+            'series_code' => $series->prefix(StatutoryLocationSeries::DELHI, $year),
+            'document_type' => 'tax_invoice',
+            'gstin_scope' => 'location:delhi',
+            'financial_year' => $year->token(),
+            'current_value' => 4,
+        ]);
+
+        $fifth = $this->invoices->mint($this->request('serial-5', StatutoryLocationSeries::DELHI), $this->actor);
+        $this->assertSame('INV-07675', $fifth->invoice_number);
+
+        InvoiceSequence::query()
+            ->where('sequence_key', $series->sequenceKey(StatutoryLocationSeries::DELHI, $year))
+            ->update(['current_value' => 998]);
+
+        $serial999 = $this->invoices->mint($this->request('serial-999', StatutoryLocationSeries::DELHI), $this->actor);
+        $serial1000 = $this->invoices->mint($this->request('serial-1000', StatutoryLocationSeries::DELHI), $this->actor);
+
+        $this->assertSame('INV-0767999', $serial999->invoice_number);
+        $this->assertSame('INV-07671000', $serial1000->invoice_number);
+    }
+
+    public function test_financial_years_are_isolated_and_reset_serial_to_one(): void
+    {
+        $fy26 = $this->invoices->mint($this->request('fy26-a', StatutoryLocationSeries::DELHI, '2026-2027'), $this->actor);
+        $fy27Delhi = $this->invoices->mint($this->request('fy27-d', StatutoryLocationSeries::DELHI, '2027-2028'), $this->actor);
+        $fy27Mumbai = $this->invoices->mint($this->request('fy27-m', StatutoryLocationSeries::MUMBAI, '2027-2028'), $this->actor);
+        $fy26b = $this->invoices->mint($this->request('fy26-b', StatutoryLocationSeries::DELHI, '2026-2027'), $this->actor);
+
+        $this->assertSame('INV-07671', $fy26->invoice_number);
+        $this->assertSame('INV-07781', $fy27Delhi->invoice_number);
+        $this->assertSame('INV-27781', $fy27Mumbai->invoice_number);
+        $this->assertSame('INV-07672', $fy26b->invoice_number);
+        $this->assertSame(3, InvoiceSequence::query()->count());
+    }
+
+    public function test_formula_examples_match_owner_fy_codes(): void
+    {
+        $series = app(StatutoryLocationSeries::class);
+        $fy26 = StatutoryFinancialYear::fromToken('2026-2027');
+        $fy27 = StatutoryFinancialYear::fromToken('2027-2028');
+
+        $this->assertSame('67', $fy26->code());
+        $this->assertSame('78', $fy27->code());
+        $this->assertSame('67', StatutoryFinancialYear::containing(Carbon::parse('2026-09-01'))->code());
+        $this->assertSame('67', StatutoryFinancialYear::containing(Carbon::parse('2027-03-31'))->code());
+        $this->assertSame('78', StatutoryFinancialYear::containing(Carbon::parse('2027-04-01'))->code());
+        $this->assertSame('INV-07671', $series->formatNumber(StatutoryLocationSeries::DELHI, $fy26, 1));
+        $this->assertSame('INV-27672', $series->formatNumber(StatutoryLocationSeries::MUMBAI, $fy26, 2));
+        $this->assertSame('INV-07781', $series->formatNumber(StatutoryLocationSeries::DELHI, $fy27, 1));
+        $this->assertSame('INV-27781', $series->formatNumber(StatutoryLocationSeries::MUMBAI, $fy27, 1));
+        $this->assertSame('INV-0767999', $series->formatNumber(StatutoryLocationSeries::DELHI, $fy26, 999));
+        $this->assertSame('INV-07671000', $series->formatNumber(StatutoryLocationSeries::DELHI, $fy26, 1000));
+    }
+
+    private function request(string $sourceId, string $location, string $fy = '2026-2027'): StatutoryInvoiceMintRequest
     {
         return new StatutoryInvoiceMintRequest(
             channel: StatutoryInvoiceChannel::DeskPos,
@@ -213,6 +274,7 @@ class StatutoryLocationNumberingTest extends TestCase
                 hsnSac: '8471',
             )],
             numberingLocation: $location,
+            financialYearToken: $fy,
         );
     }
 }

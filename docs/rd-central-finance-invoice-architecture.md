@@ -1,6 +1,6 @@
 # Central Finance + Statutory Invoice Architecture
 
-> **Canonical status (RadiumDesk-P-05-09-06):** Owner-finalized new-invoice numbering is Delhi `INV-07671` and Mumbai `INV-27671` from 2026-09-01, mapped only to `DELHI-RETAIL` / `MUMBAI`. Historical Admin numbers are not reminted. See `docs/desk-statutory-location-numbering.md`. Seller-profile / `INV-SSFFNNNN` numbering, WhiteBooks HTTP, Shiprocket, and historical Admin remint were **not** merged.
+> **Canonical status (RadiumDesk-P-05-09-08):** Statutory numbers are `INV-{GST_STATE}{FY}{SERIAL}`. FY26–27 first numbers are Delhi `INV-07671` and Mumbai `INV-27671`. Product issuer is branch-based; service issuer is B2B/B2C + customer state. Historical Admin numbers are not reminted. See `docs/desk-statutory-location-numbering.md`.
 
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  

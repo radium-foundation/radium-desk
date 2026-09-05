@@ -280,7 +280,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
         $this->assertSame('INV-07671', $second->invoice_number);
         $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertSame(1, InvoiceSequenceAllocation::query()->count());
-        $this->assertSame(671, (int) InvoiceSequence::query()->value('current_value'));
+        $this->assertSame(1, (int) InvoiceSequence::query()->value('current_value'));
     }
 
     public function test_pdf_failure_keeps_the_allocated_number(): void

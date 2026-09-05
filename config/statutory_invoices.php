@@ -30,21 +30,21 @@ return [
     'number_format' => env('STATUTORY_INVOICE_NUMBER_FORMAT'),
 
     /*
-    | Owner-finalized statutory location series (2026-09-01).
-    | Delhi continues at INV-07671. Mumbai continues at INV-27671.
-    | Only documented Desk branch codes are mapped. Do not remint Admin INV*.
+    | Owner-finalized statutory location series.
+    | Number = INV-{GST_STATE}{FY}{SERIAL}. Serial starts at 1 each FY.
+    | FY 2026-27 Delhi serial 1 = INV-07671. Mumbai serial 1 = INV-27671.
+    | Product issuer is branch-mapped. Service issuer is B2B/B2C + customer state.
+    | Do not remint Admin INV*.
     */
     'location_series' => [
         'enabled' => true,
         'locations' => [
             'delhi' => [
-                'prefix' => 'INV-07',
-                'first_seq' => 671,
+                'gst_state_code' => '07',
                 'branch_codes' => ['DELHI-RETAIL'],
             ],
             'mumbai' => [
-                'prefix' => 'INV-27',
-                'first_seq' => 671,
+                'gst_state_code' => '27',
                 'branch_codes' => ['MUMBAI'],
             ],
         ],

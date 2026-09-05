@@ -36,14 +36,19 @@ class StatutoryInvoiceNumberingService
             ->first();
     }
 
-    public function allocate(string $idempotencyKey, ?User $actor = null, ?string $location = null): InvoiceSequenceAllocation
-    {
+    public function allocate(
+        string $idempotencyKey,
+        ?User $actor = null,
+        ?string $location = null,
+        ?StatutoryFinancialYear $financialYear = null,
+    ): InvoiceSequenceAllocation {
         if ($location !== null) {
             if (! $this->locations->enabled()) {
                 throw ValidationException::withMessages([
                     'series' => 'Location statutory numbering is disabled.',
                 ]);
             }
+            $financialYear ??= StatutoryFinancialYear::containing(now());
         } elseif (! $this->isConfigured()) {
             throw ValidationException::withMessages([
                 'series' => 'Statutory invoice numbering is unset. CA approval of the legal series is required before invoices can be minted.',
@@ -55,12 +60,15 @@ class StatutoryInvoiceNumberingService
             return $existing;
         }
 
-        $sequence = $location !== null
-            ? $this->ensureLocationSequenceRow($location)
+        $year = $location !== null
+            ? ($financialYear ?? StatutoryFinancialYear::containing(now()))
+            : null;
+        $sequence = $location !== null && $year !== null
+            ? $this->ensureLocationSequenceRow($location, $year)
             : $this->ensureSequenceRow();
 
         try {
-            return DB::transaction(function () use ($idempotencyKey, $actor, $sequence, $location): InvoiceSequenceAllocation {
+            return DB::transaction(function () use ($idempotencyKey, $actor, $sequence, $location, $year): InvoiceSequenceAllocation {
                 $again = $this->findByIdempotency($idempotencyKey);
                 if ($again !== null) {
                     return $again;
@@ -74,8 +82,8 @@ class StatutoryInvoiceNumberingService
                 $next = $locked->current_value + 1;
                 $locked->update(['current_value' => $next]);
 
-                $number = $location !== null
-                    ? $this->locations->formatNumber($location, $next)
+                $number = $location !== null && $year !== null
+                    ? $this->locations->formatNumber($location, $year, $next)
                     : $this->formatter->format(
                         template: $this->numberFormat() ?? '',
                         series: $this->seriesCode() ?? '',
@@ -106,9 +114,9 @@ class StatutoryInvoiceNumberingService
         }
     }
 
-    private function ensureLocationSequenceRow(string $location): InvoiceSequence
+    private function ensureLocationSequenceRow(string $location, StatutoryFinancialYear $year): InvoiceSequence
     {
-        $key = $this->locations->sequenceKey($location);
+        $key = $this->locations->sequenceKey($location, $year);
         $existing = InvoiceSequence::query()->where('sequence_key', $key)->first();
         if ($existing !== null) {
             return $existing;
@@ -117,11 +125,11 @@ class StatutoryInvoiceNumberingService
         try {
             return InvoiceSequence::query()->create([
                 'sequence_key' => $key,
-                'series_code' => $this->locations->prefix($location),
+                'series_code' => $this->locations->prefix($location, $year),
                 'document_type' => StatutoryInvoiceDocumentType::TaxInvoice->value,
                 'gstin_scope' => 'location:'.$location,
-                'financial_year' => null,
-                'current_value' => $this->locations->firstSeq($location) - 1,
+                'financial_year' => $year->token(),
+                'current_value' => 0,
             ]);
         } catch (UniqueConstraintViolationException|QueryException $exception) {
             $existing = InvoiceSequence::query()->where('sequence_key', $key)->first();
