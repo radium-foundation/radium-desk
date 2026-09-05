@@ -131,5 +131,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-05-09-27 | 2026-09-06 | Search → Customer 360 historical invoice flow | Route RD268507 / INV6745886 search to Customer 360 with read-only historical reprint. No Admin fallback. No mint/DLQ. Not deployed. |
 | RadiumDesk-P-05-09-28 | 2026-09-06 | Deploy P-05-09-27 Customer 360 global search fix | Pushed `101c5cb0`. Surgical KVM overlay + Vite `public/build` (not full deskd; 3 UPI migrations remain Pending). Backup `p-05-09-28-20260905T192234Z`. Live SHA-match. Search `RD268507`/`INV6745886` → C360 incident 11178 Nareshkumar `RD3449705` + `INV6745886`. Print read-only `radiumbox_com`. `/up` 200. Admin fallback off. failed_jobs 57. statutory 0. |
 | RadiumDesk-P-05-09-29 | 2026-09-06 | Modernize historical invoice print/PDF design | Presentation-only redesign of historical reprint. Exact original number/data. No mint. No Admin. Not deployed. |
+| RadiumDesk-P-06-09-01 | 2026-09-06 | Cashfree retirement gate — webhook/notify verification | Read-only. Merchant Dashboard landed on Email Login — not inspected. App-side notify/return hosts are not Admin. Gate **UNKNOWN**. Do not retire Old Admin. Report: `docs/cashfree-retirement-gate-p-06-09-01.md`. |
 
 Do not renumber or overwrite earlier rows. Append only.
