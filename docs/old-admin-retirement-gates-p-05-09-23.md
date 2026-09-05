@@ -4,6 +4,8 @@
 **HEAD at inspect:** `9fe0f24f5646dcf699af40b8c9eb334f8a27f65d`  
 **Branch:** `main` (clean, matches `origin/main`)
 
+**Supersession:** Cashfree account-webhook gate is **PASS** as of `RadiumDesk-P-06-09-04`. Remaining gates: `docs/old-admin-retirement-gates-p-06-09-05.md`. This file is the 2026-09-05 snapshot.
+
 No application change. No DNS/AWS/Admin/Cashfree mutation. No DLQ flush.
 
 ---

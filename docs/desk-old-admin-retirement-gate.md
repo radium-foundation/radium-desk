@@ -4,6 +4,8 @@
 **Date:** 2026-09-05  
 **Type:** Read-only investigation. No code, config, DNS, Cloudflare, certificate, queue, invoice, or production-data change.
 
+**Supersession:** Current remaining-gate audit is `docs/old-admin-retirement-gates-p-06-09-05.md` (`RadiumDesk-P-06-09-05`). This file is the 2026-09-05 snapshot. Several blockers below (live Desk Admin search, missing reprint, Cashfree dashboard) are **stale**. Retirement remains **NOT READY**.
+
 **Verdict:** **NOT READY — BLOCKERS REMAIN**
 
 Companion prior tickets (re-verified, not assumed): `RadiumDesk-P-31-08-09`, `radiumbox.com-P-05-09-12`, `radiumbox.com-P-05-09-14`.
