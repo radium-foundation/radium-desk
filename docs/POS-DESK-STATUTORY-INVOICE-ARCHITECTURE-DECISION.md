@@ -1,6 +1,6 @@
 # POS + Desk Statutory Invoice Architecture Decision
 
-> **Canonical status (RadiumDesk-P-05-09-12):** POS remains the till plus internal `INV-{branch}-{year}-{seq}` receipt. Finance Hub is the only GST issuer. Legal seller is Phil Technologies (P) Limited (brand Radium). Seller GSTIN follows the Delhi/Mumbai billing issuer. Statutory numbers are `INV-{GST_STATE}{FY}{SERIAL}` (FY26–27 Delhi `INV-07671`, Mumbai `INV-27671`). Product issuer is branch-based; service issuer is B2B/B2C + customer GSTIN state. The other 2 GST registrations are out of scope. See `docs/desk-statutory-location-numbering.md`.
+> **Canonical status (RadiumDesk-P-05-09-13):** POS remains the till plus internal `INV-{branch}-{year}-{seq}` receipt. Finance Hub is the only GST issuer. Legal seller is Phil Technologies (P) Limited (brand Radium). Seller GSTIN and registered address follow the Delhi/Mumbai billing issuer. Statutory numbers are `INV-{GST_STATE}{FY}{SERIAL}` (FY26–27 Delhi `INV-07671`, Mumbai `INV-27671`). Product issuer is branch-based; service issuer is B2B/B2C + customer GSTIN state. The other 2 GST registrations are out of scope. See `docs/desk-statutory-location-numbering.md`.
 
 **Project:** New Admin / Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  

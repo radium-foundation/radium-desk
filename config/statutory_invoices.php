@@ -1,5 +1,14 @@
 <?php
 
+$statutoryEnv = static function (string $key, ?string $default = null): ?string {
+    $raw = env($key);
+    if (is_string($raw) && trim($raw) !== '') {
+        return trim($raw);
+    }
+
+    return $default;
+};
+
 return [
 
     /*
@@ -42,16 +51,22 @@ return [
             'delhi' => [
                 'gst_state_code' => '07',
                 'branch_codes' => ['DELHI-RETAIL'],
-                'gstin' => env('STATUTORY_INVOICE_DELHI_GSTIN'),
-                'address' => env('STATUTORY_INVOICE_DELHI_ADDRESS'),
-                'state' => env('STATUTORY_INVOICE_DELHI_STATE'),
+                'gstin' => $statutoryEnv('STATUTORY_INVOICE_DELHI_GSTIN'),
+                'address' => $statutoryEnv(
+                    'STATUTORY_INVOICE_DELHI_ADDRESS',
+                    '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+                ),
+                'state' => $statutoryEnv('STATUTORY_INVOICE_DELHI_STATE', 'Delhi'),
             ],
             'mumbai' => [
                 'gst_state_code' => '27',
                 'branch_codes' => ['MUMBAI'],
-                'gstin' => env('STATUTORY_INVOICE_MUMBAI_GSTIN'),
-                'address' => env('STATUTORY_INVOICE_MUMBAI_ADDRESS'),
-                'state' => env('STATUTORY_INVOICE_MUMBAI_STATE'),
+                'gstin' => $statutoryEnv('STATUTORY_INVOICE_MUMBAI_GSTIN'),
+                'address' => $statutoryEnv(
+                    'STATUTORY_INVOICE_MUMBAI_ADDRESS',
+                    'G40, Harmony Mall, Link Road, Goregaon, Mumbai 400104',
+                ),
+                'state' => $statutoryEnv('STATUTORY_INVOICE_MUMBAI_STATE', 'Maharashtra'),
             ],
         ],
     ],

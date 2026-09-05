@@ -49,7 +49,7 @@ Customer GSTIN is a default copied onto the sale at complete time. Finance Hub r
 
 ## Location-aware seller GSTIN (RadiumDesk-P-05-09-12)
 
-Legal seller is **Phil Technologies (P) Limited** (brand **Radium**). Four GST registrations exist; this rollout is Delhi + Mumbai only. Invoice seller GSTIN follows the billing issuer (`StatutorySellerIdentity`), not a global `STATUTORY_INVOICE_GSTIN_SCOPE`. Product issuer stays branch-based. Service B2B Maharashtra → Mumbai GSTIN; other B2B / all B2C → Delhi GSTIN. Place of Supply stays independent. Registered addresses are issuer-specific env values and are not documented as facts until Owner-supplied.
+Legal seller is **Phil Technologies (P) Limited** (brand **Radium**). Four GST registrations exist; this rollout is Delhi + Mumbai only. Invoice seller GSTIN follows the billing issuer (`StatutorySellerIdentity`), not a global `STATUTORY_INVOICE_GSTIN_SCOPE`. Product issuer stays branch-based. Service B2B Maharashtra → Mumbai GSTIN; other B2B / all B2C → Delhi GSTIN. Place of Supply stays independent. Owner-supplied registered addresses (P-05-09-13): Delhi Hemkunt Chambers, Nehru Place; Mumbai Harmony Mall, Goregaon.
 
 ## Owner-finalized location numbering (RadiumDesk-P-05-09-08)
 

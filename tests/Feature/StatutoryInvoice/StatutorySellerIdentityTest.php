@@ -90,6 +90,35 @@ class StatutorySellerIdentityTest extends TestCase
         $this->assertSame('Delhi', $invoice->place_of_supply_state);
     }
 
+    public function test_owner_registered_addresses_are_the_empty_env_defaults(): void
+    {
+        $defaults = require base_path('config/statutory_invoices.php');
+
+        $this->assertSame(
+            '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            $defaults['location_series']['locations']['delhi']['address'],
+        );
+        $this->assertSame(
+            'G40, Harmony Mall, Link Road, Goregaon, Mumbai 400104',
+            $defaults['location_series']['locations']['mumbai']['address'],
+        );
+        $this->assertSame('Delhi', $defaults['location_series']['locations']['delhi']['state']);
+        $this->assertSame('Maharashtra', $defaults['location_series']['locations']['mumbai']['state']);
+
+        config([
+            'statutory_invoices.location_series.locations.delhi.address' => $defaults['location_series']['locations']['delhi']['address'],
+            'statutory_invoices.location_series.locations.mumbai.address' => $defaults['location_series']['locations']['mumbai']['address'],
+        ]);
+
+        $delhi = $this->seller->requireForLocation(StatutoryLocationSeries::DELHI);
+        $mumbai = $this->seller->requireForLocation(StatutoryLocationSeries::MUMBAI);
+
+        $this->assertSame($defaults['location_series']['locations']['delhi']['address'], $delhi->address);
+        $this->assertSame($defaults['location_series']['locations']['mumbai']['address'], $mumbai->address);
+        $this->assertSame('Delhi', $delhi->state);
+        $this->assertSame('Maharashtra', $mumbai->state);
+    }
+
     public function test_missing_issuer_address_fails_closed(): void
     {
         config(['statutory_invoices.location_series.locations.mumbai.address' => '']);

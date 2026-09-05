@@ -1,7 +1,7 @@
 # Desk statutory location numbering
 
 **Project:** Radium Desk  
-**Ledger:** RadiumDesk-P-05-09-08, updated RadiumDesk-P-05-09-12  
+**Ledger:** RadiumDesk-P-05-09-08, updated RadiumDesk-P-05-09-12 / P-05-09-13  
 **Date:** 2026-09-05  
 **Tree:** `/Users/ravi/RadiumWebsites/radium-desk-pos-release` `main`
 
@@ -23,7 +23,16 @@ Seller GSTIN, registered address, and seller state are **issuer-specific**. They
 | Delhi seller state | Delhi issuer | `STATUTORY_INVOICE_DELHI_STATE` (or derived from GSTIN `07`) |
 | Mumbai seller state | Mumbai issuer | `STATUTORY_INVOICE_MUMBAI_STATE` (or derived from GSTIN `27`) |
 
-The Owner-supplied `DELHI-RETAIL` / `MUMBAI` inventory branch GSTINs are the in-scope Delhi and Mumbai registrations. Registered addresses are **not** recorded here; they remain Owner-supplied env values.
+The Owner-supplied `DELHI-RETAIL` / `MUMBAI` inventory branch GSTINs are the in-scope Delhi and Mumbai registrations.
+
+Owner-supplied registered addresses (RadiumDesk-P-05-09-13):
+
+| Issuer | Registered address |
+|---|---|
+| Delhi | 1312, Hemkunt Chambers, Nehru Place, New Delhi 110019 |
+| Mumbai | G40, Harmony Mall, Link Road, Goregaon, Mumbai 400104 |
+
+These are the config defaults when the address env keys are empty. Env can still override. Test suites continue to use test-only address strings.
 
 Mint fails closed if the resolved issuer has no valid GSTIN, the GSTIN state does not match Delhi `07` / Mumbai `27`, legal name is empty, or the issuer address is empty. Unknown branches and the other GST registrations fail closed. Place of Supply does not choose the issuer or seller GSTIN.
 

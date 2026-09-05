@@ -1,6 +1,6 @@
 # Central Finance + Statutory Invoice Architecture
 
-> **Canonical status (RadiumDesk-P-05-09-12):** Statutory numbers are `INV-{GST_STATE}{FY}{SERIAL}`. FY26–27 first numbers are Delhi `INV-07671` and Mumbai `INV-27671`. Legal seller is Phil Technologies (P) Limited (brand Radium). Seller GSTIN is issuer-specific for the Delhi and Mumbai registrations only. Product issuer is branch-based; service issuer is B2B/B2C + customer GSTIN state. Historical Admin numbers are not reminted. See `docs/desk-statutory-location-numbering.md`.
+> **Canonical status (RadiumDesk-P-05-09-13):** Statutory numbers are `INV-{GST_STATE}{FY}{SERIAL}`. FY26–27 first numbers are Delhi `INV-07671` and Mumbai `INV-27671`. Legal seller is Phil Technologies (P) Limited (brand Radium). Seller GSTIN and registered address are issuer-specific for Delhi and Mumbai only. Product issuer is branch-based; service issuer is B2B/B2C + customer GSTIN state. Historical Admin numbers are not reminted. See `docs/desk-statutory-location-numbering.md`.
 
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  
