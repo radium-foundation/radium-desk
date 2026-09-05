@@ -127,5 +127,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-05-09-23 | 2026-09-05 | Owner-browser reprint + Cashfree merchant URL retirement gates | No browser automation and no Cashfree dashboard access in this session. App-side notify/return hosts are not Admin. Flags unchanged. failed_jobs 57 untouched. Do not retire Old Admin. |
 | RadiumDesk-P-05-09-24 | 2026-09-06 | Investigate Owner UI miss for INV6745886 / RD268507 | Historical API still finds INV6745886 / RD268507. Statutory `q` and header search never called it. Redirect/hint those identifiers to Historical reprint. No Admin fallback. No mint/DLQ. Not deployed. |
 | RadiumDesk-P-05-09-25 | 2026-09-06 | Deploy historical invoice search routing fix | Pushed `95e8ab11`. Surgical KVM overlay + Vite `public/build` (not full deskd; 3 UPI migrations remain Pending). Live SHA-match. Statutory `INV6745886`/`RD268507` 302 to historical. Header JSON offers reprint URL. Lookup `radiumbox_com` reprint yes, read_only, Nareshkumar. `/up` 200. Admin fallback off. failed_jobs 57. Owner-browser NO. |
+| RadiumDesk-P-05-09-26 | 2026-09-06 | Investigate Owner-browser historical reprint failure | Reproduce Finance Historical reprint for INV6745886 / RD268507. Read-only first. No Admin fallback. No mint/DLQ. |
 
 Do not renumber or overwrite earlier rows. Append only.
