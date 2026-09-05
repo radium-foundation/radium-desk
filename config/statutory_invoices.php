@@ -11,8 +11,8 @@ return [
     'document_type' => env('STATUTORY_INVOICE_DOCUMENT_TYPE', 'tax_invoice'),
 
     /*
-    | Optional GSTIN scope for the sequence key. Leave empty until CA confirms
-    | per-GSTIN series. The numbering service will not invent a GSTIN.
+    | Legacy single-series GSTIN token only. Finance Hub invoices do not
+    | read this as the seller GSTIN. Leave empty.
     */
     'gstin_scope' => env('STATUTORY_INVOICE_GSTIN_SCOPE'),
 
@@ -42,10 +42,16 @@ return [
             'delhi' => [
                 'gst_state_code' => '07',
                 'branch_codes' => ['DELHI-RETAIL'],
+                'gstin' => env('STATUTORY_INVOICE_DELHI_GSTIN'),
+                'address' => env('STATUTORY_INVOICE_DELHI_ADDRESS'),
+                'state' => env('STATUTORY_INVOICE_DELHI_STATE'),
             ],
             'mumbai' => [
                 'gst_state_code' => '27',
                 'branch_codes' => ['MUMBAI'],
+                'gstin' => env('STATUTORY_INVOICE_MUMBAI_GSTIN'),
+                'address' => env('STATUTORY_INVOICE_MUMBAI_ADDRESS'),
+                'state' => env('STATUTORY_INVOICE_MUMBAI_STATE'),
             ],
         ],
     ],
@@ -64,8 +70,9 @@ return [
     'auto_issue_on_pos_complete' => false,
 
     /*
-    | Desk seller legal identity. Empty means commerce mint fails closed.
-    | Payload seller_gstin / seller_name are never used as the issuer.
+    | Company-level legal seller name. GSTIN and registered address are
+    | issuer-specific under location_series.locations.*. Payload seller
+    | fields are never used as the issuer.
     */
     'legal_name' => env('STATUTORY_INVOICE_LEGAL_NAME'),
 

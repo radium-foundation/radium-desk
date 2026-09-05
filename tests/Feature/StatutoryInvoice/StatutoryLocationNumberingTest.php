@@ -41,12 +41,10 @@ class StatutoryLocationNumberingTest extends TestCase
         $this->invoices = app(StatutoryInvoiceService::class);
         $this->actor = User::factory()->create(['is_active' => true]);
 
+        $this->configureLocationSellerIdentity();
         config([
-            'statutory_invoices.location_series.enabled' => true,
             'statutory_invoices.series_code' => '',
             'statutory_invoices.number_format' => '',
-            'statutory_invoices.gstin_scope' => '07AAICP1128M1Z9',
-            'statutory_invoices.legal_name' => 'Phil Technologies (P) Limited',
             'statutory_invoices.post_finance_journals' => false,
             'statutory_invoices.auto_issue_on_pos_complete' => false,
             'statutory_invoices.worker_may_mint' => false,
@@ -61,6 +59,8 @@ class StatutoryLocationNumberingTest extends TestCase
 
         $this->assertSame('INV-07671', $first->invoice_number);
         $this->assertSame('INV-07672', $second->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('delhi'), $first->seller_gstin);
+        $this->assertSame($this->configuredSellerGstin('delhi'), $second->seller_gstin);
         $this->assertSame(1, $first->allocation?->seq_int);
         $this->assertSame(2, $second->allocation?->seq_int);
     }
@@ -72,6 +72,8 @@ class StatutoryLocationNumberingTest extends TestCase
 
         $this->assertSame('INV-27671', $first->invoice_number);
         $this->assertSame('INV-27672', $second->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('mumbai'), $first->seller_gstin);
+        $this->assertSame($this->configuredSellerGstin('mumbai'), $second->seller_gstin);
     }
 
     public function test_delhi_and_mumbai_sequences_do_not_collide(): void

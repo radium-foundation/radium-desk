@@ -34,6 +34,7 @@ class StatutoryInvoiceService
         private readonly EInvoiceEligibility $einvoiceEligibility,
         private readonly EInvoiceOutboxWriter $einvoiceOutbox,
         private readonly StatutoryBillingIssuer $issuer,
+        private readonly StatutorySellerIdentity $seller,
     ) {}
 
     public function findBySource(
@@ -84,6 +85,8 @@ class StatutoryInvoiceService
                 $documentType = StatutoryInvoiceDocumentType::tryFrom((string) config('statutory_invoices.document_type', 'tax_invoice'))
                     ?? StatutoryInvoiceDocumentType::TaxInvoice;
 
+                $seller = $this->sellerForRequest($request);
+
                 $invoice = StatutoryInvoice::query()->create([
                     'invoice_number' => $allocation->allocated_number,
                     'sequence_allocation_id' => $allocation->id,
@@ -97,8 +100,8 @@ class StatutoryInvoiceService
                     'inventory_sale_id' => $request->inventorySaleId,
                     'support_order_id' => $request->supportOrderId,
                     'branch_id' => $request->branchId,
-                    'seller_gstin' => $request->sellerGstin,
-                    'seller_name' => $request->sellerName,
+                    'seller_gstin' => $seller['gstin'],
+                    'seller_name' => $seller['name'],
                     'buyer_name' => $request->buyerName,
                     'buyer_phone' => $request->buyerPhone,
                     'buyer_gstin' => $request->buyerGstin,
@@ -217,8 +220,8 @@ class StatutoryInvoiceService
             sourceOrderId: $sale->sale_no,
             inventorySaleId: $sale->id,
             branchId: $sale->branch_id,
-            sellerGstin: $this->deskSellerGstin(),
-            sellerName: $this->deskSellerName(),
+            sellerGstin: null,
+            sellerName: null,
             buyerName: $sale->customer?->name,
             buyerPhone: $sale->customer?->phone,
             buyerGstin: BuyerGstin::normalize($sale->buyer_gstin),
@@ -283,8 +286,8 @@ class StatutoryInvoiceService
             sourceId: $order->source_id,
             lines: $lines,
             sourceOrderId: $order->source_order_id ?? $order->source_id,
-            sellerGstin: $this->deskSellerGstin(),
-            sellerName: $this->deskSellerName(),
+            sellerGstin: null,
+            sellerName: null,
             buyerName: $order->customer_name,
             buyerPhone: $order->customer_phone,
             buyerGstin: BuyerGstin::normalize($order->buyer_gstin),
@@ -389,14 +392,30 @@ class StatutoryInvoiceService
         return StatutoryFinancialYear::containing(now());
     }
 
-    private function deskSellerGstin(): string
+    /**
+     * @return array{gstin: ?string, name: ?string}
+     */
+    private function sellerForRequest(StatutoryInvoiceMintRequest $request): array
     {
-        return trim((string) config('statutory_invoices.gstin_scope'));
-    }
+        if ($request->numberingLocation !== null && trim($request->numberingLocation) !== '') {
+            $profile = $this->seller->requireForLocation($request->numberingLocation);
+            $supplied = BuyerGstin::normalize($request->sellerGstin);
+            if ($supplied !== null && $supplied !== $profile->gstin) {
+                throw ValidationException::withMessages([
+                    'seller' => 'Payload seller GSTIN cannot override the billing-issuer GSTIN.',
+                ]);
+            }
 
-    private function deskSellerName(): string
-    {
-        return trim((string) config('statutory_invoices.legal_name'));
+            return [
+                'gstin' => $profile->gstin,
+                'name' => $profile->legalName,
+            ];
+        }
+
+        return [
+            'gstin' => $request->sellerGstin,
+            'name' => $request->sellerName,
+        ];
     }
 
     /**

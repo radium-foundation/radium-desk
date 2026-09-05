@@ -53,6 +53,11 @@ final class StatutoryLocationSeries
         ]);
     }
 
+    public function isKnown(string $location): bool
+    {
+        return isset($this->locations()[$location]);
+    }
+
     public function gstStateCode(string $location): string
     {
         return $this->location($location)['gst_state_code'];
@@ -85,7 +90,7 @@ final class StatutoryLocationSeries
     }
 
     /**
-     * @return array<string, array{gst_state_code: string, branch_codes: list<string>}>
+     * @return array<string, array{gst_state_code: string, branch_codes: list<string>, gstin: string, address: string, state: string}>
      */
     public function locations(): array
     {
@@ -110,6 +115,9 @@ final class StatutoryLocationSeries
                     array_map(static fn ($code): string => trim((string) $code), $codes),
                     static fn (string $code): bool => $code !== '',
                 )),
+                'gstin' => trim((string) ($config['gstin'] ?? '')),
+                'address' => trim((string) ($config['address'] ?? '')),
+                'state' => trim((string) ($config['state'] ?? '')),
             ];
         }
 
@@ -117,7 +125,7 @@ final class StatutoryLocationSeries
     }
 
     /**
-     * @return array{gst_state_code: string, branch_codes: list<string>}
+     * @return array{gst_state_code: string, branch_codes: list<string>, gstin: string, address: string, state: string}
      */
     private function location(string $location): array
     {

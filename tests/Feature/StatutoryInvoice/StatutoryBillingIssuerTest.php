@@ -41,12 +41,10 @@ class StatutoryBillingIssuerTest extends TestCase
         $this->issuer = app(StatutoryBillingIssuer::class);
         $this->actor = User::factory()->create(['is_active' => true]);
 
+        $this->configureLocationSellerIdentity();
         config([
-            'statutory_invoices.location_series.enabled' => true,
             'statutory_invoices.series_code' => '',
             'statutory_invoices.number_format' => '',
-            'statutory_invoices.gstin_scope' => '07AAICP1128M1Z9',
-            'statutory_invoices.legal_name' => 'Phil Technologies (P) Limited',
             'statutory_invoices.post_finance_journals' => false,
             'statutory_invoices.auto_issue_on_pos_complete' => false,
             'statutory_invoices.worker_may_mint' => false,
@@ -133,6 +131,8 @@ class StatutoryBillingIssuerTest extends TestCase
         $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
 
         $this->assertSame('INV-27671', $invoice->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('mumbai'), $invoice->seller_gstin);
+        $this->assertSame('Phil Technologies (P) Limited', $invoice->seller_name);
         $this->assertSame('Maharashtra', $invoice->place_of_supply_state);
         $this->assertSame('27AAAAA0000A1Z5', $invoice->buyer_gstin);
         $this->assertSame('Maharashtra', $order->fresh()->place_of_supply_state);
@@ -152,9 +152,50 @@ class StatutoryBillingIssuerTest extends TestCase
         $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
 
         $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('delhi'), $invoice->seller_gstin);
         $this->assertSame('Maharashtra', $invoice->place_of_supply_state);
         $this->assertNull($invoice->buyer_gstin);
         $this->assertSame('MUMBAI', $order->fresh()->branch_code);
+    }
+
+    public function test_commerce_b2b_delhi_and_other_state_services_use_delhi_seller_gstin(): void
+    {
+        $delhi = $this->invoices->issueFromCommerceOrder($this->commerceOrder(
+            sourceId: 'SVC-DL-B2B',
+            hsn: '998314',
+            branchCode: 'MUMBAI',
+            placeOfSupply: 'Karnataka',
+            buyerGstin: '07AAAAA0000A1Z5',
+        ), $this->actor);
+        $other = $this->invoices->issueFromCommerceOrder($this->commerceOrder(
+            sourceId: 'SVC-KA-B2B',
+            hsn: '998314',
+            branchCode: 'MUMBAI',
+            placeOfSupply: 'Karnataka',
+            buyerGstin: '29AAAAA0000A1Z5',
+        ), $this->actor);
+
+        $this->assertSame('INV-07671', $delhi->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('delhi'), $delhi->seller_gstin);
+        $this->assertSame('Karnataka', $delhi->place_of_supply_state);
+        $this->assertSame('INV-07672', $other->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('delhi'), $other->seller_gstin);
+        $this->assertSame('Karnataka', $other->place_of_supply_state);
+    }
+
+    public function test_commerce_b2c_delhi_service_uses_delhi_seller_gstin(): void
+    {
+        $invoice = $this->invoices->issueFromCommerceOrder($this->commerceOrder(
+            sourceId: 'SVC-DL-B2C',
+            hsn: '998313',
+            branchCode: 'DELHI-RETAIL',
+            placeOfSupply: 'Delhi',
+            buyerGstin: null,
+        ), $this->actor);
+
+        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('delhi'), $invoice->seller_gstin);
+        $this->assertSame('Delhi', $invoice->place_of_supply_state);
     }
 
     public function test_commerce_product_uses_mumbai_branch_even_for_delhi_customer(): void
@@ -170,6 +211,7 @@ class StatutoryBillingIssuerTest extends TestCase
         $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
 
         $this->assertSame('INV-27671', $invoice->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('mumbai'), $invoice->seller_gstin);
         $this->assertSame('Delhi', $invoice->place_of_supply_state);
         $this->assertSame('07AAAAA0000A1Z5', $invoice->buyer_gstin);
     }
@@ -210,6 +252,7 @@ class StatutoryBillingIssuerTest extends TestCase
         $invoice = $this->invoices->issueFromPosSale($sale, $this->actor);
 
         $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('delhi'), $invoice->seller_gstin);
         $this->assertSame('Maharashtra', $invoice->place_of_supply_state);
         $this->assertSame('27AAAAA0000A1Z5', $invoice->buyer_gstin);
         $this->assertMatchesRegularExpression('/^INV-DELHI-RETAIL-\d{4}-\d{5}$/', (string) $sale->invoice_number);

@@ -47,6 +47,10 @@ These persist on `inventory_sales`. Completing a POS sale still does **not** min
 
 Customer GSTIN is a default copied onto the sale at complete time. Finance Hub reads the sale snapshot, not later customer edits.
 
+## Location-aware seller GSTIN (RadiumDesk-P-05-09-12)
+
+Legal seller is **Phil Technologies (P) Limited** (brand **Radium**). Four GST registrations exist; this rollout is Delhi + Mumbai only. Invoice seller GSTIN follows the billing issuer (`StatutorySellerIdentity`), not a global `STATUTORY_INVOICE_GSTIN_SCOPE`. Product issuer stays branch-based. Service B2B Maharashtra → Mumbai GSTIN; other B2B / all B2C → Delhi GSTIN. Place of Supply stays independent. Registered addresses are issuer-specific env values and are not documented as facts until Owner-supplied.
+
 ## Owner-finalized location numbering (RadiumDesk-P-05-09-08)
 
 Formula: `INV-{GST_STATE}{FY}{SERIAL}` with serial starting at **1** each FY.

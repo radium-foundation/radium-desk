@@ -56,6 +56,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
         $this->actor = User::factory()->create(['is_active' => true]);
         $this->actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
+        $this->configureLocationSellerIdentity();
         config([
             'channel_ingest.secrets.rdservice_net' => self::SECRET,
             'channel_ingest.secrets.rdservice_in' => '',
@@ -65,10 +66,8 @@ class RdServiceNetPhase1CleanTest extends TestCase
             'statutory_invoices.worker_may_mint' => false,
             'statutory_invoices.post_finance_journals' => false,
             'statutory_invoices.einvoice.provider' => 'none',
-            'statutory_invoices.series_code' => 'TEST',
-            'statutory_invoices.number_format' => '{series}-{seq:5}',
-            'statutory_invoices.gstin_scope' => '07AAICP1128M1Z9',
-            'statutory_invoices.legal_name' => 'Phil Technologies (P) Limited',
+            'statutory_invoices.series_code' => '',
+            'statutory_invoices.number_format' => '',
             'statutory_invoices.financial_year' => '',
             'statutory_invoices.invoice_scope_starts_at' => '2026-09-01 00:00:00',
         ]);
@@ -157,7 +156,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
         $this->assertSame(StatutoryInvoiceChannel::RdServiceNet, $invoice->channel);
         $this->assertSame(StatutoryInvoiceSourceType::CommerceOrder->value, $invoice->source_type);
         $this->assertSame('statutory:rdservice_net:commerce_order:RA3507106', $invoice->idempotency_key);
-        $this->assertSame('07AAICP1128M1Z9', $invoice->seller_gstin);
+        $this->assertSame($this->configuredSellerGstin('delhi'), $invoice->seller_gstin);
         $this->assertNull($invoice->buyer_gstin);
         $this->assertSame($invoice->id, $order?->statutory_invoice_id);
         $this->assertSame(CommerceOrderStatus::Invoiced, $order?->status);

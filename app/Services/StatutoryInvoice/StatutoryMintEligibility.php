@@ -17,6 +17,7 @@ class StatutoryMintEligibility
     public function __construct(
         private readonly StatutoryInvoiceNumberingService $numbering,
         private readonly StatutoryBillingIssuer $issuer,
+        private readonly StatutorySellerIdentity $seller,
     ) {}
 
     public function evaluateSale(InventorySale $sale): StatutoryMintEligibilityResult
@@ -43,14 +44,13 @@ class StatutoryMintEligibility
         $issuerError = $this->issuer->errorForSale($sale->branch?->code);
         if ($issuerError !== null) {
             $errors[] = $issuerError;
-        }
-
-        if ($this->configString('gstin_scope') === null) {
-            $errors[] = 'Desk seller GSTIN is unset.';
-        }
-
-        if ($this->configString('legal_name') === null) {
-            $errors[] = 'Desk seller legal name is unset.';
+        } else {
+            $sellerError = $this->seller->errorForLocation(
+                $this->issuer->requireForProductBranch($sale->branch?->code),
+            );
+            if ($sellerError !== null) {
+                $errors[] = $sellerError;
+            }
         }
 
         $place = is_string($sale->place_of_supply_state) ? trim($sale->place_of_supply_state) : '';
@@ -113,22 +113,27 @@ class StatutoryMintEligibility
         }
 
         $order->loadMissing('items');
+        $hsnSacs = $order->items->pluck('hsn_sac')->all();
         $issuerError = $this->issuer->errorForCommerceOrder(
             $order->branch_code,
             $order->buyer_gstin,
             null,
-            $order->items->pluck('hsn_sac')->all(),
+            $hsnSacs,
         );
         if ($issuerError !== null) {
             $errors[] = $issuerError;
-        }
-
-        if ($this->configString('gstin_scope') === null) {
-            $errors[] = 'Desk seller GSTIN is unset.';
-        }
-
-        if ($this->configString('legal_name') === null) {
-            $errors[] = 'Desk seller legal name is unset.';
+        } else {
+            $sellerError = $this->seller->errorForLocation(
+                $this->issuer->requireForCommerceOrder(
+                    $order->branch_code,
+                    $order->buyer_gstin,
+                    null,
+                    $hsnSacs,
+                ),
+            );
+            if ($sellerError !== null) {
+                $errors[] = $sellerError;
+            }
         }
 
         $place = is_string($order->place_of_supply_state) ? trim($order->place_of_supply_state) : '';
@@ -175,17 +180,5 @@ class StatutoryMintEligibility
     public function commercialDate(CommerceOrder $order): ?Carbon
     {
         return $order->ordered_at ?? $order->paid_at ?? $order->received_at;
-    }
-
-    private function configString(string $key): ?string
-    {
-        $value = config('statutory_invoices.'.$key);
-        if (! is_string($value)) {
-            return null;
-        }
-
-        $value = trim($value);
-
-        return $value === '' ? null : $value;
     }
 }

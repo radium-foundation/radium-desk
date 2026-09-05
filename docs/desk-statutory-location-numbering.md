@@ -1,9 +1,31 @@
 # Desk statutory location numbering
 
 **Project:** Radium Desk  
-**Ledger:** RadiumDesk-P-05-09-08  
+**Ledger:** RadiumDesk-P-05-09-08, updated RadiumDesk-P-05-09-12  
 **Date:** 2026-09-05  
 **Tree:** `/Users/ravi/RadiumWebsites/radium-desk-pos-release` `main`
+
+## Legal seller
+
+- Legal entity: **Phil Technologies (P) Limited**
+- Brand: **Radium**
+- The company has **4 GST registrations**. This rollout covers **Delhi and Mumbai only**. The other 2 registrations stay out of scope.
+
+Seller GSTIN, registered address, and seller state are **issuer-specific**. They are not a single global `STATUTORY_INVOICE_GSTIN_SCOPE` value.
+
+| Field | Scope | Production key |
+|---|---|---|
+| Legal name | Company | `STATUTORY_INVOICE_LEGAL_NAME` |
+| Delhi GSTIN | Delhi issuer | `STATUTORY_INVOICE_DELHI_GSTIN` |
+| Mumbai GSTIN | Mumbai issuer | `STATUTORY_INVOICE_MUMBAI_GSTIN` |
+| Delhi registered address | Delhi issuer | `STATUTORY_INVOICE_DELHI_ADDRESS` |
+| Mumbai registered address | Mumbai issuer | `STATUTORY_INVOICE_MUMBAI_ADDRESS` |
+| Delhi seller state | Delhi issuer | `STATUTORY_INVOICE_DELHI_STATE` (or derived from GSTIN `07`) |
+| Mumbai seller state | Mumbai issuer | `STATUTORY_INVOICE_MUMBAI_STATE` (or derived from GSTIN `27`) |
+
+The Owner-supplied `DELHI-RETAIL` / `MUMBAI` inventory branch GSTINs are the in-scope Delhi and Mumbai registrations. Registered addresses are **not** recorded here; they remain Owner-supplied env values.
+
+Mint fails closed if the resolved issuer has no valid GSTIN, the GSTIN state does not match Delhi `07` / Mumbai `27`, legal name is empty, or the issuer address is empty. Unknown branches and the other GST registrations fail closed. Place of Supply does not choose the issuer or seller GSTIN.
 
 ## Invoice formula
 

@@ -13,6 +13,7 @@ class StatutoryDocumentService
 {
     public function __construct(
         private readonly SimplePdfRenderer $renderer,
+        private readonly StatutorySellerIdentity $seller,
     ) {}
 
     public function generate(StatutoryInvoice $invoice): StatutoryInvoiceDocument
@@ -76,13 +77,15 @@ class StatutoryDocumentService
             ];
         }
 
+        $profile = $this->seller->tryForLocation($this->seller->locationForInvoice($invoice));
+
         return new StatutoryInvoicePdfPayload(
             invoiceNumber: (string) $invoice->invoice_number,
             issuedAt: optional($invoice->issued_at)?->toDateTimeString() ?? '',
-            sellerLegalName: (string) ($invoice->seller_name ?: $this->configString('legal_name') ?: 'unset'),
-            sellerGstin: (string) ($invoice->seller_gstin ?: $this->configString('gstin_scope') ?: 'unset'),
-            sellerAddress: $this->configString('seller_address') ?? 'unset',
-            sellerState: $this->configString('seller_state') ?? 'unset',
+            sellerLegalName: (string) ($invoice->seller_name ?: $this->seller->legalName() ?: 'unset'),
+            sellerGstin: (string) ($invoice->seller_gstin ?: $profile?->gstin ?: 'unset'),
+            sellerAddress: $profile?->address ?? 'unset',
+            sellerState: $profile?->state ?? 'unset',
             buyerName: (string) ($invoice->buyer_name ?: 'Customer'),
             buyerGstin: $invoice->buyer_gstin,
             billingAddress: $invoice->billing_address,
@@ -94,17 +97,5 @@ class StatutoryDocumentService
             igst: (string) ($invoice->igst ?? '0'),
             invoiceValue: (string) $invoice->invoice_value,
         );
-    }
-
-    private function configString(string $key): ?string
-    {
-        $value = config('statutory_invoices.'.$key);
-        if (! is_string($value)) {
-            return null;
-        }
-
-        $value = trim($value);
-
-        return $value === '' ? null : $value;
     }
 }

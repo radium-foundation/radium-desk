@@ -64,15 +64,14 @@ class PosStatutorySnapshotTest extends TestCase
         ]);
         app(InventoryStockService::class)->stockInQuantity($this->product, $this->branch, 20, $this->seller);
 
+        $this->configureLocationSellerIdentity();
         config([
             'statutory_invoices.auto_issue_on_pos_complete' => false,
             'statutory_invoices.worker_may_mint' => false,
             'statutory_invoices.post_finance_journals' => false,
             'statutory_invoices.einvoice.provider' => 'none',
-            'statutory_invoices.series_code' => 'TEST',
-            'statutory_invoices.number_format' => '{series}-{seq:5}',
-            'statutory_invoices.gstin_scope' => '07AAICP1128M1Z9',
-            'statutory_invoices.legal_name' => 'Phil Technologies (P) Limited',
+            'statutory_invoices.series_code' => '',
+            'statutory_invoices.number_format' => '',
         ]);
     }
 

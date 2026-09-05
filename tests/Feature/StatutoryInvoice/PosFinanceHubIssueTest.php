@@ -53,15 +53,14 @@ class PosFinanceHubIssueTest extends TestCase
             'is_active' => true,
         ]);
 
+        $this->configureLocationSellerIdentity();
         config([
             'statutory_invoices.auto_issue_on_pos_complete' => false,
             'statutory_invoices.worker_may_mint' => false,
             'statutory_invoices.post_finance_journals' => false,
             'statutory_invoices.einvoice.provider' => 'none',
-            'statutory_invoices.series_code' => 'TEST',
-            'statutory_invoices.number_format' => '{series}-{seq:5}',
-            'statutory_invoices.gstin_scope' => '07AAICP1128M1Z9',
-            'statutory_invoices.legal_name' => 'Phil Technologies (P) Limited',
+            'statutory_invoices.series_code' => '',
+            'statutory_invoices.number_format' => '',
         ]);
     }
 
@@ -81,6 +80,7 @@ class PosFinanceHubIssueTest extends TestCase
         $invoice = $this->invoices->issueFromPosSale($sale, $this->actor);
 
         $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('delhi'), $invoice->seller_gstin);
         $this->assertNotSame($sale->invoice_number, $invoice->invoice_number);
         $this->assertSame(StatutoryInvoiceChannel::DeskPos, $invoice->channel);
         $this->assertSame(StatutoryInvoiceSourceType::InventorySale->value, $invoice->source_type);
