@@ -1071,6 +1071,33 @@ describe('dashboard global search integration', () => {
         expect(document.getElementById('intake_order_id')?.value).toBe('RD3395988');
     });
 
+    it('shows historical reprint link for historical invoice searches', async () => {
+        mountDashboard();
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+                historical: {
+                    query: 'INV6745886',
+                    url: '/finance/invoices/historical?q=INV6745886',
+                    kind: 'invoice',
+                },
+            }),
+        });
+
+        await submitSearch('INV6745886');
+
+        const fallback = document.querySelector('[data-dashboard-search-historical-fallback]');
+        expect(fallback).not.toBeNull();
+        expect(document.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('Historical invoice lookup available for INV6745886');
+        expect(fallback?.querySelector('[data-dashboard-search-historical-action]')?.getAttribute('href'))
+            .toBe('/finance/invoices/historical?q=INV6745886');
+    });
+
     it('shows new contact intake fallback panel for unknown queries', async () => {
         mountDashboard();
 

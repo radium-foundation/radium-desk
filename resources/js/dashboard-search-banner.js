@@ -5,9 +5,18 @@ export const resolveSearchBannerMessage = ({
     query = '',
     error = null,
     intake = null,
+    historical = null,
 } = {}) => {
     if (error) {
         return error;
+    }
+
+    if (historical?.url) {
+        const trimmedQuery = (historical.query || query).trim();
+
+        return trimmedQuery !== ''
+            ? `Historical invoice lookup available for ${trimmedQuery}`
+            : 'Historical invoice lookup available';
     }
 
     if (intake?.requires_confirmation && intake?.legacy_preview) {
@@ -42,6 +51,7 @@ export const showSearchBanner = (card, {
     query = '',
     error = null,
     intake = null,
+    historical = null,
 } = {}) => {
     const banner = getSearchBanner(card);
 
@@ -51,7 +61,7 @@ export const showSearchBanner = (card, {
 
     const title = banner.querySelector('[data-dashboard-search-banner-title]');
     const message = banner.querySelector('[data-dashboard-search-banner-message]');
-    const bannerMessage = resolveSearchBannerMessage({ matchCount, query, error, intake });
+    const bannerMessage = resolveSearchBannerMessage({ matchCount, query, error, intake, historical });
 
     banner.classList.toggle('dashboard-search-banner--error', Boolean(error));
 

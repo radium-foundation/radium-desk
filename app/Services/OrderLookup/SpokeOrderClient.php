@@ -132,23 +132,31 @@ class SpokeOrderClient
             return null;
         }
 
-        $request = Http::baseUrl($baseUrl)
-            ->acceptJson()
-            ->withToken($this->token())
-            ->connectTimeout((int) ($this->config()['connect_timeout_seconds'] ?? 3))
-            ->timeout((int) ($this->config()['timeout_seconds'] ?? 8));
+        try {
+            $request = Http::baseUrl($baseUrl)
+                ->acceptJson()
+                ->withToken($this->token())
+                ->connectTimeout((int) ($this->config()['connect_timeout_seconds'] ?? 3))
+                ->timeout((int) ($this->config()['timeout_seconds'] ?? 8));
 
-        $host = $this->requestHostHeader();
-        if ($host !== null) {
-            $request = $request->withHeaders(['Host' => $host]);
+            $host = $this->requestHostHeader();
+            if ($host !== null) {
+                $request = $request->withHeaders(['Host' => $host]);
+            }
+
+            $response = $request->get(rtrim($path, '/').'/'.rawurlencode($invoiceNumber));
+            $payload = $response->json();
+
+            return is_array($payload) ? $payload + ['_http_status' => $response->status()] : [
+                '_http_status' => $response->status(),
+            ];
+        } catch (ConnectionException|RequestException) {
+            return [
+                '_http_status' => 0,
+                'eligibility' => 'source_unavailable',
+                'message' => 'Historical invoice source is temporarily unavailable.',
+            ];
         }
-
-        $response = $request->get(rtrim($path, '/').'/'.rawurlencode($invoiceNumber));
-        $payload = $response->json();
-
-        return is_array($payload) ? $payload + ['_http_status' => $response->status()] : [
-            '_http_status' => $response->status(),
-        ];
     }
 
     /**

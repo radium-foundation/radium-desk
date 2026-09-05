@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\CustomerIntakeSearchService;
 use App\Services\GlobalSearchService;
+use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
+use App\Support\Finance\FinanceAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +28,15 @@ class SearchController extends Controller
 
         if ($query === '') {
             return redirect()->route('dashboard');
+        }
+
+        if (
+            FinanceAccess::allowsInvoices($request->user())
+            && HistoricalInvoiceLookupService::looksLikeHistoricalInvoiceNumber($query)
+        ) {
+            return redirect()->route('finance.invoices.historical', [
+                'q' => HistoricalInvoiceLookupService::normalizeLookupQuery($query),
+            ]);
         }
 
         return redirect()->route('dashboard', ['q' => $query]);
@@ -63,7 +74,22 @@ class SearchController extends Controller
                 ->values(),
         ];
 
-        if ($payload->isEmpty() && $this->canRunIntakeFallback($user)) {
+        if (FinanceAccess::allowsInvoices($user) && HistoricalInvoiceLookupService::shouldOfferHistoricalLookup($query)) {
+            $normalized = HistoricalInvoiceLookupService::normalizeLookupQuery($query);
+            $response['historical'] = [
+                'query' => $normalized,
+                'url' => route('finance.invoices.historical', ['q' => $normalized]),
+                'kind' => HistoricalInvoiceLookupService::looksLikeHistoricalInvoiceNumber($normalized)
+                    ? 'invoice'
+                    : 'order',
+            ];
+        }
+
+        if (
+            $payload->isEmpty()
+            && $this->canRunIntakeFallback($user)
+            && ! HistoricalInvoiceLookupService::looksLikeHistoricalInvoiceNumber($query)
+        ) {
             $parsedQuery = $this->customerIntakeSearchService->parseQuery($query);
             $intakeResult = $this->customerIntakeSearchService->search(
                 phone: $parsedQuery['phone'],

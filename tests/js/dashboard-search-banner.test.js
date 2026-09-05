@@ -31,6 +31,26 @@ describe('dashboard search banner', () => {
             .toBe('Showing results for RD3437143');
     });
 
+    it('shows historical reprint message when a historical hint is present', () => {
+        const card = document.querySelector('.dashboard-service-cases-card');
+
+        showSearchBanner(card, {
+            matchCount: 0,
+            query: 'INV6745886',
+            historical: {
+                query: 'INV6745886',
+                url: '/finance/invoices/historical?q=INV6745886',
+                kind: 'invoice',
+            },
+        });
+
+        const banner = document.querySelector('[data-dashboard-search-banner]');
+        expect(banner?.hidden).toBe(false);
+        expect(banner?.querySelector('[data-dashboard-search-banner-title]')?.classList.contains('d-none')).toBe(true);
+        expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('Historical invoice lookup available for INV6745886');
+    });
+
     it('shows zero-result message without title', () => {
         const card = document.querySelector('.dashboard-service-cases-card');
 

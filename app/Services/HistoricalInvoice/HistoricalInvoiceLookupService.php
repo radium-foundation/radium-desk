@@ -14,9 +14,30 @@ class HistoricalInvoiceLookupService
         private readonly OrderEnrichmentLookupService $orders,
     ) {}
 
+    public static function normalizeLookupQuery(string $identifier): string
+    {
+        return strtoupper(trim($identifier));
+    }
+
+    public static function looksLikeHistoricalInvoiceNumber(string $identifier): bool
+    {
+        return preg_match(self::HISTORICAL_NUMBER, self::normalizeLookupQuery($identifier)) === 1;
+    }
+
+    public static function looksLikeHistoricalOrderId(string $identifier): bool
+    {
+        return preg_match('/^(RDE|RIN|RA|RD)\d{3,20}$/', self::normalizeLookupQuery($identifier)) === 1;
+    }
+
+    public static function shouldOfferHistoricalLookup(string $identifier): bool
+    {
+        return self::looksLikeHistoricalInvoiceNumber($identifier)
+            || self::looksLikeHistoricalOrderId($identifier);
+    }
+
     public function lookup(string $identifier): HistoricalInvoiceResult
     {
-        $trimmed = trim($identifier);
+        $trimmed = self::normalizeLookupQuery($identifier);
 
         if ($trimmed === '' || strlen($trimmed) > 64) {
             return new HistoricalInvoiceResult(
@@ -33,7 +54,7 @@ class HistoricalInvoiceLookupService
             );
         }
 
-        if (preg_match(self::HISTORICAL_NUMBER, $trimmed) === 1) {
+        if (self::looksLikeHistoricalInvoiceNumber($trimmed)) {
             return $this->lookupByInvoiceNumber($trimmed);
         }
 
@@ -65,7 +86,7 @@ class HistoricalInvoiceLookupService
                     );
                 }
 
-                if (in_array($eligibility, ['paid_without_invoice', 'cancelled_or_unpaid', 'statutory_invoice'], true)) {
+                if (in_array($eligibility, ['paid_without_invoice', 'cancelled_or_unpaid', 'statutory_invoice', 'source_unavailable'], true)) {
                     return new HistoricalInvoiceResult(
                         eligibility: $eligibility,
                         invoiceNumber: $eligibility === 'statutory_invoice' ? $invoiceNumber : null,

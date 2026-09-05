@@ -6,11 +6,13 @@ use App\Enums\StatutoryInvoiceDocumentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\StatutoryInvoice;
 use App\ReadModels\Finance\StatutoryInvoiceRegisterReadModel;
+use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
 use App\Services\StatutoryInvoice\StatutoryDocumentService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
 use App\Support\Finance\CsvDownload;
 use App\Support\Finance\FinanceAccess;
 use App\Support\Finance\ReportPeriod;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
@@ -28,8 +30,15 @@ class StatutoryInvoiceController extends Controller
         });
     }
 
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
+        $query = trim((string) $request->input('q', ''));
+        if (HistoricalInvoiceLookupService::shouldOfferHistoricalLookup($query)) {
+            return redirect()->route('finance.invoices.historical', [
+                'q' => HistoricalInvoiceLookupService::normalizeLookupQuery($query),
+            ]);
+        }
+
         $period = ReportPeriod::fromRequest($request);
 
         return view('finance.invoices.index', [

@@ -23,6 +23,7 @@ const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
 const SEARCH_FETCH_ERROR = 'Unable to load search results. Please try again.';
 const SEARCH_ROWS_ERROR = 'Unable to load matching service cases. Please try again.';
 const INTAKE_FALLBACK_SELECTOR = '[data-dashboard-search-intake-fallback]';
+const HISTORICAL_FALLBACK_SELECTOR = '[data-dashboard-search-historical-fallback]';
 const SEARCH_RESULT_ACTIONS_SELECTOR = '[data-dashboard-search-result-actions]';
 
 const prefillIntakeSearchFields = (form, parsedQuery = {}, query = '') => {
@@ -377,6 +378,33 @@ export const initUniversalSearch = ({
         card?.querySelector(INTAKE_FALLBACK_SELECTOR)?.remove();
     };
 
+    const hideHistoricalFallback = (card) => {
+        card?.querySelector(HISTORICAL_FALLBACK_SELECTOR)?.remove();
+    };
+
+    const showHistoricalFallback = (card, historical) => {
+        hideHistoricalFallback(card);
+
+        const banner = card?.querySelector('[data-dashboard-search-banner]');
+
+        if (!banner || !historical?.url) {
+            return;
+        }
+
+        const panel = document.createElement('div');
+        panel.className = 'dashboard-search-historical-fallback border-top px-3 py-2';
+        panel.dataset.dashboardSearchHistoricalFallback = '';
+        panel.innerHTML = `
+            <a class="btn btn-sm btn-outline-primary"
+               href="${historical.url}"
+               data-dashboard-search-historical-action>
+                Open historical reprint
+            </a>
+        `;
+
+        banner.appendChild(panel);
+    };
+
     const hideSearchResultActions = (card) => {
         card?.querySelector(SEARCH_RESULT_ACTIONS_SELECTOR)?.remove();
     };
@@ -557,6 +585,7 @@ export const initUniversalSearch = ({
     const restoreDashboard = async () => {
         setDashboardSearchActive(false);
         hideIntakeFallback(getDashboardCard());
+        hideHistoricalFallback(getDashboardCard());
         hideSearchResultActions(getDashboardCard());
         hideSearchBanner(getDashboardCard());
         clearSearchMatchHighlight(getDashboardCard());
@@ -631,13 +660,19 @@ export const initUniversalSearch = ({
             const incidentIds = (data.incident_ids ?? []).map(Number);
             const matchCount = data.match_count ?? 0;
             const intake = data.intake ?? null;
+            const historical = data.historical ?? null;
 
             if (incidentIds.length === 0) {
                 showSearchEmptyResults(card);
 
-                if (intake) {
-                    showSearchBanner(card, { matchCount: 0, query: trimmedQuery, intake });
-                    showIntakeFallback(card, intake, trimmedQuery);
+                if (historical || intake) {
+                    showSearchBanner(card, { matchCount: 0, query: trimmedQuery, intake, historical });
+                    if (historical) {
+                        showHistoricalFallback(card, historical);
+                    }
+                    if (intake) {
+                        showIntakeFallback(card, intake, trimmedQuery);
+                    }
                 } else {
                     showSearchBanner(card, { matchCount, query: trimmedQuery });
                 }
@@ -648,6 +683,7 @@ export const initUniversalSearch = ({
             }
 
             hideIntakeFallback(card);
+            hideHistoricalFallback(card);
             hideSearchResultActions(card);
             showSearchBanner(card, { matchCount, query: trimmedQuery });
 

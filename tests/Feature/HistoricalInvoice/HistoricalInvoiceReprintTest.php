@@ -5,6 +5,7 @@ namespace Tests\Feature\HistoricalInvoice;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -93,6 +94,101 @@ class HistoricalInvoiceReprintTest extends TestCase
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.historical.print', 'INV0000001'))
             ->assertNotFound();
+    }
+
+    public function test_statutory_invoice_search_redirects_historical_identifiers(): void
+    {
+        Http::fake();
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.index', ['q' => 'INV6745886']))
+            ->assertRedirect(route('finance.invoices.historical', ['q' => 'INV6745886']));
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.index', ['q' => 'rd268507']))
+            ->assertRedirect(route('finance.invoices.historical', ['q' => 'RD268507']));
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.index', ['q' => 'INV-07671']))
+            ->assertOk()
+            ->assertSee('Statutory invoices', false);
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.index', ['q' => 'Nareshkumar']))
+            ->assertOk();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_header_search_offers_historical_reprint_without_spoke_call(): void
+    {
+        Http::fake();
+
+        $this->actingAs($this->actor)
+            ->getJson(route('search.index', ['q' => 'inv6745886']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0)
+            ->assertJsonPath('historical.query', 'INV6745886')
+            ->assertJsonPath('historical.kind', 'invoice')
+            ->assertJsonPath('historical.url', route('finance.invoices.historical', ['q' => 'INV6745886']))
+            ->assertJsonMissingPath('intake');
+
+        $this->actingAs($this->actor)
+            ->getJson(route('search.index', ['q' => 'INV-07671']))
+            ->assertOk()
+            ->assertJsonMissingPath('historical');
+
+        $this->actingAs($this->actor)
+            ->get(route('search.index', ['q' => 'INV6745886']))
+            ->assertRedirect(route('finance.invoices.historical', ['q' => 'INV6745886']));
+
+        Http::assertNothingSent();
+
+        $this->actingAs($this->actor)
+            ->getJson(route('search.index', ['q' => 'RD268507']))
+            ->assertOk()
+            ->assertJsonPath('historical.query', 'RD268507')
+            ->assertJsonPath('historical.kind', 'order');
+    }
+
+    public function test_agent_header_search_does_not_offer_historical_reprint(): void
+    {
+        Http::fake();
+
+        $agent = User::factory()->create(['is_active' => true]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'INV6745886']))
+            ->assertOk()
+            ->assertJsonMissingPath('historical');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_lowercase_historical_invoice_is_normalized(): void
+    {
+        Http::fake([
+            'https://radiumbox.com/api/integrations/v1/historical-invoices/INV6745886' => Http::response($this->invoicePayload(), 200),
+        ]);
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.historical', ['q' => 'inv6745886']))
+            ->assertOk()
+            ->assertSee('INV6745886', false)
+            ->assertSee('Nareshkumar', false);
+    }
+
+    public function test_historical_invoice_timeout_is_source_unavailable(): void
+    {
+        Http::fake(function () {
+            throw new ConnectionException('cURL error 28: timed out');
+        });
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.historical', ['q' => 'INV6745886']))
+            ->assertOk()
+            ->assertSee('temporarily unavailable', false);
     }
 
     public function test_lookup_does_not_create_invoices(): void
