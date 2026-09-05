@@ -47,8 +47,8 @@ class PosFinanceHubIssueTest extends TestCase
         $this->actor = User::factory()->create(['is_active' => true]);
         $this->actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
         $this->branch = InventoryBranch::query()->create([
-            'code' => 'HQ',
-            'name' => 'Head Office',
+            'code' => 'DELHI-RETAIL',
+            'name' => 'Delhi Retail',
             'is_active' => true,
         ]);
 
@@ -68,7 +68,7 @@ class PosFinanceHubIssueTest extends TestCase
     {
         $sale = $this->completeEligibleSale();
 
-        $this->assertMatchesRegularExpression('/^INV-HQ-\d{4}-\d{5}$/', (string) $sale->invoice_number);
+        $this->assertMatchesRegularExpression('/^INV-DELHI-RETAIL-\d{4}-\d{5}$/', (string) $sale->invoice_number);
         $this->assertNull($sale->statutory_invoice_id);
         $this->assertSame(0, StatutoryInvoice::query()->count());
     }
@@ -79,7 +79,7 @@ class PosFinanceHubIssueTest extends TestCase
 
         $invoice = $this->invoices->issueFromPosSale($sale, $this->actor);
 
-        $this->assertSame('TEST-00001', $invoice->invoice_number);
+        $this->assertSame('INV-07671', $invoice->invoice_number);
         $this->assertNotSame($sale->invoice_number, $invoice->invoice_number);
         $this->assertSame(StatutoryInvoiceChannel::DeskPos, $invoice->channel);
         $this->assertSame(StatutoryInvoiceSourceType::InventorySale->value, $invoice->source_type);
@@ -96,7 +96,7 @@ class PosFinanceHubIssueTest extends TestCase
         $second = $this->invoices->issueFromPosSale($sale->fresh(), $this->actor);
 
         $this->assertSame($first->id, $second->id);
-        $this->assertSame('TEST-00001', $first->invoice_number);
+        $this->assertSame('INV-07671', $first->invoice_number);
         $this->assertSame(1, StatutoryInvoice::query()->count());
     }
 
@@ -108,16 +108,13 @@ class PosFinanceHubIssueTest extends TestCase
         $cancelled = $this->invoices->cancel($invoice, $this->actor, 'Test cancel');
 
         $this->assertSame(StatutoryInvoiceStatus::Cancelled, $cancelled->status);
-        $this->assertSame('TEST-00001', $cancelled->invoice_number);
+        $this->assertSame('INV-07671', $cancelled->invoice_number);
         $this->assertSame(1, StatutoryInvoice::query()->count());
     }
 
-    public function test_issue_fails_closed_when_series_is_unset(): void
+    public function test_issue_fails_closed_when_the_branch_is_not_delhi_or_mumbai(): void
     {
-        config([
-            'statutory_invoices.series_code' => '',
-            'statutory_invoices.number_format' => '',
-        ]);
+        $this->branch->update(['code' => 'HQ']);
         $sale = $this->completeEligibleSale();
 
         $this->expectException(ValidationException::class);
@@ -139,12 +136,12 @@ class PosFinanceHubIssueTest extends TestCase
             ->assertRedirect();
 
         $invoice = StatutoryInvoice::query()->firstOrFail();
-        $this->assertSame('TEST-00001', $invoice->invoice_number);
+        $this->assertSame('INV-07671', $invoice->invoice_number);
 
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.show', $invoice))
             ->assertOk()
-            ->assertSee('TEST-00001')
+            ->assertSee('INV-07671')
             ->assertSee($sale->invoice_number);
 
         $this->actingAs($this->actor)
@@ -155,7 +152,7 @@ class PosFinanceHubIssueTest extends TestCase
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.index'))
             ->assertOk()
-            ->assertSee('TEST-00001')
+            ->assertSee('INV-07671')
             ->assertDontSee($sale->invoice_number, false);
     }
 

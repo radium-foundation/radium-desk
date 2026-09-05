@@ -152,7 +152,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
         $order = $order->fresh();
         $document = StatutoryInvoiceDocument::query()->where('invoice_id', $invoice->id)->first();
 
-        $this->assertSame('TEST-00001', $invoice->invoice_number);
+        $this->assertSame('INV-07671', $invoice->invoice_number);
         $this->assertSame(StatutoryInvoiceStatus::Issued, $invoice->status);
         $this->assertSame(StatutoryInvoiceChannel::RdServiceNet, $invoice->channel);
         $this->assertSame(StatutoryInvoiceSourceType::CommerceOrder->value, $invoice->source_type);
@@ -193,7 +193,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
             ->first();
 
         $this->assertSame('07AAAAA0000A1Z5', $invoice->buyer_gstin);
-        $this->assertSame('TEST-00001', $invoice->invoice_number);
+        $this->assertSame('INV-07671', $invoice->invoice_number);
         $this->assertNotNull($work);
         $this->assertSame(OutboxEventStatus::Pending, $work->status);
         $this->assertSame(EInvoiceRecordStatus::Queued->value, EInvoiceRecord::query()->value('status'));
@@ -277,10 +277,10 @@ class RdServiceNetPhase1CleanTest extends TestCase
         $second = $this->invoices->issueFromCommerceOrder($order->fresh(), $this->actor);
 
         $this->assertSame($first->id, $second->id);
-        $this->assertSame('TEST-00001', $second->invoice_number);
+        $this->assertSame('INV-07671', $second->invoice_number);
         $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertSame(1, InvoiceSequenceAllocation::query()->count());
-        $this->assertSame(1, (int) InvoiceSequence::query()->value('current_value'));
+        $this->assertSame(671, (int) InvoiceSequence::query()->value('current_value'));
     }
 
     public function test_pdf_failure_keeps_the_allocated_number(): void
@@ -320,7 +320,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
             ->assertRedirect(route('finance.invoices.commerce-orders.show', $order));
 
         $this->assertSame(1, StatutoryInvoice::query()->count());
-        $this->assertSame('TEST-00001', StatutoryInvoice::query()->value('invoice_number'));
+        $this->assertSame('INV-07671', StatutoryInvoice::query()->value('invoice_number'));
     }
 
     /**
@@ -348,7 +348,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
             ],
             'seller_gstin' => '07AAICP1128M1Z9',
             'seller_name' => 'Storefront name must be ignored',
-            'branch_code' => 'HQ',
+            'branch_code' => 'DELHI-RETAIL',
             'place_of_supply_state' => 'Delhi',
             'lines' => [
                 [

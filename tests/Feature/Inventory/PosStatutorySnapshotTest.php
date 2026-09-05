@@ -45,8 +45,8 @@ class PosStatutorySnapshotTest extends TestCase
         $this->seller = User::factory()->create(['is_active' => true]);
         $this->seller->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
         $this->branch = InventoryBranch::query()->create([
-            'code' => 'HQ',
-            'name' => 'Head Office',
+            'code' => 'DELHI-RETAIL',
+            'name' => 'Delhi Retail',
             'is_active' => true,
         ]);
         InventoryUserBranch::query()->create([
@@ -99,7 +99,7 @@ class PosStatutorySnapshotTest extends TestCase
         $this->assertSame('07AAAAA0000A1Z5', $sale->buyer_gstin);
         $this->assertSame('12 Connaught Place, New Delhi', $sale->billing_address);
         $this->assertSame('Delhi', $sale->place_of_supply_state);
-        $this->assertMatchesRegularExpression('/^INV-HQ-\d{4}-\d{5}$/', (string) $sale->invoice_number);
+        $this->assertMatchesRegularExpression('/^INV-DELHI-RETAIL-\d{4}-\d{5}$/', (string) $sale->invoice_number);
         $this->assertNull($sale->statutory_invoice_id);
         $this->assertSame(0, StatutoryInvoice::query()->count());
         $this->assertSame('07AAAAA0000A1Z5', InventoryCustomer::query()->where('phone', '9000000091')->value('gstin'));
@@ -150,7 +150,7 @@ class PosStatutorySnapshotTest extends TestCase
         $this->assertNull($sale->place_of_supply_state);
         $this->assertNull($sale->statutory_invoice_id);
         $this->assertSame(0, StatutoryInvoice::query()->count());
-        $this->assertMatchesRegularExpression('/^INV-HQ-\d{4}-\d{5}$/', (string) $sale->invoice_number);
+        $this->assertMatchesRegularExpression('/^INV-DELHI-RETAIL-\d{4}-\d{5}$/', (string) $sale->invoice_number);
 
         $eligibility = app(StatutoryMintEligibility::class)->evaluateSale($sale);
         $this->assertFalse($eligibility->eligible);
@@ -257,7 +257,7 @@ class PosStatutorySnapshotTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame(1, StatutoryInvoice::query()->count());
-        $this->assertSame('TEST-00001', StatutoryInvoice::query()->value('invoice_number'));
+        $this->assertSame('INV-07671', StatutoryInvoice::query()->value('invoice_number'));
     }
 
     public function test_upi_intent_carries_the_sale_snapshot_through_to_complete(): void

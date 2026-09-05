@@ -1,6 +1,6 @@
 # Central Finance + Statutory Invoice Architecture
 
-> **Canonical status (RadiumDesk-P-05-09-03):** Imported architecture record. The live implementation on `radium-desk-pos-release` `main` uses the Phase 1 config-series mint engine. Seller-profile / `INV-SSFFNNNN` numbering, WhiteBooks HTTP, Shiprocket, and historical Admin remint were **not** merged. See `docs/desk-statutory-finance-hub-consolidation.md`.
+> **Canonical status (RadiumDesk-P-05-09-06):** Owner-finalized new-invoice numbering is Delhi `INV-07671` and Mumbai `INV-27671` from 2026-09-01, mapped only to `DELHI-RETAIL` / `MUMBAI`. Historical Admin numbers are not reminted. See `docs/desk-statutory-location-numbering.md`. Seller-profile / `INV-SSFFNNNN` numbering, WhiteBooks HTTP, Shiprocket, and historical Admin remint were **not** merged.
 
 **Project:** Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  

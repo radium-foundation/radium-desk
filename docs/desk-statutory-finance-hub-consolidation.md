@@ -47,6 +47,17 @@ These persist on `inventory_sales`. Completing a POS sale still does **not** min
 
 Customer GSTIN is a default copied onto the sale at complete time. Finance Hub reads the sale snapshot, not later customer edits.
 
+## Owner-finalized location numbering (RadiumDesk-P-05-09-06)
+
+Effective **2026-09-01** for new Desk statutory invoices only:
+
+| Location | Documented Desk branch code | First new number | Next numbers |
+|---|---|---|---|
+| Delhi | `DELHI-RETAIL` | `INV-07671` | `INV-07672`, … |
+| Mumbai | `MUMBAI` | `INV-27671` | `INV-27672`, … |
+
+Independent atomic sequences. POS internal receipts stay `INV-{branch}-{year}-{seq}` and cannot be reused as GST numbers. Historical Admin invoice numbers are not reminted or renumbered. Unmapped branches (`HQ`, `DELHI-WH`, `BIHAR`, missing `branch_code`) fail closed. Seller GSTIN / legal name remain separate fail-closed config. Auto-issue and IRN stay OFF.
+
 ## Historical Admin invoices
 
 Still out of scope. Reprint remains Admin `print/invoice/{id}`. Future work is a read-only import that keeps the original Admin number.

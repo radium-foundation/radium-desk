@@ -33,6 +33,7 @@ class StatutoryInvoiceService
         private readonly StatutoryDocumentService $documents,
         private readonly EInvoiceEligibility $einvoiceEligibility,
         private readonly EInvoiceOutboxWriter $einvoiceOutbox,
+        private readonly StatutoryLocationSeries $locations,
     ) {}
 
     public function findBySource(
@@ -65,7 +66,11 @@ class StatutoryInvoiceService
                     return $again->load(['items', 'allocation']);
                 }
 
-                $allocation = $this->numbering->allocate($request->idempotencyKey(), $actor);
+                $allocation = $this->numbering->allocate(
+                    $request->idempotencyKey(),
+                    $actor,
+                    $request->numberingLocation,
+                );
 
                 if ($request->internalReceiptNumber !== null
                     && $allocation->allocated_number === $request->internalReceiptNumber) {
@@ -175,7 +180,7 @@ class StatutoryInvoiceService
         }
 
         $this->eligibility->assertSaleCanMint($sale);
-        $sale->loadMissing(['lines.product', 'lines.variant', 'customer']);
+        $sale->loadMissing(['lines.product', 'lines.variant', 'customer', 'branch']);
 
         $lines = [];
         foreach ($sale->lines as $line) {
@@ -222,6 +227,7 @@ class StatutoryInvoiceService
             paymentMethod: $sale->payment_method,
             paymentReference: $sale->payment_reference,
             internalReceiptNumber: $sale->invoice_number,
+            numberingLocation: $this->locations->requireFromBranchCode($sale->branch?->code),
         ), $actor);
 
         $this->generateDocumentSafely($invoice);
@@ -283,6 +289,7 @@ class StatutoryInvoiceService
             discount: (float) ($order->discount ?? 0),
             paymentMethod: $order->payment_method,
             paymentReference: $order->payment_reference,
+            numberingLocation: $this->locations->requireFromBranchCode($order->branch_code),
         ), $actor);
 
         $this->linkCommerceOrder($order, $invoice);

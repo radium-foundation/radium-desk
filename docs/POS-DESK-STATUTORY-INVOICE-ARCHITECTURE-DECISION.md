@@ -1,6 +1,6 @@
 # POS + Desk Statutory Invoice Architecture Decision
 
-> **Canonical status (RadiumDesk-P-05-09-03):** Imported architecture record. POS remains the till plus internal `INV-*` receipt. Finance Hub is the only GST issuer. Seller-profile numbering and auto-issue were **not** merged. See `docs/desk-statutory-finance-hub-consolidation.md`.
+> **Canonical status (RadiumDesk-P-05-09-06):** POS remains the till plus internal `INV-{branch}-{year}-{seq}` receipt. Finance Hub is the only GST issuer. Owner-finalized statutory numbers start at Delhi `INV-07671` and Mumbai `INV-27671` from 2026-09-01. Seller-profile numbering and auto-issue were **not** merged. See `docs/desk-statutory-location-numbering.md`.
 
 **Project:** New Admin / Radium Desk  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk`  

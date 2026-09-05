@@ -17,10 +17,15 @@ class StatutoryInvoiceNumberingService
 
     public function __construct(
         private readonly StatutoryInvoiceNumberFormatter $formatter,
+        private readonly StatutoryLocationSeries $locations,
     ) {}
 
     public function isConfigured(): bool
     {
+        if ($this->locations->enabled() && $this->locations->locations() !== []) {
+            return true;
+        }
+
         return $this->seriesCode() !== null && $this->numberFormat() !== null;
     }
 
@@ -31,9 +36,15 @@ class StatutoryInvoiceNumberingService
             ->first();
     }
 
-    public function allocate(string $idempotencyKey, ?User $actor = null): InvoiceSequenceAllocation
+    public function allocate(string $idempotencyKey, ?User $actor = null, ?string $location = null): InvoiceSequenceAllocation
     {
-        if (! $this->isConfigured()) {
+        if ($location !== null) {
+            if (! $this->locations->enabled()) {
+                throw ValidationException::withMessages([
+                    'series' => 'Location statutory numbering is disabled.',
+                ]);
+            }
+        } elseif (! $this->isConfigured()) {
             throw ValidationException::withMessages([
                 'series' => 'Statutory invoice numbering is unset. CA approval of the legal series is required before invoices can be minted.',
             ]);
@@ -44,10 +55,12 @@ class StatutoryInvoiceNumberingService
             return $existing;
         }
 
-        $sequence = $this->ensureSequenceRow();
+        $sequence = $location !== null
+            ? $this->ensureLocationSequenceRow($location)
+            : $this->ensureSequenceRow();
 
         try {
-            return DB::transaction(function () use ($idempotencyKey, $actor, $sequence): InvoiceSequenceAllocation {
+            return DB::transaction(function () use ($idempotencyKey, $actor, $sequence, $location): InvoiceSequenceAllocation {
                 $again = $this->findByIdempotency($idempotencyKey);
                 if ($again !== null) {
                     return $again;
@@ -61,13 +74,15 @@ class StatutoryInvoiceNumberingService
                 $next = $locked->current_value + 1;
                 $locked->update(['current_value' => $next]);
 
-                $number = $this->formatter->format(
-                    template: $this->numberFormat() ?? '',
-                    series: $this->seriesCode() ?? '',
-                    seq: $next,
-                    gstin: $this->nullableConfig('gstin_scope'),
-                    financialYear: $this->nullableConfig('financial_year'),
-                );
+                $number = $location !== null
+                    ? $this->locations->formatNumber($location, $next)
+                    : $this->formatter->format(
+                        template: $this->numberFormat() ?? '',
+                        series: $this->seriesCode() ?? '',
+                        seq: $next,
+                        gstin: $this->nullableConfig('gstin_scope'),
+                        financialYear: $this->nullableConfig('financial_year'),
+                    );
 
                 $this->assertNotPosInternalReceiptFormat($number);
 
@@ -91,8 +106,41 @@ class StatutoryInvoiceNumberingService
         }
     }
 
+    private function ensureLocationSequenceRow(string $location): InvoiceSequence
+    {
+        $key = $this->locations->sequenceKey($location);
+        $existing = InvoiceSequence::query()->where('sequence_key', $key)->first();
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        try {
+            return InvoiceSequence::query()->create([
+                'sequence_key' => $key,
+                'series_code' => $this->locations->prefix($location),
+                'document_type' => StatutoryInvoiceDocumentType::TaxInvoice->value,
+                'gstin_scope' => 'location:'.$location,
+                'financial_year' => null,
+                'current_value' => $this->locations->firstSeq($location) - 1,
+            ]);
+        } catch (UniqueConstraintViolationException|QueryException $exception) {
+            $existing = InvoiceSequence::query()->where('sequence_key', $key)->first();
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            throw $exception;
+        }
+    }
+
     private function ensureSequenceRow(): InvoiceSequence
     {
+        if ($this->seriesCode() === null || $this->numberFormat() === null) {
+            throw ValidationException::withMessages([
+                'series' => 'Statutory invoice numbering is unset. CA approval of the legal series is required before invoices can be minted.',
+            ]);
+        }
+
         $key = $this->sequenceKey();
         $existing = InvoiceSequence::query()->where('sequence_key', $key)->first();
         if ($existing !== null) {

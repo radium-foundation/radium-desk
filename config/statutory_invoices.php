@@ -24,9 +24,31 @@ return [
 
     /*
     | Format tokens: {series} {seq} {seq:N} {gstin} {fy}.
-    | Empty means minting is disabled even if series_code is set.
+    | Empty means the legacy single-series path is disabled. Finance Hub
+    | issuance uses location_series below when enabled.
     */
     'number_format' => env('STATUTORY_INVOICE_NUMBER_FORMAT'),
+
+    /*
+    | Owner-finalized statutory location series (2026-09-01).
+    | Delhi continues at INV-07671. Mumbai continues at INV-27671.
+    | Only documented Desk branch codes are mapped. Do not remint Admin INV*.
+    */
+    'location_series' => [
+        'enabled' => true,
+        'locations' => [
+            'delhi' => [
+                'prefix' => 'INV-07',
+                'first_seq' => 671,
+                'branch_codes' => ['DELHI-RETAIL'],
+            ],
+            'mumbai' => [
+                'prefix' => 'INV-27',
+                'first_seq' => 671,
+                'branch_codes' => ['MUMBAI'],
+            ],
+        ],
+    ],
 
     /*
     | Guard: statutory invoices must not post revenue/tax journals while POS
