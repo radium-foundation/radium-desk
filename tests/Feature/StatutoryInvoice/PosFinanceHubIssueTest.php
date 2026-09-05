@@ -16,6 +16,7 @@ use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -110,6 +111,33 @@ class PosFinanceHubIssueTest extends TestCase
         $this->assertSame(StatutoryInvoiceStatus::Cancelled, $cancelled->status);
         $this->assertSame('INV-07671', $cancelled->invoice_number);
         $this->assertSame(1, StatutoryInvoice::query()->count());
+    }
+
+    public function test_pre_september_pos_sale_cannot_receive_a_statutory_number(): void
+    {
+        Carbon::setTestNow('2026-08-31 23:59:59');
+        $sale = $this->completeEligibleSale();
+
+        try {
+            $this->invoices->issueFromPosSale($sale, $this->actor);
+            $this->fail('Expected pre-2026-09-01 POS sale to refuse mint.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('2026-09-01', implode(' ', $exception->errors()['eligibility'] ?? []));
+        }
+
+        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertNull($sale->fresh()->statutory_invoice_id);
+    }
+
+    public function test_first_eligible_september_pos_sale_issues_inv_07671(): void
+    {
+        Carbon::setTestNow('2026-09-01 00:00:00');
+        $sale = $this->completeEligibleSale();
+
+        $invoice = $this->invoices->issueFromPosSale($sale, $this->actor);
+
+        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame(1, $invoice->allocation?->seq_int);
     }
 
     public function test_issue_fails_closed_when_the_branch_is_not_delhi_or_mumbai(): void

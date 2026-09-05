@@ -216,6 +216,44 @@ class StatutoryBillingIssuerTest extends TestCase
         $this->assertSame(1, StatutoryInvoice::query()->count());
     }
 
+    public function test_pre_september_commerce_order_cannot_receive_a_statutory_number(): void
+    {
+        $order = $this->commerceOrder(
+            sourceId: 'PRE-SEPT',
+            hsn: '998313',
+            branchCode: 'DELHI-RETAIL',
+            placeOfSupply: 'Delhi',
+            buyerGstin: null,
+            orderedAt: '2026-08-31 23:59:59',
+        );
+
+        try {
+            $this->invoices->issueFromCommerceOrder($order, $this->actor);
+            $this->fail('Expected pre-2026-09-01 commerce order to refuse mint.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('2026-09-01', implode(' ', $exception->errors()['eligibility'] ?? []));
+        }
+
+        $this->assertSame(0, StatutoryInvoice::query()->count());
+    }
+
+    public function test_first_eligible_september_commerce_service_issues_inv_07671(): void
+    {
+        $order = $this->commerceOrder(
+            sourceId: 'SEPT-1',
+            hsn: '998314',
+            branchCode: 'DELHI-RETAIL',
+            placeOfSupply: 'Delhi',
+            buyerGstin: null,
+            orderedAt: '2026-09-01 00:00:00',
+        );
+
+        $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
+
+        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame(1, $invoice->allocation?->seq_int);
+    }
+
     public function test_mixed_product_and_service_lines_fail_closed(): void
     {
         $order = $this->commerceOrder(
@@ -247,6 +285,7 @@ class StatutoryBillingIssuerTest extends TestCase
         ?string $branchCode,
         string $placeOfSupply,
         ?string $buyerGstin,
+        string $orderedAt = '2026-09-01 10:00:00',
     ): CommerceOrder {
         $order = CommerceOrder::query()->create([
             'order_no' => 'CO-'.$sourceId,
@@ -267,7 +306,7 @@ class StatutoryBillingIssuerTest extends TestCase
             'taxable_value' => 100,
             'tax_total' => 18,
             'order_value' => 118,
-            'ordered_at' => '2026-09-01 10:00:00',
+            'ordered_at' => $orderedAt,
             'received_at' => now(),
         ]);
         $order->items()->create([

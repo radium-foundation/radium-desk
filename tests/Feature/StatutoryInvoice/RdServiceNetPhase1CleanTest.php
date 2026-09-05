@@ -263,6 +263,13 @@ class RdServiceNetPhase1CleanTest extends TestCase
         $historical['ordered_at'] = '2026-08-31 16:00:00';
         $this->signedPost($historical)->assertCreated();
         $this->signedDocumentGet('commerce_order', 'RA3506774')->assertForbidden();
+        $historicalOrder = CommerceOrder::query()->where('source_id', 'RA3506774')->firstOrFail();
+        try {
+            $this->invoices->issueFromCommerceOrder($historicalOrder, $this->actor);
+            $this->fail('Expected pre-2026-09-01 commerce order to refuse mint.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('2026-09-01', implode(' ', $exception->errors()['eligibility'] ?? []));
+        }
 
         $this->signedDocumentGet('commerce_order', 'missing-id')->assertNotFound();
         Http::assertNothingSent();
