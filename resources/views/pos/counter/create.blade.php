@@ -111,10 +111,31 @@
                                     <input type="text" name="customer_name" id="customer_name" class="form-control" required value="{{ old('customer_name') }}">
                                     @error('customer_name')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
-                                <div>
+                                <div class="mb-2">
                                     <label class="form-label" for="customer_email">Email</label>
                                     <input type="email" name="customer_email" id="customer_email" class="form-control" value="{{ old('customer_email') }}">
                                 </div>
+                                <div class="mb-2">
+                                    <label class="form-label" for="buyer_gstin">Buyer GSTIN</label>
+                                    <input type="text" name="buyer_gstin" id="buyer_gstin" class="form-control" value="{{ old('buyer_gstin') }}" maxlength="32" autocomplete="off" placeholder="Optional — leave blank for B2C">
+                                    @error('buyer_gstin')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label" for="billing_address">Billing address</label>
+                                    <textarea name="billing_address" id="billing_address" class="form-control" rows="2" maxlength="1000">{{ old('billing_address') }}</textarea>
+                                    @error('billing_address')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
+                                <div>
+                                    <label class="form-label" for="place_of_supply_state">Place of supply</label>
+                                    <select name="place_of_supply_state" id="place_of_supply_state" class="form-select">
+                                        <option value="">Select state (required later for GST invoice)</option>
+                                        @foreach($placeOfSupplyStates as $state)
+                                            <option value="{{ $state }}" @selected(old('place_of_supply_state') === $state)>{{ $state }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('place_of_supply_state')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
+                                <p class="small text-muted mb-0 mt-2">These values are stored on the sale for Finance Hub. Completing the sale does not issue a GST invoice.</p>
                                 <p class="small text-muted mb-0 mt-2" id="pos-customer-status"></p>
                             </div>
                         </div>
@@ -206,6 +227,7 @@
                 const phoneInput = document.getElementById('customer_phone');
                 const nameInput = document.getElementById('customer_name');
                 const emailInput = document.getElementById('customer_email');
+                const gstinInput = document.getElementById('buyer_gstin');
                 const customerStatus = document.getElementById('pos-customer-status');
                 const form = document.getElementById('pos-counter-form');
                 const completeButton = document.getElementById('pos-complete');
@@ -508,7 +530,10 @@
                                 if (data.found) {
                                     nameInput.value = data.name || nameInput.value;
                                     emailInput.value = data.email || emailInput.value;
-                                    customerStatus.textContent = 'Existing POS customer loaded.';
+                                    if (gstinInput && data.gstin && !gstinInput.value) {
+                                        gstinInput.value = data.gstin;
+                                    }
+                                    customerStatus.textContent = 'Existing POS customer loaded. Sale snapshot fields stay on this sale.';
                                 } else {
                                     customerStatus.textContent = 'New customer will be created on complete.';
                                 }

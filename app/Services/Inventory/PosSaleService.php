@@ -15,7 +15,9 @@ use App\Models\InventoryReservation;
 use App\Models\InventorySale;
 use App\Models\User;
 use App\Services\Finance\PosSaleJournalService;
+use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
+use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -523,19 +525,35 @@ class PosSaleService
     /**
      * Optional Finance Hub snapshot only. Does not mint a GST invoice.
      *
+     * Customer GSTIN is copied onto the sale at complete time. Later customer
+     * edits are not re-read by Finance Hub.
+     *
      * @param  array<string, mixed>  $statutory
      * @return array{buyer_gstin: ?string, billing_address: ?string, place_of_supply_state: ?string}
      */
     private function statutorySnapshot(InventoryCustomer $customer, array $statutory): array
     {
-        $buyerGstin = $this->nullableString($statutory['buyer_gstin'] ?? null)
-            ?? $this->nullableString($customer->gstin);
-        $billingAddress = $this->nullableString($statutory['billing_address'] ?? null);
+        $buyerGstin = BuyerGstin::normalize(
+            $this->nullableString($statutory['buyer_gstin'] ?? null)
+                ?? $this->nullableString($customer->gstin)
+        );
+        if ($buyerGstin !== null && ! BuyerGstin::isValid($buyerGstin)) {
+            throw ValidationException::withMessages([
+                'buyer_gstin' => 'Enter a valid 15-character GSTIN or leave it blank for B2C.',
+            ]);
+        }
+
+        $place = $this->nullableString($statutory['place_of_supply_state'] ?? null);
+        if ($place !== null && ! IndianStates::contains($place)) {
+            throw ValidationException::withMessages([
+                'place_of_supply_state' => 'Select a valid Indian place of supply state.',
+            ]);
+        }
 
         return [
             'buyer_gstin' => $buyerGstin,
-            'billing_address' => $billingAddress,
-            'place_of_supply_state' => $this->nullableString($statutory['place_of_supply_state'] ?? null),
+            'billing_address' => $this->nullableString($statutory['billing_address'] ?? null),
+            'place_of_supply_state' => $place,
         ];
     }
 

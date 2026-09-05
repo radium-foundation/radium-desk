@@ -30,6 +30,9 @@
         Bill to: {{ $sale->customer?->name }}<br>
         {{ $sale->customer?->phone }}
         @if($sale->customer?->email)<br>{{ $sale->customer->email }}@endif
+        @if($sale->buyer_gstin)<br>Buyer GSTIN {{ $sale->buyer_gstin }}@endif
+        @if($sale->billing_address)<br>{{ $sale->billing_address }}@endif
+        @if($sale->place_of_supply_state)<br>Place of supply {{ $sale->place_of_supply_state }}@endif
     </p>
     <table>
         <thead>

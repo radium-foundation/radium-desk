@@ -42,7 +42,7 @@ class PosUpiIntentService
     }
 
     /**
-     * @param  array{name: string, phone: string, email?: string|null}  $customer
+     * @param  array{name: string, phone: string, email?: string|null, gstin?: string|null}  $customer
      * @param  list<array{
      *     product_id: int,
      *     variant_id?: int|null,
@@ -61,6 +61,7 @@ class PosUpiIntentService
         float $headerDiscount = 0,
         ?string $notes = null,
         ?string $saleIdempotencyKey = null,
+        array $statutory = [],
     ): PosPaymentIntent {
         if (! $branch->is_active) {
             throw ValidationException::withMessages([
@@ -122,6 +123,7 @@ class PosUpiIntentService
             $name,
             $phone,
             $minutes,
+            $statutory,
         ): PosPaymentIntent {
             $reservation = $this->stock->reserveForCart(
                 $branch,
@@ -157,6 +159,11 @@ class PosUpiIntentService
                     'discount' => $headerDiscount,
                     'notes' => $notes,
                     'payment_method' => 'UPI',
+                    'statutory' => [
+                        'buyer_gstin' => $statutory['buyer_gstin'] ?? ($customer['gstin'] ?? null),
+                        'billing_address' => $statutory['billing_address'] ?? null,
+                        'place_of_supply_state' => $statutory['place_of_supply_state'] ?? null,
+                    ],
                 ],
                 'customer_name' => $name,
                 'customer_phone' => $phone,

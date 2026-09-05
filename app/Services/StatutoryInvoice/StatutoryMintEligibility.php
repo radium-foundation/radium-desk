@@ -12,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 
 class StatutoryMintEligibility
 {
+    public const PLACE_OF_SUPPLY_MISSING = 'Place of supply is missing.';
+
     public function __construct(
         private readonly StatutoryInvoiceNumberingService $numbering,
     ) {}
@@ -43,12 +45,12 @@ class StatutoryMintEligibility
 
         $place = is_string($sale->place_of_supply_state) ? trim($sale->place_of_supply_state) : '';
         if ($place === '') {
-            $errors[] = 'Place of supply is missing.';
+            $errors[] = self::PLACE_OF_SUPPLY_MISSING;
         }
 
-        $buyerGstin = BuyerGstin::normalize($sale->buyer_gstin ?? $sale->customer?->gstin);
-        if (($sale->buyer_gstin ?? $sale->customer?->gstin) !== null
-            && trim((string) ($sale->buyer_gstin ?? $sale->customer?->gstin)) !== ''
+        $buyerGstin = BuyerGstin::normalize($sale->buyer_gstin);
+        if ($sale->buyer_gstin !== null
+            && trim((string) $sale->buyer_gstin) !== ''
             && ! BuyerGstin::isValid($buyerGstin)) {
             $errors[] = 'Buyer GSTIN is present but is not a valid 15-character GSTIN.';
         }

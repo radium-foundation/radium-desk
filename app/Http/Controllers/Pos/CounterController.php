@@ -12,6 +12,8 @@ use App\Models\InventorySerial;
 use App\Models\InventoryStockBalance;
 use App\Services\Inventory\PosSaleService;
 use App\Services\Pos\PosUpiIntentService;
+use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\PosAccess;
 use Database\Seeders\RolePermissionSeeder;
@@ -20,6 +22,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class CounterController extends Controller
@@ -57,6 +60,7 @@ class CounterController extends Controller
             'lookupCustomerUrl' => route('pos.customers.lookup'),
             'upiReceivingAccounts' => $this->upiIntents->enabledReceivingAccounts(),
             'canVerifyUpi' => PosAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_POS_PAYMENTS_VERIFY),
+            'placeOfSupplyStates' => IndianStates::names(),
         ]);
     }
 
@@ -78,6 +82,14 @@ class CounterController extends Controller
             'discount' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:500'],
             'idempotency_key' => ['nullable', 'string', 'max:80'],
+            'buyer_gstin' => ['nullable', 'string', 'max:32', function (string $attribute, mixed $value, \Closure $fail): void {
+                $normalized = BuyerGstin::normalize(is_string($value) ? $value : null);
+                if ($normalized !== null && ! BuyerGstin::isValid($normalized)) {
+                    $fail('Enter a valid 15-character GSTIN or leave it blank for B2C.');
+                }
+            }],
+            'billing_address' => ['nullable', 'string', 'max:1000'],
+            'place_of_supply_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'exists:inventory_products,id'],
             'lines.*.variant_id' => ['nullable', 'exists:inventory_product_variants,id'],
@@ -109,6 +121,14 @@ class CounterController extends Controller
             'name' => $data['customer_name'],
             'phone' => $data['customer_phone'],
             'email' => $data['customer_email'] ?? null,
+            'gstin' => BuyerGstin::normalize($data['buyer_gstin'] ?? null),
+        ];
+        $statutory = [
+            'buyer_gstin' => BuyerGstin::normalize($data['buyer_gstin'] ?? null),
+            'billing_address' => isset($data['billing_address']) && is_string($data['billing_address'])
+                ? trim($data['billing_address'])
+                : null,
+            'place_of_supply_state' => $data['place_of_supply_state'] ?? null,
         ];
 
         if (strcasecmp(trim($data['payment_method']), 'UPI') === 0) {
@@ -121,6 +141,7 @@ class CounterController extends Controller
                 headerDiscount: (float) ($data['discount'] ?? 0),
                 notes: $data['notes'] ?? null,
                 saleIdempotencyKey: $data['idempotency_key'] ?? null,
+                statutory: $statutory,
             );
 
             return redirect()->route('pos.upi.intents.show', $intent)
@@ -137,6 +158,7 @@ class CounterController extends Controller
             paymentReference: $data['payment_reference'] ?? null,
             notes: $data['notes'] ?? null,
             idempotencyKey: $data['idempotency_key'] ?? null,
+            statutory: $statutory,
         );
 
         return redirect()->route('pos.sales.show', $sale)->with('status', 'Sale '.$sale->sale_no.' completed.');
@@ -267,6 +289,7 @@ class CounterController extends Controller
             'name' => $customer->name,
             'phone' => $customer->phone,
             'email' => $customer->email,
+            'gstin' => $customer->gstin,
         ]);
     }
 

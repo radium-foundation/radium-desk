@@ -215,7 +215,7 @@ class StatutoryInvoiceService
             sellerName: $this->deskSellerName(),
             buyerName: $sale->customer?->name,
             buyerPhone: $sale->customer?->phone,
-            buyerGstin: BuyerGstin::normalize($sale->buyer_gstin ?? $sale->customer?->gstin),
+            buyerGstin: BuyerGstin::normalize($sale->buyer_gstin),
             billingAddress: $sale->billing_address,
             placeOfSupplyState: $sale->place_of_supply_state,
             discount: $headerDiscount,

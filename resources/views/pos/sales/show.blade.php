@@ -29,6 +29,13 @@
                     <div>{{ $sale->customer?->name }}</div>
                     <div>{{ $sale->customer?->phone }}</div>
                     <div>{{ $sale->customer?->email ?: '—' }}</div>
+                    <div class="mt-3 small">
+                        <div class="text-muted text-uppercase fw-semibold">Sale statutory snapshot</div>
+                        <div>GSTIN {{ $sale->buyer_gstin ?: 'B2C / not captured' }}</div>
+                        <div>Place of supply {{ $sale->place_of_supply_state ?: 'not captured' }}</div>
+                        <div>{{ $sale->billing_address ?: 'No billing address captured' }}</div>
+                        <div class="text-muted">Finance Hub issues the GST invoice later. This sale did not mint one.</div>
+                    </div>
                     <div class="mt-2 small text-muted">{{ $sale->branch?->name }} · {{ $sale->payment_method }}</div>
                     @if($sale->upiIntent)
                         <div class="small mt-2">

@@ -35,6 +35,18 @@ Reconstructed only verified Finance Hub work onto the Phase 1 mint engine.
 - Cashfree changes
 - Live IRN / auto-issue flags (remain OFF)
 
+## POS statutory snapshot (RadiumDesk-P-05-09-04)
+
+The POS counter now captures optional **sale-time** snapshot fields:
+
+- Buyer GSTIN (optional; validated with `BuyerGstin` when present)
+- Billing address
+- Place of supply (Indian state/UT list; required later for Finance Hub issuance)
+
+These persist on `inventory_sales`. Completing a POS sale still does **not** mint a GST invoice. POS reprint/show remain SELECT-only. Finance Hub remains the sole statutory issuer. Live IRN stays OFF. Historical Admin `INV*` invoices remain a later read-only import.
+
+Customer GSTIN is a default copied onto the sale at complete time. Finance Hub reads the sale snapshot, not later customer edits.
+
 ## Historical Admin invoices
 
 Still out of scope. Reprint remains Admin `print/invoice/{id}`. Future work is a read-only import that keeps the original Admin number.

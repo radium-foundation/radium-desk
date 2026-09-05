@@ -32,6 +32,7 @@
                             <th>Sale</th>
                             <th>Branch</th>
                             <th>Customer</th>
+                            <th>Place of supply</th>
                             <th>Eligibility</th>
                             <th></th>
                         </tr>
@@ -46,12 +47,12 @@
                                 </td>
                                 <td>{{ $sale->branch?->code }}</td>
                                 <td>{{ $sale->customer?->name ?: '—' }}</td>
+                                <td>{{ $sale->place_of_supply_state ?: '—' }}</td>
                                 <td class="small">
-                                    @if($eligibility->eligible)
-                                        Ready to issue
-                                    @else
-                                        {{ implode('; ', $eligibility->errors) }}
-                                    @endif
+                                    <div class="fw-semibold">{{ $eligibility->staffSummary() }}</div>
+                                    @unless($eligibility->eligible)
+                                        <div class="text-muted">{{ implode('; ', $eligibility->errors) }}</div>
+                                    @endunless
                                 </td>
                                 <td class="text-end">
                                     @if($canIssue)
@@ -65,7 +66,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="text-muted">No completed POS sales waiting for a statutory invoice.</td></tr>
+                            <tr><td colspan="6" class="text-muted">No completed POS sales waiting for a statutory invoice.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
