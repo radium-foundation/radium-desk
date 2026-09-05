@@ -49,6 +49,11 @@
             'url' => route('finance.invoices.index'),
             'visible' => FinanceAccess::allowsInvoices($user),
         ],
+        'historical' => [
+            'label' => 'Historical reprint',
+            'url' => route('finance.invoices.historical'),
+            'visible' => FinanceAccess::allowsInvoices($user),
+        ],
         'issue' => [
             'label' => 'Issue invoices',
             'url' => route('finance.invoices.pending'),

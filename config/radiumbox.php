@@ -1,9 +1,15 @@
 <?php
 
 return [
-    'enabled' => filter_var(env('RADIUMBOX_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+    'enabled' => filter_var(env('RADIUMBOX_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
-    'base_url' => rtrim(env('RADIUMBOX_BASE_URL', 'https://admin.radiumbox.com'), '/'),
+    'base_url' => rtrim((string) env('RADIUMBOX_BASE_URL', ''), '/'),
+
+    /*
+     * Retired. Production must stay false so Desk never calls
+     * admin.radiumbox.com. Tests that still exercise the old client opt in.
+     */
+    'admin_fallback_enabled' => filter_var(env('RADIUMBOX_ADMIN_FALLBACK_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
     'timeout_seconds' => (int) env('RADIUMBOX_TIMEOUT_SECONDS', 5),
 

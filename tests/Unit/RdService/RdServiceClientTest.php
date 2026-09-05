@@ -124,6 +124,42 @@ class RdServiceClientTest extends TestCase
         Log::shouldHaveReceived('error')->withArgs(fn (string $message): bool => str_contains($message, 'HTTPS'));
     }
 
+    public function test_loopback_http_without_host_is_rejected(): void
+    {
+        config([
+            'rdservice.base_url' => 'http://127.0.0.1',
+            'rdservice.host' => '',
+        ]);
+        Http::fake();
+
+        $this->assertFalse(app(RdServiceClient::class)->isConfigured());
+        $result = app(RdServiceClient::class)->fetch('RD3000003');
+
+        $this->assertSame('insecure_base_url', $result->errorType);
+        Http::assertNothingSent();
+    }
+
+    public function test_loopback_http_sends_configured_host_header(): void
+    {
+        config([
+            'rdservice.base_url' => 'http://127.0.0.1',
+            'rdservice.host' => 'rdservice.net',
+        ]);
+        Http::fake([
+            'http://127.0.0.1/api/integrations/v1/rd-orders/RD3000003' => Http::response($this->okPayload(), 200),
+        ]);
+
+        $this->assertTrue(app(RdServiceClient::class)->isConfigured());
+        $result = app(RdServiceClient::class)->fetch('RD3000003');
+
+        $this->assertTrue($result->succeeded());
+        Http::assertSent(function ($request): bool {
+            return $request->url() === 'http://127.0.0.1/api/integrations/v1/rd-orders/RD3000003'
+                && $request->hasHeader('Authorization', 'Bearer '.self::TOKEN)
+                && $request->hasHeader('Host', 'rdservice.net');
+        });
+    }
+
     public function test_401_does_not_log_token(): void
     {
         Http::fake([

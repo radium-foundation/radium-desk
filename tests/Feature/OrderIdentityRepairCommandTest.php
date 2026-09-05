@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Enums\OrderIdentityRepairFailureCategory;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\OrderIdentityRepairFailureCategory;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -13,9 +13,12 @@ use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\OrderIdentityRepairService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
+use App\Services\ServiceCaseAssignmentEligibilityService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
@@ -35,6 +38,7 @@ class OrderIdentityRepairCommandTest extends TestCase
         config([
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
             'radiumbox.timeout_seconds' => 5,
             'radiumbox.connect_timeout_seconds' => 3,
             'cashfree.system_user_email' => 'superadmin@radium.local',
@@ -390,7 +394,7 @@ class OrderIdentityRepairCommandTest extends TestCase
         $service = app(OrderIdentityRepairService::class);
 
         $this->assertFalse($service->needsRadiumBoxFetch($order));
-        $this->assertTrue(app(\App\Services\ServiceCaseAssignmentEligibilityService::class)->passesValidationForOrder($order));
+        $this->assertTrue(app(ServiceCaseAssignmentEligibilityService::class)->passesValidationForOrder($order));
     }
 
     public function test_command_reports_radiumbox_not_found_failure(): void
@@ -420,7 +424,7 @@ class OrderIdentityRepairCommandTest extends TestCase
     public function test_command_reports_api_timeout_failure(): void
     {
         Http::fake([
-            'admin.radiumbox.com/api/search/order*' => fn () => throw new \Illuminate\Http\Client\ConnectionException('Connection timed out.'),
+            'admin.radiumbox.com/api/search/order*' => fn () => throw new ConnectionException('Connection timed out.'),
         ]);
 
         $actor = User::factory()->create();
@@ -579,7 +583,7 @@ class OrderIdentityRepairCommandTest extends TestCase
 
     public function test_resume_continues_from_last_processed_order(): void
     {
-        Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        Http::fake(function (Request $request) {
             parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
             $orderId = $query['orderid'] ?? '';
             $serial = $orderId === 'RD-RESUME-1' ? '7881951' : '7881952';

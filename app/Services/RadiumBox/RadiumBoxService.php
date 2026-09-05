@@ -6,6 +6,7 @@ use App\Data\EnrichmentPersistenceResult;
 use App\Models\Order;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\OrderIdentityProtectionService;
+use App\Services\OrderLookup\OrderEnrichmentLookupService;
 use App\Services\RdService\RdServiceClient;
 use App\Services\RdService\RdServiceFetchResult;
 use Illuminate\Support\Facades\Log;
@@ -37,6 +38,7 @@ class RadiumBoxService
         private readonly OrderIdentityProtectionService $identityProtection,
         private readonly OrderIdentityLifecycleService $identityLifecycle,
         private readonly RdServiceClient $rdServiceClient,
+        private readonly OrderEnrichmentLookupService $orderLookup,
     ) {}
 
     public function enrichOrderForWorkspace(Order $order): Order
@@ -45,18 +47,20 @@ class RadiumBoxService
             return $order;
         }
 
-        if ($this->rdServiceClient->isEligible($order->order_id)) {
-            $rdFetch = $this->rdServiceClient->fetch($order->order_id);
+        $spokeFetch = $this->orderLookup->fetchFromSpokes((string) $order->order_id);
 
-            if ($rdFetch->succeeded() && $rdFetch->enrichment !== null && $rdFetch->enrichment->hasLegacyPreviewData()) {
-                $order = $this->applyEnrichment($order, $rdFetch->enrichment, 'rdservice_enrichment');
-            }
+        if ($spokeFetch !== null && $spokeFetch->succeeded() && $spokeFetch->enrichment !== null && $spokeFetch->enrichment->hasLegacyPreviewData()) {
+            $order = $this->applyEnrichment($order, $spokeFetch->enrichment, 'rdservice_enrichment');
+        }
 
-            $order = $order->fresh() ?? $order;
+        $order = $order->fresh() ?? $order;
 
-            if (! $this->needsEnrichment($order)) {
-                return $order;
-            }
+        if (! $this->needsEnrichment($order)) {
+            return $order;
+        }
+
+        if (! $this->adminFallbackEnabled()) {
+            return $order;
         }
 
         $enrichment = $this->client->fetchOrderEnrichment($order->order_id);
@@ -107,6 +111,19 @@ class RadiumBoxService
             ];
         }
 
+        if (! $this->adminFallbackEnabled()) {
+            return $rdOutcome ?? [
+                'applied' => false,
+                'enrichment' => null,
+                'fetch_result' => new RadiumBoxOrderEnrichmentFetchResult(
+                    retriable: false,
+                    errorMessage: 'No authoritative order source returned enrichment.',
+                    errorType: 'unsupported_source',
+                ),
+                'persistence' => $this->emptyPersistenceResult(),
+            ];
+        }
+
         $adminOutcome = $this->enrichFromAdmin($order);
 
         if ($rdOutcome === null || ! $rdOutcome['persistence']->updated) {
@@ -124,13 +141,19 @@ class RadiumBoxService
      *     persistence: EnrichmentPersistenceResult,
      * }|null
      */
+    private function adminFallbackEnabled(): bool
+    {
+        return (bool) config('order_lookup.admin_fallback_enabled', false)
+            || (bool) config('radiumbox.admin_fallback_enabled', false);
+    }
+
     private function enrichFromRdService(Order $order): ?array
     {
-        if (! $this->rdServiceClient->isEligible($order->order_id)) {
+        $fetch = $this->orderLookup->fetchFromSpokes((string) $order->order_id);
+
+        if ($fetch === null) {
             return null;
         }
-
-        $fetch = $this->rdServiceClient->fetch($order->order_id);
 
         if ($fetch->retriable) {
             Log::warning('RDService order lookup failed; will retry.', [
@@ -149,7 +172,7 @@ class RadiumBoxService
         }
 
         if ($fetch->fallbackToAdmin || ! $fetch->succeeded() || $fetch->enrichment === null) {
-            Log::info('RDService lookup did not enrich; falling back to Admin.', [
+            Log::info('RDService lookup did not enrich; trying remaining sources.', [
                 'order_id' => $order->order_id,
                 'error_type' => $fetch->errorType,
                 'http_status' => $fetch->httpStatus,

@@ -22,6 +22,12 @@ return [
 
     'base_url' => rtrim((string) env('RDSERVICE_BASE_URL', 'https://rdservice.net'), '/'),
 
+    /*
+     * Optional Host header. Required when base_url is loopback HTTP so OLS
+     * routes to the rdservice.net vhost without Cloudflare hairpin.
+     */
+    'host' => trim((string) env('RDSERVICE_HOST', '')),
+
     'token' => env('DESK_ORDER_API_TOKEN'),
 
     'connect_timeout_seconds' => max(1, (int) env('RDSERVICE_CONNECT_TIMEOUT_SECONDS', 3)),

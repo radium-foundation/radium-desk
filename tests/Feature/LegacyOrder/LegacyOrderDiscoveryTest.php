@@ -28,6 +28,7 @@ class LegacyOrderDiscoveryTest extends TestCase
         config([
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
         ]);
     }
 

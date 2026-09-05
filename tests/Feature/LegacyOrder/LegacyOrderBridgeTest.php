@@ -3,12 +3,12 @@
 namespace Tests\Feature\LegacyOrder;
 
 use App\Enums\IncidentSource;
-use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SettingSource;
 use App\Models\User;
 use App\Services\ServiceCaseActivityTimelineService;
+use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,6 +30,7 @@ class LegacyOrderBridgeTest extends TestCase
         config([
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
             'radiumbox.timeout_seconds' => 5,
             'radiumbox.connect_timeout_seconds' => 3,
             'service_case_assignment.automation_grace_period_enabled' => false,
@@ -41,7 +42,7 @@ class LegacyOrderBridgeTest extends TestCase
         $nightAdmin = User::factory()->create(['email' => 'legacy-night-admin@test.com']);
         $nightAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        app(\App\Services\SettingService::class)->setMany([
+        app(SettingService::class)->setMany([
             'assignment.timezone' => config('app.timezone'),
             'assignment.day_shift_start' => '09:00',
             'assignment.day_shift_end' => '18:30',

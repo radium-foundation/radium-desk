@@ -5,13 +5,13 @@ namespace Tests\Feature;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
+use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Database\Seeders\RolePermissionSeeder;
-use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -30,6 +30,7 @@ class Customer360RadiumBoxSyncTest extends TestCase
         config([
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
             'radiumbox.timeout_seconds' => 5,
             'radiumbox.connect_timeout_seconds' => 3,
         ]);

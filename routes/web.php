@@ -35,6 +35,7 @@ use App\Http\Controllers\Finance\DailyClosingController;
 use App\Http\Controllers\Finance\DashboardController as FinanceDashboardController;
 use App\Http\Controllers\Finance\ExpenseCategoryController;
 use App\Http\Controllers\Finance\ExpenseController as FinanceExpenseController;
+use App\Http\Controllers\Finance\HistoricalInvoiceController;
 use App\Http\Controllers\Finance\PaymentMethodController;
 use App\Http\Controllers\Finance\SettingsController as FinanceSettingsController;
 use App\Http\Controllers\Finance\StatutoryInvoiceController;
@@ -383,6 +384,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('bank', [BankLedgerController::class, 'index'])->name('bank.index');
         Route::get('vendor-payments', [VendorPaymentController::class, 'index'])->name('vendor-payments.index');
         Route::get('invoices/pending', [StatutoryInvoiceIssueController::class, 'pending'])->name('invoices.pending');
+        Route::get('invoices/historical/{invoice}/print', [HistoricalInvoiceController::class, 'print'])->name('invoices.historical.print');
+        Route::match(['get', 'post'], 'invoices/historical', [HistoricalInvoiceController::class, 'index'])->name('invoices.historical');
         Route::get('invoices/export', [StatutoryInvoiceController::class, 'export'])->name('invoices.export');
         Route::get('invoices/commerce-orders/{order}', [StatutoryInvoiceIssueController::class, 'show'])->name('invoices.commerce-orders.show');
         Route::post('invoices/commerce-orders/{order}/issue', [StatutoryInvoiceIssueController::class, 'issue'])->name('invoices.commerce-orders.issue');

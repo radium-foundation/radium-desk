@@ -1,24 +1,34 @@
 <?php
 
-namespace App\Services\RdService;
+namespace App\Services\OrderLookup;
 
 use App\Models\Order;
 use App\Services\RadiumBox\Exceptions\RadiumBoxInvalidResponseException;
 use App\Services\RadiumBox\Exceptions\RadiumBoxOrderNotFoundException;
+use App\Services\RdService\RdServiceFetchResult;
+use App\Services\RdService\RdServiceOrderId;
+use App\Services\RdService\RdServiceOrderMapper;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class RdServiceClient
+class SpokeOrderClient
 {
     public function __construct(
         private readonly RdServiceOrderMapper $mapper,
+        private readonly string $source,
     ) {}
+
+    public function source(): string
+    {
+        return $this->source;
+    }
 
     public function isConfigured(): bool
     {
-        if (! (bool) config('rdservice.enabled', false)) {
+        $config = $this->config();
+        if (! (bool) ($config['enabled'] ?? false)) {
             return false;
         }
 
@@ -31,45 +41,52 @@ class RdServiceClient
 
     public function isEligible(?string $orderId): bool
     {
-        if (! $this->isConfigured() || ! RdServiceOrderId::isValid($orderId)) {
+        if (! $this->isConfigured() || ! is_string($orderId) || $orderId === '') {
             return false;
         }
 
-        return ! Order::isHardwareOrderId($orderId) && ! Order::isInquiryOrderId($orderId);
+        if (Order::isInquiryOrderId($orderId)) {
+            return false;
+        }
+
+        $accepts = $this->config()['accepts'] ?? [];
+        if (Order::isHardwareOrderId($orderId)) {
+            $prefix = strtoupper(substr(trim($orderId), 0, 3));
+
+            return ($prefix === 'RDE' && in_array('rde', $accepts, true))
+                || ($prefix === 'RIN' && in_array('rin', $accepts, true));
+        }
+
+        if (preg_match('/^RIN[0-9A-Za-z]{1,61}$/', trim($orderId)) === 1) {
+            return in_array('rin', $accepts, true);
+        }
+
+        return in_array('rd', $accepts, true) && RdServiceOrderId::isValid($orderId);
     }
 
     public function fetch(string $orderId): RdServiceFetchResult
     {
-        if (! (bool) config('rdservice.enabled', false)) {
-            return $this->skip('disabled', 'RDService integration is disabled.');
+        if (! $this->isConfigured()) {
+            return $this->skip('not_configured', 'Spoke '.$this->source.' is not configured.');
         }
 
-        if ($this->token() === '') {
-            return $this->skip('not_configured', 'RDService API token is not configured.');
+        if (! $this->isEligible($orderId)) {
+            return $this->skip('invalid_order_id', 'Order ID is not valid for '.$this->source.'.');
         }
 
         $baseUrl = $this->originBaseUrl();
-
         if ($baseUrl === null) {
-            Log::error('RDService base URL is missing, not HTTPS, or loopback HTTP is missing a Host header; skipping lookup.', [
-                'order_id' => $orderId,
-            ]);
-
-            return $this->skip('insecure_base_url', 'RDService base URL must be HTTPS or loopback HTTP with a configured Host.');
+            return $this->skip('insecure_base_url', 'Spoke base URL must be HTTPS or loopback HTTP with a Host.');
         }
 
-        $normalized = RdServiceOrderId::normalize($orderId);
-
-        if ($normalized === null || Order::isHardwareOrderId($normalized) || Order::isInquiryOrderId($normalized)) {
-            return $this->skip('invalid_order_id', 'RD order ID is not valid for RDService lookup.');
-        }
+        $normalized = trim($orderId);
 
         try {
             $request = Http::baseUrl($baseUrl)
                 ->acceptJson()
                 ->withToken($this->token())
-                ->connectTimeout((int) config('rdservice.connect_timeout_seconds', 3))
-                ->timeout((int) config('rdservice.timeout_seconds', 8));
+                ->connectTimeout((int) ($this->config()['connect_timeout_seconds'] ?? 3))
+                ->timeout((int) ($this->config()['timeout_seconds'] ?? 8));
 
             $host = $this->requestHostHeader();
             if ($host !== null) {
@@ -100,35 +117,80 @@ class RdServiceClient
         }
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function fetchHistoricalInvoice(string $invoiceNumber): ?array
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+
+        $baseUrl = $this->originBaseUrl();
+        $path = $this->config()['historical_invoice_path'] ?? null;
+        if ($baseUrl === null || ! is_string($path) || $path === '') {
+            return null;
+        }
+
+        $request = Http::baseUrl($baseUrl)
+            ->acceptJson()
+            ->withToken($this->token())
+            ->connectTimeout((int) ($this->config()['connect_timeout_seconds'] ?? 3))
+            ->timeout((int) ($this->config()['timeout_seconds'] ?? 8));
+
+        $host = $this->requestHostHeader();
+        if ($host !== null) {
+            $request = $request->withHeaders(['Host' => $host]);
+        }
+
+        $response = $request->get(rtrim($path, '/').'/'.rawurlencode($invoiceNumber));
+        $payload = $response->json();
+
+        return is_array($payload) ? $payload + ['_http_status' => $response->status()] : [
+            '_http_status' => $response->status(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function config(): array
+    {
+        $config = config('order_lookup.spokes.'.$this->source, []);
+
+        return is_array($config) ? $config : [];
+    }
+
     private function interpretResponse(string $orderId, int $status, mixed $payload, ?string $retryAfter): RdServiceFetchResult
     {
         if ($status === 401) {
-            Log::error('RDService authentication failed.', [
+            Log::error('Spoke order lookup authentication failed.', [
+                'source' => $this->source,
                 'order_id' => $orderId,
                 'http_status' => 401,
             ]);
 
             return new RdServiceFetchResult(
                 retriable: false,
-                fallbackToAdmin: true,
-                errorMessage: 'RDService authentication failed.',
+                fallbackToAdmin: false,
+                errorMessage: 'Spoke authentication failed.',
                 errorType: 'unauthorized',
                 httpStatus: 401,
             );
         }
 
         if ($status === 404) {
-            return $this->notFound('RDService order not found.', 404);
+            return $this->notFound('Spoke order not found.', 404);
         }
 
         if ($status === 429) {
             return new RdServiceFetchResult(
                 retriable: true,
                 fallbackToAdmin: false,
-                errorMessage: 'RDService API rate limit exceeded (HTTP 429).',
+                errorMessage: 'Spoke API rate limit exceeded (HTTP 429).',
                 errorType: 'rate_limited',
                 httpStatus: 429,
-                retryAfterSeconds: $this->parseRetryAfter($retryAfter),
+                retryAfterSeconds: ctype_digit((string) $retryAfter) ? (int) $retryAfter : null,
             );
         }
 
@@ -136,18 +198,14 @@ class RdServiceClient
             return new RdServiceFetchResult(
                 retriable: true,
                 fallbackToAdmin: false,
-                errorMessage: 'RDService API request failed with HTTP '.$status.'.',
+                errorMessage: 'Spoke API request failed with HTTP '.$status.'.',
                 errorType: 'http_error',
                 httpStatus: $status,
             );
         }
 
-        if ($status !== 200) {
-            return $this->malformed('RDService API returned HTTP '.$status.'.', $status);
-        }
-
-        if (! is_array($payload)) {
-            return $this->malformed('RDService API returned a non-JSON response.', $status);
+        if ($status !== 200 || ! is_array($payload)) {
+            return $this->malformed('Spoke API returned HTTP '.$status.'.', $status);
         }
 
         try {
@@ -170,7 +228,7 @@ class RdServiceClient
     {
         return new RdServiceFetchResult(
             retriable: false,
-            fallbackToAdmin: true,
+            fallbackToAdmin: false,
             errorMessage: $message,
             errorType: $errorType,
         );
@@ -180,7 +238,7 @@ class RdServiceClient
     {
         return new RdServiceFetchResult(
             retriable: false,
-            fallbackToAdmin: true,
+            fallbackToAdmin: false,
             errorMessage: $message,
             errorType: 'order_not_found',
             httpStatus: $httpStatus,
@@ -191,7 +249,7 @@ class RdServiceClient
     {
         return new RdServiceFetchResult(
             retriable: false,
-            fallbackToAdmin: true,
+            fallbackToAdmin: false,
             errorMessage: $message,
             errorType: 'invalid_response',
             httpStatus: $httpStatus,
@@ -200,7 +258,7 @@ class RdServiceClient
 
     private function originBaseUrl(): ?string
     {
-        $baseUrl = rtrim((string) config('rdservice.base_url'), '/');
+        $baseUrl = rtrim((string) ($this->config()['base_url'] ?? ''), '/');
         $lower = strtolower($baseUrl);
 
         if ($baseUrl === '') {
@@ -220,7 +278,7 @@ class RdServiceClient
 
     private function requestHostHeader(): ?string
     {
-        $host = trim((string) config('rdservice.host', ''));
+        $host = trim((string) ($this->config()['host'] ?? ''));
 
         if ($host === '' || preg_match('/^[A-Za-z0-9.-]+\z/', $host) !== 1) {
             return null;
@@ -231,7 +289,7 @@ class RdServiceClient
 
     private function token(): string
     {
-        return trim((string) config('rdservice.token'));
+        return trim((string) ($this->config()['token'] ?? ''));
     }
 
     private function redact(string $message): string
@@ -243,26 +301,5 @@ class RdServiceClient
         }
 
         return $message;
-    }
-
-    private function parseRetryAfter(?string $retryAfter): ?int
-    {
-        if ($retryAfter === null || trim($retryAfter) === '') {
-            return null;
-        }
-
-        $retryAfter = trim($retryAfter);
-
-        if (ctype_digit($retryAfter)) {
-            return max(0, (int) $retryAfter);
-        }
-
-        $retryAt = strtotime($retryAfter);
-
-        if ($retryAt === false) {
-            return null;
-        }
-
-        return max(0, $retryAt - time());
     }
 }

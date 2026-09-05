@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
-use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\WaitingReason;
 use App\Models\DeviceModel;
 use App\Models\Incident;
@@ -47,6 +46,7 @@ class ReadyQueueRedesignTest extends TestCase
         config([
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
             'cashfree.system_user_email' => 'superadmin@radium.local',
         ]);
 

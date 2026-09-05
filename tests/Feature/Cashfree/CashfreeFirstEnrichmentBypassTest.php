@@ -6,6 +6,7 @@ use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\AuditLog;
 use App\Models\Order;
+use App\Models\User;
 use App\Services\Cashfree\CashfreeRadiumBoxBypassMetrics;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use App\Services\RadiumBox\RadiumBoxSyncAuditService;
@@ -30,6 +31,7 @@ class CashfreeFirstEnrichmentBypassTest extends TestCase
             'cashfree.verify_signature' => false,
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
         ]);
 
         $this->seed(RolePermissionSeeder::class);
@@ -192,7 +194,7 @@ class CashfreeFirstEnrichmentBypassTest extends TestCase
         $this->assertNotNull($order);
         Queue::assertNotPushed(RadiumBoxOrderEnrichmentJob::class);
 
-        $actor = \App\Models\User::factory()->create();
+        $actor = User::factory()->create();
         $result = app(RadiumBoxOrderEnrichmentService::class)->manualSync($order->fresh(), $actor);
 
         $this->assertTrue($result->success);

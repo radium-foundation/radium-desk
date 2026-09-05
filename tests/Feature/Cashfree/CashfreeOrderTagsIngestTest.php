@@ -14,6 +14,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\Concerns\EnsuresCashfreeSystemUser;
 use Tests\TestCase;
 
@@ -362,6 +363,7 @@ class CashfreeOrderTagsIngestTest extends TestCase
         config([
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
         ]);
 
         $this->postJson('/api/webhooks/cashfree', $this->successfulPayloadWithTags(
@@ -400,10 +402,11 @@ class CashfreeOrderTagsIngestTest extends TestCase
         config([
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
         ]);
 
         // Prevent sync-queue execution of the Cashfree fallback job before Http::fake().
-        \Illuminate\Support\Facades\Queue::fake();
+        Queue::fake();
 
         $this->postJson('/api/webhooks/cashfree', $this->successfulPayloadWithTags(
             cfPaymentId: '6179000002',

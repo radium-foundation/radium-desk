@@ -30,6 +30,7 @@ class BackfillRadiumBoxSyncCommandTest extends TestCase
         config([
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
             'radiumbox.recovery.enabled' => true,
             'radiumbox.recovery.stale_pending_minutes' => 30,
             'radiumbox.recovery.max_recovery_attempts' => 10,

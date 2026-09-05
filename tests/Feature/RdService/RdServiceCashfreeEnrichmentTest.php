@@ -43,6 +43,7 @@ class RdServiceCashfreeEnrichmentTest extends TestCase
             'cashfree.verify_signature' => false,
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
             'rdservice.enabled' => true,
             'rdservice.token' => self::TOKEN,
             'rdservice.base_url' => 'https://rdservice.net',

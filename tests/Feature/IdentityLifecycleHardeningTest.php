@@ -15,7 +15,6 @@ use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\OrderSerialService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
-use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxService;
 use App\Services\ServiceCaseAssignmentEligibilityService;
 use Database\Seeders\DeviceModelSeeder;
@@ -41,6 +40,7 @@ class IdentityLifecycleHardeningTest extends TestCase
         config([
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
             'cashfree.system_user_email' => 'superadmin@radium.local',
         ]);
     }

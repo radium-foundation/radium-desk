@@ -6,7 +6,7 @@
     <div class="mb-4">
         <p class="text-muted small text-uppercase fw-semibold mb-1">Finance</p>
         <h1 class="h3 mb-1">Statutory invoices</h1>
-        <p class="text-muted mb-0">GST tax invoices issued manually from Finance Hub. Automatic issuance is OFF. POS INV-* receipts and historical Admin INV* numbers are not listed here.</p>
+        <p class="text-muted mb-0">GST tax invoices issued manually from Finance Hub. Automatic issuance is OFF. POS INV-* receipts are not listed here. Historical Admin INV* numbers are reprinted from <a href="{{ route('finance.invoices.historical') }}">Historical reprint</a>.</p>
     </div>
 
     @include('finance.partials.workspace-nav', ['active' => 'invoices'])

@@ -10,12 +10,14 @@ use App\Models\DeviceModel;
 use App\Models\DeviceModelAlias;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\CommunicationActions\ReferenceNumberCommunicationService;
 use App\Services\IncidentReferenceService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\RadiumBox\RadiumBoxService;
+use App\Services\SystemSettingsService;
 use Database\Seeders\DeviceModelSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -36,6 +38,7 @@ class OrderIdentityLifecycleDeviceModelResolutionTest extends TestCase
         config([
             'radiumbox.enabled' => true,
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.admin_fallback_enabled' => true,
             'interakt.api_key' => 'test-interakt-key',
             'interakt.templates.driver_installation_guide.name' => 'driver_installation_guide_template',
             'interakt.templates.driver_installation_guide.display_name' => 'Driver Installation Guide',
@@ -329,12 +332,12 @@ class OrderIdentityLifecycleDeviceModelResolutionTest extends TestCase
         ], $settings);
 
         foreach ($settings as $key => $value) {
-            \App\Models\SystemSetting::query()->updateOrCreate(
+            SystemSetting::query()->updateOrCreate(
                 ['key' => $key],
                 ['value' => $value ? '1' : '0'],
             );
 
-            app(\App\Services\SystemSettingsService::class)->forget($key);
+            app(SystemSettingsService::class)->forget($key);
         }
     }
 }

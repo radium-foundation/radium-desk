@@ -10,6 +10,24 @@ use Illuminate\Support\Carbon;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function disableRetiredAdminOrderFallback(): void
+    {
+        config([
+            'radiumbox.admin_fallback_enabled' => false,
+            'order_lookup.admin_fallback_enabled' => false,
+            'radiumbox.enabled' => false,
+            'radiumbox.base_url' => '',
+        ]);
+    }
+
+    protected function enableRetiredAdminOrderFallback(): void
+    {
+        config([
+            'radiumbox.admin_fallback_enabled' => true,
+            'order_lookup.admin_fallback_enabled' => true,
+        ]);
+    }
+
     protected function tearDown(): void
     {
         Carbon::setTestNow();
