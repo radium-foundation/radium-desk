@@ -28,6 +28,7 @@ final class ChannelOrderIngestRequest
         public readonly ?string $customerEmail = null,
         public readonly ?string $buyerGstin = null,
         public readonly ?string $billingAddress = null,
+        public readonly ?string $billingState = null,
         public readonly ?string $shippingAddress = null,
         public readonly ?string $sellerGstin = null,
         public readonly ?string $sellerName = null,

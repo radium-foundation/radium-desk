@@ -7,11 +7,14 @@ use App\Enums\StatutoryInvoiceChannel;
 use App\Models\ChannelIngestAttempt;
 use App\Models\CommerceOrder;
 use App\Models\FinanceJournal;
+use App\Models\InvoiceSequence;
+use App\Models\InvoiceSequenceAllocation;
 use App\Models\StatutoryInvoice;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
 use App\Services\ChannelIngest\ChannelIngestService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ChannelOrderIngestTest extends TestCase
@@ -218,6 +221,129 @@ class ChannelOrderIngestTest extends TestCase
         )->assertCreated();
     }
 
+    public function test_structured_billing_address_state_persists_independently_of_flattened_address(): void
+    {
+        $payload = $this->payload();
+        $payload['billing_address'] = [
+            'line1' => '12 Street',
+            'city' => 'Pune',
+            'state' => 'Maharashtra',
+            'pincode' => '411001',
+        ];
+
+        $this->signedPost($payload)->assertCreated();
+
+        $order = CommerceOrder::query()->firstOrFail();
+        $this->assertTrue(Schema::hasColumn('commerce_orders', 'billing_state'));
+        $this->assertSame('Maharashtra', $order->billing_state);
+        $this->assertSame('12 Street, Pune, Maharashtra, 411001', $order->billing_address);
+        $this->assertSame('Delhi', $order->place_of_supply_state);
+        $this->assertNoStatutorySideEffects();
+    }
+
+    public function test_missing_billing_state_remains_missing_and_is_not_inferred(): void
+    {
+        $payload = $this->payload();
+        $payload['billing_address'] = [
+            'line1' => '12 Street, Pune, Maharashtra',
+            'city' => 'Pune',
+            'pincode' => '411001',
+        ];
+
+        $this->signedPost($payload)
+            ->assertCreated()
+            ->assertJsonPath('invoice', null);
+
+        $order = CommerceOrder::query()->firstOrFail();
+        $this->assertNull($order->billing_state);
+        $this->assertSame('12 Street, Pune, Maharashtra, Pune, 411001', $order->billing_address);
+        $this->assertNoStatutorySideEffects();
+    }
+
+    public function test_invalid_billing_state_is_rejected(): void
+    {
+        $payload = $this->payload();
+        $payload['billing_address'] = [
+            'line1' => '12 Street',
+            'state' => 'Narnia',
+        ];
+
+        $this->signedPost($payload)
+            ->assertStatus(422)
+            ->assertJsonPath('status', 'rejected')
+            ->assertJsonPath('invoice', null);
+
+        $this->assertSame(0, CommerceOrder::query()->count());
+        $this->assertNoStatutorySideEffects();
+    }
+
+    public function test_gst_code_and_abbreviation_are_not_accepted_as_billing_state(): void
+    {
+        foreach (['27', 'MH', 'maharashtra'] as $invalid) {
+            $payload = $this->payload('RD-STATE-'.$invalid);
+            $payload['billing_address'] = [
+                'line1' => '12 Street',
+                'state' => $invalid,
+            ];
+
+            $this->signedPost($payload)->assertStatus(422);
+        }
+
+        $this->assertSame(0, CommerceOrder::query()->count());
+        $this->assertNoStatutorySideEffects();
+    }
+
+    public function test_flattened_billing_address_string_stays_compatible_and_is_not_parsed_for_state(): void
+    {
+        $payload = $this->payload();
+        $payload['billing_address'] = '12 Street, Pune, Maharashtra, 411001';
+
+        $this->signedPost($payload)->assertCreated();
+
+        $order = CommerceOrder::query()->firstOrFail();
+        $this->assertSame('12 Street, Pune, Maharashtra, 411001', $order->billing_address);
+        $this->assertNull($order->billing_state);
+        $this->assertNoStatutorySideEffects();
+    }
+
+    public function test_repeat_structured_state_submission_is_idempotent(): void
+    {
+        $payload = $this->payload();
+        $payload['billing_address'] = [
+            'line1' => '12 Street',
+            'city' => 'Pune',
+            'state' => 'Maharashtra',
+        ];
+
+        $first = $this->signedPost($payload);
+        $second = $this->signedPost($payload);
+
+        $first->assertCreated();
+        $second->assertOk()->assertJsonPath('duplicate', true);
+        $this->assertSame($first->json('order_no'), $second->json('order_no'));
+        $this->assertSame(1, CommerceOrder::query()->count());
+
+        $order = CommerceOrder::query()->firstOrFail();
+        $this->assertSame('Maharashtra', $order->billing_state);
+        $this->assertSame('12 Street, Pune, Maharashtra', $order->billing_address);
+        $this->assertNoStatutorySideEffects();
+    }
+
+    public function test_place_of_supply_state_cannot_become_the_billing_state(): void
+    {
+        $payload = $this->payload();
+        $payload['place_of_supply_state'] = 'Maharashtra';
+        unset($payload['billing_address']);
+
+        $this->signedPost($payload)->assertCreated();
+
+        $order = CommerceOrder::query()->firstOrFail();
+        $this->assertSame('Maharashtra', $order->place_of_supply_state);
+        $this->assertNull($order->billing_state);
+        $this->assertNull($order->billing_address);
+        $this->assertNoStatutorySideEffects();
+    }
+
     public function test_failed_outer_transaction_rolls_back_ingest(): void
     {
         try {
@@ -234,6 +360,17 @@ class ChannelOrderIngestTest extends TestCase
 
         $this->assertSame(0, CommerceOrder::query()->count());
         $this->assertSame(0, StatutoryInvoice::query()->count());
+    }
+
+    private function assertNoStatutorySideEffects(): void
+    {
+        $this->assertFalse((bool) config('channel_ingest.auto_issue_invoice'));
+        $this->assertFalse((bool) config('statutory_invoices.auto_issue_on_pos_complete'));
+        $this->assertFalse((bool) config('statutory_invoices.worker_may_mint'));
+        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame(0, InvoiceSequence::query()->count());
+        $this->assertSame(0, InvoiceSequenceAllocation::query()->count());
+        $this->assertSame(0, FinanceJournal::query()->count());
     }
 
     /**

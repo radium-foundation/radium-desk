@@ -30,6 +30,7 @@ class CommerceOrder extends Model
         'customer_email',
         'buyer_gstin',
         'billing_address',
+        'billing_state',
         'shipping_address',
         'seller_gstin',
         'seller_name',

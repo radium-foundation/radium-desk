@@ -6,6 +6,7 @@ use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceSourceType;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\ChannelIngest\Data\ChannelOrderLineDraft;
+use App\Support\Finance\IndianStates;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Validator;
@@ -64,6 +65,9 @@ class ChannelIngestPayloadValidator
         }
 
         $customer = is_array($data['customer'] ?? null) ? $data['customer'] : [];
+        $rawCustomer = is_array($payload['customer'] ?? null) ? $payload['customer'] : [];
+        $rawBilling = $payload['billing_address'] ?? $rawCustomer['billing_address'] ?? null;
+        $rawShipping = $payload['shipping_address'] ?? $rawCustomer['shipping_address'] ?? null;
 
         return new ChannelOrderIngestRequest(
             channel: StatutoryInvoiceChannel::from((string) $data['channel']),
@@ -80,8 +84,9 @@ class ChannelIngestPayloadValidator
             customerPhone: $this->nullableString($customer['phone'] ?? null),
             customerEmail: $this->nullableString($customer['email'] ?? null),
             buyerGstin: $this->nullableString($customer['gstin'] ?? $data['buyer_gstin'] ?? null),
-            billingAddress: $this->address($data['billing_address'] ?? $customer['billing_address'] ?? null),
-            shippingAddress: $this->address($data['shipping_address'] ?? $customer['shipping_address'] ?? null),
+            billingAddress: $this->address($rawBilling),
+            billingState: $this->structuredBillingState($rawBilling),
+            shippingAddress: $this->address($rawShipping),
             sellerGstin: $this->nullableString($data['seller_gstin'] ?? null),
             sellerName: $this->nullableString($data['seller_name'] ?? null),
             branchCode: $this->nullableString($data['branch_code'] ?? null),
@@ -118,6 +123,9 @@ class ChannelIngestPayloadValidator
             'customer.gstin' => ['nullable', 'string', 'max:32'],
             'buyer_gstin' => ['nullable', 'string', 'max:32'],
             'billing_address' => ['nullable'],
+            'billing_address.state' => ['nullable', 'string', 'max:64'],
+            'customer.billing_address' => ['nullable'],
+            'customer.billing_address.state' => ['nullable', 'string', 'max:64'],
             'shipping_address' => ['nullable'],
             'seller_gstin' => ['nullable', 'string', 'max:32'],
             'seller_name' => ['nullable', 'string', 'max:255'],
@@ -159,6 +167,16 @@ class ChannelIngestPayloadValidator
             if ($name === '' && $phone === '') {
                 $validator->errors()->add('customer', 'Customer name or phone is required. Values are not invented.');
             }
+
+            $rawBilling = $validator->getValue('billing_address')
+                ?? Arr::get($validator->getData(), 'customer.billing_address');
+            $billingState = $this->structuredBillingState($rawBilling);
+            if ($billingState !== null && ! IndianStates::contains($billingState)) {
+                $validator->errors()->add(
+                    'billing_address.state',
+                    'Billing state must be a recognised Indian state or union territory. Values are not invented from address text.',
+                );
+            }
         });
     }
 
@@ -184,6 +202,19 @@ class ChannelIngestPayloadValidator
         }
 
         return round((float) $value, 2);
+    }
+
+    /**
+     * Structured checkout state only. Flattened billing_address strings
+     * and place_of_supply_state are never parsed or copied here.
+     */
+    private function structuredBillingState(mixed $value): ?string
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return $this->nullableString($value['state'] ?? null);
     }
 
     private function address(mixed $value): ?string
