@@ -14,6 +14,7 @@ use App\Services\Commercial\CommercialStateResolver;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\TeamMemberActivityService;
 use App\Services\SerialValidation\SerialPlaceholderService;
+use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceIssuer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -185,6 +186,9 @@ class OrderTransactionService
             $this->batchCoalescer->deferDriverGuide($freshOrder->id, $transactionId, $actor->id);
             $this->batchCoalescer->deferNotification($freshOrder->id, $transactionId, $actor->id);
         }
+
+        app(ServiceStatutoryInvoiceIssuer::class)
+            ->issueAfterWorkflowCommit($freshOrder, $actor);
 
         return $freshOrder;
     }

@@ -253,10 +253,20 @@ class StatutoryLocationNumberingTest extends TestCase
         $this->assertSame('78', StatutoryFinancialYear::containing(Carbon::parse('2027-04-01'))->code());
         $this->assertSame('INV-07671', $series->formatNumber(StatutoryLocationSeries::DELHI, $fy26, 1));
         $this->assertSame('INV-27672', $series->formatNumber(StatutoryLocationSeries::MUMBAI, $fy26, 2));
+        $this->assertSame('INV-671', $series->formatNumber(StatutoryLocationSeries::DELHI_B2C, $fy26, 1));
+        $this->assertSame('INV-672', $series->formatNumber(StatutoryLocationSeries::DELHI_B2C, $fy26, 2));
         $this->assertSame('INV-07781', $series->formatNumber(StatutoryLocationSeries::DELHI, $fy27, 1));
         $this->assertSame('INV-27781', $series->formatNumber(StatutoryLocationSeries::MUMBAI, $fy27, 1));
         $this->assertSame('INV-0767999', $series->formatNumber(StatutoryLocationSeries::DELHI, $fy26, 999));
         $this->assertSame('INV-07671000', $series->formatNumber(StatutoryLocationSeries::DELHI, $fy26, 1000));
+
+        try {
+            $series->formatNumber(StatutoryLocationSeries::DELHI_B2C, $fy27, 1);
+            $this->fail('Expected FY 2027-28 Delhi B2C numbering to fail closed.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('UNKNOWN', implode(' ', $exception->errors()['number'] ?? []));
+            $this->assertStringNotContainsString('INV-781', implode(' ', $exception->errors()['number'] ?? []));
+        }
     }
 
     private function request(string $sourceId, string $location, string $fy = '2026-2027'): StatutoryInvoiceMintRequest

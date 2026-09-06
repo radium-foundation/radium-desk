@@ -11,10 +11,13 @@ use Illuminate\Validation\ValidationException;
  * Resolves the statutory billing issuer only.
  *
  * Product: branch → Delhi / Mumbai.
- * Service B2B: Maharashtra → Mumbai; any other known Indian state → Delhi.
- * Service B2C: always Delhi.
+ * Service B2B: valid GSTIN state 27 → Mumbai; any other known GSTIN state → Delhi B2B.
+ * Service B2C: billing_state Maharashtra → Mumbai; any other recognised Indian state → Delhi B2C.
  *
+ * Invalid non-empty GSTIN fails closed (never treated as B2C).
+ * Missing or unrecognised B2C billing_state fails closed.
  * Place of supply is never used to choose the issuer.
+ * B2B issuer follows the GSTIN state; billing_state does not override it.
  */
 final class StatutoryBillingIssuer
 {
@@ -47,12 +50,12 @@ final class StatutoryBillingIssuer
 
         $gstin = BuyerGstin::normalize($buyerGstin);
         if ($gstin === null) {
-            return StatutoryLocationSeries::DELHI;
+            return $this->requireB2cServiceLocation($customerState);
         }
 
         if (! BuyerGstin::isValid($gstin)) {
             throw ValidationException::withMessages([
-                'issuer' => 'B2B service billing requires a valid customer GSTIN. Issuance fails closed.',
+                'issuer' => 'B2B service billing requires a valid 15-character customer GSTIN. Invalid GSTIN values cannot be treated as B2C. Issuance fails closed.',
             ]);
         }
 
@@ -63,24 +66,29 @@ final class StatutoryBillingIssuer
             ]);
         }
 
-        $named = is_string($customerState) ? trim($customerState) : '';
-        if ($named !== '') {
-            if (! IndianStates::contains($named)) {
-                throw ValidationException::withMessages([
-                    'issuer' => 'B2B service customer state is not a recognised Indian state. Issuance fails closed.',
-                ]);
-            }
-            $namedCode = GstStateCodes::codeForName($named);
-            if ($namedCode === null || $namedCode !== $gstinState) {
-                throw ValidationException::withMessages([
-                    'issuer' => 'B2B service customer state does not match the customer GSTIN state. Issuance fails closed.',
-                ]);
-            }
-        }
-
         return GstStateCodes::isMaharashtraCode($gstinState)
             ? StatutoryLocationSeries::MUMBAI
             : StatutoryLocationSeries::DELHI;
+    }
+
+    private function requireB2cServiceLocation(?string $billingState): string
+    {
+        $named = is_string($billingState) ? trim($billingState) : '';
+        if ($named === '') {
+            throw ValidationException::withMessages([
+                'issuer' => 'B2C service billing requires a recognised billing_state. Place of supply cannot substitute. Issuance fails closed.',
+            ]);
+        }
+
+        if (! IndianStates::contains($named)) {
+            throw ValidationException::withMessages([
+                'issuer' => 'B2C service billing_state is not a recognised Indian state. Issuance fails closed.',
+            ]);
+        }
+
+        return GstStateCodes::isMaharashtraName($named)
+            ? StatutoryLocationSeries::MUMBAI
+            : StatutoryLocationSeries::DELHI_B2C;
     }
 
     public function errorForSale(?string $branchCode): ?string

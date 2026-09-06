@@ -83,15 +83,26 @@ class StatutoryBillingIssuerTest extends TestCase
         }
     }
 
-    public function test_service_b2c_always_bills_from_delhi(): void
+    public function test_service_b2c_routes_by_billing_state(): void
     {
-        foreach (['Maharashtra', 'Delhi', 'Karnataka'] as $state) {
-            $this->assertSame(
-                StatutoryLocationSeries::DELHI,
-                $this->issuer->require(StatutorySupplyKind::Service, 'MUMBAI', null, $state),
-                $state,
-            );
-        }
+        $this->assertSame(
+            StatutoryLocationSeries::MUMBAI,
+            $this->issuer->require(StatutorySupplyKind::Service, 'DELHI-RETAIL', null, 'Maharashtra'),
+        );
+        $this->assertSame(
+            StatutoryLocationSeries::DELHI_B2C,
+            $this->issuer->require(StatutorySupplyKind::Service, 'MUMBAI', null, 'Delhi'),
+        );
+        $this->assertSame(
+            StatutoryLocationSeries::DELHI_B2C,
+            $this->issuer->require(StatutorySupplyKind::Service, 'MUMBAI', null, 'Karnataka'),
+        );
+    }
+
+    public function test_service_b2c_missing_or_invalid_billing_state_fails_closed(): void
+    {
+        $this->expectException(ValidationException::class);
+        $this->issuer->require(StatutorySupplyKind::Service, 'MUMBAI', null, null);
     }
 
     public function test_service_issuer_does_not_use_place_of_supply(): void
@@ -106,10 +117,22 @@ class StatutoryBillingIssuerTest extends TestCase
         $this->issuer->require(StatutorySupplyKind::Product, 'HQ', null, null);
     }
 
-    public function test_conflicting_b2b_customer_state_and_gstin_fail_closed(): void
+    public function test_conflicting_b2b_customer_state_and_gstin_follows_gstin(): void
+    {
+        $this->assertSame(
+            StatutoryLocationSeries::MUMBAI,
+            $this->issuer->require(StatutorySupplyKind::Service, null, '27AAAAA0000A1Z5', 'Karnataka'),
+        );
+        $this->assertSame(
+            StatutoryLocationSeries::DELHI,
+            $this->issuer->require(StatutorySupplyKind::Service, null, '07AAAAA0000A1Z5', 'Maharashtra'),
+        );
+    }
+
+    public function test_invalid_non_empty_gstin_fails_closed_and_is_not_b2c(): void
     {
         $this->expectException(ValidationException::class);
-        $this->issuer->require(StatutorySupplyKind::Service, null, '27AAAAA0000A1Z5', 'Karnataka');
+        $this->issuer->require(StatutorySupplyKind::Service, null, '27-NOT-A-GSTIN', 'Maharashtra');
     }
 
     public function test_unknown_gstin_state_code_fails_closed(): void
@@ -139,23 +162,24 @@ class StatutoryBillingIssuerTest extends TestCase
         $this->assertSame('DELHI-RETAIL', $order->fresh()->branch_code);
     }
 
-    public function test_commerce_b2c_maharashtra_service_bills_delhi_and_keeps_place_of_supply(): void
+    public function test_commerce_b2c_maharashtra_service_bills_mumbai_and_keeps_place_of_supply(): void
     {
         $order = $this->commerceOrder(
             sourceId: 'SVC-MH-B2C',
             hsn: '998313',
-            branchCode: 'MUMBAI',
+            branchCode: 'DELHI-RETAIL',
             placeOfSupply: 'Maharashtra',
             buyerGstin: null,
+            billingState: 'Maharashtra',
         );
 
         $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
 
-        $this->assertSame('INV-07671', $invoice->invoice_number);
-        $this->assertSame($this->configuredSellerGstin('delhi'), $invoice->seller_gstin);
+        $this->assertSame('INV-27671', $invoice->invoice_number);
+        $this->assertSame($this->configuredSellerGstin('mumbai'), $invoice->seller_gstin);
         $this->assertSame('Maharashtra', $invoice->place_of_supply_state);
         $this->assertNull($invoice->buyer_gstin);
-        $this->assertSame('MUMBAI', $order->fresh()->branch_code);
+        $this->assertSame('DELHI-RETAIL', $order->fresh()->branch_code);
     }
 
     public function test_commerce_b2b_delhi_and_other_state_services_use_delhi_seller_gstin(): void
@@ -191,9 +215,10 @@ class StatutoryBillingIssuerTest extends TestCase
             branchCode: 'DELHI-RETAIL',
             placeOfSupply: 'Delhi',
             buyerGstin: null,
+            billingState: 'Delhi',
         ), $this->actor);
 
-        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame('INV-671', $invoice->invoice_number);
         $this->assertSame($this->configuredSellerGstin('delhi'), $invoice->seller_gstin);
         $this->assertSame('Delhi', $invoice->place_of_supply_state);
     }
@@ -280,7 +305,7 @@ class StatutoryBillingIssuerTest extends TestCase
         $this->assertSame(0, StatutoryInvoice::query()->count());
     }
 
-    public function test_first_eligible_september_commerce_service_issues_inv_07671(): void
+    public function test_first_eligible_september_commerce_service_issues_inv_671(): void
     {
         $order = $this->commerceOrder(
             sourceId: 'SEPT-1',
@@ -288,12 +313,13 @@ class StatutoryBillingIssuerTest extends TestCase
             branchCode: 'DELHI-RETAIL',
             placeOfSupply: 'Delhi',
             buyerGstin: null,
+            billingState: 'Delhi',
             orderedAt: '2026-09-01 00:00:00',
         );
 
         $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
 
-        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame('INV-671', $invoice->invoice_number);
         $this->assertSame(1, $invoice->allocation?->seq_int);
     }
 
@@ -329,6 +355,7 @@ class StatutoryBillingIssuerTest extends TestCase
         string $placeOfSupply,
         ?string $buyerGstin,
         string $orderedAt = '2026-09-01 10:00:00',
+        ?string $billingState = null,
     ): CommerceOrder {
         $order = CommerceOrder::query()->create([
             'order_no' => 'CO-'.$sourceId,
@@ -344,6 +371,7 @@ class StatutoryBillingIssuerTest extends TestCase
             'currency' => 'INR',
             'customer_name' => 'Customer',
             'buyer_gstin' => $buyerGstin,
+            'billing_state' => $billingState,
             'branch_code' => $branchCode,
             'place_of_supply_state' => $placeOfSupply,
             'taxable_value' => 100,

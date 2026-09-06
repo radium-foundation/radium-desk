@@ -151,7 +151,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
         $order = $order->fresh();
         $document = StatutoryInvoiceDocument::query()->where('invoice_id', $invoice->id)->first();
 
-        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame('INV-671', $invoice->invoice_number);
         $this->assertSame(StatutoryInvoiceStatus::Issued, $invoice->status);
         $this->assertSame(StatutoryInvoiceChannel::RdServiceNet, $invoice->channel);
         $this->assertSame(StatutoryInvoiceSourceType::CommerceOrder->value, $invoice->source_type);
@@ -283,7 +283,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
         $second = $this->invoices->issueFromCommerceOrder($order->fresh(), $this->actor);
 
         $this->assertSame($first->id, $second->id);
-        $this->assertSame('INV-07671', $second->invoice_number);
+        $this->assertSame('INV-671', $second->invoice_number);
         $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertSame(1, InvoiceSequenceAllocation::query()->count());
         $this->assertSame(1, (int) InvoiceSequence::query()->value('current_value'));
@@ -326,7 +326,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
             ->assertRedirect(route('finance.invoices.commerce-orders.show', $order));
 
         $this->assertSame(1, StatutoryInvoice::query()->count());
-        $this->assertSame('INV-07671', StatutoryInvoice::query()->value('invoice_number'));
+        $this->assertSame('INV-671', StatutoryInvoice::query()->value('invoice_number'));
     }
 
     /**
@@ -356,6 +356,13 @@ class RdServiceNetPhase1CleanTest extends TestCase
             'seller_name' => 'Storefront name must be ignored',
             'branch_code' => 'DELHI-RETAIL',
             'place_of_supply_state' => 'Delhi',
+            'billing_address' => [
+                'line1' => '1 Test Street',
+                'city' => 'New Delhi',
+                'state' => 'Delhi',
+                'pincode' => '110001',
+                'country' => 'India',
+            ],
             'lines' => [
                 [
                     'description' => 'Information technology (IT) consulting & support services',

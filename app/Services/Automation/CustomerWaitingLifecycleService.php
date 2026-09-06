@@ -14,6 +14,7 @@ use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\AutomationIdentityService;
@@ -21,7 +22,9 @@ use App\Services\IncidentWaitingStateService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\RemarkService;
 use App\Services\ServiceCaseStatusService;
+use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceIssuer;
 use App\Support\AppDateFormatter;
+use App\Support\Remarks\RemarkSystemSource;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -251,7 +254,7 @@ TEXT;
                 remarkable: $incident,
                 actor: $actor,
                 body: self::AUTO_CLOSE_REMARK,
-                systemSource: \App\Support\Remarks\RemarkSystemSource::CUSTOMER_WAITING_AUTO_CLOSE,
+                systemSource: RemarkSystemSource::CUSTOMER_WAITING_AUTO_CLOSE,
             );
 
             $this->serviceCaseStatusService->updateStatus($incident, IncidentStatus::Closed, $actor);
@@ -289,8 +292,17 @@ TEXT;
             );
         });
 
-        if ($result->success && $shouldNotify) {
-            $this->notifyCustomerOfAutoClose($incident->fresh(['order']), $actor);
+        if ($result->success) {
+            $closed = $incident->fresh(['order']);
+            $order = $closed?->order;
+            if ($order instanceof Order) {
+                app(ServiceStatutoryInvoiceIssuer::class)
+                    ->issueAfterWorkflowCommit($order, $actor);
+            }
+
+            if ($shouldNotify) {
+                $this->notifyCustomerOfAutoClose($closed ?? $incident, $actor);
+            }
         }
 
         return $result;

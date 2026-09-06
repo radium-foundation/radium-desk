@@ -7,14 +7,24 @@ use Illuminate\Validation\ValidationException;
 /**
  * Owner-finalized Delhi / Mumbai statutory series.
  *
- * Number = INV-{GST_STATE}{FY_CODE}{RUNNING_SERIAL}
- * FY 2026-27 Delhi serial 1 = INV-07671. Serial starts at 1 each FY.
+ * Location series (products + Delhi B2B + all Mumbai):
+ *   Number = INV-{GST_STATE}{FY_CODE}{RUNNING_SERIAL}
+ *   FY 2026-27 Delhi serial 1 = INV-07671. Mumbai serial 1 = INV-27671.
+ *
+ * Isolated Delhi B2C service series (FY 2026-27 only):
+ *   Number = INV-{FY_CODE}{RUNNING_SERIAL}
+ *   FY 2026-27 serial 1 = INV-671. Sequence key is location:delhi_b2c.
+ *   FY 2027-28 Delhi B2C numbering is UNKNOWN and fails closed.
+ *
+ * Serial starts at 1 each FY. Do not share the Delhi B2C sequence with Delhi B2B.
  */
 final class StatutoryLocationSeries
 {
     public const DELHI = 'delhi';
 
     public const MUMBAI = 'mumbai';
+
+    public const DELHI_B2C = 'delhi_b2c';
 
     public function enabled(): bool
     {
@@ -55,16 +65,33 @@ final class StatutoryLocationSeries
 
     public function isKnown(string $location): bool
     {
-        return isset($this->locations()[$location]);
+        return $location === self::DELHI_B2C || isset($this->locations()[$location]);
+    }
+
+    /**
+     * Seller GST registration for a numbering location.
+     *
+     * Delhi B2C reuses the Delhi seller GSTIN/address. It does not create a
+     * third registration and does not share the Delhi B2B sequence.
+     */
+    public function sellerLocation(string $location): string
+    {
+        return $location === self::DELHI_B2C ? self::DELHI : $location;
     }
 
     public function gstStateCode(string $location): string
     {
-        return $this->location($location)['gst_state_code'];
+        return $this->location($this->sellerLocation($location))['gst_state_code'];
     }
 
     public function prefix(string $location, StatutoryFinancialYear $year): string
     {
+        if ($location === self::DELHI_B2C) {
+            $this->assertDelhiB2cYearIsKnown($year);
+
+            return 'INV-'.$year->code();
+        }
+
         return 'INV-'.$this->gstStateCode($location).$year->code();
     }
 
@@ -137,5 +164,14 @@ final class StatutoryLocationSeries
         }
 
         return $locations[$location];
+    }
+
+    private function assertDelhiB2cYearIsKnown(StatutoryFinancialYear $year): void
+    {
+        if ($year->token() !== '2026-2027') {
+            throw ValidationException::withMessages([
+                'number' => 'FY '.$year->token().' Delhi B2C numbering is UNKNOWN. Issuance fails closed.',
+            ]);
+        }
     }
 }

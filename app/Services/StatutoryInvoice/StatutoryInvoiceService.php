@@ -12,6 +12,7 @@ use App\Models\CommerceOrder;
 use App\Models\EInvoiceRecord;
 use App\Models\FinanceJournal;
 use App\Models\InventorySale;
+use App\Models\Order;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
@@ -296,10 +297,11 @@ class StatutoryInvoiceService
             discount: (float) ($order->discount ?? 0),
             paymentMethod: $order->payment_method,
             paymentReference: $order->payment_reference,
+            supportOrderId: $this->resolveSupportOrderId($order),
             numberingLocation: $this->issuer->requireForCommerceOrder(
                 $order->branch_code,
                 $order->buyer_gstin,
-                null,
+                $order->billing_state,
                 $order->items->pluck('hsn_sac')->all(),
             ),
             financialYearToken: $this->eligibility->commercialDate($order) !== null
@@ -312,6 +314,26 @@ class StatutoryInvoiceService
         $this->queueEinvoiceIfEligible($invoice);
 
         return $invoice->load(['items', 'allocation', 'document']);
+    }
+
+    /**
+     * Issue the statutory invoice for a Desk support order by delegating to
+     * the existing rdservice.in commerce-order identity. Does not mint a
+     * second support_order numbering identity.
+     */
+    public function issueFromSupportOrder(Order $order, ?User $actor = null): StatutoryInvoice
+    {
+        $commerce = $this->commerceOrderForSupportOrder($order);
+
+        if ($commerce->support_order_id === null) {
+            $commerce->forceFill(['support_order_id' => $order->id])->save();
+        } elseif ((int) $commerce->support_order_id !== (int) $order->id) {
+            throw ValidationException::withMessages([
+                'support_order' => 'The commerce order is already linked to a different Desk order.',
+            ]);
+        }
+
+        return $this->issueFromCommerceOrder($commerce->fresh(['items']) ?? $commerce, $actor);
     }
 
     public function cancel(StatutoryInvoice $invoice, User $actor, string $reason): StatutoryInvoice
@@ -330,6 +352,47 @@ class StatutoryInvoiceService
         return $invoice->fresh() ?? $invoice;
     }
 
+    private function commerceOrderForSupportOrder(Order $order): CommerceOrder
+    {
+        $sourceId = trim((string) $order->order_id);
+        if ($sourceId === '') {
+            throw ValidationException::withMessages([
+                'support_order' => 'Desk order is missing an order id.',
+            ]);
+        }
+
+        $commerce = CommerceOrder::query()
+            ->where('channel', StatutoryInvoiceChannel::RdServiceIn)
+            ->where('source_type', StatutoryInvoiceSourceType::CommerceOrder->value)
+            ->where('source_id', $sourceId)
+            ->first();
+
+        if ($commerce === null) {
+            throw ValidationException::withMessages([
+                'support_order' => 'No rdservice.in commerce order is linked to this Desk order.',
+            ]);
+        }
+
+        return $commerce;
+    }
+
+    private function resolveSupportOrderId(CommerceOrder $order): ?int
+    {
+        if ($order->support_order_id !== null) {
+            return (int) $order->support_order_id;
+        }
+
+        if ($order->channel !== StatutoryInvoiceChannel::RdServiceIn) {
+            return null;
+        }
+
+        $deskId = Order::query()
+            ->where('order_id', $order->source_id)
+            ->value('id');
+
+        return $deskId !== null ? (int) $deskId : null;
+    }
+
     private function linkCommerceOrder(CommerceOrder $order, StatutoryInvoice $invoice): void
     {
         if ($order->statutory_invoice_id === null) {
@@ -337,6 +400,9 @@ class StatutoryInvoiceService
         }
         if ($order->status !== CommerceOrderStatus::Invoiced) {
             $order->status = CommerceOrderStatus::Invoiced;
+        }
+        if ($order->support_order_id === null && $invoice->support_order_id !== null) {
+            $order->support_order_id = $invoice->support_order_id;
         }
         $order->save();
     }

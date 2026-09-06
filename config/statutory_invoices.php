@@ -40,9 +40,10 @@ return [
 
     /*
     | Owner-finalized statutory location series.
-    | Number = INV-{GST_STATE}{FY}{SERIAL}. Serial starts at 1 each FY.
-    | FY 2026-27 Delhi serial 1 = INV-07671. Mumbai serial 1 = INV-27671.
-    | Product issuer is branch-mapped. Service issuer is B2B/B2C + customer state.
+    | Location numbers = INV-{GST_STATE}{FY}{SERIAL}. Serial starts at 1 each FY.
+    | FY 2026-27 Delhi B2B / product serial 1 = INV-07671. Mumbai serial 1 = INV-27671.
+    | Isolated Delhi B2C service series (FY 2026-27 only) = INV-671…
+    | Product issuer is branch-mapped. Service B2C uses billing_state; B2B uses GSTIN state.
     | Do not remint Admin INV*.
     */
     'location_series' => [

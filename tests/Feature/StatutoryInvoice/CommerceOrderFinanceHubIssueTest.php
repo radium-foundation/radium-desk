@@ -109,6 +109,7 @@ class CommerceOrderFinanceHubIssueTest extends TestCase
             'currency' => 'INR',
             'customer_name' => 'Customer',
             'buyer_gstin' => null,
+            'billing_state' => $placeOfSupply === '' ? null : $placeOfSupply,
             'branch_code' => 'DELHI-RETAIL',
             'place_of_supply_state' => $placeOfSupply === '' ? null : $placeOfSupply,
             'taxable_value' => 100,

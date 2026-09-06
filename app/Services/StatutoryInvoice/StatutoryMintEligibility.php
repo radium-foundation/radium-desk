@@ -117,7 +117,7 @@ class StatutoryMintEligibility
         $issuerError = $this->issuer->errorForCommerceOrder(
             $order->branch_code,
             $order->buyer_gstin,
-            null,
+            $order->billing_state,
             $hsnSacs,
         );
         if ($issuerError !== null) {
@@ -127,7 +127,7 @@ class StatutoryMintEligibility
                 $this->issuer->requireForCommerceOrder(
                     $order->branch_code,
                     $order->buyer_gstin,
-                    null,
+                    $order->billing_state,
                     $hsnSacs,
                 ),
             );

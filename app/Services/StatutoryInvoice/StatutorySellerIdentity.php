@@ -30,9 +30,10 @@ final class StatutorySellerIdentity
 
         $config = $this->locationConfig($location);
         $gstin = BuyerGstin::normalize($config['gstin'] !== '' ? $config['gstin'] : null);
+        $sellerLocation = $this->locations->sellerLocation($location);
         if ($gstin === null || ! BuyerGstin::isValid($gstin)) {
             throw ValidationException::withMessages([
-                'seller' => 'Desk seller GSTIN is unset for the '.$location.' billing issuer.',
+                'seller' => 'Desk seller GSTIN is unset for the '.$sellerLocation.' billing issuer.',
             ]);
         }
 
@@ -143,13 +144,14 @@ final class StatutorySellerIdentity
     private function locationConfig(string $location): array
     {
         $locations = $this->locations->locations();
-        if (! isset($locations[$location])) {
+        $sellerLocation = $this->locations->sellerLocation($location);
+        if (! isset($locations[$sellerLocation])) {
             throw ValidationException::withMessages([
                 'seller' => 'Unsupported statutory GST registration. Only Delhi and Mumbai issuers are configured.',
             ]);
         }
 
-        return $locations[$location];
+        return $locations[$sellerLocation];
     }
 
     private function nullable(mixed $value): ?string

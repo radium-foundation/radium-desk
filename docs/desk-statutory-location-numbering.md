@@ -5,6 +5,8 @@
 **Date:** 2026-09-05  
 **Tree:** `/Users/ravi/RadiumWebsites/radium-desk-pos-release` `main`
 
+> **Owner service-policy correction (RadiumDesk-P-06-09-24), implemented RadiumDesk-P-06-09-31:** Non-Maharashtra B2C service invoices use isolated Delhi B2C `INV-671…` (`location:delhi_b2c`). Maharashtra B2C and all Mumbai service invoices use `INV-27671…`. Delhi B2B and Delhi products remain `INV-07671…` (`location:delhi`). FY 2027–28 Delhi B2C numbering is UNKNOWN and fails closed. See `docs/desk-service-statutory-series-policy.md`.
+
 ## Legal seller
 
 - Legal entity: **Phil Technologies (P) Limited**
@@ -38,26 +40,34 @@ Mint fails closed if the resolved issuer has no valid GSTIN, the GSTIN state doe
 
 ## Invoice formula
 
+Location series (Delhi B2B / products, and all Mumbai):
+
 ```text
 INV-{GST_STATE_CODE}{FY_CODE}{RUNNING_SERIAL}
 ```
 
+Isolated Delhi B2C service series (FY 2026–27 only):
+
+```text
+INV-{FY_CODE}{RUNNING_SERIAL}
+```
+
 | Token | Meaning |
 |---|---|
-| `GST_STATE_CODE` | Issuer GST state: Delhi `07`, Mumbai `27` |
+| `GST_STATE_CODE` | Issuer GST state: Delhi `07`, Mumbai `27`. Omitted on Delhi B2C `INV-671…`. |
 | `FY_CODE` | Last digit of FY start year + last digit of FY end year |
-| `RUNNING_SERIAL` | Per issuer + FY serial starting at `1`. Not zero-padded. Resets to `1` on 1 April. |
+| `RUNNING_SERIAL` | Per sequence key + FY serial starting at `1`. Not zero-padded. Resets to `1` on 1 April. |
 
-The 4-digit `{GST_STATE_CODE}{FY_CODE}` prefix is fixed for that issuer for the whole financial year. Only the running serial increments.
+The 4-digit `{GST_STATE_CODE}{FY_CODE}` prefix is fixed for that issuer for the whole financial year. Only the running serial increments. Delhi B2C uses prefix `INV-67` and must not consume `location:delhi`.
 
 Do **not** treat the number as `INV-0767` plus a separate `0`/`67` seed, and do **not** initialize `current_value` to `7670` or `27670`.
 
 ## FY examples
 
-| FY | Code | Delhi serial 1 | Mumbai serial 1 |
-|---|---|---|---|
-| 2026–27 | `67` | `INV-07671` | `INV-27671` |
-| 2027–28 | `78` | `INV-07781` | `INV-27781` |
+| FY | Code | Delhi B2B / product serial 1 | Delhi B2C serial 1 | Mumbai serial 1 |
+|---|---|---|---|---|
+| 2026–27 | `67` | `INV-07671` | `INV-671` | `INV-27671` |
+| 2027–28 | `78` | `INV-07781` | UNKNOWN — fail closed | `INV-27781` |
 
 Further Delhi FY26–27 examples: serial 2 `INV-07672`, serial 5 `INV-07675`, serial 999 `INV-0767999`, serial 1000 `INV-07671000`.
 
@@ -76,23 +86,24 @@ Customer state does not move a product invoice. A Maharashtra customer buying fr
 
 ## Service issuer
 
-`Service → B2B/B2C → customer state → Billing issuer`
+`Service → B2B GSTIN state or B2C billing_state → Billing issuer / series`
 
-B2B is a valid customer GSTIN. B2C is no customer GSTIN.
+B2B is a valid 15-character customer GSTIN. B2C is a null/empty GSTIN plus a recognised `commerce_orders.billing_state`. Invalid non-empty GSTIN fails closed.
 
-| Kind | Customer location | Billing issuer |
-|---|---|---|
-| B2B | Maharashtra (GSTIN state `27`) | Mumbai |
-| B2B | Any other known Indian GST state | Delhi |
-| B2C | Any state | Delhi |
+| Kind | Location source | Billing issuer | FY 2026–27 series |
+|---|---|---|---|
+| B2B | GSTIN state `27` | Mumbai | `INV-27671…` (shared with Mumbai B2C) |
+| B2B | GSTIN state ≠ `27` | Delhi B2B | `INV-07671…` |
+| B2C | `billing_state` = Maharashtra | Mumbai | `INV-27671…` |
+| B2C | recognised non-Maharashtra `billing_state` | Delhi B2C | `INV-671…` |
 
-Commerce lines whose HSN/SAC starts with `99` are services. Other classifiable numeric HSN codes are products. Mixed product/service invoices fail closed.
+Commerce lines whose HSN/SAC starts with `99` are services. Other classifiable numeric HSN codes are products. Mixed product/service invoices fail closed. Missing `gst_percentage` (or other required line tax fields) fails closed before allocation.
 
 ## Billing issuer vs Place of Supply
 
 The service rule chooses the **billing issuer only**.
 
-Customer state and Place of Supply stay on the invoice as supplied. A Maharashtra B2B service billed from Mumbai still keeps Place of Supply = Maharashtra. A B2C service billed from Delhi still keeps the customer's Place of Supply.
+Customer state and Place of Supply stay on the invoice as supplied. A Maharashtra B2B service billed from Mumbai still keeps Place of Supply = Maharashtra. Place of Supply never chooses the issuer and cannot substitute for missing B2C `billing_state`. B2B issuer follows the GSTIN state even when `billing_state` conflicts.
 
 ## Historical invoices
 
