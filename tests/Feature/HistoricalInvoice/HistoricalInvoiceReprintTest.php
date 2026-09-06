@@ -12,7 +12,6 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -189,7 +188,10 @@ class HistoricalInvoiceReprintTest extends TestCase
     {
         Http::fake([
             'https://radiumbox.com/api/integrations/v1/historical-invoices/INV6745886' => Http::response($this->invoicePayload(), 200),
-            'https://rdservice.net/api/integrations/v1/rd-orders/RD268507' => Http::response($this->spokeOrderPayload('RD268507', 'INV6745886'), 200),
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD268507' => Http::response(
+                $this->spokeOrderPayload('RD268507', 'INV6745886', 'RD3449705'),
+                200,
+            ),
             'https://rdservice.in/*' => Http::response(['status' => 404], 404),
             'https://radiumbox.com/api/integrations/v1/rd-orders/*' => Http::response(['status' => 404], 404),
         ]);
@@ -298,7 +300,7 @@ class HistoricalInvoiceReprintTest extends TestCase
                 200,
             ),
             'https://rdservice.in/*' => Http::response(['status' => 404], 404),
-            'https://radiumbox.com/api/integrations/v1/historical-invoices/INV6717810' => Http::response(
+            'https://radiumbox.com/api/integrations/v1/historical-invoices/*' => Http::response(
                 $this->unmappedInvoicePayload(),
                 200,
             ),
@@ -326,10 +328,36 @@ class HistoricalInvoiceReprintTest extends TestCase
             ->filter(fn (array $pair): bool => str_contains($pair[0]->url(), '/rd-orders/RD3396720'));
         $this->assertCount(1, $orderFetches);
 
-        Http::assertSent(fn (Request $request): bool => str_contains(
-            $request->url(),
-            '/historical-invoices/INV6717810',
-        ));
+        $invoiceFetches = collect(Http::recorded())
+            ->filter(fn (array $pair): bool => str_contains($pair[0]->url(), '/historical-invoices/'));
+        $this->assertCount(0, $invoiceFetches, 'Unmapped RD* Global Search must not wait on a historical-invoice GET.');
+    }
+
+    public function test_mapped_historical_order_opens_c360_without_historical_invoice_get(): void
+    {
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD268507' => Http::response(
+                $this->spokeOrderPayload('RD268507', 'INV6745886', 'RD3449705'),
+                200,
+            ),
+            'https://rdservice.in/*' => Http::response(['status' => 404], 404),
+            'https://radiumbox.com/*' => Http::response(['status' => 404], 404),
+        ]);
+
+        $incident = $this->createMappedHistoricalCase();
+
+        $this->actingAs($this->actor)
+            ->getJson(route('search.index', ['q' => 'RD268507']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $incident->id)
+            ->assertJsonPath('results.0.actions.historical_invoice', 'INV6745886')
+            ->assertJsonMissingPath('historical')
+            ->assertJsonMissingPath('intake');
+
+        $invoiceFetches = collect(Http::recorded())
+            ->filter(fn (array $pair): bool => str_contains($pair[0]->url(), '/historical-invoices/'));
+        $this->assertCount(0, $invoiceFetches);
     }
 
     public function test_unknown_rd_identifier_does_not_fabricate_a_result(): void
@@ -416,8 +444,20 @@ class HistoricalInvoiceReprintTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function spokeOrderPayload(string $orderId, string $invoice): array
+    private function spokeOrderPayload(string $orderId, string $invoice, ?string $linkedDeskOrderId = null): array
     {
+        $order = [
+            'id' => 268507,
+            'ordercode' => $orderId,
+            'invoicecode' => $invoice,
+            'payment_status' => 'Paid',
+            'status' => 'Completed',
+        ];
+
+        if (is_string($linkedDeskOrderId) && $linkedDeskOrderId !== '') {
+            $order['rdservice_order_id'] = preg_replace('/^RD/i', '', $linkedDeskOrderId);
+        }
+
         return [
             'status' => 200,
             'spec_version' => '1.0',
@@ -437,12 +477,7 @@ class HistoricalInvoiceReprintTest extends TestCase
                         'phone' => '9999999999',
                     ]),
                 ],
-                'order' => [
-                    'id' => 268507,
-                    'invoicecode' => $invoice,
-                    'payment_status' => 'Paid',
-                    'status' => 'Completed',
-                ],
+                'order' => $order,
                 'snapshot' => [
                     'rdorderid' => $orderId,
                     'serial_number' => '7710951',

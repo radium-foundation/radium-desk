@@ -21,7 +21,7 @@ class HistoricalCustomer360Resolver
             return null;
         }
 
-        $result = $this->lookup->lookup($identifier);
+        $result = $this->lookup->lookupForCustomer360($identifier);
         if (! $result->canReprint() || ! is_string($result->invoiceNumber) || $result->invoiceNumber === '') {
             return null;
         }
@@ -50,11 +50,13 @@ class HistoricalCustomer360Resolver
     private function findDeskOrder(HistoricalInvoiceResult $result): ?Order
     {
         $orderIds = [];
+        $linked = $result->reprint['linked_order_ids'] ?? [];
         foreach ([
             $result->orderId,
             $result->reprint['ordercode'] ?? null,
             $result->reprint['rdorderid'] ?? null,
             $result->reprint['order_id'] ?? null,
+            ...(is_array($linked) ? $linked : []),
         ] as $candidate) {
             if (is_string($candidate) && $candidate !== '') {
                 $orderIds[] = $candidate;

@@ -58,7 +58,32 @@ class HistoricalInvoiceLookupService
             return $this->lookupByInvoiceNumber($trimmed);
         }
 
-        return $this->lookupByOrderId($trimmed);
+        return $this->lookupByOrderId($trimmed, includeHistoricalInvoice: true);
+    }
+
+    /**
+     * Global Search C360 mapping for an RD* identifier.
+     *
+     * Uses spoke order IDs (including Box `rdservice_order_id`) and does not
+     * wait for a separate historical-invoice GET. Finance reprint still uses
+     * lookup() so the full invoice payload is unchanged.
+     */
+    public function lookupForCustomer360(string $identifier): HistoricalInvoiceResult
+    {
+        $trimmed = self::normalizeLookupQuery($identifier);
+
+        if ($trimmed === '' || strlen($trimmed) > 64) {
+            return new HistoricalInvoiceResult(
+                eligibility: 'invalid',
+                message: 'Enter a historical invoice number (INV…) or an order ID.',
+            );
+        }
+
+        if (self::looksLikeHistoricalInvoiceNumber($trimmed)) {
+            return $this->lookupByInvoiceNumber($trimmed);
+        }
+
+        return $this->lookupByOrderId($trimmed, includeHistoricalInvoice: false);
     }
 
     private function lookupByInvoiceNumber(string $invoiceNumber): HistoricalInvoiceResult
@@ -105,7 +130,7 @@ class HistoricalInvoiceLookupService
         );
     }
 
-    private function lookupByOrderId(string $orderId): HistoricalInvoiceResult
+    private function lookupByOrderId(string $orderId, bool $includeHistoricalInvoice = true): HistoricalInvoiceResult
     {
         $fetch = $this->orders->fetchFromSpokes($orderId);
         if ($fetch === null || ! $fetch->succeeded() || $fetch->enrichment === null) {
@@ -129,9 +154,11 @@ class HistoricalInvoiceLookupService
         $enrichment = $fetch->enrichment;
         $invoiceNumber = $enrichment->invoiceNumber;
         if (is_string($invoiceNumber) && preg_match(self::HISTORICAL_NUMBER, $invoiceNumber) === 1) {
-            $byNumber = $this->lookupByInvoiceNumber($invoiceNumber);
-            if ($byNumber->canReprint()) {
-                return $byNumber;
+            if ($includeHistoricalInvoice) {
+                $byNumber = $this->lookupByInvoiceNumber($invoiceNumber);
+                if ($byNumber->canReprint()) {
+                    return $byNumber;
+                }
             }
 
             return new HistoricalInvoiceResult(
@@ -165,6 +192,7 @@ class HistoricalInvoiceLookupService
             'invoice_date' => null,
             'ordercode' => $orderId,
             'rdorderid' => $orderId,
+            'linked_order_ids' => $enrichment->linkedOrderIds ?? [],
             'seller' => [
                 'legal_name' => 'Phil Technologies (P) Limited',
                 'email' => 'mail@radiumbox.com',

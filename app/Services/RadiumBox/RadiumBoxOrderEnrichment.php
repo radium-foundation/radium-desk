@@ -30,6 +30,8 @@ readonly class RadiumBoxOrderEnrichment
         public ?array $amcDetails = null,
         public ?string $legacyOrderStatus = null,
         public ?Carbon $legacyOrderDate = null,
+        /** @var list<string> */
+        public array $linkedOrderIds = [],
     ) {}
 
     public function hasData(): bool
