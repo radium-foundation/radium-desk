@@ -10,6 +10,13 @@ use App\Services\RdService\RdServiceFetchResult;
 
 class OrderEnrichmentLookupService
 {
+    /**
+     * Request-scoped spoke results, including not-found and retriable failures.
+     *
+     * @var array<string, RdServiceFetchResult|null>
+     */
+    private array $spokeFetchesByOrderId = [];
+
     public function __construct(
         private readonly RdServiceClient $rdServiceClient,
         private readonly RadiumBoxClient $radiumBoxClient,
@@ -76,12 +83,18 @@ class OrderEnrichmentLookupService
 
     public function fetchFromSpokes(string $orderId): ?RdServiceFetchResult
     {
+        $key = trim($orderId);
+
+        if (array_key_exists($key, $this->spokeFetchesByOrderId)) {
+            return $this->spokeFetchesByOrderId[$key];
+        }
+
         $last = null;
 
         if ($this->rdServiceClient->isEligible($orderId)) {
             $last = $this->rdServiceClient->fetch($orderId);
             if ($last->retriable || $this->rdServiceUsable($last)) {
-                return $last;
+                return $this->spokeFetchesByOrderId[$key] = $last;
             }
         }
 
@@ -92,11 +105,11 @@ class OrderEnrichmentLookupService
 
             $last = $client->fetch($orderId);
             if ($last->retriable || $this->rdServiceUsable($last)) {
-                return $last;
+                return $this->spokeFetchesByOrderId[$key] = $last;
             }
         }
 
-        return $last;
+        return $this->spokeFetchesByOrderId[$key] = $last;
     }
 
     private function adminFallbackEnabled(): bool

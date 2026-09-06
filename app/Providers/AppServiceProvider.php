@@ -77,6 +77,7 @@ use App\Services\Operations\TeamPerformanceMetricsService;
 use App\Services\Operations\WorkCalendarService;
 use App\Services\Operations\WorkforceAuthorityService;
 use App\Services\Operations\WorkingHoursTodayService;
+use App\Services\OrderLookup\OrderEnrichmentLookupService;
 use App\Services\Performance\PerformanceRuntimeConfig;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
@@ -181,6 +182,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(OperationsQueueClassifier::class);
         $this->app->scoped(ServiceCaseAutomationStatusService::class);
         $this->app->scoped(RadiumBoxOrderEnrichmentSyncStore::class);
+        $this->app->scoped(OrderEnrichmentLookupService::class);
         $this->app->scoped(TeamAvailabilityOverviewService::class);
         $this->app->scoped(TeamPerformanceMetricsService::class);
         $this->app->scoped(WorkforceAuthorityService::class);

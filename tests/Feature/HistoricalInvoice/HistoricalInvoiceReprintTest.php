@@ -9,8 +9,10 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -269,6 +271,83 @@ class HistoricalInvoiceReprintTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_desk_resident_rd3449705_does_not_call_spokes(): void
+    {
+        Http::fake();
+
+        $incident = $this->createMappedHistoricalCase();
+
+        $this->actingAs($this->actor)
+            ->getJson(route('search.index', ['q' => 'RD3449705']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $incident->id)
+            ->assertJsonMissingPath('historical')
+            ->assertJsonMissingPath('intake');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_unmapped_historical_order_reuses_one_spoke_fetch_for_intake(): void
+    {
+        $this->seed(SettingsSeeder::class);
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD3396720' => Http::response(
+                $this->spokeOrderPayload('RD3396720', 'INV6717810'),
+                200,
+            ),
+            'https://rdservice.in/*' => Http::response(['status' => 404], 404),
+            'https://radiumbox.com/api/integrations/v1/historical-invoices/INV6717810' => Http::response(
+                $this->unmappedInvoicePayload(),
+                200,
+            ),
+            'https://radiumbox.com/api/integrations/v1/rd-orders/*' => Http::response(['status' => 404], 404),
+        ]);
+
+        $this->actingAs($this->actor)
+            ->getJson(route('search.index', ['q' => 'RD3396720']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0)
+            ->assertJsonPath('incident_ids', [])
+            ->assertJsonMissingPath('results.0.incident_id')
+            ->assertJsonPath('historical.query', 'RD3396720')
+            ->assertJsonPath('historical.kind', 'order')
+            ->assertJsonPath('intake.classification', 'legacy')
+            ->assertJsonPath('intake.requires_confirmation', true)
+            ->assertJsonPath('intake.legacy_preview.order_id', 'RD3396720')
+            ->assertJsonPath('intake.legacy_preview_complete', true)
+            ->assertJsonPath('intake.create_url', route('service-requests.quick.store'));
+
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('incidents', 0);
+
+        $orderFetches = collect(Http::recorded())
+            ->filter(fn (array $pair): bool => str_contains($pair[0]->url(), '/rd-orders/RD3396720'));
+        $this->assertCount(1, $orderFetches);
+
+        Http::assertSent(fn (Request $request): bool => str_contains(
+            $request->url(),
+            '/historical-invoices/INV6717810',
+        ));
+    }
+
+    public function test_unknown_rd_identifier_does_not_fabricate_a_result(): void
+    {
+        Http::fake([
+            'https://rdservice.net/*' => Http::response(['status' => 404], 404),
+            'https://rdservice.in/*' => Http::response(['status' => 404], 404),
+            'https://radiumbox.com/*' => Http::response(['status' => 404], 404),
+        ]);
+
+        $this->actingAs($this->actor)
+            ->getJson(route('search.index', ['q' => 'RD3999999']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0)
+            ->assertJsonPath('incident_ids', [])
+            ->assertJsonMissingPath('results.0');
+    }
+
     public function test_lowercase_historical_invoice_is_normalized(): void
     {
         Http::fake([
@@ -412,5 +491,19 @@ class HistoricalInvoiceReprintTest extends TestCase
                 ],
             ],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function unmappedInvoicePayload(): array
+    {
+        $payload = $this->invoicePayload();
+        $payload['data']['invoice']['invoice_number'] = 'INV6717810';
+        $payload['data']['invoice']['orders_id'] = 228603;
+        $payload['data']['invoice']['ordercode'] = 'RD228603';
+        $payload['data']['invoice']['rdorderid'] = 'RD3396720';
+
+        return $payload;
     }
 }

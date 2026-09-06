@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\OrderLookup;
 
+use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
+use App\Services\LegacyOrder\LegacyOrderLookupService;
 use App\Services\OrderLookup\OrderEnrichmentLookupService;
 use App\Services\RdService\RdServiceFetchResult;
 use Illuminate\Http\Client\ConnectionException;
@@ -315,6 +317,111 @@ class OrderEnrichmentLookupServiceTest extends TestCase
         $this->assertNull($enrichment);
         $this->assertRdServiceCalled();
         $this->assertAdminCalled();
+    }
+
+    public function test_scoped_binding_returns_the_same_instance_within_one_application_scope(): void
+    {
+        $this->assertSame(
+            app(OrderEnrichmentLookupService::class),
+            app(OrderEnrichmentLookupService::class),
+        );
+    }
+
+    public function test_successful_spoke_result_is_memoized_for_the_same_order_id(): void
+    {
+        $this->enableRdService();
+        config(['order_lookup.admin_fallback_enabled' => false, 'radiumbox.admin_fallback_enabled' => false]);
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD3395988' => Http::response($this->rdServicePayload('RD3395988'), 200),
+        ]);
+
+        $service = app(OrderEnrichmentLookupService::class);
+        $first = $service->fetchFromSpokes('RD3395988');
+        $second = $service->fetchInteractive('RD3395988');
+
+        $this->assertSame('SN1', $first?->enrichment?->serialNumber);
+        $this->assertSame('SN1', $second?->serialNumber);
+        Http::assertSentCount(1);
+        $this->assertAdminNotCalled();
+    }
+
+    public function test_not_found_spoke_result_is_memoized(): void
+    {
+        $this->enableRdService();
+        config(['order_lookup.admin_fallback_enabled' => false, 'radiumbox.admin_fallback_enabled' => false]);
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD3999999' => Http::response([
+                'status' => 404,
+                'message' => 'RD Order not found',
+            ], 404),
+        ]);
+
+        $service = app(OrderEnrichmentLookupService::class);
+        $first = $service->fetchFromSpokes('RD3999999');
+        $second = $service->fetchFromSpokes('RD3999999');
+
+        $this->assertSame('order_not_found', $first?->errorType);
+        $this->assertSame($first, $second);
+        Http::assertSentCount(1);
+    }
+
+    public function test_retriable_spoke_failure_is_memoized(): void
+    {
+        $this->enableRdService();
+        config(['order_lookup.admin_fallback_enabled' => false, 'radiumbox.admin_fallback_enabled' => false]);
+
+        $attempts = 0;
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD3395988' => function () use (&$attempts) {
+                $attempts++;
+
+                throw new ConnectionException('Connection timed out.');
+            },
+        ]);
+
+        $service = app(OrderEnrichmentLookupService::class);
+        $first = $service->fetchFromSpokes('RD3395988');
+        $second = $service->fetchFromSpokes('RD3395988');
+
+        $this->assertTrue($first?->retriable);
+        $this->assertSame($first, $second);
+        $this->assertSame(1, $attempts);
+    }
+
+    public function test_new_application_scope_performs_spoke_lookup_again(): void
+    {
+        $this->enableRdService();
+        config(['order_lookup.admin_fallback_enabled' => false, 'radiumbox.admin_fallback_enabled' => false]);
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD3395988' => Http::response($this->rdServicePayload('RD3395988'), 200),
+        ]);
+
+        app(OrderEnrichmentLookupService::class)->fetchFromSpokes('RD3395988');
+        $this->app->forgetScopedInstances();
+        app(OrderEnrichmentLookupService::class)->fetchFromSpokes('RD3395988');
+
+        Http::assertSentCount(2);
+    }
+
+    public function test_historical_lookup_and_legacy_preview_share_one_spoke_fetch(): void
+    {
+        $this->enableRdService();
+        config(['order_lookup.admin_fallback_enabled' => false, 'radiumbox.admin_fallback_enabled' => false]);
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD3395988' => Http::response($this->rdServicePayload('RD3395988'), 200),
+        ]);
+
+        app(HistoricalInvoiceLookupService::class)->lookup('RD3395988');
+        $preview = app(LegacyOrderLookupService::class)->lookupLegacyPreview('RD3395988');
+
+        $this->assertSame('RD3395988', $preview?->orderId);
+        $this->assertSame('SN1', $preview?->serialNumber);
+        Http::assertSentCount(1);
+        $this->assertAdminNotCalled();
     }
 
     private function enableRdService(): void
