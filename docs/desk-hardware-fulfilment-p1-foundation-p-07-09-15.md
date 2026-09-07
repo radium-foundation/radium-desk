@@ -158,7 +158,7 @@ One row per device serial. No `qty<=5` assumption. Unique `serial_number` / `inv
 |-------|---------------|------------------|
 | P2 | Fulfilment row exists; this ticket already opened the foundation | Implemented in P-07-09-16: payment evidence + guarded transitions. Operator READY / SKU map still later. |
 | P3 | Implemented in P-07-09-17: `HardwareIssuer` + `mint()` after serials; Annexure A in the same PDF | Serial rows still come from P4 |
-| P4 | Serial picker writes `hardware_fulfilment_serials` | P0-M1 SKU map |
+| P4 | Implemented in P-07-09-18: picker writes `hardware_fulfilment_serials`. Live Owner P0-M1 map rows still required. | P0-M1 SKU map |
 | P5 | Gates: invoice + serials + pickup | P0-M2 nicknames |
 | P6 | Callback after SYNCED path | Box receiver contract |
 | P7 | Observe ingest only | Matching secrets + Box URL |

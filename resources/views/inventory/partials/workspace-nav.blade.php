@@ -19,6 +19,11 @@
             'url' => route('inventory.serials.index'),
             'visible' => true,
         ],
+        'hardware-fulfilments' => [
+            'label' => 'Hardware',
+            'url' => route('inventory.hardware-fulfilments.index'),
+            'visible' => \App\Support\HardwareFulfilment\HardwareFulfilmentAccess::allows($user),
+        ],
         'transfers' => [
             'label' => 'Transfers',
             'url' => route('inventory.transfers.index'),

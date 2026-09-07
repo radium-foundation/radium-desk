@@ -110,6 +110,9 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_POS_SELL = 'pos.sell';
 
+    /** Allocate Desk stock serials to hardware fulfilments. Not a named-user grant. */
+    public const PERMISSION_HARDWARE_FULFILMENT_OPERATE = 'hardware.fulfilment.operate';
+
     public const PERMISSION_POS_CANCEL = 'pos.cancel';
 
     /** Confirm a pending UPI POS intent after checking the live bank. Assigned to no role. */
@@ -157,6 +160,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_POS_SELL,
         self::PERMISSION_POS_CANCEL,
         self::PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES,
+        self::PERMISSION_HARDWARE_FULFILMENT_OPERATE,
     ];
 
     /**
@@ -171,6 +175,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_INVENTORY_STOCK_RESERVE,
         self::PERMISSION_POS_VIEW,
         self::PERMISSION_POS_SELL,
+        self::PERMISSION_HARDWARE_FULFILMENT_OPERATE,
     ];
 
     /**

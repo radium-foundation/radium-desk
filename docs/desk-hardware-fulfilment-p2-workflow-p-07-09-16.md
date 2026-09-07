@@ -127,7 +127,7 @@ Serial picker, stock moves, invoice mint/PDF/annexure, Shiprocket, Box callbacks
 | Phase | Needs |
 |-------|-------|
 | P3 | Implemented in P-07-09-17: `HardwareIssuer` + `mint()` after serials; Annexure A in the same PDF |
-| P4 | Owner SKU map + Avinash picker writing allocated serials |
+| P4 | Implemented in P-07-09-18: Desk stock picker writes allocated serials. Live Owner P0-M1 map rows still required. |
 | P5 | Shiprocket + invoice/serial/pickup gates |
 | P6 | Desk→Box HMAC callback |
 | P7 | Observe ingest; consider `correlate_cashfree` only after freeze policy for the seven |

@@ -47,6 +47,7 @@ use App\Http\Controllers\IncomingEmailAdminController;
 use App\Http\Controllers\IncomingEmailContentController;
 use App\Http\Controllers\Inventory\AdjustmentController as InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\BranchController as InventoryBranchController;
+use App\Http\Controllers\Inventory\HardwareFulfilmentSerialController as InventoryHardwareFulfilmentSerialController;
 use App\Http\Controllers\Inventory\MovementController as InventoryMovementController;
 use App\Http\Controllers\Inventory\OpeningImportController as InventoryOpeningImportController;
 use App\Http\Controllers\Inventory\ProductController as InventoryProductController;
@@ -441,6 +442,11 @@ Route::middleware(['auth', 'active'])->group(function () {
 
         Route::get('serials', [InventorySerialController::class, 'index'])->name('serials.index');
         Route::get('serials/{serial}', [InventorySerialController::class, 'show'])->name('serials.show');
+
+        Route::get('hardware-fulfilments', [InventoryHardwareFulfilmentSerialController::class, 'index'])->name('hardware-fulfilments.index');
+        Route::get('hardware-fulfilments/{fulfilment}', [InventoryHardwareFulfilmentSerialController::class, 'show'])->name('hardware-fulfilments.show');
+        Route::get('hardware-fulfilments/{fulfilment}/serials/search', [InventoryHardwareFulfilmentSerialController::class, 'search'])->name('hardware-fulfilments.serials.search');
+        Route::post('hardware-fulfilments/{fulfilment}/serials', [InventoryHardwareFulfilmentSerialController::class, 'store'])->name('hardware-fulfilments.serials.store');
 
         Route::get('movements', [InventoryMovementController::class, 'index'])->name('movements.index');
 

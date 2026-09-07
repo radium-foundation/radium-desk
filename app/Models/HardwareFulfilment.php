@@ -80,4 +80,9 @@ class HardwareFulfilment extends Model
     {
         return $this->hasMany(HardwareFulfilmentPaymentEvidence::class)->orderBy('id');
     }
+
+    public function fulfilmentBranch(): BelongsTo
+    {
+        return $this->belongsTo(InventoryBranch::class, 'fulfilment_branch_id');
+    }
 }
