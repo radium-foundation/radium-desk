@@ -7,6 +7,7 @@ use App\Enums\InventorySaleStatus;
 use App\Models\CommerceOrder;
 use App\Models\InventorySale;
 use App\Services\StatutoryInvoice\Data\StatutoryMintEligibilityResult;
+use App\Support\Finance\GstStateCodes;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
@@ -18,6 +19,8 @@ class StatutoryMintEligibility
         private readonly StatutoryInvoiceNumberingService $numbering,
         private readonly StatutoryBillingIssuer $issuer,
         private readonly StatutorySellerIdentity $seller,
+        private readonly StatutoryLocationSeries $locations,
+        private readonly GstSplitService $gstSplit,
     ) {}
 
     public function evaluateSale(InventorySale $sale): StatutoryMintEligibilityResult
@@ -138,7 +141,9 @@ class StatutoryMintEligibility
 
         $place = is_string($order->place_of_supply_state) ? trim($order->place_of_supply_state) : '';
         if ($place === '') {
-            $errors[] = 'Place of supply is missing.';
+            $errors[] = GstSplitService::PLACE_OF_SUPPLY_MISSING;
+        } elseif (GstStateCodes::codeForName($place) === null) {
+            $errors[] = GstSplitService::PLACE_OF_SUPPLY_UNRECOGNISED;
         }
 
         $buyerGstin = BuyerGstin::normalize($order->buyer_gstin);
@@ -162,7 +167,67 @@ class StatutoryMintEligibility
             }
         }
 
+        if ($issuerError === null && $place !== '' && GstStateCodes::codeForName($place) !== null) {
+            $errors = array_merge($errors, $this->serviceGstSplitErrors($order, $place, $hsnSacs));
+        }
+
         return new StatutoryMintEligibilityResult($errors === [], array_values(array_unique($errors)));
+    }
+
+    /**
+     * @param  list<mixed>  $hsnSacs
+     * @return list<string>
+     */
+    private function serviceGstSplitErrors(CommerceOrder $order, string $place, array $hsnSacs): array
+    {
+        try {
+            $sellerCode = $this->locations->gstStateCode(
+                $this->issuer->requireForCommerceOrder(
+                    $order->branch_code,
+                    $order->buyer_gstin,
+                    $order->billing_state,
+                    $hsnSacs,
+                ),
+            );
+        } catch (ValidationException $exception) {
+            return $this->flattenErrors($exception);
+        }
+
+        $errors = [];
+        foreach ($order->items as $line) {
+            if ($line->gst_percentage === null || $line->taxable_value === null || $line->tax_total === null) {
+                continue;
+            }
+
+            try {
+                $this->gstSplit->splitLine(
+                    $sellerCode,
+                    $place,
+                    (float) $line->gst_percentage,
+                    (float) $line->taxable_value,
+                    (float) $line->tax_total,
+                );
+            } catch (ValidationException $exception) {
+                $errors = array_merge($errors, $this->flattenErrors($exception));
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function flattenErrors(ValidationException $exception): array
+    {
+        $flat = [];
+        foreach ($exception->errors() as $messages) {
+            foreach ($messages as $message) {
+                $flat[] = (string) $message;
+            }
+        }
+
+        return $flat;
     }
 
     public function assertOrderCanMint(CommerceOrder $order): void

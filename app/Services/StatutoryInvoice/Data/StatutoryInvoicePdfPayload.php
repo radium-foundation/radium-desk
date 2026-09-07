@@ -10,9 +10,11 @@ final class StatutoryInvoicePdfPayload
      *     hsnSac: string,
      *     qty: int,
      *     taxableValue: string,
+     *     gstPercentage: string,
      *     cgst: string,
      *     sgst: string,
      *     igst: string,
+     *     taxTotal: string,
      *     lineTotal: string
      * }>  $lines
      */
@@ -29,6 +31,8 @@ final class StatutoryInvoicePdfPayload
         public readonly string $placeOfSupply,
         public readonly array $lines,
         public readonly string $taxableValue,
+        public readonly string $gstRate,
+        public readonly string $taxTotal,
         public readonly string $cgst,
         public readonly string $sgst,
         public readonly string $igst,

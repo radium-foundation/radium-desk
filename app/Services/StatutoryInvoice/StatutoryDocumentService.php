@@ -20,6 +20,10 @@ class StatutoryDocumentService
     {
         $invoice->loadMissing('items');
         $document = StatutoryInvoiceDocument::query()->firstOrNew(['invoice_id' => $invoice->id]);
+        if ($this->hasImmutableGeneratedDocument($document)) {
+            return $document;
+        }
+
         $document->attempts = (int) $document->attempts + 1;
 
         try {
@@ -61,19 +65,33 @@ class StatutoryDocumentService
         return (string) Storage::disk($disk)->get($path);
     }
 
+    private function hasImmutableGeneratedDocument(StatutoryInvoiceDocument $document): bool
+    {
+        if (! $document->exists || $document->status !== StatutoryInvoiceDocumentStatus::Generated) {
+            return false;
+        }
+
+        $path = (string) $document->path;
+        $disk = $document->disk ?: 'local';
+
+        return $path !== '' && Storage::disk($disk)->exists($path);
+    }
+
     private function payloadFromInvoice(StatutoryInvoice $invoice): StatutoryInvoicePdfPayload
     {
         $lines = [];
         foreach ($invoice->items as $line) {
             $lines[] = [
                 'description' => (string) $line->description,
-                'hsnSac' => (string) $line->hsn_sac,
+                'hsnSac' => (string) ($line->hsn_sac ?: 'unset'),
                 'qty' => (int) $line->qty,
-                'taxableValue' => (string) $line->taxable_value,
-                'cgst' => (string) ($line->cgst ?? '0'),
-                'sgst' => (string) ($line->sgst ?? '0'),
-                'igst' => (string) ($line->igst ?? '0'),
-                'lineTotal' => (string) $line->line_total,
+                'taxableValue' => $this->formatMoney($line->taxable_value),
+                'gstPercentage' => $this->formatRate($line->gst_percentage),
+                'cgst' => $this->formatTaxComponent($line->cgst),
+                'sgst' => $this->formatTaxComponent($line->sgst),
+                'igst' => $this->formatTaxComponent($line->igst),
+                'taxTotal' => $this->formatMoney($line->tax_total),
+                'lineTotal' => $this->formatMoney($line->line_total),
             ];
         }
 
@@ -91,11 +109,52 @@ class StatutoryDocumentService
             billingAddress: $invoice->billing_address,
             placeOfSupply: (string) ($invoice->place_of_supply_state ?: 'unset'),
             lines: $lines,
-            taxableValue: (string) $invoice->taxable_value,
-            cgst: (string) ($invoice->cgst ?? '0'),
-            sgst: (string) ($invoice->sgst ?? '0'),
-            igst: (string) ($invoice->igst ?? '0'),
-            invoiceValue: (string) $invoice->invoice_value,
+            taxableValue: $this->formatMoney($invoice->taxable_value),
+            gstRate: $this->headerGstRate($invoice),
+            taxTotal: $this->formatMoney($invoice->tax_total),
+            cgst: $this->formatTaxComponent($invoice->cgst),
+            sgst: $this->formatTaxComponent($invoice->sgst),
+            igst: $this->formatTaxComponent($invoice->igst),
+            invoiceValue: $this->formatMoney($invoice->invoice_value),
         );
+    }
+
+    private function headerGstRate(StatutoryInvoice $invoice): string
+    {
+        $rates = $invoice->items
+            ->pluck('gst_percentage')
+            ->filter(static fn ($rate): bool => $rate !== null)
+            ->map(static fn ($rate): string => number_format((float) $rate, 2, '.', ''))
+            ->unique()
+            ->values();
+
+        if ($rates->count() === 1) {
+            return $rates[0].'%';
+        }
+
+        return $rates->isEmpty() ? 'not recorded' : 'see lines';
+    }
+
+    private function formatTaxComponent(mixed $value): string
+    {
+        if ($value === null) {
+            return 'not recorded';
+        }
+
+        return $this->formatMoney($value);
+    }
+
+    private function formatRate(mixed $value): string
+    {
+        if ($value === null) {
+            return 'not recorded';
+        }
+
+        return number_format((float) $value, 2, '.', '').'%';
+    }
+
+    private function formatMoney(mixed $value): string
+    {
+        return number_format((float) $value, 2, '.', '');
     }
 }

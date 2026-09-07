@@ -296,6 +296,15 @@ class RdServiceNetPhase1CleanTest extends TestCase
         $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
         $number = $invoice->invoice_number;
 
+        $existingDocument = StatutoryInvoiceDocument::query()->where('invoice_id', $invoice->id)->first();
+        if ($existingDocument !== null) {
+            Storage::disk($existingDocument->disk ?: 'local')->delete((string) $existingDocument->path);
+            $existingDocument->update([
+                'status' => StatutoryInvoiceDocumentStatus::Failed,
+                'path' => null,
+            ]);
+        }
+
         $renderer = $this->createMock(SimplePdfRenderer::class);
         $renderer->method('render')->willThrowException(new \RuntimeException('PDF renderer failed'));
         $this->app->instance(SimplePdfRenderer::class, $renderer);

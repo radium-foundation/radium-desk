@@ -69,6 +69,9 @@ class StatutoryInvoiceServiceTest extends TestCase
         $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertSame(1, InvoiceSequence::query()->value('current_value'));
         $this->assertNull($first->finance_journal_id);
+        $this->assertNull($first->cgst);
+        $this->assertNull($first->sgst);
+        $this->assertNull($first->igst);
         $this->assertSame(0, FinanceJournal::query()->where('source_type', 'statutory_invoice')->count());
     }
 

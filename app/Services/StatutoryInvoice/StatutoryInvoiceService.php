@@ -36,6 +36,8 @@ class StatutoryInvoiceService
         private readonly EInvoiceOutboxWriter $einvoiceOutbox,
         private readonly StatutoryBillingIssuer $issuer,
         private readonly StatutorySellerIdentity $seller,
+        private readonly StatutoryLocationSeries $locations,
+        private readonly GstSplitService $gstSplit,
     ) {}
 
     public function findBySource(
@@ -61,12 +63,16 @@ class StatutoryInvoiceService
             return $existing->load(['items', 'allocation']);
         }
 
+        $request = $this->applyServiceGstSplit($request);
+
         try {
             return DB::transaction(function () use ($request, $actor): StatutoryInvoice {
                 $again = $this->findBySource($request->channel, $request->sourceType, $request->sourceId);
                 if ($again !== null) {
                     return $again->load(['items', 'allocation']);
                 }
+
+                $request = $this->applyServiceGstSplit($request);
 
                 $allocation = $this->numbering->allocate(
                     $request->idempotencyKey(),
@@ -275,9 +281,6 @@ class StatutoryInvoiceService
                 discount: (float) ($line->discount ?? 0),
                 sku: $line->sku,
                 hsnSac: $line->hsn_sac,
-                cgst: $line->cgst !== null ? (float) $line->cgst : null,
-                sgst: $line->sgst !== null ? (float) $line->sgst : null,
-                igst: $line->igst !== null ? (float) $line->igst : null,
             );
         }
 
@@ -443,6 +446,35 @@ class StatutoryInvoiceService
             ],
         );
         $this->einvoiceOutbox->write($invoice);
+    }
+
+    private function applyServiceGstSplit(StatutoryInvoiceMintRequest $request): StatutoryInvoiceMintRequest
+    {
+        if ($request->sourceType !== StatutoryInvoiceSourceType::CommerceOrder) {
+            return $request;
+        }
+
+        $location = is_string($request->numberingLocation) ? trim($request->numberingLocation) : '';
+        if ($location === '') {
+            throw ValidationException::withMessages([
+                'gst' => GstSplitService::SELLER_STATE_UNSET,
+            ]);
+        }
+
+        $sellerCode = $this->locations->gstStateCode($location);
+        $lines = [];
+        foreach ($request->lines as $line) {
+            $split = $this->gstSplit->splitLine(
+                $sellerCode,
+                $request->placeOfSupplyState,
+                $line->gstPercentage,
+                $line->taxableValue,
+                $line->taxTotal,
+            );
+            $lines[] = $line->withTaxComponents($split->cgst, $split->sgst, $split->igst);
+        }
+
+        return $request->withLines($lines);
     }
 
     private function financialYear(StatutoryInvoiceMintRequest $request): ?StatutoryFinancialYear

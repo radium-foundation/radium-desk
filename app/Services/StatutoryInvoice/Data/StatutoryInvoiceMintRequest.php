@@ -35,6 +35,37 @@ final class StatutoryInvoiceMintRequest
         public readonly ?string $customerState = null,
     ) {}
 
+    /**
+     * @param  list<StatutoryInvoiceLineDraft>  $lines
+     */
+    public function withLines(array $lines): self
+    {
+        return new self(
+            channel: $this->channel,
+            sourceType: $this->sourceType,
+            sourceId: $this->sourceId,
+            lines: $lines,
+            sourceOrderId: $this->sourceOrderId,
+            inventorySaleId: $this->inventorySaleId,
+            supportOrderId: $this->supportOrderId,
+            branchId: $this->branchId,
+            sellerGstin: $this->sellerGstin,
+            sellerName: $this->sellerName,
+            buyerName: $this->buyerName,
+            buyerPhone: $this->buyerPhone,
+            buyerGstin: $this->buyerGstin,
+            billingAddress: $this->billingAddress,
+            placeOfSupplyState: $this->placeOfSupplyState,
+            discount: $this->discount,
+            paymentMethod: $this->paymentMethod,
+            paymentReference: $this->paymentReference,
+            internalReceiptNumber: $this->internalReceiptNumber,
+            numberingLocation: $this->numberingLocation,
+            financialYearToken: $this->financialYearToken,
+            customerState: $this->customerState,
+        );
+    }
+
     public function idempotencyKey(): string
     {
         return self::sourceKey($this->channel, $this->sourceType, $this->sourceId);

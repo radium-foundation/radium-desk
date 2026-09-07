@@ -68,20 +68,24 @@ class SimplePdfRenderer
         ];
 
         foreach ($payload->lines as $line) {
+            $lines[] = $line['description'];
             $lines[] = sprintf(
-                '%s HSN %s Qty %d Taxable %s CGST %s SGST %s IGST %s Total %s',
-                $line['description'],
+                'HSN/SAC %s Qty %d Taxable %s GST %s CGST %s SGST %s IGST %s Tax %s Total %s',
                 $line['hsnSac'],
                 $line['qty'],
                 $line['taxableValue'],
+                $line['gstPercentage'],
                 $line['cgst'],
                 $line['sgst'],
                 $line['igst'],
+                $line['taxTotal'],
                 $line['lineTotal'],
             );
         }
 
         $lines[] = 'Taxable '.$payload->taxableValue;
+        $lines[] = 'GST rate '.$payload->gstRate;
+        $lines[] = 'Total GST '.$payload->taxTotal;
         $lines[] = 'CGST '.$payload->cgst;
         $lines[] = 'SGST '.$payload->sgst;
         $lines[] = 'IGST '.$payload->igst;
