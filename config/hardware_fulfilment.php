@@ -22,10 +22,20 @@ return [
     */
     'callback' => [
         'enabled' => filter_var(env('HARDWARE_FULFILMENT_CALLBACK_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'inbound_enabled' => filter_var(env('HARDWARE_FULFILMENT_CALLBACK_INBOUND_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'url' => env('HARDWARE_FULFILMENT_CALLBACK_URL', ''),
         'secret' => env('DESK_CALLBACK_SECRET', ''),
         'replay_window_seconds' => max(30, (int) env('HARDWARE_FULFILMENT_CALLBACK_REPLAY_WINDOW', 300)),
         'timeout_seconds' => max(1, (int) env('HARDWARE_FULFILMENT_CALLBACK_TIMEOUT_SECONDS', 10)),
     ],
+
+    /*
+    | Extra owner-HOLD source ids. RDE318438 is also hardcoded.
+    | Isolated fulfilment refuses these. Do not use this as a batch list.
+    */
+    'hold_source_ids' => array_values(array_filter(array_map(
+        static fn (string $id): string => strtoupper(trim($id)),
+        explode(',', (string) env('HARDWARE_FULFILMENT_HOLD_SOURCE_IDS', '')),
+    ))),
 
 ];

@@ -19,6 +19,16 @@ class HardwareFulfilmentCallbackProcessor
 
     public function process(OutboxEvent $event): void
     {
+        $this->deliver($event, isolated: false);
+    }
+
+    public function processIsolated(OutboxEvent $event): void
+    {
+        $this->deliver($event, isolated: true);
+    }
+
+    private function deliver(OutboxEvent $event, bool $isolated): void
+    {
         $payload = $event->payload ?? [];
         $eventId = (string) ($payload['event_id'] ?? '');
         $sourceId = (string) ($payload['source_id'] ?? '');
@@ -28,12 +38,18 @@ class HardwareFulfilmentCallbackProcessor
             throw new HardwareFulfilmentCallbackNonRetryableException('Callback outbox payload is missing event identity.');
         }
 
-        if (HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)) {
-            throw new HardwareFulfilmentCallbackNonRetryableException('Frozen pending hardware orders cannot send Box callbacks.');
+        if (HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)
+            || HardwareFulfilmentEligibility::isHoldSourceId($sourceId)
+            || HardwareFulfilmentEligibility::isBlockedUntilAuthorized($sourceId)) {
+            throw new HardwareFulfilmentCallbackNonRetryableException('This hardware order cannot send Box callbacks.');
         }
 
-        if (! $this->deliveryEnabled()) {
+        if (! $isolated && ! $this->deliveryEnabled()) {
             return;
+        }
+
+        if ($isolated) {
+            $this->assertIsolatedDeliveryPossible();
         }
 
         $rawBody = HardwareFulfilmentCallbackPayload::encode($payload);
@@ -51,6 +67,10 @@ class HardwareFulfilmentCallbackProcessor
         $result = $this->gateway->send($request);
 
         if ($result->status === 'disabled') {
+            if ($isolated) {
+                throw new HardwareFulfilmentCallbackNonRetryableException(NullBoxFulfilmentCallbackGateway::MESSAGE);
+            }
+
             return;
         }
 
@@ -66,6 +86,21 @@ class HardwareFulfilmentCallbackProcessor
         }
 
         throw new HardwareFulfilmentCallbackNonRetryableException('Box fulfilment callback was rejected: '.$detail);
+    }
+
+    private function assertIsolatedDeliveryPossible(): void
+    {
+        if ($this->gateway instanceof NullBoxFulfilmentCallbackGateway) {
+            throw new HardwareFulfilmentCallbackNonRetryableException(NullBoxFulfilmentCallbackGateway::MESSAGE);
+        }
+
+        if (trim((string) config('hardware_fulfilment.callback.url', '')) === '') {
+            throw new HardwareFulfilmentCallbackNonRetryableException('Isolated Box callback requires a callback URL.');
+        }
+
+        if ($this->signer->secret() === null) {
+            throw new HardwareFulfilmentCallbackNonRetryableException('Isolated Box callback requires a configured secret.');
+        }
     }
 
     /**

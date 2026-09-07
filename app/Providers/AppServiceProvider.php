@@ -87,6 +87,7 @@ use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
 use App\Services\ServiceCaseAutomationStatusService;
 use App\Services\SettingService;
+use App\Services\Shipping\HttpShiprocketGateway;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\StatutoryInvoice\NullEInvoiceGateway;
 use App\Services\SupportContactConfiguration;
@@ -311,7 +312,13 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(EInvoiceGateway::class, NullEInvoiceGateway::class);
-        $this->app->bind(ShiprocketGateway::class, NullShiprocketGateway::class);
+        $this->app->bind(ShiprocketGateway::class, function ($app) {
+            if ($this->shouldBindHttpShiprocket()) {
+                return $app->make(HttpShiprocketGateway::class);
+            }
+
+            return $app->make(NullShiprocketGateway::class);
+        });
         $this->app->bind(BoxFulfilmentCallbackGateway::class, NullBoxFulfilmentCallbackGateway::class);
     }
 
@@ -463,5 +470,25 @@ class AppServiceProvider extends ServiceProvider
                 //
             }
         });
+    }
+
+    private function shouldBindHttpShiprocket(): bool
+    {
+        if (! (bool) config('shipping.enabled')) {
+            return false;
+        }
+
+        if ((string) config('shipping.provider') !== 'shiprocket') {
+            return false;
+        }
+
+        if (! (bool) config('shipping.http_enabled')) {
+            return false;
+        }
+
+        $email = trim((string) config('shipping.api_email'));
+        $password = trim((string) config('shipping.api_password'));
+
+        return $email !== '' && $password !== '';
     }
 }

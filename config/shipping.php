@@ -32,4 +32,11 @@ return [
 
     'connect_timeout_seconds' => max(1, (int) env('SHIPROCKET_CONNECT_TIMEOUT_SECONDS', 5)),
 
+    /*
+    | Default false. The HTTP client exists but stays unbound unless this is
+    | true, shipping is enabled, provider is shiprocket, and credentials exist.
+    | Isolated one-order fulfilment may instantiate the client in-process.
+    */
+    'http_enabled' => filter_var(env('SHIPROCKET_HTTP_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+
 ];

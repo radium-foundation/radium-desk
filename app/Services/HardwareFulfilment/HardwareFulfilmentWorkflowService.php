@@ -28,6 +28,13 @@ class HardwareFulfilmentWorkflowService
             ]);
         }
 
+        if (HardwareFulfilmentEligibility::isHoldSourceId((string) $fulfilment->source_id)
+            || HardwareFulfilmentEligibility::metadataShowsHold($fulfilment->metadata)) {
+            throw ValidationException::withMessages([
+                'fulfilment' => 'Owner-HOLD hardware orders cannot change fulfilment state.',
+            ]);
+        }
+
         return DB::transaction(function () use ($fulfilment, $to, $actorType, $actorId, $payload): HardwareFulfilment {
             $locked = HardwareFulfilment::query()
                 ->whereKey($fulfilment->id)
@@ -79,6 +86,112 @@ class HardwareFulfilmentWorkflowService
 
             return $fresh;
         });
+    }
+
+    public function markReady(
+        HardwareFulfilment $fulfilment,
+        string $actorType = 'system',
+        ?int $actorId = null,
+    ): HardwareFulfilment {
+        $locked = $fulfilment->fresh(['commerceOrder.items']) ?? $fulfilment;
+        $order = $locked->commerceOrder;
+        if ($order === null) {
+            throw ValidationException::withMessages([
+                'fulfilment' => 'Hardware fulfilment is missing its commerce order.',
+            ]);
+        }
+
+        HardwareFulfilmentEligibility::assertIsolatedTarget($locked, $order);
+
+        if ($locked->state === HardwareFulfilmentState::ReadyForFulfilment) {
+            return $locked;
+        }
+
+        if ($locked->state !== HardwareFulfilmentState::Ingested) {
+            throw ValidationException::withMessages([
+                'state' => 'READY_FOR_FULFILMENT requires INGESTED.',
+            ]);
+        }
+
+        return $this->transition(
+            $locked,
+            HardwareFulfilmentState::ReadyForFulfilment,
+            actorType: $actorType,
+            actorId: $actorId,
+            payload: ['reason' => 'isolated_ready_for_fulfilment'],
+        );
+    }
+
+    public function markShipped(
+        HardwareFulfilment $fulfilment,
+        string $actorType = 'system',
+        ?int $actorId = null,
+    ): HardwareFulfilment {
+        $locked = $fulfilment->fresh(['shipment']) ?? $fulfilment;
+
+        if ($locked->state === HardwareFulfilmentState::Shipped
+            || $locked->state === HardwareFulfilmentState::Synced) {
+            return $locked;
+        }
+
+        if ($locked->state !== HardwareFulfilmentState::AwbAssigned) {
+            throw ValidationException::withMessages([
+                'state' => 'SHIPPED requires AWB_ASSIGNED with verified provider AWB evidence.',
+            ]);
+        }
+
+        $awb = trim((string) $locked->awb);
+        $providerAwb = trim((string) $locked->provider_awb);
+        $shipmentAwb = trim((string) ($locked->shipment?->awb ?? ''));
+
+        if ($awb === '' || $providerAwb === '' || $shipmentAwb === '') {
+            throw ValidationException::withMessages([
+                'shipping' => 'SHIPPED requires verified provider AWB evidence. A shipment request is not enough.',
+            ]);
+        }
+
+        if ($awb !== $providerAwb || $awb !== $shipmentAwb) {
+            throw ValidationException::withMessages([
+                'shipping' => 'SHIPPED requires the fulfilment AWB to match the provider shipment AWB.',
+            ]);
+        }
+
+        return $this->transition(
+            $locked,
+            HardwareFulfilmentState::Shipped,
+            actorType: $actorType,
+            actorId: $actorId,
+            payload: [
+                'reason' => 'isolated_mark_shipped',
+                'awb' => $awb,
+            ],
+        );
+    }
+
+    public function markSynced(
+        HardwareFulfilment $fulfilment,
+        string $actorType = 'system',
+        ?int $actorId = null,
+        array $payload = [],
+    ): HardwareFulfilment {
+        $locked = $fulfilment->fresh() ?? $fulfilment;
+        if ($locked->state === HardwareFulfilmentState::Synced) {
+            return $locked;
+        }
+
+        if ($locked->state !== HardwareFulfilmentState::Shipped) {
+            throw ValidationException::withMessages([
+                'state' => 'SYNCED requires SHIPPED.',
+            ]);
+        }
+
+        return $this->transition(
+            $locked,
+            HardwareFulfilmentState::Synced,
+            actorType: $actorType,
+            actorId: $actorId,
+            payload: $payload === [] ? ['reason' => 'isolated_synced'] : $payload,
+        );
     }
 
     public function assertCanAllocateSerials(HardwareFulfilment $fulfilment): void

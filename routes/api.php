@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\HardwareFulfilmentStatusController;
 use App\Http\Controllers\Api\V1\ChannelOrderIngestController;
 use App\Http\Controllers\Webhooks\BonvoiceWebhookController;
 use App\Http\Controllers\Webhooks\CashfreeWebhookController;
@@ -25,3 +26,6 @@ Route::get('/v1/channel-orders/{sourceType}/{sourceId}', [ChannelOrderIngestCont
     ->name('api.v1.channel-orders.show');
 Route::get('/v1/channel-orders/{sourceType}/{sourceId}/document', [ChannelOrderIngestController::class, 'document'])
     ->name('api.v1.channel-orders.document');
+
+Route::post('/desk/fulfilment-status', [HardwareFulfilmentStatusController::class, 'store'])
+    ->name('api.desk.fulfilment-status');
