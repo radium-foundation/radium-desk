@@ -11,6 +11,9 @@ final class ChannelOrderIngestRequest
     /**
      * @param  list<ChannelOrderLineDraft>  $lines
      * @param  array<string, mixed>  $metadata
+     * @param  array<string, string>|null  $billingAddressStructured
+     * @param  array<string, string>|null  $shippingAddressStructured
+     * @param  array<string, mixed>|null  $parcel
      */
     public function __construct(
         public readonly StatutoryInvoiceChannel $channel,
@@ -39,6 +42,9 @@ final class ChannelOrderIngestRequest
         public readonly ?string $orderedAt = null,
         public readonly ?string $paidAt = null,
         public readonly ?int $supportOrderId = null,
+        public readonly ?array $billingAddressStructured = null,
+        public readonly ?array $shippingAddressStructured = null,
+        public readonly ?array $parcel = null,
     ) {}
 
     public function idempotencyKey(): string

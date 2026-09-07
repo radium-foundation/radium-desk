@@ -61,6 +61,14 @@ class ChannelIngestPayloadValidator
                 sgst: $this->nullableFloat($line['sgst'] ?? null),
                 igst: $this->nullableFloat($line['igst'] ?? null),
                 lineTotal: $this->nullableFloat($line['line_total'] ?? null),
+                shippingLineKind: $this->nullableString($line['shipping_line_kind'] ?? null),
+                requiresShipping: $this->nullableBool($line['requires_shipping'] ?? null),
+                productId: $this->nullableInt($line['product_id'] ?? null),
+                modelId: $this->nullableInt($line['model_id'] ?? null),
+                catalogSku: $this->nullableString($line['catalog_sku'] ?? null),
+                rdserviceid: $this->nullableInt($line['rdserviceid'] ?? null),
+                amcid: $this->nullableInt($line['amcid'] ?? null),
+                otgid: $this->nullableInt($line['otgid'] ?? null),
             );
         }
 
@@ -96,6 +104,9 @@ class ChannelIngestPayloadValidator
             orderedAt: $this->nullableString($data['ordered_at'] ?? null),
             paidAt: $this->nullableString($data['paid_at'] ?? null),
             supportOrderId: isset($data['support_order_id']) ? (int) $data['support_order_id'] : null,
+            billingAddressStructured: $this->structuredAddress($rawBilling),
+            shippingAddressStructured: $this->structuredAddress($rawShipping),
+            parcel: $this->structuredParcel($data['parcel'] ?? $payload['parcel'] ?? null),
         );
     }
 
@@ -136,6 +147,19 @@ class ChannelIngestPayloadValidator
             'paid_at' => ['nullable', 'date'],
             'support_order_id' => ['nullable', 'integer', 'min:1'],
             'metadata' => ['nullable', 'array'],
+            'parcel' => ['nullable', 'array'],
+            'parcel.weight' => ['nullable', 'numeric', 'min:0'],
+            'parcel.length' => ['nullable', 'numeric', 'min:0'],
+            'parcel.breadth' => ['nullable', 'numeric', 'min:0'],
+            'parcel.width' => ['nullable', 'numeric', 'min:0'],
+            'parcel.height' => ['nullable', 'numeric', 'min:0'],
+            'parcel.weight_unit' => ['nullable', 'string', 'max:16'],
+            'shipping_address.line1' => ['nullable', 'string', 'max:255'],
+            'shipping_address.line2' => ['nullable', 'string', 'max:255'],
+            'shipping_address.city' => ['nullable', 'string', 'max:128'],
+            'shipping_address.state' => ['nullable', 'string', 'max:64'],
+            'shipping_address.pincode' => ['nullable', 'string', 'max:16'],
+            'shipping_address.country' => ['nullable', 'string', 'max:64'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.description' => ['required', 'string', 'max:255'],
             'lines.*.qty' => ['required', 'integer', 'min:1'],
@@ -151,6 +175,14 @@ class ChannelIngestPayloadValidator
             'lines.*.sgst' => ['nullable', 'numeric', 'min:0'],
             'lines.*.igst' => ['nullable', 'numeric', 'min:0'],
             'lines.*.line_total' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.shipping_line_kind' => ['nullable', 'string', 'max:40'],
+            'lines.*.requires_shipping' => ['nullable', 'boolean'],
+            'lines.*.product_id' => ['nullable', 'integer', 'min:1'],
+            'lines.*.model_id' => ['nullable', 'integer', 'min:1'],
+            'lines.*.catalog_sku' => ['nullable', 'string', 'max:64'],
+            'lines.*.rdserviceid' => ['nullable', 'integer', 'min:1'],
+            'lines.*.amcid' => ['nullable', 'integer', 'min:1'],
+            'lines.*.otgid' => ['nullable', 'integer', 'min:1'],
         ];
     }
 
@@ -202,6 +234,89 @@ class ChannelIngestPayloadValidator
         }
 
         return round((float) $value, 2);
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $int = (int) $value;
+
+        return $int > 0 ? $int : null;
+    }
+
+    private function nullableBool(mixed $value): ?bool
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if ($value === 1 || $value === '1' || $value === 'true') {
+            return true;
+        }
+
+        if ($value === 0 || $value === '0' || $value === 'false') {
+            return false;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function structuredAddress(mixed $value): ?array
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $out = [];
+        foreach (['line1', 'line2', 'city', 'state', 'pincode', 'country'] as $key) {
+            $part = $this->nullableString($value[$key] ?? null);
+            if ($part !== null) {
+                $out[$key] = $part;
+            }
+        }
+
+        return $out === [] ? null : $out;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function structuredParcel(mixed $value): ?array
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $out = [];
+        foreach (['weight', 'length', 'breadth', 'width', 'height'] as $key) {
+            if (! array_key_exists($key, $value) || $value[$key] === null || $value[$key] === '') {
+                continue;
+            }
+            if (! is_numeric($value[$key])) {
+                continue;
+            }
+            $out[$key] = $value[$key] + 0;
+        }
+        $unit = $this->nullableString($value['weight_unit'] ?? null);
+        if ($unit !== null) {
+            $out['weight_unit'] = $unit;
+        }
+
+        return $out === [] ? null : $out;
     }
 
     /**

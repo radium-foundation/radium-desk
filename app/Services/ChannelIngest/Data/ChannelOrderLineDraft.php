@@ -19,5 +19,13 @@ final class ChannelOrderLineDraft
         public readonly ?float $sgst = null,
         public readonly ?float $igst = null,
         public readonly ?float $lineTotal = null,
+        public readonly ?string $shippingLineKind = null,
+        public readonly ?bool $requiresShipping = null,
+        public readonly ?int $productId = null,
+        public readonly ?int $modelId = null,
+        public readonly ?string $catalogSku = null,
+        public readonly ?int $rdserviceid = null,
+        public readonly ?int $amcid = null,
+        public readonly ?int $otgid = null,
     ) {}
 }

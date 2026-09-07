@@ -7,6 +7,7 @@ use App\Enums\StatutoryInvoiceChannel;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CommerceOrder extends Model
 {
@@ -31,7 +32,10 @@ class CommerceOrder extends Model
         'buyer_gstin',
         'billing_address',
         'billing_state',
+        'billing_address_structured',
         'shipping_address',
+        'shipping_address_structured',
+        'parcel',
         'seller_gstin',
         'seller_name',
         'branch_code',
@@ -60,6 +64,9 @@ class CommerceOrder extends Model
             'tax_total' => 'decimal:2',
             'order_value' => 'decimal:2',
             'metadata' => 'array',
+            'billing_address_structured' => 'array',
+            'shipping_address_structured' => 'array',
+            'parcel' => 'array',
             'ordered_at' => 'datetime',
             'paid_at' => 'datetime',
             'received_at' => 'datetime',
@@ -69,6 +76,11 @@ class CommerceOrder extends Model
     public function items(): HasMany
     {
         return $this->hasMany(CommerceOrderItem::class)->orderBy('line_no');
+    }
+
+    public function hardwareFulfilment(): HasOne
+    {
+        return $this->hasOne(HardwareFulfilment::class);
     }
 
     public function statutoryInvoice(): BelongsTo

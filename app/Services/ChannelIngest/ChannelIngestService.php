@@ -12,6 +12,7 @@ use App\Models\FinanceJournal;
 use App\Models\StatutoryInvoice;
 use App\Services\ChannelIngest\Data\ChannelIngestResult;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
+use App\Services\HardwareFulfilment\HardwareFulfilmentFoundationService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceScope;
@@ -27,6 +28,8 @@ class ChannelIngestService
 
     public function __construct(
         private readonly ChannelIngestPayloadValidator $validator,
+        private readonly ChannelIngestPayloadHasher $hasher,
+        private readonly HardwareFulfilmentFoundationService $hardwareFulfilments,
         private readonly StatutoryInvoiceNumberingService $numbering,
         private readonly StatutoryInvoiceAccountingPolicy $accounting,
     ) {}
@@ -81,10 +84,10 @@ class ChannelIngestService
         try {
             return DB::transaction(function () use ($request, $remoteIp): ChannelIngestResult {
                 $existing = $this->findBySource($request);
-                $hash = $this->payloadHash($request);
+                $hash = $this->hasher->hash($request);
 
                 if ($existing !== null) {
-                    if ($existing->payload_hash !== $hash) {
+                    if (! $this->hasher->matchesStored((string) $existing->payload_hash, $request)) {
                         $result = new ChannelIngestResult(
                             outcome: ChannelIngestOutcome::Conflict,
                             httpStatus: 409,
@@ -95,6 +98,8 @@ class ChannelIngestService
 
                         return $result;
                     }
+
+                    $this->hardwareFulfilments->ensureIngested($existing, $request);
 
                     $result = new ChannelIngestResult(
                         outcome: ChannelIngestOutcome::Duplicate,
@@ -108,6 +113,7 @@ class ChannelIngestService
                 }
 
                 $order = $this->createOrder($request, $hash);
+                $this->hardwareFulfilments->ensureIngested($order, $request);
                 $this->assertNoFinanceOrInvoiceSideEffects($order);
 
                 $result = new ChannelIngestResult(
@@ -121,14 +127,15 @@ class ChannelIngestService
             }, self::ATTEMPTS);
         } catch (UniqueConstraintViolationException $exception) {
             $existing = $this->findBySource($request);
-            if ($existing !== null && $existing->payload_hash === $this->payloadHash($request)) {
+            if ($existing !== null && $this->hasher->matchesStored((string) $existing->payload_hash, $request)) {
+                $this->hardwareFulfilments->ensureIngested($existing, $request);
                 $result = new ChannelIngestResult(
                     outcome: ChannelIngestOutcome::Duplicate,
                     httpStatus: 200,
                     order: $existing->load('items'),
                     duplicate: true,
                 );
-                $this->recordAttemptFromRequest($request, $result, $remoteIp, $this->payloadHash($request));
+                $this->recordAttemptFromRequest($request, $result, $remoteIp, $this->hasher->hash($request));
 
                 return $result;
             }
@@ -145,7 +152,7 @@ class ChannelIngestService
                     error: 'Channel ingest failed.',
                 ),
                 $remoteIp,
-                $this->payloadHash($request),
+                $this->hasher->hash($request),
             );
 
             Log::error('[Channel ingest] Processing failed', [
@@ -196,7 +203,10 @@ class ChannelIngestService
             'buyer_gstin' => $request->buyerGstin,
             'billing_address' => $request->billingAddress,
             'billing_state' => $request->billingState,
+            'billing_address_structured' => $request->billingAddressStructured,
             'shipping_address' => $request->shippingAddress,
+            'shipping_address_structured' => $request->shippingAddressStructured,
+            'parcel' => $request->parcel,
             'seller_gstin' => $request->sellerGstin,
             'seller_name' => $request->sellerName,
             'branch_code' => $request->branchCode,
@@ -222,6 +232,14 @@ class ChannelIngestService
                 'commerce_order_id' => $order->id,
                 'line_no' => $index + 1,
                 'sku' => $line->sku,
+                'shipping_line_kind' => $line->shippingLineKind,
+                'requires_shipping' => $line->requiresShipping,
+                'product_id' => $line->productId,
+                'model_id' => $line->modelId,
+                'catalog_sku' => $line->catalogSku,
+                'rdserviceid' => $line->rdserviceid,
+                'amcid' => $line->amcid,
+                'otgid' => $line->otgid,
                 'variant' => $line->variant,
                 'description' => $line->description,
                 'hsn_sac' => $line->hsnSac,
@@ -322,51 +340,6 @@ class ChannelIngestService
         }
 
         return now();
-    }
-
-    private function payloadHash(ChannelOrderIngestRequest $request): string
-    {
-        $payload = [
-            'channel' => $request->channel->value,
-            'source_type' => $request->sourceType->value,
-            'source_id' => $request->sourceId,
-            'source_order_id' => $request->sourceOrderId,
-            'payment_status' => $request->paymentStatus,
-            'payment_provider' => $request->paymentProvider,
-            'payment_reference' => $request->paymentReference,
-            'payment_method' => $request->paymentMethod,
-            'currency' => $request->currency,
-            'customer_name' => $request->customerName,
-            'customer_phone' => $request->customerPhone,
-            'customer_email' => $request->customerEmail,
-            'buyer_gstin' => $request->buyerGstin,
-            'billing_address' => $request->billingAddress,
-            'billing_state' => $request->billingState,
-            'shipping_address' => $request->shippingAddress,
-            'seller_gstin' => $request->sellerGstin,
-            'seller_name' => $request->sellerName,
-            'branch_code' => $request->branchCode,
-            'place_of_supply_state' => $request->placeOfSupplyState,
-            'discount' => $request->discount,
-            'lines' => array_map(fn ($line) => [
-                'sku' => $line->sku,
-                'variant' => $line->variant,
-                'description' => $line->description,
-                'hsn_sac' => $line->hsnSac,
-                'qty' => $line->qty,
-                'unit_price' => $line->unitPrice,
-                'discount' => $line->discount,
-                'gst_percentage' => $line->gstPercentage,
-                'taxable_value' => $line->taxableValue,
-                'tax_total' => $line->taxTotal,
-                'cgst' => $line->cgst,
-                'sgst' => $line->sgst,
-                'igst' => $line->igst,
-                'line_total' => $line->lineTotal,
-            ], $request->lines),
-        ];
-
-        return hash('sha256', (string) json_encode($payload));
     }
 
     private function assertMustNotAutoMint(): void
