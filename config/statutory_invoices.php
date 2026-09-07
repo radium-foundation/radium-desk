@@ -113,8 +113,12 @@ return [
 
     /*
     | Explicit per-service SAC. There is no generic default SAC.
-    | RD Service is 998313. Future services must add their own entry.
-    | Unmatched lines keep the incoming HSN/SAC.
+    | RD Service and AMC are 998313. Hardware HSN 84716050 is unchanged
+    | (Box channel is outside these mappings). Future services must add
+    | their own entry with their own SAC. Unmatched lines keep incoming HSN/SAC.
+    | Priced AMC on rdservice_in/net is identified by description "AMC :"
+    | (amcid is null on those lines). match_amcid is a future service-channel
+    | identifier only; it must not apply on hardware channels.
     */
     'service_sac' => [
         'rd_service' => [
@@ -132,6 +136,19 @@ return [
                 'information technology (it) consulting & support services',
                 'information technology (it) consulting and support services',
             ],
+        ],
+        'amc' => [
+            'sac' => '998313',
+            'channels' => [
+                'rdservice_in',
+                'rdservice_net',
+            ],
+            'skus' => [],
+            'description_needles' => [
+                'amc :',
+                'amc:',
+            ],
+            'match_amcid' => true,
         ],
     ],
 

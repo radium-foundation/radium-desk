@@ -20,6 +20,43 @@ class ServiceSacResolverTest extends TestCase
         $this->assertSame('998313', $sac);
     }
 
+    public function test_amc_description_resolves_to_998313(): void
+    {
+        $resolver = new ServiceSacResolver;
+
+        $this->assertSame('998313', $resolver->resolve(
+            'rdservice_in',
+            null,
+            'AMC : 1 Year Standard',
+            '998314',
+        ));
+        $this->assertSame('998313', $resolver->resolve(
+            'rdservice_in',
+            null,
+            'AMC : 1 Year Unlimited',
+            '998314',
+        ));
+        $this->assertSame('998313', $resolver->resolve(
+            'rdservice_net',
+            null,
+            'AMC : 1 Year Comprehensive',
+            '998314',
+        ));
+    }
+
+    public function test_amcid_on_service_channel_resolves_to_998313(): void
+    {
+        $sac = (new ServiceSacResolver)->resolve(
+            'rdservice_in',
+            null,
+            'Maintenance add-on',
+            '998314',
+            42,
+        );
+
+        $this->assertSame('998313', $sac);
+    }
+
     public function test_rd_service_sku_resolves_to_998313(): void
     {
         $sac = (new ServiceSacResolver)->resolve(
@@ -46,26 +83,45 @@ class ServiceSacResolverTest extends TestCase
 
     public function test_998314_is_not_a_generic_default_for_unrelated_services(): void
     {
-        $sac = (new ServiceSacResolver)->resolve(
+        $resolver = new ServiceSacResolver;
+
+        $this->assertSame('998314', $resolver->resolve(
             'rdservice_in',
             null,
             'Unrelated consulting workshop',
             '998314',
-        );
-
-        $this->assertSame('998314', $sac);
+        ));
+        $this->assertSame('998314', $resolver->resolve(
+            'rdservice_in',
+            null,
+            'AMC Opportunity workshop',
+            '998314',
+        ));
+        $this->assertSame('998314', $resolver->resolve(
+            'rdservice_in',
+            null,
+            'AMC',
+            '998314',
+        ));
     }
 
-    public function test_hardware_hsn_is_not_rewritten_to_rd_service_sac(): void
+    public function test_hardware_hsn_is_not_rewritten_to_rd_service_or_amc_sac(): void
     {
-        $sac = (new ServiceSacResolver)->resolve(
+        $resolver = new ServiceSacResolver;
+
+        $this->assertSame('84716050', $resolver->resolve(
             'radiumbox_com',
             'PMTMFS110Z',
             'MFS 110',
             '84716050',
-        );
-
-        $this->assertSame('84716050', $sac);
+        ));
+        $this->assertSame('84716050', $resolver->resolve(
+            'radiumbox_com',
+            'PMTMFS110Z',
+            'Mantra MFS 100 / 110 L1 Fingerprint Scanner',
+            '84716050',
+            99,
+        ));
     }
 
     public function test_configured_future_service_uses_its_own_sac_not_998313(): void

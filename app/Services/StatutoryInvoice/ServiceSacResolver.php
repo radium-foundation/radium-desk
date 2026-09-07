@@ -10,7 +10,7 @@ use Illuminate\Validation\ValidationException;
 /**
  * Resolves an explicit per-service SAC. There is no generic default.
  *
- * RD Service is 998313. Other services keep their own configured or incoming SAC.
+ * RD Service and AMC are 998313. Other services keep their own configured or incoming SAC.
  */
 final class ServiceSacResolver
 {
@@ -21,6 +21,7 @@ final class ServiceSacResolver
             $item->sku,
             $item->description,
             $item->hsn_sac,
+            $item->amcid !== null ? (int) $item->amcid : null,
         );
     }
 
@@ -29,10 +30,11 @@ final class ServiceSacResolver
         ?string $sku,
         ?string $description,
         ?string $incomingHsnSac,
+        ?int $amcId = null,
     ): ?string {
         $matched = [];
         foreach ($this->services() as $key => $service) {
-            if (! is_array($service) || ! $this->matches($channel, $sku, $description, $service)) {
+            if (! is_array($service) || ! $this->matches($channel, $sku, $description, $amcId, $service)) {
                 continue;
             }
 
@@ -71,7 +73,7 @@ final class ServiceSacResolver
     /**
      * @param  array<string, mixed>  $service
      */
-    private function matches(?string $channel, ?string $sku, ?string $description, array $service): bool
+    private function matches(?string $channel, ?string $sku, ?string $description, ?int $amcId, array $service): bool
     {
         $channels = $this->normalizedList($service['channels'] ?? null);
         $channelValue = strtolower(trim((string) $channel));
@@ -90,6 +92,10 @@ final class ServiceSacResolver
             if (str_contains($haystack, $needle)) {
                 return true;
             }
+        }
+
+        if (($service['match_amcid'] ?? false) === true && $amcId !== null && $amcId > 0) {
+            return true;
         }
 
         return false;

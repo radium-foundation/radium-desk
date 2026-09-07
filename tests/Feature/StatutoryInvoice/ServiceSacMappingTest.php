@@ -76,6 +76,16 @@ class ServiceSacMappingTest extends TestCase
                 'line_total' => 499,
             ],
             [
+                'description' => 'AMC : 1 Year Standard',
+                'qty' => 1,
+                'unit_price' => 84.75,
+                'hsn_sac' => '998314',
+                'gst_percentage' => 18,
+                'taxable_value' => 84.75,
+                'tax_total' => 15.25,
+                'line_total' => 100,
+            ],
+            [
                 'description' => 'Future Service A',
                 'sku' => 'FUTURE-A',
                 'qty' => 1,
@@ -92,7 +102,8 @@ class ServiceSacMappingTest extends TestCase
 
         $order = CommerceOrder::query()->where('source_id', 'RD-SAC-INGEST')->firstOrFail();
         $this->assertSame('998313', $order->items[0]->hsn_sac);
-        $this->assertSame('998399', $order->items[1]->hsn_sac);
+        $this->assertSame('998313', $order->items[1]->hsn_sac);
+        $this->assertSame('998399', $order->items[2]->hsn_sac);
         $this->assertSame(0, StatutoryInvoice::query()->count());
     }
 
@@ -108,6 +119,14 @@ class ServiceSacMappingTest extends TestCase
                 'line_total' => 499,
             ],
             [
+                'description' => 'AMC : 1 Year Standard',
+                'hsn_sac' => '998314',
+                'unit_price' => 84.75,
+                'taxable_value' => 84.75,
+                'tax_total' => 15.25,
+                'line_total' => 100,
+            ],
+            [
                 'description' => 'Future Service A',
                 'hsn_sac' => '998399',
                 'unit_price' => 100,
@@ -115,17 +134,41 @@ class ServiceSacMappingTest extends TestCase
                 'tax_total' => 18,
                 'line_total' => 118,
             ],
-        ], taxable: 522.88, tax: 94.12, total: 617);
+        ], taxable: 607.63, tax: 109.37, total: 717);
 
         $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
         $pdf = app(StatutoryDocumentService::class)->binary($invoice->document);
 
         $this->assertSame('998313', $invoice->items[0]->hsn_sac);
-        $this->assertSame('998399', $invoice->items[1]->hsn_sac);
+        $this->assertSame('998313', $invoice->items[1]->hsn_sac);
+        $this->assertSame('998399', $invoice->items[2]->hsn_sac);
         $this->assertSame('998314', $order->fresh('items')->items[0]->hsn_sac);
+        $this->assertSame('998314', $order->fresh('items')->items[1]->hsn_sac);
         $this->assertStringContainsString('998313', $pdf);
         $this->assertStringContainsString('998399', $pdf);
+        $this->assertStringContainsString('AMC : 1 Year Standard', $pdf);
         $this->assertStringContainsString('SAC - 998313', $pdf);
+    }
+
+    public function test_amc_invoice_line_stores_998313_and_does_not_rewrite_issued_rows(): void
+    {
+        $order = $this->commerceOrder('RD-SAC-AMC', [[
+            'description' => 'AMC : 1 Year Unlimited',
+            'hsn_sac' => '998314',
+            'unit_price' => 84.75,
+            'taxable_value' => 84.75,
+            'tax_total' => 15.25,
+            'line_total' => 100,
+        ]], taxable: 84.75, tax: 15.25, total: 100);
+
+        $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
+        $this->assertSame('998313', $invoice->items[0]->hsn_sac);
+
+        StatutoryInvoiceItem::query()->where('invoice_id', $invoice->id)->update(['hsn_sac' => '998314']);
+        $replay = $this->invoices->issueFromCommerceOrder($order->fresh(), $this->actor);
+
+        $this->assertSame($invoice->id, $replay->id);
+        $this->assertSame('998314', $replay->items[0]->hsn_sac);
     }
 
     public function test_existing_issued_invoice_sac_is_not_rewritten(): void

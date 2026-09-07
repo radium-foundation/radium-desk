@@ -249,6 +249,7 @@ class ChannelIngestService
                     $line->sku,
                     $line->description,
                     $line->hsnSac,
+                    $line->amcid,
                 ),
                 'qty' => $line->qty,
                 'unit_price' => $line->unitPrice,
