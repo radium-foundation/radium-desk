@@ -20,8 +20,8 @@ return [
     'channel_id' => env('SHIPROCKET_CHANNEL_ID'),
 
     /*
-    | Owner-approved panel nicknames (P0-M2). Empty until supplied.
-    | Do not invent RADDELHI or any historical Admin nickname.
+    | Owner-confirmed panel nicknames (P0-M3). Values come from env only:
+    | Delhi stock = RADDELHI, Mumbai stock = RADIUMUM. Do not hardcode.
     */
     'pickup_locations' => [
         'delhi' => env('SHIPROCKET_PICKUP_DELHI'),

@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Inventory;
 use App\Enums\HardwareFulfilmentState;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\AllocateHardwareFulfilmentSerialsRequest;
+use App\Http\Requests\Inventory\CreateHardwareFulfilmentShipmentRequest;
 use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
 use App\Models\HardwareFulfilment;
 use App\Models\InventoryBranch;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
+use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
 use App\Support\Inventory\InventoryBranchScope;
@@ -24,6 +26,7 @@ class HardwareFulfilmentSerialController extends Controller
     public function __construct(
         private readonly HardwareSerialAllocationService $allocation,
         private readonly HardwareShipmentService $shipments,
+        private readonly HardwareShipmentEligibility $shipmentEligibility,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -73,6 +76,7 @@ class HardwareFulfilmentSerialController extends Controller
             'allocated' => $fulfilment->serials,
             'canAllocate' => $canAllocate,
             'derivedBranch' => $fulfilment->fulfilmentBranch,
+            'shipment' => $this->shipmentEligibility->inspect($fulfilment),
         ]);
     }
 
@@ -109,7 +113,7 @@ class HardwareFulfilmentSerialController extends Controller
             ->with('status', 'Serial allocated.');
     }
 
-    public function storeShipment(Request $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeShipment(CreateHardwareFulfilmentShipmentRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $this->shipments->createShipment($fulfilment, $request->user());

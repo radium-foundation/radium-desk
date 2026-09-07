@@ -12,6 +12,7 @@ use App\Services\Shipping\Data\ShiprocketPickupResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\Shipping\Data\ShiprocketTokenResult;
 use App\Services\Shipping\Data\ShiprocketTrackResult;
+use App\Services\Shipping\ShiprocketNonRetryableException;
 use App\Services\Shipping\ShiprocketRetryableException;
 use RuntimeException;
 
@@ -48,6 +49,8 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public string $mode = 'accepted';
 
     public ?string $nextCreateMode = null;
+
+    public ?string $nextSearchMode = null;
 
     public ?string $nextAssignMode = null;
 
@@ -112,6 +115,7 @@ final class FakeShiprocketGateway implements ShiprocketGateway
             ),
             'timeout' => throw new ShiprocketRetryableException('Fake provider timeout.'),
             'timeout_accepted' => $this->timeoutAfterAccept($request),
+            'auth_failed' => throw new ShiprocketNonRetryableException('Shiprocket authentication failed.'),
             default => throw new RuntimeException('Unknown fake Shiprocket mode: '.$mode),
         };
     }
@@ -119,6 +123,18 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public function searchOrders(string $search): ShiprocketSearchResult
     {
         $this->searches++;
+
+        $mode = $this->nextSearchMode;
+        $this->nextSearchMode = null;
+        if ($mode === 'timeout' || $mode === 'retryable') {
+            return new ShiprocketSearchResult(
+                provider: $this->provider(),
+                found: false,
+                merchantOrderId: $search,
+                error: 'Fake provider search timed out.',
+                retryable: true,
+            );
+        }
 
         $row = $this->catalog[$search] ?? $this->catalogRowForAwb($search);
         if ($row === null) {

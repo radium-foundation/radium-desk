@@ -4,6 +4,8 @@ namespace Tests\Feature\HardwareFulfilment;
 
 use App\Contracts\Shipping\ShiprocketGateway;
 use App\Enums\HardwareFulfilmentState;
+use App\Enums\OutboxEventStatus;
+use App\Enums\ShipmentStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
@@ -11,11 +13,14 @@ use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentSerial;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
+use App\Models\InventorySerial;
 use App\Models\InventoryUserBranch;
+use App\Models\OutboxEvent;
 use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
+use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackOutboxWriter;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
@@ -23,7 +28,9 @@ use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Services\Inventory\InventoryStockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\Feature\Shipping\Support\FakeShiprocketGateway;
 use Tests\TestCase;
@@ -50,6 +57,8 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
 
         Storage::fake('local');
         $this->configureLocationSellerIdentity();
+        Http::fake();
+        Http::preventStrayRequests();
         $this->fake = new FakeShiprocketGateway;
         $this->app->instance(ShiprocketGateway::class, $this->fake);
         config([
@@ -123,6 +132,42 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame(0, $this->fake->creates);
     }
 
+    public function test_shipment_is_blocked_without_verified_payment(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900521', 'DELHI-RETAIL');
+        $fulfilment->forceFill(['paid_recognized_at' => null])->save();
+        $fulfilment->commerceOrder?->forceFill([
+            'payment_status' => 'pending',
+            'paid_at' => null,
+        ])->save();
+
+        try {
+            $this->shipments->createShipment($fulfilment->fresh(['commerceOrder.items']));
+            $this->fail('Unverified payment must block.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('verified payment', implode(' ', $exception->errors()['payment'] ?? []));
+        }
+
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertSame(0, Shipment::query()->count());
+    }
+
+    public function test_shipment_is_blocked_without_parcel_data(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900515', 'DELHI-RETAIL');
+        $fulfilment->commerceOrder?->forceFill(['parcel' => null])->save();
+
+        try {
+            $this->shipments->createShipment($fulfilment->fresh(['commerceOrder.items']));
+            $this->fail('Missing parcel must block.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('parcel', strtolower(implode(' ', $exception->errors()['parcel'] ?? [])));
+        }
+
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertSame(0, Shipment::query()->count());
+    }
+
     public function test_shipment_is_blocked_without_shipping_address(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE900504', 'DELHI-RETAIL');
@@ -168,6 +213,62 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame(0, $this->fake->creates);
     }
 
+    public function test_shipment_is_blocked_with_unknown_branch(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900517', 'DELHI-RETAIL');
+        $unknown = InventoryBranch::query()->create([
+            'code' => 'PUNE',
+            'name' => 'Pune',
+            'is_active' => true,
+        ]);
+        $fulfilment->forceFill(['fulfilment_branch_id' => $unknown->id])->save();
+        HardwareFulfilmentSerial::query()
+            ->where('hardware_fulfilment_id', $fulfilment->id)
+            ->get()
+            ->each(function (HardwareFulfilmentSerial $row) use ($unknown): void {
+                if ($row->inventory_serial_id !== null) {
+                    InventorySerial::query()->whereKey($row->inventory_serial_id)->update([
+                        'branch_id' => $unknown->id,
+                    ]);
+                }
+            });
+
+        try {
+            $this->shipments->createShipment($fulfilment->fresh(['commerceOrder.items', 'serials.inventorySerial.branch']));
+            $this->fail('Unknown branch must block.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('pickup mapping', implode(' ', $exception->errors()['pickup'] ?? []));
+        }
+
+        $this->assertSame(0, $this->fake->creates);
+    }
+
+    public function test_mixed_physical_branches_are_rejected(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900518', 'DELHI-RETAIL', qty: 2);
+        $mumbai = InventoryBranch::query()->firstOrCreate(
+            ['code' => 'MUMBAI'],
+            ['name' => 'MUMBAI', 'is_active' => true],
+        );
+        $serial = HardwareFulfilmentSerial::query()
+            ->where('hardware_fulfilment_id', $fulfilment->id)
+            ->orderByDesc('id')
+            ->firstOrFail();
+        InventorySerial::query()->whereKey($serial->inventory_serial_id)->update([
+            'branch_id' => $mumbai->id,
+        ]);
+
+        try {
+            $this->shipments->createShipment($fulfilment->fresh(['commerceOrder.items', 'serials.inventorySerial.branch']));
+            $this->fail('Mixed branches must block.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('multiple physical', implode(' ', $exception->errors()['branch'] ?? []));
+        }
+
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
+    }
+
     public function test_delhi_and_mumbai_pickup_follow_stock_not_customer_state(): void
     {
         $delhi = $this->invoicedFulfilment('RDE900507', 'DELHI-RETAIL', placeOfSupply: 'Maharashtra');
@@ -198,6 +299,16 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame($first->external_shipment_id, $fulfilment->fresh()->provider_shipment_id);
         $this->assertSame(['SN-RDE900509-001'], $first->serial_numbers);
         $this->assertNotNull($first->invoice_number);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(1, HardwareFulfilmentSerial::query()->count());
+        $this->assertSame(
+            0,
+            OutboxEvent::query()
+                ->where('event_type', HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE)
+                ->where('status', '!=', OutboxEventStatus::Pending)
+                ->count(),
+        );
+        Http::assertNothingSent();
     }
 
     public function test_awb_assignment_persists_and_cannot_be_overwritten(): void
@@ -236,6 +347,82 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertTrue($bound->isBound());
         $this->assertSame(HardwareFulfilmentState::ShipmentCreated, $fulfilment->fresh()->state);
         $this->assertSame(1, Shipment::query()->count());
+    }
+
+    public function test_existing_provider_shipment_is_reconciled_without_create(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900519', 'DELHI-RETAIL');
+        $invoice = StatutoryInvoice::query()->findOrFail($fulfilment->statutory_invoice_id);
+        Shipment::query()->create([
+            'shipment_no' => 'HW-RDE900519',
+            'commerce_order_id' => $fulfilment->commerce_order_id,
+            'hardware_fulfilment_id' => $fulfilment->id,
+            'provider' => 'test',
+            'status' => ShipmentStatus::Ambiguous,
+            'invoice_number' => $invoice->invoice_number,
+            'serial_numbers' => ['SN-RDE900519-001'],
+            'pickup_location' => 'TEST-DELHI-PICKUP',
+            'idempotency_key' => 'hardware:shiprocket:create:'.$fulfilment->id,
+            'correlation_id' => (string) Str::uuid(),
+            'failure_class' => 'ambiguous',
+            'last_error' => 'Previous create timed out.',
+            'attempts' => 1,
+        ]);
+        $this->fake->seedCatalog('HW-RDE900519', 'SR-EXIST-ORD', 'SR-EXIST-SHP');
+
+        $bound = $this->shipments->createShipment($fulfilment->fresh(['commerceOrder.items']));
+
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertSame(1, $this->fake->searches);
+        $this->assertSame('SR-EXIST-ORD', $bound->external_order_id);
+        $this->assertSame('SR-EXIST-SHP', $bound->external_shipment_id);
+        $this->assertSame(HardwareFulfilmentState::ShipmentCreated, $fulfilment->fresh()->state);
+        Http::assertNothingSent();
+    }
+
+    public function test_retryable_search_does_not_create_another_provider_order(): void
+    {
+        $this->fake->nextCreateMode = 'timeout_accepted';
+        $fulfilment = $this->invoicedFulfilment('RDE900522', 'DELHI-RETAIL');
+
+        try {
+            $this->shipments->createShipment($fulfilment);
+            $this->fail('Timeout must surface as reconcile-required.');
+        } catch (ValidationException) {
+            // expected
+        }
+
+        $this->fake->nextSearchMode = 'timeout';
+
+        try {
+            $this->shipments->createShipment($fulfilment->fresh(['commerceOrder.items']));
+            $this->fail('Retryable search must not create.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('Reconcile', implode(' ', $exception->errors()['shipping'] ?? []));
+        }
+
+        $this->assertSame(1, $this->fake->creates);
+        $this->assertSame(1, $this->fake->searches);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
+        $this->assertFalse(Shipment::query()->whereNotNull('external_shipment_id')->exists());
+        Http::assertNothingSent();
+    }
+
+    public function test_provider_authentication_failure_is_handled_safely(): void
+    {
+        $this->fake->nextCreateMode = 'auth_failed';
+        $fulfilment = $this->invoicedFulfilment('RDE900520', 'DELHI-RETAIL');
+
+        try {
+            $this->shipments->createShipment($fulfilment);
+            $this->fail('Authentication failure must surface.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('authentication failed', strtolower(implode(' ', $exception->errors()['shipping'] ?? [])));
+        }
+
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
+        $this->assertFalse(Shipment::query()->whereNotNull('external_shipment_id')->exists());
+        Http::assertNothingSent();
     }
 
     public function test_provider_5xx_is_retryable_and_does_not_advance_state(): void
@@ -315,8 +502,9 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         string $sourceId,
         string $branchCode,
         string $placeOfSupply = 'Delhi',
+        int $qty = 1,
     ): HardwareFulfilment {
-        $fulfilment = $this->allocatedFulfilment($sourceId, $branchCode, $placeOfSupply);
+        $fulfilment = $this->allocatedFulfilment($sourceId, $branchCode, $placeOfSupply, $qty);
         app(HardwareFulfilmentInvoiceService::class)->issueInvoice($fulfilment);
 
         return $fulfilment->fresh(['commerceOrder.items']) ?? $fulfilment;
@@ -326,12 +514,17 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         string $sourceId,
         string $branchCode,
         string $placeOfSupply = 'Delhi',
+        int $qty = 1,
     ): HardwareFulfilment {
-        $fulfilment = $this->readyFulfilment($sourceId, $branchCode, $placeOfSupply);
-        $this->stockAt($branchCode, [sprintf('SN-%s-001', $sourceId)]);
+        $fulfilment = $this->readyFulfilment($sourceId, $branchCode, $placeOfSupply, $qty);
+        $serials = [];
+        for ($index = 1; $index <= $qty; $index++) {
+            $serials[] = sprintf('SN-%s-%03d', $sourceId, $index);
+        }
+        $this->stockAt($branchCode, $serials);
         app(HardwareSerialAllocationService::class)->allocateSerials(
             $fulfilment,
-            [sprintf('SN-%s-001', $sourceId)],
+            $serials,
             $this->actor,
         );
 
@@ -342,9 +535,10 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         string $sourceId,
         string $branchCode,
         string $placeOfSupply = 'Delhi',
+        int $qty = 1,
     ): HardwareFulfilment {
         $this->mapModel(951);
-        $fulfilment = $this->ingestHardware($sourceId, $placeOfSupply);
+        $fulfilment = $this->ingestHardware($sourceId, $placeOfSupply, $qty);
         $this->assignBranch($fulfilment, $branchCode);
         $this->workflow->transition($fulfilment, HardwareFulfilmentState::ReadyForFulfilment);
 
@@ -393,7 +587,7 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         return $branch;
     }
 
-    private function ingestHardware(string $sourceId, string $placeOfSupply): HardwareFulfilment
+    private function ingestHardware(string $sourceId, string $placeOfSupply, int $qty = 1): HardwareFulfilment
     {
         $payload = [
             'channel' => StatutoryInvoiceChannel::RadiumBoxCom->value,
@@ -427,13 +621,13 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
             'lines' => [[
                 'description' => 'MSO1300',
                 'sku' => '951',
-                'qty' => 1,
+                'qty' => $qty,
                 'unit_price' => 3049,
                 'hsn_sac' => '84716050',
                 'gst_percentage' => 18,
-                'taxable_value' => 2583.90,
-                'tax_total' => 465.10,
-                'line_total' => 3049.00,
+                'taxable_value' => round(2583.90 * $qty, 2),
+                'tax_total' => round(465.10 * $qty, 2),
+                'line_total' => round(3049.00 * $qty, 2),
                 'shipping_line_kind' => 'physical_merchandise',
                 'requires_shipping' => true,
                 'model_id' => 951,

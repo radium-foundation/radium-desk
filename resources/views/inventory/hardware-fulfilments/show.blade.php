@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Allocate hardware serial')
+@section('title', $canAllocate ? 'Allocate hardware serial' : 'Hardware fulfilment')
 
 @php
     $order = $fulfilment->commerceOrder;
@@ -66,12 +66,13 @@
         .hf-alloc-confirm dl { display: grid; grid-template-columns: 7.5rem 1fr; gap: .35rem .75rem; margin: 0; }
         .hf-alloc-confirm dt { color: #868e96; font-weight: 500; }
         .hf-alloc-confirm dd { margin: 0; font-weight: 600; }
+        .hf-ship-blockers { margin: 0; padding-left: 1.1rem; }
     </style>
 
     <div class="hf-alloc">
         <p class="hf-alloc-kicker text-muted small text-uppercase fw-semibold mb-1">Inventory</p>
-        <h1 class="h3 mb-2">Allocate serial</h1>
-        <p class="text-muted mb-3">{{ $qtyLabel }}. Physical branch comes from the selected stock serial.</p>
+        <h1 class="h3 mb-2">{{ $canAllocate ? 'Allocate serial' : 'Hardware fulfilment' }}</h1>
+        <p class="text-muted mb-3">{{ $qtyLabel }}. Physical branch and pickup come from the allocated stock serial.</p>
 
         @include('inventory.partials.workspace-nav', ['active' => 'hardware-fulfilments'])
 
@@ -98,8 +99,8 @@
                 </div>
                 <span @class([
                     'hf-alloc-status',
-                    'is-ready' => $stateValue === 'ready_for_fulfilment',
-                    'is-done' => $stateValue === 'serials_allocated',
+                    'is-ready' => in_array($stateValue, ['ready_for_fulfilment', 'invoice_issued'], true),
+                    'is-done' => in_array($stateValue, ['serials_allocated', 'shipment_created', 'awb_assigned', 'shipped'], true),
                 ])>{{ $stateLabel }}</span>
             </div>
             <dl class="hf-alloc-meta d-flex flex-wrap mb-0">
@@ -190,6 +191,66 @@
                 <button type="submit" class="btn btn-primary" id="hardware-serial-submit" disabled>Allocate Serial</button>
             </form>
         @endif
+
+        <div class="hf-alloc-card mb-3" id="hardware-shipment">
+            <p class="text-muted small text-uppercase fw-semibold mb-2">Shipment</p>
+            <dl class="hf-alloc-confirm mb-0">
+                <dt>Status</dt>
+                <dd>{{ $shipment->status }}</dd>
+                <dt>Pickup branch</dt>
+                <dd>{{ $shipment->pickupBranch ?? 'Not derived yet' }}</dd>
+                <dt>Pickup location</dt>
+                <dd>{{ $shipment->pickupLocation ?? 'Not derived yet' }}</dd>
+                <dt>Ship-to</dt>
+                <dd>{{ $shipment->shipTo ?? 'Incomplete' }}</dd>
+                <dt>Parcel</dt>
+                <dd>{{ $shipment->parcel ?? 'Unavailable — not persisted' }}</dd>
+                <dt>Invoice</dt>
+                <dd>{{ $shipment->invoice ?? 'Not issued' }}</dd>
+                <dt>Serial</dt>
+                <dd>{{ $shipment->serials === [] ? 'Not allocated' : implode(', ', $shipment->serials) }}</dd>
+                <dt>Provider</dt>
+                <dd>{{ $shipment->alreadyCreated ? $shipment->provider : $shipment->provider.' (not called)' }}</dd>
+            </dl>
+
+            @if($shipment->alreadyCreated)
+                <p class="text-muted small mb-0 mt-3">Provider shipment is already bound. AWB assignment is a later isolated step.</p>
+            @elseif($shipment->blockers !== [])
+                <ul class="hf-ship-blockers text-danger small mt-3 mb-0">
+                    @foreach($shipment->blockers as $blocker)
+                        <li>{{ $blocker }}</li>
+                    @endforeach
+                </ul>
+            @endif
+
+            @if($shipment->canCreate)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.shipment.store', $fulfilment) }}" id="hardware-shipment-form" class="mt-3">
+                    @csrf
+                    <div class="hf-alloc-confirm mb-3">
+                        <p class="text-muted small text-uppercase fw-semibold mb-2">Confirm shipment</p>
+                        <dl>
+                            <dt>Order</dt>
+                            <dd>{{ $shipment->order }}</dd>
+                            <dt>Product</dt>
+                            <dd>{{ $shipment->product ?? '—' }}</dd>
+                            <dt>Serial</dt>
+                            <dd>{{ implode(', ', $shipment->serials) }}</dd>
+                            <dt>Invoice</dt>
+                            <dd>{{ $shipment->invoice }}</dd>
+                            <dt>Pickup location</dt>
+                            <dd>{{ $shipment->pickupLocation }}</dd>
+                            <dt>Ship-to</dt>
+                            <dd>{{ $shipment->shipTo }}</dd>
+                            <dt>Parcel</dt>
+                            <dd>{{ $shipment->parcel }}</dd>
+                            <dt>Provider</dt>
+                            <dd>{{ $shipment->provider }}</dd>
+                        </dl>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="hardware-shipment-submit">{{ $shipment->actionLabel }}</button>
+                </form>
+            @endif
+        </div>
     </div>
 @endsection
 
@@ -377,6 +438,23 @@
                 }
                 submit.disabled = true;
                 submit.textContent = 'Allocating…';
+            });
+        })();
+
+        (function () {
+            const form = document.getElementById('hardware-shipment-form');
+            const submit = document.getElementById('hardware-shipment-submit');
+            if (!form || !submit) {
+                return;
+            }
+
+            form.addEventListener('submit', function (event) {
+                if (!window.confirm('Create this Shiprocket shipment with the derived pickup, serial, invoice, address, and parcel shown above?')) {
+                    event.preventDefault();
+                    return;
+                }
+                submit.disabled = true;
+                submit.textContent = 'Creating shipment…';
             });
         })();
     </script>

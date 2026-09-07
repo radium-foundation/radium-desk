@@ -5,6 +5,7 @@ namespace Tests\Feature\Shipping;
 use App\Services\Shipping\Data\ShiprocketCreateOrderRequest;
 use App\Services\Shipping\HttpShiprocketGateway;
 use App\Services\Shipping\ShiprocketDisabledException;
+use App\Services\Shipping\ShiprocketNonRetryableException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -133,6 +134,24 @@ class HttpShiprocketGatewayTest extends TestCase
         $this->assertSame('assigned', $result->status);
         $this->assertSame('AWB-99', $result->awb);
         $this->assertSame('12', $result->courierId);
+    }
+
+    public function test_authentication_failure_does_not_create_an_order(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['message' => 'Invalid credentials'], 401),
+        ]);
+
+        try {
+            (new HttpShiprocketGateway)->createOrder($this->request());
+            $this->fail('Authentication failure must fail closed.');
+        } catch (ShiprocketNonRetryableException $exception) {
+            $this->assertSame('Shiprocket authentication failed.', $exception->getMessage());
+        }
+
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/auth/login'));
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), '/orders/create/adhoc'));
     }
 
     public function test_missing_credentials_do_not_call_http(): void

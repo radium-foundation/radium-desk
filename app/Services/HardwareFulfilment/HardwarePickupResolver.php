@@ -35,7 +35,7 @@ final class HardwarePickupResolver
         if ($nickname === '') {
             throw ValidationException::withMessages([
                 'pickup' => sprintf(
-                    'Shiprocket pickup nickname for %s is not configured. Owner must supply P0-M2. Historical Admin nicknames are not used.',
+                    'Shiprocket pickup nickname for %s is not configured.',
                     $key,
                 ),
             ]);

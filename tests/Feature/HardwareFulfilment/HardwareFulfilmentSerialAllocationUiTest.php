@@ -134,7 +134,7 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ->assertSee('1 serial required')
             ->assertSee('READY FOR FULFILMENT')
             ->assertSee('Derived from selected serial')
-            ->assertDontSee('Create shipment')
+            ->assertDontSee('Create Shipment')
             ->assertDontSee('Assign AWB')
             ->assertDontSee('name="claimed_branch"', false);
     }

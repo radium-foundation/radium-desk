@@ -6,7 +6,7 @@
     <div class="mb-4">
         <p class="text-muted small text-uppercase fw-semibold mb-1">Inventory</p>
         <h1 class="h3 mb-1">Hardware fulfilment</h1>
-        <p class="text-muted mb-0">Allocate Desk stock serials. Branch is taken from the selected serial, not chosen here.</p>
+        <p class="text-muted mb-0">Allocate serials and create Shiprocket shipments. Branch and pickup come from the selected stock serial.</p>
     </div>
 
     @include('inventory.partials.workspace-nav', ['active' => 'hardware-fulfilments'])

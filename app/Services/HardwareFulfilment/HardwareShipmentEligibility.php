@@ -2,10 +2,14 @@
 
 namespace App\Services\HardwareFulfilment;
 
+use App\Contracts\Shipping\ShiprocketGateway;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\InventoryBranch;
+use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
+use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
+use App\Services\Shipping\NullShiprocketGateway;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Validation\ValidationException;
 
@@ -14,6 +18,7 @@ class HardwareShipmentEligibility
     public function __construct(
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly HardwarePickupResolver $pickups,
+        private readonly ShiprocketGateway $gateway,
     ) {}
 
     /**
@@ -43,9 +48,11 @@ class HardwareShipmentEligibility
             ]);
         }
 
+        $this->requirePayment($fulfilment, $order);
         $invoice = $this->requireInvoice($fulfilment, $order);
         $serials = $this->requireSerials($fulfilment, $order);
         $branch = $this->requireBranch($fulfilment);
+        $this->requireConsistentPhysicalBranch($fulfilment, $branch);
         $pickup = $this->pickups->requireForBranch($branch);
         $shipping = $this->requireShippingAddress($order);
         $parcel = $this->requireParcel($order);
@@ -58,6 +65,132 @@ class HardwareShipmentEligibility
             'shipping' => $shipping,
             'parcel' => $parcel,
         ];
+    }
+
+    public function inspect(HardwareFulfilment $fulfilment): HardwareShipmentReadiness
+    {
+        $fulfilment->loadMissing([
+            'commerceOrder.items',
+            'serials.inventorySerial.branch',
+            'fulfilmentBranch',
+            'shipment',
+        ]);
+
+        $order = $fulfilment->commerceOrder;
+        $blockers = [];
+        $shipment = $this->existingShipment($fulfilment);
+        $alreadyCreated = $shipment !== null && $shipment->isBound();
+
+        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+            $blockers[] = 'Frozen pending hardware orders cannot be shipped.';
+        }
+
+        if ($order === null) {
+            $blockers[] = 'Hardware fulfilment is missing its commerce order.';
+        } elseif (! $this->isPaid($fulfilment, $order)) {
+            $blockers[] = 'Payment not verified';
+        }
+
+        $serials = $order === null ? [] : $this->allocatedSerials($fulfilment);
+        if ($serials === [] && ! $alreadyCreated) {
+            $blockers[] = 'Serial allocation required';
+        } elseif ($order !== null && $serials !== [] && count($serials) !== $this->requiredPhysicalQty($order) && ! $alreadyCreated) {
+            $blockers[] = 'Serial allocation required';
+        }
+
+        $invoice = $this->linkedInvoice($fulfilment, $order);
+        if (($invoice === null || ! filled($invoice->invoice_number)) && ! $alreadyCreated) {
+            $blockers[] = 'Invoice required';
+        }
+
+        $physicalCodes = $this->physicalBranchCodes($fulfilment);
+        if (count($physicalCodes) > 1) {
+            $blockers[] = 'Mixed physical branches';
+        }
+
+        $branch = $fulfilment->fulfilmentBranch;
+        if ($branch === null || ! $branch->is_active) {
+            if ($serials !== [] || $physicalCodes !== []) {
+                $blockers[] = 'Pickup branch unknown';
+            }
+        } elseif (! in_array($branch->code, ['DELHI-RETAIL', 'MUMBAI'], true)) {
+            $blockers[] = 'Pickup branch unknown';
+        } elseif ($physicalCodes !== [] && ! isset($physicalCodes[$branch->code])) {
+            $blockers[] = 'Mixed physical branches';
+        }
+
+        $pickup = null;
+        if ($branch !== null) {
+            try {
+                $pickup = $this->pickups->requireForBranch($branch);
+            } catch (ValidationException) {
+                if ($branch->is_active && in_array($branch->code, ['DELHI-RETAIL', 'MUMBAI'], true)) {
+                    $blockers[] = 'Shiprocket configuration incomplete';
+                } elseif (! in_array('Pickup branch unknown', $blockers, true)) {
+                    $blockers[] = 'Pickup branch unknown';
+                }
+            }
+        }
+
+        $shipping = null;
+        if ($order !== null) {
+            try {
+                $shipping = $this->requireShippingAddress($order);
+            } catch (ValidationException) {
+                $blockers[] = 'Shipping address incomplete';
+            }
+        }
+
+        $parcel = null;
+        if ($order !== null) {
+            try {
+                $parcel = $this->requireParcel($order);
+            } catch (ValidationException) {
+                $blockers[] = 'Parcel dimensions unavailable';
+            }
+        }
+
+        if ($shipment !== null && $shipment->failure_class === 'provider_rejected') {
+            $blockers[] = 'Provider validation error';
+        }
+
+        if (! $this->providerReady()) {
+            $blockers[] = 'Shiprocket configuration incomplete';
+        }
+
+        $blockers = array_values(array_unique($blockers));
+        $needsReconcile = $shipment !== null
+            && ! $alreadyCreated
+            && in_array($shipment->failure_class, ['ambiguous', 'retryable'], true);
+        $canCreate = ! $alreadyCreated
+            && $blockers === []
+            && $fulfilment->state !== null
+            && $fulfilment->state->value === 'invoice_issued';
+
+        if (! $canCreate && ! $alreadyCreated && $fulfilment->state?->value !== 'invoice_issued') {
+            if ($serials === []) {
+                $blockers = $this->prependUnique($blockers, 'Serial allocation required');
+            }
+            if ($invoice === null || ! filled($invoice->invoice_number)) {
+                $blockers = $this->prependUnique($blockers, 'Invoice required');
+            }
+        }
+
+        return new HardwareShipmentReadiness(
+            canCreate: $canCreate,
+            blockers: array_values(array_unique($blockers)),
+            status: $this->shipmentStatusLabel($shipment, $alreadyCreated),
+            pickupBranch: $branch?->code,
+            pickupLocation: $pickup,
+            shipTo: $this->formatShipTo($shipping),
+            parcel: $this->formatParcel($parcel),
+            invoice: $invoice?->invoice_number,
+            serials: $serials,
+            order: $order?->order_no ?? $fulfilment->source_id,
+            product: $this->productLabel($order),
+            alreadyCreated: $alreadyCreated,
+            actionLabel: $needsReconcile ? 'Reconcile Shipment' : 'Create Shipment',
+        );
     }
 
     public function assertProviderConfigured(): void
@@ -239,6 +372,202 @@ class HardwareShipmentEligibility
             'breadth' => $breadth,
             'height' => $height,
         ];
+    }
+
+    private function requirePayment(HardwareFulfilment $fulfilment, CommerceOrder $order): void
+    {
+        if (! $this->isPaid($fulfilment, $order)) {
+            throw ValidationException::withMessages([
+                'payment' => 'Hardware shipment requires verified payment.',
+            ]);
+        }
+    }
+
+    private function requireConsistentPhysicalBranch(HardwareFulfilment $fulfilment, InventoryBranch $branch): void
+    {
+        $codes = $this->physicalBranchCodes($fulfilment);
+        if (count($codes) > 1) {
+            throw ValidationException::withMessages([
+                'branch' => 'Selected serials belong to multiple physical stock branches. One hardware fulfilment cannot mix Delhi and Mumbai stock.',
+            ]);
+        }
+
+        $physical = array_key_first($codes);
+        if ($physical !== null && $physical !== $branch->code) {
+            throw ValidationException::withMessages([
+                'branch' => 'Fulfilment branch does not match the allocated serial stock location.',
+            ]);
+        }
+    }
+
+    private function isPaid(HardwareFulfilment $fulfilment, CommerceOrder $order): bool
+    {
+        $status = strtolower(trim((string) $order->payment_status));
+
+        return in_array($status, ['paid', 'success', 'captured'], true)
+            || $order->paid_at !== null
+            || $fulfilment->paid_recognized_at !== null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function allocatedSerials(HardwareFulfilment $fulfilment): array
+    {
+        return array_values(array_map(
+            static fn (string $serial): string => InventorySerialNumber::normalize($serial),
+            $this->workflow->allocatedSerialNumbers($fulfilment),
+        ));
+    }
+
+    private function requiredPhysicalQty(CommerceOrder $order): int
+    {
+        $required = 0;
+        foreach ($order->items as $item) {
+            if (HardwareFulfilmentEligibility::isPhysicalCommerceItem($item)) {
+                $required += (int) $item->qty;
+            }
+        }
+
+        return $required;
+    }
+
+    private function linkedInvoice(HardwareFulfilment $fulfilment, ?CommerceOrder $order): ?StatutoryInvoice
+    {
+        $invoiceId = $fulfilment->statutory_invoice_id ?? $order?->statutory_invoice_id;
+        if ($invoiceId === null) {
+            return null;
+        }
+
+        return StatutoryInvoice::query()->find($invoiceId);
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function physicalBranchCodes(HardwareFulfilment $fulfilment): array
+    {
+        $fulfilment->loadMissing('serials.inventorySerial.branch');
+        $codes = [];
+        foreach ($fulfilment->serials as $row) {
+            $code = trim((string) ($row->inventorySerial?->branch?->code ?? ''));
+            if ($code !== '') {
+                $codes[$code] = true;
+            }
+        }
+
+        return $codes;
+    }
+
+    private function shipmentStatusLabel(?Shipment $shipment, bool $alreadyCreated): string
+    {
+        if ($alreadyCreated) {
+            return filled($shipment?->awb) ? 'Created (AWB assigned)' : 'Created';
+        }
+
+        return match ($shipment?->failure_class) {
+            'provider_rejected' => 'Not created — provider rejected',
+            'ambiguous', 'retryable' => 'Not created — reconcile required',
+            default => 'Not created',
+        };
+    }
+
+    private function existingShipment(HardwareFulfilment $fulfilment): ?Shipment
+    {
+        if ($fulfilment->relationLoaded('shipment') && $fulfilment->shipment !== null) {
+            return $fulfilment->shipment;
+        }
+
+        if ($fulfilment->shipment_id !== null) {
+            return Shipment::query()->find($fulfilment->shipment_id);
+        }
+
+        return Shipment::query()->where('hardware_fulfilment_id', $fulfilment->id)->first();
+    }
+
+    private function providerReady(): bool
+    {
+        if (! (bool) config('shipping.enabled')) {
+            return false;
+        }
+
+        $provider = (string) config('shipping.provider', 'none');
+        if ($provider === '' || $provider === 'none') {
+            return false;
+        }
+
+        return ! ($this->gateway instanceof NullShiprocketGateway)
+            && $this->gateway->provider() !== 'none';
+    }
+
+    /**
+     * @param  array<string, string>|null  $shipping
+     */
+    private function formatShipTo(?array $shipping): ?string
+    {
+        if ($shipping === null) {
+            return null;
+        }
+
+        $parts = array_filter([
+            $shipping['line1'] ?? null,
+            $shipping['line2'] ?? null,
+            $shipping['city'] ?? null,
+            trim(($shipping['state'] ?? '').' '.($shipping['pincode'] ?? '')),
+            $shipping['country'] ?? null,
+        ]);
+
+        return $parts === [] ? null : implode(', ', $parts);
+    }
+
+    /**
+     * @param  array{weight: float, length: float, breadth: float, height: float}|null  $parcel
+     */
+    private function formatParcel(?array $parcel): ?string
+    {
+        if ($parcel === null) {
+            return null;
+        }
+
+        return sprintf(
+            '%s kg · %s×%s×%s cm',
+            $parcel['weight'],
+            $parcel['length'],
+            $parcel['breadth'],
+            $parcel['height'],
+        );
+    }
+
+    private function productLabel(?CommerceOrder $order): ?string
+    {
+        if ($order === null) {
+            return null;
+        }
+
+        foreach ($order->items as $item) {
+            if (HardwareFulfilmentEligibility::isPhysicalCommerceItem($item)) {
+                return trim((string) $item->description) !== ''
+                    ? trim((string) $item->description)
+                    : (string) ($item->sku ?: $item->catalog_sku);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<string>  $blockers
+     * @return list<string>
+     */
+    private function prependUnique(array $blockers, string $message): array
+    {
+        if (in_array($message, $blockers, true)) {
+            return $blockers;
+        }
+
+        array_unshift($blockers, $message);
+
+        return $blockers;
     }
 
     private function positiveNumber(mixed $value, string $field): float

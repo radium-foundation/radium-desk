@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\Shipping\NullShiprocketGateway;
+use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
 use App\Services\Shipping\ShiprocketRetryableException;
 use Illuminate\Support\Facades\DB;
@@ -80,7 +81,7 @@ class HardwareShipmentService
             $ready = $prepared['ready'];
 
             if ($this->shouldReconcileFirst($shipment)) {
-                $found = $this->gateway->searchOrders($shipment->shipment_no);
+                $found = $this->searchForExisting($shipment);
                 if ($found->hasBindableIds()) {
                     return DB::transaction(fn (): Shipment => $this->bindCreated(
                         $locked->fresh() ?? $locked,
@@ -90,6 +91,17 @@ class HardwareShipmentService
                         $actor,
                         reconciled: true,
                     ));
+                }
+
+                if ($found->retryable || $found->found) {
+                    $this->markAmbiguous(
+                        $shipment,
+                        $found->error ?? 'Provider search was ambiguous. Create was not retried.',
+                    );
+
+                    throw new ShiprocketRetryableException(
+                        $found->error ?? 'Shiprocket search was ambiguous. Reconcile before creating another shipment.',
+                    );
                 }
             }
 
@@ -107,6 +119,18 @@ class HardwareShipmentService
                 $this->markAmbiguous($shipment, $exception->getMessage());
 
                 throw $exception;
+            } catch (ShiprocketNonRetryableException $exception) {
+                if ($this->isAuthenticationFailure($exception)) {
+                    $this->markAmbiguous($shipment, $exception->getMessage());
+                } else {
+                    $this->markFailed($shipment, $exception->getMessage());
+                }
+
+                throw $exception;
+            } catch (ShiprocketDisabledException $exception) {
+                throw ValidationException::withMessages([
+                    'shipping' => $exception->getMessage(),
+                ]);
             }
 
             if ($result->retryable) {
@@ -134,6 +158,10 @@ class HardwareShipmentService
                 'shipping' => $exception->getMessage().' Reconcile before creating another shipment.',
             ]);
         } catch (ShiprocketNonRetryableException $exception) {
+            throw ValidationException::withMessages([
+                'shipping' => $exception->getMessage(),
+            ]);
+        } catch (ShiprocketDisabledException $exception) {
             throw ValidationException::withMessages([
                 'shipping' => $exception->getMessage(),
             ]);
@@ -404,6 +432,26 @@ class HardwareShipmentService
         }
 
         return Shipment::query()->where('hardware_fulfilment_id', $fulfilment->id)->first();
+    }
+
+    private function searchForExisting(Shipment $shipment): ShiprocketSearchResult
+    {
+        try {
+            return $this->gateway->searchOrders($shipment->shipment_no);
+        } catch (ShiprocketRetryableException $exception) {
+            $this->markAmbiguous($shipment, $exception->getMessage());
+
+            throw $exception;
+        } catch (ShiprocketDisabledException $exception) {
+            throw ValidationException::withMessages([
+                'shipping' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function isAuthenticationFailure(ShiprocketNonRetryableException $exception): bool
+    {
+        return str_contains(strtolower($exception->getMessage()), 'authentication failed');
     }
 
     private function shouldReconcileFirst(Shipment $shipment): bool

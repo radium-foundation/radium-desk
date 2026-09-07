@@ -36,14 +36,18 @@ final class HttpShiprocketGateway implements ShiprocketGateway
     {
         $this->assertConfigured();
 
-        $response = $this->send('post', '/auth/login', [
-            'email' => config('shipping.api_email'),
-            'password' => config('shipping.api_password'),
-        ], authenticated: false);
+        try {
+            $response = $this->send('post', '/auth/login', [
+                'email' => config('shipping.api_email'),
+                'password' => config('shipping.api_password'),
+            ], authenticated: false);
+        } catch (ShiprocketNonRetryableException) {
+            throw new ShiprocketNonRetryableException('Shiprocket authentication failed.');
+        }
 
         $token = trim((string) ($response['json']['token'] ?? ''));
         if ($token === '') {
-            throw new ShiprocketNonRetryableException('Shiprocket login did not return a token.');
+            throw new ShiprocketNonRetryableException('Shiprocket authentication failed.');
         }
 
         $this->token = $token;
