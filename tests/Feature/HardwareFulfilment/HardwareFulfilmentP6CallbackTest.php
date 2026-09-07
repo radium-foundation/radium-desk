@@ -12,6 +12,7 @@ use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
+use App\Models\InventoryUserBranch;
 use App\Models\OutboxEvent;
 use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
@@ -409,6 +410,10 @@ class HardwareFulfilmentP6CallbackTest extends TestCase
             ['code' => 'DELHI-RETAIL'],
             ['name' => 'DELHI-RETAIL', 'is_active' => true],
         );
+        InventoryUserBranch::query()->firstOrCreate([
+            'user_id' => $this->actor->id,
+            'branch_id' => $branch->id,
+        ]);
         $fulfilment->forceFill(['fulfilment_branch_id' => $branch->id])->save();
         $this->workflow->transition($fulfilment, HardwareFulfilmentState::ReadyForFulfilment);
         app(InventoryStockService::class)->stockInSerialized(

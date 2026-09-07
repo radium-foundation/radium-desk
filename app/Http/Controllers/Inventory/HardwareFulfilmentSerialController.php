@@ -57,11 +57,20 @@ class HardwareFulfilmentSerialController extends Controller
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $fulfilment->load(['commerceOrder.items', 'serials', 'shipment']);
 
+        $allowed = InventoryBranchScope::allowedBranches($request->user());
+
         return view('inventory.hardware-fulfilments.show', [
             'fulfilment' => $fulfilment,
             'requirements' => $this->allocation->requirements($fulfilment),
             'allocated' => $fulfilment->serials,
-            'branches' => InventoryBranchScope::allowedBranches($request->user()),
+            'branches' => $allowed,
+            'stockBranches' => $allowed
+                ->filter(fn (InventoryBranch $branch): bool => in_array(
+                    $branch->code,
+                    HardwareSerialAllocationService::STOCK_BRANCH_CODES,
+                    true,
+                ))
+                ->values(),
         ]);
     }
 
@@ -69,11 +78,16 @@ class HardwareFulfilmentSerialController extends Controller
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
 
+        $branch = trim($request->string('branch')->toString());
+
         return response()->json([
             'serials' => $this->allocation->searchAvailable(
                 $fulfilment,
                 $request->integer('commerce_order_item_id'),
                 $request->string('q')->toString(),
+                20,
+                $branch !== '' ? $branch : null,
+                $request->user(),
             ),
         ]);
     }
@@ -86,9 +100,15 @@ class HardwareFulfilmentSerialController extends Controller
             'serials' => ['required', 'array'],
             'serials.*' => ['array'],
             'serials.*.*' => ['string'],
+            'claimed_branch' => ['nullable', 'string'],
         ]);
 
-        $this->allocation->allocate($fulfilment, $validated['serials'], $request->user());
+        $this->allocation->allocate(
+            $fulfilment,
+            $validated['serials'],
+            $request->user(),
+            $validated['claimed_branch'] ?? null,
+        );
 
         return redirect()
             ->route('inventory.hardware-fulfilments.show', $fulfilment)

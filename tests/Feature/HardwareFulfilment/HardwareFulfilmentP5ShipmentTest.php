@@ -11,6 +11,7 @@ use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentSerial;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
+use App\Models\InventoryUserBranch;
 use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
@@ -370,6 +371,10 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
             ['code' => $branchCode],
             ['name' => $branchCode, 'is_active' => true],
         );
+        InventoryUserBranch::query()->firstOrCreate([
+            'user_id' => $this->actor->id,
+            'branch_id' => $branch->id,
+        ]);
         app(InventoryStockService::class)->stockInSerialized($this->product, $branch, $serials, $this->actor);
     }
 
@@ -379,6 +384,10 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
             ['code' => $code],
             ['name' => $code, 'is_active' => true],
         );
+        InventoryUserBranch::query()->firstOrCreate([
+            'user_id' => $this->actor->id,
+            'branch_id' => $branch->id,
+        ]);
         $fulfilment->forceFill(['fulfilment_branch_id' => $branch->id])->save();
 
         return $branch;

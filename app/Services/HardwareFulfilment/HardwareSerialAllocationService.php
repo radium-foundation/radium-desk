@@ -11,15 +11,29 @@ use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentSerial;
 use App\Models\InventoryBranch;
+use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
 use App\Models\User;
 use App\Services\Inventory\InventoryStockService;
+use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class HardwareSerialAllocationService
 {
+    public const STOCK_BRANCH_DELHI = 'DELHI-RETAIL';
+
+    public const STOCK_BRANCH_MUMBAI = 'MUMBAI';
+
+    /**
+     * @var list<string>
+     */
+    public const STOCK_BRANCH_CODES = [
+        self::STOCK_BRANCH_DELHI,
+        self::STOCK_BRANCH_MUMBAI,
+    ];
+
     public function __construct(
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly HardwareSkuMapService $skuMap,
@@ -39,29 +53,42 @@ class HardwareSerialAllocationService
      *     inventory_product_id: int|null,
      *     inventory_sku: string|null,
      *     map_ready: bool,
-     *     available_qty: int
+     *     available_qty: int,
+     *     available_by_branch: array<string, int>
      * }>
      */
     public function requirements(HardwareFulfilment $fulfilment): array
     {
         $order = $this->requireOrder($fulfilment);
-        $branch = $fulfilment->fulfilment_branch_id !== null
-            ? InventoryBranch::query()->find($fulfilment->fulfilment_branch_id)
-            : null;
+        $lockedBranch = $this->storedStockBranch($fulfilment);
         $lines = [];
 
         foreach ($this->physicalItems($order) as $item) {
             $product = $item->model_id !== null
                 ? $this->skuMap->findProduct($order->channel, (int) $item->model_id)
                 : null;
-            $available = 0;
-            if ($product !== null && $branch !== null) {
-                $available = InventorySerial::query()
-                    ->where('product_id', $product->id)
-                    ->where('branch_id', $branch->id)
-                    ->where('status', InventorySerialStatus::Available)
-                    ->count();
+            $byBranch = [];
+            foreach (self::STOCK_BRANCH_CODES as $code) {
+                $byBranch[$code] = 0;
             }
+            if ($product !== null) {
+                $counts = InventorySerial::query()
+                    ->selectRaw('inventory_branches.code as branch_code, count(*) as available_qty')
+                    ->join('inventory_branches', 'inventory_branches.id', '=', 'inventory_serials.branch_id')
+                    ->where('inventory_serials.product_id', $product->id)
+                    ->where('inventory_serials.status', InventorySerialStatus::Available)
+                    ->whereIn('inventory_branches.code', self::STOCK_BRANCH_CODES)
+                    ->where('inventory_branches.is_active', true)
+                    ->groupBy('inventory_branches.code')
+                    ->pluck('available_qty', 'branch_code');
+                foreach ($counts as $code => $qty) {
+                    $byBranch[(string) $code] = (int) $qty;
+                }
+            }
+
+            $available = $lockedBranch !== null
+                ? ($byBranch[$lockedBranch->code] ?? 0)
+                : array_sum($byBranch);
 
             $lines[] = [
                 'commerce_order_item_id' => (int) $item->id,
@@ -76,6 +103,7 @@ class HardwareSerialAllocationService
                 'inventory_sku' => $product?->sku,
                 'map_ready' => $product !== null,
                 'available_qty' => $available,
+                'available_by_branch' => $byBranch,
             ];
         }
 
@@ -83,23 +111,25 @@ class HardwareSerialAllocationService
     }
 
     /**
-     * @return list<array{id: int, serial_number: string, product_id: int, sku: string|null, product_name: string|null}>
+     * @return list<array{id: int, serial_number: string, product_id: int, sku: string|null, product_name: string|null, branch_id: int, branch_code: string}>
      */
     public function searchAvailable(
         HardwareFulfilment $fulfilment,
         int $commerceOrderItemId,
         string $query = '',
         int $limit = 20,
+        ?string $branchCode = null,
+        ?User $actor = null,
     ): array {
         $this->assertNotFrozen($fulfilment);
-        $branch = $this->requireBranch($fulfilment);
+        $branch = $this->resolveSearchBranch($fulfilment, $branchCode, $actor);
         $order = $this->requireOrder($fulfilment);
         $item = $this->requirePhysicalItem($order, $commerceOrderItemId);
         $product = $this->skuMap->requireProductForItem($order->channel, $item);
         $q = trim($query);
 
         $serials = InventorySerial::query()
-            ->with('product')
+            ->with(['product', 'branch'])
             ->where('product_id', $product->id)
             ->where('branch_id', $branch->id)
             ->where('status', InventorySerialStatus::Available)
@@ -114,6 +144,8 @@ class HardwareSerialAllocationService
             'product_id' => (int) $serial->product_id,
             'sku' => $serial->product?->sku,
             'product_name' => $serial->product?->name,
+            'branch_id' => (int) $serial->branch_id,
+            'branch_code' => (string) ($serial->branch?->code ?? ''),
         ])->values()->all();
     }
 
@@ -124,10 +156,11 @@ class HardwareSerialAllocationService
         HardwareFulfilment $fulfilment,
         array $serialsByItemId,
         User $actor,
+        ?string $claimedBranchCode = null,
     ): HardwareFulfilment {
         $this->assertNotFrozen($fulfilment);
 
-        return DB::transaction(function () use ($fulfilment, $serialsByItemId, $actor): HardwareFulfilment {
+        return DB::transaction(function () use ($fulfilment, $serialsByItemId, $actor, $claimedBranchCode): HardwareFulfilment {
             $locked = HardwareFulfilment::query()
                 ->whereKey($fulfilment->id)
                 ->lockForUpdate()
@@ -146,12 +179,18 @@ class HardwareSerialAllocationService
                 ]);
             }
 
+            if (($locked->state?->rank() ?? -1) >= HardwareFulfilmentState::ShipmentCreated->rank()) {
+                throw ValidationException::withMessages([
+                    'serials' => 'Hardware fulfilment already shipped cannot receive serial allocation.',
+                ]);
+            }
+
             $this->workflow->assertCanAllocateSerials($locked);
-            $branch = $this->requireBranch($locked);
             $order = $this->requireOrder($locked);
             $items = $this->physicalItems($order);
             $this->assertNoPricedServiceCompanion($order);
             $selections = $this->normalizeSelections($items, $serialsByItemId);
+            $branch = $this->establishFulfilmentBranch($locked, $items, $selections, $order, $actor, $claimedBranchCode);
 
             $created = [];
             foreach ($items as $item) {
@@ -230,6 +269,7 @@ class HardwareSerialAllocationService
         HardwareFulfilment $fulfilment,
         array $serialNumbers,
         User $actor,
+        ?string $claimedBranchCode = null,
     ): HardwareFulfilment {
         $this->assertNotFrozen($fulfilment);
         $order = $this->requireOrder($fulfilment);
@@ -240,7 +280,7 @@ class HardwareSerialAllocationService
             ]);
         }
 
-        return $this->allocate($fulfilment, [(int) $items[0]->id => $serialNumbers], $actor);
+        return $this->allocate($fulfilment, [(int) $items[0]->id => $serialNumbers], $actor, $claimedBranchCode);
     }
 
     private function idempotentAllocated(HardwareFulfilment $fulfilment, array $serialsByItemId): HardwareFulfilment
@@ -460,12 +500,151 @@ class HardwareSerialAllocationService
         return $order;
     }
 
-    private function requireBranch(HardwareFulfilment $fulfilment): InventoryBranch
+    /**
+     * Physical stock on the selected serials is the only source of fulfilment branch.
+     * Customer / order / GST state is never consulted.
+     *
+     * @param  list<CommerceOrderItem>  $items
+     * @param  array<int, list<string>>  $selections
+     */
+    private function establishFulfilmentBranch(
+        HardwareFulfilment $fulfilment,
+        array $items,
+        array $selections,
+        CommerceOrder $order,
+        User $actor,
+        ?string $claimedBranchCode,
+    ): InventoryBranch {
+        $expectedByNumber = [];
+        $allNumbers = [];
+        foreach ($items as $item) {
+            $product = $this->skuMap->requireProductForItem($order->channel, $item);
+            foreach ($selections[(int) $item->id] as $number) {
+                $allNumbers[] = $number;
+                $expectedByNumber[$number] = $product;
+            }
+        }
+
+        if ($allNumbers === []) {
+            throw ValidationException::withMessages([
+                'serials' => 'No serials selected.',
+            ]);
+        }
+
+        $ordered = $allNumbers;
+        sort($ordered, SORT_STRING);
+
+        $branchIds = [];
+        foreach ($ordered as $number) {
+            $serial = $this->stock->lockSerialByNumber($number);
+            $this->assertSerialNotAllocatedElsewhere($serial, $number);
+            $this->assertSelectedSerialEligible($serial, $number, $expectedByNumber[$number]);
+            $branchIds[(int) $serial->branch_id] = true;
+        }
+
+        if (count($branchIds) !== 1) {
+            throw ValidationException::withMessages([
+                'serials' => 'Selected serials belong to multiple physical stock branches. One hardware fulfilment cannot mix Delhi and Mumbai stock.',
+            ]);
+        }
+
+        $physical = $this->requireSupportedStockBranch((int) array_key_first($branchIds));
+        $claimed = $this->normalizeClaimedBranchCode($claimedBranchCode);
+        if ($claimed !== null && $claimed !== $physical->code) {
+            throw ValidationException::withMessages([
+                'branch' => sprintf(
+                    'Selected serials are not at the claimed stock branch %s. The allocation transaction uses inventory_serials.branch_id, not the UI filter.',
+                    $claimed,
+                ),
+            ]);
+        }
+
+        $stored = $this->storedStockBranch($fulfilment);
+        if ($stored !== null && (int) $stored->id !== (int) $physical->id) {
+            throw ValidationException::withMessages([
+                'serials' => sprintf('Selected serials are not available at %s.', $stored->code),
+            ]);
+        }
+
+        InventoryBranchScope::assertCanOperate($actor, $physical);
+
+        if ((int) $fulfilment->fulfilment_branch_id !== (int) $physical->id) {
+            $fulfilment->forceFill(['fulfilment_branch_id' => $physical->id])->save();
+        }
+
+        return $physical;
+    }
+
+    private function assertSelectedSerialEligible(
+        InventorySerial $serial,
+        string $number,
+        InventoryProduct $expected,
+    ): void {
+        if ((int) $serial->product_id !== (int) $expected->id) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$number} belongs to the wrong product.",
+            ]);
+        }
+
+        if ($serial->status === InventorySerialStatus::Sold) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$number} is already sold.",
+            ]);
+        }
+
+        if ($serial->status !== InventorySerialStatus::Available) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$number} is unavailable.",
+            ]);
+        }
+
+        $branch = $serial->branch;
+        if ($branch === null || ! $branch->is_active || ! in_array($branch->code, self::STOCK_BRANCH_CODES, true)) {
+            throw ValidationException::withMessages([
+                'branch' => "Serial {$number} belongs to an inactive or unsupported stock branch.",
+            ]);
+        }
+    }
+
+    private function resolveSearchBranch(
+        HardwareFulfilment $fulfilment,
+        ?string $branchCode,
+        ?User $actor,
+    ): InventoryBranch {
+        $stored = $this->storedStockBranch($fulfilment);
+        $filter = $this->normalizeClaimedBranchCode($branchCode);
+
+        if ($stored !== null) {
+            if ($filter !== null && $filter !== $stored->code) {
+                throw ValidationException::withMessages([
+                    'branch' => 'Search branch filter must match the stored fulfilment stock branch.',
+                ]);
+            }
+            if ($actor !== null) {
+                InventoryBranchScope::assertCanOperate($actor, $stored);
+            }
+
+            return $stored;
+        }
+
+        if ($filter === null) {
+            throw ValidationException::withMessages([
+                'branch' => 'Select a physical stock branch to search available serials. Customer state cannot substitute.',
+            ]);
+        }
+
+        $branch = $this->requireSupportedStockBranchByCode($filter);
+        if ($actor !== null) {
+            InventoryBranchScope::assertCanOperate($actor, $branch);
+        }
+
+        return $branch;
+    }
+
+    private function storedStockBranch(HardwareFulfilment $fulfilment): ?InventoryBranch
     {
         if ($fulfilment->fulfilment_branch_id === null) {
-            throw ValidationException::withMessages([
-                'branch' => 'Hardware serial allocation requires a fulfilment branch. Customer state cannot substitute.',
-            ]);
+            return null;
         }
 
         $branch = InventoryBranch::query()->find($fulfilment->fulfilment_branch_id);
@@ -476,6 +655,52 @@ class HardwareSerialAllocationService
         }
 
         return $branch;
+    }
+
+    private function requireSupportedStockBranch(int $branchId): InventoryBranch
+    {
+        $branch = InventoryBranch::query()->find($branchId);
+        if ($branch === null || ! $branch->is_active || ! in_array($branch->code, self::STOCK_BRANCH_CODES, true)) {
+            throw ValidationException::withMessages([
+                'branch' => 'Selected serials belong to an inactive or unsupported stock branch.',
+            ]);
+        }
+
+        return $branch;
+    }
+
+    private function requireSupportedStockBranchByCode(string $code): InventoryBranch
+    {
+        $branch = InventoryBranch::query()->where('code', $code)->first();
+        if ($branch === null || ! $branch->is_active) {
+            throw ValidationException::withMessages([
+                'branch' => 'Hardware stock branch is missing or inactive.',
+            ]);
+        }
+
+        if (! in_array($branch->code, self::STOCK_BRANCH_CODES, true)) {
+            throw ValidationException::withMessages([
+                'branch' => 'Invalid branch. Hardware stock branches are DELHI-RETAIL and MUMBAI only.',
+            ]);
+        }
+
+        return $branch;
+    }
+
+    private function normalizeClaimedBranchCode(?string $code): ?string
+    {
+        $trimmed = strtoupper(trim((string) $code));
+        if ($trimmed === '') {
+            return null;
+        }
+
+        return match ($trimmed) {
+            self::STOCK_BRANCH_DELHI, 'DELHI' => self::STOCK_BRANCH_DELHI,
+            self::STOCK_BRANCH_MUMBAI => self::STOCK_BRANCH_MUMBAI,
+            default => throw ValidationException::withMessages([
+                'branch' => 'Invalid branch. Hardware stock branches are DELHI-RETAIL and MUMBAI only.',
+            ]),
+        };
     }
 
     private function assertNotFrozen(HardwareFulfilment $fulfilment): void

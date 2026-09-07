@@ -256,6 +256,8 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*')
                 || ($request->is('service-requests/quick') && ($request->expectsJson() || $request->ajax()))
                 || ($request->is('pos/products/search', 'pos/serials/search', 'pos/customers/lookup')
+                    && ($request->expectsJson() || $request->ajax()))
+                || ($request->is('inventory/hardware-fulfilments/*/serials/search')
                     && ($request->expectsJson() || $request->ajax())),
         );
     })->create();

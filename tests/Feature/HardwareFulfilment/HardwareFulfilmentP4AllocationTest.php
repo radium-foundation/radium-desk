@@ -399,6 +399,10 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
             ['code' => $code],
             ['name' => $code, 'is_active' => true],
         );
+        InventoryUserBranch::query()->firstOrCreate([
+            'user_id' => $this->actor->id,
+            'branch_id' => $branch->id,
+        ]);
         if ($fulfilment?->exists) {
             $fulfilment->forceFill(['fulfilment_branch_id' => $branch->id])->save();
         }
