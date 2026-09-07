@@ -156,7 +156,7 @@ One row per device serial. No `qty<=5` assumption. Unique `serial_number` / `inv
 
 | Phase | Depends on P1 | Still blocked by |
 |-------|---------------|------------------|
-| P2 | Fulfilment row exists; this ticket already opened the foundation | Operator branch / richer Cashfree mismatch policy if Owner wants 422 |
+| P2 | Fulfilment row exists; this ticket already opened the foundation | Implemented in P-07-09-16: payment evidence + guarded transitions. Operator READY / SKU map still later. |
 | P3 | Mint after serials; `HardwareIssuer`; annexure-capable PDF | P0-M5 POS lock; serials from P4 |
 | P4 | Serial picker writes `hardware_fulfilment_serials` | P0-M1 SKU map |
 | P5 | Gates: invoice + serials + pickup | P0-M2 nicknames |

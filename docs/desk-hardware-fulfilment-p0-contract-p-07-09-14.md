@@ -354,3 +354,5 @@ Invoice serial rendering (P3/P4, not P1):
 - POS quantities of 100–200 devices are in scope. Do not assume a small serial list.
 
 See `docs/desk-hardware-fulfilment-p1-foundation-p-07-09-15.md`.
+
+P2 implementation (payment evidence + state guards, no mint/serial/ship): `docs/desk-hardware-fulfilment-p2-workflow-p-07-09-16.md`.

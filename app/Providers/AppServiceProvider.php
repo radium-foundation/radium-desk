@@ -20,6 +20,7 @@ use App\Listeners\BroadcastNotificationCreated;
 use App\Listeners\Finance\PostOrderPaidJournal;
 use App\Listeners\Finance\PostPosSaleJournal;
 use App\Listeners\Finance\PostRefundCompletedJournal;
+use App\Listeners\HardwareFulfilment\CorrelateHardwareCashfreePayment;
 use App\Listeners\LogScheduledTaskTiming;
 use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
 use App\Models\DeviceModel;
@@ -324,6 +325,7 @@ class AppServiceProvider extends ServiceProvider
         // so it cannot be re-registered via event discovery.
         Event::listen(SupportAppointmentSmartAssigned::class, DispatchIraSmartAssignmentNotification::class);
         Event::listen(OrderPaid::class, PostOrderPaidJournal::class);
+        Event::listen(OrderPaid::class, CorrelateHardwareCashfreePayment::class);
         Event::listen(RefundCompleted::class, PostRefundCompletedJournal::class);
         Event::listen(InventorySaleCompleted::class, PostPosSaleJournal::class);
         Event::listen([

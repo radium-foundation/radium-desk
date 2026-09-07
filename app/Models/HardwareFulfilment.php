@@ -32,6 +32,7 @@ class HardwareFulfilment extends Model
         'last_error',
         'metadata',
         'ingested_at',
+        'paid_recognized_at',
         'ready_at',
         'serials_allocated_at',
         'invoice_issued_at',
@@ -49,6 +50,7 @@ class HardwareFulfilment extends Model
             'retry_count' => 'integer',
             'metadata' => 'array',
             'ingested_at' => 'datetime',
+            'paid_recognized_at' => 'datetime',
             'ready_at' => 'datetime',
             'serials_allocated_at' => 'datetime',
             'invoice_issued_at' => 'datetime',
@@ -72,5 +74,10 @@ class HardwareFulfilment extends Model
     public function serials(): HasMany
     {
         return $this->hasMany(HardwareFulfilmentSerial::class)->orderBy('line_no')->orderBy('position');
+    }
+
+    public function paymentEvidence(): HasMany
+    {
+        return $this->hasMany(HardwareFulfilmentPaymentEvidence::class)->orderBy('id');
     }
 }

@@ -13,6 +13,21 @@ final class HardwareFulfilmentEligibility
 
     public const SOURCE_PREFIX = 'RDE';
 
+    /**
+     * Owner-frozen pending hardware orders. P2 must not open or advance them.
+     *
+     * @var list<string>
+     */
+    public const FROZEN_SOURCE_IDS = [
+        'RDE318360',
+        'RDE318367',
+        'RDE318378',
+        'RDE318379',
+        'RDE318382',
+        'RDE318388',
+        'RDE318391',
+    ];
+
     public static function shouldOpenRecord(ChannelOrderIngestRequest $request): bool
     {
         if ($request->channel !== StatutoryInvoiceChannel::RadiumBoxCom) {
@@ -24,6 +39,10 @@ final class HardwareFulfilmentEligibility
         }
 
         if (! str_starts_with(strtoupper($request->sourceId), self::SOURCE_PREFIX)) {
+            return false;
+        }
+
+        if (self::isFrozenSourceId($request->sourceId)) {
             return false;
         }
 
@@ -53,5 +72,10 @@ final class HardwareFulfilmentEligibility
     public static function looksLikeHardwareSourceId(string $sourceId): bool
     {
         return str_starts_with(strtoupper($sourceId), self::SOURCE_PREFIX);
+    }
+
+    public static function isFrozenSourceId(string $sourceId): bool
+    {
+        return in_array(strtoupper(trim($sourceId)), self::FROZEN_SOURCE_IDS, true);
     }
 }

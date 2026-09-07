@@ -12,6 +12,10 @@ use Illuminate\Database\UniqueConstraintViolationException;
 
 class HardwareFulfilmentFoundationService
 {
+    public function __construct(
+        private readonly HardwareFulfilmentPaymentCorrelationService $paymentCorrelation,
+    ) {}
+
     public function ensureIngested(CommerceOrder $order, ChannelOrderIngestRequest $request): ?HardwareFulfilment
     {
         if (! HardwareFulfilmentEligibility::shouldOpenRecord($request)) {
@@ -25,6 +29,7 @@ class HardwareFulfilmentFoundationService
             ->first();
         if ($existing !== null) {
             $this->fillMissingCorrelation($existing, $order, $request);
+            $this->paymentCorrelation->attachPendingEvidence($existing);
 
             return $existing;
         }
@@ -47,9 +52,14 @@ class HardwareFulfilmentFoundationService
                 'ingested_at' => now(),
             ]);
         } catch (UniqueConstraintViolationException) {
-            return HardwareFulfilment::query()
+            $raced = HardwareFulfilment::query()
                 ->where('commerce_order_id', $order->id)
                 ->first();
+            if ($raced !== null) {
+                $this->paymentCorrelation->attachPendingEvidence($raced);
+            }
+
+            return $raced;
         }
 
         HardwareFulfilmentEvent::query()->create([
@@ -63,6 +73,8 @@ class HardwareFulfilmentFoundationService
             ],
             'created_at' => now(),
         ]);
+
+        $this->paymentCorrelation->attachPendingEvidence($fulfilment);
 
         return $fulfilment;
     }
