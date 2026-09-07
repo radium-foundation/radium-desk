@@ -119,7 +119,8 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $this->assertStringContainsString('Serial Numbers: See Annexure A', $pdf);
         $this->assertStringContainsString('ANNEXURE A', $pdf);
         $this->assertStringContainsString($invoice->invoice_number, $pdf);
-        $this->assertStringContainsString('statutory:radiumbox_com:commerce_order:RDE900305', $pdf);
+        $this->assertStringContainsString('Order RDE900305', $pdf);
+        $this->assertStringNotContainsString('statutory:radiumbox_com', $pdf);
         $this->assertStringContainsString('not a second invoice', $pdf);
         $this->assertSame(1, substr_count($pdf, '%PDF-1.4'));
         for ($i = 1; $i <= 6; $i++) {

@@ -65,32 +65,41 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
     public function test_b2c_pdf_is_professional_and_omits_irn_debug(): void
     {
         $invoice = $this->invoices->issueFromCommerceOrder(
-            $this->commerceOrder('RD-PDF-B2C', buyerGstin: null, description: 'Information technology (IT) consulting & support services (SAC - 998313) - (Sr. No. 10500255)'),
+            $this->commerceOrder(
+                'RD-PDF-B2C',
+                buyerGstin: null,
+                description: 'Information technology (IT) consulting & support services (SAC - 998313) - (Sr. No. 10500255) - 1 Year Unlimited',
+                companion: 'RD Technical Support — included',
+            ),
             $this->actor,
         );
         $pdf = $this->text($this->pdf($invoice->id));
 
         $this->assertStringContainsString('TAX INVOICE', $pdf);
-        $this->assertStringContainsString('Phil Technologies (P) Limited', $pdf);
-        $this->assertStringContainsString('GSTIN '.$this->configuredSellerGstin('mumbai'), $pdf);
-        $this->assertStringContainsString('Invoice '.$invoice->invoice_number, $pdf);
+        $this->assertStringContainsString('Phil Technologies', $pdf);
+        $this->assertStringContainsString($this->configuredSellerGstin('mumbai'), $pdf);
+        $this->assertStringContainsString('Invoice no. '.$invoice->invoice_number, $pdf);
         $this->assertStringContainsString('Seller', $pdf);
-        $this->assertStringContainsString('Buyer', $pdf);
+        $this->assertStringContainsString('Bill To', $pdf);
         $this->assertStringContainsString('CHANDRAKANT GANPAT SARODE', $pdf);
-        $this->assertStringContainsString('GSTIN B2C', $pdf);
+        $this->assertStringContainsString('GSTIN Unregistered', $pdf);
         $this->assertStringContainsString('Place of supply Maharashtra', $pdf);
         $this->assertStringContainsString('SAC - 998313', $pdf);
-        $this->assertStringContainsString('HSN/SAC 998314', $pdf);
-        $this->assertStringContainsString('Qty 1', $pdf);
-        $this->assertStringContainsString('Rate 422.88', $pdf);
-        $this->assertStringContainsString('Taxable 422.88', $pdf);
-        $this->assertStringContainsString('GST 18.00%', $pdf);
-        $this->assertStringContainsString('CGST 38.06', $pdf);
-        $this->assertStringContainsString('SGST 38.06', $pdf);
-        $this->assertStringContainsString('IGST 0.00', $pdf);
-        $this->assertStringContainsString('Total GST 76.12', $pdf);
-        $this->assertStringContainsString('Invoice value 499.00', $pdf);
-        $this->assertStringContainsString('Amount payable 499.00', $pdf);
+        $this->assertStringContainsString('HSN/SAC', $pdf);
+        $this->assertStringContainsString('998314', $pdf);
+        $this->assertStringContainsString('Qty', $pdf);
+        $this->assertStringContainsString('Rs.422.88', $pdf);
+        $this->assertStringContainsString('18.00%', $pdf);
+        $this->assertStringContainsString('CGST Rs.38.06', $pdf);
+        $this->assertStringContainsString('SGST Rs.38.06', $pdf);
+        $this->assertStringContainsString('IGST Rs.0.00', $pdf);
+        $this->assertStringContainsString('Total GST', $pdf);
+        $this->assertStringContainsString('Rs.499.00', $pdf);
+        $this->assertStringContainsString('Amount payable', $pdf);
+        $this->assertStringContainsString('RD Technical Support - included', $pdf);
+        $this->assertStringNotContainsString('???', $pdf);
+        $this->assertStringNotContainsString('unset', $pdf);
+        $this->assertStringNotContainsString('GSTIN B2C', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
         $this->assertStringNotContainsString('b2c_not_eligible', $pdf);
         $this->assertStringNotContainsString('worker_may_mint', $pdf);
@@ -109,7 +118,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertSame(EInvoiceRecordStatus::Queued->value, $record?->status);
         $this->assertNull($record?->irn);
         $this->assertStringContainsString('TAX INVOICE', $pdf);
-        $this->assertStringContainsString('GSTIN 07AAAAA0000A1Z5', $pdf);
+        $this->assertStringContainsString('07AAAAA0000A1Z5', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
         $this->assertStringNotContainsString('queued', $pdf);
         $this->assertStringNotContainsString('b2b_eligible', $pdf);
@@ -136,7 +145,8 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->regenerate($invoice->id);
         $pdf = $this->text($this->pdf($invoice->id));
 
-        $this->assertStringContainsString('IRN a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2', $pdf);
+        $this->assertStringContainsString('IRN', $pdf);
+        $this->assertStringContainsString('a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2', $pdf);
         $this->assertStringContainsString('Ack. No. ACK-1001', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
     }
@@ -169,13 +179,60 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);
     }
 
+    public function test_long_address_and_description_wrap_without_debug_placeholders(): void
+    {
+        $renderer = new SimplePdfRenderer;
+        $pdf = $this->text($renderer->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-67200',
+            issuedAt: '2026-09-07 19:08:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Principal Arya Kanya Inter College Banda with an unusually long institutional title',
+            buyerGstin: null,
+            billingAddress: 'Ward No. 12, Civil Lines, Near Old Bus Stand, Banda, Uttar Pradesh 210001, India',
+            placeOfSupply: 'Uttar Pradesh',
+            lines: [[
+                'description' => 'Information technology (IT) consulting & support services (SAC - 998313) - (Sr. No. 10500255) - 1 Year Unlimited plus an extra clause for wrapping',
+                'hsnSac' => '998314',
+                'qty' => 1,
+                'unitPrice' => '422.88',
+                'taxableValue' => '422.88',
+                'gstPercentage' => '18.00%',
+                'cgst' => '0.00',
+                'sgst' => '0.00',
+                'igst' => '76.12',
+                'taxTotal' => '76.12',
+                'lineTotal' => '499.00',
+            ]],
+            taxableValue: '422.88',
+            gstRate: '18.00%',
+            taxTotal: '76.12',
+            cgst: '0.00',
+            sgst: '0.00',
+            igst: '76.12',
+            invoiceValue: '499.00',
+        )));
+
+        $this->assertStringContainsString('Principal Arya Kanya Inter College', $pdf);
+        $this->assertStringContainsString('Civil Lines', $pdf);
+        $this->assertStringContainsString('Place of supply Uttar Pradesh', $pdf);
+        $this->assertStringContainsString('SAC - 998313', $pdf);
+        $this->assertStringContainsString('998314', $pdf);
+        $this->assertStringNotContainsString('???', $pdf);
+        $this->assertStringNotContainsString('unset', $pdf);
+        $this->assertStringNotContainsString('IRN not submitted', $pdf);
+    }
+
     public function test_renderer_never_prints_irn_from_unsubmitted_payload(): void
     {
         $renderer = new SimplePdfRenderer;
         $pdf = $this->text($renderer->render($this->payload()));
 
         $this->assertStringContainsString('TAX INVOICE', $pdf);
-        $this->assertStringContainsString('HSN/SAC 998314', $pdf);
+        $this->assertStringContainsString('HSN/SAC', $pdf);
+        $this->assertStringContainsString('998314', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
         $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);
     }
@@ -189,10 +246,64 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             ackDate: '07 Sep 2026 18:40',
         )));
 
-        $this->assertStringContainsString('IRN issued-irn-token-0001', $pdf);
+        $this->assertStringContainsString('IRN', $pdf);
+        $this->assertStringContainsString('issued-irn-token-0001', $pdf);
         $this->assertStringContainsString('Ack. No. 112233', $pdf);
         $this->assertStringContainsString('Ack. date 07 Sep 2026 18:40', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
+    }
+
+    public function test_multipage_invoice_repeats_header_and_keeps_totals_on_last_page(): void
+    {
+        $lines = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $lines[] = [
+                'description' => 'Information technology (IT) consulting & support services line '.$i.' (SAC - 998313) with additional wrapping text for multi-page invoices',
+                'hsnSac' => '998314',
+                'qty' => 1,
+                'unitPrice' => '100.00',
+                'taxableValue' => '100.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '0.00',
+                'sgst' => '0.00',
+                'igst' => '18.00',
+                'taxTotal' => '18.00',
+                'lineTotal' => '118.00',
+            ];
+        }
+
+        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-27690',
+            issuedAt: '2026-09-07 20:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '27AAICP1128M1Z7',
+            sellerAddress: 'G40, Harmony Mall, Link Road, Goregaon, Mumbai 400104',
+            sellerState: 'Maharashtra',
+            buyerName: 'Long Name Customer',
+            buyerGstin: null,
+            billingAddress: 'Ward No. 12, Civil Lines, Banda, Uttar Pradesh 210001',
+            placeOfSupply: 'Uttar Pradesh',
+            lines: $lines,
+            taxableValue: '1200.00',
+            gstRate: '18.00%',
+            taxTotal: '216.00',
+            cgst: '0.00',
+            sgst: '0.00',
+            igst: '216.00',
+            invoiceValue: '1416.00',
+            serialNumbers: ['SN-1', 'SN-2', 'SN-3', 'SN-4', 'SN-5', 'SN-6'],
+            sourceId: 'RDE900305',
+        )));
+
+        $this->assertStringContainsString('Page 1 of 3', $pdf);
+        $this->assertStringContainsString('Page 3 of 3', $pdf);
+        $this->assertStringContainsString('TAX INVOICE', $pdf);
+        $this->assertStringContainsString('Amount payable', $pdf);
+        $this->assertStringContainsString('Rs.1416.00', $pdf);
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('Order RDE900305', $pdf);
+        $this->assertStringNotContainsString('IRN not submitted', $pdf);
+        $this->assertStringNotContainsString('statutory:', $pdf);
     }
 
     private function pdf(int $invoiceId): string
@@ -224,6 +335,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         string $sourceId,
         ?string $buyerGstin = null,
         string $description = 'Information technology (IT) consulting & support services',
+        ?string $companion = null,
     ): CommerceOrder {
         $order = CommerceOrder::query()->create([
             'order_no' => 'CO-'.$sourceId,
@@ -260,6 +372,19 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             'tax_total' => 76.12,
             'line_total' => 499.00,
         ]);
+        if ($companion !== null) {
+            $order->items()->create([
+                'line_no' => 2,
+                'description' => $companion,
+                'hsn_sac' => '998314',
+                'qty' => 1,
+                'unit_price' => 0,
+                'gst_percentage' => 18,
+                'taxable_value' => 0,
+                'tax_total' => 0,
+                'line_total' => 0,
+            ]);
+        }
 
         return $order->fresh(['items']);
     }

@@ -8,25 +8,49 @@ class SimplePdfRenderer
 {
     public const ANNEXURE_THRESHOLD = 5;
 
-    private const LINES_PER_PAGE = 52;
+    private const PAGE_WIDTH = 595.0;
 
-    private const PAGE_WIDTH = 595;
+    private const PAGE_HEIGHT = 842.0;
 
-    private const PAGE_HEIGHT = 842;
+    private const MARGIN = 40.0;
 
-    private const MARGIN = 40;
+    private const CONTENT_RIGHT = 555.0;
+
+    private const FOOTER_Y = 42.0;
+
+    private const TOTALS_RESERVE = 148.0;
 
     public function render(StatutoryInvoicePdfPayload $payload): string
     {
         $contents = $this->invoicePageStreams($payload);
-        foreach (array_chunk($this->annexureLines($payload), self::LINES_PER_PAGE) as $pageLines) {
-            $contents[] = $this->pageStream($pageLines);
+        foreach ($this->annexurePageStreams($payload) as $stream) {
+            $contents[] = $stream;
         }
 
         if ($contents === []) {
-            $contents[] = $this->pageStream(['TAX INVOICE']);
+            $contents[] = $this->text(self::MARGIN, 800, 'TAX INVOICE', 14, true);
         }
 
+        $totalPages = count($contents);
+        if ($totalPages > 1) {
+            foreach ($contents as $index => $stream) {
+                $contents[$index] = $stream.$this->text(
+                    self::MARGIN,
+                    self::FOOTER_Y,
+                    'Page '.($index + 1).' of '.$totalPages,
+                    8,
+                );
+            }
+        }
+
+        return $this->assemble($contents);
+    }
+
+    /**
+     * @param  list<string>  $contents
+     */
+    private function assemble(array $contents): string
+    {
         $pageCount = count($contents);
         $regularFont = 3 + ($pageCount * 2);
         $boldFont = $regularFont + 1;
@@ -43,7 +67,7 @@ class SimplePdfRenderer
         for ($i = 0; $i < $pageCount; $i++) {
             $contentObject = 4 + ($i * 2);
             $objects[] = sprintf(
-                '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] /Contents %d 0 R /Resources << /Font << /F1 %d 0 R /F2 %d 0 R >> >> >>',
+                '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.0F %.0F] /Contents %d 0 R /Resources << /Font << /F1 %d 0 R /F2 %d 0 R >> >> >>',
                 self::PAGE_WIDTH,
                 self::PAGE_HEIGHT,
                 $contentObject,
@@ -64,7 +88,7 @@ class SimplePdfRenderer
         }
 
         $xref = strlen($pdf);
-        $pdf .= 'xref'."\n".'0 '.(count($objects) + 1)."\n";
+        $pdf .= "xref\n0 ".(count($objects) + 1)."\n";
         $pdf .= "0000000000 65535 f \n";
         foreach (array_slice($offsets, 1) as $offset) {
             $pdf .= sprintf("%010d 00000 n \n", $offset);
@@ -80,187 +104,301 @@ class SimplePdfRenderer
      */
     private function invoicePageStreams(StatutoryInvoicePdfPayload $payload): array
     {
-        $lineCards = $this->lineCards($payload);
-        $chunks = $lineCards === [] ? [[]] : array_chunk($lineCards, 6);
+        $rows = $this->lineRows($payload);
         $streams = [];
-        $pageCount = count($chunks);
+        $remaining = $rows;
+        $page = 1;
 
-        foreach ($chunks as $index => $cards) {
-            $streams[] = $this->invoicePageStream(
-                $payload,
-                $cards,
-                $index + 1,
-                $pageCount,
-                $index === $pageCount - 1,
-            );
+        do {
+            $isLastAttempt = $page >= 20;
+            $needTotals = $remaining === [] || $this->rowsFitWithTotals($remaining);
+            [$stream, $remaining] = $this->invoicePage($payload, $remaining, $page, $needTotals || $isLastAttempt);
+            $streams[] = $stream;
+            $page++;
+        } while ($remaining !== [] && $page <= 20);
+
+        if ($remaining !== []) {
+            $streams[] = $this->invoicePage($payload, $remaining, $page, true)[0];
         }
 
         return $streams;
     }
 
     /**
-     * @param  list<list<string>>  $cards
+     * @param  list<array<string, mixed>>  $rows
+     * @return array{0: string, 1: list<array<string, mixed>>}
      */
-    private function invoicePageStream(
+    private function invoicePage(
         StatutoryInvoicePdfPayload $payload,
-        array $cards,
+        array $rows,
         int $page,
-        int $pageCount,
         bool $includeTotals,
-    ): string {
+    ): array {
         $ops = [];
-        $y = 800;
+        $y = 802.0;
+        $first = $page === 1;
 
-        $ops[] = $this->rect(self::MARGIN, 768, self::PAGE_WIDTH - (self::MARGIN * 2), 50, false);
-        $ops[] = $this->text(self::MARGIN + 8, 800, $payload->sellerLegalName, 13, true);
-        $ops[] = $this->text(self::MARGIN + 8, 784, 'GSTIN '.$payload->sellerGstin, 9);
-        $ops[] = $this->text(340, 800, 'TAX INVOICE', 16, true);
-        $ops[] = $this->text(340, 784, 'Invoice '.$payload->invoiceNumber, 10, true);
-        $ops[] = $this->text(340, 770, 'Date '.$this->invoiceDate($payload->issuedAt), 9);
-        $y = 750;
+        $ops[] = $this->fill(self::MARGIN, 768, self::CONTENT_RIGHT - self::MARGIN, 50, 0.16, 0.20, 0.28);
+        $ops[] = $this->text(self::MARGIN + 10, 798, $payload->sellerLegalName, 13, true, 1, 1, 1);
+        $ops[] = $this->text(self::MARGIN + 10, 782, 'GSTIN '.$this->display($payload->sellerGstin), 9, false, 1, 1, 1);
+        $ops[] = $this->text(392, 798, 'TAX INVOICE', 16, true, 1, 1, 1);
+        $ops[] = $this->text(392, 780, $payload->invoiceNumber, 10, true, 1, 1, 1);
+        $y = 754.0;
 
-        $ops[] = $this->text(self::MARGIN, $y, $this->clip($payload->sellerAddress, 78), 8);
-        $y -= 12;
-        $ops[] = $this->text(self::MARGIN, $y, 'State '.$payload->sellerState, 8);
+        $ops[] = $this->text(self::MARGIN, $y, 'Invoice no. '.$payload->invoiceNumber, 9, true);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, 'Invoice date '.$this->invoiceDate($payload->issuedAt), 9, true);
+        $y -= 16;
+
+        if ($first && $payload->hasIssuedIrn()) {
+            $irnLines = $this->wrapWidth((string) $payload->irn, 500, 8);
+            $ack = trim(implode('    ', array_filter([
+                $payload->ackNo !== null && $payload->ackNo !== '' ? 'Ack. No. '.$payload->ackNo : null,
+                $payload->ackDate !== null && $payload->ackDate !== '' ? 'Ack. date '.$payload->ackDate : null,
+            ])));
+            $boxHeight = 20 + (11 * count($irnLines)) + ($ack !== '' ? 12 : 0);
+            $ops[] = $this->rect(self::MARGIN, $y - $boxHeight + 10, self::CONTENT_RIGHT - self::MARGIN, $boxHeight);
+            $ops[] = $this->text(self::MARGIN + 6, $y - 2, 'IRN', 7, true);
+            foreach ($irnLines as $irnLine) {
+                $y -= 11;
+                $ops[] = $this->text(self::MARGIN + 6, $y, $irnLine, 8);
+            }
+            if ($ack !== '') {
+                $y -= 11;
+                $ops[] = $this->text(self::MARGIN + 6, $y, $ack, 8);
+            }
+            $y -= 16;
+        }
+
+        if ($first) {
+            $y = $this->partyPanels($ops, $payload, $y);
+        }
+
+        $y -= 8;
+        $ops[] = $this->tableHeader($y);
         $y -= 18;
 
-        if ($payload->hasIssuedIrn()) {
-            $ops[] = $this->text(self::MARGIN, $y, 'IRN '.$payload->irn, 8, true);
-            $y -= 12;
-            $ack = trim(implode('   ', array_filter([
-                $payload->ackNo !== null ? 'Ack. No. '.$payload->ackNo : null,
-                $payload->ackDate !== null ? 'Ack. date '.$payload->ackDate : null,
-            ])));
-            if ($ack !== '') {
-                $ops[] = $this->text(self::MARGIN, $y, $ack, 8);
-                $y -= 14;
+        $drawn = 0;
+        foreach ($rows as $index => $row) {
+            $height = $this->rowHeight($row);
+            $floor = $includeTotals && $index === 0 && $drawn === 0
+                ? self::FOOTER_Y + self::TOTALS_RESERVE
+                : self::FOOTER_Y + 18;
+            if ($y - $height < $floor && $drawn > 0) {
+                break;
             }
+            $ops[] = $this->tableRow($row, $y);
+            $y -= $height;
+            $drawn++;
         }
 
-        $ops[] = $this->line(self::MARGIN, $y, 555, $y);
-        $y -= 16;
-        $ops[] = $this->text(self::MARGIN, $y, 'Seller', 9, true);
-        $ops[] = $this->text(310, $y, 'Buyer', 9, true);
-        $y -= 13;
-        $ops[] = $this->text(self::MARGIN, $y, $this->clip($payload->sellerLegalName, 42), 8);
-        $ops[] = $this->text(310, $y, $this->clip($payload->buyerName, 42), 8);
-        $y -= 12;
-        $ops[] = $this->text(self::MARGIN, $y, 'GSTIN '.$payload->sellerGstin, 8);
-        $ops[] = $this->text(310, $y, 'GSTIN '.($payload->buyerGstin ?: 'B2C'), 8);
-        $y -= 12;
-        $sellerAddressLines = $this->wrap($payload->sellerAddress !== '' ? $payload->sellerAddress : 'unset', 42);
-        $buyerAddressLines = $this->wrap($payload->billingAddress ?: 'unset', 42);
-        $addressRows = max(count($sellerAddressLines), count($buyerAddressLines));
-        for ($i = 0; $i < $addressRows; $i++) {
-            $ops[] = $this->text(self::MARGIN, $y, $sellerAddressLines[$i] ?? '', 8);
-            $ops[] = $this->text(310, $y, $buyerAddressLines[$i] ?? '', 8);
-            $y -= 11;
-        }
-        $ops[] = $this->text(self::MARGIN, $y, 'State '.$payload->sellerState, 8);
-        $ops[] = $this->text(310, $y, 'Place of supply '.$payload->placeOfSupply, 8);
-        $y -= 12;
-        $ops[] = $this->text(310, $y, 'State '.$payload->placeOfSupply, 8);
-        $y -= 16;
+        $remaining = array_slice($rows, $drawn);
 
-        $ops[] = $this->line(self::MARGIN, $y, 555, $y);
-        $y -= 16;
-        $ops[] = $this->text(self::MARGIN, $y, 'Particulars', 9, true);
-        $y -= 14;
-
-        foreach ($cards as $cardLines) {
-            foreach ($cardLines as $line) {
-                $ops[] = $this->text(self::MARGIN, $y, $line, 8);
-                $y -= 11;
-            }
-            $y -= 6;
-        }
-
-        if ($includeTotals) {
-            $y -= 4;
-            $ops[] = $this->line(self::MARGIN, $y, 555, $y);
-            $y -= 16;
-            $ops[] = $this->text(330, $y, 'Taxable '.$payload->taxableValue, 9);
-            $y -= 12;
-            $ops[] = $this->text(330, $y, 'GST rate '.$payload->gstRate, 9);
-            $y -= 12;
-            $ops[] = $this->text(330, $y, 'CGST '.$payload->cgst, 9);
-            $y -= 12;
-            $ops[] = $this->text(330, $y, 'SGST '.$payload->sgst, 9);
-            $y -= 12;
-            $ops[] = $this->text(330, $y, 'IGST '.$payload->igst, 9);
-            $y -= 12;
-            $ops[] = $this->text(330, $y, 'Total GST '.$payload->taxTotal, 9);
-            $y -= 14;
-            $ops[] = $this->text(330, $y, 'Invoice value '.$payload->invoiceValue, 11, true);
-            $y -= 13;
-            $ops[] = $this->text(330, $y, 'Amount payable '.$payload->invoiceValue, 9, true);
-            $y -= 18;
-
+        if ($includeTotals && $remaining === []) {
+            $y -= 10;
+            $ops[] = $this->totalsBox($payload, $y);
+            $y -= self::TOTALS_RESERVE - 20;
             foreach ($this->serialSummaryLines($payload) as $serialLine) {
                 $ops[] = $this->text(self::MARGIN, $y, $serialLine, 8);
                 $y -= 12;
             }
         }
 
-        if ($pageCount > 1) {
-            $ops[] = $this->text(self::MARGIN, 36, 'Page '.$page.' of '.$pageCount, 8);
+        $ops[] = $this->text(self::CONTENT_RIGHT - $this->textWidth($payload->sellerLegalName, 8), self::FOOTER_Y, $payload->sellerLegalName, 8);
+
+        return [implode('', $ops), $remaining];
+    }
+
+    /**
+     * @param  list<string>  $ops
+     */
+    private function partyPanels(array &$ops, StatutoryInvoicePdfPayload $payload, float $y): float
+    {
+        $left = self::MARGIN;
+        $mid = 297.0;
+        $width = 250.0;
+        $sellerLines = $this->partyLines(
+            $payload->sellerLegalName,
+            $this->display($payload->sellerGstin),
+            $payload->sellerAddress,
+            $payload->sellerState,
+            null,
+        );
+        $buyerGstin = $payload->buyerGstin !== null && trim($payload->buyerGstin) !== ''
+            ? $payload->buyerGstin
+            : 'Unregistered';
+        $buyerLines = $this->partyLines(
+            $payload->buyerName,
+            $buyerGstin,
+            $payload->billingAddress,
+            $payload->placeOfSupply,
+            $payload->placeOfSupply,
+        );
+        $rows = max(count($sellerLines), count($buyerLines));
+        $height = 18 + ($rows * 11) + 10;
+
+        $ops[] = $this->rect($left, $y - $height + 8, $width, $height);
+        $ops[] = $this->rect($mid, $y - $height + 8, $width, $height);
+        $ops[] = $this->fill($left, $y - 4, $width, 14, 0.93, 0.94, 0.95);
+        $ops[] = $this->fill($mid, $y - 4, $width, 14, 0.93, 0.94, 0.95);
+        $ops[] = $this->text($left + 6, $y - 1, 'Seller', 8, true);
+        $ops[] = $this->text($mid + 6, $y - 1, 'Bill To', 8, true);
+
+        $textY = $y - 16;
+        for ($i = 0; $i < $rows; $i++) {
+            $sellerLine = $sellerLines[$i] ?? '';
+            $buyerLine = $buyerLines[$i] ?? '';
+            if ($sellerLine !== '') {
+                $ops[] = $this->text($left + 6, $textY, $sellerLine, 8);
+            }
+            if ($buyerLine !== '') {
+                $ops[] = $this->text($mid + 6, $textY, $buyerLine, 8);
+            }
+            $textY -= 11;
         }
+
+        return $y - $height - 6;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function partyLines(
+        string $name,
+        string $gstin,
+        ?string $address,
+        string $state,
+        ?string $placeOfSupply,
+    ): array {
+        $lines = [];
+        foreach ($this->wrapWidth($this->display($name), 236, 8) as $line) {
+            $lines[] = $line;
+        }
+        $lines[] = 'GSTIN '.$this->display($gstin);
+        $addressLines = $this->wrapWidth($this->display($address), 236, 8);
+        foreach ($addressLines as $line) {
+            $lines[] = $line;
+        }
+        $lines[] = 'State '.$this->display($state);
+        if ($placeOfSupply !== null) {
+            $lines[] = 'Place of supply '.$this->display($placeOfSupply);
+        }
+
+        return $lines;
+    }
+
+    private function tableHeader(float $y): string
+    {
+        $ops = [];
+        $ops[] = $this->fill(self::MARGIN, $y - 12, self::CONTENT_RIGHT - self::MARGIN, 16, 0.16, 0.20, 0.28);
+        $ops[] = $this->text(44, $y - 8, '#', 7, true, 1, 1, 1);
+        $ops[] = $this->text(58, $y - 8, 'Description', 7, true, 1, 1, 1);
+        $ops[] = $this->text(248, $y - 8, 'HSN/SAC', 7, true, 1, 1, 1);
+        $ops[] = $this->rightText(326, $y - 8, 'Qty', 7, true, 1, 1, 1);
+        $ops[] = $this->rightText(378, $y - 8, 'Rate', 7, true, 1, 1, 1);
+        $ops[] = $this->rightText(434, $y - 8, 'Taxable', 7, true, 1, 1, 1);
+        $ops[] = $this->rightText(476, $y - 8, 'GST %', 7, true, 1, 1, 1);
+        $ops[] = $this->rightText(551, $y - 8, 'Total', 7, true, 1, 1, 1);
 
         return implode('', $ops);
     }
 
     /**
-     * @return list<list<string>>
+     * @param  array<string, mixed>  $row
      */
-    private function lineCards(StatutoryInvoicePdfPayload $payload): array
+    private function tableRow(array $row, float $y): string
     {
-        $cards = [];
-        foreach (array_values($payload->lines) as $index => $line) {
-            $sr = $index + 1;
-            $descriptionLines = $this->wrap((string) $line['description'], 86);
-            $first = $descriptionLines[0] ?? '';
-            $card = [
-                $sr.'. '.$first,
-            ];
-            foreach (array_slice($descriptionLines, 1) as $wrapped) {
-                $card[] = '   '.$wrapped;
-            }
-            $card[] = sprintf(
-                '   HSN/SAC %s  Qty %d  Rate %s  Taxable %s  GST %s',
-                $line['hsnSac'],
-                $line['qty'],
-                $line['unitPrice'] ?? $line['taxableValue'],
-                $line['taxableValue'],
-                $line['gstPercentage'],
-            );
-            $card[] = sprintf(
-                '   CGST %s  SGST %s  IGST %s  Tax %s  Total %s',
-                $line['cgst'],
-                $line['sgst'],
-                $line['igst'],
-                $line['taxTotal'],
-                $line['lineTotal'],
-            );
-            $cards[] = $card;
+        $ops = [];
+        $ops[] = $this->text(44, $y, (string) $row['sr'], 8);
+        $descY = $y;
+        foreach ($row['descLines'] as $line) {
+            $ops[] = $this->text(58, $descY, $line, 8);
+            $descY -= 11;
         }
+        $ops[] = $this->text(248, $y, (string) $row['hsn'], 8);
+        $ops[] = $this->rightText(326, $y, (string) $row['qty'], 8);
+        $ops[] = $this->rightText(378, $y, (string) $row['rate'], 8);
+        $ops[] = $this->rightText(434, $y, (string) $row['taxable'], 8);
+        $ops[] = $this->rightText(476, $y, (string) $row['gst'], 8);
+        $ops[] = $this->rightText(551, $y, (string) $row['amount'], 8);
+        $ops[] = $this->text(58, $descY - 1, (string) $row['taxLine'], 7);
 
-        return $cards;
+        return implode('', $ops);
     }
 
     /**
-     * @param  list<string>  $lines
+     * @param  array<string, mixed>  $row
      */
-    private function pageStream(array $lines): string
+    private function rowHeight(array $row): float
     {
-        $content = "BT\n/F1 10 Tf\n";
-        $y = 800;
-        foreach ($lines as $line) {
-            $content .= sprintf("1 0 0 1 40 %d Tm (%s) Tj\n", $y, $this->escape($line));
-            $y -= 14;
-        }
-        $content .= "ET\n";
+        return 14 + (11 * max(0, count($row['descLines']) - 1)) + 14;
+    }
 
-        return $content;
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function rowsFitWithTotals(array $rows): bool
+    {
+        $height = 0.0;
+        foreach ($rows as $row) {
+            $height += $this->rowHeight($row);
+        }
+
+        return $height <= 280;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function lineRows(StatutoryInvoicePdfPayload $payload): array
+    {
+        $rows = [];
+        foreach (array_values($payload->lines) as $index => $line) {
+            $rows[] = [
+                'sr' => (string) ($index + 1),
+                'descLines' => $this->wrapWidth((string) $line['description'], 184, 8),
+                'hsn' => $this->display((string) $line['hsnSac']),
+                'qty' => (string) $line['qty'],
+                'rate' => $this->money((string) ($line['unitPrice'] ?? $line['taxableValue'])),
+                'taxable' => $this->money((string) $line['taxableValue']),
+                'gst' => $this->display((string) $line['gstPercentage']),
+                'amount' => $this->money((string) $line['lineTotal']),
+                'taxLine' => sprintf(
+                    'CGST %s   SGST %s   IGST %s   Tax %s',
+                    $this->money((string) $line['cgst']),
+                    $this->money((string) $line['sgst']),
+                    $this->money((string) $line['igst']),
+                    $this->money((string) $line['taxTotal']),
+                ),
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function totalsBox(StatutoryInvoicePdfPayload $payload, float $y): string
+    {
+        $ops = [];
+        $x = 330.0;
+        $ops[] = $this->rect($x - 8, $y - 118, 233, 130);
+        $pairs = [
+            ['Taxable', $this->money($payload->taxableValue), false],
+            ['GST rate', $this->display($payload->gstRate), false],
+            ['CGST', $this->money($payload->cgst), false],
+            ['SGST', $this->money($payload->sgst), false],
+            ['IGST', $this->money($payload->igst), false],
+            ['Total GST', $this->money($payload->taxTotal), false],
+            ['Invoice value', $this->money($payload->invoiceValue), true],
+            ['Amount payable', $this->money($payload->invoiceValue), true],
+        ];
+        $lineY = $y;
+        foreach ($pairs as [$label, $value, $bold]) {
+            $ops[] = $this->text($x, $lineY, $label, $bold ? 9 : 8, $bold);
+            $ops[] = $this->rightText(547, $lineY, $value, $bold ? 9 : 8, $bold);
+            $lineY -= $bold ? 14 : 12;
+        }
+        $ops[] = $this->line($x, $y - 72, 547, $y - 72);
+
+        return implode('', $ops);
     }
 
     /**
@@ -283,7 +421,7 @@ class SimplePdfRenderer
     /**
      * @return list<string>
      */
-    private function annexureLines(StatutoryInvoicePdfPayload $payload): array
+    private function annexurePageStreams(StatutoryInvoicePdfPayload $payload): array
     {
         $serials = $this->normalizedSerials($payload);
         if (count($serials) <= self::ANNEXURE_THRESHOLD) {
@@ -291,23 +429,28 @@ class SimplePdfRenderer
         }
 
         $lines = [
-            'ANNEXURE A — Serial Numbers',
+            'ANNEXURE A - Serial Numbers',
             'Invoice '.$payload->invoiceNumber,
-            'Order '.($payload->sourceId ?? 'unset'),
-            'Statutory identity '.($payload->sourceId !== null
-                ? 'statutory:radiumbox_com:commerce_order:'.$payload->sourceId
-                : 'unset'),
-            'Fulfilment '.($payload->fulfilmentId !== null ? (string) $payload->fulfilmentId : 'unset'),
+            'Order '.($payload->sourceId ?? '-'),
             'Total serials '.count($serials),
             'This annexure is part of the same tax invoice. It is not a second invoice.',
-            '',
         ];
-
         foreach ($serials as $index => $serial) {
             $lines[] = sprintf('%d. %s', $index + 1, $serial);
         }
 
-        return $lines;
+        $pages = [];
+        foreach (array_chunk($lines, 48) as $chunk) {
+            $ops = [];
+            $y = 800.0;
+            foreach ($chunk as $i => $line) {
+                $ops[] = $this->text(self::MARGIN, $y, $line, $i === 0 ? 12 : 9, $i === 0);
+                $y -= 14;
+            }
+            $pages[] = implode('', $ops);
+        }
+
+        return $pages;
     }
 
     /**
@@ -329,11 +472,11 @@ class SimplePdfRenderer
     /**
      * @return list<string>
      */
-    private function wrap(string $text, int $width): array
+    private function wrapWidth(string $text, float $maxWidth, int $size): array
     {
         $clean = trim($this->ascii($text));
         if ($clean === '') {
-            return [''];
+            return ['-'];
         }
 
         $words = preg_split('/\s+/', $clean) ?: [$clean];
@@ -341,7 +484,7 @@ class SimplePdfRenderer
         $current = '';
         foreach ($words as $word) {
             $candidate = $current === '' ? $word : $current.' '.$word;
-            if (strlen($candidate) <= $width) {
+            if ($this->textWidth($candidate, $size) <= $maxWidth) {
                 $current = $candidate;
 
                 continue;
@@ -349,73 +492,182 @@ class SimplePdfRenderer
             if ($current !== '') {
                 $lines[] = $current;
             }
+            if ($this->textWidth($word, $size) > $maxWidth) {
+                $lines = array_merge($lines, $this->hardSplit($word, $maxWidth, $size));
+                $current = '';
+
+                continue;
+            }
             $current = $word;
         }
         if ($current !== '') {
             $lines[] = $current;
         }
 
-        return $lines === [] ? [''] : $lines;
+        return $lines === [] ? ['-'] : $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function hardSplit(string $word, float $maxWidth, int $size): array
+    {
+        $parts = [];
+        $buffer = '';
+        foreach (mb_str_split($word) as $char) {
+            $candidate = $buffer.$char;
+            if ($buffer !== '' && $this->textWidth($candidate, $size) > $maxWidth) {
+                $parts[] = $buffer;
+                $buffer = $char;
+            } else {
+                $buffer = $candidate;
+            }
+        }
+        if ($buffer !== '') {
+            $parts[] = $buffer;
+        }
+
+        return $parts === [] ? [$word] : $parts;
     }
 
     private function invoiceDate(string $issuedAt): string
     {
         if ($issuedAt === '') {
-            return '';
+            return '-';
         }
 
         try {
             return (new \DateTimeImmutable($issuedAt))->format('d M Y');
         } catch (\Exception) {
-            return $issuedAt;
+            return $this->ascii($issuedAt);
         }
     }
 
-    private function text(float $x, float $y, string $text, int $size, bool $bold = false): string
+    private function money(string $value): string
     {
-        $font = $bold ? 'F2' : 'F1';
+        $display = $this->display($value);
+        if ($display === '-' || $display === '') {
+            return '-';
+        }
+        if (str_starts_with($display, 'Rs.') || str_contains($display, '%')) {
+            return $display;
+        }
+        if (! is_numeric(str_replace(',', '', $display))) {
+            return $display;
+        }
 
+        return 'Rs.'.number_format((float) str_replace(',', '', $display), 2, '.', '');
+    }
+
+    private function display(?string $value): string
+    {
+        $ascii = trim($this->ascii((string) $value));
+        if ($ascii === '' || in_array(strtolower($ascii), ['unset', 'not recorded', 'null'], true)) {
+            return '-';
+        }
+
+        return $ascii;
+    }
+
+    private function text(
+        float $x,
+        float $y,
+        string $text,
+        int $size,
+        bool $bold = false,
+        float $r = 0,
+        float $g = 0,
+        float $b = 0,
+    ): string {
         return sprintf(
-            "BT\n/%s %d Tf\n1 0 0 1 %.2F %.2F Tm (%s) Tj\nET\n",
-            $font,
+            "BT\n/%s %d Tf\n%.3F %.3F %.3F rg\n1 0 0 1 %.2F %.2F Tm (%s) Tj\n0 0 0 rg\nET\n",
+            $bold ? 'F2' : 'F1',
             $size,
+            $r,
+            $g,
+            $b,
             $x,
             $y,
             $this->escape($text),
         );
     }
 
+    private function rightText(
+        float $right,
+        float $y,
+        string $text,
+        int $size,
+        bool $bold = false,
+        float $r = 0,
+        float $g = 0,
+        float $b = 0,
+    ): string {
+        return $this->text($right - $this->textWidth($text, $size), $y, $text, $size, $bold, $r, $g, $b);
+    }
+
     private function line(float $x1, float $y1, float $x2, float $y2): string
     {
-        return sprintf("q\n0.4 w\n%.2F %.2F m\n%.2F %.2F l\nS\nQ\n", $x1, $y1, $x2, $y2);
+        return sprintf("q\n0.4 w\n0 0 0 RG\n%.2F %.2F m\n%.2F %.2F l\nS\nQ\n", $x1, $y1, $x2, $y2);
     }
 
-    private function rect(float $x, float $y, float $w, float $h, bool $fill): string
+    private function rect(float $x, float $y, float $w, float $h): string
     {
-        $paint = $fill ? 'f' : 'S';
-
-        return sprintf("q\n0.6 w\n%.2F %.2F %.2F %.2F re\n%s\nQ\n", $x, $y, $w, $h, $paint);
+        return sprintf("q\n0.6 w\n0.55 0.58 0.62 RG\n%.2F %.2F %.2F %.2F re\nS\nQ\n", $x, $y, $w, $h);
     }
 
-    private function clip(string $text, int $width): string
+    private function fill(float $x, float $y, float $w, float $h, float $r, float $g, float $b): string
     {
-        $ascii = $this->ascii($text);
-        if (strlen($ascii) <= $width) {
-            return $ascii;
+        return sprintf("q\n%.3F %.3F %.3F rg\n%.2F %.2F %.2F %.2F re\nf\nQ\n", $r, $g, $b, $x, $y, $w, $h);
+    }
+
+    private function textWidth(string $text, int $size): float
+    {
+        $widths = [
+            ' ' => 278, '!' => 278, '"' => 355, '#' => 556, '$' => 556, '%' => 889, '&' => 667, '\'' => 191,
+            '(' => 333, ')' => 333, '*' => 389, '+' => 584, ',' => 278, '-' => 333, '.' => 278, '/' => 278,
+            '0' => 556, '1' => 556, '2' => 556, '3' => 556, '4' => 556, '5' => 556, '6' => 556, '7' => 556,
+            '8' => 556, '9' => 556, ':' => 278, ';' => 278, '<' => 584, '=' => 584, '>' => 584, '?' => 556,
+            '@' => 1015, 'A' => 667, 'B' => 667, 'C' => 722, 'D' => 722, 'E' => 667, 'F' => 611, 'G' => 778,
+            'H' => 722, 'I' => 278, 'J' => 500, 'K' => 667, 'L' => 556, 'M' => 833, 'N' => 722, 'O' => 778,
+            'P' => 667, 'Q' => 778, 'R' => 722, 'S' => 667, 'T' => 611, 'U' => 722, 'V' => 667, 'W' => 944,
+            'X' => 667, 'Y' => 667, 'Z' => 611, '[' => 278, '\\' => 278, ']' => 278, '_' => 556,
+            'a' => 556, 'b' => 556, 'c' => 500, 'd' => 556, 'e' => 556, 'f' => 278, 'g' => 556, 'h' => 556,
+            'i' => 222, 'j' => 222, 'k' => 500, 'l' => 222, 'm' => 833, 'n' => 556, 'o' => 556, 'p' => 556,
+            'q' => 556, 'r' => 333, 's' => 500, 't' => 278, 'u' => 556, 'v' => 500, 'w' => 722, 'x' => 500,
+            'y' => 500, 'z' => 500,
+        ];
+        $units = 0;
+        $length = strlen($text);
+        for ($i = 0; $i < $length; $i++) {
+            $units += $widths[$text[$i]] ?? 556;
         }
 
-        return substr($ascii, 0, max(0, $width - 3)).'...';
+        return ($units * $size) / 1000;
     }
 
     private function ascii(string $text): string
     {
-        return preg_replace('/[^\x20-\x7E]/', '?', $text) ?? $text;
+        $mapped = strtr($text, [
+            '—' => '-',
+            '–' => '-',
+            '−' => '-',
+            '‘' => "'",
+            '’' => "'",
+            '“' => '"',
+            '”' => '"',
+            '₹' => 'Rs.',
+            '×' => 'x',
+            '•' => '-',
+            "\u{00A0}" => ' ',
+        ]);
+
+        $ascii = preg_replace('/[^\x20-\x7E]/', '', $mapped) ?? $mapped;
+
+        return preg_replace('/\s+/', ' ', $ascii) ?? $ascii;
     }
 
     private function escape(string $text): string
     {
-        $ascii = $this->ascii($text);
-
-        return substr(str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $ascii), 0, 140);
+        return str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $this->ascii($text));
     }
 }

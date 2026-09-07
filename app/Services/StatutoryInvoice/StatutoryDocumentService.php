@@ -87,7 +87,7 @@ class StatutoryDocumentService
         foreach ($invoice->items as $line) {
             $lines[] = [
                 'description' => (string) $line->description,
-                'hsnSac' => (string) ($line->hsn_sac ?: 'unset'),
+                'hsnSac' => (string) ($line->hsn_sac ?: ''),
                 'qty' => (int) $line->qty,
                 'unitPrice' => $this->formatMoney($line->unit_price),
                 'taxableValue' => $this->formatMoney($line->taxable_value),
@@ -109,14 +109,14 @@ class StatutoryDocumentService
         return new StatutoryInvoicePdfPayload(
             invoiceNumber: (string) $invoice->invoice_number,
             issuedAt: optional($invoice->issued_at)?->toDateTimeString() ?? '',
-            sellerLegalName: (string) ($invoice->seller_name ?: $this->seller->legalName() ?: 'unset'),
-            sellerGstin: (string) ($invoice->seller_gstin ?: $profile?->gstin ?: 'unset'),
-            sellerAddress: $profile?->address ?? 'unset',
-            sellerState: $profile?->state ?? 'unset',
+            sellerLegalName: (string) ($invoice->seller_name ?: $this->seller->legalName() ?: ''),
+            sellerGstin: (string) ($invoice->seller_gstin ?: $profile?->gstin ?: ''),
+            sellerAddress: $profile?->address ?? '',
+            sellerState: $profile?->state ?? '',
             buyerName: (string) ($invoice->buyer_name ?: 'Customer'),
             buyerGstin: $invoice->buyer_gstin,
             billingAddress: $invoice->billing_address,
-            placeOfSupply: (string) ($invoice->place_of_supply_state ?: 'unset'),
+            placeOfSupply: (string) ($invoice->place_of_supply_state ?: ''),
             lines: $lines,
             taxableValue: $this->formatMoney($invoice->taxable_value),
             gstRate: $this->headerGstRate($invoice),
