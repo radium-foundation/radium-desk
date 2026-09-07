@@ -126,7 +126,7 @@ Serial picker, stock moves, invoice mint/PDF/annexure, Shiprocket, Box callbacks
 
 | Phase | Needs |
 |-------|-------|
-| P3 | `HardwareIssuer` + mint after serials; annexure-capable PDF; uses `allocatedSerialNumbers()` |
+| P3 | Implemented in P-07-09-17: `HardwareIssuer` + `mint()` after serials; Annexure A in the same PDF |
 | P4 | Owner SKU map + Avinash picker writing allocated serials |
 | P5 | Shiprocket + invoice/serial/pickup gates |
 | P6 | Desk→Box HMAC callback |

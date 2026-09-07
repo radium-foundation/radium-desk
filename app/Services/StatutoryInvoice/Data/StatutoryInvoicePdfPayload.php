@@ -17,6 +17,7 @@ final class StatutoryInvoicePdfPayload
      *     taxTotal: string,
      *     lineTotal: string
      * }>  $lines
+     * @param  list<string>  $serialNumbers
      */
     public function __construct(
         public readonly string $invoiceNumber,
@@ -37,5 +38,8 @@ final class StatutoryInvoicePdfPayload
         public readonly string $sgst,
         public readonly string $igst,
         public readonly string $invoiceValue,
+        public readonly array $serialNumbers = [],
+        public readonly ?string $sourceId = null,
+        public readonly ?int $fulfilmentId = null,
     ) {}
 }

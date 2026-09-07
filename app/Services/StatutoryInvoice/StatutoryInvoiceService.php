@@ -419,7 +419,7 @@ class StatutoryInvoiceService
         }
     }
 
-    private function queueEinvoiceIfEligible(StatutoryInvoice $invoice): void
+    public function queueEinvoiceIfEligible(StatutoryInvoice $invoice): void
     {
         $decision = $this->einvoiceEligibility->evaluate($invoice);
         if (! $decision->eligible) {

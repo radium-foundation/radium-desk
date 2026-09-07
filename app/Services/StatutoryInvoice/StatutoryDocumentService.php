@@ -3,8 +3,10 @@
 namespace App\Services\StatutoryInvoice;
 
 use App\Enums\StatutoryInvoiceDocumentStatus;
+use App\Models\HardwareFulfilment;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceDocument;
+use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -14,6 +16,7 @@ class StatutoryDocumentService
     public function __construct(
         private readonly SimplePdfRenderer $renderer,
         private readonly StatutorySellerIdentity $seller,
+        private readonly HardwareFulfilmentWorkflowService $hardwareWorkflow,
     ) {}
 
     public function generate(StatutoryInvoice $invoice): StatutoryInvoiceDocument
@@ -96,6 +99,10 @@ class StatutoryDocumentService
         }
 
         $profile = $this->seller->tryForLocation($this->seller->locationForInvoice($invoice));
+        $fulfilment = HardwareFulfilment::query()
+            ->where('statutory_invoice_id', $invoice->id)
+            ->first();
+        $serials = $this->serialsForInvoice($fulfilment);
 
         return new StatutoryInvoicePdfPayload(
             invoiceNumber: (string) $invoice->invoice_number,
@@ -116,7 +123,27 @@ class StatutoryDocumentService
             sgst: $this->formatTaxComponent($invoice->sgst),
             igst: $this->formatTaxComponent($invoice->igst),
             invoiceValue: $this->formatMoney($invoice->invoice_value),
+            serialNumbers: $serials,
+            sourceId: $invoice->source_id,
+            fulfilmentId: $fulfilment?->id,
         );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function serialsForInvoice(?HardwareFulfilment $fulfilment): array
+    {
+        if ($fulfilment === null) {
+            return [];
+        }
+
+        $locked = $fulfilment->metadata['invoice_serials'] ?? null;
+        if (is_array($locked) && $locked !== []) {
+            return array_values(array_map(static fn (mixed $serial): string => (string) $serial, $locked));
+        }
+
+        return $this->hardwareWorkflow->allocatedSerialNumbers($fulfilment);
     }
 
     private function headerGstRate(StatutoryInvoice $invoice): string

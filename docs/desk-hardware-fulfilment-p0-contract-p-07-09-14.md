@@ -261,7 +261,7 @@ Entry: operator sets `fulfilment_branch_id` → READY (availability count ≥ ph
 |-------|-----------|
 | P1 | Hash ignores `paid_at`; business-field change 409; fields persist; HMAC 401 |
 | P2 | One fulfilment per RDE commerce; Cashfree link; no fulfilment for service-only RD* |
-| P3 | Matrix in §5 P3; idempotent mint; POS Delhi B2C unchanged; no mint without branch; PDF absent until serials |
+| P3 | Implemented in P-07-09-17. Matrix in §5 P3; idempotent mint; POS Delhi B2C unchanged; no mint without branch; PDF absent until serials |
 | P4 | Map required; N distinct serials same branch; concurrency; retry stable |
 | P5 | Gates fail-closed; search-before-create; no AWB duplicate |
 | P6 | HMAC callback idempotent; empty AWB does not clear existing |

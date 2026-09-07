@@ -4,6 +4,7 @@ namespace App\Services\HardwareFulfilment;
 
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceSourceType;
+use App\Models\CommerceOrderItem;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\ChannelIngest\Data\ChannelOrderLineDraft;
 
@@ -67,6 +68,15 @@ final class HardwareFulfilmentEligibility
         }
 
         return $line->modelId !== null;
+    }
+
+    public static function isPhysicalCommerceItem(CommerceOrderItem $item): bool
+    {
+        if ($item->shipping_line_kind === self::PHYSICAL_LINE_KIND) {
+            return true;
+        }
+
+        return $item->model_id !== null;
     }
 
     public static function looksLikeHardwareSourceId(string $sourceId): bool
