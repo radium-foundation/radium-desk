@@ -1,215 +1,382 @@
 @extends('layouts.app')
 
-@section('title', 'Allocate hardware serials')
+@section('title', 'Allocate hardware serial')
+
+@php
+    $order = $fulfilment->commerceOrder;
+    $requiredQty = collect($requirements)->sum('qty');
+    $qtyLabel = $requiredQty === 1 ? '1 serial required' : $requiredQty.' serials required';
+    $stateValue = $fulfilment->state?->value ?? 'unknown';
+    $stateLabel = strtoupper(str_replace('_', ' ', $stateValue));
+    $allocatedBranch = $derivedBranch?->code
+        ?? $allocated->first()?->inventorySerial?->branch?->code;
+@endphp
 
 @section('content')
-    <div class="mb-4">
-        <p class="text-muted small text-uppercase fw-semibold mb-1">Inventory</p>
-        <h1 class="h3 mb-1">Allocate serials — {{ $fulfilment->source_id }}</h1>
-        <p class="text-muted mb-0">
-            State {{ $fulfilment->state?->value }}.
-            Search available Desk serials by their physical stock branch, then allocate.
-            Fulfilment branch is derived from the selected serials, never from customer state.
-            Free-text paste is not used.
-        </p>
-    </div>
+    <style>
+        .hf-alloc { max-width: 40rem; }
+        .hf-alloc-kicker { letter-spacing: .08em; }
+        .hf-alloc-card {
+            background: #fff;
+            border: 1px solid rgba(0, 0, 0, .06);
+            border-radius: .75rem;
+            padding: 1.25rem 1.35rem;
+        }
+        .hf-alloc-meta { gap: .75rem 1.25rem; }
+        .hf-alloc-meta dt {
+            font-size: .7rem;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: #868e96;
+            margin: 0 0 .15rem;
+        }
+        .hf-alloc-meta dd { margin: 0; font-weight: 600; }
+        .hf-alloc-status {
+            display: inline-flex;
+            align-items: center;
+            padding: .2rem .65rem;
+            border-radius: 999px;
+            font-size: .75rem;
+            font-weight: 600;
+            letter-spacing: .03em;
+            background: #eef2f6;
+            color: #343a40;
+        }
+        .hf-alloc-status.is-ready { background: #e7f5ff; color: #0b5ed7; }
+        .hf-alloc-status.is-done { background: #d3f9d8; color: #2b8a3e; }
+        .hf-alloc-qty { font-size: 1.05rem; font-weight: 650; }
+        .hf-alloc-results { display: grid; gap: .4rem; }
+        .hf-alloc-serial {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .75rem;
+            width: 100%;
+            text-align: left;
+            border: 1px solid rgba(0, 0, 0, .08);
+            border-radius: .55rem;
+            background: #fff;
+            padding: .65rem .8rem;
+        }
+        .hf-alloc-serial:hover,
+        .hf-alloc-serial:focus-visible { border-color: #0d6efd; }
+        .hf-alloc-serial.is-selected { border-color: #0d6efd; background: #f8fbff; }
+        .hf-alloc-serial small { color: #868e96; }
+        .hf-alloc-confirm { background: #f8f9fa; }
+        .hf-alloc-confirm dl { display: grid; grid-template-columns: 7.5rem 1fr; gap: .35rem .75rem; margin: 0; }
+        .hf-alloc-confirm dt { color: #868e96; font-weight: 500; }
+        .hf-alloc-confirm dd { margin: 0; font-weight: 600; }
+    </style>
 
-    @include('inventory.partials.workspace-nav', ['active' => 'hardware-fulfilments'])
+    <div class="hf-alloc">
+        <p class="hf-alloc-kicker text-muted small text-uppercase fw-semibold mb-1">Inventory</p>
+        <h1 class="h3 mb-2">Allocate serial</h1>
+        <p class="text-muted mb-3">{{ $qtyLabel }}. Physical branch comes from the selected stock serial.</p>
 
-    @if(session('status'))
-        <div class="alert alert-success">{{ session('status') }}</div>
-    @endif
+        @include('inventory.partials.workspace-nav', ['active' => 'hardware-fulfilments'])
 
-    @if($errors->any())
-        <div class="alert alert-danger">{{ $errors->first() }}</div>
-    @endif
+        @if(session('status'))
+            <div class="alert alert-success py-2">{{ session('status') }}</div>
+        @endif
 
-    @php
-        $lockedBranch = $fulfilment->fulfilment_branch_id
-            ? ($branches->firstWhere('id', $fulfilment->fulfilment_branch_id)?->code ?? (string) $fulfilment->fulfilment_branch_id)
-            : null;
-    @endphp
+        @if($errors->any())
+            <div class="alert alert-danger py-2" role="alert">{{ $errors->first() }}</div>
+        @endif
 
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body">
-            <p class="mb-1"><strong>Fulfilment</strong> {{ $fulfilment->id }}</p>
-            <p class="mb-1"><strong>Order</strong> {{ $fulfilment->source_id }}</p>
-            <p class="mb-0">
-                <strong>Stock branch</strong>
-                {{ $lockedBranch ?? 'unset — select physical serials; the allocation transaction will write the branch from inventory_serials.branch_id' }}
-            </p>
-        </div>
-    </div>
-
-    @if($fulfilment->shipment)
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-body">
-                <h2 class="h6">Shipment</h2>
-                <p class="mb-1"><strong>Number</strong> {{ $fulfilment->shipment->shipment_no }}</p>
-                <p class="mb-1"><strong>Provider shipment</strong> {{ $fulfilment->shipment->external_shipment_id ?? 'pending' }}</p>
-                <p class="mb-0"><strong>AWB</strong> {{ $fulfilment->shipment->awb ?? 'not assigned' }}</p>
-            </div>
-        </div>
-    @endif
-
-    @if($fulfilment->state?->value === 'invoice_issued')
-        <form method="POST" action="{{ route('inventory.hardware-fulfilments.shipment.store', $fulfilment) }}" class="mb-4">
-            @csrf
-            <button class="btn btn-primary">Create shipment</button>
-        </form>
-    @endif
-
-    @if($fulfilment->state?->value === 'shipment_created')
-        <form method="POST" action="{{ route('inventory.hardware-fulfilments.awb.store', $fulfilment) }}" class="mb-4">
-            @csrf
-            <button class="btn btn-primary">Assign AWB</button>
-        </form>
-    @endif
-
-    @if($allocated->isNotEmpty())
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-body">
-                <h2 class="h6">Allocated serials</h2>
-                <ol class="mb-0">
-                    @foreach($allocated as $serial)
-                        <li>{{ $serial->serial_number }}</li>
-                    @endforeach
-                </ol>
-            </div>
-        </div>
-    @endif
-
-    @if($fulfilment->state?->value === 'ready_for_fulfilment')
-        <form method="POST" action="{{ route('inventory.hardware-fulfilments.serials.store', $fulfilment) }}" id="hardware-serial-allocate-form">
-            @csrf
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body">
-                    <label class="form-label" for="stock-branch-filter">Physical stock branch filter</label>
-                    <select
-                        id="stock-branch-filter"
-                        name="claimed_branch"
-                        class="form-select"
-                        @disabled($lockedBranch !== null)
-                    >
-                        @if($lockedBranch === null)
-                            <option value="">Select Delhi or Mumbai stock</option>
+        <div class="hf-alloc-card mb-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                <div>
+                    <div class="fs-5 fw-semibold">{{ $fulfilment->source_id }}</div>
+                    <div class="text-muted small">
+                        @if($order?->order_no)
+                            {{ $order->order_no }}
                         @endif
-                        @foreach($stockBranches as $stockBranch)
-                            <option
-                                value="{{ $stockBranch->code }}"
-                                @selected($lockedBranch === $stockBranch->code)
-                            >
-                                @if($stockBranch->code === 'DELHI-RETAIL')
-                                    Delhi / DELHI-RETAIL
-                                @elseif($stockBranch->code === 'MUMBAI')
-                                    Mumbai / MUMBAI
-                                @else
-                                    {{ $stockBranch->code }}
-                                @endif
-                            </option>
-                        @endforeach
-                    </select>
-                    @if($lockedBranch !== null)
-                        <input type="hidden" name="claimed_branch" value="{{ $lockedBranch }}">
-                    @endif
-                    <p class="text-muted small mb-0 mt-2">
-                        This filter only searches stock. Allocation reads each serial's actual inventory branch and rejects mixed Delhi + Mumbai selections.
-                    </p>
-                </div>
-            </div>
-            @foreach($requirements as $line)
-                <div class="card border-0 shadow-sm mb-4" data-item-id="{{ $line['commerce_order_item_id'] }}" data-qty="{{ $line['qty'] }}">
-                    <div class="card-body">
-                        <h2 class="h6">{{ $line['description'] }}</h2>
-                        <p class="text-muted small mb-2">
-                            Qty {{ $line['qty'] }}
-                            · model_id {{ $line['model_id'] ?? 'unset' }}
-                            · channel SKU {{ $line['sku'] ?? 'unset' }}
-                            · catalog {{ $line['catalog_sku'] ?? 'unset' }}
-                            @if($line['rdserviceid']) · bundled RD #{{ $line['rdserviceid'] }} @endif
-                            · Desk {{ $line['inventory_sku'] ?? 'map missing' }}
-                            · available {{ $line['available_qty'] }}
-                            · Delhi {{ $line['available_by_branch']['DELHI-RETAIL'] ?? 0 }}
-                            · Mumbai {{ $line['available_by_branch']['MUMBAI'] ?? 0 }}
-                        </p>
-                        @if(! $line['map_ready'])
-                            <p class="text-danger small">Owner SKU map is missing for this model_id. Allocation is blocked.</p>
+                        @if($fulfilment->support_order_id)
+                            · Support {{ $fulfilment->support_order_id }}
                         @endif
-                        <div class="input-group mb-2">
-                            <input type="search" class="form-control js-serial-query" placeholder="Search available serials" @disabled(! $line['map_ready'])>
-                            <button type="button" class="btn btn-outline-secondary js-serial-search" @disabled(! $line['map_ready'])>Search</button>
-                        </div>
-                        <div class="js-serial-results mb-2"></div>
-                        <ul class="js-serial-selected list-unstyled mb-0"></ul>
                     </div>
                 </div>
-            @endforeach
-            <button class="btn btn-primary" @disabled(collect($requirements)->contains(fn ($line) => ! $line['map_ready']))>Allocate selected serials</button>
-        </form>
-    @endif
+                <span @class([
+                    'hf-alloc-status',
+                    'is-ready' => $stateValue === 'ready_for_fulfilment',
+                    'is-done' => $stateValue === 'serials_allocated',
+                ])>{{ $stateLabel }}</span>
+            </div>
+            <dl class="hf-alloc-meta d-flex flex-wrap mb-0">
+                <div>
+                    <dt>Fulfilment</dt>
+                    <dd>{{ $fulfilment->id }}</dd>
+                </div>
+                <div>
+                    <dt>Physical branch</dt>
+                    <dd>{{ $allocatedBranch ?? 'Derived from selected serial' }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        @if($allocated->isNotEmpty())
+            <div class="hf-alloc-card mb-3">
+                <p class="text-muted small text-uppercase fw-semibold mb-2">Allocated</p>
+                @foreach($allocated as $serial)
+                    <div class="d-flex justify-content-between gap-3 mb-2">
+                        <div>
+                            <div class="fw-semibold">{{ $serial->serial_number }}</div>
+                            <div class="text-muted small">
+                                {{ $serial->inventorySerial?->branch?->code ?? $allocatedBranch ?? 'stock location recorded' }}
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
+        @foreach($requirements as $line)
+            <div
+                class="hf-alloc-card mb-3"
+                data-item-id="{{ $line['commerce_order_item_id'] }}"
+                data-qty="{{ $line['qty'] }}"
+                data-product="{{ $line['description'] }}"
+                data-sku="{{ $line['inventory_sku'] ?? $line['sku'] ?? '' }}"
+            >
+                <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+                    <div>
+                        <div class="fs-5 fw-semibold">{{ $line['description'] }}</div>
+                        <div class="text-muted small">
+                            SKU {{ $line['inventory_sku'] ?? $line['sku'] ?? 'unset' }}
+                            @if($line['model_id']) · model {{ $line['model_id'] }} @endif
+                            @if($line['catalog_sku']) · {{ $line['catalog_sku'] }} @endif
+                            @if($line['rdserviceid']) · bundled RD #{{ $line['rdserviceid'] }} @endif
+                        </div>
+                    </div>
+                    <div class="hf-alloc-qty">{{ $line['qty'] === 1 ? '1 serial required' : $line['qty'].' serials required' }}</div>
+                </div>
+                <p class="text-muted small mb-0">
+                    Available {{ $line['available_qty'] }}
+                    · Delhi {{ $line['available_by_branch']['DELHI-RETAIL'] ?? 0 }}
+                    · Mumbai {{ $line['available_by_branch']['MUMBAI'] ?? 0 }}
+                    · Delhi / DELHI-RETAIL
+                    · Mumbai / MUMBAI
+                </p>
+                @if(! $line['map_ready'])
+                    <p class="text-danger small mb-0 mt-2">Owner SKU map is missing for this model_id. Allocation is blocked.</p>
+                @endif
+            </div>
+        @endforeach
+
+        @if($canAllocate)
+            <form method="POST" action="{{ route('inventory.hardware-fulfilments.serials.store', $fulfilment) }}" id="hardware-serial-allocate-form">
+                @csrf
+                @foreach($requirements as $line)
+                    <div class="hf-alloc-card mb-3" data-picker-for="{{ $line['commerce_order_item_id'] }}">
+                        <label class="form-label mb-2" for="serial-search-{{ $line['commerce_order_item_id'] }}">Search available serials</label>
+                        <input
+                            id="serial-search-{{ $line['commerce_order_item_id'] }}"
+                            type="search"
+                            class="form-control js-serial-query"
+                            placeholder="Serial number"
+                            autocomplete="off"
+                            data-item-id="{{ $line['commerce_order_item_id'] }}"
+                        >
+                        <div class="js-serial-results hf-alloc-results mt-3" aria-live="polite"></div>
+                        <ul class="js-serial-selected list-unstyled mb-0 mt-3"></ul>
+                    </div>
+                @endforeach
+
+                <div class="hf-alloc-card hf-alloc-confirm mb-3 d-none" id="hardware-serial-confirm" hidden>
+                    <p class="text-muted small text-uppercase fw-semibold mb-2">Confirm allocation</p>
+                    <dl id="hardware-serial-confirm-rows"></dl>
+                </div>
+                <p class="text-danger small d-none" id="hardware-serial-client-error"></p>
+                <button type="submit" class="btn btn-primary" id="hardware-serial-submit" disabled>Allocate Serial</button>
+            </form>
+        @endif
+    </div>
 @endsection
 
 @push('scripts')
     <script>
         (function () {
-            const searchUrl = @json(route('inventory.hardware-fulfilments.serials.search', $fulfilment));
-            const branchFilter = document.getElementById('stock-branch-filter');
-            document.querySelectorAll('[data-item-id]').forEach(function (card) {
-                const itemId = card.getAttribute('data-item-id');
-                const qty = Number(card.getAttribute('data-qty') || '0');
-                const results = card.querySelector('.js-serial-results');
-                const selected = card.querySelector('.js-serial-selected');
-                const chosen = [];
+            const form = document.getElementById('hardware-serial-allocate-form');
+            if (!form) {
+                return;
+            }
 
-                function renderSelected() {
-                    selected.innerHTML = chosen.map(function (serial) {
-                        return '<li>' + serial + '<input type="hidden" name="serials[' + itemId + '][]" value="' + serial + '"></li>';
-                    }).join('');
+            const searchUrl = @json(route('inventory.hardware-fulfilments.serials.search', $fulfilment));
+            const submit = document.getElementById('hardware-serial-submit');
+            const confirmBox = document.getElementById('hardware-serial-confirm');
+            const confirmRows = document.getElementById('hardware-serial-confirm-rows');
+            const clientError = document.getElementById('hardware-serial-client-error');
+            const pickers = [];
+
+            function escapeHtml(value) {
+                return String(value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+            }
+
+            function lineCard(itemId) {
+                return document.querySelector('[data-item-id="' + itemId + '"]');
+            }
+
+            function renderSelected(picker) {
+                picker.selected.innerHTML = picker.chosen.map(function (row) {
+                    return '<li class="small mb-1">'
+                        + escapeHtml(row.serial_number)
+                        + ' · '
+                        + escapeHtml(row.branch_code || 'unknown branch')
+                        + '<input type="hidden" name="serials[' + picker.itemId + '][]" value="'
+                        + escapeHtml(row.serial_number)
+                        + '"></li>';
+                }).join('');
+            }
+
+            function uniqueBranches() {
+                const codes = {};
+                pickers.forEach(function (picker) {
+                    picker.chosen.forEach(function (row) {
+                        if (row.branch_code) {
+                            codes[row.branch_code] = true;
+                        }
+                    });
+                });
+                return Object.keys(codes);
+            }
+
+            function selectionComplete() {
+                return pickers.every(function (picker) {
+                    return picker.chosen.length === picker.qty;
+                });
+            }
+
+            function updateConfirm() {
+                const branches = uniqueBranches();
+                const mixed = branches.length > 1;
+                const ready = selectionComplete() && !mixed;
+
+                if (clientError) {
+                    clientError.classList.toggle('d-none', !mixed);
+                    clientError.textContent = mixed
+                        ? 'Selected serials are at more than one physical branch. Choose serials from one location.'
+                        : '';
                 }
 
-                card.querySelector('.js-serial-search')?.addEventListener('click', function () {
-                    const q = card.querySelector('.js-serial-query')?.value || '';
-                    const branch = branchFilter?.value || '';
-                    fetch(searchUrl + '?' + new URLSearchParams({
-                        commerce_order_item_id: itemId,
-                        q: q,
-                        branch: branch
-                    }), { headers: { 'Accept': 'application/json' } })
-                        .then(function (response) {
-                            return response.json().then(function (payload) {
-                                return { ok: response.ok, payload: payload };
+                if (!confirmBox || !confirmRows || !submit) {
+                    return;
+                }
+
+                confirmBox.classList.toggle('d-none', !ready);
+                confirmBox.hidden = !ready;
+                submit.disabled = !ready;
+
+                if (!ready) {
+                    confirmRows.innerHTML = '';
+                    return;
+                }
+
+                confirmRows.innerHTML = pickers.map(function (picker) {
+                    const card = lineCard(picker.itemId);
+                    const product = card ? card.getAttribute('data-product') : '';
+                    const sku = card ? card.getAttribute('data-sku') : '';
+                    return picker.chosen.map(function (row) {
+                        return '<dt>Product</dt><dd>' + escapeHtml(product) + '</dd>'
+                            + '<dt>SKU</dt><dd>' + escapeHtml(sku) + '</dd>'
+                            + '<dt>Serial</dt><dd>' + escapeHtml(row.serial_number) + '</dd>'
+                            + '<dt>Physical branch</dt><dd>' + escapeHtml(row.branch_code || '') + '</dd>'
+                            + '<dt>Quantity</dt><dd>1</dd>';
+                    }).join('');
+                }).join('');
+            }
+
+            function renderResults(picker, serials) {
+                picker.results.innerHTML = '';
+                if (!serials.length) {
+                    picker.results.textContent = 'No available serials.';
+                    return;
+                }
+
+                serials.forEach(function (row) {
+                    const selected = picker.chosen.some(function (item) {
+                        return item.serial_number === row.serial_number;
+                    });
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'hf-alloc-serial' + (selected ? ' is-selected' : '');
+                    button.innerHTML = '<span><strong>' + escapeHtml(row.serial_number) + '</strong></span>'
+                        + '<small>' + escapeHtml(row.branch_code || '') + '</small>';
+                    button.addEventListener('click', function () {
+                        if (selected) {
+                            picker.chosen = picker.chosen.filter(function (item) {
+                                return item.serial_number !== row.serial_number;
                             });
-                        })
-                        .then(function (result) {
-                            results.innerHTML = '';
-                            if (!result.ok) {
-                                const errors = result.payload.errors || {};
-                                const first = (errors.branch || errors.serials || [result.payload.message || 'Search failed.'])[0];
-                                results.textContent = first;
-                                return;
-                            }
-                            (result.payload.serials || []).forEach(function (row) {
-                                const button = document.createElement('button');
-                                button.type = 'button';
-                                button.className = 'btn btn-sm btn-outline-primary me-2 mb-2';
-                                button.textContent = row.serial_number + (row.branch_code ? ' · ' + row.branch_code : '');
-                                button.addEventListener('click', function () {
-                                    if (chosen.includes(row.serial_number)) {
-                                        return;
-                                    }
-                                    if (chosen.length >= qty) {
-                                        return;
-                                    }
-                                    chosen.push(row.serial_number);
-                                    renderSelected();
-                                });
-                                results.appendChild(button);
+                        } else if (picker.chosen.length < picker.qty) {
+                            picker.chosen.push({
+                                serial_number: row.serial_number,
+                                branch_code: row.branch_code || '',
                             });
-                            if (!(result.payload.serials || []).length) {
-                                results.textContent = 'No available serials.';
-                            }
-                        });
+                        }
+                        renderSelected(picker);
+                        renderResults(picker, serials);
+                        updateConfirm();
+                    });
+                    picker.results.appendChild(button);
                 });
+            }
+
+            function search(picker) {
+                const params = new URLSearchParams({
+                    commerce_order_item_id: String(picker.itemId),
+                    q: picker.input.value || '',
+                });
+
+                fetch(searchUrl + '?' + params.toString(), {
+                    headers: { 'Accept': 'application/json' },
+                }).then(function (response) {
+                    return response.json().then(function (payload) {
+                        return { ok: response.ok, payload: payload };
+                    });
+                }).then(function (result) {
+                    if (!result.ok) {
+                        const errors = result.payload.errors || {};
+                        picker.results.textContent = (errors.branch || errors.serials || [result.payload.message || 'Search failed.'])[0];
+                        return;
+                    }
+                    renderResults(picker, result.payload.serials || []);
+                }).catch(function () {
+                    picker.results.textContent = 'Search failed.';
+                });
+            }
+
+            document.querySelectorAll('[data-picker-for]').forEach(function (card) {
+                const itemId = card.getAttribute('data-picker-for');
+                const line = lineCard(itemId);
+                const picker = {
+                    itemId: itemId,
+                    qty: Number(line ? line.getAttribute('data-qty') : '0'),
+                    input: card.querySelector('.js-serial-query'),
+                    results: card.querySelector('.js-serial-results'),
+                    selected: card.querySelector('.js-serial-selected'),
+                    chosen: [],
+                    timer: null,
+                };
+                pickers.push(picker);
+                picker.input.addEventListener('input', function () {
+                    window.clearTimeout(picker.timer);
+                    picker.timer = window.setTimeout(function () {
+                        search(picker);
+                    }, 250);
+                });
+                search(picker);
+            });
+
+            form.addEventListener('submit', function (event) {
+                if (!selectionComplete() || uniqueBranches().length > 1 || submit.disabled) {
+                    event.preventDefault();
+                    return;
+                }
+                submit.disabled = true;
+                submit.textContent = 'Allocating…';
             });
         })();
     </script>

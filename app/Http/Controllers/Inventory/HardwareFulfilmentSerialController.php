@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Enums\HardwareFulfilmentState;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Inventory\AllocateHardwareFulfilmentSerialsRequest;
+use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
 use App\Models\HardwareFulfilment;
 use App\Models\InventoryBranch;
+use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
@@ -13,7 +16,6 @@ use App\Support\Inventory\InventoryBranchScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -33,7 +35,7 @@ class HardwareFulfilmentSerialController extends Controller
     public function index(Request $request): View
     {
         $fulfilments = HardwareFulfilment::query()
-            ->with('commerceOrder')
+            ->with(['commerceOrder', 'fulfilmentBranch'])
             ->whereIn('state', [
                 HardwareFulfilmentState::Ingested,
                 HardwareFulfilmentState::ReadyForFulfilment,
@@ -48,33 +50,33 @@ class HardwareFulfilmentSerialController extends Controller
 
         return view('inventory.hardware-fulfilments.index', [
             'fulfilments' => $fulfilments,
-            'branches' => $this->branchIndex(InventoryBranchScope::allowedBranches($request->user())),
         ]);
     }
 
     public function show(Request $request, HardwareFulfilment $fulfilment): View
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
-        $fulfilment->load(['commerceOrder.items', 'serials', 'shipment']);
+        $fulfilment->load([
+            'commerceOrder.items',
+            'serials.inventorySerial.branch',
+            'fulfilmentBranch',
+        ]);
 
-        $allowed = InventoryBranchScope::allowedBranches($request->user());
+        $requirements = $this->allocation->requirements($fulfilment);
+        $canAllocate = $fulfilment->state === HardwareFulfilmentState::ReadyForFulfilment
+            && ! HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)
+            && collect($requirements)->every(fn (array $line): bool => $line['map_ready']);
 
         return view('inventory.hardware-fulfilments.show', [
             'fulfilment' => $fulfilment,
-            'requirements' => $this->allocation->requirements($fulfilment),
+            'requirements' => $requirements,
             'allocated' => $fulfilment->serials,
-            'branches' => $allowed,
-            'stockBranches' => $allowed
-                ->filter(fn (InventoryBranch $branch): bool => in_array(
-                    $branch->code,
-                    HardwareSerialAllocationService::STOCK_BRANCH_CODES,
-                    true,
-                ))
-                ->values(),
+            'canAllocate' => $canAllocate,
+            'derivedBranch' => $fulfilment->fulfilmentBranch,
         ]);
     }
 
-    public function search(Request $request, HardwareFulfilment $fulfilment): JsonResponse
+    public function search(SearchHardwareFulfilmentSerialsRequest $request, HardwareFulfilment $fulfilment): JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
 
@@ -92,27 +94,19 @@ class HardwareFulfilmentSerialController extends Controller
         ]);
     }
 
-    public function store(Request $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function store(AllocateHardwareFulfilmentSerialsRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
 
-        $validated = $request->validate([
-            'serials' => ['required', 'array'],
-            'serials.*' => ['array'],
-            'serials.*.*' => ['string'],
-            'claimed_branch' => ['nullable', 'string'],
-        ]);
-
         $this->allocation->allocate(
             $fulfilment,
-            $validated['serials'],
+            $request->validated('serials'),
             $request->user(),
-            $validated['claimed_branch'] ?? null,
         );
 
         return redirect()
             ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Serials allocated.');
+            ->with('status', 'Serial allocated.');
     }
 
     public function storeShipment(Request $request, HardwareFulfilment $fulfilment): RedirectResponse
@@ -133,15 +127,6 @@ class HardwareFulfilmentSerialController extends Controller
         return redirect()
             ->route('inventory.hardware-fulfilments.show', $fulfilment)
             ->with('status', 'AWB assigned.');
-    }
-
-    /**
-     * @param  Collection<int, InventoryBranch>  $branches
-     * @return array<int, InventoryBranch>
-     */
-    private function branchIndex($branches): array
-    {
-        return $branches->keyBy('id')->all();
     }
 
     private function assertCanOperateFulfilment(Request $request, HardwareFulfilment $fulfilment): void

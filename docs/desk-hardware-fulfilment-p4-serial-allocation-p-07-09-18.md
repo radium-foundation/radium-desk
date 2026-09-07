@@ -68,7 +68,7 @@ Tests insert a **test-only** map `radiumbox_com` + `951` → `DESK-MSO-TEST`. Th
 8. `lockAvailableSerialsForSale` (sorted locks) + persist `hardware_fulfilment_serials` `status=allocated` + `markSerialSold` + sale movement `notes=hardware_fulfilment:{id}` in one transaction.
 9. Transition to `SERIALS_ALLOCATED` only after the allocated count equals physical qty.
 
-Picker UI (`/inventory/hardware-fulfilments`): search available serials and add them. Not free-text paste. Not a second stock database.
+Picker UI (`/inventory/hardware-fulfilments`): search available serials and add them. Not free-text paste. Not a second stock database. P-07-09-40 modernizes that page: confirmation, no operator branch override, no shipment/AWB actions on the allocation screen.
 
 P3 then reads `allocatedSerialNumbers()` (`line_no`, `position`). Invoice still cannot mint from READY.
 

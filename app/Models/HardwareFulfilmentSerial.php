@@ -38,4 +38,9 @@ class HardwareFulfilmentSerial extends Model
     {
         return $this->belongsTo(CommerceOrderItem::class);
     }
+
+    public function inventorySerial(): BelongsTo
+    {
+        return $this->belongsTo(InventorySerial::class, 'inventory_serial_id');
+    }
 }

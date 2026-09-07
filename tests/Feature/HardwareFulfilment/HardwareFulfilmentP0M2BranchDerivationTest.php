@@ -152,11 +152,12 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
                 'commerce_order_item_id' => $itemId,
                 'q' => 'SN-M2-SRC',
             ]))
-            ->assertUnprocessable()
-            ->assertJsonPath(
-                'errors.branch.0',
-                'Select a physical stock branch to search available serials. Customer state cannot substitute.',
-            );
+            ->assertOk()
+            ->assertJsonCount(2, 'serials')
+            ->assertJsonPath('serials.0.serial_number', 'SN-M2-SRC-D')
+            ->assertJsonPath('serials.0.branch_code', 'DELHI-RETAIL')
+            ->assertJsonPath('serials.1.serial_number', 'SN-M2-SRC-M')
+            ->assertJsonPath('serials.1.branch_code', 'MUMBAI');
 
         $this->actingAs($operator)
             ->getJson(route('inventory.hardware-fulfilments.serials.search', [
@@ -306,7 +307,7 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
                 'claimed_branch' => 'DELHI-RETAIL',
             ])
             ->assertRedirect()
-            ->assertSessionHasErrors('branch');
+            ->assertSessionHasErrors('claimed_branch');
 
         $this->assertNull($fulfilment->fresh()->fulfilment_branch_id);
         $this->assertSame(0, HardwareFulfilmentSerial::query()->count());
@@ -314,7 +315,6 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
         $this->actingAs($operator)
             ->post(route('inventory.hardware-fulfilments.serials.store', $fulfilment), [
                 'serials' => [$itemId => ['SN-M2-HTTP']],
-                'claimed_branch' => 'MUMBAI',
             ])
             ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment));
 

@@ -122,7 +122,7 @@ class HardwareSerialAllocationService
         ?User $actor = null,
     ): array {
         $this->assertNotFrozen($fulfilment);
-        $branch = $this->resolveSearchBranch($fulfilment, $branchCode, $actor);
+        $branches = $this->resolveSearchBranches($fulfilment, $branchCode, $actor);
         $order = $this->requireOrder($fulfilment);
         $item = $this->requirePhysicalItem($order, $commerceOrderItemId);
         $product = $this->skuMap->requireProductForItem($order->channel, $item);
@@ -131,7 +131,10 @@ class HardwareSerialAllocationService
         $serials = InventorySerial::query()
             ->with(['product', 'branch'])
             ->where('product_id', $product->id)
-            ->where('branch_id', $branch->id)
+            ->whereIn('branch_id', array_map(
+                static fn (InventoryBranch $branch): int => (int) $branch->id,
+                $branches,
+            ))
             ->where('status', InventorySerialStatus::Available)
             ->when($q !== '', fn ($builder) => $builder->where('serial_number', 'like', '%'.$q.'%'))
             ->orderBy('serial_number')
@@ -606,11 +609,17 @@ class HardwareSerialAllocationService
         }
     }
 
-    private function resolveSearchBranch(
+    /**
+     * Search may optionally narrow by stock location. The operator cannot choose
+     * the fulfilment branch; allocation writes it from inventory_serials.branch_id.
+     *
+     * @return list<InventoryBranch>
+     */
+    private function resolveSearchBranches(
         HardwareFulfilment $fulfilment,
         ?string $branchCode,
         ?User $actor,
-    ): InventoryBranch {
+    ): array {
         $stored = $this->storedStockBranch($fulfilment);
         $filter = $this->normalizeClaimedBranchCode($branchCode);
 
@@ -624,21 +633,40 @@ class HardwareSerialAllocationService
                 InventoryBranchScope::assertCanOperate($actor, $stored);
             }
 
-            return $stored;
+            return [$stored];
         }
 
-        if ($filter === null) {
+        if ($filter !== null) {
+            $branch = $this->requireSupportedStockBranchByCode($filter);
+            if ($actor !== null) {
+                InventoryBranchScope::assertCanOperate($actor, $branch);
+            }
+
+            return [$branch];
+        }
+
+        $branches = [];
+        foreach (self::STOCK_BRANCH_CODES as $code) {
+            $branch = InventoryBranch::query()
+                ->where('code', $code)
+                ->where('is_active', true)
+                ->first();
+            if ($branch === null) {
+                continue;
+            }
+            if ($actor !== null && ! InventoryBranchScope::allows($actor, $branch)) {
+                continue;
+            }
+            $branches[] = $branch;
+        }
+
+        if ($branches === []) {
             throw ValidationException::withMessages([
-                'branch' => 'Select a physical stock branch to search available serials. Customer state cannot substitute.',
+                'branch' => 'No supported hardware stock branch is available to search.',
             ]);
         }
 
-        $branch = $this->requireSupportedStockBranchByCode($filter);
-        if ($actor !== null) {
-            InventoryBranchScope::assertCanOperate($actor, $branch);
-        }
-
-        return $branch;
+        return $branches;
     }
 
     private function storedStockBranch(HardwareFulfilment $fulfilment): ?InventoryBranch

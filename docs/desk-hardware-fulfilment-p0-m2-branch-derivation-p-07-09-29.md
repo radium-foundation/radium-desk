@@ -47,10 +47,7 @@ Supported stock branches are only `DELHI-RETAIL` and `MUMBAI`. Other codes fail 
 
 ## 2. Serial picker
 
-Unset fulfilments can search available serials after the operator chooses a **filter**:
-
-- Delhi / `DELHI-RETAIL`
-- Mumbai / `MUMBAI`
+Unset fulfilments can search available serials across supported stock branches. An optional `branch` query may narrow results. P-07-09-40 allocation UI does not send a branch override; fulfilment branch is written from `inventory_serials.branch_id`.
 
 The filter is not trusted. Requirements also show per-branch available counts.
 
