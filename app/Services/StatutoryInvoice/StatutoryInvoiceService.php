@@ -38,6 +38,7 @@ class StatutoryInvoiceService
         private readonly StatutorySellerIdentity $seller,
         private readonly StatutoryLocationSeries $locations,
         private readonly GstSplitService $gstSplit,
+        private readonly ServiceSacResolver $serviceSac,
     ) {}
 
     public function findBySource(
@@ -269,7 +270,10 @@ class StatutoryInvoiceService
 
         $order->loadMissing('items');
         $lines = [];
+        $resolvedHsns = [];
         foreach ($order->items as $line) {
+            $hsnSac = $this->serviceSac->forCommerceItem($order, $line);
+            $resolvedHsns[] = $hsnSac;
             $lines[] = new StatutoryInvoiceLineDraft(
                 description: (string) $line->description,
                 qty: (int) $line->qty,
@@ -280,7 +284,7 @@ class StatutoryInvoiceService
                 taxableValue: (float) $line->taxable_value,
                 discount: (float) ($line->discount ?? 0),
                 sku: $line->sku,
-                hsnSac: $line->hsn_sac,
+                hsnSac: $hsnSac,
             );
         }
 
@@ -305,7 +309,7 @@ class StatutoryInvoiceService
                 $order->branch_code,
                 $order->buyer_gstin,
                 $order->billing_state,
-                $order->items->pluck('hsn_sac')->all(),
+                $resolvedHsns,
             ),
             financialYearToken: $this->eligibility->commercialDate($order) !== null
                 ? StatutoryFinancialYear::containing($this->eligibility->commercialDate($order))->token()

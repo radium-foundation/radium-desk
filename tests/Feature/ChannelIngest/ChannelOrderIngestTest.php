@@ -202,7 +202,7 @@ class ChannelOrderIngestTest extends TestCase
 
         $order = CommerceOrder::query()->first();
         $this->assertNull($order?->taxable_value);
-        $this->assertNull($order?->items->first()?->hsn_sac);
+        $this->assertSame('998313', $order?->items->first()?->hsn_sac);
     }
 
     public function test_wrong_idempotency_header_is_rejected(): void

@@ -111,4 +111,28 @@ return [
         'provider' => env('STATUTORY_EINVOICE_PROVIDER', 'none'),
     ],
 
+    /*
+    | Explicit per-service SAC. There is no generic default SAC.
+    | RD Service is 998313. Future services must add their own entry.
+    | Unmatched lines keep the incoming HSN/SAC.
+    */
+    'service_sac' => [
+        'rd_service' => [
+            'sac' => '998313',
+            'channels' => [
+                'rdservice_in',
+                'rdservice_net',
+            ],
+            'skus' => [
+                'RD-SVC',
+            ],
+            'description_needles' => [
+                'rd service',
+                'rd technical support',
+                'information technology (it) consulting & support services',
+                'information technology (it) consulting and support services',
+            ],
+        ],
+    ],
+
 ];

@@ -13,6 +13,7 @@ use App\Models\StatutoryInvoice;
 use App\Services\ChannelIngest\Data\ChannelIngestResult;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\HardwareFulfilment\HardwareFulfilmentFoundationService;
+use App\Services\StatutoryInvoice\ServiceSacResolver;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceScope;
@@ -32,6 +33,7 @@ class ChannelIngestService
         private readonly HardwareFulfilmentFoundationService $hardwareFulfilments,
         private readonly StatutoryInvoiceNumberingService $numbering,
         private readonly StatutoryInvoiceAccountingPolicy $accounting,
+        private readonly ServiceSacResolver $serviceSac,
     ) {}
 
     /**
@@ -242,7 +244,12 @@ class ChannelIngestService
                 'otgid' => $line->otgid,
                 'variant' => $line->variant,
                 'description' => $line->description,
-                'hsn_sac' => $line->hsnSac,
+                'hsn_sac' => $this->serviceSac->resolve(
+                    $request->channel->value,
+                    $line->sku,
+                    $line->description,
+                    $line->hsnSac,
+                ),
                 'qty' => $line->qty,
                 'unit_price' => $line->unitPrice,
                 'discount' => $line->discount,

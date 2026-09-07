@@ -324,7 +324,7 @@ class ServiceGstSplitIssuanceTest extends TestCase
         $this->assertStringContainsString('consulting & support', $pdf);
         $this->assertStringContainsString('services', $pdf);
         $this->assertStringContainsString('HSN/SAC', $pdf);
-        $this->assertStringContainsString('998314', $pdf);
+        $this->assertStringContainsString('998313', $pdf);
         $this->assertStringContainsString('18.00%', $pdf);
         $this->assertStringContainsString('GST rate', $pdf);
         $this->assertStringContainsString('Total GST', $pdf);
@@ -338,7 +338,7 @@ class ServiceGstSplitIssuanceTest extends TestCase
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.show', $invoice))
             ->assertOk()
-            ->assertSee('998314', false)
+            ->assertSee('998313', false)
             ->assertSee('18.00', false)
             ->assertSee('38.06', false)
             ->assertSee('0.00', false)
