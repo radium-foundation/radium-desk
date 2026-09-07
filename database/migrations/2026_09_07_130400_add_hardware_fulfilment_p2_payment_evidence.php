@@ -8,15 +8,17 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('hardware_fulfilments', function (Blueprint $table) {
-            $table->timestamp('paid_recognized_at')->nullable()->after('ingested_at');
-        });
+        if (! Schema::hasColumn('hardware_fulfilments', 'paid_recognized_at')) {
+            Schema::table('hardware_fulfilments', function (Blueprint $table) {
+                $table->timestamp('paid_recognized_at')->nullable()->after('ingested_at');
+            });
+        }
 
         Schema::create('hardware_fulfilment_payment_evidence', function (Blueprint $table) {
             $table->id();
             $table->string('source_id', 80);
-            $table->foreignId('hardware_fulfilment_id')->nullable()->constrained('hardware_fulfilments')->nullOnDelete();
-            $table->foreignId('commerce_order_id')->nullable()->constrained('commerce_orders')->nullOnDelete();
+            $table->unsignedBigInteger('hardware_fulfilment_id')->nullable();
+            $table->unsignedBigInteger('commerce_order_id')->nullable();
             $table->unsignedBigInteger('support_order_id')->nullable();
             $table->string('cashfree_payment_id', 128);
             $table->string('merchant_order_id', 80)->nullable();
@@ -37,9 +39,13 @@ return new class extends Migration
             $table->unique('cashfree_payment_id', 'hw_payment_evidence_cf_payment_unique');
             $table->unique(['source_id', 'cashfree_payment_id'], 'hw_payment_evidence_source_cf_unique');
             $table->index('source_id');
-            $table->index('hardware_fulfilment_id');
+            $table->index('hardware_fulfilment_id', 'hw_pay_ev_fulfilment_idx');
             $table->index('support_order_id');
             $table->index(['verified', 'source_id']);
+            $table->foreign('hardware_fulfilment_id', 'hw_pay_ev_fulfilment_fk')
+                ->references('id')->on('hardware_fulfilments')->nullOnDelete();
+            $table->foreign('commerce_order_id', 'hw_pay_ev_commerce_fk')
+                ->references('id')->on('commerce_orders')->nullOnDelete();
         });
     }
 
