@@ -160,7 +160,7 @@ One row per device serial. No `qty<=5` assumption. Unique `serial_number` / `inv
 | P3 | Implemented in P-07-09-17: `HardwareIssuer` + `mint()` after serials; Annexure A in the same PDF | Serial rows still come from P4 |
 | P4 | Implemented in P-07-09-18: picker writes `hardware_fulfilment_serials`. Live Owner P0-M1 map rows still required. | P0-M1 SKU map |
 | P5 | Implemented in P-07-09-19: invoice/serial/pickup gates + Null/Fake | P0-M2 nicknames for live HTTP |
-| P6 | Callback after SYNCED path | Box receiver contract |
+| P6 | Callback after SYNCED path | implemented P-07-09-20; Box apply UNKNOWN; sender OFF |
 | P7 | Observe ingest only | Matching secrets + Box URL |
 | P8 | New-order E2E, then seven orders one-by-one | P8 PASS |
 

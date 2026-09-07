@@ -122,7 +122,7 @@ Live HTTP. Webhook. Pickup generation as a required P5 step. Ingest enable. Cash
 | P0-M2 pickup nicknames | UNKNOWN / Owner |
 | Live API email/password/channel_id | UNKNOWN |
 | HTTP client | not implemented |
-| P6 Box callback | next |
+| P6 Box callback | implemented (P-07-09-20); sender remains OFF |
 | P7 observe ingest | later |
 | P8 new-order then seven | later |
 

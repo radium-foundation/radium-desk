@@ -16,4 +16,16 @@ return [
     */
     'sku_map' => [],
 
+    /*
+    | Desk → radiumbox.com fulfilment callback. Default off. Empty URL/secret
+    | means the worker must not call HTTP. Do not copy Admin/Box secrets.
+    */
+    'callback' => [
+        'enabled' => filter_var(env('HARDWARE_FULFILMENT_CALLBACK_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'url' => env('HARDWARE_FULFILMENT_CALLBACK_URL', ''),
+        'secret' => env('DESK_CALLBACK_SECRET', ''),
+        'replay_window_seconds' => max(30, (int) env('HARDWARE_FULFILMENT_CALLBACK_REPLAY_WINDOW', 300)),
+        'timeout_seconds' => max(1, (int) env('HARDWARE_FULFILMENT_CALLBACK_TIMEOUT_SECONDS', 10)),
+    ],
+
 ];

@@ -12,6 +12,9 @@ use App\Services\Bonvoice\BonvoiceWebhookOutboxWriter;
 use App\Services\Bonvoice\BonvoiceWebhookProcessorService;
 use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
 use App\Services\Cashfree\CashfreeWebhookOutboxWriter;
+use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackNonRetryableException;
+use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackOutboxWriter;
+use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackProcessor;
 use App\Services\IncomingEmail\IncomingEmailOutboxWriter;
 use App\Services\IncomingEmail\IncomingEmailProcessorService;
 use App\Services\Interakt\InteraktFlowWebhookOutboxWriter;
@@ -46,6 +49,7 @@ class OutboxProcessorService
         private readonly IncomingEmailProcessorService $incomingEmailProcessorService,
         private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
         private readonly EInvoiceProcessor $einvoiceProcessor,
+        private readonly HardwareFulfilmentCallbackProcessor $hardwareFulfilmentCallbackProcessor,
     ) {}
 
     public function process(?int $limit = null): int
@@ -189,6 +193,7 @@ class OutboxProcessorService
             BonvoiceWebhookOutboxWriter::EVENT_TYPE => $this->dispatchBonvoiceWebhookProcessing($event, $processedBeforeInBatch),
             IncomingEmailOutboxWriter::EVENT_TYPE => $this->dispatchIncomingEmailProcessing($event),
             EInvoiceOutboxWriter::EVENT_TYPE => $this->einvoiceProcessor->process($event),
+            HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE => $this->hardwareFulfilmentCallbackProcessor->process($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
     }
@@ -321,6 +326,15 @@ class OutboxProcessorService
     {
         $attempts = $event->attempts;
         $message = $exception->getMessage();
+
+        if ($exception instanceof HardwareFulfilmentCallbackNonRetryableException) {
+            $event->update([
+                'status' => OutboxEventStatus::Failed,
+                'last_error' => $message,
+            ]);
+
+            return;
+        }
 
         if ($attempts >= self::MAX_ATTEMPTS) {
             $event->update([

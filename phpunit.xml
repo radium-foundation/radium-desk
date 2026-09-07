@@ -61,5 +61,8 @@
         <env name="STATUTORY_INVOICE_GSTIN_SCOPE" value="" force="true"/>
         <env name="STATUTORY_INVOICE_LEGAL_NAME" value="" force="true"/>
         <env name="STATUTORY_INVOICE_SCOPE_STARTS_AT" value="2026-09-01 00:00:00" force="true"/>
+        <env name="HARDWARE_FULFILMENT_CALLBACK_ENABLED" value="false" force="true"/>
+        <env name="HARDWARE_FULFILMENT_CALLBACK_URL" value="" force="true"/>
+        <env name="DESK_CALLBACK_SECRET" value="" force="true"/>
     </php>
 </phpunit>

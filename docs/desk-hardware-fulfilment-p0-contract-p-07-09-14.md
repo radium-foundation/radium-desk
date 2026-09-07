@@ -231,7 +231,7 @@ Entry: operator sets `fulfilment_branch_id` → READY (availability count ≥ ph
 
 **Tests:** replay 401; duplicate apply; AWB not overwritten by empty retry.
 
-**Deploy:** `DESK_CALLBACK_SECRET` both sides; sender flag off until P8.  
+**Deploy:** `DESK_CALLBACK_SECRET` both sides; sender flag off until P8. P6 sender shipped disabled (P-07-09-20).  
 **Rollback:** disable sender.
 
 ### P7 — Enable ingest only

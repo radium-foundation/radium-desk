@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Contracts\AI\AIProvider;
 use App\Contracts\Customer360\CaseIntelligenceLanguageEnhancer;
+use App\Contracts\HardwareFulfilment\BoxFulfilmentCallbackGateway;
 use App\Contracts\Operations\IraReasoningProvider;
 use App\Contracts\Shipping\ShiprocketGateway;
 use App\Contracts\StatutoryInvoice\EInvoiceGateway;
@@ -62,6 +63,7 @@ use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\DashboardBroadcastService;
 use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearchService;
+use App\Services\HardwareFulfilment\NullBoxFulfilmentCallbackGateway;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\MissingSerial\MissingSerialAutomationService;
 use App\Services\Notifications\Channels\DesktopChannel;
@@ -310,6 +312,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->bind(EInvoiceGateway::class, NullEInvoiceGateway::class);
         $this->app->bind(ShiprocketGateway::class, NullShiprocketGateway::class);
+        $this->app->bind(BoxFulfilmentCallbackGateway::class, NullBoxFulfilmentCallbackGateway::class);
     }
 
     /**

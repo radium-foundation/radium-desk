@@ -11,6 +11,10 @@ use Illuminate\Validation\ValidationException;
 
 class HardwareFulfilmentWorkflowService
 {
+    public function __construct(
+        private readonly HardwareFulfilmentCallbackOutboxWriter $callbackOutbox,
+    ) {}
+
     public function transition(
         HardwareFulfilment $fulfilment,
         HardwareFulfilmentState $to,
@@ -60,7 +64,7 @@ class HardwareFulfilmentWorkflowService
 
             $locked->forceFill($updates)->save();
 
-            HardwareFulfilmentEvent::query()->create([
+            $event = HardwareFulfilmentEvent::query()->create([
                 'hardware_fulfilment_id' => $locked->id,
                 'from_state' => $from,
                 'to_state' => $to,
@@ -70,7 +74,10 @@ class HardwareFulfilmentWorkflowService
                 'created_at' => now(),
             ]);
 
-            return $locked->fresh() ?? $locked;
+            $fresh = $locked->fresh() ?? $locked;
+            $this->callbackOutbox->enqueue($fresh, $event);
+
+            return $fresh;
         });
     }
 
