@@ -9,6 +9,7 @@ final class StatutoryInvoicePdfPayload
      *     description: string,
      *     hsnSac: string,
      *     qty: int,
+     *     unitPrice: string,
      *     taxableValue: string,
      *     gstPercentage: string,
      *     cgst: string,
@@ -41,5 +42,13 @@ final class StatutoryInvoicePdfPayload
         public readonly array $serialNumbers = [],
         public readonly ?string $sourceId = null,
         public readonly ?int $fulfilmentId = null,
+        public readonly ?string $irn = null,
+        public readonly ?string $ackNo = null,
+        public readonly ?string $ackDate = null,
     ) {}
+
+    public function hasIssuedIrn(): bool
+    {
+        return is_string($this->irn) && trim($this->irn) !== '';
+    }
 }

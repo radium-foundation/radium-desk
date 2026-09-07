@@ -1,0 +1,308 @@
+<?php
+
+namespace Tests\Feature\StatutoryInvoice;
+
+use App\Enums\CommerceOrderStatus;
+use App\Enums\EInvoiceRecordStatus;
+use App\Enums\StatutoryInvoiceChannel;
+use App\Enums\StatutoryInvoiceDocumentStatus;
+use App\Enums\StatutoryInvoiceSourceType;
+use App\Models\CommerceOrder;
+use App\Models\EInvoiceRecord;
+use App\Models\StatutoryInvoice;
+use App\Models\StatutoryInvoiceDocument;
+use App\Models\User;
+use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
+use App\Services\StatutoryInvoice\SimplePdfRenderer;
+use App\Services\StatutoryInvoice\StatutoryDocumentService;
+use App\Services\StatutoryInvoice\StatutoryInvoiceService;
+use Database\Seeders\FinanceMasterDataSeeder;
+use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
+use Tests\TestCase;
+
+class StatutoryInvoicePdfPresentationTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private StatutoryInvoiceService $invoices;
+
+    private User $actor;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Carbon::setTestNow('2026-09-07 18:28:19');
+        Storage::fake('local');
+        $this->seed(RolePermissionSeeder::class);
+        $this->seed(FinanceMasterDataSeeder::class);
+        $this->configureLocationSellerIdentity();
+        config([
+            'statutory_invoices.series_code' => '',
+            'statutory_invoices.number_format' => '',
+            'statutory_invoices.post_finance_journals' => false,
+            'statutory_invoices.auto_issue_on_pos_complete' => false,
+            'statutory_invoices.worker_may_mint' => false,
+            'statutory_invoices.einvoice.provider' => 'none',
+            'channel_ingest.auto_issue_invoice' => false,
+        ]);
+
+        $this->invoices = app(StatutoryInvoiceService::class);
+        $this->actor = User::factory()->create(['is_active' => true]);
+        $this->actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
+    public function test_b2c_pdf_is_professional_and_omits_irn_debug(): void
+    {
+        $invoice = $this->invoices->issueFromCommerceOrder(
+            $this->commerceOrder('RD-PDF-B2C', buyerGstin: null, description: 'Information technology (IT) consulting & support services (SAC - 998313) - (Sr. No. 10500255)'),
+            $this->actor,
+        );
+        $pdf = $this->text($this->pdf($invoice->id));
+
+        $this->assertStringContainsString('TAX INVOICE', $pdf);
+        $this->assertStringContainsString('Phil Technologies (P) Limited', $pdf);
+        $this->assertStringContainsString('GSTIN '.$this->configuredSellerGstin('mumbai'), $pdf);
+        $this->assertStringContainsString('Invoice '.$invoice->invoice_number, $pdf);
+        $this->assertStringContainsString('Seller', $pdf);
+        $this->assertStringContainsString('Buyer', $pdf);
+        $this->assertStringContainsString('CHANDRAKANT GANPAT SARODE', $pdf);
+        $this->assertStringContainsString('GSTIN B2C', $pdf);
+        $this->assertStringContainsString('Place of supply Maharashtra', $pdf);
+        $this->assertStringContainsString('SAC - 998313', $pdf);
+        $this->assertStringContainsString('HSN/SAC 998314', $pdf);
+        $this->assertStringContainsString('Qty 1', $pdf);
+        $this->assertStringContainsString('Rate 422.88', $pdf);
+        $this->assertStringContainsString('Taxable 422.88', $pdf);
+        $this->assertStringContainsString('GST 18.00%', $pdf);
+        $this->assertStringContainsString('CGST 38.06', $pdf);
+        $this->assertStringContainsString('SGST 38.06', $pdf);
+        $this->assertStringContainsString('IGST 0.00', $pdf);
+        $this->assertStringContainsString('Total GST 76.12', $pdf);
+        $this->assertStringContainsString('Invoice value 499.00', $pdf);
+        $this->assertStringContainsString('Amount payable 499.00', $pdf);
+        $this->assertStringNotContainsString('IRN not submitted', $pdf);
+        $this->assertStringNotContainsString('b2c_not_eligible', $pdf);
+        $this->assertStringNotContainsString('worker_may_mint', $pdf);
+        $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);
+    }
+
+    public function test_b2b_queued_pdf_does_not_invent_or_debug_irn(): void
+    {
+        $invoice = $this->invoices->issueFromCommerceOrder(
+            $this->commerceOrder('RD-PDF-B2B', buyerGstin: '07AAAAA0000A1Z5'),
+            $this->actor,
+        );
+        $record = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
+        $pdf = $this->text($this->pdf($invoice->id));
+
+        $this->assertSame(EInvoiceRecordStatus::Queued->value, $record?->status);
+        $this->assertNull($record?->irn);
+        $this->assertStringContainsString('TAX INVOICE', $pdf);
+        $this->assertStringContainsString('GSTIN 07AAAAA0000A1Z5', $pdf);
+        $this->assertStringNotContainsString('IRN not submitted', $pdf);
+        $this->assertStringNotContainsString('queued', $pdf);
+        $this->assertStringNotContainsString('b2b_eligible', $pdf);
+        $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);
+    }
+
+    public function test_submitted_irn_is_printed_with_acknowledgement(): void
+    {
+        $invoice = $this->invoices->issueFromCommerceOrder(
+            $this->commerceOrder('RD-PDF-IRN', buyerGstin: '07AAAAA0000A1Z5'),
+            $this->actor,
+        );
+        EInvoiceRecord::query()->updateOrCreate(
+            ['invoice_id' => $invoice->id],
+            [
+                'provider' => 'test',
+                'irn' => 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+                'ack_no' => 'ACK-1001',
+                'ack_date' => '2026-09-07 18:40:00',
+                'status' => EInvoiceRecordStatus::Submitted->value,
+                'response_payload' => ['ok' => true],
+            ],
+        );
+        $this->regenerate($invoice->id);
+        $pdf = $this->text($this->pdf($invoice->id));
+
+        $this->assertStringContainsString('IRN a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2', $pdf);
+        $this->assertStringContainsString('Ack. No. ACK-1001', $pdf);
+        $this->assertStringNotContainsString('IRN not submitted', $pdf);
+    }
+
+    public function test_failed_irn_does_not_print_provider_debug_or_invent_irn(): void
+    {
+        $invoice = $this->invoices->issueFromCommerceOrder(
+            $this->commerceOrder('RD-PDF-FAIL', buyerGstin: '07AAAAA0000A1Z5'),
+            $this->actor,
+        );
+        EInvoiceRecord::query()->updateOrCreate(
+            ['invoice_id' => $invoice->id],
+            [
+                'provider' => 'test',
+                'irn' => null,
+                'status' => EInvoiceRecordStatus::Failed->value,
+                'response_payload' => [
+                    'error' => 'GSP timeout stack TRACE-SECRET-99',
+                    'skip_reason' => 'provider_http_disabled',
+                ],
+            ],
+        );
+        $this->regenerate($invoice->id);
+        $pdf = $this->text($this->pdf($invoice->id));
+
+        $this->assertStringNotContainsString('IRN not submitted', $pdf);
+        $this->assertStringNotContainsString('TRACE-SECRET-99', $pdf);
+        $this->assertStringNotContainsString('GSP timeout', $pdf);
+        $this->assertStringNotContainsString('provider_http_disabled', $pdf);
+        $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);
+    }
+
+    public function test_renderer_never_prints_irn_from_unsubmitted_payload(): void
+    {
+        $renderer = new SimplePdfRenderer;
+        $pdf = $this->text($renderer->render($this->payload()));
+
+        $this->assertStringContainsString('TAX INVOICE', $pdf);
+        $this->assertStringContainsString('HSN/SAC 998314', $pdf);
+        $this->assertStringNotContainsString('IRN not submitted', $pdf);
+        $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);
+    }
+
+    public function test_renderer_prints_only_supplied_irn(): void
+    {
+        $renderer = new SimplePdfRenderer;
+        $pdf = $this->text($renderer->render($this->payload(
+            irn: 'issued-irn-token-0001',
+            ackNo: '112233',
+            ackDate: '07 Sep 2026 18:40',
+        )));
+
+        $this->assertStringContainsString('IRN issued-irn-token-0001', $pdf);
+        $this->assertStringContainsString('Ack. No. 112233', $pdf);
+        $this->assertStringContainsString('Ack. date 07 Sep 2026 18:40', $pdf);
+        $this->assertStringNotContainsString('IRN not submitted', $pdf);
+    }
+
+    private function pdf(int $invoiceId): string
+    {
+        $document = StatutoryInvoiceDocument::query()->where('invoice_id', $invoiceId)->firstOrFail();
+
+        return app(StatutoryDocumentService::class)->binary($document);
+    }
+
+    private function text(string $pdf): string
+    {
+        return str_replace(['\\(', '\\)', '\\\\'], ['(', ')', '\\'], $pdf);
+    }
+
+    private function regenerate(int $invoiceId): void
+    {
+        $document = StatutoryInvoiceDocument::query()->where('invoice_id', $invoiceId)->firstOrFail();
+        Storage::disk($document->disk ?: 'local')->delete((string) $document->path);
+        $document->forceFill([
+            'status' => StatutoryInvoiceDocumentStatus::Failed,
+            'path' => null,
+        ])->save();
+
+        $invoice = StatutoryInvoice::query()->with(['items', 'eInvoiceRecord'])->findOrFail($invoiceId);
+        app(StatutoryDocumentService::class)->generate($invoice);
+    }
+
+    private function commerceOrder(
+        string $sourceId,
+        ?string $buyerGstin = null,
+        string $description = 'Information technology (IT) consulting & support services',
+    ): CommerceOrder {
+        $order = CommerceOrder::query()->create([
+            'order_no' => 'CO-'.$sourceId,
+            'channel' => StatutoryInvoiceChannel::RdServiceIn,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => $sourceId,
+            'source_order_id' => $sourceId,
+            'idempotency_key' => 'statutory:rdservice_in:commerce_order:'.$sourceId,
+            'payload_hash' => hash('sha256', $sourceId),
+            'status' => CommerceOrderStatus::InvoicePending,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'customer_name' => 'CHANDRAKANT GANPAT SARODE',
+            'buyer_gstin' => $buyerGstin,
+            'billing_state' => 'Maharashtra',
+            'billing_address' => '312 dhamankar plaza Dhamankar naka Bhiwandi, Thane, Maharashtra, 421305',
+            'branch_code' => 'MUMBAI',
+            'place_of_supply_state' => 'Maharashtra',
+            'taxable_value' => 422.88,
+            'tax_total' => 76.12,
+            'order_value' => 499.00,
+            'ordered_at' => '2026-09-07 10:00:00',
+            'received_at' => now(),
+        ]);
+        $order->items()->create([
+            'line_no' => 1,
+            'description' => $description,
+            'hsn_sac' => '998314',
+            'qty' => 1,
+            'unit_price' => 422.88,
+            'gst_percentage' => 18,
+            'taxable_value' => 422.88,
+            'tax_total' => 76.12,
+            'line_total' => 499.00,
+        ]);
+
+        return $order->fresh(['items']);
+    }
+
+    private function payload(
+        ?string $irn = null,
+        ?string $ackNo = null,
+        ?string $ackDate = null,
+    ): StatutoryInvoicePdfPayload {
+        return new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-276710',
+            issuedAt: '2026-09-07 18:28:19',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '27AAICP1128M1Z7',
+            sellerAddress: 'G40, Harmony Mall, Link Road, Goregaon, Mumbai 400104',
+            sellerState: 'Maharashtra',
+            buyerName: 'CHANDRAKANT GANPAT SARODE',
+            buyerGstin: null,
+            billingAddress: '312 dhamankar plaza, Bhiwandi',
+            placeOfSupply: 'Maharashtra',
+            lines: [[
+                'description' => 'Information technology (IT) consulting & support services (SAC - 998313)',
+                'hsnSac' => '998314',
+                'qty' => 1,
+                'unitPrice' => '422.88',
+                'taxableValue' => '422.88',
+                'gstPercentage' => '18.00%',
+                'cgst' => '38.06',
+                'sgst' => '38.06',
+                'igst' => '0.00',
+                'taxTotal' => '76.12',
+                'lineTotal' => '499.00',
+            ]],
+            taxableValue: '422.88',
+            gstRate: '18.00%',
+            taxTotal: '76.12',
+            cgst: '38.06',
+            sgst: '38.06',
+            igst: '0.00',
+            invoiceValue: '499.00',
+            irn: $irn,
+            ackNo: $ackNo,
+            ackDate: $ackDate,
+        );
+    }
+}

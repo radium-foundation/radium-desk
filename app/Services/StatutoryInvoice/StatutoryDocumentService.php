@@ -2,6 +2,7 @@
 
 namespace App\Services\StatutoryInvoice;
 
+use App\Enums\EInvoiceRecordStatus;
 use App\Enums\StatutoryInvoiceDocumentStatus;
 use App\Models\HardwareFulfilment;
 use App\Models\StatutoryInvoice;
@@ -21,7 +22,7 @@ class StatutoryDocumentService
 
     public function generate(StatutoryInvoice $invoice): StatutoryInvoiceDocument
     {
-        $invoice->loadMissing('items');
+        $invoice->loadMissing(['items', 'eInvoiceRecord']);
         $document = StatutoryInvoiceDocument::query()->firstOrNew(['invoice_id' => $invoice->id]);
         if ($this->hasImmutableGeneratedDocument($document)) {
             return $document;
@@ -88,6 +89,7 @@ class StatutoryDocumentService
                 'description' => (string) $line->description,
                 'hsnSac' => (string) ($line->hsn_sac ?: 'unset'),
                 'qty' => (int) $line->qty,
+                'unitPrice' => $this->formatMoney($line->unit_price),
                 'taxableValue' => $this->formatMoney($line->taxable_value),
                 'gstPercentage' => $this->formatRate($line->gst_percentage),
                 'cgst' => $this->formatTaxComponent($line->cgst),
@@ -126,7 +128,47 @@ class StatutoryDocumentService
             serialNumbers: $serials,
             sourceId: $invoice->source_id,
             fulfilmentId: $fulfilment?->id,
+            irn: $this->issuedIrn($invoice),
+            ackNo: $this->issuedAckNo($invoice),
+            ackDate: $this->issuedAckDate($invoice),
         );
+    }
+
+    private function issuedIrn(StatutoryInvoice $invoice): ?string
+    {
+        $record = $invoice->eInvoiceRecord;
+        if ($record === null || $record->status !== EInvoiceRecordStatus::Submitted->value) {
+            return null;
+        }
+
+        $irn = trim((string) $record->irn);
+
+        return $irn !== '' ? $irn : null;
+    }
+
+    private function issuedAckNo(StatutoryInvoice $invoice): ?string
+    {
+        if ($this->issuedIrn($invoice) === null) {
+            return null;
+        }
+
+        $ack = trim((string) ($invoice->eInvoiceRecord?->ack_no ?? ''));
+
+        return $ack !== '' ? $ack : null;
+    }
+
+    private function issuedAckDate(StatutoryInvoice $invoice): ?string
+    {
+        if ($this->issuedIrn($invoice) === null) {
+            return null;
+        }
+
+        $date = $invoice->eInvoiceRecord?->ack_date;
+        if ($date === null) {
+            return null;
+        }
+
+        return $date->timezone((string) config('app.timezone'))->format('d M Y H:i');
     }
 
     /**
