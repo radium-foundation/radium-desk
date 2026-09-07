@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\HardwareFulfilment;
 use App\Models\InventoryBranch;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
+use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
 use App\Support\Inventory\InventoryBranchScope;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +21,7 @@ class HardwareFulfilmentSerialController extends Controller
 {
     public function __construct(
         private readonly HardwareSerialAllocationService $allocation,
+        private readonly HardwareShipmentService $shipments,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -36,6 +38,9 @@ class HardwareFulfilmentSerialController extends Controller
                 HardwareFulfilmentState::Ingested,
                 HardwareFulfilmentState::ReadyForFulfilment,
                 HardwareFulfilmentState::SerialsAllocated,
+                HardwareFulfilmentState::InvoiceIssued,
+                HardwareFulfilmentState::ShipmentCreated,
+                HardwareFulfilmentState::AwbAssigned,
             ])
             ->orderByDesc('id')
             ->paginate(40)
@@ -50,7 +55,7 @@ class HardwareFulfilmentSerialController extends Controller
     public function show(Request $request, HardwareFulfilment $fulfilment): View
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
-        $fulfilment->load(['commerceOrder.items', 'serials']);
+        $fulfilment->load(['commerceOrder.items', 'serials', 'shipment']);
 
         return view('inventory.hardware-fulfilments.show', [
             'fulfilment' => $fulfilment,
@@ -88,6 +93,26 @@ class HardwareFulfilmentSerialController extends Controller
         return redirect()
             ->route('inventory.hardware-fulfilments.show', $fulfilment)
             ->with('status', 'Serials allocated.');
+    }
+
+    public function storeShipment(Request $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->shipments->createShipment($fulfilment, $request->user());
+
+        return redirect()
+            ->route('inventory.hardware-fulfilments.show', $fulfilment)
+            ->with('status', 'Shipment created.');
+    }
+
+    public function storeAwb(Request $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->shipments->assignAwb($fulfilment, $request->user());
+
+        return redirect()
+            ->route('inventory.hardware-fulfilments.show', $fulfilment)
+            ->with('status', 'AWB assigned.');
     }
 
     /**

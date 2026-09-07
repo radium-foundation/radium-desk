@@ -263,7 +263,7 @@ Entry: operator sets `fulfilment_branch_id` → READY (availability count ≥ ph
 | P2 | One fulfilment per RDE commerce; Cashfree link; no fulfilment for service-only RD* |
 | P3 | Implemented in P-07-09-17. Matrix in §5 P3; idempotent mint; POS Delhi B2C unchanged; no mint without branch; PDF absent until serials |
 | P4 | Implemented in P-07-09-18. Map required; N distinct serials same branch; concurrency; retry stable |
-| P5 | Gates fail-closed; search-before-create; no AWB duplicate |
+| P5 | Implemented in P-07-09-19. Gates fail-closed; search-before-create; no AWB duplicate |
 | P6 | HMAC callback idempotent; empty AWB does not clear existing |
 | P7 | Live 201/200 for a **fixture or new** ingest; seven remain unminted |
 | P8 | Full SM on a **new** order; retry safe |

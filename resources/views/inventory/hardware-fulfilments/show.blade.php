@@ -31,6 +31,31 @@
         </div>
     </div>
 
+    @if($fulfilment->shipment)
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h6">Shipment</h2>
+                <p class="mb-1"><strong>Number</strong> {{ $fulfilment->shipment->shipment_no }}</p>
+                <p class="mb-1"><strong>Provider shipment</strong> {{ $fulfilment->shipment->external_shipment_id ?? 'pending' }}</p>
+                <p class="mb-0"><strong>AWB</strong> {{ $fulfilment->shipment->awb ?? 'not assigned' }}</p>
+            </div>
+        </div>
+    @endif
+
+    @if($fulfilment->state?->value === 'invoice_issued')
+        <form method="POST" action="{{ route('inventory.hardware-fulfilments.shipment.store', $fulfilment) }}" class="mb-4">
+            @csrf
+            <button class="btn btn-primary">Create shipment</button>
+        </form>
+    @endif
+
+    @if($fulfilment->state?->value === 'shipment_created')
+        <form method="POST" action="{{ route('inventory.hardware-fulfilments.awb.store', $fulfilment) }}" class="mb-4">
+            @csrf
+            <button class="btn btn-primary">Assign AWB</button>
+        </form>
+    @endif
+
     @if($allocated->isNotEmpty())
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body">

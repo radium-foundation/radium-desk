@@ -7,6 +7,7 @@ use App\Enums\StatutoryInvoiceChannel;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class HardwareFulfilment extends Model
 {
@@ -84,5 +85,10 @@ class HardwareFulfilment extends Model
     public function fulfilmentBranch(): BelongsTo
     {
         return $this->belongsTo(InventoryBranch::class, 'fulfilment_branch_id');
+    }
+
+    public function shipment(): HasOne
+    {
+        return $this->hasOne(Shipment::class, 'hardware_fulfilment_id');
     }
 }

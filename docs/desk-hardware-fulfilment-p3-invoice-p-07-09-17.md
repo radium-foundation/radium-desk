@@ -109,7 +109,7 @@ Serial picker / stock moves (P4). Shiprocket (P5). Ingest enable. Cashfree corre
 | Phase | Needs |
 |-------|-------|
 | P4 | Implemented in P-07-09-18: Desk stock picker writes `allocated` serials. Live Owner P0-M1 map rows still required. |
-| P5 | Shipment only after `INVOICE_ISSUED` + serials |
+| P5 | Implemented in P-07-09-19: shipment only after `INVOICE_ISSUED` + serials + pickup/address gates |
 | P6 | Box callback |
 | P7 | Observe ingest |
 | P8 | New-order E2E, then seven one-by-one |

@@ -117,7 +117,7 @@ Invoice mint (P3 already exists). Shiprocket (P5). Ingest enable. Cashfree corre
 | Phase | Needs |
 |-------|-------|
 | P0-M1 | Owner `channel_sku_maps` rows for live Box `model_id`s |
-| P5 | Shiprocket after `INVOICE_ISSUED` |
+| P5 | Implemented in P-07-09-19: Null+Fake Shiprocket + invoice/serial/pickup gates. Live HTTP and P0-M2 nicknames still required. |
 | P6 | Box callback |
 | P7 | Observe ingest |
 | P8 | New-order E2E, then seven one-by-one |

@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Contracts\AI\AIProvider;
 use App\Contracts\Customer360\CaseIntelligenceLanguageEnhancer;
 use App\Contracts\Operations\IraReasoningProvider;
+use App\Contracts\Shipping\ShiprocketGateway;
 use App\Contracts\StatutoryInvoice\EInvoiceGateway;
 use App\Contracts\Workforce\CalendarPolicy;
 use App\Contracts\Workforce\ContributionPolicy;
@@ -84,6 +85,7 @@ use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
 use App\Services\ServiceCaseAutomationStatusService;
 use App\Services\SettingService;
+use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\StatutoryInvoice\NullEInvoiceGateway;
 use App\Services\SupportContactConfiguration;
 use App\Services\SupportContactResolver;
@@ -307,6 +309,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(EInvoiceGateway::class, NullEInvoiceGateway::class);
+        $this->app->bind(ShiprocketGateway::class, NullShiprocketGateway::class);
     }
 
     /**
