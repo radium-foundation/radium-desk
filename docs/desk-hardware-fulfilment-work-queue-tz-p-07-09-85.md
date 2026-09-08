@@ -47,3 +47,17 @@ Focused 15 passed. Related hardware fulfilment suites passed. Pint clean.
 ## Safety
 
 No fulfilment / serial / invoice / shipment / AWB / pickup / manifest writes. RDE318421 not rewritten. Shiprocket config not changed.
+
+---
+
+## Production overlay
+
+**Mechanism:** named-file rsync (no `--delete`) from `git archive 1f8f6e33`. Not `./tools/desk deploy`. No migrate. No Vite. No `.env`.
+
+Backup: `/var/www/radium-desk/storage/app/private/overlays/p-07-09-85-20260908T115312Z`
+
+Replaced 3 files. Production SHA-256 **MATCH** `1f8f6e33`. Then `optimize:clear` + `optimize`.
+
+Post-overlay (user 2 GET, no browser): qualifying **13**, awaiting fulfilment **12**, blocked **9**, excluded **21**. All six afternoon review IDs visible. RDE318421 one table row, still `awb_assigned` / `1568724940` / `284931178067631`. `create/adhoc` log **0**. `/up` 200.
+
+Rollback: restore the 3 backed-up files, then `optimize:clear` + `optimize`. Not required.
