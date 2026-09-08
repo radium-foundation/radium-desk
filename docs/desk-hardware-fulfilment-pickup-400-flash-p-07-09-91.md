@@ -48,3 +48,20 @@ No second live pickup POST was made to prove punctuation. The live UI string and
 - Push: **NO — Not performed.**
 - Schema / `.env` / migrate / RIN / bulk: **NO — Not performed.**
 - `rsync -a` of a 700 temp dir onto the web root: **NO — Not performed.**
+
+---
+
+## Named-file overlay (same ticket)
+
+Individual `install -m 644` of three `4b325809` files. Not `deskd`. Not a directory rsync onto `/var/www/radium-desk`.
+
+| Item | Value |
+|------|-------|
+| Backup | `/var/www/radium-desk/storage/app/private/overlays/p-07-09-91-20260908T130317Z` |
+| Web root after | `755` unchanged |
+| Hash verify | 3/3 MATCH `4b325809` |
+| `/up` | 200, not LiteSpeed 403 |
+| `/login` | 200 |
+| RDE318421 | unchanged; pickup still `NULL`; AWB `284931178067631` |
+
+The 400 banner is a POST flash. A later authorized Request Pickup will persist locally and will not flash the 400. That click was **not** made here.
