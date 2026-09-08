@@ -136,6 +136,7 @@ const isInteractiveTarget = (target) => {
             '.dashboard-select-cell',
             '[data-dashboard-activity-stream-toggle]',
             '[data-activity-thread-toggle]',
+            '[data-hardware-fulfilment-link]',
         ].join(', '))
     );
 };

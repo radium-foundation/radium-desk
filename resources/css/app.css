@@ -1741,6 +1741,26 @@ a:focus-visible .stat-card {
     color: #6c757d;
 }
 
+.dashboard-cases-table .case-order-cell__stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+}
+
+.dashboard-cases-table .case-order-cell .dashboard-hardware-fulfilment-link {
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #0d6efd;
+    text-decoration: none;
+}
+
+.dashboard-cases-table .case-order-cell .dashboard-hardware-fulfilment-link:hover {
+    color: #0a58ca;
+    text-decoration: underline;
+}
+
 .dashboard-cases-table thead th.case-serial-cell {
     width: 7rem;
     max-width: 7rem;

@@ -29,6 +29,8 @@
     }
 
     $compactAgentLayout = $compactAgentLayout ?? false;
+    $hardwareFulfilmentUrl = $hardwareFulfilmentUrl
+        ?? \App\Support\HardwareFulfilment\HardwareFulfilmentNavigation::urlFor(auth()->user(), $order);
 @endphp
 
 <tr id="service-case-row-{{ $serviceCase->id }}"
@@ -69,11 +71,28 @@
     </td>
     <td class="case-order-cell case-meta-cell">
         @if($order && ! $order->isInquiryOrder())
-            <x-order-identifier
-                :order="$order"
-                :incident="$serviceCase"
-                :href="route('orders.show', $order)"
-            />
+            <div class="case-order-cell__stack">
+                <x-order-identifier
+                    :order="$order"
+                    :incident="$serviceCase"
+                    :href="route('orders.show', $order)"
+                />
+                @if(filled($hardwareFulfilmentUrl))
+                    <a href="{{ $hardwareFulfilmentUrl }}"
+                       class="dashboard-hardware-fulfilment-link"
+                       data-hardware-fulfilment-link
+                       title="Open fulfilment and shipment workflow">
+                        Fulfilment / Shipment
+                    </a>
+                @endif
+            </div>
+        @elseif(filled($hardwareFulfilmentUrl))
+            <a href="{{ $hardwareFulfilmentUrl }}"
+               class="dashboard-hardware-fulfilment-link"
+               data-hardware-fulfilment-link
+               title="Open fulfilment and shipment workflow">
+                Fulfilment / Shipment
+            </a>
         @else
             —
         @endif

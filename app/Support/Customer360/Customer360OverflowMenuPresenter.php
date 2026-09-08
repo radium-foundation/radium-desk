@@ -16,6 +16,7 @@ use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
 use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\WorkspaceActionDialogService;
 use App\Support\Context\DeclaresContextScope;
+use App\Support\HardwareFulfilment\HardwareFulfilmentNavigation;
 use Illuminate\Support\Collection;
 
 final class Customer360OverflowMenuPresenter implements ProvidesContextScope
@@ -65,7 +66,7 @@ final class Customer360OverflowMenuPresenter implements ProvidesContextScope
             $this->customerGroup($visibility),
             $this->caseGroup($capabilities, $incident, $user),
             $this->appointmentsGroup($incident, $supportAppointments),
-            $this->relatedGroup($incident, $order, $visibility),
+            $this->relatedGroup($incident, $order, $user, $visibility),
         ];
 
         $groups = array_values(array_filter(
@@ -346,7 +347,7 @@ final class Customer360OverflowMenuPresenter implements ProvidesContextScope
      * @param  array<string, mixed>  $visibility
      * @return array{label: string, icon: string, items: list<array<string, mixed>>}
      */
-    private function relatedGroup(Incident $incident, ?Order $order, array $visibility): array
+    private function relatedGroup(Incident $incident, ?Order $order, User $user, array $visibility): array
     {
         $items = [];
 
@@ -367,6 +368,17 @@ final class Customer360OverflowMenuPresenter implements ProvidesContextScope
                 icon: 'external-link',
                 href: route('orders.show', $order),
                 keywords: ['order'],
+            );
+        }
+
+        $fulfilmentUrl = HardwareFulfilmentNavigation::urlFor($user, $order);
+        if ($fulfilmentUrl !== null) {
+            $items[] = $this->linkItem(
+                id: 'open-hardware-fulfilment',
+                label: 'Fulfilment / Shipment',
+                icon: 'truck',
+                href: $fulfilmentUrl,
+                keywords: ['fulfilment', 'fulfillment', 'shipment', 'hardware', 'ship'],
             );
         }
 

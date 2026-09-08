@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Models\Todo;
 use App\Models\User;
 use App\ReadModels\Cases\CaseQueueReadModel;
+use App\Services\Commercial\CommercialStateResolver;
 use App\Services\Dashboard\AgentNextAppointmentResolver;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
@@ -24,6 +25,7 @@ use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Support\Dashboard\DashboardIncidentSortComparator;
 use App\Support\Dashboard\RecentActivityPresenter;
 use App\Support\Dashboard\ScheduledAppointmentRowBadgePresenter;
+use App\Support\HardwareFulfilment\HardwareFulfilmentNavigation;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -307,7 +309,7 @@ class DashboardService
         $order = $serviceCase->order;
         $verificationService = app(CustomerVerificationService::class);
         $commercialState = null;
-        $commercialResolver = app(\App\Services\Commercial\CommercialStateResolver::class);
+        $commercialResolver = app(CommercialStateResolver::class);
 
         if ($commercialResolver->enabled()) {
             $commercialState = $commercialResolver->forIncident($serviceCase)->toArray();
@@ -327,6 +329,7 @@ class DashboardService
                 : 'customer',
             'isScheduledWorkspace' => $dashboardOperationQueue === DashboardPersonalizationService::QUEUE_SCHEDULED,
             'commercialState' => $commercialState,
+            'hardwareFulfilmentUrl' => HardwareFulfilmentNavigation::urlFor($user, $order),
         ];
     }
 

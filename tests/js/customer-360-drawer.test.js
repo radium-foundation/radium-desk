@@ -18,7 +18,12 @@ describe('initCustomer360Drawer', () => {
                     <tbody>
                         <tr data-incident-id="42">
                             <td><a href="/incidents/42" class="case-reference-link">SC-001</a></td>
-                            <td class="case-order-cell"><a href="/orders/99">RD-001</a></td>
+                            <td class="case-order-cell">
+                                <a href="/orders/99">RD-001</a>
+                                <a href="/inventory/hardware-fulfilments/7"
+                                   class="dashboard-hardware-fulfilment-link"
+                                   data-hardware-fulfilment-link>Fulfilment / Shipment</a>
+                            </td>
                             <td class="dashboard-select-cell">
                                 <input type="checkbox" class="service-case-select" value="42">
                             </td>
@@ -120,6 +125,21 @@ describe('initCustomer360Drawer', () => {
         );
 
         expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not open drawer when clicking fulfilment shipment link', async () => {
+        const pageRoot = setupDashboard();
+
+        global.fetch = vi.fn();
+
+        initCustomer360Drawer({ pageRoot });
+
+        document.querySelector('[data-hardware-fulfilment-link]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true, cancelable: true }),
+        );
+
+        expect(fetch).not.toHaveBeenCalled();
+        expect(document.querySelector('[data-customer-360-drawer]')?.classList.contains('is-open')).toBe(false);
     });
 
     it('does not open drawer when clicking serial copy control', async () => {

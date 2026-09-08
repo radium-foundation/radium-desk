@@ -2,8 +2,13 @@
 
 namespace Tests\Unit;
 
+use App\Enums\CommerceOrderStatus;
+use App\Enums\HardwareFulfilmentState;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\StatutoryInvoiceChannel;
+use App\Models\CommerceOrder;
+use App\Models\HardwareFulfilment;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -163,6 +168,53 @@ class Customer360OverflowMenuPresenterTest extends TestCase
         )->pluck('label')->all();
 
         $this->assertContains('Schedule Appointment', $appointmentLabels);
+    }
+
+    public function test_related_group_includes_fulfilment_shipment_when_resolvable(): void
+    {
+        [$admin, $incident, $order] = $this->createFixture(RolePermissionSeeder::ROLE_ADMIN, IncidentStatus::Open);
+        $order->forceFill(['order_id' => 'RDE902101'])->save();
+        $commerce = CommerceOrder::query()->create([
+            'order_no' => 'CO-RDE902101',
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => 'commerce_order',
+            'source_id' => 'RDE902101',
+            'idempotency_key' => 'statutory:radiumbox_com:commerce_order:RDE902101',
+            'payload_hash' => hash('sha256', 'RDE902101'),
+            'status' => CommerceOrderStatus::InvoicePending,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'received_at' => now(),
+            'support_order_id' => $order->id,
+        ]);
+        $fulfilment = HardwareFulfilment::query()->create([
+            'commerce_order_id' => $commerce->id,
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => 'commerce_order',
+            'source_id' => 'RDE902101',
+            'idempotency_key' => $commerce->idempotency_key,
+            'state' => HardwareFulfilmentState::Ingested,
+            'support_order_id' => $order->id,
+            'ingested_at' => now(),
+        ]);
+
+        $menu = app(Customer360OverflowMenuPresenter::class)->build(
+            $incident->fresh('order'),
+            $admin,
+            $order->fresh(),
+        );
+
+        $related = collect(collect($menu['groups'])->firstWhere('label', 'Related')['items']);
+        $fulfilmentItem = $related->firstWhere('id', 'open-hardware-fulfilment');
+
+        $this->assertContains('Open Order', $related->pluck('label')->all());
+        $this->assertNotNull($fulfilmentItem);
+        $this->assertSame('Fulfilment / Shipment', $fulfilmentItem['label']);
+        $this->assertSame(
+            route('inventory.hardware-fulfilments.show', $fulfilment),
+            $fulfilmentItem['href'],
+        );
     }
 
     /**
