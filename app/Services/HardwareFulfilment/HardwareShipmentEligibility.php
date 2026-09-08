@@ -170,8 +170,9 @@ class HardwareShipmentEligibility
             }
         }
 
-        if ($shipment !== null && $shipment->failure_class === 'provider_rejected') {
-            $blockers[] = 'Provider validation error';
+        $providerRejection = null;
+        if ($shipment !== null && $shipment->failure_class === 'provider_rejected' && ! $alreadyCreated) {
+            $providerRejection = $this->operatorProviderRejection($shipment->last_error);
         }
 
         if (! $this->providerReady()) {
@@ -308,6 +309,7 @@ class HardwareShipmentEligibility
             readyForPickup: $readyForPickup,
             collectionMode: $collection->value,
             collectionModeLabel: $collection->label(),
+            providerRejection: $providerRejection,
         );
     }
 
@@ -582,6 +584,20 @@ class HardwareShipmentEligibility
         }
 
         return $codes;
+    }
+
+    private function operatorProviderRejection(?string $lastError): string
+    {
+        $message = trim((string) $lastError);
+        if ($message === '') {
+            $message = 'Provider validation error';
+        }
+
+        if (! str_starts_with(strtolower($message), 'shiprocket rejected')) {
+            $message = 'Shiprocket rejected shipment creation: '.$message;
+        }
+
+        return $message;
     }
 
     private function shipmentStatusLabel(?Shipment $shipment, bool $alreadyCreated): string

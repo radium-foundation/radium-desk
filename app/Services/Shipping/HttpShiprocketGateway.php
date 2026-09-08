@@ -81,7 +81,7 @@ final class HttpShiprocketGateway implements ShiprocketGateway
                 provider: $this->provider(),
                 status: 'rejected',
                 correlationId: $request->correlationId,
-                error: $this->errorMessage($json, 'Shiprocket rejected shipment create.'),
+                error: $this->errorMessage($json, 'Shiprocket rejected shipment create.', $response['status']),
                 retryable: false,
             );
         }
@@ -400,7 +400,7 @@ final class HttpShiprocketGateway implements ShiprocketGateway
 
         if ($status === 429 || $status >= 500) {
             throw new ShiprocketRetryableException(
-                $this->errorMessage($payload, 'Shiprocket returned HTTP '.$status),
+                $this->errorMessage($payload, 'Shiprocket returned HTTP '.$status, $status),
             );
         }
 
@@ -411,7 +411,7 @@ final class HttpShiprocketGateway implements ShiprocketGateway
 
         if ($status >= 400) {
             throw new ShiprocketNonRetryableException(
-                $this->errorMessage($payload, 'Shiprocket returned HTTP '.$status),
+                $this->errorMessage($payload, 'Shiprocket returned HTTP '.$status, $status),
             );
         }
 
@@ -593,16 +593,86 @@ final class HttpShiprocketGateway implements ShiprocketGateway
     /**
      * @param  array<string, mixed>  $json
      */
-    private function errorMessage(array $json, string $fallback): string
+    /**
+     * Operator-safe provider message. Field errors are included; tokens and secrets are not.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    private function errorMessage(array $json, string $fallback, ?int $httpStatus = null): string
     {
+        $parts = [];
+        $statusCode = $this->scalar($json['status_code'] ?? null);
+        if ($httpStatus !== null && $httpStatus >= 400) {
+            $parts[] = 'HTTP '.$httpStatus;
+        } elseif ($statusCode !== null) {
+            $parts[] = 'status '.$statusCode;
+        }
+
+        $summary = null;
         foreach (['message', 'error', 'msg'] as $key) {
             $value = $this->scalar($json[$key] ?? null);
             if ($value !== null) {
-                return $value;
+                $summary = $this->sanitizeProviderText($value);
+                break;
             }
         }
+        $parts[] = $summary ?? $fallback;
 
-        return $fallback;
+        $fields = $this->safeFieldErrors($json['errors'] ?? null);
+        if ($fields !== '') {
+            $parts[] = $fields;
+        }
+
+        return implode(' — ', array_values(array_filter($parts)));
+    }
+
+    private function safeFieldErrors(mixed $errors): string
+    {
+        if (! is_array($errors) || $errors === []) {
+            return '';
+        }
+
+        $out = [];
+        foreach ($errors as $field => $messages) {
+            $name = preg_replace('/[^A-Za-z0-9_]/', '', (string) $field) ?? '';
+            if ($name === '' || $this->looksSensitiveField($name)) {
+                continue;
+            }
+
+            $texts = is_array($messages) ? $messages : [$messages];
+            $clean = [];
+            foreach ($texts as $message) {
+                if (! is_scalar($message)) {
+                    continue;
+                }
+                $text = $this->sanitizeProviderText(trim((string) $message));
+                if ($text !== '') {
+                    $clean[] = $text;
+                }
+            }
+            if ($clean === []) {
+                continue;
+            }
+
+            $out[] = $name.': '.implode('; ', $clean);
+        }
+
+        return implode(' · ', $out);
+    }
+
+    private function looksSensitiveField(string $field): bool
+    {
+        $normalized = strtolower($field);
+
+        return in_array($normalized, ['password', 'token', 'authorization', 'secret', 'api_key', 'apikey'], true);
+    }
+
+    private function sanitizeProviderText(string $text): string
+    {
+        $text = preg_replace('/bearer\s+[A-Za-z0-9._\-]+/i', '[redacted]', $text) ?? $text;
+        $text = preg_replace('/\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9._-]{10,}\b/', '[redacted]', $text) ?? $text;
+
+        return trim($text);
     }
 
     private function providerNumericId(string $id): int|string

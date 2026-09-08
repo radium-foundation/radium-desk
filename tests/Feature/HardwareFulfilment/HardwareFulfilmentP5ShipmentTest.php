@@ -445,7 +445,7 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertFalse(Shipment::query()->whereNotNull('external_shipment_id')->exists());
     }
 
-    public function test_provider_validation_failure_is_not_retried(): void
+    public function test_provider_validation_failure_searches_before_a_second_create(): void
     {
         $this->fake->nextCreateMode = 'rejected';
         $fulfilment = $this->invoicedFulfilment('RDE900513', 'DELHI-RETAIL');
@@ -458,16 +458,50 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         }
 
         $this->assertSame(1, $this->fake->creates);
+        $failed = Shipment::query()->first();
+        $this->assertNotNull($failed);
+        $this->assertSame('provider_rejected', $failed->failure_class);
+        $this->assertNull($failed->external_order_id);
+        $this->assertNull($failed->external_shipment_id);
+        $this->assertNull($failed->awb);
+
+        $this->fake->nextCreateMode = 'rejected';
 
         try {
             $this->shipments->createShipment($fulfilment->fresh());
-            $this->fail('Rejected create must not be retried.');
-        } catch (ValidationException $exception) {
-            $this->assertStringContainsString('not retried', strtolower(implode(' ', $exception->errors()['shipping'] ?? []).' '.$exception->getMessage()));
+            $this->fail('Unchanged rejected payload must fail again after search.');
+        } catch (ValidationException) {
+            // expected
         }
 
-        $this->assertSame(1, $this->fake->creates);
+        $this->assertSame(1, $this->fake->searches);
+        $this->assertSame(2, $this->fake->creates);
+        $this->assertSame(1, Shipment::query()->count());
         $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
+        $this->assertFalse(Shipment::query()->whereNotNull('external_shipment_id')->exists());
+    }
+
+    public function test_provider_validation_retry_binds_existing_search_hit_without_a_second_create(): void
+    {
+        $this->fake->nextCreateMode = 'rejected';
+        $fulfilment = $this->invoicedFulfilment('RDE900524', 'DELHI-RETAIL');
+
+        try {
+            $this->shipments->createShipment($fulfilment);
+            $this->fail('Rejected create must fail.');
+        } catch (ValidationException) {
+            // expected
+        }
+
+        $this->fake->seedCatalog('HW-RDE900524', 'SR-REJ-ORD', 'SR-REJ-SHP');
+        $bound = $this->shipments->createShipment($fulfilment->fresh(['commerceOrder.items']));
+
+        $this->assertSame(1, $this->fake->creates);
+        $this->assertSame(1, $this->fake->searches);
+        $this->assertTrue($bound->isBound());
+        $this->assertSame('SR-REJ-ORD', $bound->external_order_id);
+        $this->assertSame(HardwareFulfilmentState::ShipmentCreated, $fulfilment->fresh()->state);
+        $this->assertSame(1, Shipment::query()->count());
     }
 
     public function test_provider_ids_are_preserved_on_duplicate_operator_request(): void

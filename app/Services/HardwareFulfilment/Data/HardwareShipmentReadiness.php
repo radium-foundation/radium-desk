@@ -68,5 +68,6 @@ final class HardwareShipmentReadiness
         public readonly bool $readyForPickup = false,
         public readonly string $collectionMode = 'prepaid',
         public readonly string $collectionModeLabel = 'Prepaid',
+        public readonly ?string $providerRejection = null,
     ) {}
 }

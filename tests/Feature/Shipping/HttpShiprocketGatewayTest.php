@@ -52,7 +52,8 @@ class HttpShiprocketGatewayTest extends TestCase
         Http::assertSent(function ($request): bool {
             return str_ends_with($request->url(), '/orders/create/adhoc')
                 && $request['order_id'] === 'HW-RDE900800'
-                && $request['pickup_location'] === 'RADDELHI';
+                && $request['pickup_location'] === 'RADDELHI'
+                && $request['billing_last_name'] === '';
         });
     }
 
@@ -100,6 +101,55 @@ class HttpShiprocketGatewayTest extends TestCase
 
         $this->assertTrue($result->retryable);
         $this->assertFalse($result->found);
+    }
+
+    public function test_create_validation_error_includes_safe_field_errors(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc' => Http::response([
+                'message' => 'Oops! Invalid Data.',
+                'status_code' => 422,
+                'errors' => [
+                    'billing_last_name' => ['validation.present'],
+                    'password' => ['secret-must-not-appear'],
+                ],
+            ], 422),
+        ]);
+
+        try {
+            (new HttpShiprocketGateway)->createOrder($this->request());
+            $this->fail('Provider validation must fail closed.');
+        } catch (ShiprocketNonRetryableException $exception) {
+            $this->assertStringContainsString('Oops! Invalid Data.', $exception->getMessage());
+            $this->assertStringContainsString('HTTP 422', $exception->getMessage());
+            $this->assertStringContainsString('billing_last_name: validation.present', $exception->getMessage());
+            $this->assertStringNotContainsString('secret-must-not-appear', $exception->getMessage());
+            $this->assertStringNotContainsString('password', $exception->getMessage());
+        }
+    }
+
+    public function test_create_http_200_without_ids_keeps_provider_errors(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc' => Http::response([
+                'message' => 'Oops! Invalid Data.',
+                'status_code' => 422,
+                'errors' => [
+                    'billing_city' => ['The billing city is invalid.'],
+                ],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->createOrder($this->request());
+
+        $this->assertSame('rejected', $result->status);
+        $this->assertFalse($result->retryable);
+        $this->assertNull($result->externalOrderId);
+        $this->assertNull($result->externalShipmentId);
+        $this->assertStringContainsString('Oops! Invalid Data.', (string) $result->error);
+        $this->assertStringContainsString('billing_city: The billing city is invalid.', (string) $result->error);
     }
 
     public function test_provider_5xx_is_retryable(): void

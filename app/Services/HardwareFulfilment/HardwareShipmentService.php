@@ -51,12 +51,6 @@ class HardwareShipmentService
                     return ['done' => $existing];
                 }
 
-                if ($existing !== null && $existing->failure_class === 'provider_rejected') {
-                    throw new ShiprocketNonRetryableException(
-                        trim(($existing->last_error ?: 'Provider validation failure').' Previous provider validation failure is not retried.'),
-                    );
-                }
-
                 $this->snapshots->attachIfEligible($locked, $actor);
 
                 $ready = $this->eligibility->require($locked);

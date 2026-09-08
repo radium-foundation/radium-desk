@@ -282,6 +282,46 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_provider_rejection_shows_safe_reason_and_does_not_look_created(): void
+    {
+        $this->enableFakeShipping();
+        $this->fake->nextCreateMode = 'rejected';
+        $fulfilment = $this->selectTestCourier($this->invoicedFulfilment('RDE900910', 'DELHI-RETAIL'), $this->operator);
+
+        $this->actingAs($this->operator)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.shipment.store', $fulfilment))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors('shipping');
+
+        $fresh = $fulfilment->fresh();
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fresh->state);
+        $this->assertNull($fresh->provider_shipment_id);
+        $this->assertNull($fresh->awb);
+
+        $failed = Shipment::query()->first();
+        $this->assertNotNull($failed);
+        $this->assertSame('provider_rejected', $failed->failure_class);
+        $this->assertNull($failed->external_order_id);
+        $this->assertNull($failed->external_shipment_id);
+        $this->assertNull($failed->awb);
+        $this->assertNull($failed->label_url);
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.show', $fresh))
+            ->assertOk()
+            ->assertSee('Not created — provider rejected')
+            ->assertSee('Shiprocket rejected shipment creation:')
+            ->assertSee('Fake provider rejected the create-order request.')
+            ->assertDontSee('Provider validation error')
+            ->assertDontSee('SHIPMENT CREATED')
+            ->assertDontSee('Assign AWB')
+            ->assertSee('Create Shipment');
+
+        $this->assertSame(1, $this->fake->creates);
+        Http::assertNothingSent();
+    }
+
     private function enableFakeShipping(): void
     {
         $this->app->instance(ShiprocketGateway::class, $this->fake);

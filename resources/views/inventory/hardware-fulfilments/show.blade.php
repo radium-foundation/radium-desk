@@ -267,6 +267,11 @@
                 <dd>{{ $shipment->awb ?? 'Not assigned' }}</dd>
             </dl>
 
+            @if($shipment->providerRejection)
+                <p class="text-danger small mt-3 mb-0">{{ $shipment->providerRejection }}</p>
+                <p class="text-muted small mb-0">Courier is selected. Shipment creation was attempted and the provider rejected it. No provider shipment, AWB, or label exists.</p>
+            @endif
+
             @if($shipment->blockers !== [])
                 <ul class="hf-ship-blockers text-danger small mt-3 mb-0">
                     @foreach($shipment->blockers as $blocker)

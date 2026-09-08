@@ -64,6 +64,7 @@ final class ShiprocketCreateOrderRequest
             'billing_country' => $this->billingCountry,
             'billing_email' => $this->billingEmail,
             'billing_phone' => $this->billingPhone,
+            'billing_last_name' => $this->billingLastName !== null ? $this->billingLastName : '',
             'shipping_is_billing' => $this->shippingIsBilling,
             'order_items' => $this->items,
             'payment_method' => $this->paymentMethod,
@@ -74,9 +75,6 @@ final class ShiprocketCreateOrderRequest
             'weight' => $this->weight,
         ];
 
-        if ($this->billingLastName !== null && trim($this->billingLastName) !== '') {
-            $payload['billing_last_name'] = $this->billingLastName;
-        }
         if ($this->billingAddress2 !== null && trim($this->billingAddress2) !== '') {
             $payload['billing_address_2'] = $this->billingAddress2;
         }
