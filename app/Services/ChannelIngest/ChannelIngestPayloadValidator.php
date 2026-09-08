@@ -6,6 +6,7 @@ use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceSourceType;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\ChannelIngest\Data\ChannelOrderLineDraft;
+use App\Services\HardwareFulfilment\HardwareHandoffTenderContract;
 use App\Support\Finance\IndianStates;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
@@ -13,6 +14,10 @@ use Illuminate\Validation\Validator;
 
 class ChannelIngestPayloadValidator
 {
+    public function __construct(
+        private readonly HardwareHandoffTenderContract $tenders = new HardwareHandoffTenderContract,
+    ) {}
+
     /**
      * HTTP ingest channels. Desk POS is in-process only.
      *
@@ -77,7 +82,7 @@ class ChannelIngestPayloadValidator
         $rawBilling = $payload['billing_address'] ?? $rawCustomer['billing_address'] ?? null;
         $rawShipping = $payload['shipping_address'] ?? $rawCustomer['shipping_address'] ?? null;
 
-        return new ChannelOrderIngestRequest(
+        $request = new ChannelOrderIngestRequest(
             channel: StatutoryInvoiceChannel::from((string) $data['channel']),
             sourceType: StatutoryInvoiceSourceType::from((string) $data['source_type']),
             sourceId: (string) $data['source_id'],
@@ -107,7 +112,12 @@ class ChannelIngestPayloadValidator
             billingAddressStructured: $this->structuredAddress($rawBilling),
             shippingAddressStructured: $this->structuredAddress($rawShipping),
             parcel: $this->structuredParcel($data['parcel'] ?? $payload['parcel'] ?? null),
+            tenders: $this->tenders->parse($data['tenders'] ?? $payload['tenders'] ?? null),
         );
+
+        $this->tenders->assertPayload($request);
+
+        return $request;
     }
 
     /**
@@ -154,6 +164,10 @@ class ChannelIngestPayloadValidator
             'parcel.width' => ['nullable', 'numeric', 'min:0'],
             'parcel.height' => ['nullable', 'numeric', 'min:0'],
             'parcel.weight_unit' => ['nullable', 'string', 'max:16'],
+            'tenders' => ['nullable', 'array'],
+            'tenders.*.type' => ['required_with:tenders', 'string', 'in:cashfree,wallet'],
+            'tenders.*.amount' => ['required_with:tenders', 'numeric', 'min:0.01'],
+            'tenders.*.reference' => ['nullable', 'string', 'max:128'],
             'shipping_address.line1' => ['nullable', 'string', 'max:255'],
             'shipping_address.line2' => ['nullable', 'string', 'max:255'],
             'shipping_address.city' => ['nullable', 'string', 'max:128'],

@@ -77,6 +77,7 @@ class HardwareFulfilmentIsolatedWorkflowService
         private readonly ChannelIngestService $ingest,
         private readonly ChannelIngestPayloadValidator $payloads,
         private readonly ChannelIngestPayloadHasher $hasher,
+        private readonly HardwareHandoffTenderContract $tenders,
     ) {}
 
     /**
@@ -292,6 +293,8 @@ class HardwareFulfilmentIsolatedWorkflowService
     {
         $existing = $this->findExisting($id);
         if ($existing !== null) {
+            // Isolated ingest is keyed by source id. A second run is duplicate and
+            // does not re-hash the payload. Changed tenders conflict on HTTP ingest.
             HardwareFulfilmentEligibility::assertIsolatedTarget($existing, $this->requireOrder($existing));
 
             return [
@@ -568,6 +571,7 @@ class HardwareFulfilmentIsolatedWorkflowService
         }
 
         $request = $this->payloads->validate($payload, StatutoryInvoiceChannel::RadiumBoxCom);
+        $this->tenders->assertExistingCashfree($request);
         $sourceId = HardwareFulfilmentEligibility::assertSingularIdentifier($request->sourceId);
 
         if (strcasecmp($sourceId, $id) !== 0) {

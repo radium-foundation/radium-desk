@@ -14,6 +14,7 @@ final class ChannelOrderIngestRequest
      * @param  array<string, string>|null  $billingAddressStructured
      * @param  array<string, string>|null  $shippingAddressStructured
      * @param  array<string, mixed>|null  $parcel
+     * @param  list<ChannelOrderTenderDraft>  $tenders
      */
     public function __construct(
         public readonly StatutoryInvoiceChannel $channel,
@@ -45,6 +46,7 @@ final class ChannelOrderIngestRequest
         public readonly ?array $billingAddressStructured = null,
         public readonly ?array $shippingAddressStructured = null,
         public readonly ?array $parcel = null,
+        public readonly array $tenders = [],
     ) {}
 
     public function idempotencyKey(): string

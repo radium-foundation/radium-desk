@@ -5,6 +5,7 @@ namespace App\Services\ChannelIngest;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\ChannelIngest\Data\ChannelOrderLineDraft;
+use App\Services\HardwareFulfilment\HardwareHandoffTenderContract;
 
 /**
  * Canonical payload identity for channel ingest retries.
@@ -106,7 +107,7 @@ class ChannelIngestPayloadHasher
      */
     public function hardwareCanonical(ChannelOrderIngestRequest $request): array
     {
-        return [
+        $canonical = [
             'channel' => $request->channel->value,
             'source_type' => $request->sourceType->value,
             'source_id' => $request->sourceId,
@@ -157,6 +158,13 @@ class ChannelIngestPayloadHasher
                 'otgid' => $line->otgid,
             ], $request->lines),
         ];
+
+        $tenders = (new HardwareHandoffTenderContract)->canonical($request);
+        if ($tenders !== []) {
+            $canonical['tenders'] = $tenders;
+        }
+
+        return $canonical;
     }
 
     /**

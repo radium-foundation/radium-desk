@@ -97,6 +97,32 @@ class ChannelIngestPayloadHasherTest extends TestCase
         $this->assertSame($expected, $this->hasher->hash($request));
         $this->assertArrayNotHasKey('metadata', $this->hasher->serviceCanonical($request));
         $this->assertArrayNotHasKey('model_id', $this->hasher->serviceCanonical($request)['lines'][0]);
+        $this->assertArrayNotHasKey('tenders', $this->hasher->serviceCanonical($request));
+    }
+
+    public function test_hardware_hash_includes_split_tenders_and_omits_absent_tenders(): void
+    {
+        $plain = $this->hardwareRequest();
+        $split = $this->hardwareRequest([
+            'tenders' => [
+                ['type' => 'wallet', 'amount' => 499],
+                ['type' => 'cashfree', 'amount' => 2550],
+            ],
+        ]);
+
+        $this->assertArrayNotHasKey('tenders', $this->hasher->hardwareCanonical($plain));
+        $this->assertSame(
+            $this->hasher->hash($plain),
+            $this->hasher->hash($this->hardwareRequest(['tenders' => []])),
+        );
+        $this->assertNotSame($this->hasher->hash($plain), $this->hasher->hash($split));
+        $this->assertSame(
+            [
+                ['type' => 'cashfree', 'amount' => 2550.0, 'reference' => null],
+                ['type' => 'wallet', 'amount' => 499.0, 'reference' => null],
+            ],
+            $this->hasher->hardwareCanonical($split)['tenders'],
+        );
     }
 
     /**

@@ -13,6 +13,7 @@ use App\Models\StatutoryInvoice;
 use App\Services\ChannelIngest\Data\ChannelIngestResult;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\HardwareFulfilment\HardwareFulfilmentFoundationService;
+use App\Services\HardwareFulfilment\HardwareHandoffTenderContract;
 use App\Services\StatutoryInvoice\ServiceSacResolver;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
@@ -34,6 +35,7 @@ class ChannelIngestService
         private readonly StatutoryInvoiceNumberingService $numbering,
         private readonly StatutoryInvoiceAccountingPolicy $accounting,
         private readonly ServiceSacResolver $serviceSac,
+        private readonly HardwareHandoffTenderContract $tenders = new HardwareHandoffTenderContract,
     ) {}
 
     /**
@@ -50,6 +52,7 @@ class ChannelIngestService
 
         try {
             $request = $this->validator->validate($payload, $authenticatedChannel);
+            $this->tenders->assertExistingCashfree($request);
         } catch (ValidationException $exception) {
             $this->recordAttempt(
                 outcome: ChannelIngestOutcome::Rejected,
@@ -217,6 +220,8 @@ class ChannelIngestService
             'discount' => $eligibility['discount'],
             'tax_total' => $eligibility['tax_total'],
             'order_value' => $eligibility['order_value'],
+            'wallet_tender_amount' => $this->tenders->walletAmount($request),
+            'wallet_tender_reference' => $this->tenders->walletReference($request),
             'metadata' => $request->metadata,
             'ordered_at' => $request->orderedAt,
             'paid_at' => $request->paidAt,
