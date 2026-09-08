@@ -83,9 +83,11 @@ final class HardwareAwaitingFulfilmentQueue
      *
      * @return Collection<int, Order>
      */
-    public function workCandidateOrders(Carbon $fromUtc, Carbon $toUtc): Collection
+    public function workCandidateOrders(Carbon $fromIst, Carbon $toIst): Collection
     {
         $blockedIds = $this->ownerBlockedSourceIds();
+        $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
+        $toBound = HardwareFulfilmentEligibility::createdAtSqlBound($toIst);
 
         $review = $this->rdeWithoutFulfilment()
             ->cashfreeVerified()
@@ -96,15 +98,15 @@ final class HardwareAwaitingFulfilmentQueue
             ->where(function (Builder $inner): void {
                 $inner->whereNull('transaction_id')->orWhere('transaction_id', '');
             })
-            ->where('created_at', '>=', $fromUtc)
-            ->where('created_at', '<=', $toUtc)
+            ->where('created_at', '>=', $fromBound)
+            ->where('created_at', '<=', $toBound)
             ->orderByDesc('id')
             ->get();
 
         $blocked = $this->rdeWithoutFulfilment()
             ->whereIn('order_id', $blockedIds)
-            ->where('created_at', '>=', $fromUtc)
-            ->where('created_at', '<=', $toUtc)
+            ->where('created_at', '>=', $fromBound)
+            ->where('created_at', '<=', $toBound)
             ->orderByDesc('id')
             ->get();
 
@@ -114,12 +116,14 @@ final class HardwareAwaitingFulfilmentQueue
     /**
      * @return array{unpaid: int, desk_completed: int, rin: int}
      */
-    public function excludedFromWorkQueue(Carbon $fromUtc, Carbon $toUtc): array
+    public function excludedFromWorkQueue(Carbon $fromIst, Carbon $toIst): array
     {
         $blockedIds = $this->ownerBlockedSourceIds();
+        $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
+        $toBound = HardwareFulfilmentEligibility::createdAtSqlBound($toIst);
         $inWindow = $this->rdeWithoutFulfilment()
-            ->where('created_at', '>=', $fromUtc)
-            ->where('created_at', '<=', $toUtc);
+            ->where('created_at', '>=', $fromBound)
+            ->where('created_at', '<=', $toBound);
 
         return [
             'unpaid' => (clone $inWindow)

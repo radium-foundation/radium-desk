@@ -241,5 +241,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-82 | 2026-09-08 | Owner-authorized SHIPROCKET_CHANNEL_ID=579891 | Production `.env` append + config recache. Payload now includes channel_id. No create. RDE318421 unchanged. Report: `docs/desk-hardware-fulfilment-channel-id-p-07-09-82.md`. |
 | RadiumDesk-P-07-09-83 | 2026-09-08 | Hardware Fulfilment operational Work Queue | Default Inventory → Hardware tab is a single sequential queue (5 Sep 2026 IST → now). No create/bulk/automation. HOLD adds `RDE255714`/`RDE313554`. No deploy. Report: `docs/desk-hardware-fulfilment-work-queue-p-07-09-83.md`. |
 | RadiumDesk-P-07-09-84 | 2026-09-08 | Deploy P-07-09-83 Hardware Fulfilment Work Queue overlay | Named-file overlay of `9664345d` application files + absent Awaiting deps from the same commit. Not deskd. No migrate. No `.env`. No RDE318421 write. Report: `docs/desk-hardware-fulfilment-work-queue-deploy-p-07-09-84.md`. |
+| RadiumDesk-P-07-09-85 | 2026-09-08 | Fix Work Queue created_at IST/UTC window | Compare IST wall-clock bounds to `orders.created_at`. Do not bind UTC-converted now. No order-data rewrite. Report: `docs/desk-hardware-fulfilment-work-queue-tz-p-07-09-85.md`. |
 
 Do not renumber or overwrite earlier rows. Append only.

@@ -22,6 +22,7 @@ use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
+use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
 use App\Services\Shipping\NullShiprocketGateway;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -54,6 +55,12 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
         $this->creator = User::factory()->create(['is_active' => true]);
         $this->operator = User::factory()->create(['is_active' => true]);
         $this->operator->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     public function test_default_index_is_work_queue_with_cutoff_to_now_range(): void
@@ -291,6 +298,124 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
 
         $this->assertSame(0, HardwareFulfilment::query()->count());
         $this->assertSame(0, Shipment::query()->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_work_queue_uses_ist_wall_clock_against_created_at(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-08 17:17:00', HardwareFulfilmentEligibility::CUTOFF_TIMEZONE));
+
+        $this->deskOrder('RDE970301', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-05 00:00:00',
+        ]);
+        $this->deskOrder('RDE970302', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-04 23:59:59',
+        ]);
+        $this->deskOrder('RDE970303', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-05 00:00:01',
+        ]);
+        $this->deskOrder('RDE970304', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-04 18:45:00',
+        ]);
+        $this->deskOrder('RDE970305', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-08 16:30:00',
+        ]);
+        $this->deskOrder('RDE970306', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-08 17:30:00',
+        ]);
+
+        $utcInterpretedAsIst = $this->deskOrder('RDE970307', [
+            'cashfree_payment_id' => 'paid',
+        ]);
+        $utcInterpretedAsIst->forceFill([
+            'created_at' => Carbon::parse('2026-09-08 11:00:00', 'UTC'),
+        ])->save();
+
+        $afternoon = [
+            'RDE318477' => '2026-09-08 13:20:10',
+            'RDE318482' => '2026-09-08 14:25:14',
+            'RDE318486' => '2026-09-08 15:48:26',
+            'RDE318487' => '2026-09-08 15:46:44',
+            'RDE318489' => '2026-09-08 15:58:20',
+            'RDE318490' => '2026-09-08 16:24:55',
+        ];
+        foreach ($afternoon as $orderId => $createdAt) {
+            $this->deskOrder($orderId, [
+                'cashfree_payment_id' => 'paid',
+                'created_at' => $createdAt,
+            ]);
+        }
+
+        $existing = $this->fulfilment('RDE318421', HardwareFulfilmentState::InvoiceIssued, [
+            'serial' => true,
+            'invoice' => true,
+        ]);
+        $this->deskOrder(HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0], [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+        ]);
+        $this->deskOrder('RDE255714', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+        ]);
+        $this->deskOrder(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0], [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+        ]);
+        $this->deskOrder('RIN970399', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-08 16:00:00',
+        ]);
+
+        $from = HardwareFulfilmentEligibility::cutoffInstant();
+        $to = Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
+        $sourceIds = app(HardwareFulfilmentWorkQueue::class)
+            ->paginate($from, $to)
+            ->getCollection()
+            ->pluck('sourceId');
+        $listed = $sourceIds->all();
+
+        $this->assertSame(1, $sourceIds->filter(fn (string $id): bool => $id === 'RDE318421')->count());
+        $this->assertContains('RDE970301', $listed);
+        $this->assertContains('RDE970303', $listed);
+        $this->assertContains('RDE970305', $listed);
+        $this->assertContains('RDE970307', $listed);
+        $this->assertContains('RDE318477', $listed);
+        $this->assertContains('RDE318482', $listed);
+        $this->assertContains('RDE318486', $listed);
+        $this->assertContains('RDE318487', $listed);
+        $this->assertContains('RDE318489', $listed);
+        $this->assertContains('RDE318490', $listed);
+        $this->assertNotContains('RDE970302', $listed);
+        $this->assertNotContains('RDE970304', $listed);
+        $this->assertNotContains('RDE970306', $listed);
+        $this->assertNotContains('RIN970399', $listed);
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.index', ['queue' => 'work']))
+            ->assertOk()
+            ->assertSee('RDE318477')
+            ->assertSee('RDE318421')
+            ->assertSee('Ready for Shipment')
+            ->assertSee(HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0])
+            ->assertSee('RDE255714')
+            ->assertSee(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0])
+            ->assertDontSee('RIN970399')
+            ->assertSee('Active date range (IST): 2026-09-05 00:00');
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.index', ['queue' => 'awaiting']))
+            ->assertOk()
+            ->assertDontSee('RDE318421');
+
+        $this->assertSame($existing->id, HardwareFulfilment::query()->where('source_id', 'RDE318421')->value('id'));
+        $this->assertSame(1, HardwareFulfilment::query()->count());
         Http::assertNothingSent();
     }
 

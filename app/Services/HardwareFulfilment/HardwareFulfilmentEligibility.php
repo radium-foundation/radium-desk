@@ -147,6 +147,16 @@ final class HardwareFulfilmentEligibility
         return Carbon::parse(self::CUTOFF_IST, self::CUTOFF_TIMEZONE);
     }
 
+    /**
+     * Format an instant for comparison against Desk `orders.created_at`.
+     * That column is a naive DATETIME persisted in the application timezone
+     * (Asia/Kolkata). Do not bind a UTC-converted clock against it.
+     */
+    public static function createdAtSqlBound(Carbon $instant): string
+    {
+        return $instant->copy()->timezone(self::CUTOFF_TIMEZONE)->format('Y-m-d H:i:s');
+    }
+
     public static function isOnOrAfterCutoff(?Carbon $orderedAt): bool
     {
         if ($orderedAt === null) {

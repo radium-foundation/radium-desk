@@ -62,9 +62,7 @@ final class HardwareFulfilmentWorkQueue
             $counts[$row->stage->value]++;
         }
 
-        $fromUtc = $fromIst->copy()->timezone('UTC');
-        $toUtc = $toIst->copy()->timezone('UTC');
-        $excluded = $this->awaiting->excludedFromWorkQueue($fromUtc, $toUtc);
+        $excluded = $this->awaiting->excludedFromWorkQueue($fromIst, $toIst);
         $blockedReview = $counts[HardwareFulfilmentOperationalStage::BlockedReview->value] ?? 0;
 
         return new HardwareFulfilmentOperationalSummary(
@@ -85,9 +83,6 @@ final class HardwareFulfilmentWorkQueue
      */
     private function allRows(Carbon $fromIst, Carbon $toIst, string $orderSearch, string $payment): Collection
     {
-        $fromUtc = $fromIst->copy()->timezone('UTC');
-        $toUtc = $toIst->copy()->timezone('UTC');
-
         $fulfilments = HardwareFulfilment::query()
             ->with(['commerceOrder.items', 'serials.inventorySerial', 'fulfilmentBranch', 'shipment', 'packageEvidences'])
             ->orderByDesc('id')
@@ -99,7 +94,7 @@ final class HardwareFulfilmentWorkQueue
                 );
             });
 
-        $awaiting = $this->awaiting->workCandidateOrders($fromUtc, $toUtc)->map(
+        $awaiting = $this->awaiting->workCandidateOrders($fromIst, $toIst)->map(
             fn (Order $order): HardwareFulfilmentOperationalRow => $this->classifier->fromAwaiting($order)
         );
 
