@@ -291,6 +291,12 @@ final class FakeShiprocketGateway implements ShiprocketGateway
                 error: 'HTTP 400 — Already in Pickup Queue',
                 alreadyQueued: true,
             ),
+            'already_queued_rejected' => new ShiprocketPickupResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'HTTP 400 — Already in Pickup Queue.',
+                alreadyQueued: false,
+            ),
             'rejected' => new ShiprocketPickupResult(
                 provider: $this->provider(),
                 status: 'rejected',

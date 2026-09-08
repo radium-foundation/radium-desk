@@ -217,7 +217,7 @@ final class HttpShiprocketGateway implements ShiprocketGateway
             );
         }
 
-        if ($this->isAlreadyQueuedPickup($response['status'], $response['json'])) {
+        if (ShiprocketAlreadyQueuedPickup::matchesHttp($response['status'], $response['json'])) {
             return new ShiprocketPickupResult(
                 provider: $this->provider(),
                 status: 'already_requested',
@@ -443,27 +443,6 @@ final class HttpShiprocketGateway implements ShiprocketGateway
         }
 
         return ['status' => $status, 'json' => $payload];
-    }
-
-    /**
-     * Provider HTTP 400 plus the observed `message`/`error`/`msg` field.
-     * Official order status 12 is "Pickup Queue"; no separate error code was present
-     * on the production RDE318421 response that Desk displayed.
-     *
-     * @param  array<string, mixed>  $json
-     */
-    private function isAlreadyQueuedPickup(int $httpStatus, array $json): bool
-    {
-        if ($httpStatus !== 400) {
-            return false;
-        }
-
-        $message = $this->scalar($json['message'] ?? $json['error'] ?? $json['msg'] ?? null);
-        if ($message === null) {
-            return false;
-        }
-
-        return strcasecmp(trim($message), 'Already in Pickup Queue') === 0;
     }
 
     private function token(): string

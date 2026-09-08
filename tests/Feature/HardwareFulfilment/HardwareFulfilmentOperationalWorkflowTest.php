@@ -402,6 +402,43 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_already_in_pickup_queue_rejected_wrapper_reconciles_without_flashing_the_400(): void
+    {
+        $fulfilment = $this->awbFulfilment('RDE940011');
+        $this->fake->nextPickupMode = 'already_queued_rejected';
+
+        $this->actingAs($this->admin)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHas('status', 'Pickup already queued at the provider. Local pickup state reconciled.')
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertNotNull(Shipment::query()->firstOrFail()->pickup_requested_at);
+        $this->assertSame(1, $this->fake->pickups);
+        $this->assertTrue(
+            HardwareFulfilmentEvent::query()
+                ->where('payload->reason', 'hardware_pickup_reconciled_already_queued')
+                ->exists()
+        );
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('Pickup Requested')
+            ->assertDontSee('HTTP 400')
+            ->assertDontSee('Already in Pickup Queue')
+            ->assertDontSee('id="hardware-pickup-submit"', false);
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment->fresh()))
+            ->assertRedirect()
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertSame(1, $this->fake->pickups);
+        Http::assertNothingSent();
+    }
+
     public function test_label_applied_photo_is_rejected_before_awb(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE940004', 'DELHI-RETAIL');

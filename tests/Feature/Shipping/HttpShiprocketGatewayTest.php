@@ -398,6 +398,23 @@ class HttpShiprocketGatewayTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_request_pickup_http_400_already_in_queue_with_punctuation_is_reconciled(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/generate/pickup' => Http::response([
+                'message' => 'Already in Pickup Queue.',
+            ], 400),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->requestPickup('99');
+
+        $this->assertSame('already_requested', $result->status);
+        $this->assertTrue($result->alreadyQueued);
+        $this->assertTrue($result->isAccepted());
+        $this->assertSame('HTTP 400 — Already in Pickup Queue.', $result->error);
+    }
+
     public function test_request_pickup_http_400_other_message_stays_rejected(): void
     {
         Http::fake([

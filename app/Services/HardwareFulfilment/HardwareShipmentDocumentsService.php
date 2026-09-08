@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwarePickupRequestOutcome;
 use App\Services\Shipping\Data\ShiprocketDocumentResult;
 use App\Services\Shipping\NullShiprocketGateway;
+use App\Services\Shipping\ShiprocketAlreadyQueuedPickup;
 use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
 use App\Services\Shipping\ShiprocketRetryableException;
@@ -90,13 +91,13 @@ class HardwareShipmentDocumentsService
                 ]);
             }
 
-            if (! $result->isAccepted()) {
+            $reconciled = ShiprocketAlreadyQueuedPickup::matchesRejectedResult($result);
+
+            if (! $result->isAccepted() && ! $reconciled) {
                 throw ValidationException::withMessages([
                     'shipping' => $result->error ?? 'Shiprocket rejected pickup generation.',
                 ]);
             }
-
-            $reconciled = $result->status === 'already_requested' || $result->alreadyQueued;
 
             $shipment->forceFill([
                 'pickup_requested_at' => now(),
