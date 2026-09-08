@@ -225,7 +225,9 @@ final class HardwareAwaitingFulfilmentQueue
                 ->where(function (Builder $inner): void {
                     $inner->whereNull('transaction_id')->orWhere('transaction_id', '');
                 })
-                ->where('created_at', '<', HardwareFulfilmentEligibility::cutoffInstant()->utc()),
+                ->where('created_at', '<', HardwareFulfilmentEligibility::createdAtSqlBound(
+                    HardwareFulfilmentEligibility::cutoffInstant()
+                )),
             self::FILTER_ALL => null,
             default => $query
                 ->cashfreeVerified()
@@ -236,7 +238,9 @@ final class HardwareAwaitingFulfilmentQueue
                 ->where(function (Builder $inner): void {
                     $inner->whereNull('transaction_id')->orWhere('transaction_id', '');
                 })
-                ->where('created_at', '>=', HardwareFulfilmentEligibility::cutoffInstant()->utc()),
+                ->where('created_at', '>=', HardwareFulfilmentEligibility::createdAtSqlBound(
+                    HardwareFulfilmentEligibility::cutoffInstant()
+                )),
         };
     }
 }
