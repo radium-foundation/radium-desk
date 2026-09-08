@@ -95,8 +95,19 @@ class HardwareFulfilmentCountryCorrectionTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
-            ->assertSee('Missing — not inferred')
-            ->assertSee('Record country');
+            ->assertSee('India')
+            ->assertDontSee('Missing — not inferred')
+            ->assertDontSee('Record country')
+            ->assertDontSee('name="country"', false)
+            ->assertDontSee('Shipping country');
+
+        $this->assertNull($fulfilment->fresh()->shipping_country_overlay);
+        $beforeInspect = $fulfilment->fresh();
+        $readyBeforeWrite = app(HardwareShipmentEligibility::class)->inspect($beforeInspect);
+        $this->assertFalse($readyBeforeWrite->countryMissing);
+        $this->assertFalse($readyBeforeWrite->canCorrectCountry);
+        $this->assertSame('India', $readyBeforeWrite->country);
+        $this->assertNull($beforeInspect->fresh()->shipping_country_overlay);
 
         $this->actingAs($this->admin)
             ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
@@ -148,8 +159,10 @@ class HardwareFulfilmentCountryCorrectionTest extends TestCase
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
-            ->assertSee('Missing — not inferred')
-            ->assertDontSee('Record country');
+            ->assertSee('India')
+            ->assertDontSee('Missing — not inferred')
+            ->assertDontSee('Record country')
+            ->assertDontSee('name="country"', false);
 
         $this->actingAs($this->operator)
             ->post(route('inventory.hardware-fulfilments.country.store', $fulfilment), [
@@ -168,7 +181,8 @@ class HardwareFulfilmentCountryCorrectionTest extends TestCase
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
             ->assertDontSee('Record country')
-            ->assertSee('Present');
+            ->assertDontSee('name="country"', false)
+            ->assertSee('India');
 
         try {
             app(HardwareFulfilmentCountryCorrectionService::class)->correct($fulfilment, 'Nepal', $this->admin);

@@ -131,7 +131,7 @@ class HardwareShipmentEligibility
                 $pickup = $this->pickups->requireForBranch($branch);
             } catch (ValidationException) {
                 if ($branch->is_active && in_array($branch->code, ['DELHI-RETAIL', 'MUMBAI'], true)) {
-                    $blockers[] = 'Shiprocket configuration incomplete';
+                    $blockers[] = 'Pickup location is not configured';
                 } elseif (! in_array('Pickup branch unknown', $blockers, true)) {
                     $blockers[] = 'Pickup branch unknown';
                 }
@@ -141,7 +141,7 @@ class HardwareShipmentEligibility
                 $pickupPostcode = $this->pickups->requirePostcodeForBranch($branch);
             } catch (ValidationException) {
                 if ($branch->is_active && in_array($branch->code, ['DELHI-RETAIL', 'MUMBAI'], true) && $pickup !== null) {
-                    $blockers[] = 'Shiprocket pickup postcode is not configured';
+                    $blockers[] = 'Pickup postcode is not configured';
                 }
             }
         }
@@ -162,7 +162,7 @@ class HardwareShipmentEligibility
             try {
                 [$parcel, $parcelSource] = $this->requireParcel($order, $fulfilment);
             } catch (ValidationException) {
-                $blockers[] = 'Parcel dimensions unavailable';
+                $blockers[] = 'Parcel packaging not attached';
             }
         }
 
@@ -171,7 +171,7 @@ class HardwareShipmentEligibility
         }
 
         if (! $this->providerReady()) {
-            $blockers[] = 'Shiprocket configuration incomplete';
+            $blockers[] = 'Shipping is not enabled';
         }
 
         $blockers = array_values(array_unique($blockers));
@@ -228,7 +228,7 @@ class HardwareShipmentEligibility
         }
 
         $catalog = $this->snapshots->catalogPackaging($fulfilment);
-        $country = $shipping['country'] ?? $this->countries->resolvedCountry($fulfilment);
+        $country = $this->countries->resolvedCountry($fulfilment);
 
         return new HardwareShipmentReadiness(
             canCreate: $canCreate,
@@ -269,6 +269,7 @@ class HardwareShipmentEligibility
             phone: $order !== null ? trim((string) $order->customer_phone) : null,
             email: $order !== null ? trim((string) $order->customer_email) : null,
             quantity: $order !== null ? $this->requiredPhysicalQty($order) : null,
+            invoiceId: $invoice?->id,
         );
     }
 
@@ -394,8 +395,8 @@ class HardwareShipmentEligibility
         $out = [];
         foreach ($required as $key) {
             $value = trim((string) ($structured[$key] ?? ''));
-            if ($key === 'country' && $value === '') {
-                $value = trim((string) ($this->countries->resolvedCountry($fulfilment) ?? ''));
+            if ($key === 'country') {
+                $value = trim($this->countries->resolvedCountry($fulfilment));
             }
             if ($value === '') {
                 throw ValidationException::withMessages([

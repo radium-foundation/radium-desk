@@ -8,6 +8,8 @@ use Illuminate\Validation\ValidationException;
 
 class HardwareFulfilmentCountryCorrectionService
 {
+    public const HARDWARE_SHIPMENT_COUNTRY = 'India';
+
     public function correct(HardwareFulfilment $fulfilment, string $country, User $actor): HardwareFulfilment
     {
         $country = trim($country);
@@ -67,33 +69,11 @@ class HardwareFulfilmentCountryCorrectionService
 
     public function canCorrect(HardwareFulfilment $fulfilment): bool
     {
-        $fulfilment->loadMissing('commerceOrder');
-        $order = $fulfilment->commerceOrder;
-        if ($order === null) {
-            return false;
-        }
-
-        $structured = is_array($order->shipping_address_structured) ? $order->shipping_address_structured : [];
-        if (trim((string) ($structured['country'] ?? '')) !== '') {
-            return false;
-        }
-
-        return trim((string) ($fulfilment->shipping_country_overlay ?? '')) === '';
+        return false;
     }
 
-    public function resolvedCountry(HardwareFulfilment $fulfilment): ?string
+    public function resolvedCountry(HardwareFulfilment $fulfilment): string
     {
-        $fulfilment->loadMissing('commerceOrder');
-        $structured = $fulfilment->commerceOrder?->shipping_address_structured;
-        if (is_array($structured)) {
-            $country = trim((string) ($structured['country'] ?? ''));
-            if ($country !== '') {
-                return $country;
-            }
-        }
-
-        $overlay = trim((string) ($fulfilment->shipping_country_overlay ?? ''));
-
-        return $overlay !== '' ? $overlay : null;
+        return self::HARDWARE_SHIPMENT_COUNTRY;
     }
 }

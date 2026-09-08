@@ -127,7 +127,7 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ->assertOk()
             ->assertSee('RDE900803')
             ->assertSee($fulfilment->commerceOrder?->order_no)
-            ->assertSee('Support 51463')
+            ->assertSee('51463')
             ->assertSee('MFS110')
             ->assertSee('RBMFS110L1')
             ->assertSee('model 946')

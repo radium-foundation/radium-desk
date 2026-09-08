@@ -48,5 +48,6 @@ final class HardwareShipmentReadiness
         public readonly ?string $phone = null,
         public readonly ?string $email = null,
         public readonly ?int $quantity = null,
+        public readonly ?int $invoiceId = null,
     ) {}
 }

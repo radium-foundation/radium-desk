@@ -54,13 +54,19 @@ class HardwareSerialAllocationService
      *     inventory_sku: string|null,
      *     map_ready: bool,
      *     available_qty: int,
-     *     available_by_branch: array<string, int>
+     *     available_by_branch: array<string, int>,
+     *     allocated_qty: int,
+     *     allocated_serials: list<string>
      * }>
      */
     public function requirements(HardwareFulfilment $fulfilment): array
     {
         $order = $this->requireOrder($fulfilment);
         $lockedBranch = $this->storedStockBranch($fulfilment);
+        $fulfilment->loadMissing('serials');
+        $allocatedByItem = $fulfilment->serials
+            ->where('status', HardwareFulfilmentSerialStatus::Allocated)
+            ->groupBy(fn (HardwareFulfilmentSerial $row): int => (int) $row->commerce_order_item_id);
         $lines = [];
 
         foreach ($this->physicalItems($order) as $item) {
@@ -89,6 +95,7 @@ class HardwareSerialAllocationService
             $available = $lockedBranch !== null
                 ? ($byBranch[$lockedBranch->code] ?? 0)
                 : array_sum($byBranch);
+            $allocated = $allocatedByItem->get((int) $item->id, collect());
 
             $lines[] = [
                 'commerce_order_item_id' => (int) $item->id,
@@ -104,6 +111,12 @@ class HardwareSerialAllocationService
                 'map_ready' => $product !== null,
                 'available_qty' => $available,
                 'available_by_branch' => $byBranch,
+                'allocated_qty' => $allocated->count(),
+                'allocated_serials' => $allocated
+                    ->pluck('serial_number')
+                    ->filter()
+                    ->values()
+                    ->all(),
             ];
         }
 

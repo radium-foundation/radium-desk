@@ -12,6 +12,7 @@ use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
 use App\Support\Finance\CsvDownload;
 use App\Support\Finance\FinanceAccess;
 use App\Support\Finance\ReportPeriod;
+use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -24,7 +25,16 @@ class StatutoryInvoiceController extends Controller
         private readonly StatutoryInvoiceRegisterReadModel $register,
     ) {
         $this->middleware(function ($request, $next) {
-            abort_unless(FinanceAccess::allowsInvoices($request->user()), 403);
+            if (FinanceAccess::allowsInvoices($request->user())) {
+                return $next($request);
+            }
+
+            $invoice = $request->route('invoice');
+            abort_unless(
+                $invoice instanceof StatutoryInvoice
+                    && HardwareFulfilmentAccess::allowsLinkedInvoice($request->user(), $invoice),
+                403,
+            );
 
             return $next($request);
         });

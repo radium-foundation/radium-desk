@@ -2,8 +2,11 @@
 
 namespace App\Support\HardwareFulfilment;
 
+use App\Models\HardwareFulfilment;
+use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Support\Inventory\InventoryAccess;
+use App\Support\Inventory\InventoryBranchScope;
 use Database\Seeders\RolePermissionSeeder;
 
 /**
@@ -26,5 +29,34 @@ final class HardwareFulfilmentAccess
             $user,
             RolePermissionSeeder::PERMISSION_HARDWARE_FULFILMENT_CORRECT_COUNTRY,
         );
+    }
+
+    public static function allowsLinkedInvoice(?User $user, StatutoryInvoice $invoice): bool
+    {
+        if (! self::allows($user)) {
+            return false;
+        }
+
+        $fulfilment = HardwareFulfilment::query()
+            ->with('fulfilmentBranch')
+            ->where(function ($query) use ($invoice): void {
+                $query->where('statutory_invoice_id', $invoice->id)
+                    ->orWhereHas('commerceOrder', function ($order) use ($invoice): void {
+                        $order->where('statutory_invoice_id', $invoice->id);
+                    });
+            })
+            ->first();
+
+        if ($fulfilment === null) {
+            return false;
+        }
+
+        if ($fulfilment->fulfilment_branch_id === null) {
+            return true;
+        }
+
+        $branch = $fulfilment->fulfilmentBranch;
+
+        return $branch !== null && InventoryBranchScope::allows($user, $branch);
     }
 }

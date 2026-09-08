@@ -134,9 +134,9 @@ class HardwareFulfilmentParcelSnapshotTest extends TestCase
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
-            ->assertSee('Attach parcel snapshot')
-            ->assertSee('Unavailable')
-            ->assertSee('catalog / verified');
+            ->assertSee('Attach verified packaging')
+            ->assertSee('Not attached')
+            ->assertSee('0.24 kg');
 
         $this->assertNull($fulfilment->fresh()->parcel_snapshot);
 
@@ -188,7 +188,7 @@ class HardwareFulfilmentParcelSnapshotTest extends TestCase
 
         $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment->fresh());
         $this->assertSame('unavailable', $ready->parcelSource);
-        $this->assertContains('Parcel dimensions unavailable', $ready->blockers);
+        $this->assertContains('Parcel packaging not attached', $ready->blockers);
         $this->assertNull($fulfilment->fresh()->parcel_snapshot);
     }
 

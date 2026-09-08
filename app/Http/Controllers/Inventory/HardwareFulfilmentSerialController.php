@@ -132,14 +132,23 @@ class HardwareFulfilmentSerialController extends Controller
             && ! HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)
             && collect($requirements)->every(fn (array $line): bool => $line['map_ready']);
 
+        $shipment = $this->shipmentEligibility->inspect($fulfilment);
+
         return view('inventory.hardware-fulfilments.show', [
             'fulfilment' => $fulfilment,
             'requirements' => $requirements,
             'allocated' => $fulfilment->serials,
             'canAllocate' => $canAllocate,
             'derivedBranch' => $fulfilment->fulfilmentBranch,
-            'shipment' => $this->shipmentEligibility->inspect($fulfilment),
-            'canCorrectCountry' => HardwareFulfilmentAccess::allowsCountryCorrection($request->user()),
+            'shipment' => $shipment,
+            'canCorrectCountry' => false,
+            'canViewInvoice' => $shipment->invoiceId !== null,
+            'invoiceShowUrl' => $shipment->invoiceId !== null
+                ? route('finance.invoices.show', $shipment->invoiceId)
+                : null,
+            'invoicePdfUrl' => $shipment->invoiceId !== null
+                ? route('finance.invoices.pdf', $shipment->invoiceId)
+                : null,
             'boundShipment' => $fulfilment->shipment,
         ]);
     }

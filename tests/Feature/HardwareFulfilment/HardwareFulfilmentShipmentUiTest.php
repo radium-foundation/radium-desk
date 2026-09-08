@@ -103,10 +103,10 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
             ->assertSee('Not created')
             ->assertSee('Not allocated')
             ->assertSee('Not issued')
-            ->assertSee('Shiprocket (not called)')
             ->assertSee('Serial allocation required')
             ->assertSee('Invoice required')
-            ->assertSee('Shiprocket configuration incomplete')
+            ->assertSee('Shipping is not enabled')
+            ->assertDontSee('Shiprocket (not called)')
             ->assertDontSee('Create Shipment')
             ->assertDontSee('Provider shipment is already bound')
             ->assertDontSee('Assign AWB')
@@ -140,8 +140,8 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
             ->assertSee('Shipping address incomplete')
-            ->assertSee('Parcel dimensions unavailable')
-            ->assertSee('Unavailable — not persisted')
+            ->assertSee('Parcel packaging not attached')
+            ->assertSee('Not attached')
             ->assertSee('Incomplete')
             ->assertDontSee('Create Shipment');
     }
@@ -155,7 +155,7 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
             ->assertOk()
             ->assertSee('RADDELHI')
             ->assertSee('DELHI-RETAIL')
-            ->assertSee('Shiprocket configuration incomplete')
+            ->assertSee('Shipping is not enabled')
             ->assertDontSee('Create Shipment');
 
         $this->assertInstanceOf(NullShiprocketGateway::class, app(ShiprocketGateway::class));
