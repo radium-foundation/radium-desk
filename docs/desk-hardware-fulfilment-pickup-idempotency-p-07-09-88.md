@@ -82,4 +82,25 @@ Pint + `php -l` on changed PHP: passed.
 - New Shiprocket create/AWB/label/manifest: **NO — Not performed.**
 - RDE318421 data write: **NO — Not performed.**
 - Live provider GET/track: **NO — Not performed.** (would be needed to prove *how* the queue was first entered)
-- Deploy / push / `.env` / migrate / batch pickup: **NO — Not performed.**
+- Push / `.env` / migrate / batch pickup: **NO — Not performed.**
+- New live pickup POST after overlay: **NO — Not performed.**
+
+---
+
+## Named-file overlay (same ticket)
+
+| Item | Value |
+|------|-------|
+| Mechanism | named-file copy of `96d141b0` (6 files). Not `deskd`. |
+| Server | `srv1910783` `/var/www/radium-desk` |
+| Backup | `/var/www/radium-desk/storage/app/private/overlays/p-07-09-88-20260908T123725Z` |
+| Hash verify | 6/6 MATCH `96d141b0` |
+| `php -l` | clean |
+| Recache | `optimize:clear` + `optimize` |
+| `/up` | 200 |
+| Show unauth | 302 |
+| RDE318421 after overlay | unchanged: pickup `NULL`, ready `2026-09-08 17:54:42`, AWB `284931178067631`, provider shipment `1568724940` |
+
+Show/controller were **not** overlaid (they still show Request Pickup until the next authorized click persists local pickup).
+
+Rollback: restore the 5 replaced files from the backup; delete `HardwarePickupRequestOutcome.php`; `optimize:clear` + `optimize`. Rollback was **not** required.
