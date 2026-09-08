@@ -91,6 +91,27 @@
 
         @include('inventory.partials.workspace-nav', ['active' => 'hardware-fulfilments'])
 
+        @if(isset($opsRow, $stepperMilestones, $stepperCurrentIndex))
+            <div class="hf-alloc-card mb-3" id="hardware-progress">
+                <p class="text-muted small text-uppercase fw-semibold mb-2">Progress</p>
+                <x-c360.customer-journey-tracker
+                    :milestones="$stepperMilestones"
+                    :current-index="$stepperCurrentIndex"
+                />
+                <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                    <span class="hf-alloc-status is-ready">{{ $opsRow->stage->label() }}</span>
+                    @if($opsRow->primaryUrl() && $opsRow->mutatingAction)
+                        <a class="btn btn-sm btn-primary" href="{{ $opsRow->primaryUrl() }}">{{ $opsRow->nextAction }}</a>
+                    @else
+                        <span class="fw-semibold">{{ $opsRow->nextAction }}</span>
+                    @endif
+                </div>
+                @if($opsRow->blocker)
+                    <p class="small text-muted mb-0 mt-2">{{ $opsRow->blocker }}</p>
+                @endif
+            </div>
+        @endif
+
         @if(session('status'))
             <div class="alert alert-success py-2">{{ session('status') }}</div>
         @endif
@@ -189,7 +210,7 @@
             </div>
         @endforeach
 
-        <div class="hf-alloc-card mb-3">
+        <div class="hf-alloc-card mb-3" id="hardware-invoice">
             <p class="text-muted small text-uppercase fw-semibold mb-2">Invoice</p>
             @if($shipment->invoice)
                 <div class="d-flex flex-wrap align-items-center gap-2">
@@ -202,7 +223,13 @@
                     @endif
                 </div>
             @else
-                <p class="mb-0">Not issued</p>
+                <p class="mb-2">Not issued</p>
+                @if($canIssueInvoice ?? false)
+                    <form method="POST" action="{{ route('inventory.hardware-fulfilments.invoice.store', $fulfilment) }}" id="hardware-invoice-issue-form">
+                        @csrf
+                        <button type="submit" class="btn btn-primary" data-confirm="Issue the hardware GST invoice for this one order?">Issue Hardware Invoice</button>
+                    </form>
+                @endif
             @endif
         </div>
 
@@ -480,9 +507,18 @@
             <p class="text-muted small text-uppercase fw-semibold mb-2">Manifest / Pickup</p>
             <dl class="hf-alloc-confirm mb-0">
                 <dt>Pickup</dt>
-                <dd>{{ $shipment->pickupStatus }}</dd>
+                <dd>
+                    @if($shipment->pickupStatus === 'Requested')
+                        Pickup Requested
+                        @if($shipment->pickupRequestedAt)
+                            <span class="text-muted"> · {{ $shipment->pickupRequestedAt }}</span>
+                        @endif
+                    @else
+                        Not requested
+                    @endif
+                </dd>
                 <dt>Manifest</dt>
-                <dd>{{ $shipment->manifestStatus }}</dd>
+                <dd>{{ $shipment->manifestStatus === 'Available' ? 'Manifest generated' : 'Manifest not generated' }}</dd>
                 <dt>Ready for pickup</dt>
                 <dd>{{ $shipment->readyForPickup ? 'Yes' : 'Not marked' }}</dd>
             </dl>
@@ -492,6 +528,8 @@
                     <p class="text-muted small mb-2">Requests pickup from Shiprocket for this shipment. This does not mark the order dispatched.</p>
                     <button type="submit" class="btn btn-outline-primary" id="hardware-pickup-submit">Request Pickup</button>
                 </form>
+            @elseif($shipment->pickupStatus === 'Requested')
+                <p class="mt-3 mb-0" id="hardware-pickup-requested-status">Pickup Requested</p>
             @endif
             @if($shipment->canGenerateManifest)
                 <form method="POST" action="{{ route('inventory.hardware-fulfilments.manifest.store', $fulfilment) }}" id="hardware-manifest-form" class="mt-3">
@@ -508,7 +546,7 @@
             @if($shipment->canMarkReadyForPickup)
                 <form method="POST" action="{{ route('inventory.hardware-fulfilments.ready-for-pickup.store', $fulfilment) }}" id="hardware-ready-form" class="mt-3">
                     @csrf
-                    <p class="text-muted small mb-2">Marks this fulfilment ready for pickup after the labelled package photo is recorded.</p>
+                    <p class="text-muted small mb-2">Marks this fulfilment ready for pickup after pickup is requested and the labelled package photo is recorded.</p>
                     <button type="submit" class="btn btn-primary" id="hardware-ready-submit">Mark Ready for Pickup</button>
                 </form>
             @endif
@@ -746,6 +784,18 @@
                 }
                 submit.disabled = true;
                 submit.textContent = 'Allocating…';
+            });
+        })();
+
+        (function () {
+            const form = document.getElementById('hardware-invoice-issue-form');
+            if (!form) {
+                return;
+            }
+            form.addEventListener('submit', function (event) {
+                if (!window.confirm('Issue the hardware GST invoice for this one order?')) {
+                    event.preventDefault();
+                }
             });
         })();
 

@@ -58,6 +58,7 @@ use App\Support\Customer360\RdServiceStatusResolver;
 use App\Support\Customer360\ScheduledSupportAppointmentContext;
 use App\Support\DeviceModelFormatter;
 use App\Support\Finance\FinanceAccess;
+use App\Support\HardwareFulfilment\HardwareFulfilmentCustomer360Presenter;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
@@ -226,6 +227,8 @@ class Customer360Service
             'correctSerialRequestState' => $correctSerialRequestState,
             'waitingStateCard' => $waitingStateCard,
             'supportAppointments' => $supportAppointments,
+            'hardwareFulfilment' => app(HardwareFulfilmentCustomer360Presenter::class)
+                ->present($order, auth()->user()),
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
@@ -1210,6 +1213,7 @@ class Customer360Service
             ],
             'waitingStateCard' => null,
             'supportAppointments' => collect(),
+            'hardwareFulfilment' => null,
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),

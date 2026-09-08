@@ -209,6 +209,8 @@ class Customer360OverflowMenuPresenterTest extends TestCase
         $fulfilmentItem = $related->firstWhere('id', 'open-hardware-fulfilment');
 
         $this->assertContains('Open Order', $related->pluck('label')->all());
+        $this->assertContains('View fulfilment', $related->pluck('label')->all());
+        $this->assertSame('hardware-fulfilment', $related->firstWhere('id', 'view-hardware-fulfilment')['anchor'] ?? null);
         $this->assertNotNull($fulfilmentItem);
         $this->assertSame('Fulfilment / Shipment', $fulfilmentItem['label']);
         $this->assertSame(

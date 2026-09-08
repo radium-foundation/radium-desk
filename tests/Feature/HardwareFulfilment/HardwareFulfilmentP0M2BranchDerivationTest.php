@@ -141,8 +141,6 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
         $this->actingAs($operator)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
-            ->assertSee('Delhi / DELHI-RETAIL')
-            ->assertSee('Mumbai / MUMBAI')
             ->assertSee('Delhi 1')
             ->assertSee('Mumbai 1');
 

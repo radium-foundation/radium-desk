@@ -88,7 +88,52 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->assertSee('Open Order')
             ->assertSee('Fulfilment / Shipment')
             ->assertSee(route('inventory.hardware-fulfilments.show', $fulfilment), false)
-            ->assertSee('open-hardware-fulfilment', false);
+            ->assertSee('open-hardware-fulfilment', false)
+            ->assertSee('Hardware Fulfilment')
+            ->assertSee('id="hardware-fulfilment"', false)
+            ->assertSee('View fulfilment')
+            ->assertSee('view-hardware-fulfilment', false)
+            ->assertDontSee('Start Hardware Fulfilment');
+    }
+
+    public function test_customer_360_hardware_section_disables_start_without_fulfilment(): void
+    {
+        $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
+        $incident = $this->hardwareCase('RDE902007');
+        $incident->order?->forceFill([
+            'cashfree_payment_id' => 'cf_RDE902007',
+            'created_at' => '2026-09-07 10:00:00',
+        ])->save();
+
+        $this->actingAs($admin)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('Hardware Fulfilment')
+            ->assertSee('id="hardware-fulfilment"', false)
+            ->assertSee('Start Hardware Fulfilment')
+            ->assertSee('Isolated ingest requires a verified Box handoff payload', false)
+            ->assertDontSee('Fulfilment / Shipment');
+
+        $this->assertSame(0, HardwareFulfilment::query()->count());
+    }
+
+    public function test_customer_360_rin_is_mapping_required_without_mutating_cta(): void
+    {
+        $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
+        $incident = $this->hardwareCase('RIN902008');
+
+        $this->actingAs($admin)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('Hardware Fulfilment')
+            ->assertSee('RIN')
+            ->assertSee('Blocked — RIN mapping required')
+            ->assertSee('Start Hardware Fulfilment')
+            ->assertDontSee('Allocate Serial')
+            ->assertDontSee('Issue Invoice')
+            ->assertDontSee('Fulfilment / Shipment');
+
+        $this->assertSame(0, HardwareFulfilment::query()->count());
     }
 
     public function test_customer_360_related_menu_omits_fulfilment_when_unauthorized(): void

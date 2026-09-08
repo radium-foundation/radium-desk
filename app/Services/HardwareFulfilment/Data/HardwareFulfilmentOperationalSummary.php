@@ -6,6 +6,7 @@ final class HardwareFulfilmentOperationalSummary
 {
     /**
      * @param  array<string, int>  $stageCounts
+     * @param  array<string, int>  $sectionCounts
      */
     public function __construct(
         public readonly string $fromIst,
@@ -17,5 +18,7 @@ final class HardwareFulfilmentOperationalSummary
         public readonly int $excludedCompleted,
         public readonly int $excludedRin,
         public readonly array $stageCounts,
+        public readonly array $sectionCounts = [],
+        public readonly int $rinVisible = 0,
     ) {}
 }

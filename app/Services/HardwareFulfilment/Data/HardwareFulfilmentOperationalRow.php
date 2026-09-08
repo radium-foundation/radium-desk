@@ -3,6 +3,7 @@
 namespace App\Services\HardwareFulfilment\Data;
 
 use App\Enums\HardwareFulfilmentOperationalStage;
+use App\Enums\HardwareOperationsSection;
 
 final class HardwareFulfilmentOperationalRow
 {
@@ -26,6 +27,10 @@ final class HardwareFulfilmentOperationalRow
         public readonly ?int $fulfilmentId,
         public readonly ?int $supportOrderId,
         public readonly bool $hasFulfilment,
+        public readonly string $source = 'RDE',
+        public readonly HardwareOperationsSection $section = HardwareOperationsSection::NeedsFulfilment,
+        public readonly ?string $nextAnchor = null,
+        public readonly bool $mutatingAction = false,
     ) {}
 
     public function openOrderUrl(): ?string
@@ -53,5 +58,18 @@ final class HardwareFulfilmentOperationalRow
         }
 
         return route('inventory.hardware-fulfilments.show', $this->fulfilmentId);
+    }
+
+    public function primaryUrl(): ?string
+    {
+        if ($this->nextUrl === null) {
+            return $this->customer360Url();
+        }
+
+        if ($this->nextAnchor !== null && $this->nextAnchor !== '') {
+            return $this->nextUrl.'#'.$this->nextAnchor;
+        }
+
+        return $this->nextUrl;
     }
 }

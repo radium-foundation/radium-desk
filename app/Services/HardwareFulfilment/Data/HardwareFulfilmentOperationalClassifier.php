@@ -5,12 +5,15 @@ namespace App\Services\HardwareFulfilment\Data;
 use App\Enums\HardwareAwaitingFulfilmentReason;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentState;
+use App\Enums\HardwareOperationsSection;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 
 final class HardwareFulfilmentOperationalClassifier
 {
+    public const START_FULFILMENT_BLOCKER = 'Isolated ingest requires a verified Box handoff payload. Desk does not invent one from the support order.';
+
     public function fromAwaiting(Order $order): HardwareFulfilmentOperationalRow
     {
         $reason = HardwareAwaitingFulfilmentClassifier::reason($order);
@@ -20,6 +23,8 @@ final class HardwareFulfilmentOperationalClassifier
         $stage = $blocked
             ? HardwareFulfilmentOperationalStage::BlockedReview
             : HardwareFulfilmentOperationalStage::AwaitingFulfilment;
+        $source = $this->sourcePrefix((string) $order->order_id);
+        $nextUrl = route('dashboard.orders.customer-360', $order);
 
         return new HardwareFulfilmentOperationalRow(
             sourceId: (string) $order->order_id,
@@ -35,12 +40,50 @@ final class HardwareFulfilmentOperationalClassifier
             shipmentStatus: 'None',
             awbStatus: 'None',
             stage: $stage,
-            nextAction: $blocked ? $reason->label() : 'Review order',
-            nextUrl: route('orders.show', $order),
-            blocker: $blocked ? $reason->operatorNote() : HardwareAwaitingFulfilmentReason::ReviewCandidate->operatorNote(),
+            nextAction: $blocked ? $reason->label() : 'Review & Start',
+            nextUrl: $nextUrl,
+            blocker: $blocked
+                ? $reason->operatorNote()
+                : self::START_FULFILMENT_BLOCKER,
             fulfilmentId: null,
             supportOrderId: (int) $order->id,
             hasFulfilment: false,
+            source: $source,
+            section: HardwareOperationsSection::fromStage($stage),
+            nextAnchor: null,
+            mutatingAction: false,
+        );
+    }
+
+    public function fromRin(Order $order): HardwareFulfilmentOperationalRow
+    {
+        $created = $order->created_at?->copy()->timezone(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
+        $paid = $order->isCashfreeVerified();
+
+        return new HardwareFulfilmentOperationalRow(
+            sourceId: (string) $order->order_id,
+            orderDateIst: $created?->format('Y-m-d H:i') ?? '—',
+            customer: trim((string) ($order->customer_name ?? '')) ?: '—',
+            product: trim((string) ($order->product_name ?? '')) ?: '—',
+            sku: '—',
+            quantity: '—',
+            payment: $paid ? 'Paid' : 'Unpaid',
+            fulfilmentStatus: 'None',
+            serialStatus: 'Not allocated',
+            invoiceStatus: 'None',
+            shipmentStatus: 'None',
+            awbStatus: 'None',
+            stage: HardwareFulfilmentOperationalStage::BlockedReview,
+            nextAction: 'Blocked — RIN mapping required',
+            nextUrl: route('dashboard.orders.customer-360', $order),
+            blocker: HardwareAwaitingFulfilmentReason::Rin->operatorNote(),
+            fulfilmentId: null,
+            supportOrderId: (int) $order->id,
+            hasFulfilment: false,
+            source: 'RIN',
+            section: HardwareOperationsSection::Exceptions,
+            nextAnchor: null,
+            mutatingAction: false,
         );
     }
 
@@ -53,11 +96,20 @@ final class HardwareFulfilmentOperationalClassifier
             static fn ($row): bool => HardwareFulfilmentEligibility::isPhysicalCommerceItem($row)
         ) ?? $order?->items?->first();
         $sourceId = (string) $fulfilment->source_id;
-        $blocked = HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)
+        $ownerBlocked = HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)
             || HardwareFulfilmentEligibility::isHoldSourceId($sourceId)
             || HardwareFulfilmentEligibility::isBlockedUntilAuthorized($sourceId);
+        $providerError = filled($ready->providerRejection);
 
-        [$stage, $nextAction] = $this->stageAndAction($fulfilment, $ready, $blocked);
+        [$stage, $nextAction, $anchor] = $this->stageAndAction($fulfilment, $ready, $ownerBlocked);
+        $section = HardwareOperationsSection::fromStage($stage, $providerError && ! $ownerBlocked);
+        if ($providerError && ! $ownerBlocked) {
+            $stage = HardwareFulfilmentOperationalStage::BlockedReview;
+            $nextAction = 'Provider error';
+            $anchor = null;
+            $section = HardwareOperationsSection::Exceptions;
+        }
+
         $nextUrl = route('inventory.hardware-fulfilments.show', $fulfilment);
 
         return new HardwareFulfilmentOperationalRow(
@@ -76,17 +128,21 @@ final class HardwareFulfilmentOperationalClassifier
             stage: $stage,
             nextAction: $nextAction,
             nextUrl: $nextUrl,
-            blocker: $blocked
+            blocker: $ownerBlocked
                 ? 'Owner-blocked. Do not advance from this queue.'
                 : ($ready->providerRejection ?: ($ready->blockers[0] ?? null)),
             fulfilmentId: (int) $fulfilment->id,
             supportOrderId: $fulfilment->support_order_id !== null ? (int) $fulfilment->support_order_id : null,
             hasFulfilment: true,
+            source: $this->sourcePrefix($sourceId),
+            section: $section,
+            nextAnchor: $anchor,
+            mutatingAction: ! $ownerBlocked && ! $providerError && $stage !== HardwareFulfilmentOperationalStage::Completed,
         );
     }
 
     /**
-     * @return array{0: HardwareFulfilmentOperationalStage, 1: string}
+     * @return array{0: HardwareFulfilmentOperationalStage, 1: string, 2: string|null}
      */
     private function stageAndAction(
         HardwareFulfilment $fulfilment,
@@ -94,51 +150,70 @@ final class HardwareFulfilmentOperationalClassifier
         bool $blocked,
     ): array {
         if ($blocked) {
-            return [HardwareFulfilmentOperationalStage::BlockedReview, 'Blocked / Review Required'];
+            return [HardwareFulfilmentOperationalStage::BlockedReview, 'Blocked / Review Required', null];
         }
 
         if (in_array($fulfilment->state, [HardwareFulfilmentState::Shipped, HardwareFulfilmentState::Synced], true)) {
-            return [HardwareFulfilmentOperationalStage::Completed, 'Completed'];
+            return [HardwareFulfilmentOperationalStage::Completed, 'Completed', null];
         }
 
         if ($ready->serials === []) {
-            return [HardwareFulfilmentOperationalStage::AwaitingSerial, 'Allocate Serial'];
+            return [HardwareFulfilmentOperationalStage::AwaitingSerial, 'Allocate Serial', 'hardware-serial-allocate-form'];
         }
 
         if ($ready->invoice === null || $ready->invoice === '') {
-            return [HardwareFulfilmentOperationalStage::AwaitingInvoice, 'Issue Invoice'];
+            return [HardwareFulfilmentOperationalStage::AwaitingInvoice, 'Issue Invoice', 'hardware-invoice'];
         }
 
         if (! $ready->alreadyCreated) {
-            return [HardwareFulfilmentOperationalStage::ReadyForShipment, $ready->actionLabel];
+            $label = $ready->canFetchCourierOptions && $ready->selectedCourierId === null
+                ? 'Get Courier Options'
+                : $ready->actionLabel;
+            $anchor = $ready->canFetchCourierOptions && $ready->selectedCourierId === null
+                ? 'hardware-courier'
+                : 'hardware-shipment-create';
+
+            return [HardwareFulfilmentOperationalStage::ReadyForShipment, $label, $anchor];
         }
 
         if (! filled($ready->awb)) {
-            return [HardwareFulfilmentOperationalStage::AwbPending, 'Assign AWB'];
+            return [HardwareFulfilmentOperationalStage::AwbPending, 'Assign AWB', 'hardware-awb'];
         }
 
         if ($ready->labelUrl === null || ! $ready->packageLabelAppliedRecorded) {
-            $action = $ready->labelUrl === null ? 'Generate/Print Label' : 'Record Package / Label-Applied Evidence';
+            if ($ready->labelUrl === null) {
+                return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Print Label', 'hardware-label'];
+            }
 
-            return [HardwareFulfilmentOperationalStage::LabelPackingPending, $action];
+            return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Record Packing', 'hardware-package-evidence'];
         }
 
-        if (! $ready->readyForPickup && $ready->pickupStatus === 'Not requested') {
-            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Request Pickup'];
+        if ($ready->pickupStatus === 'Not requested') {
+            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Request Pickup', 'hardware-manifest-pickup'];
         }
 
-        if (! $ready->readyForPickup && $ready->manifestStatus === 'Not generated') {
-            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Generate Manifest'];
+        if ($ready->manifestStatus === 'Not generated') {
+            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Generate Manifest', 'hardware-manifest-pickup'];
         }
 
         if ($ready->readyForPickup) {
-            return [HardwareFulfilmentOperationalStage::ReadyForPickup, 'Ready for Pickup'];
+            return [HardwareFulfilmentOperationalStage::ReadyForPickup, 'Ready for Pickup', 'hardware-manifest-pickup'];
         }
 
         if ($ready->alreadyCreated && filled($ready->awb)) {
-            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Mark Ready for Pickup'];
+            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Ready for Pickup', 'hardware-manifest-pickup'];
         }
 
-        return [HardwareFulfilmentOperationalStage::ShipmentCreated, 'Open fulfilment'];
+        return [HardwareFulfilmentOperationalStage::ShipmentCreated, 'Open fulfilment', null];
+    }
+
+    private function sourcePrefix(string $sourceId): string
+    {
+        $normalized = strtoupper(trim($sourceId));
+        if (str_starts_with($normalized, 'RIN')) {
+            return 'RIN';
+        }
+
+        return 'RDE';
     }
 }

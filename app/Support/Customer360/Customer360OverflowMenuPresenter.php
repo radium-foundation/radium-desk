@@ -372,6 +372,18 @@ final class Customer360OverflowMenuPresenter implements ProvidesContextScope
         }
 
         $fulfilmentUrl = HardwareFulfilmentNavigation::urlFor($user, $order);
+        $sourceId = strtoupper(trim((string) ($order?->order_id ?? '')));
+        $hardwareShaped = str_starts_with($sourceId, 'RDE') || str_starts_with($sourceId, 'RIN');
+        if ($hardwareShaped) {
+            $items[] = $this->tabItem(
+                id: 'view-hardware-fulfilment',
+                label: 'View fulfilment',
+                icon: 'truck',
+                tab: 'overview',
+                anchor: 'hardware-fulfilment',
+                keywords: ['fulfilment', 'fulfillment', 'hardware', 'progress'],
+            );
+        }
         if ($fulfilmentUrl !== null) {
             $items[] = $this->linkItem(
                 id: 'open-hardware-fulfilment',

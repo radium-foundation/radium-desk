@@ -21676,3 +21676,13 @@ body.customer-360-drawer-open .app-sidebar {
         grid-template-columns: 1fr;
     }
 }
+
+.hardware-ops-sections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.hardware-ops-table .hardware-ops-next {
+    white-space: nowrap;
+}

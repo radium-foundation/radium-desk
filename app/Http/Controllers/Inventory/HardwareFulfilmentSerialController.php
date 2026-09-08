@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Inventory;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentPackageEvidenceKind;
 use App\Enums\HardwareFulfilmentState;
+use App\Enums\HardwareOperationsSection;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\AllocateHardwareFulfilmentSerialsRequest;
 use App\Http\Requests\Inventory\AssignHardwareFulfilmentAwbRequest;
@@ -14,6 +15,7 @@ use App\Http\Requests\Inventory\CreateHardwareFulfilmentShipmentRequest;
 use App\Http\Requests\Inventory\FetchHardwareFulfilmentCourierOptionsRequest;
 use App\Http\Requests\Inventory\GenerateHardwareFulfilmentLabelRequest;
 use App\Http\Requests\Inventory\GenerateHardwareFulfilmentManifestRequest;
+use App\Http\Requests\Inventory\IssueHardwareFulfilmentInvoiceRequest;
 use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyForPickupRequest;
 use App\Http\Requests\Inventory\RequestHardwareFulfilmentPickupRequest;
 use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
@@ -22,9 +24,12 @@ use App\Http\Requests\Inventory\StoreHardwareFulfilmentPackageEvidenceRequest;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
 use App\Models\InventoryBranch;
+use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
+use App\Services\HardwareFulfilment\Data\HardwareFulfilmentStepper;
 use App\Services\HardwareFulfilment\HardwareAwaitingFulfilmentQueue;
 use App\Services\HardwareFulfilment\HardwareFulfilmentCountryCorrectionService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
+use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentParcelSnapshotService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
@@ -57,6 +62,8 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentPackageEvidenceService $packageEvidence,
         private readonly HardwareAwaitingFulfilmentQueue $awaitingQueue,
         private readonly HardwareFulfilmentWorkQueue $workQueue,
+        private readonly HardwareFulfilmentInvoiceService $invoices,
+        private readonly HardwareFulfilmentOperationalClassifier $operationalClassifier,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -156,12 +163,14 @@ class HardwareFulfilmentSerialController extends Controller
                 'state' => $state,
                 'awaiting_reason' => HardwareAwaitingFulfilmentQueue::FILTER_REVIEW,
                 'stage' => '',
+                'section' => '',
                 'payment' => '',
                 'from' => $range['from']->toDateString(),
                 'to' => $range['to']->toDateString(),
             ],
             'states' => HardwareFulfilmentState::cases(),
             'stages' => HardwareFulfilmentOperationalStage::cases(),
+            'sections' => HardwareOperationsSection::cases(),
         ]);
     }
 
@@ -170,6 +179,7 @@ class HardwareFulfilmentSerialController extends Controller
         $range = $this->workQueueRange($request);
         $order = trim((string) $request->query('order', ''));
         $stage = trim((string) $request->query('stage', ''));
+        $section = trim((string) $request->query('section', ''));
         $payment = trim((string) $request->query('payment', ''));
         $allowedPayments = ['', 'paid', 'unpaid'];
         if (! in_array($payment, $allowedPayments, true)) {
@@ -182,12 +192,27 @@ class HardwareFulfilmentSerialController extends Controller
         if ($stage !== '' && ! in_array($stage, $allowedStages, true)) {
             $stage = '';
         }
+        $allowedSections = array_map(
+            static fn (HardwareOperationsSection $row): string => $row->value,
+            HardwareOperationsSection::cases(),
+        );
+        if ($section !== '' && ! in_array($section, $allowedSections, true)) {
+            $section = '';
+        }
 
         return view('inventory.hardware-fulfilments.index', [
             'queue' => 'work',
             'fulfilments' => null,
             'awaiting' => null,
-            'workRows' => $this->workQueue->paginate($range['from'], $range['to'], $stage, $order, $payment),
+            'workRows' => $this->workQueue->paginate(
+                $range['from'],
+                $range['to'],
+                $stage,
+                $order,
+                $payment,
+                40,
+                $section,
+            ),
             'awaitingSummary' => $this->awaitingQueue->summary(),
             'workSummary' => $this->workQueue->summary($range['from'], $range['to']),
             'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('code')->get(),
@@ -200,12 +225,14 @@ class HardwareFulfilmentSerialController extends Controller
                 'state' => '',
                 'awaiting_reason' => HardwareAwaitingFulfilmentQueue::FILTER_REVIEW,
                 'stage' => $stage,
+                'section' => $section,
                 'payment' => $payment,
                 'from' => $range['from']->toDateString(),
                 'to' => $range['to']->toDateString(),
             ],
             'states' => HardwareFulfilmentState::cases(),
             'stages' => HardwareFulfilmentOperationalStage::cases(),
+            'sections' => HardwareOperationsSection::cases(),
         ]);
     }
 
@@ -267,12 +294,14 @@ class HardwareFulfilmentSerialController extends Controller
                 'state' => '',
                 'awaiting_reason' => $reason,
                 'stage' => '',
+                'section' => '',
                 'payment' => '',
                 'from' => $range['from']->toDateString(),
                 'to' => $range['to']->toDateString(),
             ],
             'states' => HardwareFulfilmentState::cases(),
             'stages' => HardwareFulfilmentOperationalStage::cases(),
+            'sections' => HardwareOperationsSection::cases(),
         ]);
     }
 
@@ -293,6 +322,10 @@ class HardwareFulfilmentSerialController extends Controller
             && collect($requirements)->every(fn (array $line): bool => $line['map_ready']);
 
         $shipment = $this->shipmentEligibility->inspect($fulfilment);
+        $opsRow = $this->operationalClassifier->fromFulfilment($fulfilment, $shipment);
+        $canIssueInvoice = $fulfilment->state === HardwareFulfilmentState::SerialsAllocated
+            && ! HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)
+            && ($shipment->invoice === null || $shipment->invoice === '');
 
         return view('inventory.hardware-fulfilments.show', [
             'fulfilment' => $fulfilment,
@@ -301,6 +334,10 @@ class HardwareFulfilmentSerialController extends Controller
             'canAllocate' => $canAllocate,
             'derivedBranch' => $fulfilment->fulfilmentBranch,
             'shipment' => $shipment,
+            'opsRow' => $opsRow,
+            'stepperMilestones' => HardwareFulfilmentStepper::milestones(),
+            'stepperCurrentIndex' => HardwareFulfilmentStepper::currentIndex($opsRow, $shipment),
+            'canIssueInvoice' => $canIssueInvoice,
             'canCorrectCountry' => false,
             'canViewInvoice' => $shipment->invoiceId !== null,
             'invoiceShowUrl' => $shipment->invoiceId !== null
@@ -344,6 +381,16 @@ class HardwareFulfilmentSerialController extends Controller
         return redirect()
             ->route('inventory.hardware-fulfilments.show', $fulfilment)
             ->with('status', 'Serial allocated.');
+    }
+
+    public function storeInvoice(IssueHardwareFulfilmentInvoiceRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $invoice = $this->invoices->issueInvoice($fulfilment, $request->user());
+
+        return redirect()
+            ->route('inventory.hardware-fulfilments.show', $fulfilment)
+            ->with('status', 'Hardware invoice '.$invoice->invoice_number.' issued.');
     }
 
     public function storeShipment(CreateHardwareFulfilmentShipmentRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
@@ -419,11 +466,11 @@ class HardwareFulfilmentSerialController extends Controller
     public function storePickup(RequestHardwareFulfilmentPickupRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
-        $this->documents->requestPickup($fulfilment, $request->user());
+        $outcome = $this->documents->requestPickup($fulfilment, $request->user());
 
         return redirect()
             ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Pickup requested.');
+            ->with('status', $outcome->flash());
     }
 
     public function storeManifest(GenerateHardwareFulfilmentManifestRequest $request, HardwareFulfilment $fulfilment): RedirectResponse

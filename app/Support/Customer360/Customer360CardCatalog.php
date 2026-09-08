@@ -40,6 +40,8 @@ final class Customer360CardCatalog
 
     public const DEVICE_SECTION = 'device_section';
 
+    public const HARDWARE_FULFILMENT = 'hardware_fulfilment';
+
     public const DEVICE_SERIAL = 'device_serial';
 
     public const DEVICE_WARRANTY = 'device_warranty';
@@ -148,6 +150,13 @@ final class Customer360CardCatalog
                 name: 'Device Section',
                 intendedScope: ContextScope::Device,
                 surface: 'partials/device-section',
+            ),
+            new Customer360CardDefinition(
+                key: self::HARDWARE_FULFILMENT,
+                name: 'Hardware Fulfilment',
+                intendedScope: ContextScope::Order,
+                surface: 'partials/hardware-fulfilment',
+                notes: 'Read-only stepper and next action. Mutations stay on inventory show.',
             ),
             new Customer360CardDefinition(
                 key: self::DEVICE_SERIAL,

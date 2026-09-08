@@ -5,6 +5,7 @@ namespace Tests\Unit\HardwareFulfilment;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentState;
+use App\Enums\HardwareOperationsSection;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
@@ -35,10 +36,29 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $holdRow = $classifier->fromAwaiting($hold);
 
         $this->assertSame(HardwareFulfilmentOperationalStage::AwaitingFulfilment, $reviewRow->stage);
-        $this->assertSame('Review order', $reviewRow->nextAction);
+        $this->assertSame('Review & Start', $reviewRow->nextAction);
+        $this->assertSame(HardwareOperationsSection::NeedsFulfilment, $reviewRow->section);
         $this->assertFalse($reviewRow->hasFulfilment);
+        $this->assertSame(route('dashboard.orders.customer-360', $review), $reviewRow->nextUrl);
         $this->assertSame(HardwareFulfilmentOperationalStage::BlockedReview, $holdRow->stage);
         $this->assertSame('HOLD', $holdRow->nextAction);
+        $this->assertSame(HardwareOperationsSection::Exceptions, $holdRow->section);
+    }
+
+    public function test_windowed_rin_is_an_exception_without_mutating_action(): void
+    {
+        $rin = $this->order('RIN971099', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromRin($rin);
+
+        $this->assertSame('RIN', $row->source);
+        $this->assertSame(HardwareOperationsSection::Exceptions, $row->section);
+        $this->assertSame('Blocked — RIN mapping required', $row->nextAction);
+        $this->assertFalse($row->mutatingAction);
+        $this->assertFalse($row->hasFulfilment);
+        $this->assertSame(route('dashboard.orders.customer-360', $rin), $row->nextUrl);
     }
 
     public function test_existing_fulfilment_without_serial_is_awaiting_serial(): void

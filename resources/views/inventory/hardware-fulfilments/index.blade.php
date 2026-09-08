@@ -11,10 +11,10 @@
 
     <div class="mb-4">
         <p class="text-muted small text-uppercase fw-semibold mb-1">Inventory</p>
-        <h1 class="h3 mb-1">Hardware fulfilment</h1>
+        <h1 class="h3 mb-1">Hardware Operations</h1>
         <p class="text-muted mb-0">
             Work Queue is the single operational list: pending RDE hardware from 5 September 2026 through now, plus every existing fulfilment.
-            Process one order at a time on the fulfilment page. This page does not create fulfilments, serials, invoices, shipments, AWBs, pickups, or manifests.
+            Process one order at a time. This page does not create fulfilments, serials, invoices, shipments, AWBs, pickups, or manifests.
         </p>
     </div>
 
@@ -42,6 +42,10 @@
     </ul>
 
     @if($queue === 'work')
+        @php
+            $sectionCounts = $work->sectionCounts ?? [];
+            $activeSection = $filters['section'] ?? '';
+        @endphp
         <div class="alert alert-info">
             <p class="fw-semibold mb-1">Active date range (IST): {{ $work->fromIst }} → {{ $work->toIst }}</p>
             <p class="mb-1">
@@ -52,17 +56,43 @@
                 Qualifying: {{ $work->qualifying }}
                 · Blocked / review: {{ $work->blockedReview }}
                 · Excluded from this list: {{ $work->excluded }}
-                (unpaid {{ $work->excludedUnpaid }}, already completed on Desk {{ $work->excludedCompleted }}, RIN {{ $work->excludedRin }})
+                (unpaid {{ $work->excludedUnpaid }}, already completed on Desk {{ $work->excludedCompleted }})
+                · RIN in Exceptions: {{ $work->rinVisible }}
             </p>
+        </div>
+
+        <div class="dashboard-case-filters dashboard-operation-queues hardware-ops-sections mb-3" role="tablist">
+            <a @class(['dashboard-case-filter-chip', 'dashboard-case-filter-chip--primary', 'is-active' => $activeSection === ''])
+               href="{{ route('inventory.hardware-fulfilments.index', array_filter(['queue' => 'work', 'from' => $filters['from'], 'to' => $filters['to'], 'order' => $filters['order'], 'payment' => $filters['payment'], 'stage' => $filters['stage']])) }}">
+                <span class="dashboard-case-filter-chip__label">All</span>
+                <span class="dashboard-case-filter-chip__count">({{ $work->qualifying + $work->blockedReview }})</span>
+            </a>
+            @foreach($sections as $section)
+                <a @class([
+                       'dashboard-case-filter-chip',
+                       'dashboard-case-filter-chip--'.match($section) {
+                           \App\Enums\HardwareOperationsSection::NeedsFulfilment => 'info',
+                           \App\Enums\HardwareOperationsSection::InProgress => 'warning',
+                           \App\Enums\HardwareOperationsSection::ReadyForPickup => 'primary',
+                           \App\Enums\HardwareOperationsSection::Exceptions => 'danger',
+                       },
+                       'is-active' => $activeSection === $section->value,
+                   ])
+                   href="{{ route('inventory.hardware-fulfilments.index', array_filter(['queue' => 'work', 'section' => $section->value, 'from' => $filters['from'], 'to' => $filters['to'], 'order' => $filters['order'], 'payment' => $filters['payment'], 'stage' => $filters['stage']])) }}">
+                    <span class="dashboard-case-filter-chip__label">{{ $section->label() }}</span>
+                    <span class="dashboard-case-filter-chip__count">({{ $sectionCounts[$section->value] ?? 0 }})</span>
+                </a>
+            @endforeach
         </div>
 
         <form method="GET" action="{{ route('inventory.hardware-fulfilments.index') }}" class="card border-0 shadow-sm mb-3">
             <input type="hidden" name="queue" value="work">
+            <input type="hidden" name="section" value="{{ $filters['section'] }}">
             <div class="card-body">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-2">
                         <label class="form-label small mb-1" for="hf-work-order">Order</label>
-                        <input id="hf-work-order" type="search" name="order" value="{{ $filters['order'] }}" class="form-control" placeholder="RDE source id">
+                        <input id="hf-work-order" type="search" name="order" value="{{ $filters['order'] }}" class="form-control" placeholder="RDE or RIN">
                     </div>
                     <div class="col-md-2">
                         <label class="form-label small mb-1" for="hf-work-from">From (IST)</label>
@@ -98,16 +128,14 @@
 
         <div class="card border-0 shadow-sm">
             <div class="table-responsive">
-                <table class="table mb-0 align-middle">
+                <table class="table mb-0 align-middle dashboard-cases-table hardware-ops-table">
                     <thead>
                         <tr>
-                            <th>Order ID</th>
-                            <th>Order date</th>
+                            <th>Order</th>
+                            <th>Source</th>
                             <th>Customer</th>
-                            <th>Product / SKU</th>
-                            <th>Qty</th>
+                            <th>Product</th>
                             <th>Payment</th>
-                            <th>Fulfilment</th>
                             <th>Serial</th>
                             <th>Invoice</th>
                             <th>Shipment</th>
@@ -118,43 +146,54 @@
                     </thead>
                     <tbody>
                         @forelse($workRows as $row)
-                            <tr>
-                                <td class="fw-semibold">{{ $row->sourceId }}</td>
-                                <td>{{ $row->orderDateIst }}</td>
+                            <tr @class([
+                                    'dashboard-case-row--clickable' => $row->customer360Url() !== null,
+                                    'dashboard-case-row--pending' => ! $row->hasFulfilment,
+                                ])
+                                @if($row->customer360Url())
+                                    data-hardware-ops-360="{{ $row->customer360Url() }}"
+                                @endif>
+                                <td class="fw-semibold">
+                                    {{ $row->sourceId }}
+                                    <div class="small text-muted">{{ $row->orderDateIst }}</div>
+                                </td>
+                                <td><span class="badge text-bg-light">{{ $row->source }}</span></td>
                                 <td>{{ $row->customer }}</td>
                                 <td>
                                     {{ $row->product }}
                                     <div class="small text-muted">{{ $row->sku }}</div>
                                 </td>
-                                <td>{{ $row->quantity }}</td>
                                 <td>{{ $row->payment }}</td>
-                                <td>{{ $row->fulfilmentStatus }}</td>
                                 <td>{{ $row->serialStatus }}</td>
                                 <td>{{ $row->invoiceStatus }}</td>
                                 <td>{{ $row->shipmentStatus }}</td>
                                 <td>{{ $row->awbStatus }}</td>
                                 <td>{{ $row->stage->label() }}</td>
                                 <td>
-                                    @if($row->nextUrl)
-                                        <a href="{{ $row->nextUrl }}">{{ $row->nextAction }}</a>
+                                    @if($row->primaryUrl() && $row->mutatingAction)
+                                        <a class="btn btn-sm btn-primary hardware-ops-next" href="{{ $row->primaryUrl() }}">{{ $row->nextAction }}</a>
+                                    @elseif($row->primaryUrl())
+                                        <a class="btn btn-sm btn-outline-primary hardware-ops-next" href="{{ $row->primaryUrl() }}">{{ $row->nextAction }}</a>
                                     @else
                                         {{ $row->nextAction }}
                                     @endif
                                     @if($row->blocker)
                                         <div class="small text-muted">{{ $row->blocker }}</div>
                                     @endif
-                                    @if(! $row->hasFulfilment)
+                                    @if($row->openOrderUrl())
                                         <div class="small">
                                             <a href="{{ $row->openOrderUrl() }}">Open order</a>
-                                            <span class="text-muted">·</span>
-                                            <a href="{{ $row->customer360Url() }}">Customer 360</a>
+                                            @if($row->customer360Url())
+                                                <span class="text-muted">·</span>
+                                                <a href="{{ $row->customer360Url() }}">Customer 360</a>
+                                            @endif
                                         </div>
                                     @endif
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="13" class="text-muted">No hardware orders match this work-queue filter.</td>
+                                <td colspan="11" class="text-muted">No hardware orders match this work-queue filter.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -163,6 +202,18 @@
         </div>
 
         <div class="mt-3">{{ $workRows->links() }}</div>
+        @push('scripts')
+            <script>
+                document.querySelectorAll('[data-hardware-ops-360]').forEach((row) => {
+                    row.addEventListener('click', (event) => {
+                        if (event.target.closest('a, button, input, select, textarea')) {
+                            return;
+                        }
+                        window.location.href = row.getAttribute('data-hardware-ops-360');
+                    });
+                });
+            </script>
+        @endpush
     @elseif($queue === 'awaiting')
         <div class="alert alert-warning">
             <p class="fw-semibold mb-1">Do not create fulfilments from this page.</p>

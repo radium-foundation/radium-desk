@@ -229,8 +229,9 @@ class HardwareFulfilmentShowReadinessTest extends TestCase
             ->assertSee('Not attached')
             ->assertSee('Parcel packaging not attached')
             ->assertSee('Shipping is not enabled')
-            ->assertDontSee('Create Shipment')
-            ->assertDontSee('Get Courier Options')
+            ->assertDontSee('id="hardware-shipment-form"', false)
+            ->assertDontSee('id="hardware-shipment-submit"', false)
+            ->assertDontSee('id="hardware-courier-options-form"', false)
             ->assertDontSee('Shiprocket (not called)');
 
         Http::assertNothingSent();

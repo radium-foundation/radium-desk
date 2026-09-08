@@ -8,6 +8,7 @@ use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentPackageEvidenceKind;
 use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
+use App\Enums\HardwareOperationsSection;
 use App\Enums\ShipmentStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
@@ -224,9 +225,9 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ->assertSee('RDE970105')
             ->assertSee('Assign AWB')
             ->assertSee('RDE970106')
-            ->assertSee('Generate/Print Label')
+            ->assertSee('Print Label')
             ->assertSee('RDE970107')
-            ->assertSee('Record Package / Label-Applied Evidence')
+            ->assertSee('Record Packing')
             ->assertSee('RDE970108')
             ->assertSee('Request Pickup')
             ->assertSee('RDE970109')
@@ -240,7 +241,8 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ->assertSee('RDE313554')
             ->assertSee(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0])
             ->assertSee('Blocked / Review Required')
-            ->assertDontSee('RIN970199')
+            ->assertSee('RIN970199')
+            ->assertSee('Blocked — RIN mapping required')
             ->assertDontSee('RDE970198')
             ->assertDontSee('RDE970197')
             ->assertDontSee('RDE970196')
@@ -395,7 +397,7 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
         $this->assertNotContains('RDE970302', $listed);
         $this->assertNotContains('RDE970304', $listed);
         $this->assertNotContains('RDE970306', $listed);
-        $this->assertNotContains('RIN970399', $listed);
+        $this->assertContains('RIN970399', $listed);
 
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.index', ['queue' => 'work']))
@@ -406,7 +408,7 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ->assertSee(HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0])
             ->assertSee('RDE255714')
             ->assertSee(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0])
-            ->assertDontSee('RIN970399')
+            ->assertSee('RIN970399')
             ->assertSee('Active date range (IST): 2026-09-05 00:00');
 
         $this->actingAs($this->operator)
@@ -416,6 +418,129 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
 
         $this->assertSame($existing->id, HardwareFulfilment::query()->where('source_id', 'RDE318421')->value('id'));
         $this->assertSame(1, HardwareFulfilment::query()->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_operations_sections_and_get_do_not_mutate(): void
+    {
+        $this->deskOrder('RDE970501', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+        ]);
+        $this->fulfilment('RDE970502', HardwareFulfilmentState::ReadyForFulfilment);
+        $this->fulfilment('RDE970503', HardwareFulfilmentState::AwbAssigned, [
+            'serial' => true,
+            'invoice' => true,
+            'bound' => true,
+            'awb' => 'AWB970503',
+            'label' => true,
+            'evidence' => true,
+            'pickup' => true,
+            'manifest' => true,
+            'ready' => true,
+        ]);
+        $this->deskOrder('RIN970504', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+        ]);
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.index', ['queue' => 'work']))
+            ->assertOk()
+            ->assertSee('Hardware Operations')
+            ->assertSee('Needs Fulfilment')
+            ->assertSee('In Progress')
+            ->assertSee('Ready for Pickup')
+            ->assertSee('Exceptions')
+            ->assertSee('Review & Start')
+            ->assertSee('RDE970501')
+            ->assertSee('RIN970504')
+            ->assertDontSee('Create All')
+            ->assertDontSee('Create fulfilment');
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.index', [
+                'queue' => 'work',
+                'section' => HardwareOperationsSection::NeedsFulfilment->value,
+            ]))
+            ->assertOk()
+            ->assertSee('RDE970501')
+            ->assertDontSee('RDE970502')
+            ->assertDontSee('RIN970504');
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.index', [
+                'queue' => 'work',
+                'section' => HardwareOperationsSection::InProgress->value,
+            ]))
+            ->assertOk()
+            ->assertSee('RDE970502')
+            ->assertSee('Allocate Serial')
+            ->assertDontSee('RDE970501')
+            ->assertDontSee('RIN970504');
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.index', [
+                'queue' => 'work',
+                'section' => HardwareOperationsSection::ReadyForPickup->value,
+            ]))
+            ->assertOk()
+            ->assertSee('RDE970503')
+            ->assertSee('Ready for Pickup')
+            ->assertDontSee('RDE970501')
+            ->assertDontSee('RIN970504');
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.index', [
+                'queue' => 'work',
+                'section' => HardwareOperationsSection::Exceptions->value,
+            ]))
+            ->assertOk()
+            ->assertSee('RIN970504')
+            ->assertSee('Blocked — RIN mapping required')
+            ->assertDontSee('RDE970501');
+
+        $this->assertSame(2, HardwareFulfilment::query()->count());
+        $this->assertSame(1, Shipment::query()->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_rde318421_show_is_display_only_and_does_not_duplicate(): void
+    {
+        $fulfilment = $this->fulfilment('RDE318421', HardwareFulfilmentState::AwbAssigned, [
+            'serial' => true,
+            'invoice' => true,
+            'bound' => true,
+            'awb' => '284931178067631',
+            'label' => true,
+        ]);
+        $fulfilment->forceFill([
+            'selected_courier_id' => '15084',
+            'selected_courier_name' => 'Delhivery_Surface',
+            'provider_shipment_id' => '1568724940',
+        ])->save();
+        $fulfilment->shipment?->forceFill([
+            'courier_id' => '15084',
+            'courier_name' => 'Delhivery_Surface',
+            'external_order_id' => '1568724940',
+            'external_shipment_id' => '1568724940',
+            'awb' => '284931178067631',
+            'label_url' => '/labels/RDE318421.pdf',
+        ])->save();
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('Progress')
+            ->assertSee('284931178067631')
+            ->assertSee('Delhivery_Surface (15084)')
+            ->assertSee('1568724940')
+            ->assertSee('Print Shipping Label')
+            ->assertSee('Not recorded');
+
+        $this->assertSame(1, HardwareFulfilment::query()->where('source_id', 'RDE318421')->count());
+        $this->assertSame(1, HardwareFulfilment::query()->count());
+        $this->assertSame(1, Shipment::query()->count());
         Http::assertNothingSent();
     }
 

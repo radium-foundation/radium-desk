@@ -23,7 +23,7 @@ enum HardwareAwaitingFulfilmentReason: string
             self::Unpaid => 'Unpaid',
             self::PreCutoff => 'Historical / pre-cutoff',
             self::DeskAlreadyCompleted => 'Already completed on Desk',
-            self::Rin => 'RIN — not Desk fulfilment',
+            self::Rin => 'RIN Hardware — Mapping Required',
         };
     }
 
@@ -37,7 +37,7 @@ enum HardwareAwaitingFulfilmentReason: string
             self::Unpaid => 'No Cashfree payment on the Desk order. Do not ingest.',
             self::PreCutoff => 'Desk created_at is before 2026-09-05 00:00 IST. Isolated ingest refuses this cutoff. Do not mass-ingest history.',
             self::DeskAlreadyCompleted => 'Desk already has a serial or transaction. Treat as processed outside Hardware Fulfilment unless an owner authorizes a single-order review.',
-            self::Rin => 'RIN support orders are not Desk hardware fulfilment.',
+            self::Rin => 'Blocked — RIN mapping required. Direct Buy hardware cannot enter Desk fulfilment until a dedicated rdservice.in mapper and Owner SKU maps exist.',
         };
     }
 }

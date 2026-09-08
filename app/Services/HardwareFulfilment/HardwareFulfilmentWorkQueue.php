@@ -3,6 +3,7 @@
 namespace App\Services\HardwareFulfilment;
 
 use App\Enums\HardwareFulfilmentOperationalStage;
+use App\Enums\HardwareOperationsSection;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
@@ -34,8 +35,14 @@ final class HardwareFulfilmentWorkQueue
         string $orderSearch = '',
         string $payment = '',
         int $perPage = 40,
+        string $section = '',
     ): LengthAwarePaginator {
         $rows = $this->allRows($fromIst, $toIst, $orderSearch, $payment);
+        if ($section !== '') {
+            $rows = $rows->filter(
+                static fn (HardwareFulfilmentOperationalRow $row): bool => $row->section->value === $section
+            )->values();
+        }
         if ($stage !== '') {
             $rows = $rows->filter(
                 static fn (HardwareFulfilmentOperationalRow $row): bool => $row->stage->value === $stage
@@ -58,8 +65,17 @@ final class HardwareFulfilmentWorkQueue
         foreach (HardwareFulfilmentOperationalStage::cases() as $stage) {
             $counts[$stage->value] = 0;
         }
+        $sectionCounts = [];
+        foreach (HardwareOperationsSection::cases() as $section) {
+            $sectionCounts[$section->value] = 0;
+        }
+        $rinVisible = 0;
         foreach ($rows as $row) {
             $counts[$row->stage->value]++;
+            $sectionCounts[$row->section->value]++;
+            if ($row->source === 'RIN') {
+                $rinVisible++;
+            }
         }
 
         $excluded = $this->awaiting->excludedFromWorkQueue($fromIst, $toIst);
@@ -70,11 +86,13 @@ final class HardwareFulfilmentWorkQueue
             toIst: $toIst->format('Y-m-d H:i'),
             qualifying: $rows->count() - $blockedReview,
             blockedReview: $blockedReview,
-            excluded: $excluded['unpaid'] + $excluded['desk_completed'] + $excluded['rin'],
+            excluded: $excluded['unpaid'] + $excluded['desk_completed'],
             excludedUnpaid: $excluded['unpaid'],
             excludedCompleted: $excluded['desk_completed'],
             excludedRin: $excluded['rin'],
             stageCounts: $counts,
+            sectionCounts: $sectionCounts,
+            rinVisible: $rinVisible,
         );
     }
 
@@ -98,7 +116,11 @@ final class HardwareFulfilmentWorkQueue
             fn (Order $order): HardwareFulfilmentOperationalRow => $this->classifier->fromAwaiting($order)
         );
 
-        $rows = $fulfilments->concat($awaiting);
+        $rin = $this->windowedRinOrders($fromIst, $toIst)->map(
+            fn (Order $order): HardwareFulfilmentOperationalRow => $this->classifier->fromRin($order)
+        );
+
+        $rows = $fulfilments->concat($awaiting)->concat($rin);
         if ($orderSearch !== '') {
             $needle = strtoupper($orderSearch);
             $rows = $rows->filter(
@@ -113,5 +135,27 @@ final class HardwareFulfilmentWorkQueue
 
         return $rows->sortByDesc(static fn (HardwareFulfilmentOperationalRow $row): string => $row->orderDateIst)
             ->values();
+    }
+
+    /**
+     * Desk-resident RIN support orders in the IST window. Display only.
+     *
+     * @return Collection<int, Order>
+     */
+    private function windowedRinOrders(Carbon $fromIst, Carbon $toIst): Collection
+    {
+        $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
+        $toBound = HardwareFulfilmentEligibility::createdAtSqlBound($toIst);
+        $sourceIds = HardwareFulfilment::query()->pluck('source_id')->filter()->all();
+
+        return Order::query()
+            ->where('order_id', 'like', 'RIN%')
+            ->where('created_at', '>=', $fromBound)
+            ->where('created_at', '<=', $toBound)
+            ->when($sourceIds !== [], static function ($query) use ($sourceIds): void {
+                $query->whereNotIn('order_id', $sourceIds);
+            })
+            ->orderByDesc('id')
+            ->get();
     }
 }

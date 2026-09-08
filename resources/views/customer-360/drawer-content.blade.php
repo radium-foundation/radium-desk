@@ -129,6 +129,9 @@
             'sync_history' => $sync_history ?? [],
             'activeServices' => $activeServices ?? [],
         ])
+        @include('customer-360.partials.hardware-fulfilment', [
+            'hardwareFulfilment' => $hardwareFulfilment ?? null,
+        ])
         @include('customer-360.partials.active-services', ['activeServices' => $activeServices])
     </div>
 

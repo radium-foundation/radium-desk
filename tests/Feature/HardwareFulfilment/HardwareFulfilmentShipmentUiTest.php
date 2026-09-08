@@ -143,7 +143,8 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
             ->assertSee('Parcel packaging not attached')
             ->assertSee('Not attached')
             ->assertSee('Incomplete')
-            ->assertDontSee('Create Shipment');
+            ->assertDontSee('id="hardware-shipment-form"', false)
+            ->assertDontSee('id="hardware-shipment-submit"', false);
     }
 
     public function test_invoiced_page_stays_blocked_while_shiprocket_is_disabled(): void
@@ -156,7 +157,8 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
             ->assertSee('RADDELHI')
             ->assertSee('DELHI-RETAIL')
             ->assertSee('Shipping is not enabled')
-            ->assertDontSee('Create Shipment');
+            ->assertDontSee('id="hardware-shipment-form"', false)
+            ->assertDontSee('id="hardware-shipment-submit"', false);
 
         $this->assertInstanceOf(NullShiprocketGateway::class, app(ShiprocketGateway::class));
     }
