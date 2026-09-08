@@ -51,6 +51,7 @@ use App\Http\Controllers\Inventory\HardwareFulfilmentSerialController as Invento
 use App\Http\Controllers\Inventory\MovementController as InventoryMovementController;
 use App\Http\Controllers\Inventory\OpeningImportController as InventoryOpeningImportController;
 use App\Http\Controllers\Inventory\ProductController as InventoryProductController;
+use App\Http\Controllers\Inventory\ProductPackagingController as InventoryProductPackagingController;
 use App\Http\Controllers\Inventory\ReservationController as InventoryReservationController;
 use App\Http\Controllers\Inventory\SerialController as InventorySerialController;
 use App\Http\Controllers\Inventory\StockController as InventoryStockController;
@@ -435,6 +436,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('stock', [InventoryStockController::class, 'index'])->name('stock.index');
         Route::get('stock/in', [InventoryStockController::class, 'create'])->name('stock.create');
         Route::post('stock/in', [InventoryStockController::class, 'store'])->name('stock.store');
+        Route::get('stock/packaging/{product}', [InventoryProductPackagingController::class, 'edit'])->name('stock.packaging.edit');
+        Route::put('stock/packaging/{product}', [InventoryProductPackagingController::class, 'update'])->name('stock.packaging.update');
 
         Route::get('opening-import', [InventoryOpeningImportController::class, 'create'])->name('opening-import.create');
         Route::post('opening-import/preview', [InventoryOpeningImportController::class, 'preview'])->name('opening-import.preview');

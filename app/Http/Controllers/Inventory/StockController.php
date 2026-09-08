@@ -33,7 +33,7 @@ class StockController extends Controller
         $branches = InventoryBranchScope::allowedBranches($user);
 
         $balances = InventoryBranchScope::constrain(
-            InventoryStockBalance::query()->with(['product', 'variant', 'branch']),
+            InventoryStockBalance::query()->with(['product.packaging', 'variant', 'branch']),
             $user,
         )
             ->when($request->filled('branch_id'), function ($q) use ($request, $user) {
@@ -54,6 +54,7 @@ class StockController extends Controller
             'canStockIn' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_IN),
             'canAdjust' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_ADJUST),
             'canReserve' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_RESERVE),
+            'canVerifyPackaging' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_PACKAGING_VERIFY),
         ]);
     }
 

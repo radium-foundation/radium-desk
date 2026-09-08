@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class InventoryProduct extends Model
 {
@@ -51,6 +52,11 @@ class InventoryProduct extends Model
     public function balances(): HasMany
     {
         return $this->hasMany(InventoryStockBalance::class, 'product_id');
+    }
+
+    public function packaging(): HasOne
+    {
+        return $this->hasOne(InventoryProductPackaging::class, 'inventory_product_id');
     }
 
     public function priceFor(?InventoryProductVariant $variant = null): string

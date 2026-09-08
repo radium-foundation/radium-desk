@@ -151,6 +151,7 @@ Cancel/return is a separate transaction: restore stock, then `PosSaleJournalServ
 |---|---|---|
 | `inventory.view` | Module gate | admin, operations_admin, superadmin, hardware_team |
 | `inventory.products.manage` | SKUs | admin team |
+| `inventory.packaging.verify` | Record verified packed weight/L×B×H (kg/cm). Not product-master rights. Does not authorize Shiprocket. | admin team |
 | `inventory.branches.manage` | Branches + operator assignment | admin team |
 | `inventory.branches.operate-all` | Skip per-branch assignment | admin team |
 | `inventory.stock.in` | Receive stock | admin team, hardware_team |

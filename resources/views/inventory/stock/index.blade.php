@@ -53,25 +53,50 @@
             <table class="table mb-0 align-middle">
                 <thead>
                     <tr>
+                        <th>Product ID</th>
+                        <th>SKU</th>
                         <th>Product</th>
                         <th>Variant</th>
                         <th>Branch</th>
                         <th class="text-end">Available</th>
                         <th class="text-end">Reserved</th>
+                        <th>Pack</th>
+                        <th class="text-end">Gross weight</th>
+                        <th>L × B × H</th>
+                        <th>Units</th>
+                        @if($canVerifyPackaging)
+                            <th></th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($balances as $balance)
+                        @php($pack = $balance->product?->packaging)
                         <tr>
-                            <td>{{ $balance->product?->sku }} — {{ $balance->product?->name }}</td>
+                            <td>{{ $balance->product?->id ?? '—' }}</td>
+                            <td>{{ $balance->product?->sku ?? '—' }}</td>
+                            <td>{{ $balance->product?->name ?? '—' }}</td>
                             <td>{{ $balance->variant?->name ?? '—' }}</td>
                             <td>{{ $balance->branch?->name }}</td>
                             <td class="text-end">{{ $balance->available_qty }}</td>
                             <td class="text-end">{{ $balance->reserved_qty }}</td>
+                            <td>{{ $pack ? 'Verified' : 'Not verified' }}</td>
+                            <td class="text-end">{{ $pack ? $pack->gross_weight : '—' }}</td>
+                            <td>{{ $pack ? $pack->length.' × '.$pack->breadth.' × '.$pack->height : '—' }}</td>
+                            <td>{{ $pack ? $pack->weight_unit.' / '.$pack->dimension_unit : '—' }}</td>
+                            @if($canVerifyPackaging)
+                                <td class="text-end">
+                                    @if($balance->product)
+                                        <a href="{{ route('inventory.stock.packaging.edit', array_filter(['product' => $balance->product] + $filters)) }}" class="btn btn-sm btn-outline-secondary">
+                                            {{ $pack ? 'Edit pack' : 'Record pack' }}
+                                        </a>
+                                    @endif
+                                </td>
+                            @endif
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-muted p-4">{{ !empty($needsBranchAssignment) ? 'No branch assignment — stock for other locations is hidden.' : 'No stock recorded yet. Receive stock in to start.' }}</td>
+                            <td colspan="{{ $canVerifyPackaging ? 12 : 11 }}" class="text-muted p-4">{{ !empty($needsBranchAssignment) ? 'No branch assignment — stock for other locations is hidden.' : 'No stock recorded yet. Receive stock in to start.' }}</td>
                         </tr>
                     @endforelse
                 </tbody>

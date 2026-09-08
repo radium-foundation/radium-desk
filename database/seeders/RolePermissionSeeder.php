@@ -94,6 +94,9 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_INVENTORY_PRODUCTS_MANAGE = 'inventory.products.manage';
 
+    /** Record verified packed shipping dimensions. Not product-master rights. */
+    public const PERMISSION_INVENTORY_PACKAGING_VERIFY = 'inventory.packaging.verify';
+
     public const PERMISSION_INVENTORY_BRANCHES_MANAGE = 'inventory.branches.manage';
 
     public const PERMISSION_INVENTORY_STOCK_IN = 'inventory.stock.in';
@@ -150,6 +153,7 @@ class RolePermissionSeeder extends Seeder
     private const INVENTORY_ADMIN_PERMISSIONS = [
         self::PERMISSION_INVENTORY_VIEW,
         self::PERMISSION_INVENTORY_PRODUCTS_MANAGE,
+        self::PERMISSION_INVENTORY_PACKAGING_VERIFY,
         self::PERMISSION_INVENTORY_BRANCHES_MANAGE,
         self::PERMISSION_INVENTORY_STOCK_IN,
         self::PERMISSION_INVENTORY_STOCK_TRANSFER,
