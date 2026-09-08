@@ -22,7 +22,7 @@ return new class extends Migration
 
         Schema::create('hardware_fulfilment_package_evidences', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('hardware_fulfilment_id')->constrained('hardware_fulfilments')->cascadeOnDelete();
+            $table->unsignedBigInteger('hardware_fulfilment_id');
             $table->string('kind', 40);
             $table->string('disk', 32)->default('local');
             $table->string('path', 255);
@@ -35,6 +35,8 @@ return new class extends Migration
 
             $table->unique(['hardware_fulfilment_id', 'kind'], 'hw_pkg_ev_fulfilment_kind_unique');
             $table->index('kind', 'hw_pkg_ev_kind_idx');
+            $table->foreign('hardware_fulfilment_id', 'hw_pkg_ev_fulfilment_fk')
+                ->references('id')->on('hardware_fulfilments')->cascadeOnDelete();
             $table->foreign('uploaded_by_user_id', 'hw_pkg_ev_user_fk')
                 ->references('id')->on('users')->nullOnDelete();
         });
