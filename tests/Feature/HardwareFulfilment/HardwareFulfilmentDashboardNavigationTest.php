@@ -43,7 +43,11 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->assertSee('data-incident-id="'.$incident->id.'"', false)
             ->assertSee('dashboard-case-row--clickable', false)
             ->assertSee('Allocate Serial')
-            ->assertSee(route('inventory.hardware-fulfilments.show', $fulfilment), false)
+            ->assertSee(route('inventory.hardware-fulfilments.action-dialog', $fulfilment), false)
+            ->assertSee('data-hardware-select', false)
+            ->assertSee('Open selected')
+            ->assertSee('MFS 110')
+            ->assertDontSee('Create Shipment')
             ->assertDontSee('Create All')
             ->assertDontSee('/inventory/shipments')
             ->assertDontSee('/fulfilment/shipments');
@@ -95,11 +99,13 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->assertSee('Open Fulfilment')
             ->assertSee(route('inventory.hardware-fulfilments.show', $fulfilment), false)
             ->assertSee('open-hardware-fulfilment', false)
-            ->assertSee('Hardware Fulfilment')
+            ->assertSee('>Hardware<', false)
             ->assertSee('id="hardware-fulfilment"', false)
             ->assertSee('View fulfilment')
             ->assertSee('view-hardware-fulfilment', false)
-            ->assertDontSee('Start Hardware Fulfilment');
+            ->assertDontSee('Start Hardware Fulfilment')
+            ->assertSee('data-hardware-action-dialog', false)
+            ->assertSee('Allocate Serial');
     }
 
     public function test_customer_360_hardware_section_disables_start_without_fulfilment(): void
@@ -114,7 +120,7 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
-            ->assertSee('Hardware Fulfilment')
+            ->assertSee('>Hardware<', false)
             ->assertSee('id="hardware-fulfilment"', false)
             ->assertSee('Review this order before fulfilment can start.')
             ->assertDontSee('Start Hardware Fulfilment')
@@ -131,7 +137,7 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
-            ->assertSee('Hardware Fulfilment')
+            ->assertSee('>Hardware<', false)
             ->assertSee('RIN')
             ->assertSee('Hardware cannot start yet.')
             ->assertSee('Verified RIN → Desk hardware mapping is required.')
@@ -206,6 +212,41 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->actingAs($operator)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertForbidden();
+    }
+
+    public function test_hardware_dashboard_shows_selection_bar_and_no_unsafe_bulk_actions(): void
+    {
+        $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->hardwareCaseWithFulfilment('RDE902010');
+
+        $html = $this->actingAs($admin)
+            ->get(route('dashboard', ['workspace' => 'hardware']))
+            ->assertOk()
+            ->assertSee('data-hardware-select-all', false)
+            ->assertSee('data-hardware-select', false)
+            ->assertSee('Open selected')
+            ->assertDontSee('Create All')
+            ->assertDontSee('Bulk Create Shipment')
+            ->assertDontSee('Bulk Request Pickup')
+            ->assertDontSee('Bulk Generate Manifest')
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-batch-assign', $html);
+    }
+
+    public function test_hardware_action_dialog_is_the_existing_fulfilment_next_action(): void
+    {
+        $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
+        [, $fulfilment] = $this->hardwareCaseWithFulfilment('RDE902011');
+
+        $this->actingAs($admin)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $fulfilment))
+            ->assertOk()
+            ->assertSee('Allocate Serial')
+            ->assertSee('Assign the verified physical device to this order.')
+            ->assertSee('c360-correction-dialog', false)
+            ->assertSee('RDE902011')
+            ->assertDontSee('Label-applied package photo');
     }
 
     /**

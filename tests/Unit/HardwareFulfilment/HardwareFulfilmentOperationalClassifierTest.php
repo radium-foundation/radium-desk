@@ -39,6 +39,9 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
 
         $this->assertSame(HardwareFulfilmentOperationalStage::AwaitingFulfilment, $reviewRow->stage);
         $this->assertSame('Review', $reviewRow->nextAction);
+        $this->assertSame('MFS 110', $reviewRow->productDisplay());
+        $this->assertFalse($reviewRow->productMissing);
+        $this->assertNotSame('—', $reviewRow->productDisplay());
         $this->assertSame(HardwareOperationsSection::NeedsFulfilment, $reviewRow->section);
         $this->assertFalse($reviewRow->hasFulfilment);
         $this->assertSame(route('dashboard.orders.customer-360', $review), $reviewRow->nextUrl);

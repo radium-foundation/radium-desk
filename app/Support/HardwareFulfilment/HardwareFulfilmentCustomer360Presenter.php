@@ -3,6 +3,7 @@
 namespace App\Support\HardwareFulfilment;
 
 use App\Enums\HardwareAwaitingFulfilmentReason;
+use App\Models\CommerceOrder;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwareAwaitingFulfilmentClassifier;
@@ -42,12 +43,20 @@ final class HardwareFulfilmentCustomer360Presenter
 
         $ready = null;
         if ($fulfilment !== null) {
+            $fulfilment->loadMissing(['commerceOrder.items', 'supportOrder']);
             $ready = $this->eligibility->inspect($fulfilment);
             $row = $this->classifier->fromFulfilment($fulfilment, $ready);
-        } elseif (str_starts_with($sourceId, 'RIN')) {
-            $row = $this->classifier->fromRin($order);
         } else {
-            $row = $this->classifier->fromAwaiting($order);
+            $commerce = CommerceOrder::query()
+                ->with('items')
+                ->where(function ($query) use ($order): void {
+                    $query->where('support_order_id', $order->id)
+                        ->orWhere('source_id', $order->order_id);
+                })
+                ->first();
+            $row = str_starts_with($sourceId, 'RIN')
+                ? $this->classifier->fromRin($order, $commerce)
+                : $this->classifier->fromAwaiting($order, $commerce);
         }
 
         $canOperate = HardwareFulfilmentAccess::allows($user);

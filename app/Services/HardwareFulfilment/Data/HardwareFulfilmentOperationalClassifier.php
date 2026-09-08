@@ -6,6 +6,7 @@ use App\Enums\HardwareAwaitingFulfilmentReason;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
+use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
@@ -14,7 +15,7 @@ final class HardwareFulfilmentOperationalClassifier
 {
     public const START_FULFILMENT_BLOCKER = 'Isolated ingest requires a verified Box handoff payload. Desk does not invent one from the support order.';
 
-    public function fromAwaiting(Order $order): HardwareFulfilmentOperationalRow
+    public function fromAwaiting(Order $order, ?CommerceOrder $commerce = null): HardwareFulfilmentOperationalRow
     {
         $reason = HardwareAwaitingFulfilmentClassifier::reason($order);
         $paid = $order->isCashfreeVerified();
@@ -25,14 +26,15 @@ final class HardwareFulfilmentOperationalClassifier
             : HardwareFulfilmentOperationalStage::AwaitingFulfilment;
         $source = $this->sourcePrefix((string) $order->order_id);
         $nextUrl = route('dashboard.orders.customer-360', $order);
+        $catalog = HardwareFulfilmentProductLines::resolve($commerce, $order);
 
         return new HardwareFulfilmentOperationalRow(
             sourceId: (string) $order->order_id,
             orderDateIst: $created?->format('Y-m-d H:i') ?? '—',
             customer: trim((string) ($order->customer_name ?? '')) ?: '—',
-            product: trim((string) ($order->product_name ?? '')) ?: '—',
+            product: $catalog['compact'],
             sku: '—',
-            quantity: '—',
+            quantity: $catalog['quantity'] !== '' ? $catalog['quantity'] : '—',
             payment: $paid ? 'Paid' : 'Unpaid',
             fulfilmentStatus: 'None',
             serialStatus: $order->isSerialLocked() ? 'On support order' : 'Not allocated',
@@ -54,21 +56,24 @@ final class HardwareFulfilmentOperationalClassifier
             mutatingAction: false,
             packagePhotoRecorded: false,
             statusLabel: $blocked ? 'Blocked' : 'Awaiting Fulfilment',
+            productLines: $catalog['lines'],
+            productMissing: $catalog['missing'],
         );
     }
 
-    public function fromRin(Order $order): HardwareFulfilmentOperationalRow
+    public function fromRin(Order $order, ?CommerceOrder $commerce = null): HardwareFulfilmentOperationalRow
     {
         $created = $order->created_at?->copy()->timezone(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
         $paid = $order->isCashfreeVerified();
+        $catalog = HardwareFulfilmentProductLines::resolve($commerce, $order);
 
         return new HardwareFulfilmentOperationalRow(
             sourceId: (string) $order->order_id,
             orderDateIst: $created?->format('Y-m-d H:i') ?? '—',
             customer: trim((string) ($order->customer_name ?? '')) ?: '—',
-            product: trim((string) ($order->product_name ?? '')) ?: '—',
+            product: $catalog['compact'],
             sku: '—',
-            quantity: '—',
+            quantity: $catalog['quantity'] !== '' ? $catalog['quantity'] : '—',
             payment: $paid ? 'Paid' : 'Unpaid',
             fulfilmentStatus: 'None',
             serialStatus: 'Not allocated',
@@ -88,6 +93,8 @@ final class HardwareFulfilmentOperationalClassifier
             mutatingAction: false,
             packagePhotoRecorded: false,
             statusLabel: 'Blocked',
+            productLines: $catalog['lines'],
+            productMissing: $catalog['missing'],
         );
     }
 
@@ -99,6 +106,8 @@ final class HardwareFulfilmentOperationalClassifier
         $item = $order?->items?->first(
             static fn ($row): bool => HardwareFulfilmentEligibility::isPhysicalCommerceItem($row)
         ) ?? $order?->items?->first();
+        $fulfilment->loadMissing('supportOrder');
+        $catalog = HardwareFulfilmentProductLines::resolve($order, $fulfilment->supportOrder);
         $sourceId = (string) $fulfilment->source_id;
         $ownerBlocked = HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)
             || HardwareFulfilmentEligibility::isHoldSourceId($sourceId)
@@ -125,9 +134,11 @@ final class HardwareFulfilmentOperationalClassifier
             sourceId: $sourceId,
             orderDateIst: $ist?->format('Y-m-d H:i') ?? '—',
             customer: $ready->customer ?: '—',
-            product: $ready->product ?: '—',
+            product: $catalog['compact'],
             sku: trim((string) ($item?->sku ?: $item?->catalog_sku ?: '')) ?: '—',
-            quantity: $ready->quantity !== null ? (string) $ready->quantity : '—',
+            quantity: $catalog['quantity'] !== ''
+                ? $catalog['quantity']
+                : ($ready->quantity !== null ? (string) $ready->quantity : '—'),
             payment: $ready->payment,
             fulfilmentStatus: strtoupper(str_replace('_', ' ', $fulfilment->state?->value ?? 'unknown')),
             serialStatus: $ready->serials !== [] ? implode(', ', $ready->serials) : 'Not allocated',
@@ -149,6 +160,8 @@ final class HardwareFulfilmentOperationalClassifier
             mutatingAction: $mutating,
             packagePhotoRecorded: $photoRecorded,
             statusLabel: $statusLabel,
+            productLines: $catalog['lines'],
+            productMissing: $catalog['missing'],
         );
     }
 

@@ -6,18 +6,41 @@
     @php
         $row = $hardwareFulfilment['row'];
         $ready = $hardwareFulfilment['ready'] ?? null;
-        $activity = $hardwareFulfilment['activity'] ?? [];
         $isRin = $row->source === 'RIN' && ! $row->hasFulfilment;
-        $showPrimary = $row->hasFulfilment && ($hardwareFulfilment['showUrl'] ?? null) && $row->mutatingAction;
+        $canOperate = (bool) ($hardwareFulfilment['canOperate'] ?? false);
+        $showPrimary = $row->hasFulfilment
+            && ($hardwareFulfilment['showUrl'] ?? null)
+            && $row->mutatingAction
+            && $canOperate;
+        $details = $row->productDetails();
     @endphp
     <section id="hardware-fulfilment"
              class="c360-section-card mb-3"
-             data-customer-360-section="hardware-fulfilment">
-        <h2 class="h6 mb-2">Hardware Fulfilment</h2>
+             data-customer-360-section="hardware-fulfilment"
+             data-hardware-next-action="{{ $row->nextAction }}">
+        <h2 class="h6 mb-2">Hardware</h2>
         <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
             <div>
                 <div class="fw-semibold">{{ $row->sourceId }}</div>
-                <div class="text-muted small">{{ $row->payment }} · {{ $row->productDisplay() }}</div>
+                @if($row->customer !== '—')
+                    <div class="text-muted small">{{ $row->customer }}</div>
+                @endif
+                @if($row->productMissing)
+                    <div class="text-danger small">Product data missing</div>
+                @elseif($details !== [])
+                    <div class="small">
+                        {{ collect($details)->map(function (array $line): string {
+                            $text = $line['label'];
+                            if ($line['qty'] !== null) {
+                                $text .= ' · Qty '.$line['qty'];
+                            }
+
+                            return $text;
+                        })->implode(', ') }}
+                    </div>
+                @else
+                    <div class="small">{{ $row->productDisplay() }}</div>
+                @endif
                 @if($row->serialDisplay() !== '—')
                     <div class="text-muted small">Serial {{ $row->serialDisplay() }}</div>
                 @endif
@@ -48,13 +71,19 @@
         @endif
         <div class="d-flex flex-wrap gap-2 align-items-center">
             @if($showPrimary)
-                <a class="btn btn-sm btn-primary" href="{{ $row->primaryUrl() }}">{{ $row->nextAction }}</a>
+                <button type="button"
+                        class="btn btn-sm btn-primary"
+                        data-hardware-action-dialog="{{ route('inventory.hardware-fulfilments.action-dialog', $row->fulfilmentId) }}">
+                    {{ $row->nextAction }}
+                </button>
+            @elseif($isRin)
+                <span class="btn btn-sm btn-outline-primary">View</span>
             @endif
             @if($hardwareFulfilment['showUrl'] ?? null)
                 <a class="btn btn-sm btn-outline-secondary" href="{{ $hardwareFulfilment['showUrl'] }}">Open Fulfilment</a>
             @endif
         </div>
-        @if($activity !== [])
+        @if($activity = ($hardwareFulfilment['activity'] ?? []))
             <ul class="list-unstyled small text-muted mb-0 mt-3">
                 @foreach($activity as $item)
                     <li>{{ $item['done'] ? '✓' : '○' }} {{ $item['label'] }}</li>

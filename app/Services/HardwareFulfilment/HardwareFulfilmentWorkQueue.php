@@ -5,6 +5,7 @@ namespace App\Services\HardwareFulfilment;
 use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareOperationsSection;
+use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
@@ -142,7 +143,7 @@ final class HardwareFulfilmentWorkQueue
     private function allRows(Carbon $fromIst, Carbon $toIst, string $orderSearch, string $payment): Collection
     {
         $fulfilments = HardwareFulfilment::query()
-            ->with(['commerceOrder.items', 'serials.inventorySerial', 'fulfilmentBranch', 'shipment', 'packageEvidences'])
+            ->with(['commerceOrder.items', 'supportOrder', 'serials.inventorySerial', 'fulfilmentBranch', 'shipment', 'packageEvidences'])
             ->orderByDesc('id')
             ->get()
             ->map(function (HardwareFulfilment $fulfilment) {
@@ -152,12 +153,22 @@ final class HardwareFulfilmentWorkQueue
                 );
             });
 
-        $awaiting = $this->awaiting->workCandidateOrders($fromIst, $toIst)->map(
-            fn (Order $order): HardwareFulfilmentOperationalRow => $this->classifier->fromAwaiting($order)
+        $awaitingOrders = $this->awaiting->workCandidateOrders($fromIst, $toIst);
+        $rinOrders = $this->windowedRinOrders($fromIst, $toIst);
+        $commerceByOrder = $this->commerceOrdersForSupport($awaitingOrders->concat($rinOrders));
+
+        $awaiting = $awaitingOrders->map(
+            fn (Order $order): HardwareFulfilmentOperationalRow => $this->classifier->fromAwaiting(
+                $order,
+                $commerceByOrder[(int) $order->id] ?? $commerceByOrder[(string) $order->order_id] ?? null,
+            )
         );
 
-        $rin = $this->windowedRinOrders($fromIst, $toIst)->map(
-            fn (Order $order): HardwareFulfilmentOperationalRow => $this->classifier->fromRin($order)
+        $rin = $rinOrders->map(
+            fn (Order $order): HardwareFulfilmentOperationalRow => $this->classifier->fromRin(
+                $order,
+                $commerceByOrder[(int) $order->id] ?? $commerceByOrder[(string) $order->order_id] ?? null,
+            )
         );
 
         $rows = $fulfilments->concat($awaiting)->concat($rin);
@@ -197,5 +208,41 @@ final class HardwareFulfilmentWorkQueue
             })
             ->orderByDesc('id')
             ->get();
+    }
+
+    /**
+     * @param  Collection<int, Order>  $orders
+     * @return array<int|string, CommerceOrder>
+     */
+    private function commerceOrdersForSupport(Collection $orders): array
+    {
+        $ids = $orders->pluck('id')->filter()->unique()->values()->all();
+        $sourceIds = $orders->pluck('order_id')->filter()->unique()->values()->all();
+        if ($ids === [] && $sourceIds === []) {
+            return [];
+        }
+
+        $map = [];
+        CommerceOrder::query()
+            ->with('items')
+            ->where(function ($query) use ($ids, $sourceIds): void {
+                if ($ids !== []) {
+                    $query->whereIn('support_order_id', $ids);
+                }
+                if ($sourceIds !== []) {
+                    $query->orWhereIn('source_id', $sourceIds);
+                }
+            })
+            ->get()
+            ->each(function (CommerceOrder $commerce) use (&$map): void {
+                if ($commerce->support_order_id !== null) {
+                    $map[(int) $commerce->support_order_id] = $commerce;
+                }
+                if (filled($commerce->source_id)) {
+                    $map[(string) $commerce->source_id] = $commerce;
+                }
+            });
+
+        return $map;
     }
 }

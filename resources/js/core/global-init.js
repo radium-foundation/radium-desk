@@ -16,6 +16,7 @@ import { initCorrectDeviceIdentityDialog } from '../workspace/correct-device-ide
 import { initCorrectDeviceModelDialog } from '../workspace/correct-device-model-dialog';
 import { initCorrectSerialNumberDialog } from '../workspace/correct-serial-number-dialog';
 import { initWorkspaceDialogShell } from '../workspace/dialog-shell';
+import { initHardwareActionDialog } from '../hardware-action-dialog';
 import { initRefundRequestForm } from '../workspace/refund-request-form';
 import { initMentionTextareas } from './mention-textareas';
 import { initSidebar } from './sidebar';
@@ -118,6 +119,7 @@ export const initGlobalShell = () => {
     initTooltips();
     initCopyableIdentifiers(showAppToast);
     initGlobalWorkspace();
+    initHardwareActionDialog({ showToast: showAppToast });
 
     if (!getDashboardConfig()) {
         void import('../universal-search').then(({ initUniversalSearch }) => {

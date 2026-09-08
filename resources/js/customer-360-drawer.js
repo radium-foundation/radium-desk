@@ -137,6 +137,12 @@ const isInteractiveTarget = (target) => {
             '[data-dashboard-activity-stream-toggle]',
             '[data-activity-thread-toggle]',
             '[data-hardware-fulfilment-link]',
+            '[data-hardware-action-dialog]',
+            '[data-hardware-select]',
+            '[data-hardware-select-all]',
+            '[data-hardware-product-detail]',
+            '[data-hardware-open-selected]',
+            '[data-hardware-clear-selected]',
         ].join(', '))
     );
 };

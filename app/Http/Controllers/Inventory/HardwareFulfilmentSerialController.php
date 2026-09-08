@@ -23,6 +23,7 @@ use App\Http\Requests\Inventory\SelectHardwareFulfilmentCourierRequest;
 use App\Http\Requests\Inventory\StoreHardwareFulfilmentPackageEvidenceRequest;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
+use App\Models\Incident;
 use App\Models\InventoryBranch;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentStepper;
@@ -351,6 +352,45 @@ class HardwareFulfilmentSerialController extends Controller
         ]);
     }
 
+    public function actionDialog(Request $request, HardwareFulfilment $fulfilment): View
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $fulfilment->load([
+            'commerceOrder.items',
+            'supportOrder',
+            'serials.inventorySerial.branch',
+            'fulfilmentBranch',
+            'shipment',
+            'packageEvidences',
+        ]);
+
+        $ready = $this->shipmentEligibility->inspect($fulfilment);
+        $row = $this->operationalClassifier->fromFulfilment($fulfilment, $ready);
+        $requirements = [];
+        $canAllocate = false;
+        if ($row->nextAction === 'Allocate Serial') {
+            try {
+                $requirements = $this->allocation->requirements($fulfilment);
+                $canAllocate = $fulfilment->state === HardwareFulfilmentState::ReadyForFulfilment
+                    && ! HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)
+                    && collect($requirements)->every(fn (array $line): bool => $line['map_ready']);
+            } catch (ValidationException) {
+                $canAllocate = false;
+            }
+        }
+
+        return view('inventory.hardware-fulfilments.fragments.action-dialog', [
+            'fulfilment' => $fulfilment,
+            'row' => $row,
+            'ready' => $ready,
+            'requirements' => $requirements,
+            'canAllocate' => $canAllocate,
+            'searchUrl' => route('inventory.hardware-fulfilments.serials.search', $fulfilment),
+            'showUrl' => route('inventory.hardware-fulfilments.show', $fulfilment),
+            'incidentId' => $this->incidentIdFor($fulfilment),
+        ]);
+    }
+
     public function search(SearchHardwareFulfilmentSerialsRequest $request, HardwareFulfilment $fulfilment): JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
@@ -369,7 +409,7 @@ class HardwareFulfilmentSerialController extends Controller
         ]);
     }
 
-    public function store(AllocateHardwareFulfilmentSerialsRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function store(AllocateHardwareFulfilmentSerialsRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
 
@@ -379,112 +419,90 @@ class HardwareFulfilmentSerialController extends Controller
             $request->user(),
         );
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Serial allocated.');
+        return $this->mutationResponse($request, $fulfilment, 'Serial allocated.');
     }
 
-    public function storeInvoice(IssueHardwareFulfilmentInvoiceRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeInvoice(IssueHardwareFulfilmentInvoiceRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $invoice = $this->invoices->issueInvoice($fulfilment, $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Hardware invoice '.$invoice->invoice_number.' issued.');
+        return $this->mutationResponse($request, $fulfilment, 'Hardware invoice '.$invoice->invoice_number.' issued.');
     }
 
-    public function storeShipment(CreateHardwareFulfilmentShipmentRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeShipment(CreateHardwareFulfilmentShipmentRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $this->shipments->createShipment($fulfilment, $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Shipment created.');
+        return $this->mutationResponse($request, $fulfilment, 'Shipment created.');
     }
 
-    public function storeParcelSnapshot(AttachHardwareFulfilmentParcelRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeParcelSnapshot(AttachHardwareFulfilmentParcelRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $this->snapshots->attachFromCatalog($fulfilment, $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Parcel snapshot attached.');
+        return $this->mutationResponse($request, $fulfilment, 'Parcel snapshot attached.');
     }
 
-    public function storeCountry(CorrectHardwareFulfilmentShippingCountryRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeCountry(CorrectHardwareFulfilmentShippingCountryRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $this->countries->correct($fulfilment, $request->validated('country'), $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Shipping country recorded.');
+        return $this->mutationResponse($request, $fulfilment, 'Shipping country recorded.');
     }
 
-    public function storeCourierOptions(FetchHardwareFulfilmentCourierOptionsRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeCourierOptions(FetchHardwareFulfilmentCourierOptionsRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $this->couriers->fetch($fulfilment, $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Courier options updated from Shiprocket.');
+        return $this->mutationResponse($request, $fulfilment, 'Courier options updated from Shiprocket.');
     }
 
-    public function storeCourier(SelectHardwareFulfilmentCourierRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeCourier(SelectHardwareFulfilmentCourierRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $this->couriers->select($fulfilment, $request->validated('courier_id'), $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Courier selected.');
+        return $this->mutationResponse($request, $fulfilment, 'Courier selected.');
     }
 
-    public function storeAwb(AssignHardwareFulfilmentAwbRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeAwb(AssignHardwareFulfilmentAwbRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $this->shipments->assignAwb($fulfilment, $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'AWB assigned.');
+        return $this->mutationResponse($request, $fulfilment, 'AWB assigned.');
     }
 
-    public function storeLabel(GenerateHardwareFulfilmentLabelRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeLabel(GenerateHardwareFulfilmentLabelRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $this->documents->generateLabel($fulfilment, $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Shipping label generated.');
+        return $this->mutationResponse($request, $fulfilment, 'Shipping label generated.');
     }
 
-    public function storePickup(RequestHardwareFulfilmentPickupRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storePickup(RequestHardwareFulfilmentPickupRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $outcome = $this->documents->requestPickup($fulfilment, $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', $outcome->flash());
+        return $this->mutationResponse($request, $fulfilment, $outcome->flash());
     }
 
-    public function storeManifest(GenerateHardwareFulfilmentManifestRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeManifest(GenerateHardwareFulfilmentManifestRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $this->documents->generateManifest($fulfilment, $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Manifest generated.');
+        return $this->mutationResponse($request, $fulfilment, 'Manifest generated.');
     }
 
-    public function storePackageEvidence(StoreHardwareFulfilmentPackageEvidenceRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storePackageEvidence(StoreHardwareFulfilmentPackageEvidenceRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $kind = HardwareFulfilmentPackageEvidenceKind::from($request->validated('kind'));
@@ -495,9 +513,7 @@ class HardwareFulfilmentSerialController extends Controller
             $request->user(),
         );
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', $kind->label().' recorded.');
+        return $this->mutationResponse($request, $fulfilment, $kind->label().' recorded.');
     }
 
     public function showPackageEvidence(
@@ -517,14 +533,60 @@ class HardwareFulfilmentSerialController extends Controller
         );
     }
 
-    public function storeReadyForPickup(MarkHardwareFulfilmentReadyForPickupRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    public function storeReadyForPickup(MarkHardwareFulfilmentReadyForPickupRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $this->documents->markReadyForPickup($fulfilment, $request->user());
 
-        return redirect()
-            ->route('inventory.hardware-fulfilments.show', $fulfilment)
-            ->with('status', 'Fulfilment marked ready for pickup.');
+        return $this->mutationResponse($request, $fulfilment, 'Fulfilment marked ready for pickup.');
+    }
+
+    private function mutationResponse(Request $request, HardwareFulfilment $fulfilment, string $status): RedirectResponse|JsonResponse
+    {
+        if (! $request->wantsJson()) {
+            return redirect()
+                ->route('inventory.hardware-fulfilments.show', $fulfilment)
+                ->with('status', $status);
+        }
+
+        $fulfilment->refresh()->load([
+            'commerceOrder.items',
+            'supportOrder',
+            'serials.inventorySerial',
+            'fulfilmentBranch',
+            'shipment',
+            'packageEvidences',
+        ]);
+        $ready = $this->shipmentEligibility->inspect($fulfilment);
+        $row = $this->operationalClassifier->fromFulfilment($fulfilment, $ready);
+        $incidentId = $this->incidentIdFor($fulfilment);
+
+        return response()->json([
+            'ok' => true,
+            'status' => $status,
+            'next_action' => $row->nextAction,
+            'operator_status' => $row->operatorStatus(),
+            'mutating' => $row->mutatingAction,
+            'incident_id' => $incidentId,
+            'refresh_customer360' => $incidentId !== null,
+            'action_dialog_url' => $row->mutatingAction
+                ? route('inventory.hardware-fulfilments.action-dialog', $fulfilment)
+                : null,
+            'manifest_url' => $ready->manifestUrl,
+        ]);
+    }
+
+    private function incidentIdFor(HardwareFulfilment $fulfilment): ?int
+    {
+        if ($fulfilment->support_order_id === null) {
+            return null;
+        }
+
+        $id = Incident::query()
+            ->where('order_id', $fulfilment->support_order_id)
+            ->max('id');
+
+        return $id !== null ? (int) $id : null;
     }
 
     private function assertCanOperateFulfilment(Request $request, HardwareFulfilment $fulfilment): void

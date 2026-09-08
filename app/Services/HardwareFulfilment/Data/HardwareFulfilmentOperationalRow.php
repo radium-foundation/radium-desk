@@ -34,6 +34,9 @@ final class HardwareFulfilmentOperationalRow
         public readonly bool $mutatingAction = false,
         public readonly bool $packagePhotoRecorded = false,
         public readonly ?string $statusLabel = null,
+        /** @var list<array{label: string, qty: ?int}> */
+        public readonly array $productLines = [],
+        public readonly bool $productMissing = false,
     ) {}
 
     public function operatorStatus(): string
@@ -60,9 +63,35 @@ final class HardwareFulfilmentOperationalRow
 
     public function productDisplay(): string
     {
+        if ($this->productMissing) {
+            return 'Product data missing';
+        }
+
         $product = trim($this->product);
 
-        return $product !== '' ? $product : '—';
+        return $product !== '' ? $product : 'Product data missing';
+    }
+
+    /**
+     * @return list<array{label: string, qty: ?int}>
+     */
+    public function productDetails(): array
+    {
+        return $this->productLines;
+    }
+
+    public function productHasMore(): bool
+    {
+        return count($this->productLines) > 1;
+    }
+
+    public function productExceptionAction(): ?string
+    {
+        if (! $this->productMissing) {
+            return null;
+        }
+
+        return $this->hasFulfilment ? 'Fix order' : 'Review';
     }
 
     public function openOrderUrl(): ?string

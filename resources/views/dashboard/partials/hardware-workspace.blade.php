@@ -6,16 +6,37 @@
 @endphp
 
 <div id="dashboard-hardware-workspace" data-hardware-workspace>
+    <div class="dashboard-hardware-selection d-none" data-hardware-selection-bar hidden>
+        <span class="dashboard-hardware-selection__count" data-hardware-selection-count>0 selected</span>
+        <button type="button"
+                class="btn btn-sm btn-outline-primary dashboard-btn-compact"
+                data-hardware-open-selected
+                disabled>
+            Open selected
+        </button>
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary dashboard-btn-compact"
+                data-hardware-clear-selected>
+            Clear
+        </button>
+    </div>
+
     <div class="dashboard-cases-table-wrap @if($rows->isEmpty()) dashboard-cases-table-wrap--empty @endif">
         <table class="table table-sm table-hover align-middle mb-0 dashboard-cases-table dashboard-hardware-table">
             <thead class="table-light">
                 <tr>
+                    <th class="dashboard-select-cell">
+                        <input type="checkbox"
+                               class="form-check-input"
+                               data-hardware-select-all
+                               aria-label="Select visible hardware orders">
+                    </th>
                     <th>Order</th>
                     <th>Customer</th>
                     <th class="d-none d-md-table-cell">Product</th>
                     <th class="case-serial-cell">Serial</th>
                     <th>Status</th>
-                    <th class="dashboard-hardware-action-cell">Next action</th>
+                    <th class="dashboard-hardware-action-cell">Next Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -29,7 +50,9 @@
                             $row->customer,
                             $row->product,
                             $row->serialStatus,
+                            collect($row->productDetails())->pluck('label')->implode(' '),
                         ]))));
+                        $canMutate = $row->mutatingAction && $row->fulfilmentId && isset($operableFulfilmentIds[$row->fulfilmentId]);
                     @endphp
                     <tr @class([
                             'dashboard-case-row--clickable',
@@ -37,12 +60,23 @@
                         ])
                         @if($incidentId) data-incident-id="{{ $incidentId }}" @endif
                         data-search-text="{{ $searchText }}"
-                        data-hardware-order="{{ $row->sourceId }}">
+                        data-hardware-order="{{ $row->sourceId }}"
+                        @if($row->fulfilmentId) data-hardware-fulfilment-id="{{ $row->fulfilmentId }}" @endif
+                        data-hardware-next-action="{{ $row->nextAction }}">
+                        <td class="dashboard-select-cell">
+                            <input type="checkbox"
+                                   class="form-check-input"
+                                   data-hardware-select
+                                   value="{{ $row->sourceId }}"
+                                   aria-label="Select {{ $row->sourceId }}">
+                        </td>
                         <td class="case-order-cell">
                             <div class="fw-semibold">{{ $row->sourceId }}</div>
                         </td>
                         <td>{{ $row->customer }}</td>
-                        <td class="d-none d-md-table-cell">{{ $row->productDisplay() }}</td>
+                        <td class="d-none d-md-table-cell dashboard-hardware-product-cell">
+                            @include('dashboard.partials.hardware-product-cell', ['row' => $row])
+                        </td>
                         <td class="case-serial-cell">{{ $row->serialDisplay() }}</td>
                         <td>
                             <span class="dashboard-hardware-status">{{ $row->operatorStatus() }}</span>
@@ -51,10 +85,13 @@
                             @endif
                         </td>
                         <td class="dashboard-hardware-action-cell">
-                            @if($row->mutatingAction && $row->fulfilmentId && isset($operableFulfilmentIds[$row->fulfilmentId]))
-                                <a class="btn btn-sm btn-primary dashboard-btn-compact"
-                                   href="{{ $row->primaryUrl() }}"
-                                   data-hardware-fulfilment-link>{{ $row->nextAction }}</a>
+                            @if($canMutate)
+                                <button type="button"
+                                        class="btn btn-sm btn-primary dashboard-btn-compact"
+                                        data-hardware-action-dialog="{{ route('inventory.hardware-fulfilments.action-dialog', $row->fulfilmentId) }}"
+                                        data-hardware-fulfilment-link>
+                                    {{ $row->nextAction }}
+                                </button>
                             @else
                                 <span class="btn btn-sm btn-outline-primary dashboard-btn-compact">{{ $row->nextAction }}</span>
                             @endif
@@ -62,7 +99,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="dashboard-cases-empty">
+                        <td colspan="7" class="dashboard-cases-empty">
                             @if($search !== '')
                                 No hardware orders match this search.
                             @else

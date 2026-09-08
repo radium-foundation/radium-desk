@@ -128,4 +128,9 @@ class HardwareFulfilment extends Model
     {
         return $this->hasMany(HardwareFulfilmentPackageEvidence::class)->orderBy('id');
     }
+
+    public function supportOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'support_order_id');
+    }
 }
