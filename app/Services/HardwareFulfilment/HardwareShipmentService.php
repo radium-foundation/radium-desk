@@ -27,6 +27,7 @@ class HardwareShipmentService
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly ShiprocketGateway $gateway,
         private readonly HardwareFulfilmentParcelSnapshotService $snapshots,
+        private readonly HardwareShipmentCourierOptionsService $couriers,
     ) {}
 
     public function createShipment(HardwareFulfilment $fulfilment, ?User $actor = null): Shipment
@@ -61,7 +62,11 @@ class HardwareShipmentService
                 $ready = $this->eligibility->require($locked);
                 $this->assertProviderCallable();
 
-                $shipment = $existing ?? $this->openShipment($locked, $ready);
+                $courier = $existing === null
+                    ? $this->couriers->requireValidSelection($locked)
+                    : $this->optionalStoredCourier($locked);
+
+                $shipment = $existing ?? $this->openShipment($locked, $ready, $courier);
                 $shipment->attempts = (int) $shipment->attempts + 1;
                 $shipment->save();
 
@@ -204,7 +209,10 @@ class HardwareShipmentService
                 $this->assertProviderCallable();
 
                 try {
-                    $result = $this->gateway->assignAwb((string) $shipment->external_shipment_id);
+                    $result = $this->gateway->assignAwb(
+                        (string) $shipment->external_shipment_id,
+                        $this->couriers->selectedCourierId($locked) ?? $shipment->courier_id,
+                    );
                 } catch (ShiprocketRetryableException $exception) {
                     $shipment->forceFill([
                         'failure_class' => 'retryable',
@@ -240,7 +248,11 @@ class HardwareShipmentService
     /**
      * @param  array<string, mixed>  $ready
      */
-    private function openShipment(HardwareFulfilment $fulfilment, array $ready): Shipment
+    /**
+     * @param  array<string, mixed>  $ready
+     * @param  array{courier_id: string, courier_name: string|null}|null  $courier
+     */
+    private function openShipment(HardwareFulfilment $fulfilment, array $ready, ?array $courier): Shipment
     {
         $order = $fulfilment->commerceOrder;
         $shipmentNo = $this->shipmentNo($fulfilment);
@@ -254,6 +266,8 @@ class HardwareShipmentService
             'invoice_number' => $ready['invoice']->invoice_number,
             'serial_numbers' => $ready['serials'],
             'pickup_location' => $ready['pickup'],
+            'courier_id' => $courier['courier_id'] ?? null,
+            'courier_name' => $courier['courier_name'] ?? null,
             'idempotency_key' => 'hardware:shiprocket:create:'.$fulfilment->id,
             'correlation_id' => (string) Str::uuid(),
             'create_snapshot' => [
@@ -483,6 +497,22 @@ class HardwareShipmentService
             'failure_class' => 'provider_rejected',
             'last_error' => $message,
         ])->save();
+    }
+
+    /**
+     * @return array{courier_id: string, courier_name: string|null}|null
+     */
+    private function optionalStoredCourier(HardwareFulfilment $fulfilment): ?array
+    {
+        $id = trim((string) $fulfilment->selected_courier_id);
+        if ($id === '') {
+            return null;
+        }
+
+        return [
+            'courier_id' => $id,
+            'courier_name' => $fulfilment->selected_courier_name,
+        ];
     }
 
     private function shipmentNo(HardwareFulfilment $fulfilment): string

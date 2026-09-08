@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Shipping;
 
+use App\Services\Shipping\Data\ShiprocketCourierOptionsRequest;
 use App\Services\Shipping\Data\ShiprocketCreateOrderRequest;
 use App\Services\Shipping\HttpShiprocketGateway;
 use App\Services\Shipping\ShiprocketDisabledException;
@@ -112,6 +113,80 @@ class HttpShiprocketGatewayTest extends TestCase
 
         $this->assertTrue($result->retryable);
         $this->assertSame('failed', $result->status);
+    }
+
+    public function test_list_courier_options_uses_serviceability_and_surfaces_provider_recommendation(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/serviceability*' => Http::response([
+                'data' => [
+                    'recommended_courier_company_id' => 44,
+                    'available_courier_companies' => [
+                        [
+                            'courier_company_id' => 12,
+                            'courier_name' => 'Surface',
+                            'freight_charge' => 80,
+                            'coverage_charges' => 0,
+                            'etd' => '4 days',
+                            'cod' => 0,
+                            'prepaid' => 1,
+                        ],
+                        [
+                            'courier_company_id' => 44,
+                            'courier_name' => 'Express',
+                            'freight_charge' => 120,
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->listCourierOptions(new ShiprocketCourierOptionsRequest(
+            pickupPostcode: '110001',
+            deliveryPostcode: '452001',
+            weight: 0.24,
+            cod: 0,
+        ));
+
+        $this->assertSame('listed', $result->status);
+        $this->assertTrue($result->recommendationReturned);
+        $this->assertSame('44', $result->recommendedCourierId);
+        $this->assertCount(2, $result->options);
+        $this->assertSame('12', $result->options[0]->courierId);
+        $this->assertSame('80', $result->options[0]->rate);
+        $this->assertTrue($result->options[1]->providerRecommended);
+
+        Http::assertSent(function ($request): bool {
+            return str_contains($request->url(), '/courier/serviceability/')
+                && str_contains($request->url(), 'pickup_postcode=110001')
+                && str_contains($request->url(), 'delivery_postcode=452001')
+                && ! str_contains($request->url(), 'order_id=');
+        });
+    }
+
+    public function test_list_courier_options_without_recommendation_is_not_invented(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/serviceability*' => Http::response([
+                'data' => [
+                    'available_courier_companies' => [
+                        ['courier_company_id' => 12, 'courier_name' => 'Surface', 'freight_charge' => 80],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->listCourierOptions(new ShiprocketCourierOptionsRequest(
+            pickupPostcode: '110001',
+            deliveryPostcode: '452001',
+            weight: 0.24,
+        ));
+
+        $this->assertFalse($result->recommendationReturned);
+        $this->assertNull($result->recommendedCourierId);
+        $this->assertFalse($result->options[0]->providerRecommended);
     }
 
     public function test_assign_awb_reads_provider_evidence(): void

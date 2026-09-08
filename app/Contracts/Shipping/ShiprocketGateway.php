@@ -4,6 +4,8 @@ namespace App\Contracts\Shipping;
 
 use App\Services\Shipping\Data\ShiprocketAwbResult;
 use App\Services\Shipping\Data\ShiprocketCancelResult;
+use App\Services\Shipping\Data\ShiprocketCourierOptionsRequest;
+use App\Services\Shipping\Data\ShiprocketCourierOptionsResult;
 use App\Services\Shipping\Data\ShiprocketCreateOrderRequest;
 use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketDocumentResult;
@@ -25,6 +27,8 @@ interface ShiprocketGateway
     public function createOrder(ShiprocketCreateOrderRequest $request): ShiprocketCreateOrderResult;
 
     public function searchOrders(string $search): ShiprocketSearchResult;
+
+    public function listCourierOptions(ShiprocketCourierOptionsRequest $request): ShiprocketCourierOptionsResult;
 
     public function assignAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult;
 

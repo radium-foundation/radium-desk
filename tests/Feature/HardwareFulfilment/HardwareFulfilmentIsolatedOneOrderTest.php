@@ -28,12 +28,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\Feature\HardwareFulfilment\Support\FakeBoxFulfilmentCallbackGateway;
+use Tests\Feature\HardwareFulfilment\Support\SelectsHardwareTestCourier;
 use Tests\Feature\Shipping\Support\FakeShiprocketGateway;
 use Tests\TestCase;
 
 class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
 {
     use RefreshDatabase;
+    use SelectsHardwareTestCourier;
 
     private const BOX_SECRET = 'test-radiumbox-secret';
 
@@ -74,6 +76,8 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
             'shipping.http_enabled' => false,
             'shipping.pickup_locations.delhi' => 'RADDELHI',
             'shipping.pickup_locations.mumbai' => 'RADIUMUM',
+            'shipping.pickup_postcodes.delhi' => '110001',
+            'shipping.pickup_postcodes.mumbai' => '400001',
             'statutory_invoices.series_code' => '',
             'statutory_invoices.number_format' => '',
             'statutory_invoices.post_finance_journals' => false,
@@ -217,6 +221,7 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
         $this->assertSame($invoice->id, $again['invoice_id']);
         $this->assertSame(1, StatutoryInvoice::query()->count());
 
+        $this->selectTestCourier($fulfilment->fresh(), $this->actor);
         $this->isolated->run(identifier: $sourceId, step: 'ship');
         $this->assertSame(HardwareFulfilmentState::ShipmentCreated, $fulfilment->fresh()->state);
         $this->assertSame(1, Shipment::query()->count());
@@ -315,6 +320,10 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
         $this->isolated->run(identifier: $sourceId, step: 'ready');
         $this->isolated->run(identifier: $sourceId, step: 'allocate', serials: [$serial], actor: $this->actor);
         $this->isolated->run(identifier: $sourceId, step: 'invoice', actor: $this->actor);
+        $this->selectTestCourier(
+            HardwareFulfilment::query()->where('source_id', $sourceId)->firstOrFail(),
+            $this->actor,
+        );
 
         $this->shiprocket->nextCreateMode = 'timeout_accepted';
         try {
@@ -340,6 +349,10 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
         $this->isolated->run(identifier: $sourceId, step: 'ready');
         $this->isolated->run(identifier: $sourceId, step: 'allocate', serials: [$serial], actor: $this->actor);
         $this->isolated->run(identifier: $sourceId, step: 'invoice', actor: $this->actor);
+        $this->selectTestCourier(
+            HardwareFulfilment::query()->where('source_id', $sourceId)->firstOrFail(),
+            $this->actor,
+        );
         $this->isolated->run(identifier: $sourceId, step: 'ship');
 
         $this->expectException(ValidationException::class);

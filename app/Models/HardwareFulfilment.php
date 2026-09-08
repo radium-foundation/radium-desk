@@ -46,6 +46,14 @@ class HardwareFulfilment extends Model
         'shipping_country_overlay_at',
         'shipping_country_overlay_by_user_id',
         'shipping_country_overlay_context',
+        'courier_options_snapshot',
+        'courier_options_fingerprint',
+        'courier_options_fetched_at',
+        'courier_options_expires_at',
+        'selected_courier_id',
+        'selected_courier_name',
+        'selected_courier_at',
+        'selected_courier_by_user_id',
     ];
 
     protected function casts(): array
@@ -67,6 +75,10 @@ class HardwareFulfilment extends Model
             'parcel_snapshot' => 'array',
             'shipping_country_overlay_at' => 'datetime',
             'shipping_country_overlay_context' => 'array',
+            'courier_options_snapshot' => 'array',
+            'courier_options_fetched_at' => 'datetime',
+            'courier_options_expires_at' => 'datetime',
+            'selected_courier_at' => 'datetime',
         ];
     }
 
@@ -103,5 +115,10 @@ class HardwareFulfilment extends Model
     public function shippingCountryOverlayBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'shipping_country_overlay_by_user_id');
+    }
+
+    public function selectedCourierBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'selected_courier_by_user_id');
     }
 }

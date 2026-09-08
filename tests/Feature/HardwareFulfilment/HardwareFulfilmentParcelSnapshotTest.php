@@ -27,12 +27,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Tests\Feature\HardwareFulfilment\Support\SelectsHardwareTestCourier;
 use Tests\Feature\Shipping\Support\FakeShiprocketGateway;
 use Tests\TestCase;
 
 class HardwareFulfilmentParcelSnapshotTest extends TestCase
 {
     use RefreshDatabase;
+    use SelectsHardwareTestCourier;
 
     private const BOX_SECRET = 'test-radiumbox-secret';
 
@@ -165,7 +167,8 @@ class HardwareFulfilmentParcelSnapshotTest extends TestCase
         $this->assertSame(14.0, (float) $again['length']);
 
         $this->enableFakeShipping();
-        $shipment = app(HardwareShipmentService::class)->createShipment($fulfilment->fresh(), $this->operator);
+        $ready = $this->selectTestCourier($fulfilment->fresh(), $this->operator);
+        $shipment = app(HardwareShipmentService::class)->createShipment($ready, $this->operator);
         $this->assertSame(0.24, (float) $shipment->create_snapshot['parcel']['weight']);
         $this->assertSame('snapshot', $shipment->create_snapshot['parcel_source']);
         $this->assertSame(1, $this->fake->creates);
@@ -305,6 +308,8 @@ class HardwareFulfilmentParcelSnapshotTest extends TestCase
             'shipping.enabled' => true,
             'shipping.provider' => 'test',
             'shipping.http_enabled' => false,
+            'shipping.pickup_postcodes.delhi' => '110001',
+            'shipping.pickup_postcodes.mumbai' => '400001',
         ]);
     }
 

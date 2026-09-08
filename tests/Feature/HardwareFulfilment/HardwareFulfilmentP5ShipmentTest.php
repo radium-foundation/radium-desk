@@ -32,12 +32,14 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Tests\Feature\HardwareFulfilment\Support\SelectsHardwareTestCourier;
 use Tests\Feature\Shipping\Support\FakeShiprocketGateway;
 use Tests\TestCase;
 
 class HardwareFulfilmentP5ShipmentTest extends TestCase
 {
     use RefreshDatabase;
+    use SelectsHardwareTestCourier;
 
     private const BOX_SECRET = 'test-radiumbox-secret';
 
@@ -70,6 +72,8 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
             'shipping.provider' => 'test',
             'shipping.pickup_locations.delhi' => 'TEST-DELHI-PICKUP',
             'shipping.pickup_locations.mumbai' => 'TEST-MUMBAI-PICKUP',
+            'shipping.pickup_postcodes.delhi' => '110001',
+            'shipping.pickup_postcodes.mumbai' => '400001',
             'shipping.channel_id' => '',
             'statutory_invoices.series_code' => '',
             'statutory_invoices.number_format' => '',
@@ -507,7 +511,12 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $fulfilment = $this->allocatedFulfilment($sourceId, $branchCode, $placeOfSupply, $qty);
         app(HardwareFulfilmentInvoiceService::class)->issueInvoice($fulfilment);
 
-        return $fulfilment->fresh(['commerceOrder.items']) ?? $fulfilment;
+        $ready = $fulfilment->fresh(['commerceOrder.items']) ?? $fulfilment;
+        try {
+            return $this->selectTestCourier($ready, $this->actor);
+        } catch (ValidationException) {
+            return $ready;
+        }
     }
 
     private function allocatedFulfilment(

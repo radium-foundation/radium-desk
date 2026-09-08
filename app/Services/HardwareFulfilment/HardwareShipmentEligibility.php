@@ -8,6 +8,7 @@ use App\Models\HardwareFulfilment;
 use App\Models\InventoryBranch;
 use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
+use App\Services\HardwareFulfilment\Data\HardwareShipmentCourierQuote;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Support\Inventory\InventorySerialNumber;
@@ -124,6 +125,7 @@ class HardwareShipmentEligibility
         }
 
         $pickup = null;
+        $pickupPostcode = null;
         if ($branch !== null) {
             try {
                 $pickup = $this->pickups->requireForBranch($branch);
@@ -132,6 +134,14 @@ class HardwareShipmentEligibility
                     $blockers[] = 'Shiprocket configuration incomplete';
                 } elseif (! in_array('Pickup branch unknown', $blockers, true)) {
                     $blockers[] = 'Pickup branch unknown';
+                }
+            }
+
+            try {
+                $pickupPostcode = $this->pickups->requirePostcodeForBranch($branch);
+            } catch (ValidationException) {
+                if ($branch->is_active && in_array($branch->code, ['DELHI-RETAIL', 'MUMBAI'], true) && $pickup !== null) {
+                    $blockers[] = 'Shiprocket pickup postcode is not configured';
                 }
             }
         }
@@ -168,12 +178,12 @@ class HardwareShipmentEligibility
         $needsReconcile = $shipment !== null
             && ! $alreadyCreated
             && in_array($shipment->failure_class, ['ambiguous', 'retryable'], true);
-        $canCreate = ! $alreadyCreated
+        $localReady = ! $alreadyCreated
             && $blockers === []
             && $fulfilment->state !== null
             && $fulfilment->state->value === 'invoice_issued';
 
-        if (! $canCreate && ! $alreadyCreated && $fulfilment->state?->value !== 'invoice_issued') {
+        if (! $localReady && ! $alreadyCreated && $fulfilment->state?->value !== 'invoice_issued') {
             if ($serials === []) {
                 $blockers = $this->prependUnique($blockers, 'Serial allocation required');
             }
@@ -182,7 +192,43 @@ class HardwareShipmentEligibility
             }
         }
 
+        $fingerprint = null;
+        if ($localReady && $pickup !== null && $pickupPostcode !== null && $shipping !== null && $parcel !== null) {
+            $fingerprint = HardwareShipmentCourierQuote::fingerprint(
+                [
+                    'pickup' => $pickup,
+                    'shipping' => $shipping,
+                    'parcel' => $parcel,
+                    'parcel_source' => $parcelSource,
+                ],
+                $pickupPostcode,
+                0,
+                filled($shipment?->external_order_id) ? (string) $shipment->external_order_id : null,
+            );
+        }
+
+        $optionsFresh = $fingerprint !== null
+            && HardwareShipmentCourierQuote::isFresh($fulfilment, $fingerprint);
+        $validSelection = $fingerprint !== null
+            && HardwareShipmentCourierQuote::hasValidSelection($fulfilment, $fingerprint);
+        $courierOptions = $optionsFresh ? HardwareShipmentCourierQuote::options($fulfilment) : [];
+        $recommendationReturned = $optionsFresh
+            && HardwareShipmentCourierQuote::recommendationReturned($fulfilment);
+        $canFetchCourierOptions = $localReady && ! $needsReconcile;
+        $canCreate = $needsReconcile
+            ? $localReady
+            : ($localReady && $validSelection);
+        $canAssignAwb = $alreadyCreated
+            && ! filled($shipment?->awb)
+            && $fulfilment->state?->value === 'shipment_created'
+            && (filled($fulfilment->selected_courier_id) || filled($shipment?->courier_id));
+
+        if ($localReady && ! $needsReconcile && ! $validSelection) {
+            $blockers = $this->prependUnique($blockers, 'Courier selection required');
+        }
+
         $catalog = $this->snapshots->catalogPackaging($fulfilment);
+        $country = $shipping['country'] ?? $this->countries->resolvedCountry($fulfilment);
 
         return new HardwareShipmentReadiness(
             canCreate: $canCreate,
@@ -206,6 +252,23 @@ class HardwareShipmentEligibility
             canCorrectCountry: $this->countries->canCorrect($fulfilment),
             payment: ($order !== null && $this->isPaid($fulfilment, $order)) ? 'Paid' : 'Not verified',
             awb: $shipment?->awb ?: $fulfilment->awb,
+            canFetchCourierOptions: $canFetchCourierOptions,
+            canSelectCourier: $canFetchCourierOptions && $courierOptions !== [],
+            canAssignAwb: $canAssignAwb,
+            courierOptions: $courierOptions,
+            selectedCourierId: $validSelection ? $fulfilment->selected_courier_id : null,
+            selectedCourierName: $validSelection ? $fulfilment->selected_courier_name : null,
+            recommendationReturned: $recommendationReturned,
+            recommendationNote: $this->recommendationNote($optionsFresh, $recommendationReturned, $courierOptions),
+            shipmentId: $shipment?->id,
+            shipmentNo: $shipment?->shipment_no ?: $fulfilment->shipment_no,
+            providerShipmentId: $shipment?->external_shipment_id ?: $fulfilment->provider_shipment_id,
+            courier: $this->courierLabel($fulfilment, $shipment, $validSelection),
+            country: $country,
+            customer: $order !== null ? trim((string) $order->customer_name) : null,
+            phone: $order !== null ? trim((string) $order->customer_phone) : null,
+            email: $order !== null ? trim((string) $order->customer_email) : null,
+            quantity: $order !== null ? $this->requiredPhysicalQty($order) : null,
         );
     }
 
@@ -559,6 +622,38 @@ class HardwareShipmentEligibility
             $parcel['breadth'],
             $parcel['height'],
         );
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $options
+     */
+    private function recommendationNote(bool $optionsFresh, bool $recommendationReturned, array $options): string
+    {
+        if (! $optionsFresh || $options === []) {
+            return '';
+        }
+
+        return $recommendationReturned
+            ? 'Shiprocket Recommended'
+            : 'Shiprocket returned options without a recommendation.';
+    }
+
+    private function courierLabel(HardwareFulfilment $fulfilment, ?Shipment $shipment, bool $validSelection): ?string
+    {
+        $name = $validSelection
+            ? $fulfilment->selected_courier_name
+            : ($shipment?->courier_name ?: $fulfilment->selected_courier_name);
+        $id = $validSelection
+            ? $fulfilment->selected_courier_id
+            : ($shipment?->courier_id ?: $fulfilment->selected_courier_id);
+
+        $name = trim((string) $name);
+        $id = trim((string) $id);
+        if ($name === '' && $id === '') {
+            return null;
+        }
+
+        return $name !== '' && $id !== '' ? $name.' ('.$id.')' : ($name !== '' ? $name : $id);
     }
 
     private function productLabel(?CommerceOrder $order): ?string

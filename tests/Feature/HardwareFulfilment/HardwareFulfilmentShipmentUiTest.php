@@ -27,12 +27,14 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Tests\Feature\HardwareFulfilment\Support\SelectsHardwareTestCourier;
 use Tests\Feature\Shipping\Support\FakeShiprocketGateway;
 use Tests\TestCase;
 
 class HardwareFulfilmentShipmentUiTest extends TestCase
 {
     use RefreshDatabase;
+    use SelectsHardwareTestCourier;
 
     private const BOX_SECRET = 'test-radiumbox-secret';
 
@@ -65,6 +67,8 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
             'shipping.http_enabled' => false,
             'shipping.pickup_locations.delhi' => 'RADDELHI',
             'shipping.pickup_locations.mumbai' => 'RADIUMUM',
+            'shipping.pickup_postcodes.delhi' => '',
+            'shipping.pickup_postcodes.mumbai' => '',
             'shipping.channel_id' => '',
             'statutory_invoices.series_code' => '',
             'statutory_invoices.number_format' => '',
@@ -165,11 +169,22 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
-            ->assertSee('Create Shipment')
-            ->assertSee('Confirm shipment')
+            ->assertSee('Get Courier Options')
+            ->assertSee('Courier selection required')
             ->assertSee('Provider')
             ->assertSee('Shiprocket')
             ->assertSee('RADDELHI')
+            ->assertDontSee('Create Shipment')
+            ->assertDontSee('Assign AWB');
+
+        $this->selectTestCourier($fulfilment, $this->operator);
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('Create Shipment')
+            ->assertSee('Confirm shipment')
+            ->assertSee('Fake Surface')
             ->assertDontSee('Assign AWB');
     }
 
@@ -195,7 +210,7 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
     public function test_operator_cannot_override_pickup_or_parcel(): void
     {
         $this->enableFakeShipping();
-        $fulfilment = $this->invoicedFulfilment('RDE900907', 'DELHI-RETAIL');
+        $fulfilment = $this->selectTestCourier($this->invoicedFulfilment('RDE900907', 'DELHI-RETAIL'), $this->operator);
 
         $this->actingAs($this->operator)
             ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
@@ -215,7 +230,7 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
     public function test_authorized_create_persists_fake_shipment_without_live_side_effects(): void
     {
         $this->enableFakeShipping();
-        $fulfilment = $this->invoicedFulfilment('RDE900908', 'DELHI-RETAIL');
+        $fulfilment = $this->selectTestCourier($this->invoicedFulfilment('RDE900908', 'DELHI-RETAIL'), $this->operator);
         $invoices = StatutoryInvoice::query()->count();
         $serials = HardwareFulfilmentSerial::query()->count();
 
@@ -241,7 +256,8 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
             ->assertDontSee('Not created')
             ->assertDontSee('Shiprocket (not called)')
             ->assertDontSee('Create Shipment')
-            ->assertDontSee('Assign AWB');
+            ->assertSee('Assign AWB')
+            ->assertSee('Fake Surface');
 
         $this->assertNoLiveSideEffects();
     }
@@ -249,7 +265,7 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
     public function test_duplicate_ui_submit_does_not_create_a_second_shipment(): void
     {
         $this->enableFakeShipping();
-        $fulfilment = $this->invoicedFulfilment('RDE900909', 'DELHI-RETAIL');
+        $fulfilment = $this->selectTestCourier($this->invoicedFulfilment('RDE900909', 'DELHI-RETAIL'), $this->operator);
 
         $this->actingAs($this->operator)
             ->post(route('inventory.hardware-fulfilments.shipment.store', $fulfilment))
@@ -271,6 +287,8 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
             'shipping.enabled' => true,
             'shipping.provider' => 'test',
             'shipping.http_enabled' => false,
+            'shipping.pickup_postcodes.delhi' => '110001',
+            'shipping.pickup_postcodes.mumbai' => '400001',
         ]);
     }
 

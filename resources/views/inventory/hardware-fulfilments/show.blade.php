@@ -197,6 +197,16 @@
             <dl class="hf-alloc-confirm mb-0">
                 <dt>Status</dt>
                 <dd>{{ $shipment->status }}</dd>
+                <dt>Customer</dt>
+                <dd>{{ $shipment->customer ?: '—' }}</dd>
+                <dt>Phone</dt>
+                <dd>{{ $shipment->phone ?: '—' }}</dd>
+                <dt>Email</dt>
+                <dd>{{ $shipment->email ?: '—' }}</dd>
+                <dt>Product</dt>
+                <dd>{{ $shipment->product ?? '—' }}</dd>
+                <dt>Quantity</dt>
+                <dd>{{ $shipment->quantity ?? '—' }}</dd>
                 <dt>Payment</dt>
                 <dd>{{ $shipment->payment }}</dd>
                 <dt>Pickup branch</dt>
@@ -206,7 +216,13 @@
                 <dt>Ship-to</dt>
                 <dd>{{ $shipment->shipTo ?? 'Incomplete' }}</dd>
                 <dt>Country</dt>
-                <dd>{{ $shipment->countryMissing ? 'Missing — not inferred' : ($shipment->shipTo ? 'Present' : 'Incomplete') }}</dd>
+                <dd>
+                    @if($shipment->countryMissing)
+                        Missing — not inferred
+                    @else
+                        Present{{ $shipment->country ? ' — '.$shipment->country : '' }}
+                    @endif
+                </dd>
                 <dt>Parcel</dt>
                 <dd>{{ $shipment->parcel ?? 'Unavailable — not persisted' }}</dd>
                 <dt>Parcel source</dt>
@@ -217,6 +233,18 @@
                         Fulfilment snapshot
                     @else
                         Unavailable
+                    @endif
+                </dd>
+                <dt>Fulfilment parcel snapshot</dt>
+                <dd>
+                    @if(is_array($fulfilment->parcel_snapshot) && $fulfilment->parcel_snapshot !== [])
+                        {{ $fulfilment->parcel_snapshot['weight'] ?? '—' }}
+                        {{ $fulfilment->parcel_snapshot['weight_unit'] ?? 'kg' }}
+                        ·
+                        {{ $fulfilment->parcel_snapshot['length'] ?? '—' }}×{{ $fulfilment->parcel_snapshot['breadth'] ?? '—' }}×{{ $fulfilment->parcel_snapshot['height'] ?? '—' }}
+                        {{ $fulfilment->parcel_snapshot['dimension_unit'] ?? 'cm' }}
+                    @else
+                        None
                     @endif
                 </dd>
                 <dt>Catalog pack</dt>
@@ -230,20 +258,45 @@
                 <dd>{{ $shipment->invoice ?? 'Not issued' }}</dd>
                 <dt>Serial</dt>
                 <dd>{{ $shipment->serials === [] ? 'Not allocated' : implode(', ', $shipment->serials) }}</dd>
+                <dt>Shiprocket state</dt>
+                <dd>{{ $shipment->alreadyCreated ? $shipment->provider : $shipment->provider.' (not called)' }}</dd>
+                <dt>Shipment ID</dt>
+                <dd>{{ $shipment->shipmentId ?? 'Not created' }}</dd>
+                <dt>Shipment no</dt>
+                <dd>{{ $shipment->shipmentNo ?? '—' }}</dd>
+                <dt>Provider shipment</dt>
+                <dd>{{ $shipment->providerShipmentId ?? '—' }}</dd>
+                <dt>Courier</dt>
+                <dd>{{ $shipment->courier ?? 'Not selected' }}</dd>
                 <dt>AWB</dt>
                 <dd>{{ $shipment->awb ?? 'Not assigned' }}</dd>
-                <dt>Provider</dt>
-                <dd>{{ $shipment->alreadyCreated ? $shipment->provider : $shipment->provider.' (not called)' }}</dd>
             </dl>
 
-            @if($shipment->alreadyCreated)
-                <p class="text-muted small mb-0 mt-3">Provider shipment is already bound. AWB assignment is a later isolated step.</p>
-            @elseif($shipment->blockers !== [])
+            @if($shipment->blockers !== [])
                 <ul class="hf-ship-blockers text-danger small mt-3 mb-0">
                     @foreach($shipment->blockers as $blocker)
                         <li>{{ $blocker }}</li>
                     @endforeach
                 </ul>
+            @endif
+
+            @if($boundShipment?->events?->isNotEmpty())
+                <div class="mt-3">
+                    <p class="text-muted small text-uppercase fw-semibold mb-2">Shipment events</p>
+                    <ul class="small mb-0 ps-3">
+                        @foreach($boundShipment->events as $event)
+                            <li>
+                                {{ $event->activity }}
+                                @if($event->awb)
+                                    · AWB {{ $event->awb }}
+                                @endif
+                                @if($event->external_shipment_id)
+                                    · {{ $event->external_shipment_id }}
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
             @endif
 
             @if($shipment->canAttachSnapshot)
@@ -261,6 +314,61 @@
                     <input type="text" name="country" id="hardware-country" class="form-control" maxlength="64" required autocomplete="off">
                     <p class="text-muted small mt-1 mb-2">Fill-if-absent overlay only. Type the country. It is not inferred.</p>
                     <button type="submit" class="btn btn-outline-primary" id="hardware-country-submit">Record country</button>
+                </form>
+            @endif
+
+            @if($shipment->canFetchCourierOptions)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.courier-options.store', $fulfilment) }}" id="hardware-courier-options-form" class="mt-3">
+                    @csrf
+                    <p class="text-muted small mb-2">Requests current courier options from Shiprocket using the verified pickup postcode, delivery pincode, and parcel weight. Options expire and must be fetched again if shipment inputs change.</p>
+                    <button type="submit" class="btn btn-outline-primary" id="hardware-courier-options-submit">Get Courier Options</button>
+                </form>
+            @endif
+
+            @if($shipment->canSelectCourier)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.courier.store', $fulfilment) }}" id="hardware-courier-select-form" class="mt-3">
+                    @csrf
+                    <p class="text-muted small text-uppercase fw-semibold mb-2">Courier options</p>
+                    @if($shipment->recommendationNote !== '')
+                        <p class="small mb-2 {{ $shipment->recommendationReturned ? 'text-success' : 'text-muted' }}">{{ $shipment->recommendationNote }}</p>
+                    @endif
+                    <div class="d-grid gap-2">
+                        @foreach($shipment->courierOptions as $option)
+                            <label class="hf-alloc-serial mb-0">
+                                <span>
+                                    <input
+                                        type="radio"
+                                        name="courier_id"
+                                        value="{{ $option['courier_id'] }}"
+                                        @checked($shipment->selectedCourierId === $option['courier_id'])
+                                        required
+                                    >
+                                    <strong>{{ $option['courier_name'] ?? $option['courier_id'] }}</strong>
+                                    <span class="text-muted"> · {{ $option['courier_id'] }}</span>
+                                    @if($option['provider_recommended'])
+                                        <span class="hf-alloc-status is-ready ms-1">Shiprocket Recommended</span>
+                                    @endif
+                                    @if($option['rate'] !== null)
+                                        <div class="small text-muted">Rate {{ $option['rate'] }}</div>
+                                    @endif
+                                    @if($option['estimated_delivery'] !== null)
+                                        <div class="small text-muted">Estimated delivery {{ $option['estimated_delivery'] }}</div>
+                                    @endif
+                                    @if($option['cod_available'] !== null || $option['prepaid_available'] !== null)
+                                        <div class="small text-muted">
+                                            @if($option['prepaid_available'] !== null)
+                                                Prepaid {{ $option['prepaid_available'] ? 'yes' : 'no' }}
+                                            @endif
+                                            @if($option['cod_available'] !== null)
+                                                · COD {{ $option['cod_available'] ? 'yes' : 'no' }}
+                                            @endif
+                                        </div>
+                                    @endif
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary mt-3" id="hardware-courier-select-submit">Select Courier</button>
                 </form>
             @endif
 
@@ -284,11 +392,21 @@
                             <dd>{{ $shipment->shipTo }}</dd>
                             <dt>Parcel</dt>
                             <dd>{{ $shipment->parcel }}</dd>
+                            <dt>Courier</dt>
+                            <dd>{{ $shipment->courier ?? 'Not selected' }}</dd>
                             <dt>Provider</dt>
                             <dd>{{ $shipment->provider }}</dd>
                         </dl>
                     </div>
                     <button type="submit" class="btn btn-primary" id="hardware-shipment-submit">{{ $shipment->actionLabel }}</button>
+                </form>
+            @endif
+
+            @if($shipment->canAssignAwb)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.awb.store', $fulfilment) }}" id="hardware-awb-form" class="mt-3">
+                    @csrf
+                    <p class="text-muted small mb-2">Assigns an AWB with the selected Shiprocket courier. The AWB is not invented.</p>
+                    <button type="submit" class="btn btn-outline-primary" id="hardware-awb-submit">Assign AWB</button>
                 </form>
             @endif
         </div>
@@ -490,12 +608,63 @@
             }
 
             form.addEventListener('submit', function (event) {
-                if (!window.confirm('Create this Shiprocket shipment with the derived pickup, serial, invoice, address, and parcel shown above?')) {
+                if (!window.confirm('Create this Shiprocket shipment once with the derived pickup, serial, invoice, address, parcel, and selected courier shown above?')) {
                     event.preventDefault();
                     return;
                 }
                 submit.disabled = true;
                 submit.textContent = 'Creating shipment…';
+            });
+        })();
+
+        (function () {
+            const form = document.getElementById('hardware-courier-options-form');
+            const submit = document.getElementById('hardware-courier-options-submit');
+            if (!form || !submit) {
+                return;
+            }
+
+            form.addEventListener('submit', function (event) {
+                if (!window.confirm('Request current courier options from Shiprocket for this fulfilment?')) {
+                    event.preventDefault();
+                    return;
+                }
+                submit.disabled = true;
+                submit.textContent = 'Requesting couriers…';
+            });
+        })();
+
+        (function () {
+            const form = document.getElementById('hardware-courier-select-form');
+            const submit = document.getElementById('hardware-courier-select-submit');
+            if (!form || !submit) {
+                return;
+            }
+
+            form.addEventListener('submit', function (event) {
+                if (!window.confirm('Use this Shiprocket courier for the subsequent shipment create?')) {
+                    event.preventDefault();
+                    return;
+                }
+                submit.disabled = true;
+                submit.textContent = 'Selecting courier…';
+            });
+        })();
+
+        (function () {
+            const form = document.getElementById('hardware-awb-form');
+            const submit = document.getElementById('hardware-awb-submit');
+            if (!form || !submit) {
+                return;
+            }
+
+            form.addEventListener('submit', function (event) {
+                if (!window.confirm('Assign an AWB with the selected Shiprocket courier? The AWB will not be invented.')) {
+                    event.preventDefault();
+                    return;
+                }
+                submit.disabled = true;
+                submit.textContent = 'Assigning AWB…';
             });
         })();
 

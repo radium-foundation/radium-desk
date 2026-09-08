@@ -5,6 +5,8 @@ namespace App\Services\Shipping;
 use App\Contracts\Shipping\ShiprocketGateway;
 use App\Services\Shipping\Data\ShiprocketAwbResult;
 use App\Services\Shipping\Data\ShiprocketCancelResult;
+use App\Services\Shipping\Data\ShiprocketCourierOptionsRequest;
+use App\Services\Shipping\Data\ShiprocketCourierOptionsResult;
 use App\Services\Shipping\Data\ShiprocketCreateOrderRequest;
 use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketDocumentResult;
@@ -37,6 +39,11 @@ final class NullShiprocketGateway implements ShiprocketGateway
     }
 
     public function searchOrders(string $search): ShiprocketSearchResult
+    {
+        throw new ShiprocketDisabledException(self::MESSAGE);
+    }
+
+    public function listCourierOptions(ShiprocketCourierOptionsRequest $request): ShiprocketCourierOptionsResult
     {
         throw new ShiprocketDisabledException(self::MESSAGE);
     }

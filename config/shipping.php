@@ -28,6 +28,17 @@ return [
         'mumbai' => env('SHIPROCKET_PICKUP_MUMBAI'),
     ],
 
+    /*
+    | Warehouse pincodes for GET /courier/serviceability/. Empty until set in
+    | env. Do not invent production values. Courier options fail closed if empty.
+    */
+    'pickup_postcodes' => [
+        'delhi' => env('SHIPROCKET_PICKUP_PINCODE_DELHI'),
+        'mumbai' => env('SHIPROCKET_PICKUP_PINCODE_MUMBAI'),
+    ],
+
+    'courier_options_ttl_seconds' => max(60, (int) env('SHIPROCKET_COURIER_OPTIONS_TTL_SECONDS', 900)),
+
     'timeout_seconds' => max(1, (int) env('SHIPROCKET_TIMEOUT_SECONDS', 15)),
 
     'connect_timeout_seconds' => max(1, (int) env('SHIPROCKET_CONNECT_TIMEOUT_SECONDS', 5)),

@@ -453,6 +453,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('hardware-fulfilments/{fulfilment}/shipment', [InventoryHardwareFulfilmentSerialController::class, 'storeShipment'])->name('hardware-fulfilments.shipment.store');
         Route::post('hardware-fulfilments/{fulfilment}/parcel-snapshot', [InventoryHardwareFulfilmentSerialController::class, 'storeParcelSnapshot'])->name('hardware-fulfilments.parcel-snapshot.store');
         Route::post('hardware-fulfilments/{fulfilment}/country', [InventoryHardwareFulfilmentSerialController::class, 'storeCountry'])->name('hardware-fulfilments.country.store');
+        Route::post('hardware-fulfilments/{fulfilment}/courier-options', [InventoryHardwareFulfilmentSerialController::class, 'storeCourierOptions'])->name('hardware-fulfilments.courier-options.store');
+        Route::post('hardware-fulfilments/{fulfilment}/courier', [InventoryHardwareFulfilmentSerialController::class, 'storeCourier'])->name('hardware-fulfilments.courier.store');
         Route::post('hardware-fulfilments/{fulfilment}/awb', [InventoryHardwareFulfilmentSerialController::class, 'storeAwb'])->name('hardware-fulfilments.awb.store');
 
         Route::get('movements', [InventoryMovementController::class, 'index'])->name('movements.index');

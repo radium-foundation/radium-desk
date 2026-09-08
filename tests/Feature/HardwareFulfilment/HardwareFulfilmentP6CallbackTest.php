@@ -36,12 +36,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Tests\Feature\HardwareFulfilment\Support\FakeBoxFulfilmentCallbackGateway;
+use Tests\Feature\HardwareFulfilment\Support\SelectsHardwareTestCourier;
 use Tests\Feature\Shipping\Support\FakeShiprocketGateway;
 use Tests\TestCase;
 
 class HardwareFulfilmentP6CallbackTest extends TestCase
 {
     use RefreshDatabase;
+    use SelectsHardwareTestCourier;
 
     private const BOX_SECRET = 'test-radiumbox-secret';
 
@@ -76,6 +78,8 @@ class HardwareFulfilmentP6CallbackTest extends TestCase
             'shipping.provider' => 'test',
             'shipping.pickup_locations.delhi' => 'TEST-DELHI-PICKUP',
             'shipping.pickup_locations.mumbai' => 'TEST-MUMBAI-PICKUP',
+            'shipping.pickup_postcodes.delhi' => '110001',
+            'shipping.pickup_postcodes.mumbai' => '400001',
             'shipping.channel_id' => '',
             'statutory_invoices.series_code' => '',
             'statutory_invoices.number_format' => '',
@@ -399,7 +403,7 @@ class HardwareFulfilmentP6CallbackTest extends TestCase
         $fulfilment = $this->allocatedFulfilment($sourceId);
         app(HardwareFulfilmentInvoiceService::class)->issueInvoice($fulfilment);
 
-        return $fulfilment->fresh(['commerceOrder.items']) ?? $fulfilment;
+        return $this->selectTestCourier($fulfilment->fresh(['commerceOrder.items']) ?? $fulfilment, $this->actor);
     }
 
     private function allocatedFulfilment(string $sourceId): HardwareFulfilment

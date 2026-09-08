@@ -5,6 +5,9 @@ namespace App\Services\Shipping;
 use App\Contracts\Shipping\ShiprocketGateway;
 use App\Services\Shipping\Data\ShiprocketAwbResult;
 use App\Services\Shipping\Data\ShiprocketCancelResult;
+use App\Services\Shipping\Data\ShiprocketCourierOption;
+use App\Services\Shipping\Data\ShiprocketCourierOptionsRequest;
+use App\Services\Shipping\Data\ShiprocketCourierOptionsResult;
 use App\Services\Shipping\Data\ShiprocketCreateOrderRequest;
 use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketDocumentResult;
@@ -129,6 +132,29 @@ final class HttpShiprocketGateway implements ShiprocketGateway
             courierId: $this->scalar($shipment['courier_id'] ?? $row['courier_id'] ?? null),
             courierName: $this->scalar($shipment['courier'] ?? $row['courier_name'] ?? null),
         );
+    }
+
+    public function listCourierOptions(ShiprocketCourierOptionsRequest $request): ShiprocketCourierOptionsResult
+    {
+        try {
+            $response = $this->send('get', '/courier/serviceability/', $request->toQuery());
+        } catch (ShiprocketRetryableException $exception) {
+            return new ShiprocketCourierOptionsResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: $exception->getMessage(),
+                retryable: true,
+            );
+        } catch (ShiprocketNonRetryableException $exception) {
+            return new ShiprocketCourierOptionsResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $exception->getMessage(),
+                retryable: false,
+            );
+        }
+
+        return $this->courierOptionsFromJson($response['json']);
     }
 
     public function assignAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult
@@ -378,6 +404,119 @@ final class HttpShiprocketGateway implements ShiprocketGateway
         $first = $rows[0] ?? null;
 
         return is_array($first) ? $first : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     */
+    private function courierOptionsFromJson(array $json): ShiprocketCourierOptionsResult
+    {
+        $data = $this->firstArray($json['data'] ?? $json);
+        $companies = $data['available_courier_companies'] ?? null;
+        if (! is_array($companies)) {
+            return new ShiprocketCourierOptionsResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $this->errorMessage($json, 'Shiprocket returned no courier options.'),
+                retryable: false,
+            );
+        }
+
+        $recommendedId = $this->scalar(
+            $data['recommended_courier_company_id'] ?? $data['shiprocket_recommended_courier_id'] ?? null,
+        );
+
+        $options = [];
+        foreach ($companies as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $id = $this->scalar($row['courier_company_id'] ?? $row['courier_id'] ?? $row['id'] ?? null);
+            if ($id === null) {
+                continue;
+            }
+
+            $rowRecommended = $this->rowIsProviderRecommended($row, $recommendedId, $id);
+            $options[] = new ShiprocketCourierOption(
+                courierId: $id,
+                courierName: $this->scalar($row['courier_name'] ?? $row['name'] ?? null),
+                rate: $this->presentNumber($row['freight_charge'] ?? $row['rate'] ?? null),
+                coverageCharge: $this->presentNumber($row['coverage_charges'] ?? $row['coverage_charge'] ?? null),
+                estimatedDelivery: $this->scalar(
+                    $row['etd'] ?? $row['estimated_delivery_days'] ?? $row['estimated_delivery'] ?? null,
+                ),
+                codAvailable: $this->presentBool($row['cod'] ?? $row['is_cod'] ?? $row['cod_available'] ?? null),
+                prepaidAvailable: $this->presentBool($row['prepaid'] ?? $row['is_prepaid'] ?? $row['prepaid_available'] ?? null),
+                providerRecommended: $rowRecommended,
+            );
+        }
+
+        $recommendationReturned = $recommendedId !== null;
+        foreach ($options as $option) {
+            if ($option->providerRecommended) {
+                $recommendationReturned = true;
+                break;
+            }
+        }
+
+        return new ShiprocketCourierOptionsResult(
+            provider: $this->provider(),
+            status: 'listed',
+            options: $options,
+            recommendedCourierId: $recommendedId,
+            recommendationReturned: $recommendationReturned,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function rowIsProviderRecommended(array $row, ?string $recommendedId, string $id): bool
+    {
+        if ($recommendedId !== null && $recommendedId === $id) {
+            return true;
+        }
+
+        foreach (['recommended', 'recommended_by_shiprocket', 'is_recommended'] as $key) {
+            if (array_key_exists($key, $row) && $this->presentBool($row[$key]) === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function presentNumber(mixed $value): ?string
+    {
+        if ($value === null || $value === '' || is_array($value) || ! is_numeric($value)) {
+            return null;
+        }
+
+        return (string) $value;
+    }
+
+    private function presentBool(mixed $value): ?bool
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return ((int) $value) === 1;
+        }
+
+        $text = strtolower(trim((string) $value));
+
+        return match ($text) {
+            '1', 'true', 'yes' => true,
+            '0', 'false', 'no' => false,
+            default => null,
+        };
     }
 
     /**

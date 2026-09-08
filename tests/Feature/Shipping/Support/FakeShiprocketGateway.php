@@ -5,6 +5,9 @@ namespace Tests\Feature\Shipping\Support;
 use App\Contracts\Shipping\ShiprocketGateway;
 use App\Services\Shipping\Data\ShiprocketAwbResult;
 use App\Services\Shipping\Data\ShiprocketCancelResult;
+use App\Services\Shipping\Data\ShiprocketCourierOption;
+use App\Services\Shipping\Data\ShiprocketCourierOptionsRequest;
+use App\Services\Shipping\Data\ShiprocketCourierOptionsResult;
 use App\Services\Shipping\Data\ShiprocketCreateOrderRequest;
 use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketDocumentResult;
@@ -46,7 +49,34 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public int $cancels = 0;
 
+    public int $courierLists = 0;
+
     public string $mode = 'accepted';
+
+    public ?string $nextCourierListMode = null;
+
+    public ?string $recommendedCourierId = null;
+
+    /**
+     * @var list<array{courier_id: string, courier_name: string, rate?: string, coverage_charge?: string, estimated_delivery?: string, cod_available?: bool, prepaid_available?: bool}>
+     */
+    public array $courierOptions = [
+        [
+            'courier_id' => '12',
+            'courier_name' => 'Fake Surface',
+            'rate' => '85.5',
+            'coverage_charge' => '0',
+            'estimated_delivery' => '3 days',
+            'cod_available' => false,
+            'prepaid_available' => true,
+        ],
+        [
+            'courier_id' => '44',
+            'courier_name' => 'Fake Express',
+            'rate' => '120',
+            'prepaid_available' => true,
+        ],
+    ];
 
     public ?string $nextCreateMode = null;
 
@@ -182,6 +212,32 @@ final class FakeShiprocketGateway implements ShiprocketGateway
         $this->pickupCatalog[$externalShipmentId] = true;
     }
 
+    public function listCourierOptions(ShiprocketCourierOptionsRequest $request): ShiprocketCourierOptionsResult
+    {
+        $this->courierLists++;
+
+        $mode = $this->nextCourierListMode ?? $this->mode;
+        $this->nextCourierListMode = null;
+
+        return match ($mode) {
+            'accepted' => $this->acceptCourierOptions(),
+            'rejected' => new ShiprocketCourierOptionsResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'Fake provider rejected courier options.',
+                retryable: false,
+            ),
+            'retryable' => new ShiprocketCourierOptionsResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: 'Fake provider unavailable.',
+                retryable: true,
+            ),
+            'timeout' => throw new ShiprocketRetryableException('Fake provider courier-options timeout.'),
+            default => throw new RuntimeException('Unknown fake Shiprocket courier-list mode: '.$mode),
+        };
+    }
+
     public function assignAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult
     {
         $this->awbs++;
@@ -314,6 +370,39 @@ final class FakeShiprocketGateway implements ShiprocketGateway
         return new ShiprocketCancelResult(
             provider: $this->provider(),
             status: 'cancelled',
+        );
+    }
+
+    private function acceptCourierOptions(): ShiprocketCourierOptionsResult
+    {
+        $recommended = $this->recommendedCourierId !== null
+            ? trim($this->recommendedCourierId)
+            : null;
+        if ($recommended === '') {
+            $recommended = null;
+        }
+
+        $options = [];
+        foreach ($this->courierOptions as $row) {
+            $id = (string) $row['courier_id'];
+            $options[] = new ShiprocketCourierOption(
+                courierId: $id,
+                courierName: $row['courier_name'] ?? null,
+                rate: $row['rate'] ?? null,
+                coverageCharge: $row['coverage_charge'] ?? null,
+                estimatedDelivery: $row['estimated_delivery'] ?? null,
+                codAvailable: $row['cod_available'] ?? null,
+                prepaidAvailable: $row['prepaid_available'] ?? null,
+                providerRecommended: $recommended !== null && $recommended === $id,
+            );
+        }
+
+        return new ShiprocketCourierOptionsResult(
+            provider: $this->provider(),
+            status: 'listed',
+            options: $options,
+            recommendedCourierId: $recommended,
+            recommendationReturned: $recommended !== null,
         );
     }
 
