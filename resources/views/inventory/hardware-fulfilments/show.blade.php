@@ -296,6 +296,8 @@
                 <p class="small mb-2 {{ $shipment->recommendationReturned ? 'text-success' : 'text-muted' }}">{{ $shipment->recommendationNote }}</p>
             @endif
             <dl class="hf-alloc-confirm mb-0">
+                <dt>Payment mode</dt>
+                <dd>{{ $shipment->collectionModeLabel }}</dd>
                 <dt>Selected courier</dt>
                 <dd>{{ $shipment->courier ?? 'Not selected' }}</dd>
             </dl>
@@ -327,6 +329,7 @@
                                 if (! empty($option['estimated_delivery'])) {
                                     $optionLabel .= ' · '.$option['estimated_delivery'];
                                 }
+                                $optionLabel .= ' · '.$shipment->collectionModeLabel;
                                 if (! empty($option['provider_recommended'])) {
                                     $optionLabel .= ' · Shiprocket Recommended';
                                 }
@@ -376,6 +379,8 @@
                             <dd>{{ $shipment->parcel }}</dd>
                             <dt>Courier</dt>
                             <dd>{{ $shipment->courier ?? 'Not selected' }}</dd>
+                            <dt>Payment mode</dt>
+                            <dd>{{ $shipment->collectionModeLabel }}</dd>
                             <dt>Provider</dt>
                             <dd>{{ $shipment->provider }}</dd>
                         </dl>

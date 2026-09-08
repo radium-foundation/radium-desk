@@ -35,6 +35,8 @@ class FetchHardwareFulfilmentCourierOptionsRequest extends FormRequest
             'channel_id' => ['prohibited'],
             'courier_id' => ['prohibited'],
             'cod' => ['prohibited'],
+            'collection_mode' => ['prohibited'],
+            'payment_method' => ['prohibited'],
         ];
     }
 }

@@ -192,6 +192,14 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         $this->assertNotNull($freshShipment->manifest_url);
         $this->assertNotNull($freshShipment->manifest_id);
         $this->assertSame(1, $this->fake->manifests);
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('Download Manifest')
+            ->assertSee($freshShipment->manifest_url, false)
+            ->assertDontSee('Print Manifest');
+
         Http::assertNothingSent();
     }
 

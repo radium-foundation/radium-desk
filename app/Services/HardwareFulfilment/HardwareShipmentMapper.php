@@ -9,6 +9,10 @@ use App\Services\Shipping\Data\ShiprocketCreateOrderRequest;
 
 class HardwareShipmentMapper
 {
+    public function __construct(
+        private readonly HardwareShipmentCollectionModeResolver $collectionModes,
+    ) {}
+
     /**
      * @param  list<string>  $serials
      * @param  array<string, string>  $shipping
@@ -62,7 +66,7 @@ class HardwareShipmentMapper
             billingEmail: $shipping['email'],
             billingPhone: $shipping['phone'],
             shippingIsBilling: true,
-            paymentMethod: 'Prepaid',
+            paymentMethod: $this->collectionModes->current()->providerPaymentMethod(),
             subTotal: (string) round($subTotal, 2),
             length: $parcel['length'],
             breadth: $parcel['breadth'],

@@ -53,6 +53,10 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public int $courierLists = 0;
 
+    public ?ShiprocketCourierOptionsRequest $lastCourierRequest = null;
+
+    public ?ShiprocketCreateOrderRequest $lastCreateRequest = null;
+
     public string $mode = 'accepted';
 
     public ?string $nextCourierListMode = null;
@@ -73,7 +77,7 @@ final class FakeShiprocketGateway implements ShiprocketGateway
             'rate' => '85.5',
             'coverage_charge' => '0',
             'estimated_delivery' => '3 days',
-            'cod_available' => false,
+            'cod_available' => true,
             'prepaid_available' => true,
             'courier_type' => 'Surface',
         ],
@@ -129,6 +133,7 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public function createOrder(ShiprocketCreateOrderRequest $request): ShiprocketCreateOrderResult
     {
         $this->creates++;
+        $this->lastCreateRequest = $request;
         $this->createdMerchantOrderIds[] = $request->merchantOrderId;
 
         $mode = $this->nextCreateMode ?? $this->mode;
@@ -222,6 +227,7 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public function listCourierOptions(ShiprocketCourierOptionsRequest $request): ShiprocketCourierOptionsResult
     {
         $this->courierLists++;
+        $this->lastCourierRequest = $request;
 
         $mode = $this->nextCourierListMode ?? $this->mode;
         $this->nextCourierListMode = null;

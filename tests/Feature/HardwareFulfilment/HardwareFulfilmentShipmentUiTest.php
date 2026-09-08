@@ -257,7 +257,9 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
             ->assertDontSee('Shiprocket (not called)')
             ->assertDontSee('Create Shipment')
             ->assertSee('Assign AWB')
-            ->assertSee('Fake Surface');
+            ->assertSee('Fake Surface')
+            ->assertSee('Prepaid')
+            ->assertDontSee('COD yes');
 
         $this->assertNoLiveSideEffects();
     }

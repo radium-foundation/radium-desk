@@ -66,5 +66,7 @@ final class HardwareShipmentReadiness
         public readonly ?int $packageBeforeLabelId = null,
         public readonly ?int $packageLabelAppliedId = null,
         public readonly bool $readyForPickup = false,
+        public readonly string $collectionMode = 'prepaid',
+        public readonly string $collectionModeLabel = 'Prepaid',
     ) {}
 }

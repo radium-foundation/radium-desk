@@ -34,6 +34,9 @@ class CreateHardwareFulfilmentShipmentRequest extends FormRequest
             'country' => ['prohibited'],
             'courier_id' => ['prohibited'],
             'courier_name' => ['prohibited'],
+            'cod' => ['prohibited'],
+            'collection_mode' => ['prohibited'],
+            'payment_method' => ['prohibited'],
         ];
     }
 

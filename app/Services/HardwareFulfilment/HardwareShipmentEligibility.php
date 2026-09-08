@@ -25,6 +25,7 @@ class HardwareShipmentEligibility
         private readonly ShiprocketGateway $gateway,
         private readonly HardwareFulfilmentParcelSnapshotService $snapshots,
         private readonly HardwareFulfilmentCountryCorrectionService $countries,
+        private readonly HardwareShipmentCollectionModeResolver $collectionModes,
     ) {}
 
     /**
@@ -195,6 +196,7 @@ class HardwareShipmentEligibility
             }
         }
 
+        $collection = $this->collectionModes->forFulfilment($fulfilment);
         $fingerprint = null;
         if ($localReady && $pickup !== null && $pickupPostcode !== null && $shipping !== null && $parcel !== null) {
             $fingerprint = HardwareShipmentCourierQuote::fingerprint(
@@ -205,7 +207,7 @@ class HardwareShipmentEligibility
                     'parcel_source' => $parcelSource,
                 ],
                 $pickupPostcode,
-                0,
+                $collection->serviceabilityCod(),
                 filled($shipment?->external_order_id) ? (string) $shipment->external_order_id : null,
             );
         }
@@ -304,6 +306,8 @@ class HardwareShipmentEligibility
             packageBeforeLabelId: $beforeLabel?->id,
             packageLabelAppliedId: $labelApplied?->id,
             readyForPickup: $readyForPickup,
+            collectionMode: $collection->value,
+            collectionModeLabel: $collection->label(),
         );
     }
 

@@ -161,6 +161,7 @@ class HttpShiprocketGatewayTest extends TestCase
             return str_contains($request->url(), '/courier/serviceability/')
                 && str_contains($request->url(), 'pickup_postcode=110001')
                 && str_contains($request->url(), 'delivery_postcode=452001')
+                && str_contains($request->url(), 'cod=0')
                 && ! str_contains($request->url(), 'order_id=');
         });
     }
@@ -233,6 +234,26 @@ class HttpShiprocketGatewayTest extends TestCase
                 && $request->method() === 'POST'
                 && $request['shipment_id'] === [99];
         });
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), '/manifests/print')
+            || str_contains($request->url(), '/orders/print/manifest'));
+    }
+
+    public function test_generate_manifest_without_url_or_id_is_rejected(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/manifests/generate' => Http::response([
+                'message' => 'Manifest not generated',
+                'check_ids' => [99],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->generateManifest('99');
+
+        $this->assertSame('rejected', $result->status);
+        $this->assertNull($result->url);
+        $this->assertNull($result->documentId);
+        $this->assertSame('Manifest not generated', $result->error);
     }
 
     public function test_assign_awb_reads_provider_evidence(): void

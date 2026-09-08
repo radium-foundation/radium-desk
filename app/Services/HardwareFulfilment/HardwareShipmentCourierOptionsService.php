@@ -20,6 +20,7 @@ class HardwareShipmentCourierOptionsService
         private readonly HardwareShipmentEligibility $eligibility,
         private readonly HardwarePickupResolver $pickups,
         private readonly ShiprocketGateway $gateway,
+        private readonly HardwareShipmentCollectionModeResolver $collectionModes,
     ) {}
 
     /**
@@ -44,10 +45,11 @@ class HardwareShipmentCourierOptionsService
                 $ready = $this->eligibility->require($locked);
                 $pickupPostcode = $this->pickups->requirePostcodeForBranch($ready['branch']);
                 $providerOrderId = $this->providerOrderId($locked);
+                $collection = $this->collectionModes->forFulfilment($locked);
                 $fingerprint = HardwareShipmentCourierQuote::fingerprint(
                     $ready,
                     $pickupPostcode,
-                    0,
+                    $collection->serviceabilityCod(),
                     $providerOrderId,
                 );
 
@@ -55,7 +57,7 @@ class HardwareShipmentCourierOptionsService
                     pickupPostcode: $pickupPostcode,
                     deliveryPostcode: $ready['shipping']['pincode'],
                     weight: $ready['parcel']['weight'],
-                    cod: 0,
+                    cod: $collection->serviceabilityCod(),
                     providerOrderId: $providerOrderId,
                 ));
 
@@ -84,7 +86,8 @@ class HardwareShipmentCourierOptionsService
                         'pickup_postcode' => $pickupPostcode,
                         'delivery_postcode' => $ready['shipping']['pincode'],
                         'weight' => $ready['parcel']['weight'],
-                        'cod' => 0,
+                        'cod' => $collection->serviceabilityCod(),
+                        'collection_mode' => $collection->value,
                         'provider_order_id' => $providerOrderId,
                     ],
                     'courier_options_fingerprint' => $fingerprint,
@@ -128,7 +131,7 @@ class HardwareShipmentCourierOptionsService
             $fingerprint = HardwareShipmentCourierQuote::fingerprint(
                 $ready,
                 $pickupPostcode,
-                0,
+                $this->collectionModes->forFulfilment($locked)->serviceabilityCod(),
                 $this->providerOrderId($locked),
             );
 
@@ -172,7 +175,7 @@ class HardwareShipmentCourierOptionsService
         $fingerprint = HardwareShipmentCourierQuote::fingerprint(
             $ready,
             $pickupPostcode,
-            0,
+            $this->collectionModes->forFulfilment($fulfilment)->serviceabilityCod(),
             $this->providerOrderId($fulfilment),
         );
 

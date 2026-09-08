@@ -191,11 +191,15 @@ class HardwareFulfilmentShowReadinessTest extends TestCase
         $this->assertFalse($ready->countryMissing);
         $this->assertFalse($ready->canCorrectCountry);
         $this->assertStringContainsString('India', (string) $ready->shipTo);
+        $this->assertSame('prepaid', $ready->collectionMode);
+        $this->assertSame('Prepaid', $ready->collectionModeLabel);
 
         $this->actingAs($this->admin)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
             ->assertSee('India')
+            ->assertSee('Prepaid')
+            ->assertDontSee('COD yes')
             ->assertDontSee('Record country')
             ->assertDontSee('name="country"', false)
             ->assertDontSee('Missing — not inferred')

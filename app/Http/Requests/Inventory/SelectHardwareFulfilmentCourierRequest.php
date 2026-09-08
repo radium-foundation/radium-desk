@@ -34,6 +34,8 @@ class SelectHardwareFulfilmentCourierRequest extends FormRequest
             'external_order_id' => ['prohibited'],
             'channel_id' => ['prohibited'],
             'cod' => ['prohibited'],
+            'collection_mode' => ['prohibited'],
+            'payment_method' => ['prohibited'],
         ];
     }
 

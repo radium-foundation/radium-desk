@@ -145,12 +145,38 @@ class HardwareFulfilmentCourierWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('Fake Surface')
             ->assertSee('Fake Express')
+            ->assertSee('Prepaid')
             ->assertSee('Shiprocket returned options without a recommendation.')
-            ->assertDontSee('Create Shipment');
+            ->assertDontSee('Create Shipment')
+            ->assertDontSee('COD yes')
+            ->assertDontSee('name="collection_mode"', false)
+            ->assertDontSee('name="cod"', false);
 
         $this->assertSame(1, $this->fake->courierLists);
         $this->assertSame(0, $this->fake->creates);
+        $this->assertNotNull($this->fake->lastCourierRequest);
+        $this->assertSame(0, $this->fake->lastCourierRequest->cod);
+        $this->assertSame(0, $fulfilment->fresh()->courier_options_snapshot['cod'] ?? null);
+        $this->assertSame('prepaid', $fulfilment->fresh()->courier_options_snapshot['collection_mode'] ?? null);
         Http::assertNothingSent();
+    }
+
+    public function test_operator_cannot_force_cod_on_courier_options(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE930021', 'DELHI-RETAIL');
+
+        $this->actingAs($this->admin)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.courier-options.store', $fulfilment), [
+                'cod' => 1,
+                'collection_mode' => 'cod',
+            ])
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors(['cod', 'collection_mode']);
+
+        $this->assertSame(0, $this->fake->courierLists);
+        $this->assertNull($this->fake->lastCourierRequest);
+        $this->assertNull($fulfilment->fresh()->courier_options_snapshot);
     }
 
     public function test_provider_recommendation_is_labeled_when_returned(): void
@@ -245,6 +271,8 @@ class HardwareFulfilmentCourierWorkflowTest extends TestCase
         $this->assertSame('Fake Surface', $shipment->courier_name);
         $this->assertSame(1, $this->fake->creates);
         $this->assertSame(1, Shipment::query()->count());
+        $this->assertNotNull($this->fake->lastCreateRequest);
+        $this->assertSame('Prepaid', $this->fake->lastCreateRequest->paymentMethod);
     }
 
     public function test_create_rejects_client_supplied_courier_id(): void
@@ -260,6 +288,24 @@ class HardwareFulfilmentCourierWorkflowTest extends TestCase
             ->assertSessionHasErrors('courier_id');
 
         $this->assertSame(0, $this->fake->creates);
+    }
+
+    public function test_create_rejects_client_supplied_cod_collection_mode(): void
+    {
+        $fulfilment = $this->selectTestCourier($this->invoicedFulfilment('RDE930022', 'DELHI-RETAIL'), $this->admin);
+
+        $this->actingAs($this->admin)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.shipment.store', $fulfilment), [
+                'cod' => 1,
+                'collection_mode' => 'cod',
+                'payment_method' => 'COD',
+            ])
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors(['cod', 'collection_mode', 'payment_method']);
+
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertNull($this->fake->lastCreateRequest);
     }
 
     public function test_double_submit_and_ambiguous_timeout_do_not_create_twice(): void
