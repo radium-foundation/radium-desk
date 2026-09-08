@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentPackageEvidenceKind;
 use App\Enums\HardwareFulfilmentState;
 use App\Http\Controllers\Controller;
@@ -26,6 +27,7 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentCountryCorrectionService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentParcelSnapshotService;
+use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentCourierOptionsService;
 use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
@@ -36,6 +38,7 @@ use App\Support\Inventory\InventoryBranchScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -53,6 +56,7 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareShipmentDocumentsService $documents,
         private readonly HardwareFulfilmentPackageEvidenceService $packageEvidence,
         private readonly HardwareAwaitingFulfilmentQueue $awaitingQueue,
+        private readonly HardwareFulfilmentWorkQueue $workQueue,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -63,9 +67,19 @@ class HardwareFulfilmentSerialController extends Controller
 
     public function index(Request $request): View
     {
-        $queue = trim((string) $request->query('queue', 'open'));
+        $queue = trim((string) $request->query('queue', ''));
+        if ($queue === '') {
+            $hasOpenFilters = $request->filled('serial')
+                || $request->filled('state')
+                || $request->filled('branch_id')
+                || $request->filled('shipment_status');
+            $queue = $hasOpenFilters ? 'open' : 'work';
+        }
         if ($queue === 'awaiting') {
             return $this->awaitingIndex($request);
+        }
+        if ($queue === 'work') {
+            return $this->workIndex($request);
         }
 
         $state = trim((string) $request->query('state', ''));
@@ -123,11 +137,15 @@ class HardwareFulfilmentSerialController extends Controller
 
         $fulfilments = $query->paginate(40)->withQueryString();
 
+        $range = $this->workQueueRange($request);
+
         return view('inventory.hardware-fulfilments.index', [
             'queue' => 'open',
             'fulfilments' => $fulfilments,
             'awaiting' => null,
+            'workRows' => null,
             'awaitingSummary' => $this->awaitingQueue->summary(),
+            'workSummary' => $this->workQueue->summary($range['from'], $range['to']),
             'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('code')->get(),
             'filters' => [
                 'queue' => 'open',
@@ -137,9 +155,81 @@ class HardwareFulfilmentSerialController extends Controller
                 'shipment_status' => $shipmentStatus,
                 'state' => $state,
                 'awaiting_reason' => HardwareAwaitingFulfilmentQueue::FILTER_REVIEW,
+                'stage' => '',
+                'payment' => '',
+                'from' => $range['from']->toDateString(),
+                'to' => $range['to']->toDateString(),
             ],
             'states' => HardwareFulfilmentState::cases(),
+            'stages' => HardwareFulfilmentOperationalStage::cases(),
         ]);
+    }
+
+    private function workIndex(Request $request): View
+    {
+        $range = $this->workQueueRange($request);
+        $order = trim((string) $request->query('order', ''));
+        $stage = trim((string) $request->query('stage', ''));
+        $payment = trim((string) $request->query('payment', ''));
+        $allowedPayments = ['', 'paid', 'unpaid'];
+        if (! in_array($payment, $allowedPayments, true)) {
+            $payment = '';
+        }
+        $allowedStages = array_map(
+            static fn (HardwareFulfilmentOperationalStage $row): string => $row->value,
+            HardwareFulfilmentOperationalStage::cases(),
+        );
+        if ($stage !== '' && ! in_array($stage, $allowedStages, true)) {
+            $stage = '';
+        }
+
+        return view('inventory.hardware-fulfilments.index', [
+            'queue' => 'work',
+            'fulfilments' => null,
+            'awaiting' => null,
+            'workRows' => $this->workQueue->paginate($range['from'], $range['to'], $stage, $order, $payment),
+            'awaitingSummary' => $this->awaitingQueue->summary(),
+            'workSummary' => $this->workQueue->summary($range['from'], $range['to']),
+            'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('code')->get(),
+            'filters' => [
+                'queue' => 'work',
+                'order' => $order,
+                'serial' => '',
+                'branch_id' => null,
+                'shipment_status' => '',
+                'state' => '',
+                'awaiting_reason' => HardwareAwaitingFulfilmentQueue::FILTER_REVIEW,
+                'stage' => $stage,
+                'payment' => $payment,
+                'from' => $range['from']->toDateString(),
+                'to' => $range['to']->toDateString(),
+            ],
+            'states' => HardwareFulfilmentState::cases(),
+            'stages' => HardwareFulfilmentOperationalStage::cases(),
+        ]);
+    }
+
+    /**
+     * @return array{from: Carbon, to: Carbon}
+     */
+    private function workQueueRange(Request $request): array
+    {
+        $timezone = HardwareFulfilmentEligibility::CUTOFF_TIMEZONE;
+        $from = $request->filled('from')
+            ? Carbon::parse((string) $request->query('from'), $timezone)->startOfDay()
+            : HardwareFulfilmentEligibility::cutoffInstant();
+        $to = $request->filled('to')
+            ? Carbon::parse((string) $request->query('to'), $timezone)->endOfDay()
+            : Carbon::now($timezone);
+        $now = Carbon::now($timezone);
+        if ($to->gt($now)) {
+            $to = $now;
+        }
+        if ($from->gt($to)) {
+            $from = $to->copy()->startOfDay();
+        }
+
+        return ['from' => $from, 'to' => $to];
     }
 
     private function awaitingIndex(Request $request): View
@@ -158,11 +248,15 @@ class HardwareFulfilmentSerialController extends Controller
             $reason = HardwareAwaitingFulfilmentQueue::FILTER_REVIEW;
         }
 
+        $range = $this->workQueueRange($request);
+
         return view('inventory.hardware-fulfilments.index', [
             'queue' => 'awaiting',
             'fulfilments' => null,
             'awaiting' => $this->awaitingQueue->paginate($reason, $order),
+            'workRows' => null,
             'awaitingSummary' => $this->awaitingQueue->summary(),
+            'workSummary' => $this->workQueue->summary($range['from'], $range['to']),
             'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('code')->get(),
             'filters' => [
                 'queue' => 'awaiting',
@@ -172,8 +266,13 @@ class HardwareFulfilmentSerialController extends Controller
                 'shipment_status' => '',
                 'state' => '',
                 'awaiting_reason' => $reason,
+                'stage' => '',
+                'payment' => '',
+                'from' => $range['from']->toDateString(),
+                'to' => $range['to']->toDateString(),
             ],
             'states' => HardwareFulfilmentState::cases(),
+            'stages' => HardwareFulfilmentOperationalStage::cases(),
         ]);
     }
 

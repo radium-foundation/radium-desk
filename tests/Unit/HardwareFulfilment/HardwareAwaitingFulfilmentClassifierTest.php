@@ -46,6 +46,18 @@ class HardwareAwaitingFulfilmentClassifierTest extends TestCase
             ])),
         );
         $this->assertSame(
+            HardwareAwaitingFulfilmentReason::Hold,
+            HardwareAwaitingFulfilmentClassifier::reason($this->order('RDE255714', [
+                'cashfree_payment_id' => 'paid',
+            ])),
+        );
+        $this->assertSame(
+            HardwareAwaitingFulfilmentReason::Hold,
+            HardwareAwaitingFulfilmentClassifier::reason($this->order('RDE313554', [
+                'cashfree_payment_id' => 'paid',
+            ])),
+        );
+        $this->assertSame(
             HardwareAwaitingFulfilmentReason::Blocked,
             HardwareAwaitingFulfilmentClassifier::reason($this->order(
                 HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0],

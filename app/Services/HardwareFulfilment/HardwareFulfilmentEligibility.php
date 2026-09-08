@@ -44,6 +44,8 @@ final class HardwareFulfilmentEligibility
      */
     public const HOLD_SOURCE_IDS = [
         'RDE318438',
+        'RDE255714',
+        'RDE313554',
     ];
 
     /**

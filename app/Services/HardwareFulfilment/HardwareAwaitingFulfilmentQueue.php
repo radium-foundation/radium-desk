@@ -10,6 +10,8 @@ use App\Services\HardwareFulfilment\Data\HardwareAwaitingFulfilmentRow;
 use App\Services\HardwareFulfilment\Data\HardwareAwaitingFulfilmentSummary;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Read-only queue of Desk RDE support orders that do not yet have a HardwareFulfilment.
@@ -73,6 +75,87 @@ final class HardwareAwaitingFulfilmentQueue
     public function classify(Order $order): HardwareAwaitingFulfilmentReason
     {
         return HardwareAwaitingFulfilmentClassifier::reason($order);
+    }
+
+    /**
+     * Paid RDE review candidates plus frozen/HOLD/blocked rows in the window.
+     * Unpaid, Desk-completed, RIN, and out-of-window rows are omitted.
+     *
+     * @return Collection<int, Order>
+     */
+    public function workCandidateOrders(Carbon $fromUtc, Carbon $toUtc): Collection
+    {
+        $blockedIds = $this->ownerBlockedSourceIds();
+
+        $review = $this->rdeWithoutFulfilment()
+            ->cashfreeVerified()
+            ->whereNotIn('order_id', $blockedIds)
+            ->where(function (Builder $inner): void {
+                $inner->whereNull('serial_number')->orWhere('serial_number', '');
+            })
+            ->where(function (Builder $inner): void {
+                $inner->whereNull('transaction_id')->orWhere('transaction_id', '');
+            })
+            ->where('created_at', '>=', $fromUtc)
+            ->where('created_at', '<=', $toUtc)
+            ->orderByDesc('id')
+            ->get();
+
+        $blocked = $this->rdeWithoutFulfilment()
+            ->whereIn('order_id', $blockedIds)
+            ->where('created_at', '>=', $fromUtc)
+            ->where('created_at', '<=', $toUtc)
+            ->orderByDesc('id')
+            ->get();
+
+        return $review->concat($blocked);
+    }
+
+    /**
+     * @return array{unpaid: int, desk_completed: int, rin: int}
+     */
+    public function excludedFromWorkQueue(Carbon $fromUtc, Carbon $toUtc): array
+    {
+        $blockedIds = $this->ownerBlockedSourceIds();
+        $inWindow = $this->rdeWithoutFulfilment()
+            ->where('created_at', '>=', $fromUtc)
+            ->where('created_at', '<=', $toUtc);
+
+        return [
+            'unpaid' => (clone $inWindow)
+                ->where(function (Builder $inner): void {
+                    $inner->whereNull('cashfree_payment_id')
+                        ->orWhere('cashfree_payment_id', '');
+                })
+                ->whereNotIn('order_id', $blockedIds)
+                ->count(),
+            'desk_completed' => (clone $inWindow)
+                ->cashfreeVerified()
+                ->whereNotIn('order_id', $blockedIds)
+                ->where(function (Builder $inner): void {
+                    $inner->where(function (Builder $serial): void {
+                        $serial->whereNotNull('serial_number')
+                            ->where('serial_number', '!=', '');
+                    })->orWhere(function (Builder $tx): void {
+                        $tx->whereNotNull('transaction_id')
+                            ->where('transaction_id', '!=', '');
+                    });
+                })
+                ->count(),
+            'rin' => Order::query()->where('order_id', 'like', 'RIN%')->count(),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function ownerBlockedSourceIds(): array
+    {
+        return array_values(array_unique(array_merge(
+            HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS,
+            HardwareFulfilmentEligibility::HOLD_SOURCE_IDS,
+            HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS,
+        )));
     }
 
     private function countFilter(string $filter): int
