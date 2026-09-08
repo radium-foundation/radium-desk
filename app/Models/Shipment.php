@@ -32,6 +32,11 @@ class Shipment extends Model
         'provider_accepted_at',
         'awb_assigned_at',
         'pickup_requested_at',
+        'label_url',
+        'label_fetched_at',
+        'manifest_id',
+        'manifest_url',
+        'manifest_generated_at',
         'last_reconciled_at',
     ];
 
@@ -44,6 +49,8 @@ class Shipment extends Model
             'provider_accepted_at' => 'datetime',
             'awb_assigned_at' => 'datetime',
             'pickup_requested_at' => 'datetime',
+            'label_fetched_at' => 'datetime',
+            'manifest_generated_at' => 'datetime',
             'last_reconciled_at' => 'datetime',
         ];
     }

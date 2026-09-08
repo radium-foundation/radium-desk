@@ -43,6 +43,8 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public int $labels = 0;
 
+    public int $manifests = 0;
+
     public int $invoices = 0;
 
     public int $tracks = 0;
@@ -54,6 +56,10 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public string $mode = 'accepted';
 
     public ?string $nextCourierListMode = null;
+
+    public ?string $nextLabelMode = null;
+
+    public ?string $nextManifestMode = null;
 
     public ?string $recommendedCourierId = null;
 
@@ -69,6 +75,7 @@ final class FakeShiprocketGateway implements ShiprocketGateway
             'estimated_delivery' => '3 days',
             'cod_available' => false,
             'prepaid_available' => true,
+            'courier_type' => 'Surface',
         ],
         [
             'courier_id' => '44',
@@ -293,13 +300,60 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public function generateLabel(string $externalShipmentId): ShiprocketDocumentResult
     {
         $this->labels++;
-        $this->assertSuccessMode();
+        $mode = $this->nextLabelMode ?? $this->mode;
+        $this->nextLabelMode = null;
 
-        return new ShiprocketDocumentResult(
-            provider: $this->provider(),
-            status: 'generated',
-            url: 'https://fake.local/labels/'.$externalShipmentId,
-        );
+        return match ($mode) {
+            'accepted' => new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'generated',
+                url: 'https://fake.local/labels/'.$externalShipmentId,
+            ),
+            'rejected' => new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'Fake provider rejected label generation.',
+                retryable: false,
+            ),
+            'retryable' => new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: 'Fake provider unavailable.',
+                retryable: true,
+            ),
+            'timeout' => throw new ShiprocketRetryableException('Fake provider label timeout.'),
+            default => throw new RuntimeException('Unknown fake Shiprocket label mode: '.$mode),
+        };
+    }
+
+    public function generateManifest(string $externalShipmentId): ShiprocketDocumentResult
+    {
+        $this->manifests++;
+        $mode = $this->nextManifestMode ?? $this->mode;
+        $this->nextManifestMode = null;
+
+        return match ($mode) {
+            'accepted' => new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'generated',
+                url: 'https://fake.local/manifests/'.$externalShipmentId,
+                documentId: 'MF-'.$externalShipmentId,
+            ),
+            'rejected' => new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'Fake provider rejected manifest generation.',
+                retryable: false,
+            ),
+            'retryable' => new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: 'Fake provider unavailable.',
+                retryable: true,
+            ),
+            'timeout' => throw new ShiprocketRetryableException('Fake provider manifest timeout.'),
+            default => throw new RuntimeException('Unknown fake Shiprocket manifest mode: '.$mode),
+        };
     }
 
     public function printInvoice(string $externalShipmentId): ShiprocketDocumentResult
@@ -394,6 +448,8 @@ final class FakeShiprocketGateway implements ShiprocketGateway
                 codAvailable: $row['cod_available'] ?? null,
                 prepaidAvailable: $row['prepaid_available'] ?? null,
                 providerRecommended: $recommended !== null && $recommended === $id,
+                courierType: $row['courier_type'] ?? null,
+                mode: $row['mode'] ?? null,
             );
         }
 

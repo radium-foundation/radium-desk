@@ -225,14 +225,83 @@ final class HttpShiprocketGateway implements ShiprocketGateway
 
     public function generateLabel(string $externalShipmentId): ShiprocketDocumentResult
     {
-        $response = $this->send('get', '/courier/generate/label', [
-            'shipment_id' => $externalShipmentId,
-        ]);
+        try {
+            $response = $this->send('post', '/courier/generate/label', [
+                'shipment_id' => [$this->providerNumericId($externalShipmentId)],
+            ]);
+        } catch (ShiprocketRetryableException $exception) {
+            return new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: $exception->getMessage(),
+                retryable: true,
+            );
+        } catch (ShiprocketNonRetryableException $exception) {
+            return new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $exception->getMessage(),
+                retryable: false,
+            );
+        }
+
+        $url = $this->scalar($response['json']['label_url'] ?? null);
+        if ($url === null) {
+            return new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $this->errorMessage($response['json'], 'Shiprocket did not return a label URL.'),
+                retryable: false,
+            );
+        }
 
         return new ShiprocketDocumentResult(
             provider: $this->provider(),
             status: 'generated',
-            url: $this->scalar($response['json']['label_url'] ?? $response['json']['not_created'][0] ?? null),
+            url: $url,
+        );
+    }
+
+    public function generateManifest(string $externalShipmentId): ShiprocketDocumentResult
+    {
+        try {
+            $response = $this->send('post', '/manifests/generate', [
+                'shipment_id' => [$this->providerNumericId($externalShipmentId)],
+            ]);
+        } catch (ShiprocketRetryableException $exception) {
+            return new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: $exception->getMessage(),
+                retryable: true,
+            );
+        } catch (ShiprocketNonRetryableException $exception) {
+            return new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $exception->getMessage(),
+                retryable: false,
+            );
+        }
+
+        $json = $response['json'];
+        $url = $this->scalar($json['manifest_url'] ?? $json['payload']['manifest_url'] ?? null);
+        $documentId = $this->scalar($json['manifest_id'] ?? $json['payload']['manifest_id'] ?? null);
+
+        if ($url === null && $documentId === null) {
+            return new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $this->errorMessage($json, 'Shiprocket did not return a manifest URL or id.'),
+                retryable: false,
+            );
+        }
+
+        return new ShiprocketDocumentResult(
+            provider: $this->provider(),
+            status: 'generated',
+            url: $url,
+            documentId: $documentId,
         );
     }
 
@@ -449,6 +518,8 @@ final class HttpShiprocketGateway implements ShiprocketGateway
                 codAvailable: $this->presentBool($row['cod'] ?? $row['is_cod'] ?? $row['cod_available'] ?? null),
                 prepaidAvailable: $this->presentBool($row['prepaid'] ?? $row['is_prepaid'] ?? $row['prepaid_available'] ?? null),
                 providerRecommended: $rowRecommended,
+                courierType: $this->scalar($row['courier_type'] ?? $row['courierType'] ?? null),
+                mode: $this->scalar($row['mode'] ?? $row['shipping_mode'] ?? null),
             );
         }
 
@@ -532,6 +603,13 @@ final class HttpShiprocketGateway implements ShiprocketGateway
         }
 
         return $fallback;
+    }
+
+    private function providerNumericId(string $id): int|string
+    {
+        $trimmed = trim($id);
+
+        return ctype_digit($trimmed) ? (int) $trimmed : $trimmed;
     }
 
     private function scalar(mixed $value): ?string

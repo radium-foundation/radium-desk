@@ -8,6 +8,7 @@ final class ShiprocketDocumentResult
         public readonly string $provider,
         public readonly string $status,
         public readonly ?string $url = null,
+        public readonly ?string $documentId = null,
         public readonly ?string $error = null,
         public readonly bool $retryable = false,
     ) {}

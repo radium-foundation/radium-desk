@@ -456,6 +456,12 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('hardware-fulfilments/{fulfilment}/courier-options', [InventoryHardwareFulfilmentSerialController::class, 'storeCourierOptions'])->name('hardware-fulfilments.courier-options.store');
         Route::post('hardware-fulfilments/{fulfilment}/courier', [InventoryHardwareFulfilmentSerialController::class, 'storeCourier'])->name('hardware-fulfilments.courier.store');
         Route::post('hardware-fulfilments/{fulfilment}/awb', [InventoryHardwareFulfilmentSerialController::class, 'storeAwb'])->name('hardware-fulfilments.awb.store');
+        Route::post('hardware-fulfilments/{fulfilment}/label', [InventoryHardwareFulfilmentSerialController::class, 'storeLabel'])->name('hardware-fulfilments.label.store');
+        Route::post('hardware-fulfilments/{fulfilment}/pickup', [InventoryHardwareFulfilmentSerialController::class, 'storePickup'])->name('hardware-fulfilments.pickup.store');
+        Route::post('hardware-fulfilments/{fulfilment}/manifest', [InventoryHardwareFulfilmentSerialController::class, 'storeManifest'])->name('hardware-fulfilments.manifest.store');
+        Route::post('hardware-fulfilments/{fulfilment}/package-evidence', [InventoryHardwareFulfilmentSerialController::class, 'storePackageEvidence'])->name('hardware-fulfilments.package-evidence.store');
+        Route::get('hardware-fulfilments/{fulfilment}/package-evidence/{evidence}', [InventoryHardwareFulfilmentSerialController::class, 'showPackageEvidence'])->name('hardware-fulfilments.package-evidence.show');
+        Route::post('hardware-fulfilments/{fulfilment}/ready-for-pickup', [InventoryHardwareFulfilmentSerialController::class, 'storeReadyForPickup'])->name('hardware-fulfilments.ready-for-pickup.store');
 
         Route::get('movements', [InventoryMovementController::class, 'index'])->name('movements.index');
 

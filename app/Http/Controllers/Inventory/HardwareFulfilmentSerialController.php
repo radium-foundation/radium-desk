@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Enums\HardwareFulfilmentPackageEvidenceKind;
 use App\Enums\HardwareFulfilmentState;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\AllocateHardwareFulfilmentSerialsRequest;
@@ -10,15 +11,23 @@ use App\Http\Requests\Inventory\AttachHardwareFulfilmentParcelRequest;
 use App\Http\Requests\Inventory\CorrectHardwareFulfilmentShippingCountryRequest;
 use App\Http\Requests\Inventory\CreateHardwareFulfilmentShipmentRequest;
 use App\Http\Requests\Inventory\FetchHardwareFulfilmentCourierOptionsRequest;
+use App\Http\Requests\Inventory\GenerateHardwareFulfilmentLabelRequest;
+use App\Http\Requests\Inventory\GenerateHardwareFulfilmentManifestRequest;
+use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyForPickupRequest;
+use App\Http\Requests\Inventory\RequestHardwareFulfilmentPickupRequest;
 use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
 use App\Http\Requests\Inventory\SelectHardwareFulfilmentCourierRequest;
+use App\Http\Requests\Inventory\StoreHardwareFulfilmentPackageEvidenceRequest;
 use App\Models\HardwareFulfilment;
+use App\Models\HardwareFulfilmentPackageEvidence;
 use App\Models\InventoryBranch;
 use App\Services\HardwareFulfilment\HardwareFulfilmentCountryCorrectionService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
+use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentParcelSnapshotService;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentCourierOptionsService;
+use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
@@ -26,8 +35,10 @@ use App\Support\Inventory\InventoryBranchScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class HardwareFulfilmentSerialController extends Controller
 {
@@ -38,6 +49,8 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentParcelSnapshotService $snapshots,
         private readonly HardwareFulfilmentCountryCorrectionService $countries,
         private readonly HardwareShipmentCourierOptionsService $couriers,
+        private readonly HardwareShipmentDocumentsService $documents,
+        private readonly HardwareFulfilmentPackageEvidenceService $packageEvidence,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -125,6 +138,7 @@ class HardwareFulfilmentSerialController extends Controller
             'serials.inventorySerial.branch',
             'fulfilmentBranch',
             'shipment.events',
+            'packageEvidences',
         ]);
 
         $requirements = $this->allocation->requirements($fulfilment);
@@ -244,6 +258,79 @@ class HardwareFulfilmentSerialController extends Controller
         return redirect()
             ->route('inventory.hardware-fulfilments.show', $fulfilment)
             ->with('status', 'AWB assigned.');
+    }
+
+    public function storeLabel(GenerateHardwareFulfilmentLabelRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->documents->generateLabel($fulfilment, $request->user());
+
+        return redirect()
+            ->route('inventory.hardware-fulfilments.show', $fulfilment)
+            ->with('status', 'Shipping label generated.');
+    }
+
+    public function storePickup(RequestHardwareFulfilmentPickupRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->documents->requestPickup($fulfilment, $request->user());
+
+        return redirect()
+            ->route('inventory.hardware-fulfilments.show', $fulfilment)
+            ->with('status', 'Pickup requested.');
+    }
+
+    public function storeManifest(GenerateHardwareFulfilmentManifestRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->documents->generateManifest($fulfilment, $request->user());
+
+        return redirect()
+            ->route('inventory.hardware-fulfilments.show', $fulfilment)
+            ->with('status', 'Manifest generated.');
+    }
+
+    public function storePackageEvidence(StoreHardwareFulfilmentPackageEvidenceRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $kind = HardwareFulfilmentPackageEvidenceKind::from($request->validated('kind'));
+        $this->packageEvidence->attach(
+            $fulfilment,
+            $kind,
+            $request->file('photo'),
+            $request->user(),
+        );
+
+        return redirect()
+            ->route('inventory.hardware-fulfilments.show', $fulfilment)
+            ->with('status', $kind->label().' recorded.');
+    }
+
+    public function showPackageEvidence(
+        Request $request,
+        HardwareFulfilment $fulfilment,
+        HardwareFulfilmentPackageEvidence $evidence,
+    ): StreamedResponse {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        abort_unless((int) $evidence->hardware_fulfilment_id === (int) $fulfilment->id, 404);
+
+        $disk = $evidence->disk ?: 'local';
+        abort_unless(Storage::disk($disk)->exists($evidence->path), 404);
+
+        return Storage::disk($disk)->response(
+            $evidence->path,
+            $evidence->original_filename ?: basename($evidence->path),
+        );
+    }
+
+    public function storeReadyForPickup(MarkHardwareFulfilmentReadyForPickupRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->documents->markReadyForPickup($fulfilment, $request->user());
+
+        return redirect()
+            ->route('inventory.hardware-fulfilments.show', $fulfilment)
+            ->with('status', 'Fulfilment marked ready for pickup.');
     }
 
     private function assertCanOperateFulfilment(Request $request, HardwareFulfilment $fulfilment): void

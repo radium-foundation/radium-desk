@@ -13,6 +13,8 @@ final class ShiprocketCourierOption
         public readonly ?bool $codAvailable = null,
         public readonly ?bool $prepaidAvailable = null,
         public readonly bool $providerRecommended = false,
+        public readonly ?string $courierType = null,
+        public readonly ?string $mode = null,
     ) {}
 
     /**
@@ -24,7 +26,9 @@ final class ShiprocketCourierOption
      *     estimated_delivery: string|null,
      *     cod_available: bool|null,
      *     prepaid_available: bool|null,
-     *     provider_recommended: bool
+     *     provider_recommended: bool,
+     *     courier_type: string|null,
+     *     mode: string|null
      * }
      */
     public function toArray(): array
@@ -38,6 +42,8 @@ final class ShiprocketCourierOption
             'cod_available' => $this->codAvailable,
             'prepaid_available' => $this->prepaidAvailable,
             'provider_recommended' => $this->providerRecommended,
+            'courier_type' => $this->courierType,
+            'mode' => $this->mode,
         ];
     }
 
@@ -60,6 +66,8 @@ final class ShiprocketCourierOption
             codAvailable: self::nullableBool($row['cod_available'] ?? null),
             prepaidAvailable: self::nullableBool($row['prepaid_available'] ?? null),
             providerRecommended: (bool) ($row['provider_recommended'] ?? false),
+            courierType: self::nullableString($row['courier_type'] ?? null),
+            mode: self::nullableString($row['mode'] ?? null),
         );
     }
 

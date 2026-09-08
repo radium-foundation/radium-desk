@@ -189,6 +189,52 @@ class HttpShiprocketGatewayTest extends TestCase
         $this->assertFalse($result->options[0]->providerRecommended);
     }
 
+    public function test_generate_label_posts_shipment_id_array(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/generate/label' => Http::response([
+                'label_created' => 1,
+                'label_url' => 'https://labels.test/99.pdf',
+                'not_created' => [],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->generateLabel('99');
+
+        $this->assertSame('generated', $result->status);
+        $this->assertSame('https://labels.test/99.pdf', $result->url);
+
+        Http::assertSent(function ($request): bool {
+            return str_ends_with($request->url(), '/courier/generate/label')
+                && $request->method() === 'POST'
+                && $request['shipment_id'] === [99];
+        });
+    }
+
+    public function test_generate_manifest_posts_shipment_id_array(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/manifests/generate' => Http::response([
+                'manifest_url' => 'https://manifests.test/99.pdf',
+                'manifest_id' => 'MF-99',
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->generateManifest('99');
+
+        $this->assertSame('generated', $result->status);
+        $this->assertSame('https://manifests.test/99.pdf', $result->url);
+        $this->assertSame('MF-99', $result->documentId);
+
+        Http::assertSent(function ($request): bool {
+            return str_ends_with($request->url(), '/manifests/generate')
+                && $request->method() === 'POST'
+                && $request['shipment_id'] === [99];
+        });
+    }
+
     public function test_assign_awb_reads_provider_evidence(): void
     {
         Http::fake([

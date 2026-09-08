@@ -255,8 +255,6 @@
                 <dd>
                     @if($shipment->parcel)
                         {{ $shipment->parcel }}
-                    @elseif($shipment->catalogPackaging)
-                        Not attached
                     @else
                         Not attached
                     @endif
@@ -277,25 +275,6 @@
                 </ul>
             @endif
 
-            @if($boundShipment?->events?->isNotEmpty())
-                <div class="mt-3">
-                    <p class="text-muted small text-uppercase fw-semibold mb-2">Shipment events</p>
-                    <ul class="small mb-0 ps-3">
-                        @foreach($boundShipment->events as $event)
-                            <li>
-                                {{ $event->activity }}
-                                @if($event->awb)
-                                    · AWB {{ $event->awb }}
-                                @endif
-                                @if($event->external_shipment_id)
-                                    · {{ $event->external_shipment_id }}
-                                @endif
-                            </li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
             @if($shipment->canAttachSnapshot)
                 <form method="POST" action="{{ route('inventory.hardware-fulfilments.parcel-snapshot.store', $fulfilment) }}" id="hardware-parcel-snapshot-form" class="mt-3">
                     @csrf
@@ -309,31 +288,17 @@
                     <button type="submit" class="btn btn-outline-primary" id="hardware-parcel-snapshot-submit">Attach verified packaging</button>
                 </form>
             @endif
+        </div>
 
-            <details class="mt-3">
-                <summary class="text-muted small">Details</summary>
-                <dl class="hf-alloc-confirm mt-2 mb-0">
-                    <dt>Customer</dt>
-                    <dd>{{ $shipment->customer ?: '—' }}</dd>
-                    <dt>Phone</dt>
-                    <dd>{{ $shipment->phone ?: '—' }}</dd>
-                    <dt>Email</dt>
-                    <dd>{{ $shipment->email ?: '—' }}</dd>
-                    <dt>Verified packaging</dt>
-                    <dd>
-                        @if($shipment->catalogPackaging)
-                            {{ $shipment->catalogPackaging }}{{ $shipment->catalogVerified ? ' (verified)' : '' }}
-                        @else
-                            Unknown until serials are allocated
-                        @endif
-                    </dd>
-                    <dt>Shipment no</dt>
-                    <dd>{{ $shipment->shipmentNo ?? '—' }}</dd>
-                    <dt>Provider shipment</dt>
-                    <dd>{{ $shipment->providerShipmentId ?? '—' }}</dd>
-                </dl>
-            </details>
-
+        <div class="hf-alloc-card mb-3" id="hardware-courier">
+            <p class="text-muted small text-uppercase fw-semibold mb-2">Courier</p>
+            @if($shipment->recommendationNote !== '')
+                <p class="small mb-2 {{ $shipment->recommendationReturned ? 'text-success' : 'text-muted' }}">{{ $shipment->recommendationNote }}</p>
+            @endif
+            <dl class="hf-alloc-confirm mb-0">
+                <dt>Selected courier</dt>
+                <dd>{{ $shipment->courier ?? 'Not selected' }}</dd>
+            </dl>
             @if($shipment->canFetchCourierOptions)
                 <form method="POST" action="{{ route('inventory.hardware-fulfilments.courier-options.store', $fulfilment) }}" id="hardware-courier-options-form" class="mt-3">
                     @csrf
@@ -341,54 +306,49 @@
                     <button type="submit" class="btn btn-outline-primary" id="hardware-courier-options-submit">Get Courier Options</button>
                 </form>
             @endif
-
             @if($shipment->canSelectCourier)
                 <form method="POST" action="{{ route('inventory.hardware-fulfilments.courier.store', $fulfilment) }}" id="hardware-courier-select-form" class="mt-3">
                     @csrf
-                    <p class="text-muted small text-uppercase fw-semibold mb-2">Courier options</p>
-                    @if($shipment->recommendationNote !== '')
-                        <p class="small mb-2 {{ $shipment->recommendationReturned ? 'text-success' : 'text-muted' }}">{{ $shipment->recommendationNote }}</p>
-                    @endif
-                    <div class="d-grid gap-2">
+                    <label class="form-label" for="hardware-courier-id">Courier / service</label>
+                    <select class="form-select" id="hardware-courier-id" name="courier_id" required>
+                        <option value="">Select a returned courier</option>
                         @foreach($shipment->courierOptions as $option)
-                            <label class="hf-alloc-serial mb-0">
-                                <span>
-                                    <input
-                                        type="radio"
-                                        name="courier_id"
-                                        value="{{ $option['courier_id'] }}"
-                                        @checked($shipment->selectedCourierId === $option['courier_id'])
-                                        required
-                                    >
-                                    <strong>{{ $option['courier_name'] ?? $option['courier_id'] }}</strong>
-                                    <span class="text-muted"> · {{ $option['courier_id'] }}</span>
-                                    @if($option['provider_recommended'])
-                                        <span class="hf-alloc-status is-ready ms-1">Shiprocket Recommended</span>
-                                    @endif
-                                    @if($option['rate'] !== null)
-                                        <div class="small text-muted">Rate {{ $option['rate'] }}</div>
-                                    @endif
-                                    @if($option['estimated_delivery'] !== null)
-                                        <div class="small text-muted">Estimated delivery {{ $option['estimated_delivery'] }}</div>
-                                    @endif
-                                    @if($option['cod_available'] !== null || $option['prepaid_available'] !== null)
-                                        <div class="small text-muted">
-                                            @if($option['prepaid_available'] !== null)
-                                                Prepaid {{ $option['prepaid_available'] ? 'yes' : 'no' }}
-                                            @endif
-                                            @if($option['cod_available'] !== null)
-                                                · COD {{ $option['cod_available'] ? 'yes' : 'no' }}
-                                            @endif
-                                        </div>
-                                    @endif
-                                </span>
-                            </label>
+                            @php
+                                $optionLabel = $option['courier_name'] ?? $option['courier_id'];
+                                if (! empty($option['courier_type'])) {
+                                    $optionLabel .= ' · '.$option['courier_type'];
+                                }
+                                if (! empty($option['mode'])) {
+                                    $optionLabel .= ' · '.$option['mode'];
+                                }
+                                if ($option['rate'] !== null) {
+                                    $optionLabel .= ' · '.$option['rate'];
+                                }
+                                if (! empty($option['estimated_delivery'])) {
+                                    $optionLabel .= ' · '.$option['estimated_delivery'];
+                                }
+                                if (! empty($option['provider_recommended'])) {
+                                    $optionLabel .= ' · Shiprocket Recommended';
+                                }
+                            @endphp
+                            <option value="{{ $option['courier_id'] }}" @selected($shipment->selectedCourierId === $option['courier_id'])>
+                                {{ $optionLabel }}
+                            </option>
                         @endforeach
-                    </div>
+                    </select>
                     <button type="submit" class="btn btn-outline-primary mt-3" id="hardware-courier-select-submit">Select Courier</button>
                 </form>
             @endif
+        </div>
 
+        <div class="hf-alloc-card mb-3" id="hardware-shipment-create">
+            <p class="text-muted small text-uppercase fw-semibold mb-2">Shipment</p>
+            <dl class="hf-alloc-confirm mb-0">
+                <dt>Status</dt>
+                <dd>{{ $shipment->status }}</dd>
+                <dt>Provider shipment</dt>
+                <dd>{{ $shipment->providerShipmentId ?? '—' }}</dd>
+            </dl>
             @if($shipment->canCreate)
                 <form method="POST" action="{{ route('inventory.hardware-fulfilments.shipment.store', $fulfilment) }}" id="hardware-shipment-form" class="mt-3">
                     @csrf
@@ -423,7 +383,16 @@
                     <button type="submit" class="btn btn-primary" id="hardware-shipment-submit">{{ $shipment->actionLabel }}</button>
                 </form>
             @endif
+        </div>
 
+        <div class="hf-alloc-card mb-3" id="hardware-awb">
+            <p class="text-muted small text-uppercase fw-semibold mb-2">AWB</p>
+            <dl class="hf-alloc-confirm mb-0">
+                <dt>AWB</dt>
+                <dd>{{ $shipment->awb ?? 'Not assigned' }}</dd>
+                <dt>Courier</dt>
+                <dd>{{ $shipment->courier ?? 'Not selected' }}</dd>
+            </dl>
             @if($shipment->canAssignAwb)
                 <form method="POST" action="{{ route('inventory.hardware-fulfilments.awb.store', $fulfilment) }}" id="hardware-awb-form" class="mt-3">
                     @csrf
@@ -431,6 +400,154 @@
                     <button type="submit" class="btn btn-outline-primary" id="hardware-awb-submit">Assign AWB</button>
                 </form>
             @endif
+        </div>
+
+        <div class="hf-alloc-card mb-3" id="hardware-label">
+            <p class="text-muted small text-uppercase fw-semibold mb-2">Shipping label</p>
+            <dl class="hf-alloc-confirm mb-0">
+                <dt>Label</dt>
+                <dd>{{ $shipment->labelStatus }}</dd>
+            </dl>
+            @if($shipment->canGenerateLabel)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.label.store', $fulfilment) }}" id="hardware-label-form" class="mt-3">
+                    @csrf
+                    <p class="text-muted small mb-2">Generates the official Shiprocket shipping label. Print and paste it on the parcel.</p>
+                    <button type="submit" class="btn btn-outline-primary" id="hardware-label-submit">Generate Shipping Label</button>
+                </form>
+            @endif
+            @if($shipment->labelUrl)
+                <p class="mt-3 mb-0">
+                    <a href="{{ $shipment->labelUrl }}" target="_blank" rel="noopener" id="hardware-label-print">Print Shipping Label</a>
+                </p>
+            @endif
+        </div>
+
+        <div class="hf-alloc-card mb-3" id="hardware-package-evidence">
+            <p class="text-muted small text-uppercase fw-semibold mb-2">Package evidence</p>
+            <dl class="hf-alloc-confirm mb-0">
+                <dt>Package photo</dt>
+                <dd>
+                    @if($shipment->packageBeforeLabelRecorded && $shipment->packageBeforeLabelId)
+                        Recorded
+                        · <a href="{{ route('inventory.hardware-fulfilments.package-evidence.show', [$fulfilment, $shipment->packageBeforeLabelId]) }}">View</a>
+                    @else
+                        Not recorded
+                    @endif
+                </dd>
+                <dt>Label-applied photo</dt>
+                <dd>
+                    @if($shipment->packageLabelAppliedRecorded && $shipment->packageLabelAppliedId)
+                        Recorded
+                        · <a href="{{ route('inventory.hardware-fulfilments.package-evidence.show', [$fulfilment, $shipment->packageLabelAppliedId]) }}">View</a>
+                    @else
+                        Not recorded
+                    @endif
+                </dd>
+            </dl>
+            @if($shipment->canUploadPackageBeforeLabel)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}" id="hardware-package-before-form" class="mt-3" enctype="multipart/form-data">
+                    @csrf
+                    <input type="hidden" name="kind" value="package_before_label">
+                    <label class="form-label" for="hardware-package-before-photo">Package photo</label>
+                    <input class="form-control" type="file" id="hardware-package-before-photo" name="photo" accept="image/jpeg,image/png,image/webp" required>
+                    <p class="text-muted small mt-2 mb-2">This is not proof that the shipping label has been applied.</p>
+                    <button type="submit" class="btn btn-outline-primary" id="hardware-package-before-submit">Record package photo</button>
+                </form>
+            @endif
+            @if($shipment->canUploadPackageLabelApplied)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}" id="hardware-package-label-form" class="mt-3" enctype="multipart/form-data">
+                    @csrf
+                    <input type="hidden" name="kind" value="package_label_applied">
+                    <label class="form-label" for="hardware-package-label-photo">Label-applied package photo</label>
+                    <input class="form-control" type="file" id="hardware-package-label-photo" name="photo" accept="image/jpeg,image/png,image/webp" required>
+                    <p class="text-muted small mt-2 mb-2">Record this after the official label is printed and pasted.</p>
+                    <button type="submit" class="btn btn-outline-primary" id="hardware-package-label-submit">Record labelled package</button>
+                </form>
+            @endif
+        </div>
+
+        <div class="hf-alloc-card mb-3" id="hardware-manifest-pickup">
+            <p class="text-muted small text-uppercase fw-semibold mb-2">Manifest / Pickup</p>
+            <dl class="hf-alloc-confirm mb-0">
+                <dt>Pickup</dt>
+                <dd>{{ $shipment->pickupStatus }}</dd>
+                <dt>Manifest</dt>
+                <dd>{{ $shipment->manifestStatus }}</dd>
+                <dt>Ready for pickup</dt>
+                <dd>{{ $shipment->readyForPickup ? 'Yes' : 'Not marked' }}</dd>
+            </dl>
+            @if($shipment->canRequestPickup)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.pickup.store', $fulfilment) }}" id="hardware-pickup-form" class="mt-3">
+                    @csrf
+                    <p class="text-muted small mb-2">Requests pickup from Shiprocket for this shipment. This does not mark the order dispatched.</p>
+                    <button type="submit" class="btn btn-outline-primary" id="hardware-pickup-submit">Request Pickup</button>
+                </form>
+            @endif
+            @if($shipment->canGenerateManifest)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.manifest.store', $fulfilment) }}" id="hardware-manifest-form" class="mt-3">
+                    @csrf
+                    <p class="text-muted small mb-2">Generates a Shiprocket manifest for this shipment after pickup is requested. Manifests can include more than one shipment at the provider.</p>
+                    <button type="submit" class="btn btn-outline-primary" id="hardware-manifest-submit">Generate Manifest</button>
+                </form>
+            @endif
+            @if($shipment->manifestUrl)
+                <p class="mt-3 mb-0">
+                    <a href="{{ $shipment->manifestUrl }}" target="_blank" rel="noopener" id="hardware-manifest-download">Download Manifest</a>
+                </p>
+            @endif
+            @if($shipment->canMarkReadyForPickup)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.ready-for-pickup.store', $fulfilment) }}" id="hardware-ready-form" class="mt-3">
+                    @csrf
+                    <p class="text-muted small mb-2">Marks this fulfilment ready for pickup after the labelled package photo is recorded.</p>
+                    <button type="submit" class="btn btn-primary" id="hardware-ready-submit">Mark Ready for Pickup</button>
+                </form>
+            @endif
+        </div>
+
+        <div class="hf-alloc-card mb-3" id="hardware-shipment-details">
+            <details>
+                <summary class="text-muted small">Details</summary>
+                <dl class="hf-alloc-confirm mt-2 mb-0">
+                    <dt>Customer</dt>
+                    <dd>{{ $shipment->customer ?: '—' }}</dd>
+                    <dt>Phone</dt>
+                    <dd>{{ $shipment->phone ?: '—' }}</dd>
+                    <dt>Email</dt>
+                    <dd>{{ $shipment->email ?: '—' }}</dd>
+                    <dt>Verified packaging</dt>
+                    <dd>
+                        @if($shipment->catalogPackaging)
+                            {{ $shipment->catalogPackaging }}{{ $shipment->catalogVerified ? ' (verified)' : '' }}
+                        @else
+                            Unknown until serials are allocated
+                        @endif
+                    </dd>
+                    <dt>Shipment no</dt>
+                    <dd>{{ $shipment->shipmentNo ?? '—' }}</dd>
+                    <dt>Provider shipment</dt>
+                    <dd>{{ $shipment->providerShipmentId ?? '—' }}</dd>
+                    <dt>Manifest id</dt>
+                    <dd>{{ $shipment->manifestId ?? '—' }}</dd>
+                </dl>
+                @if($boundShipment?->events?->isNotEmpty())
+                    <div class="mt-3">
+                        <p class="text-muted small text-uppercase fw-semibold mb-2">Shipment events</p>
+                        <ul class="small mb-0 ps-3">
+                            @foreach($boundShipment->events as $event)
+                                <li>
+                                    {{ $event->activity }}
+                                    @if($event->awb)
+                                        · AWB {{ $event->awb }}
+                                    @endif
+                                    @if($event->external_shipment_id)
+                                        · {{ $event->external_shipment_id }}
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+            </details>
         </div>
     </div>
 @endsection
@@ -706,5 +823,28 @@
                 submit.textContent = 'Attaching…';
             });
         })();
+
+        [
+            ['hardware-label-form', 'hardware-label-submit', 'Generate the official Shiprocket shipping label?', 'Generating label…'],
+            ['hardware-pickup-form', 'hardware-pickup-submit', 'Request Shiprocket pickup for this shipment?', 'Requesting pickup…'],
+            ['hardware-manifest-form', 'hardware-manifest-submit', 'Generate the Shiprocket manifest for this shipment?', 'Generating manifest…'],
+            ['hardware-ready-form', 'hardware-ready-submit', 'Mark this fulfilment ready for pickup?', 'Saving…'],
+            ['hardware-package-before-form', 'hardware-package-before-submit', 'Record this package photo? It is not proof that a label was applied.', 'Saving photo…'],
+            ['hardware-package-label-form', 'hardware-package-label-submit', 'Record the labelled-package photo after the label was pasted?', 'Saving photo…'],
+        ].forEach(function (row) {
+            const form = document.getElementById(row[0]);
+            const submit = document.getElementById(row[1]);
+            if (!form || !submit) {
+                return;
+            }
+            form.addEventListener('submit', function (event) {
+                if (!window.confirm(row[2])) {
+                    event.preventDefault();
+                    return;
+                }
+                submit.disabled = true;
+                submit.textContent = row[3];
+            });
+        });
     </script>
 @endpush

@@ -36,6 +36,8 @@ interface ShiprocketGateway
 
     public function generateLabel(string $externalShipmentId): ShiprocketDocumentResult;
 
+    public function generateManifest(string $externalShipmentId): ShiprocketDocumentResult;
+
     public function printInvoice(string $externalShipmentId): ShiprocketDocumentResult;
 
     public function trackByAwb(string $awb): ShiprocketTrackResult;

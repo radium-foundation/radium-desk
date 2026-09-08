@@ -63,6 +63,11 @@ final class NullShiprocketGateway implements ShiprocketGateway
         throw new ShiprocketDisabledException(self::MESSAGE);
     }
 
+    public function generateManifest(string $externalShipmentId): ShiprocketDocumentResult
+    {
+        throw new ShiprocketDisabledException(self::MESSAGE);
+    }
+
     public function printInvoice(string $externalShipmentId): ShiprocketDocumentResult
     {
         throw new ShiprocketDisabledException(self::MESSAGE);

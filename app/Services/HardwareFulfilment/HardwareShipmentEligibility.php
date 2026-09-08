@@ -3,8 +3,11 @@
 namespace App\Services\HardwareFulfilment;
 
 use App\Contracts\Shipping\ShiprocketGateway;
+use App\Enums\HardwareFulfilmentPackageEvidenceKind;
+use App\Enums\HardwareFulfilmentState;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
+use App\Models\HardwareFulfilmentPackageEvidence;
 use App\Models\InventoryBranch;
 use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
@@ -229,6 +232,20 @@ class HardwareShipmentEligibility
 
         $catalog = $this->snapshots->catalogPackaging($fulfilment);
         $country = $this->countries->resolvedCountry($fulfilment);
+        $awbReady = $alreadyCreated
+            && filled($shipment?->awb)
+            && $fulfilment->state === HardwareFulfilmentState::AwbAssigned;
+        $labelUrl = filled($shipment?->label_url) ? (string) $shipment->label_url : null;
+        $manifestUrl = filled($shipment?->manifest_url) ? (string) $shipment->manifest_url : null;
+        $manifestId = filled($shipment?->manifest_id) ? (string) $shipment->manifest_id : null;
+        $pickupRequested = $shipment?->pickup_requested_at !== null;
+        $beforeLabel = $this->packageEvidence($fulfilment, HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel);
+        $labelApplied = $this->packageEvidence($fulfilment, HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied);
+        $readyForPickup = $fulfilment->ready_for_pickup_at !== null;
+        $notTerminal = ! in_array($fulfilment->state, [
+            HardwareFulfilmentState::Shipped,
+            HardwareFulfilmentState::Synced,
+        ], true);
 
         return new HardwareShipmentReadiness(
             canCreate: $canCreate,
@@ -270,6 +287,23 @@ class HardwareShipmentEligibility
             email: $order !== null ? trim((string) $order->customer_email) : null,
             quantity: $order !== null ? $this->requiredPhysicalQty($order) : null,
             invoiceId: $invoice?->id,
+            canGenerateLabel: $awbReady && $labelUrl === null && $notTerminal,
+            canRequestPickup: $awbReady && ! $pickupRequested && $notTerminal,
+            canGenerateManifest: $awbReady && $pickupRequested && $manifestUrl === null && $manifestId === null && $notTerminal,
+            canUploadPackageBeforeLabel: $notTerminal,
+            canUploadPackageLabelApplied: $awbReady && $notTerminal,
+            canMarkReadyForPickup: $awbReady && $labelApplied !== null && ! $readyForPickup && $notTerminal,
+            labelUrl: $labelUrl,
+            labelStatus: $labelUrl !== null ? 'Available' : 'Not generated',
+            manifestUrl: $manifestUrl,
+            manifestId: $manifestId,
+            manifestStatus: ($manifestUrl !== null || $manifestId !== null) ? 'Available' : 'Not generated',
+            pickupStatus: $pickupRequested ? 'Requested' : 'Not requested',
+            packageBeforeLabelRecorded: $beforeLabel !== null,
+            packageLabelAppliedRecorded: $labelApplied !== null,
+            packageBeforeLabelId: $beforeLabel?->id,
+            packageLabelAppliedId: $labelApplied?->id,
+            readyForPickup: $readyForPickup,
         );
     }
 
@@ -672,6 +706,22 @@ class HardwareShipmentEligibility
         }
 
         return null;
+    }
+
+    private function packageEvidence(
+        HardwareFulfilment $fulfilment,
+        HardwareFulfilmentPackageEvidenceKind $kind,
+    ): ?HardwareFulfilmentPackageEvidence {
+        if ($fulfilment->relationLoaded('packageEvidences')) {
+            return $fulfilment->packageEvidences->first(
+                fn (HardwareFulfilmentPackageEvidence $row): bool => $row->kind === $kind,
+            );
+        }
+
+        return HardwareFulfilmentPackageEvidence::query()
+            ->where('hardware_fulfilment_id', $fulfilment->id)
+            ->where('kind', $kind)
+            ->first();
     }
 
     /**

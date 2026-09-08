@@ -54,6 +54,7 @@ class HardwareFulfilment extends Model
         'selected_courier_name',
         'selected_courier_at',
         'selected_courier_by_user_id',
+        'ready_for_pickup_at',
     ];
 
     protected function casts(): array
@@ -79,6 +80,7 @@ class HardwareFulfilment extends Model
             'courier_options_fetched_at' => 'datetime',
             'courier_options_expires_at' => 'datetime',
             'selected_courier_at' => 'datetime',
+            'ready_for_pickup_at' => 'datetime',
         ];
     }
 
@@ -120,5 +122,10 @@ class HardwareFulfilment extends Model
     public function selectedCourierBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'selected_courier_by_user_id');
+    }
+
+    public function packageEvidences(): HasMany
+    {
+        return $this->hasMany(HardwareFulfilmentPackageEvidence::class)->orderBy('id');
     }
 }
