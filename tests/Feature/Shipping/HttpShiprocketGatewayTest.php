@@ -53,7 +53,57 @@ class HttpShiprocketGatewayTest extends TestCase
             return str_ends_with($request->url(), '/orders/create/adhoc')
                 && $request['order_id'] === 'HW-RDE900800'
                 && $request['pickup_location'] === 'RADDELHI'
-                && $request['billing_last_name'] === '';
+                && $request['billing_last_name'] === ''
+                && $request['billing_city'] === 'Indore';
+        });
+    }
+
+    public function test_create_order_clamps_billing_city_to_official_max(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc' => Http::response([
+                'order_id' => 88,
+                'shipment_id' => 99,
+            ], 200),
+        ]);
+
+        $request = new ShiprocketCreateOrderRequest(
+            merchantOrderId: 'HW-RDE900800',
+            localShipmentId: 1,
+            correlationId: 'corr-1',
+            items: [[
+                'name' => 'MSO1300',
+                'sku' => '946',
+                'units' => 1,
+                'selling_price' => 3049,
+            ]],
+            orderDate: '2026-09-06 10:00',
+            pickupLocation: 'RADDELHI',
+            billingCustomerName: 'Hardware Buyer',
+            billingAddress: '12 Shipping Street',
+            billingCity: 'Paschim Medinipur (West Midnapore)',
+            billingPincode: '721130',
+            billingState: 'West Bengal',
+            billingCountry: 'India',
+            billingEmail: 'buyer@example.test',
+            billingPhone: '9000000099',
+            paymentMethod: 'Prepaid',
+            subTotal: '2549.00',
+            length: 14,
+            breadth: 9,
+            height: 7,
+            weight: 0.24,
+        );
+
+        (new HttpShiprocketGateway)->createOrder($request);
+
+        Http::assertSent(function ($httpRequest): bool {
+            return str_ends_with($httpRequest->url(), '/orders/create/adhoc')
+                && $httpRequest['billing_city'] === 'Paschim Medinipur'
+                && mb_strlen((string) $httpRequest['billing_city'], 'UTF-8') <= 30
+                && ! array_key_exists('channel_id', $httpRequest->data())
+                && ! array_key_exists('courier_id', $httpRequest->data());
         });
     }
 
@@ -304,6 +354,65 @@ class HttpShiprocketGatewayTest extends TestCase
         $this->assertNull($result->url);
         $this->assertNull($result->documentId);
         $this->assertSame('Manifest not generated', $result->error);
+    }
+
+    public function test_request_pickup_success_is_requested(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/generate/pickup' => Http::response([
+                'pickup_status' => 1,
+                'response' => [
+                    'pickup_scheduled_date' => '2026-09-08 18:00:00',
+                ],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->requestPickup('99');
+
+        $this->assertSame('requested', $result->status);
+        $this->assertFalse($result->alreadyQueued);
+        Http::assertSent(function ($request): bool {
+            return str_ends_with($request->url(), '/courier/generate/pickup')
+                && $request->method() === 'POST'
+                && $request['shipment_id'] === ['99'];
+        });
+    }
+
+    public function test_request_pickup_http_400_already_in_queue_is_reconciled(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/generate/pickup' => Http::response([
+                'message' => 'Already in Pickup Queue',
+                'status_code' => 400,
+            ], 400),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->requestPickup('99');
+
+        $this->assertSame('already_requested', $result->status);
+        $this->assertTrue($result->alreadyQueued);
+        $this->assertTrue($result->isAccepted());
+        $this->assertSame('HTTP 400 — Already in Pickup Queue', $result->error);
+        Http::assertSentCount(2);
+    }
+
+    public function test_request_pickup_http_400_other_message_stays_rejected(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/generate/pickup' => Http::response([
+                'message' => 'AWB not assigned',
+            ], 400),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->requestPickup('99');
+
+        $this->assertSame('rejected', $result->status);
+        $this->assertFalse($result->alreadyQueued);
+        $this->assertFalse($result->isAccepted());
+        $this->assertSame('HTTP 400 — AWB not assigned', $result->error);
     }
 
     public function test_assign_awb_reads_provider_evidence(): void

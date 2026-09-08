@@ -295,7 +295,7 @@ class HardwareShipmentEligibility
             canGenerateManifest: $awbReady && $pickupRequested && $manifestUrl === null && $manifestId === null && $notTerminal,
             canUploadPackageBeforeLabel: $notTerminal,
             canUploadPackageLabelApplied: $awbReady && $notTerminal,
-            canMarkReadyForPickup: $awbReady && $labelApplied !== null && ! $readyForPickup && $notTerminal,
+            canMarkReadyForPickup: $awbReady && $pickupRequested && $labelApplied !== null && ! $readyForPickup && $notTerminal,
             labelUrl: $labelUrl,
             labelStatus: $labelUrl !== null ? 'Available' : 'Not generated',
             manifestUrl: $manifestUrl,
@@ -310,6 +310,7 @@ class HardwareShipmentEligibility
             collectionMode: $collection->value,
             collectionModeLabel: $collection->label(),
             providerRejection: $providerRejection,
+            pickupRequestedAt: $shipment?->pickup_requested_at?->timezone((string) config('app.timezone'))->format('Y-m-d H:i'),
         );
     }
 

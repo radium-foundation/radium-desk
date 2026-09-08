@@ -9,5 +9,11 @@ final class ShiprocketPickupResult
         public readonly string $status,
         public readonly ?string $error = null,
         public readonly bool $retryable = false,
+        public readonly bool $alreadyQueued = false,
     ) {}
+
+    public function isAccepted(): bool
+    {
+        return in_array($this->status, ['requested', 'already_requested'], true);
+    }
 }

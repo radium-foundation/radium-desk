@@ -238,6 +238,20 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->assertSessionHas('status', 'Label-applied package photo recorded.');
 
         $this->actingAs($this->admin)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->post(route('inventory.hardware-fulfilments.ready-for-pickup.store', $fulfilment->fresh()))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors('shipping');
+
+        $this->assertNull($fulfilment->fresh()->ready_for_pickup_at);
+        $this->assertSame(0, $this->fake->pickups);
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Pickup requested.');
+
+        $this->actingAs($this->admin)
             ->post(route('inventory.hardware-fulfilments.ready-for-pickup.store', $fulfilment->fresh()))
             ->assertRedirect()
             ->assertSessionHas('status', 'Fulfilment marked ready for pickup.');
@@ -248,6 +262,8 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
 
         $fresh = $fulfilment->fresh();
         $this->assertNotNull($fresh->ready_for_pickup_at);
+        $this->assertNotNull($fresh->shipment?->pickup_requested_at);
+        $this->assertSame(1, $this->fake->pickups);
         $this->assertSame(2, HardwareFulfilmentPackageEvidence::query()->count());
         $this->assertTrue(
             HardwareFulfilmentEvent::query()
@@ -265,6 +281,124 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->assertOk();
 
         $this->assertSame(HardwareFulfilmentState::AwbAssigned, $fresh->state);
+        Http::assertNothingSent();
+    }
+
+    public function test_request_pickup_is_available_only_when_awb_is_assigned(): void
+    {
+        $fulfilment = $this->awbFulfilment('RDE940007');
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertOk()
+            ->assertSee('id="hardware-pickup-submit"', false)
+            ->assertSee('Not requested')
+            ->assertSee('Manifest not generated')
+            ->assertDontSee('id="hardware-pickup-requested-status"', false);
+
+        $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment->fresh());
+        $this->assertTrue($ready->canRequestPickup);
+        $this->assertSame('Not requested', $ready->pickupStatus);
+        $this->assertFalse($ready->canMarkReadyForPickup);
+        $this->assertSame(0, $this->fake->pickups);
+        Http::assertNothingSent();
+    }
+
+    public function test_successful_pickup_persists_and_removes_the_request_action(): void
+    {
+        $fulfilment = $this->awbFulfilment('RDE940008');
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Pickup requested.');
+
+        $shipment = Shipment::query()->firstOrFail();
+        $this->assertNotNull($shipment->pickup_requested_at);
+        $this->assertSame(1, $this->fake->pickups);
+        $this->assertTrue(
+            HardwareFulfilmentEvent::query()
+                ->where('hardware_fulfilment_id', $fulfilment->id)
+                ->where('payload->reason', 'hardware_pickup_requested')
+                ->exists()
+        );
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('Pickup Requested')
+            ->assertSee('id="hardware-pickup-requested-status"', false)
+            ->assertDontSee('id="hardware-pickup-submit"', false);
+
+        $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment->fresh());
+        $this->assertFalse($ready->canRequestPickup);
+        $this->assertSame('Requested', $ready->pickupStatus);
+        $this->assertNotNull($ready->pickupRequestedAt);
+        Http::assertNothingSent();
+    }
+
+    public function test_repeated_pickup_request_does_not_call_the_provider_again(): void
+    {
+        $fulfilment = $this->awbFulfilment('RDE940009');
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment))
+            ->assertRedirect();
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Pickup requested.');
+
+        $this->assertSame(1, $this->fake->pickups);
+        $this->assertSame(
+            1,
+            HardwareFulfilmentEvent::query()
+                ->where('hardware_fulfilment_id', $fulfilment->id)
+                ->where('payload->reason', 'hardware_pickup_requested')
+                ->count()
+        );
+        Http::assertNothingSent();
+    }
+
+    public function test_already_in_pickup_queue_reconciles_local_state_without_a_second_provider_call(): void
+    {
+        $fulfilment = $this->awbFulfilment('RDE940010');
+        $this->fake->nextPickupMode = 'already_queued';
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Pickup already queued at the provider. Local pickup state reconciled.');
+
+        $shipment = Shipment::query()->firstOrFail();
+        $this->assertNotNull($shipment->pickup_requested_at);
+        $this->assertSame(1, $this->fake->pickups);
+        $this->assertTrue(
+            HardwareFulfilmentEvent::query()
+                ->where('hardware_fulfilment_id', $fulfilment->id)
+                ->where('payload->reason', 'hardware_pickup_reconciled_already_queued')
+                ->exists()
+        );
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Pickup requested.');
+
+        $this->assertSame(1, $this->fake->pickups);
+        $this->assertSame(
+            1,
+            HardwareFulfilmentEvent::query()
+                ->where('payload->reason', 'hardware_pickup_reconciled_already_queued')
+                ->count()
+        );
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('Pickup Requested')
+            ->assertDontSee('id="hardware-pickup-submit"', false);
+
         Http::assertNothingSent();
     }
 

@@ -69,5 +69,6 @@ final class HardwareShipmentReadiness
         public readonly string $collectionMode = 'prepaid',
         public readonly string $collectionModeLabel = 'Prepaid',
         public readonly ?string $providerRejection = null,
+        public readonly ?string $pickupRequestedAt = null,
     ) {}
 }

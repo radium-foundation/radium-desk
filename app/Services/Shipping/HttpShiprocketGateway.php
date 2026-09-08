@@ -198,9 +198,9 @@ final class HttpShiprocketGateway implements ShiprocketGateway
     public function requestPickup(string $externalShipmentId): ShiprocketPickupResult
     {
         try {
-            $this->send('post', '/courier/generate/pickup', [
+            $response = $this->send('post', '/courier/generate/pickup', [
                 'shipment_id' => [$externalShipmentId],
-            ]);
+            ], true, false);
         } catch (ShiprocketRetryableException $exception) {
             return new ShiprocketPickupResult(
                 provider: $this->provider(),
@@ -213,6 +213,24 @@ final class HttpShiprocketGateway implements ShiprocketGateway
                 provider: $this->provider(),
                 status: 'rejected',
                 error: $exception->getMessage(),
+                retryable: false,
+            );
+        }
+
+        if ($this->isAlreadyQueuedPickup($response['status'], $response['json'])) {
+            return new ShiprocketPickupResult(
+                provider: $this->provider(),
+                status: 'already_requested',
+                error: $this->errorMessage($response['json'], 'Already in Pickup Queue', $response['status']),
+                alreadyQueued: true,
+            );
+        }
+
+        if ($response['status'] >= 400) {
+            return new ShiprocketPickupResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $this->errorMessage($response['json'], 'Shiprocket rejected pickup generation.', $response['status']),
                 retryable: false,
             );
         }
@@ -363,8 +381,13 @@ final class HttpShiprocketGateway implements ShiprocketGateway
      * @param  array<string, mixed>  $data
      * @return array{status: int, json: array<string, mixed>}
      */
-    private function send(string $method, string $path, array $data = [], bool $authenticated = true): array
-    {
+    private function send(
+        string $method,
+        string $path,
+        array $data = [],
+        bool $authenticated = true,
+        bool $throwOnClientError = true,
+    ): array {
         $this->assertConfigured();
 
         try {
@@ -386,13 +409,13 @@ final class HttpShiprocketGateway implements ShiprocketGateway
             throw new ShiprocketRetryableException('Shiprocket request failed: '.$exception->getMessage());
         }
 
-        return $this->interpret($response);
+        return $this->interpret($response, $throwOnClientError);
     }
 
     /**
      * @return array{status: int, json: array<string, mixed>}
      */
-    private function interpret(Response $response): array
+    private function interpret(Response $response, bool $throwOnClientError = true): array
     {
         $status = $response->status();
         $json = $response->json();
@@ -410,12 +433,37 @@ final class HttpShiprocketGateway implements ShiprocketGateway
         }
 
         if ($status >= 400) {
+            if (! $throwOnClientError) {
+                return ['status' => $status, 'json' => $payload];
+            }
+
             throw new ShiprocketNonRetryableException(
                 $this->errorMessage($payload, 'Shiprocket returned HTTP '.$status, $status),
             );
         }
 
         return ['status' => $status, 'json' => $payload];
+    }
+
+    /**
+     * Provider HTTP 400 plus the observed `message`/`error`/`msg` field.
+     * Official order status 12 is "Pickup Queue"; no separate error code was present
+     * on the production RDE318421 response that Desk displayed.
+     *
+     * @param  array<string, mixed>  $json
+     */
+    private function isAlreadyQueuedPickup(int $httpStatus, array $json): bool
+    {
+        if ($httpStatus !== 400) {
+            return false;
+        }
+
+        $message = $this->scalar($json['message'] ?? $json['error'] ?? $json['msg'] ?? null);
+        if ($message === null) {
+            return false;
+        }
+
+        return strcasecmp(trim($message), 'Already in Pickup Queue') === 0;
     }
 
     private function token(): string

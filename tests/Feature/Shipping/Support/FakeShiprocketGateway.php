@@ -285,6 +285,12 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
         return match ($mode) {
             'accepted' => $this->acceptPickup($externalShipmentId),
+            'already_queued' => new ShiprocketPickupResult(
+                provider: $this->provider(),
+                status: 'already_requested',
+                error: 'HTTP 400 — Already in Pickup Queue',
+                alreadyQueued: true,
+            ),
             'rejected' => new ShiprocketPickupResult(
                 provider: $this->provider(),
                 status: 'rejected',

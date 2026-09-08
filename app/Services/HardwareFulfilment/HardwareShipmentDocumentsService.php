@@ -9,6 +9,7 @@ use App\Models\HardwareFulfilmentEvent;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
 use App\Models\User;
+use App\Services\HardwareFulfilment\Data\HardwarePickupRequestOutcome;
 use App\Services\Shipping\Data\ShiprocketDocumentResult;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\Shipping\ShiprocketDisabledException;
@@ -60,10 +61,15 @@ class HardwareShipmentDocumentsService
         });
     }
 
-    public function requestPickup(HardwareFulfilment $fulfilment, ?User $actor = null): Shipment
+    public function requestPickup(HardwareFulfilment $fulfilment, ?User $actor = null): HardwarePickupRequestOutcome
     {
-        return $this->mutateDocument($fulfilment, $actor, 'pickup', function (HardwareFulfilment $locked, Shipment $shipment) use ($actor): Shipment {
+        $alreadyLocal = false;
+        $reconciled = false;
+
+        $shipment = $this->mutateDocument($fulfilment, $actor, 'pickup', function (HardwareFulfilment $locked, Shipment $shipment) use ($actor, &$alreadyLocal, &$reconciled): Shipment {
             if ($shipment->pickup_requested_at !== null) {
+                $alreadyLocal = true;
+
                 return $shipment;
             }
 
@@ -84,30 +90,45 @@ class HardwareShipmentDocumentsService
                 ]);
             }
 
-            if ($result->status !== 'requested') {
+            if (! $result->isAccepted()) {
                 throw ValidationException::withMessages([
                     'shipping' => $result->error ?? 'Shiprocket rejected pickup generation.',
                 ]);
             }
+
+            $reconciled = $result->status === 'already_requested' || $result->alreadyQueued;
 
             $shipment->forceFill([
                 'pickup_requested_at' => now(),
                 'last_error' => null,
             ])->save();
 
-            $this->recordShipmentEvent($shipment, 'pickup_requested', [
+            $activity = $reconciled ? 'pickup_reconciled_already_queued' : 'pickup_requested';
+            $reason = $reconciled ? 'hardware_pickup_reconciled_already_queued' : 'hardware_pickup_requested';
+
+            $this->recordShipmentEvent($shipment, $activity, [
                 'provider' => $result->provider,
+                'result' => $result->status,
+                'already_queued' => $reconciled,
+                'error' => $result->error,
             ]);
-            $this->recordFulfilmentEvent($locked, $actor, 'hardware_pickup_requested', [
+            $this->recordFulfilmentEvent($locked, $actor, $reason, [
                 'shipment_id' => $shipment->id,
                 'provider' => $result->provider,
                 'correlation_id' => $shipment->correlation_id,
                 'result' => $result->status,
+                'already_queued' => $reconciled,
                 'external_shipment_id' => $shipment->external_shipment_id,
             ]);
 
             return $shipment->fresh() ?? $shipment;
         });
+
+        return new HardwarePickupRequestOutcome(
+            shipment: $shipment,
+            alreadyLocal: $alreadyLocal,
+            reconciled: $reconciled,
+        );
     }
 
     public function generateManifest(HardwareFulfilment $fulfilment, ?User $actor = null): Shipment
@@ -175,7 +196,7 @@ class HardwareShipmentDocumentsService
             $ready = $this->eligibility->inspect($locked);
             if (! $ready->canMarkReadyForPickup) {
                 throw ValidationException::withMessages([
-                    'shipping' => 'Ready for pickup requires an assigned AWB and a label-applied package photo.',
+                    'shipping' => 'Ready for pickup requires a requested pickup, an assigned AWB, and a label-applied package photo.',
                 ]);
             }
 
