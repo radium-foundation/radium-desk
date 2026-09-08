@@ -5,7 +5,8 @@ namespace App\Services\HardwareFulfilment\Data;
 use App\Enums\HardwareFulfilmentOperationalStage;
 
 /**
- * Shared 11-step rail for Operations, show page, and Customer 360.
+ * Shared 10-step rail for Operations, show page, and Customer 360.
+ * Package photo is parallel evidence — not a blocking step.
  * Presentation only — does not mutate fulfilment state.
  */
 final class HardwareFulfilmentStepper
@@ -21,7 +22,6 @@ final class HardwareFulfilmentStepper
         'Shipment',
         'AWB',
         'Label',
-        'Packing',
         'Pickup',
         'Manifest',
         'Ready',
@@ -61,19 +61,35 @@ final class HardwareFulfilmentStepper
             return 6;
         }
 
-        if (! $ready->packageLabelAppliedRecorded) {
+        if ($ready->pickupStatus === 'Not requested') {
             return 7;
         }
 
-        if ($ready->pickupStatus === 'Not requested') {
+        if ($ready->manifestStatus === 'Not generated') {
             return 8;
         }
 
-        if ($ready->manifestStatus === 'Not generated') {
-            return 9;
-        }
+        return 9;
+    }
 
-        return 10;
+    public static function currentCaption(HardwareFulfilmentOperationalRow $row): string
+    {
+        return match ($row->nextAction) {
+            'Review' => 'Review this order before fulfilment can start.',
+            'Allocate Serial' => 'Allocate a stock serial to continue.',
+            'Issue Invoice' => 'Issue the statutory invoice to continue.',
+            'Get Courier Options' => 'Fetch courier options for this shipment.',
+            'Create Shipment', 'Reconcile Shipment' => 'Create the shipment after courier selection.',
+            'Select Courier' => 'Select a courier to continue.',
+            'Assign AWB' => 'Assign the AWB for the selected courier.',
+            'Generate Label' => 'Generate the shipping label.',
+            'Request Pickup' => 'Request pickup. Package photo is not required.',
+            'Generate Manifest' => 'Pickup has been requested.',
+            'Upload Package Photo' => 'Evidence can be added after shipment or pickup. It does not block shipping.',
+            'Ready' => 'Operational steps are complete.',
+            'View' => 'Hardware cannot start yet.',
+            default => '',
+        };
     }
 
     /**

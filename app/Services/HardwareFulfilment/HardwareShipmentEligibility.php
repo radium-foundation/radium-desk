@@ -295,7 +295,7 @@ class HardwareShipmentEligibility
             canGenerateManifest: $awbReady && $pickupRequested && $manifestUrl === null && $manifestId === null && $notTerminal,
             canUploadPackageBeforeLabel: $notTerminal,
             canUploadPackageLabelApplied: $awbReady && $notTerminal,
-            canMarkReadyForPickup: $awbReady && $pickupRequested && $labelApplied !== null && ! $readyForPickup && $notTerminal,
+            canMarkReadyForPickup: $awbReady && $pickupRequested && ! $readyForPickup && $notTerminal,
             labelUrl: $labelUrl,
             labelStatus: $labelUrl !== null ? 'Available' : 'Not generated',
             manifestUrl: $manifestUrl,

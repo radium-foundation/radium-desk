@@ -65,7 +65,7 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
             ->assertOk()
             ->assertSee('Issue Hardware Invoice')
             ->assertSee('id="hardware-invoice"', false)
-            ->assertSee('Progress');
+            ->assertSee('Current step');
 
         $this->assertSame(0, StatutoryInvoice::query()->count());
     }

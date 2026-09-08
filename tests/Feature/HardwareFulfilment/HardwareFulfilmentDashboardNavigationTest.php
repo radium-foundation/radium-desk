@@ -37,11 +37,14 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['workspace' => 'hardware']))
             ->assertOk()
+            ->assertSee('data-hardware-workspace', false)
+            ->assertSee('Search hardware...')
+            ->assertSee('RDE902001')
             ->assertSee('data-incident-id="'.$incident->id.'"', false)
             ->assertSee('dashboard-case-row--clickable', false)
-            ->assertSee('data-hardware-fulfilment-link', false)
-            ->assertSee('Fulfilment / Shipment')
+            ->assertSee('Allocate Serial')
             ->assertSee(route('inventory.hardware-fulfilments.show', $fulfilment), false)
+            ->assertDontSee('Create All')
             ->assertDontSee('/inventory/shipments')
             ->assertDontSee('/fulfilment/shipments');
     }
@@ -54,9 +57,12 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $html = $this->actingAs($admin)
             ->get(route('dashboard', ['workspace' => 'hardware']))
             ->assertOk()
+            ->assertSee('RIN902002')
+            ->assertSee('Blocked')
+            ->assertSee('RIN mapping required')
+            ->assertSee('View')
             ->assertSee('data-incident-id="'.$incident->id.'"', false)
             ->assertDontSee('data-hardware-fulfilment-link', false)
-            ->assertDontSee('Fulfilment / Shipment')
             ->getContent();
 
         $this->assertStringNotContainsString('/inventory/hardware-fulfilments/', $html);
@@ -86,7 +92,7 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('Open Order')
-            ->assertSee('Fulfilment / Shipment')
+            ->assertSee('Open Fulfilment')
             ->assertSee(route('inventory.hardware-fulfilments.show', $fulfilment), false)
             ->assertSee('open-hardware-fulfilment', false)
             ->assertSee('Hardware Fulfilment')
@@ -110,9 +116,9 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->assertOk()
             ->assertSee('Hardware Fulfilment')
             ->assertSee('id="hardware-fulfilment"', false)
-            ->assertSee('Start Hardware Fulfilment')
-            ->assertSee('Isolated ingest requires a verified Box handoff payload', false)
-            ->assertDontSee('Fulfilment / Shipment');
+            ->assertSee('Review this order before fulfilment can start.')
+            ->assertDontSee('Start Hardware Fulfilment')
+            ->assertDontSee('Open Fulfilment');
 
         $this->assertSame(0, HardwareFulfilment::query()->count());
     }
@@ -127,11 +133,12 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->assertOk()
             ->assertSee('Hardware Fulfilment')
             ->assertSee('RIN')
-            ->assertSee('Blocked — RIN mapping required')
-            ->assertSee('Start Hardware Fulfilment')
+            ->assertSee('Hardware cannot start yet.')
+            ->assertSee('Verified RIN → Desk hardware mapping is required.')
+            ->assertDontSee('Start Hardware Fulfilment')
             ->assertDontSee('Allocate Serial')
             ->assertDontSee('Issue Invoice')
-            ->assertDontSee('Fulfilment / Shipment');
+            ->assertDontSee('Open Fulfilment');
 
         $this->assertSame(0, HardwareFulfilment::query()->count());
     }
@@ -145,8 +152,35 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('Open Order')
-            ->assertDontSee('Fulfilment / Shipment')
+            ->assertDontSee('Open Fulfilment')
             ->assertDontSee(route('inventory.hardware-fulfilments.show', $fulfilment), false);
+    }
+
+    public function test_hardware_dashboard_search_and_exception_queue_are_read_only(): void
+    {
+        $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->hardwareCase('RDE902009');
+        $rin = $this->hardwareCase('RIN902010');
+        $rin->order?->forceFill([
+            'cashfree_payment_id' => 'cf_RIN902010',
+            'created_at' => '2026-09-07 10:00:00',
+        ])->save();
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['workspace' => 'hardware', 'q' => 'RIN902010']))
+            ->assertOk()
+            ->assertSee('RIN902010')
+            ->assertDontSee('RDE902009')
+            ->assertDontSee('Create All');
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['workspace' => 'hardware', 'hw_queue' => 'exceptions']))
+            ->assertOk()
+            ->assertSee('RIN902010')
+            ->assertSee('Blocked')
+            ->assertDontSee('Create All');
+
+        $this->assertSame(0, HardwareFulfilment::query()->count());
     }
 
     public function test_branch_scope_hides_dashboard_link_and_still_denies_show(): void
@@ -164,6 +198,7 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->actingAs($operator)
             ->get(route('dashboard', ['workspace' => 'hardware']))
             ->assertOk()
+            ->assertSee('RDE902006')
             ->assertSee('data-incident-id="'.$incident->id.'"', false)
             ->assertDontSee('data-hardware-fulfilment-link', false)
             ->assertDontSee(route('inventory.hardware-fulfilments.show', $fulfilment), false);

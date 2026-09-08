@@ -225,9 +225,9 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ->assertSee('RDE970105')
             ->assertSee('Assign AWB')
             ->assertSee('RDE970106')
-            ->assertSee('Print Label')
+            ->assertSee('Generate Label')
             ->assertSee('RDE970107')
-            ->assertSee('Record Packing')
+            ->assertSee('Request Pickup')
             ->assertSee('RDE970108')
             ->assertSee('Request Pickup')
             ->assertSee('RDE970109')
@@ -240,9 +240,9 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ->assertSee('RDE255714')
             ->assertSee('RDE313554')
             ->assertSee(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0])
-            ->assertSee('Blocked / Review Required')
+            ->assertSee('Blocked')
             ->assertSee('RIN970199')
-            ->assertSee('Blocked — RIN mapping required')
+            ->assertSee('RIN mapping required')
             ->assertDontSee('RDE970198')
             ->assertDontSee('RDE970197')
             ->assertDontSee('RDE970196')
@@ -256,8 +256,8 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
         $this->assertStringContainsString('Awaiting Invoice', $html);
         $this->assertStringContainsString('Ready for Shipment', $html);
         $this->assertStringContainsString('AWB Pending', $html);
-        $this->assertStringContainsString('Label/Packing Pending', $html);
-        $this->assertStringContainsString('Pickup/Manifest Pending', $html);
+        $this->assertStringContainsString('Label Pending', $html);
+        $this->assertStringContainsString('Pickup Requested', $html);
         $this->assertStringContainsString(route('orders.show', $awaiting), $html);
 
         $this->actingAs($this->operator)
@@ -452,7 +452,7 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ->assertSee('In Progress')
             ->assertSee('Ready for Pickup')
             ->assertSee('Exceptions')
-            ->assertSee('Review & Start')
+            ->assertSee('Review')
             ->assertSee('RDE970501')
             ->assertSee('RIN970504')
             ->assertDontSee('Create All')
@@ -497,7 +497,7 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ]))
             ->assertOk()
             ->assertSee('RIN970504')
-            ->assertSee('Blocked — RIN mapping required')
+            ->assertSee('RIN mapping required')
             ->assertDontSee('RDE970501');
 
         $this->assertSame(2, HardwareFulfilment::query()->count());
@@ -531,12 +531,12 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
             ->assertOk()
-            ->assertSee('Progress')
+            ->assertSee('Current step')
             ->assertSee('284931178067631')
             ->assertSee('Delhivery_Surface (15084)')
             ->assertSee('1568724940')
             ->assertSee('Print Shipping Label')
-            ->assertSee('Not recorded');
+            ->assertSee('Package photo pending');
 
         $this->assertSame(1, HardwareFulfilment::query()->where('source_id', 'RDE318421')->count());
         $this->assertSame(1, HardwareFulfilment::query()->count());

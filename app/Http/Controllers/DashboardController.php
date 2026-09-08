@@ -7,6 +7,7 @@ use App\Services\Dashboard\OperationsWorkspacePanelService;
 use App\Services\Dashboard\OperationsWorkspaceResolver;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
+use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
 use App\Services\Performance\PerformanceRuntimeConfig;
 use App\Services\Realtime\RealtimeRuntimeConfig;
 use App\Services\SettingService;
@@ -25,6 +26,7 @@ class DashboardController extends Controller
         private readonly OperationsWorkspacePanelService $operationsWorkspacePanel,
         private readonly PerformanceRuntimeConfig $performanceRuntime,
         private readonly RealtimeRuntimeConfig $realtimeRuntime,
+        private readonly HardwareDashboardWorkspace $hardwareDashboard,
     ) {}
 
     public function index(Request $request): View|RedirectResponse
@@ -59,8 +61,9 @@ class DashboardController extends Controller
             ? $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user)
             : [];
 
+        $isHardwareWorkspace = $operationQueue === OperationsWorkspaceResolver::WORKSPACE_HARDWARE;
         $pageSize = $this->dashboardService->serviceCasePageSize();
-        $recentServiceCases = $user->can('incidents.view')
+        $recentServiceCases = $user->can('incidents.view') && ! $isHardwareWorkspace
             ? $this->dashboardService->recentServiceCases(
                 $serviceCaseFilter,
                 $pageSize,
@@ -68,6 +71,9 @@ class DashboardController extends Controller
                 $prioritizeRecentAssignments,
             )
             : collect();
+        $hardwareWorkspace = $isHardwareWorkspace
+            ? $this->hardwareDashboard->present($request)
+            : null;
 
         $canManageTransactions = $user->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,
@@ -90,6 +96,7 @@ class DashboardController extends Controller
             'openCustomer360Reference' => $openCustomer360Reference,
             'openCustomer360MoreMenu' => $openCustomer360MoreMenu,
             'recentServiceCases' => $recentServiceCases,
+            'hardwareWorkspace' => $hardwareWorkspace,
             'serviceCaseFilterCounts' => $serviceCaseFilterCounts,
             'serviceCaseTotalCount' => $serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count(),
             'serviceCaseHasMore' => $recentServiceCases->count() < ($serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count()),

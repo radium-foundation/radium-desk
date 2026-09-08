@@ -2,7 +2,6 @@
 
 namespace App\Services\HardwareFulfilment;
 
-use App\Enums\HardwareFulfilmentPackageEvidenceKind;
 use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Models\HardwareFulfilment;
@@ -158,12 +157,10 @@ class HardwareFulfilmentWorkflowService
         }
 
         if ($actorType === 'user') {
-            $hasLabelPhoto = $locked->packageEvidences()
-                ->where('kind', HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied)
-                ->exists();
-            if (! $hasLabelPhoto) {
+            $hasPackagePhoto = $locked->packageEvidences()->exists();
+            if (! $hasPackagePhoto) {
                 throw ValidationException::withMessages([
-                    'shipping' => 'Marking shipped requires a label-applied package photo.',
+                    'shipping' => 'Marking shipped requires a package photo.',
                 ]);
             }
         }

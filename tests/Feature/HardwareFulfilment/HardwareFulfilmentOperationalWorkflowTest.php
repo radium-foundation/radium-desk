@@ -203,25 +203,24 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_package_evidence_and_ready_for_pickup_gates(): void
+    public function test_package_photo_is_non_blocking_evidence_and_ready_does_not_require_it(): void
     {
         $fulfilment = $this->awbFulfilment('RDE940003');
 
         $this->actingAs($this->admin)
-            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
-            ->post(route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment), [
-                'kind' => HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied->value,
-            ])
-            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
-            ->assertSessionHasErrors('photo');
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertOk()
+            ->assertSee('id="hardware-pickup-submit"', false)
+            ->assertSee('Upload Package Photo')
+            ->assertSee('Evidence can be added after shipment or pickup.')
+            ->assertDontSee('id="hardware-package-label-form"', false)
+            ->assertDontSee('Record labelled package')
+            ->assertDontSee('Label-applied photo');
 
-        $this->actingAs($this->admin)
-            ->post(route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment), [
-                'kind' => HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel->value,
-                'photo' => UploadedFile::fake()->image('before.jpg', 200, 200),
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('status', 'Package photo recorded.');
+        $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment->fresh());
+        $this->assertTrue($ready->canRequestPickup);
+        $this->assertFalse($ready->canMarkReadyForPickup);
+        $this->assertFalse($ready->packagePhotoRecorded());
 
         $this->actingAs($this->admin)
             ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
@@ -230,26 +229,20 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->assertSessionHasErrors('shipping');
 
         $this->actingAs($this->admin)
-            ->post(route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment->fresh()), [
-                'kind' => HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied->value,
-                'photo' => UploadedFile::fake()->image('labelled.jpg', 200, 200),
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('status', 'Label-applied package photo recorded.');
-
-        $this->actingAs($this->admin)
-            ->from(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
-            ->post(route('inventory.hardware-fulfilments.ready-for-pickup.store', $fulfilment->fresh()))
-            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
-            ->assertSessionHasErrors('shipping');
-
-        $this->assertNull($fulfilment->fresh()->ready_for_pickup_at);
-        $this->assertSame(0, $this->fake->pickups);
-
-        $this->actingAs($this->admin)
             ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment->fresh()))
             ->assertRedirect()
             ->assertSessionHas('status', 'Pickup requested.');
+
+        $afterPickup = app(HardwareShipmentEligibility::class)->inspect($fulfilment->fresh());
+        $this->assertTrue($afterPickup->canMarkReadyForPickup);
+        $this->assertFalse($afterPickup->packagePhotoRecorded());
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('id="hardware-ready-submit"', false)
+            ->assertSee('Upload Package Photo')
+            ->assertSee('id="hardware-package-before-form"', false);
 
         $this->actingAs($this->admin)
             ->post(route('inventory.hardware-fulfilments.ready-for-pickup.store', $fulfilment->fresh()))
@@ -257,14 +250,18 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->assertSessionHas('status', 'Fulfilment marked ready for pickup.');
 
         $this->actingAs($this->admin)
-            ->post(route('inventory.hardware-fulfilments.ready-for-pickup.store', $fulfilment->fresh()))
-            ->assertRedirect();
+            ->post(route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment->fresh()), [
+                'kind' => HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel->value,
+                'photo' => UploadedFile::fake()->image('package.jpg', 200, 200),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Package photo recorded.');
 
         $fresh = $fulfilment->fresh();
         $this->assertNotNull($fresh->ready_for_pickup_at);
         $this->assertNotNull($fresh->shipment?->pickup_requested_at);
         $this->assertSame(1, $this->fake->pickups);
-        $this->assertSame(2, HardwareFulfilmentPackageEvidence::query()->count());
+        $this->assertSame(1, HardwareFulfilmentPackageEvidence::query()->count());
         $this->assertTrue(
             HardwareFulfilmentEvent::query()
                 ->where('hardware_fulfilment_id', $fresh->id)
@@ -273,8 +270,16 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         );
 
         $evidence = HardwareFulfilmentPackageEvidence::query()
-            ->where('kind', HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied)
+            ->where('kind', HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel)
             ->firstOrFail();
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.show', $fresh))
+            ->assertOk()
+            ->assertSee('✓ Recorded')
+            ->assertSee('View Photo')
+            ->assertDontSee('Upload Package Photo')
+            ->assertDontSee('id="hardware-package-label-form"', false);
 
         $this->actingAs($this->admin)
             ->get(route('inventory.hardware-fulfilments.package-evidence.show', [$fresh, $evidence]))

@@ -2,6 +2,7 @@
 
 namespace App\Services\HardwareFulfilment\Data;
 
+use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareOperationsSection;
 
@@ -31,7 +32,38 @@ final class HardwareFulfilmentOperationalRow
         public readonly HardwareOperationsSection $section = HardwareOperationsSection::NeedsFulfilment,
         public readonly ?string $nextAnchor = null,
         public readonly bool $mutatingAction = false,
+        public readonly bool $packagePhotoRecorded = false,
+        public readonly ?string $statusLabel = null,
     ) {}
+
+    public function operatorStatus(): string
+    {
+        return $this->statusLabel ?? $this->stage->label();
+    }
+
+    public function dashboardQueue(): HardwareDashboardQueue
+    {
+        return HardwareDashboardQueue::fromStage($this->stage, $this->packagePhotoRecorded);
+    }
+
+    public function serialDisplay(): string
+    {
+        $raw = trim($this->serialStatus);
+        if ($raw === '' || in_array($raw, ['Not allocated', 'None', 'On support order', '—'], true)) {
+            return '—';
+        }
+
+        $first = trim((string) explode(',', $raw)[0]);
+
+        return $first !== '' ? $first : '—';
+    }
+
+    public function productDisplay(): string
+    {
+        $product = trim($this->product);
+
+        return $product !== '' ? $product : '—';
+    }
 
     public function openOrderUrl(): ?string
     {

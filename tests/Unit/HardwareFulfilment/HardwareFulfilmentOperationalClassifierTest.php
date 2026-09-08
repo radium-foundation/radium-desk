@@ -3,6 +3,7 @@
 namespace Tests\Unit\HardwareFulfilment;
 
 use App\Enums\CommerceOrderStatus;
+use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
@@ -12,6 +13,7 @@ use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
+use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -36,12 +38,13 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $holdRow = $classifier->fromAwaiting($hold);
 
         $this->assertSame(HardwareFulfilmentOperationalStage::AwaitingFulfilment, $reviewRow->stage);
-        $this->assertSame('Review & Start', $reviewRow->nextAction);
+        $this->assertSame('Review', $reviewRow->nextAction);
         $this->assertSame(HardwareOperationsSection::NeedsFulfilment, $reviewRow->section);
         $this->assertFalse($reviewRow->hasFulfilment);
         $this->assertSame(route('dashboard.orders.customer-360', $review), $reviewRow->nextUrl);
         $this->assertSame(HardwareFulfilmentOperationalStage::BlockedReview, $holdRow->stage);
-        $this->assertSame('HOLD', $holdRow->nextAction);
+        $this->assertSame('View', $holdRow->nextAction);
+        $this->assertSame('Blocked', $holdRow->operatorStatus());
         $this->assertSame(HardwareOperationsSection::Exceptions, $holdRow->section);
     }
 
@@ -55,7 +58,8 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
 
         $this->assertSame('RIN', $row->source);
         $this->assertSame(HardwareOperationsSection::Exceptions, $row->section);
-        $this->assertSame('Blocked — RIN mapping required', $row->nextAction);
+        $this->assertSame('View', $row->nextAction);
+        $this->assertSame('Blocked', $row->operatorStatus());
         $this->assertFalse($row->mutatingAction);
         $this->assertFalse($row->hasFulfilment);
         $this->assertSame(route('dashboard.orders.customer-360', $rin), $row->nextUrl);
@@ -71,6 +75,72 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertSame('Allocate Serial', $row->nextAction);
         $this->assertTrue($row->hasFulfilment);
         $this->assertNotNull($row->fulfilmentUrl());
+    }
+
+    public function test_label_without_package_photo_requests_pickup(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971003', HardwareFulfilmentState::AwbAssigned);
+        $ready = $this->readiness([
+            'alreadyCreated' => true,
+            'invoice' => 'INV-1',
+            'serials' => ['10532319'],
+            'awb' => 'AWB1',
+            'labelUrl' => '/label.pdf',
+            'pickupStatus' => 'Not requested',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Request Pickup', $row->nextAction);
+        $this->assertSame(HardwareDashboardQueue::Pickup, $row->dashboardQueue());
+        $this->assertFalse($row->packagePhotoRecorded);
+        $this->assertNotSame('Record Packing', $row->nextAction);
+    }
+
+    public function test_shipped_without_package_photo_stays_open_for_evidence(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971004', HardwareFulfilmentState::Shipped);
+        $ready = $this->readiness([
+            'alreadyCreated' => true,
+            'invoice' => 'INV-1',
+            'serials' => ['10532319'],
+            'awb' => 'AWB1',
+            'labelUrl' => '/label.pdf',
+            'pickupStatus' => 'Requested',
+            'manifestStatus' => 'Available',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Upload Package Photo', $row->nextAction);
+        $this->assertSame('Ready / Open evidence', $row->operatorStatus());
+        $this->assertSame(HardwareDashboardQueue::Ready, $row->dashboardQueue());
+        $this->assertTrue($row->mutatingAction);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function readiness(array $overrides = []): HardwareShipmentReadiness
+    {
+        return new HardwareShipmentReadiness(
+            canCreate: false,
+            blockers: [],
+            status: 'Created',
+            pickupBranch: null,
+            pickupLocation: null,
+            shipTo: null,
+            parcel: null,
+            invoice: $overrides['invoice'] ?? 'INV-1',
+            serials: $overrides['serials'] ?? ['10532319'],
+            order: 'RDE1',
+            product: 'MFS',
+            alreadyCreated: $overrides['alreadyCreated'] ?? true,
+            awb: $overrides['awb'] ?? 'AWB1',
+            labelUrl: $overrides['labelUrl'] ?? '/label.pdf',
+            pickupStatus: $overrides['pickupStatus'] ?? 'Not requested',
+            manifestStatus: $overrides['manifestStatus'] ?? 'Not generated',
+            packageBeforeLabelRecorded: $overrides['packageBeforeLabelRecorded'] ?? false,
+            packageLabelAppliedRecorded: $overrides['packageLabelAppliedRecorded'] ?? false,
+        );
     }
 
     /**

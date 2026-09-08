@@ -387,7 +387,7 @@ final class Customer360OverflowMenuPresenter implements ProvidesContextScope
         if ($fulfilmentUrl !== null) {
             $items[] = $this->linkItem(
                 id: 'open-hardware-fulfilment',
-                label: 'Fulfilment / Shipment',
+                label: 'Open Fulfilment',
                 icon: 'truck',
                 href: $fulfilmentUrl,
                 keywords: ['fulfilment', 'fulfillment', 'shipment', 'hardware', 'ship'],

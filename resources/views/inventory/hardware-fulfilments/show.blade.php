@@ -93,22 +93,24 @@
 
         @if(isset($opsRow, $stepperMilestones, $stepperCurrentIndex))
             <div class="hf-alloc-card mb-3" id="hardware-progress">
-                <p class="text-muted small text-uppercase fw-semibold mb-2">Progress</p>
                 <x-c360.customer-journey-tracker
                     :milestones="$stepperMilestones"
                     :current-index="$stepperCurrentIndex"
                 />
-                <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
-                    <span class="hf-alloc-status is-ready">{{ $opsRow->stage->label() }}</span>
-                    @if($opsRow->primaryUrl() && $opsRow->mutatingAction)
-                        <a class="btn btn-sm btn-primary" href="{{ $opsRow->primaryUrl() }}">{{ $opsRow->nextAction }}</a>
-                    @else
-                        <span class="fw-semibold">{{ $opsRow->nextAction }}</span>
+                <div class="mt-3">
+                    <p class="text-muted small text-uppercase fw-semibold mb-1">Current step</p>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span class="hf-alloc-status is-ready">{{ $opsRow->operatorStatus() }}</span>
+                        @if($opsRow->primaryUrl() && $opsRow->mutatingAction)
+                            <a class="btn btn-sm btn-primary" href="{{ $opsRow->primaryUrl() }}">{{ $opsRow->nextAction }}</a>
+                        @else
+                            <span class="fw-semibold">{{ $opsRow->nextAction }}</span>
+                        @endif
+                    </div>
+                    @if($stepperCurrentCaption ?? null)
+                        <p class="small text-muted mb-0 mt-2">{{ $stepperCurrentCaption }}</p>
                     @endif
                 </div>
-                @if($opsRow->blocker)
-                    <p class="small text-muted mb-0 mt-2">{{ $opsRow->blocker }}</p>
-                @endif
             </div>
         @endif
 
@@ -460,46 +462,35 @@
         </div>
 
         <div class="hf-alloc-card mb-3" id="hardware-package-evidence">
-            <p class="text-muted small text-uppercase fw-semibold mb-2">Package evidence</p>
-            <dl class="hf-alloc-confirm mb-0">
-                <dt>Package photo</dt>
-                <dd>
-                    @if($shipment->packageBeforeLabelRecorded && $shipment->packageBeforeLabelId)
-                        Recorded
-                        · <a href="{{ route('inventory.hardware-fulfilments.package-evidence.show', [$fulfilment, $shipment->packageBeforeLabelId]) }}">View</a>
-                    @else
-                        Not recorded
-                    @endif
-                </dd>
-                <dt>Label-applied photo</dt>
-                <dd>
-                    @if($shipment->packageLabelAppliedRecorded && $shipment->packageLabelAppliedId)
-                        Recorded
-                        · <a href="{{ route('inventory.hardware-fulfilments.package-evidence.show', [$fulfilment, $shipment->packageLabelAppliedId]) }}">View</a>
-                    @else
-                        Not recorded
-                    @endif
-                </dd>
-            </dl>
-            @if($shipment->canUploadPackageBeforeLabel)
-                <form method="POST" action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}" id="hardware-package-before-form" class="mt-3" enctype="multipart/form-data">
-                    @csrf
-                    <input type="hidden" name="kind" value="package_before_label">
-                    <label class="form-label" for="hardware-package-before-photo">Package photo</label>
-                    <input class="form-control" type="file" id="hardware-package-before-photo" name="photo" accept="image/jpeg,image/png,image/webp" required>
-                    <p class="text-muted small mt-2 mb-2">This is not proof that the shipping label has been applied.</p>
-                    <button type="submit" class="btn btn-outline-primary" id="hardware-package-before-submit">Record package photo</button>
-                </form>
-            @endif
-            @if($shipment->canUploadPackageLabelApplied)
-                <form method="POST" action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}" id="hardware-package-label-form" class="mt-3" enctype="multipart/form-data">
-                    @csrf
-                    <input type="hidden" name="kind" value="package_label_applied">
-                    <label class="form-label" for="hardware-package-label-photo">Label-applied package photo</label>
-                    <input class="form-control" type="file" id="hardware-package-label-photo" name="photo" accept="image/jpeg,image/png,image/webp" required>
-                    <p class="text-muted small mt-2 mb-2">Record this after the official label is printed and pasted.</p>
-                    <button type="submit" class="btn btn-outline-primary" id="hardware-package-label-submit">Record labelled package</button>
-                </form>
+            <p class="text-muted small text-uppercase fw-semibold mb-2">Package Photo</p>
+            @if($shipment->packagePhotoRecorded())
+                <p class="mb-2">✓ Recorded</p>
+                @if($shipment->packagePhotoId())
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('inventory.hardware-fulfilments.package-evidence.show', [$fulfilment, $shipment->packagePhotoId()]) }}">View Photo</a>
+                @endif
+                @if($shipment->canUploadPackageBeforeLabel)
+                    <details class="mt-2">
+                        <summary class="small text-muted">Replace</summary>
+                        <form method="POST" action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}" id="hardware-package-before-form" class="mt-2" enctype="multipart/form-data">
+                            @csrf
+                            <input type="hidden" name="kind" value="package_before_label">
+                            <input class="form-control" type="file" id="hardware-package-before-photo" name="photo" accept="image/jpeg,image/png,image/webp" required>
+                            <button type="submit" class="btn btn-sm btn-outline-primary mt-2" id="hardware-package-before-submit">Replace</button>
+                        </form>
+                    </details>
+                @endif
+            @else
+                <p class="mb-2">Package photo pending</p>
+                @if($shipment->canUploadPackageBeforeLabel)
+                    <form method="POST" action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}" id="hardware-package-before-form" enctype="multipart/form-data">
+                        @csrf
+                        <input type="hidden" name="kind" value="package_before_label">
+                        <label class="form-label" for="hardware-package-before-photo">Upload Package Photo</label>
+                        <input class="form-control" type="file" id="hardware-package-before-photo" name="photo" accept="image/jpeg,image/png,image/webp" required>
+                        <p class="text-muted small mt-2 mb-2">Evidence can be added after shipment or pickup. It does not block shipping.</p>
+                        <button type="submit" class="btn btn-outline-primary" id="hardware-package-before-submit">Upload Package Photo</button>
+                    </form>
+                @endif
             @endif
         </div>
 
@@ -546,7 +537,7 @@
             @if($shipment->canMarkReadyForPickup)
                 <form method="POST" action="{{ route('inventory.hardware-fulfilments.ready-for-pickup.store', $fulfilment) }}" id="hardware-ready-form" class="mt-3">
                     @csrf
-                    <p class="text-muted small mb-2">Marks this fulfilment ready for pickup after pickup is requested and the labelled package photo is recorded.</p>
+                    <p class="text-muted small mb-2">Marks this fulfilment ready for pickup after pickup is requested. Package photo is not required.</p>
                     <button type="submit" class="btn btn-primary" id="hardware-ready-submit">Mark Ready for Pickup</button>
                 </form>
             @endif
@@ -889,8 +880,7 @@
             ['hardware-pickup-form', 'hardware-pickup-submit', 'Request Shiprocket pickup for this shipment?', 'Requesting pickup…'],
             ['hardware-manifest-form', 'hardware-manifest-submit', 'Generate the Shiprocket manifest for this shipment?', 'Generating manifest…'],
             ['hardware-ready-form', 'hardware-ready-submit', 'Mark this fulfilment ready for pickup?', 'Saving…'],
-            ['hardware-package-before-form', 'hardware-package-before-submit', 'Record this package photo? It is not proof that a label was applied.', 'Saving photo…'],
-            ['hardware-package-label-form', 'hardware-package-label-submit', 'Record the labelled-package photo after the label was pasted?', 'Saving photo…'],
+            ['hardware-package-before-form', 'hardware-package-before-submit', 'Record this package photo? It does not block shipping.', 'Saving photo…'],
         ].forEach(function (row) {
             const form = document.getElementById(row[0]);
             const submit = document.getElementById(row[1]);

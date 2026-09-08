@@ -17,6 +17,15 @@ const EMBEDDED_WORKSPACES = new Set(['active_cases', 'refunds']);
 
 const SCHEDULED_QUEUE = 'scheduled';
 const READY_QUEUE = 'action_required';
+const HARDWARE_QUEUE = 'hardware';
+
+const isHardwareWorkspaceTarget = (target, pageRoot = null) => {
+    if (pageRoot?.dataset?.liveQueue === HARDWARE_QUEUE || pageRoot?.dataset?.liveWorkspace === HARDWARE_QUEUE) {
+        return true;
+    }
+
+    return target?.workspace === HARDWARE_QUEUE || target?.operationQueue === HARDWARE_QUEUE;
+};
 
 export const isEmbeddedWorkspace = (workspace) => EMBEDDED_WORKSPACES.has(workspace);
 
@@ -728,6 +737,10 @@ export const initOperationsWorkspaceSoftSwitch = ({
         }
 
         if (!target) {
+            return;
+        }
+
+        if (isHardwareWorkspaceTarget(target, pageRoot)) {
             return;
         }
 

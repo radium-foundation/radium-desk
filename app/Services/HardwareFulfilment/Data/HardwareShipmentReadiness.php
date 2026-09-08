@@ -71,4 +71,14 @@ final class HardwareShipmentReadiness
         public readonly ?string $providerRejection = null,
         public readonly ?string $pickupRequestedAt = null,
     ) {}
+
+    public function packagePhotoRecorded(): bool
+    {
+        return $this->packageBeforeLabelRecorded || $this->packageLabelAppliedRecorded;
+    }
+
+    public function packagePhotoId(): ?int
+    {
+        return $this->packageBeforeLabelId ?? $this->packageLabelAppliedId;
+    }
 }

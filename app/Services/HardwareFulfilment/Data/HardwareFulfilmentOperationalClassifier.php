@@ -40,7 +40,7 @@ final class HardwareFulfilmentOperationalClassifier
             shipmentStatus: 'None',
             awbStatus: 'None',
             stage: $stage,
-            nextAction: $blocked ? $reason->label() : 'Review & Start',
+            nextAction: $blocked ? 'View' : 'Review',
             nextUrl: $nextUrl,
             blocker: $blocked
                 ? $reason->operatorNote()
@@ -52,6 +52,8 @@ final class HardwareFulfilmentOperationalClassifier
             section: HardwareOperationsSection::fromStage($stage),
             nextAnchor: null,
             mutatingAction: false,
+            packagePhotoRecorded: false,
+            statusLabel: $blocked ? 'Blocked' : 'Awaiting Fulfilment',
         );
     }
 
@@ -74,7 +76,7 @@ final class HardwareFulfilmentOperationalClassifier
             shipmentStatus: 'None',
             awbStatus: 'None',
             stage: HardwareFulfilmentOperationalStage::BlockedReview,
-            nextAction: 'Blocked — RIN mapping required',
+            nextAction: 'View',
             nextUrl: route('dashboard.orders.customer-360', $order),
             blocker: HardwareAwaitingFulfilmentReason::Rin->operatorNote(),
             fulfilmentId: null,
@@ -84,6 +86,8 @@ final class HardwareFulfilmentOperationalClassifier
             section: HardwareOperationsSection::Exceptions,
             nextAnchor: null,
             mutatingAction: false,
+            packagePhotoRecorded: false,
+            statusLabel: 'Blocked',
         );
     }
 
@@ -101,16 +105,21 @@ final class HardwareFulfilmentOperationalClassifier
             || HardwareFulfilmentEligibility::isBlockedUntilAuthorized($sourceId);
         $providerError = filled($ready->providerRejection);
 
-        [$stage, $nextAction, $anchor] = $this->stageAndAction($fulfilment, $ready, $ownerBlocked);
+        [$stage, $nextAction, $anchor, $statusLabel] = $this->stageAndAction($fulfilment, $ready, $ownerBlocked);
+        $photoRecorded = $ready->packagePhotoRecorded();
         $section = HardwareOperationsSection::fromStage($stage, $providerError && ! $ownerBlocked);
         if ($providerError && ! $ownerBlocked) {
             $stage = HardwareFulfilmentOperationalStage::BlockedReview;
-            $nextAction = 'Provider error';
+            $nextAction = 'View';
             $anchor = null;
             $section = HardwareOperationsSection::Exceptions;
+            $statusLabel = 'Blocked';
         }
 
         $nextUrl = route('inventory.hardware-fulfilments.show', $fulfilment);
+        $mutating = ! $ownerBlocked
+            && ! $providerError
+            && ! in_array($nextAction, ['Ready', 'View', 'Completed'], true);
 
         return new HardwareFulfilmentOperationalRow(
             sourceId: $sourceId,
@@ -137,12 +146,14 @@ final class HardwareFulfilmentOperationalClassifier
             source: $this->sourcePrefix($sourceId),
             section: $section,
             nextAnchor: $anchor,
-            mutatingAction: ! $ownerBlocked && ! $providerError && $stage !== HardwareFulfilmentOperationalStage::Completed,
+            mutatingAction: $mutating,
+            packagePhotoRecorded: $photoRecorded,
+            statusLabel: $statusLabel,
         );
     }
 
     /**
-     * @return array{0: HardwareFulfilmentOperationalStage, 1: string, 2: string|null}
+     * @return array{0: HardwareFulfilmentOperationalStage, 1: string, 2: string|null, 3: string}
      */
     private function stageAndAction(
         HardwareFulfilment $fulfilment,
@@ -150,61 +161,88 @@ final class HardwareFulfilmentOperationalClassifier
         bool $blocked,
     ): array {
         if ($blocked) {
-            return [HardwareFulfilmentOperationalStage::BlockedReview, 'Blocked / Review Required', null];
+            return [HardwareFulfilmentOperationalStage::BlockedReview, 'View', null, 'Blocked'];
         }
 
+        $photoRecorded = $ready->packagePhotoRecorded();
+
         if (in_array($fulfilment->state, [HardwareFulfilmentState::Shipped, HardwareFulfilmentState::Synced], true)) {
-            return [HardwareFulfilmentOperationalStage::Completed, 'Completed', null];
+            if (! $photoRecorded) {
+                return [
+                    HardwareFulfilmentOperationalStage::Completed,
+                    'Upload Package Photo',
+                    'hardware-package-evidence',
+                    'Ready / Open evidence',
+                ];
+            }
+
+            return [HardwareFulfilmentOperationalStage::Completed, 'Ready', null, 'Completed'];
         }
 
         if ($ready->serials === []) {
-            return [HardwareFulfilmentOperationalStage::AwaitingSerial, 'Allocate Serial', 'hardware-serial-allocate-form'];
+            return [HardwareFulfilmentOperationalStage::AwaitingSerial, 'Allocate Serial', 'hardware-serial-allocate-form', 'Awaiting Serial'];
         }
 
         if ($ready->invoice === null || $ready->invoice === '') {
-            return [HardwareFulfilmentOperationalStage::AwaitingInvoice, 'Issue Invoice', 'hardware-invoice'];
+            return [HardwareFulfilmentOperationalStage::AwaitingInvoice, 'Issue Invoice', 'hardware-invoice', 'Awaiting Invoice'];
         }
 
         if (! $ready->alreadyCreated) {
-            $label = $ready->canFetchCourierOptions && $ready->selectedCourierId === null
-                ? 'Get Courier Options'
-                : $ready->actionLabel;
-            $anchor = $ready->canFetchCourierOptions && $ready->selectedCourierId === null
+            $label = $ready->canSelectCourier
+                ? 'Select Courier'
+                : ($ready->canFetchCourierOptions && $ready->selectedCourierId === null
+                    ? 'Get Courier Options'
+                    : $ready->actionLabel);
+            $anchor = $ready->canSelectCourier || ($ready->canFetchCourierOptions && $ready->selectedCourierId === null)
                 ? 'hardware-courier'
                 : 'hardware-shipment-create';
 
-            return [HardwareFulfilmentOperationalStage::ReadyForShipment, $label, $anchor];
+            return [HardwareFulfilmentOperationalStage::ReadyForShipment, $label, $anchor, 'Ready for Shipment'];
         }
 
         if (! filled($ready->awb)) {
-            return [HardwareFulfilmentOperationalStage::AwbPending, 'Assign AWB', 'hardware-awb'];
+            return [HardwareFulfilmentOperationalStage::AwbPending, 'Assign AWB', 'hardware-awb', 'AWB Pending'];
         }
 
-        if ($ready->labelUrl === null || ! $ready->packageLabelAppliedRecorded) {
-            if ($ready->labelUrl === null) {
-                return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Print Label', 'hardware-label'];
-            }
-
-            return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Record Packing', 'hardware-package-evidence'];
+        if ($ready->labelUrl === null) {
+            return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Generate Label', 'hardware-label', 'Label Pending'];
         }
 
         if ($ready->pickupStatus === 'Not requested') {
-            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Request Pickup', 'hardware-manifest-pickup'];
+            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Request Pickup', 'hardware-manifest-pickup', 'Label generated'];
         }
 
         if ($ready->manifestStatus === 'Not generated') {
-            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Generate Manifest', 'hardware-manifest-pickup'];
+            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Generate Manifest', 'hardware-manifest-pickup', 'Pickup Requested'];
         }
 
         if ($ready->readyForPickup) {
-            return [HardwareFulfilmentOperationalStage::ReadyForPickup, 'Ready for Pickup', 'hardware-manifest-pickup'];
+            if (! $photoRecorded) {
+                return [
+                    HardwareFulfilmentOperationalStage::ReadyForPickup,
+                    'Upload Package Photo',
+                    'hardware-package-evidence',
+                    'Package photo pending',
+                ];
+            }
+
+            return [HardwareFulfilmentOperationalStage::ReadyForPickup, 'Ready', 'hardware-manifest-pickup', 'Ready for Pickup'];
         }
 
         if ($ready->alreadyCreated && filled($ready->awb)) {
-            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Ready for Pickup', 'hardware-manifest-pickup'];
+            if (! $photoRecorded) {
+                return [
+                    HardwareFulfilmentOperationalStage::PickupManifestPending,
+                    'Upload Package Photo',
+                    'hardware-package-evidence',
+                    'Package photo pending',
+                ];
+            }
+
+            return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Ready', 'hardware-manifest-pickup', 'Ready for Pickup'];
         }
 
-        return [HardwareFulfilmentOperationalStage::ShipmentCreated, 'Open fulfilment', null];
+        return [HardwareFulfilmentOperationalStage::ShipmentCreated, 'View', null, 'Shipment Created'];
     }
 
     private function sourcePrefix(string $sourceId): string

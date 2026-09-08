@@ -25,11 +25,11 @@ enum HardwareFulfilmentOperationalStage: string
             self::ReadyForShipment => 'Ready for Shipment',
             self::ShipmentCreated => 'Shipment Created',
             self::AwbPending => 'AWB Pending',
-            self::LabelPackingPending => 'Label/Packing Pending',
-            self::PickupManifestPending => 'Pickup/Manifest Pending',
+            self::LabelPackingPending => 'Label Pending',
+            self::PickupManifestPending => 'Pickup',
             self::ReadyForPickup => 'Ready for Pickup',
             self::Completed => 'Completed',
-            self::BlockedReview => 'Blocked / Review Required',
+            self::BlockedReview => 'Blocked',
         };
     }
 }

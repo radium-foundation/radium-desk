@@ -16,11 +16,15 @@
     $isScheduledWorkspace = $activeQueue === DashboardPersonalizationService::QUEUE_SCHEDULED;
     $agentSearchPlaceholder = 'Search order, case or customer...';
     $myWorkSearchPlaceholder = 'Search order ID, case ID, serial, customer…';
-    $searchPlaceholder = $compactAgentLayout
-        ? $agentSearchPlaceholder
-        : ($activeQueue === DashboardPersonalizationService::QUEUE_MY_WORK
-            ? $myWorkSearchPlaceholder
-            : 'Search service cases…');
+    $isHardwareWorkspace = $activeQueue === DashboardPersonalizationService::QUEUE_HARDWARE;
+    $hardwareWorkspace = $hardwareWorkspace ?? null;
+    $searchPlaceholder = $isHardwareWorkspace
+        ? 'Search hardware...'
+        : ($compactAgentLayout
+            ? $agentSearchPlaceholder
+            : ($activeQueue === DashboardPersonalizationService::QUEUE_MY_WORK
+                ? $myWorkSearchPlaceholder
+                : 'Search service cases…'));
 
     $queueUrl = function (string $queueKey) use ($defaultQueue): string {
         $params = [];
@@ -62,7 +66,7 @@
             @endunless
 
             <div class="dashboard-cases-toolbar @if($compactAgentLayout) dashboard-cases-toolbar--agent @endif">
-                @if($canManageTransactions ?? false)
+                @if(($canManageTransactions ?? false) && ! $isHardwareWorkspace)
                     <div class="dashboard-bulk-toolbar"
                          data-bulk-bar
                          role="region"
@@ -140,31 +144,83 @@
                     </div>
                 @endif
 
+                @if($isHardwareWorkspace && is_array($hardwareWorkspace))
+                    <div class="dashboard-case-filters dashboard-operation-queues"
+                         role="tablist"
+                         aria-label="Hardware queues">
+                        @foreach($hardwareWorkspace['queues'] as $hwQueue)
+                            @php
+                                $hwCount = $hardwareWorkspace['counts'][$hwQueue->value] ?? 0;
+                                $hwActive = ($hardwareWorkspace['queue'] ?? '') === $hwQueue->value;
+                            @endphp
+                            <a href="{{ route('dashboard', array_filter([
+                                    'workspace' => 'hardware',
+                                    'hw_queue' => $hwQueue->value,
+                                    'q' => $hardwareWorkspace['search'] ?: null,
+                                ])) }}"
+                               @class([
+                                   'dashboard-case-filter-chip',
+                                   'dashboard-case-filter-chip--' . $hwQueue->tone(),
+                                   'is-active' => $hwActive,
+                               ])
+                               role="tab"
+                               @if($hwActive) aria-selected="true" aria-current="page" @else aria-selected="false" @endif>
+                                <span class="dashboard-case-filter-chip__label">{{ $hwQueue->label() }}</span>
+                                <span class="dashboard-case-filter-chip__count">({{ $hwCount }})</span>
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
+
                 <div @class([
                         'dashboard-quick-filter dashboard-quick-filter--always-open',
                         'dashboard-quick-filter--agent' => $compactAgentLayout,
                     ])
+                     @if($isHardwareWorkspace) data-hardware-quick-filter @else
                      data-dashboard-quick-filter
-                     data-dashboard-quick-filter-always-open="true">
-                    <label for="dashboard-quick-filter-input" class="visually-hidden">Search service cases</label>
+                     data-dashboard-quick-filter-always-open="true"
+                     @endif>
+                    <label for="{{ $isHardwareWorkspace ? 'hardware-quick-filter-input' : 'dashboard-quick-filter-input' }}" class="visually-hidden">{{ $isHardwareWorkspace ? 'Search hardware' : 'Search service cases' }}</label>
                     <div class="dashboard-quick-filter__control"
                          id="dashboard-quick-filter-control"
                          data-dashboard-quick-filter-control>
                         <span class="dashboard-quick-filter__icon" aria-hidden="true">
                             <i class="bi bi-search"></i>
                         </span>
-                        <input type="search"
-                               id="dashboard-quick-filter-input"
-                               class="dashboard-quick-filter__input dashboard-u-focus-ring"
-                               placeholder="{{ $searchPlaceholder }}"
-                               autocomplete="off"
-                               data-dashboard-quick-filter-input>
+                        @if($isHardwareWorkspace)
+                            <form method="GET" action="{{ route('dashboard') }}" class="w-100">
+                                <input type="hidden" name="workspace" value="hardware">
+                                @if(($hardwareWorkspace['queue'] ?? '') !== '')
+                                    <input type="hidden" name="hw_queue" value="{{ $hardwareWorkspace['queue'] }}">
+                                @endif
+                                <input type="search"
+                                       id="hardware-quick-filter-input"
+                                       name="q"
+                                       class="dashboard-quick-filter__input dashboard-u-focus-ring"
+                                       placeholder="{{ $searchPlaceholder }}"
+                                       value="{{ $hardwareWorkspace['search'] ?? '' }}"
+                                       autocomplete="off"
+                                       data-hardware-quick-filter-input>
+                            </form>
+                        @else
+                            <input type="search"
+                                   id="dashboard-quick-filter-input"
+                                   class="dashboard-quick-filter__input dashboard-u-focus-ring"
+                                   placeholder="{{ $searchPlaceholder }}"
+                                   autocomplete="off"
+                                   data-dashboard-quick-filter-input>
+                        @endif
                     </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="card-body p-0 position-relative">
+        @if($isHardwareWorkspace && is_array($hardwareWorkspace))
+            @include('dashboard.partials.hardware-workspace', [
+                'hardwareWorkspace' => $hardwareWorkspace,
+            ])
+        @else
         <div id="dashboard-service-cases-content">
             <div class="dashboard-search-banner d-none"
                  data-dashboard-search-banner
@@ -263,5 +319,6 @@
                 </button>
             </div>
         </div>
+        @endif
     </div>
 </div>

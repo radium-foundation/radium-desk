@@ -16,9 +16,11 @@ class HardwareFulfilmentStepperTest extends TestCase
         $row = $this->row(HardwareFulfilmentOperationalStage::AwaitingFulfilment, false);
 
         $this->assertSame(0, HardwareFulfilmentStepper::currentIndex($row));
-        $this->assertCount(11, HardwareFulfilmentStepper::milestones());
+        $this->assertCount(10, HardwareFulfilmentStepper::milestones());
         $this->assertSame('Review', HardwareFulfilmentStepper::milestones()[0]);
-        $this->assertSame('Ready', HardwareFulfilmentStepper::milestones()[10]);
+        $this->assertSame('Pickup', HardwareFulfilmentStepper::milestones()[7]);
+        $this->assertSame('Ready', HardwareFulfilmentStepper::milestones()[9]);
+        $this->assertNotContains('Packing', HardwareFulfilmentStepper::milestones());
     }
 
     public function test_readiness_advances_serial_through_ready(): void
@@ -53,6 +55,26 @@ class HardwareFulfilmentStepperTest extends TestCase
             product: 'MFS',
         );
         $this->assertSame(3, HardwareFulfilmentStepper::currentIndex($row, $ready));
+
+        $ready = new HardwareShipmentReadiness(
+            canCreate: false,
+            blockers: [],
+            status: 'Created',
+            pickupBranch: null,
+            pickupLocation: null,
+            shipTo: null,
+            parcel: null,
+            invoice: 'INV-1',
+            serials: ['10532319'],
+            order: 'RDE1',
+            product: 'MFS',
+            alreadyCreated: true,
+            awb: 'AWB1',
+            labelUrl: '/label.pdf',
+            pickupStatus: 'Not requested',
+            packageLabelAppliedRecorded: false,
+        );
+        $this->assertSame(7, HardwareFulfilmentStepper::currentIndex($row, $ready));
     }
 
     private function row(HardwareFulfilmentOperationalStage $stage, bool $hasFulfilment): HardwareFulfilmentOperationalRow

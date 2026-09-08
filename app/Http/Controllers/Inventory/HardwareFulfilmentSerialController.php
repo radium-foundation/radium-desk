@@ -337,6 +337,7 @@ class HardwareFulfilmentSerialController extends Controller
             'opsRow' => $opsRow,
             'stepperMilestones' => HardwareFulfilmentStepper::milestones(),
             'stepperCurrentIndex' => HardwareFulfilmentStepper::currentIndex($opsRow, $shipment),
+            'stepperCurrentCaption' => HardwareFulfilmentStepper::currentCaption($opsRow),
             'canIssueInvoice' => $canIssueInvoice,
             'canCorrectCountry' => false,
             'canViewInvoice' => $shipment->invoiceId !== null,

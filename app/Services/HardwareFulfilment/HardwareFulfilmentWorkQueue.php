@@ -2,6 +2,7 @@
 
 namespace App\Services\HardwareFulfilment;
 
+use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareOperationsSection;
 use App\Models\HardwareFulfilment;
@@ -94,6 +95,45 @@ final class HardwareFulfilmentWorkQueue
             sectionCounts: $sectionCounts,
             rinVisible: $rinVisible,
         );
+    }
+
+    /**
+     * Presentation queue for the Hardware dashboard. Read-only. No provider calls.
+     *
+     * @return array{rows: Collection<int, HardwareFulfilmentOperationalRow>, counts: array<string, int>, total: int}
+     */
+    public function dashboard(Carbon $fromIst, Carbon $toIst, string $search = '', string $queue = ''): array
+    {
+        $rows = $this->allRows($fromIst, $toIst, '', '');
+        if ($search !== '') {
+            $needle = strtoupper($search);
+            $rows = $rows->filter(function (HardwareFulfilmentOperationalRow $row) use ($needle): bool {
+                return str_contains(strtoupper($row->sourceId), $needle)
+                    || str_contains(strtoupper($row->customer), $needle)
+                    || str_contains(strtoupper($row->serialStatus), $needle)
+                    || str_contains(strtoupper($row->product), $needle);
+            })->values();
+        }
+
+        $counts = [];
+        foreach (HardwareDashboardQueue::cases() as $dashboardQueue) {
+            $counts[$dashboardQueue->value] = 0;
+        }
+        foreach ($rows as $row) {
+            $counts[$row->dashboardQueue()->value]++;
+        }
+
+        if ($queue !== '') {
+            $rows = $rows->filter(
+                static fn (HardwareFulfilmentOperationalRow $row): bool => $row->dashboardQueue()->value === $queue
+            )->values();
+        }
+
+        return [
+            'rows' => $rows,
+            'counts' => $counts,
+            'total' => $rows->count(),
+        ];
     }
 
     /**

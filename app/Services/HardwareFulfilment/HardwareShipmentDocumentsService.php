@@ -197,7 +197,7 @@ class HardwareShipmentDocumentsService
             $ready = $this->eligibility->inspect($locked);
             if (! $ready->canMarkReadyForPickup) {
                 throw ValidationException::withMessages([
-                    'shipping' => 'Ready for pickup requires a requested pickup, an assigned AWB, and a label-applied package photo.',
+                    'shipping' => 'Ready for pickup requires a requested pickup and an assigned AWB.',
                 ]);
             }
 

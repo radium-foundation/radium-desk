@@ -32,7 +32,7 @@
          data-live-interval-active="{{ $dashboardPollIntervalActiveMs ?? 20000 }}"
          data-live-interval-idle="{{ $dashboardPollIntervalIdleMs ?? 60000 }}"
          data-live-interval="{{ $dashboardPollIntervalActiveMs ?? 20000 }}"
-         data-live-updates-enabled="{{ ($dashboardLiveUpdatesEnabled ?? true) ? '1' : '0' }}"
+         data-live-updates-enabled="{{ (($dashboardLiveUpdatesEnabled ?? true) && ($operationQueue ?? '') !== 'hardware') ? '1' : '0' }}"
          data-realtime-desktop-notifications="{{ ($desktopNotificationsEnabled ?? true) ? '1' : '0' }}"
          data-realtime-connection-indicator="{{ ($connectionStatusIndicatorEnabled ?? false) ? '1' : '0' }}"
          data-realtime-debug="{{ ($debugModeEnabled ?? false) ? '1' : '0' }}"
@@ -99,6 +99,7 @@
                             'canManageTransactions' => $canManageTransactions ?? false,
                             'compactAgentLayout' => $usesAgentDashboard,
                             'emailIntakeWidget' => $stats['email_intake_widget'] ?? null,
+                            'hardwareWorkspace' => $hardwareWorkspace ?? null,
                         ])
                     @endif
                 </div>

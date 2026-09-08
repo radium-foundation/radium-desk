@@ -168,7 +168,7 @@
                                 <td>{{ $row->invoiceStatus }}</td>
                                 <td>{{ $row->shipmentStatus }}</td>
                                 <td>{{ $row->awbStatus }}</td>
-                                <td>{{ $row->stage->label() }}</td>
+                                <td>{{ $row->operatorStatus() }}</td>
                                 <td>
                                     @if($row->primaryUrl() && $row->mutatingAction)
                                         <a class="btn btn-sm btn-primary hardware-ops-next" href="{{ $row->primaryUrl() }}">{{ $row->nextAction }}</a>

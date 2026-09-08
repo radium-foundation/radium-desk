@@ -9,6 +9,7 @@ use App\Services\HardwareFulfilment\Data\HardwareAwaitingFulfilmentClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalRow;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentStepper;
+use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 
 /**
@@ -59,6 +60,8 @@ final class HardwareFulfilmentCustomer360Presenter
             'ready' => $ready,
             'milestones' => HardwareFulfilmentStepper::milestones(),
             'currentIndex' => HardwareFulfilmentStepper::currentIndex($row, $ready),
+            'currentCaption' => HardwareFulfilmentStepper::currentCaption($row),
+            'activity' => $this->activity($ready),
             'canStart' => false,
             'startBlocker' => $this->startBlocker($row, $order),
             'showUrl' => $canOpen ? $row->fulfilmentUrl() : null,
@@ -74,13 +77,32 @@ final class HardwareFulfilmentCustomer360Presenter
         }
 
         if (str_starts_with(strtoupper((string) $order->order_id), 'RIN')) {
-            return HardwareAwaitingFulfilmentReason::Rin->operatorNote();
+            return 'Hardware cannot start yet. Verified RIN → Desk hardware mapping is required.';
         }
 
         if (HardwareAwaitingFulfilmentClassifier::reason($order) !== HardwareAwaitingFulfilmentReason::ReviewCandidate) {
             return $row->blocker;
         }
 
-        return HardwareFulfilmentOperationalClassifier::START_FULFILMENT_BLOCKER;
+        return 'Hardware fulfilment has not started.';
+    }
+
+    /**
+     * @return list<array{label: string, done: bool}>
+     */
+    private function activity(?HardwareShipmentReadiness $ready): array
+    {
+        if ($ready === null) {
+            return [];
+        }
+
+        return [
+            ['label' => 'Shipment created', 'done' => $ready->alreadyCreated],
+            ['label' => 'AWB assigned', 'done' => filled($ready->awb)],
+            ['label' => 'Label generated', 'done' => $ready->labelUrl !== null],
+            ['label' => 'Pickup requested', 'done' => $ready->pickupStatus === 'Requested'],
+            ['label' => 'Manifest generated', 'done' => $ready->manifestStatus !== 'Not generated'],
+            ['label' => 'Package photo', 'done' => $ready->packagePhotoRecorded()],
+        ];
     }
 }
