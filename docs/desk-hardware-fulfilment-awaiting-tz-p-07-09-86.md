@@ -82,4 +82,30 @@ No fulfilment / serial / invoice / shipment / AWB / pickup / manifest writes. RD
 
 ## Production overlay
 
-Pending at implementation commit. Named-file overlay of `HardwareAwaitingFulfilmentQueue.php` only after this commit; `createdAtSqlBound()` is already on production from P-07-09-85.
+**Mechanism:** named-file rsync (no `--delete`) from `git archive c4478cf7`. Not `./tools/desk deploy`. No migrate. No Vite. No `.env`.
+
+Backup: `/var/www/radium-desk/storage/app/private/overlays/p-07-09-86-20260908T120233Z`
+
+Replaced 1 file: `app/Services/HardwareFulfilment/HardwareAwaitingFulfilmentQueue.php`. Production SHA-256 **MATCH** `c4478cf7` (`99095a0c…1037fec`). Then `optimize:clear` + `optimize`.
+
+`createdAtSqlBound()` was already on production from P-07-09-85.
+
+Post-overlay (user 2 GET via HTTP kernel, no browser):
+
+| Check | Result |
+|-------|--------|
+| `/inventory/hardware-fulfilments` | 200; default is Work Queue |
+| Awaiting tab | 200; heading present |
+| Review candidates | **12** — all `created_at` ≥ `2026-09-07 12:22:57` IST |
+| Twilight `2026-09-04 18:30`–`23:59:59` IST | 0 orders |
+| Frozen / HOLD / blocked / RIN in review | none |
+| RDE318421 in Awaiting / Historical | absent |
+| Create fulfilment button | absent |
+| HF total | 1 |
+| RDE318421 | `1` / `awb_assigned` / `1568724940` / Delhivery_Surface/`15084` / AWB `284931178067631` / `updated_at` still `2026-09-08 16:55:54` |
+| `create/adhoc` log | **0** |
+| `/up` | 200; unauth list 302 `/login` |
+
+Review IDs visible: RDE318490, RDE318489, RDE318486, RDE318487, RDE318482, RDE318477, RDE318469, RDE318467, RDE318435, RDE318437, RDE318434, RDE318401.
+
+Rollback: restore the backed-up file, then `optimize:clear` + `optimize`. Not required.
