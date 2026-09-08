@@ -21,6 +21,7 @@ use App\Http\Requests\Inventory\StoreHardwareFulfilmentPackageEvidenceRequest;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
 use App\Models\InventoryBranch;
+use App\Services\HardwareFulfilment\HardwareAwaitingFulfilmentQueue;
 use App\Services\HardwareFulfilment\HardwareFulfilmentCountryCorrectionService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
@@ -51,6 +52,7 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareShipmentCourierOptionsService $couriers,
         private readonly HardwareShipmentDocumentsService $documents,
         private readonly HardwareFulfilmentPackageEvidenceService $packageEvidence,
+        private readonly HardwareAwaitingFulfilmentQueue $awaitingQueue,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -61,6 +63,11 @@ class HardwareFulfilmentSerialController extends Controller
 
     public function index(Request $request): View
     {
+        $queue = trim((string) $request->query('queue', 'open'));
+        if ($queue === 'awaiting') {
+            return $this->awaitingIndex($request);
+        }
+
         $state = trim((string) $request->query('state', ''));
         $order = trim((string) $request->query('order', ''));
         $serial = trim((string) $request->query('serial', ''));
@@ -117,14 +124,54 @@ class HardwareFulfilmentSerialController extends Controller
         $fulfilments = $query->paginate(40)->withQueryString();
 
         return view('inventory.hardware-fulfilments.index', [
+            'queue' => 'open',
             'fulfilments' => $fulfilments,
+            'awaiting' => null,
+            'awaitingSummary' => $this->awaitingQueue->summary(),
             'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('code')->get(),
             'filters' => [
+                'queue' => 'open',
                 'order' => $order,
                 'serial' => $serial,
                 'branch_id' => $branchId,
                 'shipment_status' => $shipmentStatus,
                 'state' => $state,
+                'awaiting_reason' => HardwareAwaitingFulfilmentQueue::FILTER_REVIEW,
+            ],
+            'states' => HardwareFulfilmentState::cases(),
+        ]);
+    }
+
+    private function awaitingIndex(Request $request): View
+    {
+        $order = trim((string) $request->query('order', ''));
+        $reason = trim((string) $request->query('awaiting_reason', HardwareAwaitingFulfilmentQueue::FILTER_REVIEW));
+        $allowed = [
+            HardwareAwaitingFulfilmentQueue::FILTER_REVIEW,
+            HardwareAwaitingFulfilmentQueue::FILTER_EXCLUDED,
+            HardwareAwaitingFulfilmentQueue::FILTER_HISTORICAL,
+            HardwareAwaitingFulfilmentQueue::FILTER_COMPLETED,
+            HardwareAwaitingFulfilmentQueue::FILTER_UNPAID,
+            HardwareAwaitingFulfilmentQueue::FILTER_ALL,
+        ];
+        if (! in_array($reason, $allowed, true)) {
+            $reason = HardwareAwaitingFulfilmentQueue::FILTER_REVIEW;
+        }
+
+        return view('inventory.hardware-fulfilments.index', [
+            'queue' => 'awaiting',
+            'fulfilments' => null,
+            'awaiting' => $this->awaitingQueue->paginate($reason, $order),
+            'awaitingSummary' => $this->awaitingQueue->summary(),
+            'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('code')->get(),
+            'filters' => [
+                'queue' => 'awaiting',
+                'order' => $order,
+                'serial' => '',
+                'branch_id' => null,
+                'shipment_status' => '',
+                'state' => '',
+                'awaiting_reason' => $reason,
             ],
             'states' => HardwareFulfilmentState::cases(),
         ]);
