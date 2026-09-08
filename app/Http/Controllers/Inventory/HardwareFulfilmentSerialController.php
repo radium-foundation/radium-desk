@@ -5,11 +5,15 @@ namespace App\Http\Controllers\Inventory;
 use App\Enums\HardwareFulfilmentState;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\AllocateHardwareFulfilmentSerialsRequest;
+use App\Http\Requests\Inventory\AttachHardwareFulfilmentParcelRequest;
+use App\Http\Requests\Inventory\CorrectHardwareFulfilmentShippingCountryRequest;
 use App\Http\Requests\Inventory\CreateHardwareFulfilmentShipmentRequest;
 use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
 use App\Models\HardwareFulfilment;
 use App\Models\InventoryBranch;
+use App\Services\HardwareFulfilment\HardwareFulfilmentCountryCorrectionService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
+use App\Services\HardwareFulfilment\HardwareFulfilmentParcelSnapshotService;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
@@ -27,6 +31,8 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareSerialAllocationService $allocation,
         private readonly HardwareShipmentService $shipments,
         private readonly HardwareShipmentEligibility $shipmentEligibility,
+        private readonly HardwareFulfilmentParcelSnapshotService $snapshots,
+        private readonly HardwareFulfilmentCountryCorrectionService $countries,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -77,6 +83,7 @@ class HardwareFulfilmentSerialController extends Controller
             'canAllocate' => $canAllocate,
             'derivedBranch' => $fulfilment->fulfilmentBranch,
             'shipment' => $this->shipmentEligibility->inspect($fulfilment),
+            'canCorrectCountry' => HardwareFulfilmentAccess::allowsCountryCorrection($request->user()),
         ]);
     }
 
@@ -121,6 +128,26 @@ class HardwareFulfilmentSerialController extends Controller
         return redirect()
             ->route('inventory.hardware-fulfilments.show', $fulfilment)
             ->with('status', 'Shipment created.');
+    }
+
+    public function storeParcelSnapshot(AttachHardwareFulfilmentParcelRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->snapshots->attachFromCatalog($fulfilment, $request->user());
+
+        return redirect()
+            ->route('inventory.hardware-fulfilments.show', $fulfilment)
+            ->with('status', 'Parcel snapshot attached.');
+    }
+
+    public function storeCountry(CorrectHardwareFulfilmentShippingCountryRequest $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->countries->correct($fulfilment, $request->validated('country'), $request->user());
+
+        return redirect()
+            ->route('inventory.hardware-fulfilments.show', $fulfilment)
+            ->with('status', 'Shipping country recorded.');
     }
 
     public function storeAwb(Request $request, HardwareFulfilment $fulfilment): RedirectResponse

@@ -26,6 +26,7 @@ class HardwareShipmentService
         private readonly HardwareShipmentMapper $mapper,
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly ShiprocketGateway $gateway,
+        private readonly HardwareFulfilmentParcelSnapshotService $snapshots,
     ) {}
 
     public function createShipment(HardwareFulfilment $fulfilment, ?User $actor = null): Shipment
@@ -33,11 +34,11 @@ class HardwareShipmentService
         $this->assertNotFrozen($fulfilment);
 
         try {
-            $prepared = DB::transaction(function () use ($fulfilment): array {
+            $prepared = DB::transaction(function () use ($fulfilment, $actor): array {
                 $locked = HardwareFulfilment::query()
                     ->whereKey($fulfilment->id)
                     ->lockForUpdate()
-                    ->with(['commerceOrder.items'])
+                    ->with(['commerceOrder.items', 'serials.inventorySerial.product.packaging'])
                     ->firstOrFail();
 
                 $this->assertNotFrozen($locked);
@@ -54,6 +55,8 @@ class HardwareShipmentService
                         trim(($existing->last_error ?: 'Provider validation failure').' Previous provider validation failure is not retried.'),
                     );
                 }
+
+                $this->snapshots->attachIfEligible($locked, $actor);
 
                 $ready = $this->eligibility->require($locked);
                 $this->assertProviderCallable();
@@ -259,6 +262,9 @@ class HardwareShipmentService
                 'pickup_location' => $ready['pickup'],
                 'fulfilment_branch_id' => $fulfilment->fulfilment_branch_id,
                 'source_id' => $fulfilment->source_id,
+                'parcel' => $ready['parcel'],
+                'parcel_source' => $ready['parcel_source'] ?? null,
+                'shipping_country' => $ready['shipping']['country'] ?? null,
             ],
         ]);
     }

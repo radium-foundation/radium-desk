@@ -41,6 +41,11 @@ class HardwareFulfilment extends Model
         'awb_assigned_at',
         'shipped_at',
         'synced_at',
+        'parcel_snapshot',
+        'shipping_country_overlay',
+        'shipping_country_overlay_at',
+        'shipping_country_overlay_by_user_id',
+        'shipping_country_overlay_context',
     ];
 
     protected function casts(): array
@@ -59,6 +64,9 @@ class HardwareFulfilment extends Model
             'awb_assigned_at' => 'datetime',
             'shipped_at' => 'datetime',
             'synced_at' => 'datetime',
+            'parcel_snapshot' => 'array',
+            'shipping_country_overlay_at' => 'datetime',
+            'shipping_country_overlay_context' => 'array',
         ];
     }
 
@@ -90,5 +98,10 @@ class HardwareFulfilment extends Model
     public function shipment(): HasOne
     {
         return $this->hasOne(Shipment::class, 'hardware_fulfilment_id');
+    }
+
+    public function shippingCountryOverlayBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'shipping_country_overlay_by_user_id');
     }
 }

@@ -19,6 +19,8 @@ class HardwareShipmentEligibility
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly HardwarePickupResolver $pickups,
         private readonly ShiprocketGateway $gateway,
+        private readonly HardwareFulfilmentParcelSnapshotService $snapshots,
+        private readonly HardwareFulfilmentCountryCorrectionService $countries,
     ) {}
 
     /**
@@ -28,7 +30,8 @@ class HardwareShipmentEligibility
      *     branch: InventoryBranch,
      *     pickup: string,
      *     shipping: array<string, string>,
-     *     parcel: array{weight: float, length: float, breadth: float, height: float}
+     *     parcel: array{weight: float, length: float, breadth: float, height: float},
+     *     parcel_source: string
      * }
      */
     public function require(HardwareFulfilment $fulfilment): array
@@ -54,8 +57,8 @@ class HardwareShipmentEligibility
         $branch = $this->requireBranch($fulfilment);
         $this->requireConsistentPhysicalBranch($fulfilment, $branch);
         $pickup = $this->pickups->requireForBranch($branch);
-        $shipping = $this->requireShippingAddress($order);
-        $parcel = $this->requireParcel($order);
+        $shipping = $this->requireShippingAddress($order, $fulfilment);
+        [$parcel, $parcelSource] = $this->requireParcel($order, $fulfilment);
 
         return [
             'invoice' => $invoice,
@@ -64,6 +67,7 @@ class HardwareShipmentEligibility
             'pickup' => $pickup,
             'shipping' => $shipping,
             'parcel' => $parcel,
+            'parcel_source' => $parcelSource,
         ];
     }
 
@@ -133,18 +137,20 @@ class HardwareShipmentEligibility
         }
 
         $shipping = null;
+        $countryMissing = $this->countryMissing($fulfilment, $order);
         if ($order !== null) {
             try {
-                $shipping = $this->requireShippingAddress($order);
+                $shipping = $this->requireShippingAddress($order, $fulfilment);
             } catch (ValidationException) {
                 $blockers[] = 'Shipping address incomplete';
             }
         }
 
         $parcel = null;
+        $parcelSource = 'unavailable';
         if ($order !== null) {
             try {
-                $parcel = $this->requireParcel($order);
+                [$parcel, $parcelSource] = $this->requireParcel($order, $fulfilment);
             } catch (ValidationException) {
                 $blockers[] = 'Parcel dimensions unavailable';
             }
@@ -176,6 +182,8 @@ class HardwareShipmentEligibility
             }
         }
 
+        $catalog = $this->snapshots->catalogPackaging($fulfilment);
+
         return new HardwareShipmentReadiness(
             canCreate: $canCreate,
             blockers: array_values(array_unique($blockers)),
@@ -190,6 +198,14 @@ class HardwareShipmentEligibility
             product: $this->productLabel($order),
             alreadyCreated: $alreadyCreated,
             actionLabel: $needsReconcile ? 'Reconcile Shipment' : 'Create Shipment',
+            parcelSource: $parcelSource,
+            catalogPackaging: $catalog['label'] ?? null,
+            catalogVerified: (bool) ($catalog['verified'] ?? false),
+            countryMissing: $countryMissing,
+            canAttachSnapshot: $this->snapshots->canAttach($fulfilment),
+            canCorrectCountry: $this->countries->canCorrect($fulfilment),
+            payment: ($order !== null && $this->isPaid($fulfilment, $order)) ? 'Paid' : 'Not verified',
+            awb: $shipment?->awb ?: $fulfilment->awb,
         );
     }
 
@@ -302,7 +318,7 @@ class HardwareShipmentEligibility
     /**
      * @return array<string, string>
      */
-    private function requireShippingAddress(CommerceOrder $order): array
+    private function requireShippingAddress(CommerceOrder $order, HardwareFulfilment $fulfilment): array
     {
         $structured = $order->shipping_address_structured;
         if (! is_array($structured)) {
@@ -315,6 +331,9 @@ class HardwareShipmentEligibility
         $out = [];
         foreach ($required as $key) {
             $value = trim((string) ($structured[$key] ?? ''));
+            if ($key === 'country' && $value === '') {
+                $value = trim((string) ($this->countries->resolvedCountry($fulfilment) ?? ''));
+            }
             if ($value === '') {
                 throw ValidationException::withMessages([
                     'address' => sprintf('Shipping address is missing %s. Billing address is not substituted.', $key),
@@ -350,28 +369,32 @@ class HardwareShipmentEligibility
     }
 
     /**
-     * @return array{weight: float, length: float, breadth: float, height: float}
+     * @return array{0: array{weight: float, length: float, breadth: float, height: float}, 1: string}
      */
-    private function requireParcel(CommerceOrder $order): array
+    private function requireParcel(CommerceOrder $order, HardwareFulfilment $fulfilment): array
     {
-        $parcel = $order->parcel;
-        if (! is_array($parcel)) {
-            throw ValidationException::withMessages([
-                'parcel' => 'Hardware shipment requires persisted parcel dimensions. Defaults are not invented.',
-            ]);
+        $ingest = $this->snapshots->completeIngestParcel(is_array($order->parcel) ? $order->parcel : null);
+        if ($ingest !== null) {
+            return [$ingest, 'ingest'];
         }
 
-        $weight = $this->positiveNumber($parcel['weight'] ?? null, 'weight');
-        $length = $this->positiveNumber($parcel['length'] ?? null, 'length');
-        $height = $this->positiveNumber($parcel['height'] ?? null, 'height');
-        $breadth = $this->positiveNumber($parcel['breadth'] ?? $parcel['width'] ?? null, 'breadth');
+        $snapshot = $this->snapshots->validSnapshot($fulfilment);
+        if ($snapshot !== null) {
+            return [$snapshot, 'snapshot'];
+        }
 
-        return [
-            'weight' => $weight,
-            'length' => $length,
-            'breadth' => $breadth,
-            'height' => $height,
-        ];
+        throw ValidationException::withMessages([
+            'parcel' => 'Hardware shipment requires persisted parcel dimensions. Defaults are not invented.',
+        ]);
+    }
+
+    private function countryMissing(HardwareFulfilment $fulfilment, ?CommerceOrder $order): bool
+    {
+        if ($order === null) {
+            return true;
+        }
+
+        return $this->countries->resolvedCountry($fulfilment) === null;
     }
 
     private function requirePayment(HardwareFulfilment $fulfilment, CommerceOrder $order): void

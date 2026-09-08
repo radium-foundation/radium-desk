@@ -203,9 +203,10 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
                 'pickup_location' => 'SOME-OTHER-WAREHOUSE',
                 'branch' => 'MUMBAI',
                 'weight' => 9.9,
+                'country' => 'India',
             ])
             ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
-            ->assertSessionHasErrors(['pickup_location', 'branch', 'weight']);
+            ->assertSessionHasErrors(['pickup_location', 'branch', 'weight', 'country']);
 
         $this->assertSame(0, $this->fake->creates);
         $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);

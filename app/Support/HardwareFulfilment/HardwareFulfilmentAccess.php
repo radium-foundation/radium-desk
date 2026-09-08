@@ -19,4 +19,12 @@ final class HardwareFulfilmentAccess
             RolePermissionSeeder::PERMISSION_HARDWARE_FULFILMENT_OPERATE,
         );
     }
+
+    public static function allowsCountryCorrection(?User $user): bool
+    {
+        return InventoryAccess::allowsPermission(
+            $user,
+            RolePermissionSeeder::PERMISSION_HARDWARE_FULFILMENT_CORRECT_COUNTRY,
+        );
+    }
 }

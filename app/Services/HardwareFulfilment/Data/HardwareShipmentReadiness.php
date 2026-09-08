@@ -23,5 +23,13 @@ final class HardwareShipmentReadiness
         public readonly bool $alreadyCreated = false,
         public readonly string $provider = 'Shiprocket',
         public readonly string $actionLabel = 'Create Shipment',
+        public readonly string $parcelSource = 'unavailable',
+        public readonly ?string $catalogPackaging = null,
+        public readonly bool $catalogVerified = false,
+        public readonly bool $countryMissing = false,
+        public readonly bool $canAttachSnapshot = false,
+        public readonly bool $canCorrectCountry = false,
+        public readonly string $payment = 'Not verified',
+        public readonly ?string $awb = null,
     ) {}
 }

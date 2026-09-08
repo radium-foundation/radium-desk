@@ -197,18 +197,41 @@
             <dl class="hf-alloc-confirm mb-0">
                 <dt>Status</dt>
                 <dd>{{ $shipment->status }}</dd>
+                <dt>Payment</dt>
+                <dd>{{ $shipment->payment }}</dd>
                 <dt>Pickup branch</dt>
                 <dd>{{ $shipment->pickupBranch ?? 'Not derived yet' }}</dd>
                 <dt>Pickup location</dt>
                 <dd>{{ $shipment->pickupLocation ?? 'Not derived yet' }}</dd>
                 <dt>Ship-to</dt>
                 <dd>{{ $shipment->shipTo ?? 'Incomplete' }}</dd>
+                <dt>Country</dt>
+                <dd>{{ $shipment->countryMissing ? 'Missing — not inferred' : ($shipment->shipTo ? 'Present' : 'Incomplete') }}</dd>
                 <dt>Parcel</dt>
                 <dd>{{ $shipment->parcel ?? 'Unavailable — not persisted' }}</dd>
+                <dt>Parcel source</dt>
+                <dd>
+                    @if($shipment->parcelSource === 'ingest')
+                        Ingest
+                    @elseif($shipment->parcelSource === 'snapshot')
+                        Fulfilment snapshot
+                    @else
+                        Unavailable
+                    @endif
+                </dd>
+                <dt>Catalog pack</dt>
+                <dd>
+                    {{ $shipment->catalogPackaging ?? 'Unknown until serials are allocated' }}
+                    @if($shipment->catalogPackaging)
+                        · catalog / {{ $shipment->catalogVerified ? 'verified' : 'not verified' }}
+                    @endif
+                </dd>
                 <dt>Invoice</dt>
                 <dd>{{ $shipment->invoice ?? 'Not issued' }}</dd>
                 <dt>Serial</dt>
                 <dd>{{ $shipment->serials === [] ? 'Not allocated' : implode(', ', $shipment->serials) }}</dd>
+                <dt>AWB</dt>
+                <dd>{{ $shipment->awb ?? 'Not assigned' }}</dd>
                 <dt>Provider</dt>
                 <dd>{{ $shipment->alreadyCreated ? $shipment->provider : $shipment->provider.' (not called)' }}</dd>
             </dl>
@@ -221,6 +244,24 @@
                         <li>{{ $blocker }}</li>
                     @endforeach
                 </ul>
+            @endif
+
+            @if($shipment->canAttachSnapshot)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.parcel-snapshot.store', $fulfilment) }}" id="hardware-parcel-snapshot-form" class="mt-3">
+                    @csrf
+                    <p class="text-muted small mb-2">Copies the verified catalog pack onto this fulfilment. It does not change the order parcel.</p>
+                    <button type="submit" class="btn btn-outline-primary" id="hardware-parcel-snapshot-submit">Attach parcel snapshot</button>
+                </form>
+            @endif
+
+            @if($canCorrectCountry && $shipment->canCorrectCountry)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.country.store', $fulfilment) }}" id="hardware-country-form" class="mt-3">
+                    @csrf
+                    <label class="form-label" for="hardware-country">Shipping country</label>
+                    <input type="text" name="country" id="hardware-country" class="form-control" maxlength="64" required autocomplete="off">
+                    <p class="text-muted small mt-1 mb-2">Fill-if-absent overlay only. Type the country. It is not inferred.</p>
+                    <button type="submit" class="btn btn-outline-primary" id="hardware-country-submit">Record country</button>
+                </form>
             @endif
 
             @if($shipment->canCreate)
@@ -455,6 +496,40 @@
                 }
                 submit.disabled = true;
                 submit.textContent = 'Creating shipment…';
+            });
+        })();
+
+        (function () {
+            const form = document.getElementById('hardware-parcel-snapshot-form');
+            const submit = document.getElementById('hardware-parcel-snapshot-submit');
+            if (!form || !submit) {
+                return;
+            }
+
+            form.addEventListener('submit', function (event) {
+                if (!window.confirm('Attach the verified catalog packaging to this fulfilment snapshot? Order parcel will not be changed.')) {
+                    event.preventDefault();
+                    return;
+                }
+                submit.disabled = true;
+                submit.textContent = 'Attaching…';
+            });
+        })();
+
+        (function () {
+            const form = document.getElementById('hardware-country-form');
+            const submit = document.getElementById('hardware-country-submit');
+            if (!form || !submit) {
+                return;
+            }
+
+            form.addEventListener('submit', function (event) {
+                if (!window.confirm('Record this exact country on the fulfilment overlay? It will not change billing or infer a country.')) {
+                    event.preventDefault();
+                    return;
+                }
+                submit.disabled = true;
+                submit.textContent = 'Recording…';
             });
         })();
     </script>

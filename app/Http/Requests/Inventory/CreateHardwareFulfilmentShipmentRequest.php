@@ -31,6 +31,7 @@ class CreateHardwareFulfilmentShipmentRequest extends FormRequest
             'provider_order_id' => ['prohibited'],
             'external_order_id' => ['prohibited'],
             'channel_id' => ['prohibited'],
+            'country' => ['prohibited'],
         ];
     }
 
@@ -53,6 +54,7 @@ class CreateHardwareFulfilmentShipmentRequest extends FormRequest
             'provider_order_id.prohibited' => 'Provider order id is assigned by Shiprocket and cannot be entered.',
             'external_order_id.prohibited' => 'Provider order id is assigned by Shiprocket and cannot be entered.',
             'channel_id.prohibited' => 'Shiprocket channel id cannot be supplied by the operator.',
+            'country.prohibited' => 'Shipping country cannot be entered on create shipment.',
         ];
     }
 }
