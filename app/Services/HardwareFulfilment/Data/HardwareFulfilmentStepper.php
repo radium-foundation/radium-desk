@@ -80,6 +80,7 @@ final class HardwareFulfilmentStepper
     {
         return match ($row->nextAction) {
             'Review' => 'Review this order before fulfilment can start.',
+            'Open Fulfilment' => 'Open exactly one Hardware Fulfilment from the recovered Commerce order, then use markReady().',
             'Ready for Fulfilment' => 'Mark this ingested order ready for fulfilment.',
             'Allocate Serial' => 'Allocate a stock serial to continue.',
             'Issue Invoice' => 'Issue the statutory invoice to continue.',
@@ -93,8 +94,8 @@ final class HardwareFulfilmentStepper
             'Generate Manifest' => 'Pickup has been requested.',
             'Upload Package Photo' => 'Evidence can be added after shipment or pickup. It does not block shipping.',
             'Ready' => 'Operational steps are complete.',
-            'View' => 'Hardware cannot start yet.',
-            default => '',
+            'View' => $row->blocker ?: 'Hardware cannot start yet.',
+            default => $row->blocker ?: '',
         };
     }
 

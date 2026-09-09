@@ -22,7 +22,7 @@ class HardwareAwaitingFulfilmentClassifierTest extends TestCase
         ]);
 
         $this->assertSame(
-            HardwareAwaitingFulfilmentReason::ReviewCandidate,
+            HardwareAwaitingFulfilmentReason::AwaitingHandoff,
             HardwareAwaitingFulfilmentClassifier::reason($order),
         );
     }
@@ -89,6 +89,14 @@ class HardwareAwaitingFulfilmentClassifierTest extends TestCase
                 'cashfree_payment_id' => 'paid',
                 'transaction_id' => 'TX-1',
                 'created_at' => '2026-09-07 10:00:00',
+            ])),
+        );
+        $this->assertSame(
+            HardwareAwaitingFulfilmentReason::AwaitingHandoff,
+            HardwareAwaitingFulfilmentClassifier::reason($this->order('RDE960007', [
+                'cashfree_payment_id' => 'paid',
+                'created_at' => '2026-09-07 10:00:00',
+                'product_name' => '',
             ])),
         );
     }

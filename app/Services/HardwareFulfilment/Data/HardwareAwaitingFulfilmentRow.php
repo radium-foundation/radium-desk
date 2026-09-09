@@ -3,6 +3,7 @@
 namespace App\Services\HardwareFulfilment\Data;
 
 use App\Enums\HardwareAwaitingFulfilmentReason;
+use App\Models\CommerceOrder;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 
@@ -23,7 +24,7 @@ final class HardwareAwaitingFulfilmentRow
 
         return new self(
             order: $order,
-            reason: HardwareAwaitingFulfilmentClassifier::reason($order),
+            reason: HardwareAwaitingFulfilmentClassifier::reason($order, self::commerceFor($order)),
             paid: $order->isCashfreeVerified(),
             hasSupportSerial: $order->isSerialLocked(),
             transactionLocked: $order->isTransactionLocked(),
@@ -39,5 +40,20 @@ final class HardwareAwaitingFulfilmentRow
     public function customer360Url(): string
     {
         return route('dashboard.orders.customer-360', $this->order);
+    }
+
+    private static function commerceFor(Order $order): ?CommerceOrder
+    {
+        $matches = CommerceOrder::query()
+            ->with('items')
+            ->where(function ($query) use ($order): void {
+                $query->where('support_order_id', $order->id)
+                    ->orWhere('source_id', $order->order_id);
+            })
+            ->get()
+            ->unique('id')
+            ->values();
+
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 }

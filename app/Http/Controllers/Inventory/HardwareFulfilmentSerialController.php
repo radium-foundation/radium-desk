@@ -19,6 +19,7 @@ use App\Http\Requests\Inventory\GenerateHardwareFulfilmentManifestRequest;
 use App\Http\Requests\Inventory\IssueHardwareFulfilmentInvoiceRequest;
 use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyForPickupRequest;
 use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyRequest;
+use App\Http\Requests\Inventory\OpenHardwareFulfilmentRequest;
 use App\Http\Requests\Inventory\RequestHardwareFulfilmentPickupRequest;
 use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
 use App\Http\Requests\Inventory\SelectHardwareFulfilmentCourierRequest;
@@ -27,6 +28,7 @@ use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
 use App\Models\Incident;
 use App\Models\InventoryBranch;
+use App\Models\Order;
 use App\Models\Shipment;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentStepper;
@@ -34,6 +36,7 @@ use App\Services\HardwareFulfilment\HardwareAwaitingFulfilmentQueue;
 use App\Services\HardwareFulfilment\HardwareFulfilmentCountryCorrectionService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
+use App\Services\HardwareFulfilment\HardwareFulfilmentIsolatedWorkflowService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentParcelSnapshotService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
@@ -70,6 +73,7 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentInvoiceService $invoices,
         private readonly HardwareFulfilmentOperationalClassifier $operationalClassifier,
         private readonly HardwareFulfilmentWorkflowService $workflow,
+        private readonly HardwareFulfilmentIsolatedWorkflowService $isolated,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -407,6 +411,57 @@ class HardwareFulfilmentSerialController extends Controller
             'showUrl' => route('inventory.hardware-fulfilments.show', $fulfilment),
             'incidentId' => $this->incidentIdFor($fulfilment),
         ]);
+    }
+
+    public function awaitingActionDialog(Request $request, Order $order): View
+    {
+        $row = $this->operationalClassifier->fromAwaiting($order);
+        if ($row->nextAction !== 'Open Fulfilment' || ! $row->mutatingAction) {
+            throw ValidationException::withMessages([
+                'fulfilment' => $row->blocker ?: 'This order cannot open fulfilment from the Dashboard.',
+            ]);
+        }
+
+        $incidentId = Incident::query()
+            ->where('order_id', $order->id)
+            ->max('id');
+
+        return view('inventory.hardware-fulfilments.fragments.action-dialog-awaiting', [
+            'order' => $order,
+            'row' => $row,
+            'incidentId' => $incidentId !== null ? (int) $incidentId : null,
+        ]);
+    }
+
+    public function storeOpen(OpenHardwareFulfilmentRequest $request, Order $order): RedirectResponse|JsonResponse
+    {
+        $row = $this->operationalClassifier->fromAwaiting($order);
+        if ($row->nextAction !== 'Open Fulfilment' || ! $row->mutatingAction) {
+            throw ValidationException::withMessages([
+                'fulfilment' => $row->blocker ?: 'This order cannot open fulfilment from the Dashboard.',
+            ]);
+        }
+
+        $this->isolated->run(
+            identifier: (string) $order->order_id,
+            step: HardwareFulfilmentIsolatedWorkflowService::STEP_INGEST,
+            actor: $request->user(),
+        );
+
+        $fulfilment = HardwareFulfilment::query()
+            ->where(function ($query) use ($order): void {
+                $query->where('source_id', $order->order_id)
+                    ->orWhere('support_order_id', $order->id);
+            })
+            ->first();
+
+        if ($fulfilment === null) {
+            throw ValidationException::withMessages([
+                'fulfilment' => 'Recovered fulfilment did not open a Hardware Fulfilment.',
+            ]);
+        }
+
+        return $this->mutationResponse($request, $fulfilment, 'Hardware fulfilment opened.');
     }
 
     public function search(SearchHardwareFulfilmentSerialsRequest $request, HardwareFulfilment $fulfilment): JsonResponse

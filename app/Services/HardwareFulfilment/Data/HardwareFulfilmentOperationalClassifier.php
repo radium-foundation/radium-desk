@@ -10,6 +10,7 @@ use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
+use App\Services\HardwareFulfilment\HardwareSkuMapService;
 
 final class HardwareFulfilmentOperationalClassifier
 {
@@ -17,16 +18,13 @@ final class HardwareFulfilmentOperationalClassifier
 
     public function fromAwaiting(Order $order, ?CommerceOrder $commerce = null): HardwareFulfilmentOperationalRow
     {
-        $reason = HardwareAwaitingFulfilmentClassifier::reason($order);
+        $commerce = $this->uniqueCommerce($order, $commerce);
+        $reason = HardwareAwaitingFulfilmentClassifier::reason($order, $commerce);
         $paid = $order->isCashfreeVerified();
         $created = $order->created_at?->copy()->timezone(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
-        $blocked = $reason !== HardwareAwaitingFulfilmentReason::ReviewCandidate;
-        $stage = $blocked
-            ? HardwareFulfilmentOperationalStage::BlockedReview
-            : HardwareFulfilmentOperationalStage::AwaitingFulfilment;
         $source = $this->sourcePrefix((string) $order->order_id);
-        $nextUrl = route('dashboard.orders.customer-360', $order);
         $catalog = HardwareFulfilmentProductLines::resolve($commerce, $order);
+        $presentation = $this->awaitingPresentation($reason, $order);
 
         return new HardwareFulfilmentOperationalRow(
             sourceId: (string) $order->order_id,
@@ -41,23 +39,22 @@ final class HardwareFulfilmentOperationalClassifier
             invoiceStatus: 'None',
             shipmentStatus: 'None',
             awbStatus: 'None',
-            stage: $stage,
-            nextAction: $blocked ? 'View' : 'Review',
-            nextUrl: $nextUrl,
-            blocker: $blocked
-                ? $reason->operatorNote()
-                : self::START_FULFILMENT_BLOCKER,
+            stage: $presentation['stage'],
+            nextAction: $presentation['nextAction'],
+            nextUrl: $presentation['nextUrl'],
+            blocker: $presentation['blocker'],
             fulfilmentId: null,
             supportOrderId: (int) $order->id,
             hasFulfilment: false,
             source: $source,
-            section: HardwareOperationsSection::fromStage($stage),
+            section: HardwareOperationsSection::fromStage($presentation['stage']),
             nextAnchor: null,
-            mutatingAction: false,
+            mutatingAction: $presentation['mutatingAction'],
             packagePhotoRecorded: false,
-            statusLabel: $blocked ? 'Blocked' : 'Awaiting Fulfilment',
+            statusLabel: $presentation['statusLabel'],
             productLines: $catalog['lines'],
             productMissing: $catalog['missing'],
+            productStatusLabel: $catalog['missing'] ? $this->missingProductLabel($reason) : null,
         );
     }
 
@@ -66,6 +63,7 @@ final class HardwareFulfilmentOperationalClassifier
         $created = $order->created_at?->copy()->timezone(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
         $paid = $order->isCashfreeVerified();
         $catalog = HardwareFulfilmentProductLines::resolve($commerce, $order);
+        $reason = HardwareAwaitingFulfilmentReason::Rin;
 
         return new HardwareFulfilmentOperationalRow(
             sourceId: (string) $order->order_id,
@@ -83,7 +81,7 @@ final class HardwareFulfilmentOperationalClassifier
             stage: HardwareFulfilmentOperationalStage::BlockedReview,
             nextAction: 'View',
             nextUrl: route('dashboard.orders.customer-360', $order),
-            blocker: HardwareAwaitingFulfilmentReason::Rin->operatorNote(),
+            blocker: $reason->operatorNote(),
             fulfilmentId: null,
             supportOrderId: (int) $order->id,
             hasFulfilment: false,
@@ -95,7 +93,17 @@ final class HardwareFulfilmentOperationalClassifier
             statusLabel: 'Blocked',
             productLines: $catalog['lines'],
             productMissing: $catalog['missing'],
+            productStatusLabel: $catalog['missing'] ? $reason->label() : null,
         );
+    }
+
+    private function missingProductLabel(HardwareAwaitingFulfilmentReason $reason): string
+    {
+        return match ($reason) {
+            HardwareAwaitingFulfilmentReason::Hold => 'Owner HOLD / recovery authorization required',
+            HardwareAwaitingFulfilmentReason::Blocked => 'Blocked until authorized',
+            default => $reason->label(),
+        };
     }
 
     public function fromFulfilment(HardwareFulfilment $fulfilment, HardwareShipmentReadiness $ready): HardwareFulfilmentOperationalRow
@@ -115,6 +123,10 @@ final class HardwareFulfilmentOperationalClassifier
         $readinessBlocker = (! $ownerBlocked && $fulfilment->state === HardwareFulfilmentState::Ingested)
             ? HardwareFulfilmentEligibility::isolatedTargetBlocker($fulfilment, $order)
             : null;
+        $mappingMissing = ! $ownerBlocked
+            && $fulfilment->state !== HardwareFulfilmentState::Ingested
+            && $ready->serials === []
+            && $this->missingSkuMap($fulfilment, $order);
         $unrecoverableProviderError = $this->providerRejectionIsUnrecoverable($ready, $ownerBlocked);
 
         [$stage, $nextAction, $anchor, $statusLabel] = $this->stageAndAction(
@@ -122,6 +134,7 @@ final class HardwareFulfilmentOperationalClassifier
             $ready,
             $ownerBlocked,
             $readinessBlocker,
+            $mappingMissing,
         );
         $photoRecorded = $ready->packagePhotoRecorded();
         $section = HardwareOperationsSection::fromStage($stage, $unrecoverableProviderError);
@@ -136,7 +149,14 @@ final class HardwareFulfilmentOperationalClassifier
         $nextUrl = route('inventory.hardware-fulfilments.show', $fulfilment);
         $mutating = ! $ownerBlocked
             && ! $unrecoverableProviderError
+            && ! $mappingMissing
             && ! in_array($nextAction, ['Ready', 'View', 'Completed'], true);
+
+        $blocker = $ownerBlocked
+            ? 'Owner-blocked. Do not advance from this queue.'
+            : ($mappingMissing
+                ? HardwareAwaitingFulfilmentReason::ProductMappingRequired->operatorNote()
+                : ($readinessBlocker ?: ($ready->providerRejection ?: ($ready->blockers[0] ?? null))));
 
         return new HardwareFulfilmentOperationalRow(
             sourceId: $sourceId,
@@ -156,9 +176,7 @@ final class HardwareFulfilmentOperationalClassifier
             stage: $stage,
             nextAction: $nextAction,
             nextUrl: $nextUrl,
-            blocker: $ownerBlocked
-                ? 'Owner-blocked. Do not advance from this queue.'
-                : ($readinessBlocker ?: ($ready->providerRejection ?: ($ready->blockers[0] ?? null))),
+            blocker: $blocker,
             fulfilmentId: (int) $fulfilment->id,
             supportOrderId: $fulfilment->support_order_id !== null ? (int) $fulfilment->support_order_id : null,
             hasFulfilment: true,
@@ -172,7 +190,64 @@ final class HardwareFulfilmentOperationalClassifier
             productMissing: $catalog['missing'],
             allocatedSerialNumbers: $ready->serials,
             expectedSerialQuantity: $ready->quantity,
+            productStatusLabel: $catalog['missing']
+                ? ($mappingMissing ? HardwareAwaitingFulfilmentReason::ProductMappingRequired->label() : 'Product data missing')
+                : null,
         );
+    }
+
+    /**
+     * @return array{stage: HardwareFulfilmentOperationalStage, nextAction: string, nextUrl: string, blocker: string, mutatingAction: bool, statusLabel: string}
+     */
+    private function awaitingPresentation(HardwareAwaitingFulfilmentReason $reason, Order $order): array
+    {
+        if ($reason === HardwareAwaitingFulfilmentReason::RecoveredCommerce) {
+            return [
+                'stage' => HardwareFulfilmentOperationalStage::AwaitingFulfilment,
+                'nextAction' => 'Open Fulfilment',
+                'nextUrl' => route('inventory.hardware-fulfilments.awaiting.action-dialog', $order),
+                'blocker' => $reason->operatorNote(),
+                'mutatingAction' => true,
+                'statusLabel' => $reason->label(),
+            ];
+        }
+
+        if ($reason === HardwareAwaitingFulfilmentReason::ReviewCandidate) {
+            return [
+                'stage' => HardwareFulfilmentOperationalStage::AwaitingFulfilment,
+                'nextAction' => 'Review',
+                'nextUrl' => route('dashboard.orders.customer-360', $order),
+                'blocker' => self::START_FULFILMENT_BLOCKER,
+                'mutatingAction' => false,
+                'statusLabel' => 'Awaiting Fulfilment',
+            ];
+        }
+
+        if ($reason === HardwareAwaitingFulfilmentReason::AwaitingHandoff) {
+            return [
+                'stage' => HardwareFulfilmentOperationalStage::AwaitingFulfilment,
+                'nextAction' => 'View',
+                'nextUrl' => route('dashboard.orders.customer-360', $order),
+                'blocker' => $reason->operatorNote(),
+                'mutatingAction' => false,
+                'statusLabel' => $reason->label(),
+            ];
+        }
+
+        return [
+            'stage' => HardwareFulfilmentOperationalStage::BlockedReview,
+            'nextAction' => 'View',
+            'nextUrl' => route('dashboard.orders.customer-360', $order),
+            'blocker' => $reason->operatorNote(),
+            'mutatingAction' => false,
+            'statusLabel' => match ($reason) {
+                HardwareAwaitingFulfilmentReason::Hold => 'Owner HOLD / recovery authorization required',
+                HardwareAwaitingFulfilmentReason::SplitTender,
+                HardwareAwaitingFulfilmentReason::ProductMappingRequired => $reason->label(),
+                HardwareAwaitingFulfilmentReason::Frozen => 'Frozen',
+                default => 'Blocked',
+            },
+        ];
     }
 
     /**
@@ -183,6 +258,7 @@ final class HardwareFulfilmentOperationalClassifier
         HardwareShipmentReadiness $ready,
         bool $blocked,
         ?string $readinessBlocker = null,
+        bool $mappingMissing = false,
     ): array {
         if ($blocked) {
             return [HardwareFulfilmentOperationalStage::BlockedReview, 'View', null, 'Blocked'];
@@ -217,6 +293,15 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         if ($ready->serials === []) {
+            if ($mappingMissing) {
+                return [
+                    HardwareFulfilmentOperationalStage::BlockedReview,
+                    'View',
+                    null,
+                    HardwareAwaitingFulfilmentReason::ProductMappingRequired->label(),
+                ];
+            }
+
             return [HardwareFulfilmentOperationalStage::AwaitingSerial, 'Allocate Serial', 'hardware-serial-allocate-form', 'Awaiting Serial'];
         }
 
@@ -324,6 +409,50 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         return true;
+    }
+
+    private function missingSkuMap(HardwareFulfilment $fulfilment, ?CommerceOrder $order): bool
+    {
+        if ($order === null) {
+            return false;
+        }
+
+        $order->loadMissing('items');
+        $maps = app(HardwareSkuMapService::class);
+        foreach ($order->items as $item) {
+            if (! HardwareFulfilmentEligibility::isPhysicalCommerceItem($item)) {
+                continue;
+            }
+
+            $modelId = $item->model_id !== null ? (int) $item->model_id : null;
+            if ($maps->findProduct($fulfilment->channel, $modelId) === null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function uniqueCommerce(Order $order, ?CommerceOrder $commerce): ?CommerceOrder
+    {
+        if ($commerce !== null) {
+            $commerce->loadMissing('items');
+
+            return $commerce;
+        }
+
+        $sourceId = strtoupper(trim((string) $order->order_id));
+        $matches = CommerceOrder::query()
+            ->with('items')
+            ->where(function ($query) use ($order, $sourceId): void {
+                $query->where('support_order_id', $order->id)
+                    ->orWhereRaw('UPPER(source_id) = ?', [$sourceId]);
+            })
+            ->get()
+            ->unique('id')
+            ->values();
+
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     private function sourcePrefix(string $sourceId): string

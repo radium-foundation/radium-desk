@@ -8,10 +8,15 @@
         $ready = $hardwareFulfilment['ready'] ?? null;
         $isRin = $row->source === 'RIN' && ! $row->hasFulfilment;
         $canOperate = (bool) ($hardwareFulfilment['canOperate'] ?? false);
-        $showPrimary = $row->hasFulfilment
-            && ($hardwareFulfilment['showUrl'] ?? null)
-            && $row->mutatingAction
-            && $canOperate;
+        $showPrimary = $row->mutatingAction
+            && $canOperate
+            && (
+                ($row->hasFulfilment && ($hardwareFulfilment['showUrl'] ?? null))
+                || ($row->nextAction === 'Open Fulfilment' && $row->supportOrderId)
+            );
+        $actionDialogUrl = $row->hasFulfilment && $row->fulfilmentId
+            ? route('inventory.hardware-fulfilments.action-dialog', $row->fulfilmentId)
+            : $row->awaitingActionDialogUrl();
         $details = $row->productDetails();
     @endphp
     <section id="hardware-fulfilment"
@@ -26,7 +31,7 @@
                     <div class="text-muted small">{{ $row->customer }}</div>
                 @endif
                 @if($row->productMissing)
-                    <div class="text-danger small">Product data missing</div>
+                    <div class="text-danger small">{{ $row->productDisplay() }}</div>
                 @elseif($details !== [])
                     <div class="small">
                         {{ collect($details)->map(function (array $line): string {
@@ -79,10 +84,10 @@
             <p class="small text-muted mb-2 mt-3">{{ $hardwareFulfilment['currentCaption'] }}</p>
         @endif
         <div class="d-flex flex-wrap gap-2 align-items-center">
-            @if($showPrimary)
+            @if($showPrimary && $actionDialogUrl)
                 <button type="button"
                         class="btn btn-sm btn-primary"
-                        data-hardware-action-dialog="{{ route('inventory.hardware-fulfilments.action-dialog', $row->fulfilmentId) }}">
+                        data-hardware-action-dialog="{{ $actionDialogUrl }}">
                     {{ $row->nextAction }}
                 </button>
             @elseif($isRin)

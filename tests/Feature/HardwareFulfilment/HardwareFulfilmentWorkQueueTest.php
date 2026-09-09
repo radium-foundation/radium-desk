@@ -13,11 +13,13 @@ use App\Enums\ShipmentStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceStatus;
+use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
 use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
 use App\Models\HardwareFulfilmentSerial;
+use App\Models\InventoryProduct;
 use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
@@ -56,6 +58,23 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
         $this->creator = User::factory()->create(['is_active' => true]);
         $this->operator = User::factory()->create(['is_active' => true]);
         $this->operator->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+
+        $product = InventoryProduct::query()->create([
+            'sku' => 'RBMFS110L1',
+            'name' => 'MFS110',
+            'hsn_code' => '84716050',
+            'gst_percentage' => 18,
+            'unit_price' => 2549,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 946,
+            'inventory_product_id' => $product->id,
+            'catalog_sku' => 'RBMFS110L1',
+            'channel_sku' => '946',
+        ]);
     }
 
     protected function tearDown(): void
@@ -452,7 +471,7 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ->assertSee('In Progress')
             ->assertSee('Ready for Pickup')
             ->assertSee('Exceptions')
-            ->assertSee('Review')
+            ->assertSee('View')
             ->assertSee('RDE970501')
             ->assertSee('RIN970504')
             ->assertDontSee('Create All')

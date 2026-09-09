@@ -92,11 +92,26 @@ final class HardwareFulfilmentCustomer360Presenter
             return 'Hardware cannot start yet. Verified RIN → Desk hardware mapping is required.';
         }
 
-        if (HardwareAwaitingFulfilmentClassifier::reason($order) !== HardwareAwaitingFulfilmentReason::ReviewCandidate) {
+        if (HardwareAwaitingFulfilmentClassifier::reason($order, $this->commerceFor($order)) !== HardwareAwaitingFulfilmentReason::ReviewCandidate) {
             return $row->blocker;
         }
 
         return 'Hardware fulfilment has not started.';
+    }
+
+    private function commerceFor(Order $order): ?CommerceOrder
+    {
+        $matches = CommerceOrder::query()
+            ->with('items')
+            ->where(function ($query) use ($order): void {
+                $query->where('support_order_id', $order->id)
+                    ->orWhere('source_id', $order->order_id);
+            })
+            ->get()
+            ->unique('id')
+            ->values();
+
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     /**

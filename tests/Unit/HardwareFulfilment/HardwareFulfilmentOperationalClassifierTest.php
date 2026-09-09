@@ -8,14 +8,17 @@ use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
 use App\Enums\StatutoryInvoiceChannel;
+use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
 use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
+use App\Models\InventoryProduct;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
+use App\Services\HardwareFulfilment\HardwareRecoveredFulfilmentAuthorization;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -40,16 +43,18 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $holdRow = $classifier->fromAwaiting($hold);
 
         $this->assertSame(HardwareFulfilmentOperationalStage::AwaitingFulfilment, $reviewRow->stage);
-        $this->assertSame('Review', $reviewRow->nextAction);
+        $this->assertSame('View', $reviewRow->nextAction);
+        $this->assertSame('Awaiting handoff', $reviewRow->operatorStatus());
         $this->assertSame('MFS 110', $reviewRow->productDisplay());
         $this->assertFalse($reviewRow->productMissing);
         $this->assertNotSame('—', $reviewRow->productDisplay());
         $this->assertSame(HardwareOperationsSection::NeedsFulfilment, $reviewRow->section);
         $this->assertFalse($reviewRow->hasFulfilment);
+        $this->assertFalse($reviewRow->mutatingAction);
         $this->assertSame(route('dashboard.orders.customer-360', $review), $reviewRow->nextUrl);
         $this->assertSame(HardwareFulfilmentOperationalStage::BlockedReview, $holdRow->stage);
         $this->assertSame('View', $holdRow->nextAction);
-        $this->assertSame('Blocked', $holdRow->operatorStatus());
+        $this->assertSame('Owner HOLD / recovery authorization required', $holdRow->operatorStatus());
         $this->assertSame(HardwareOperationsSection::Exceptions, $holdRow->section);
     }
 
@@ -408,6 +413,186 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertSame('Assign AWB', $row->nextAction);
         $this->assertNotSame('Select Courier', $row->nextAction);
         $this->assertNotSame('Create Shipment', $row->nextAction);
+    }
+
+    public function test_authorized_recovered_commerce_offers_open_fulfilment_not_customer_360_review(): void
+    {
+        $sourceId = HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[1];
+        $support = $this->order($sourceId, [
+            'cashfree_payment_id' => 'paid',
+            'serial_number' => '10553584',
+            'created_at' => '2026-09-07 10:00:00',
+            'product_name' => '',
+        ]);
+        $commerce = $this->paidHardwareCommerce($support, $sourceId, 946);
+        app(HardwareRecoveredFulfilmentAuthorization::class)->authorizeOne(
+            $commerce,
+            HardwareRecoveredFulfilmentAuthorization::PURPOSE_OWNER_RECOVERED,
+            'test',
+        );
+
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromAwaiting($support, $commerce);
+
+        $this->assertSame('Open Fulfilment', $row->nextAction);
+        $this->assertTrue($row->mutatingAction);
+        $this->assertSame('Recovered Commerce awaiting fulfilment', $row->operatorStatus());
+        $this->assertSame(route('inventory.hardware-fulfilments.awaiting.action-dialog', $support), $row->nextUrl);
+        $this->assertNotSame(route('dashboard.orders.customer-360', $support), $row->nextUrl);
+        $this->assertFalse($row->productMissing);
+    }
+
+    public function test_unauthorized_frozen_and_blocked_orders_stay_on_view(): void
+    {
+        $classifier = app(HardwareFulfilmentOperationalClassifier::class);
+        $frozen = $this->order(HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0], [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+        ]);
+        $blocked = $this->order(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0], [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+            'product_name' => '',
+        ]);
+
+        $frozenRow = $classifier->fromAwaiting($frozen);
+        $blockedRow = $classifier->fromAwaiting($blocked);
+
+        $this->assertSame('View', $frozenRow->nextAction);
+        $this->assertFalse($frozenRow->mutatingAction);
+        $this->assertSame('View', $blockedRow->nextAction);
+        $this->assertSame('Blocked', $blockedRow->operatorStatus());
+        $this->assertSame('Blocked until authorized', $blockedRow->productDisplay());
+    }
+
+    public function test_missing_support_product_shows_awaiting_handoff_not_generic_review(): void
+    {
+        $order = $this->order('RDE971040', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+            'product_name' => '',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromAwaiting($order);
+
+        $this->assertTrue($row->productMissing);
+        $this->assertSame('Awaiting handoff', $row->productDisplay());
+        $this->assertSame('Awaiting handoff', $row->operatorStatus());
+        $this->assertSame('View', $row->nextAction);
+        $this->assertNotSame('Review', $row->nextAction);
+    }
+
+    public function test_hold_without_desk_product_names_the_hold(): void
+    {
+        $order = $this->order('RDE255714', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+            'product_name' => '',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromAwaiting($order);
+
+        $this->assertSame('Owner HOLD / recovery authorization required', $row->operatorStatus());
+        $this->assertSame('Owner HOLD / recovery authorization required', $row->productDisplay());
+        $this->assertSame('View', $row->nextAction);
+        $this->assertFalse($row->mutatingAction);
+    }
+
+    public function test_split_tender_commerce_is_named_not_product_missing(): void
+    {
+        $support = $this->order('RDE971041', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+            'product_name' => '',
+        ]);
+        $commerce = $this->paidHardwareCommerce($support, 'RDE971041', 946);
+        $commerce->forceFill(['wallet_tender_amount' => 499])->save();
+
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromAwaiting($support, $commerce->fresh('items'));
+
+        $this->assertSame('Split-tender recovery required', $row->operatorStatus());
+        $this->assertSame('View', $row->nextAction);
+        $this->assertFalse($row->productMissing);
+    }
+
+    public function test_ready_without_sku_map_is_product_mapping_required_not_allocate_serial(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971042', HardwareFulfilmentState::ReadyForFulfilment, eligible: true);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'serials' => [],
+            'invoice' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment->fresh(['commerceOrder.items', 'supportOrder']), $ready);
+
+        $this->assertSame('View', $row->nextAction);
+        $this->assertNotSame('Allocate Serial', $row->nextAction);
+        $this->assertFalse($row->mutatingAction);
+        $this->assertSame('Product mapping required', $row->operatorStatus());
+    }
+
+    public function test_ready_with_sku_map_still_allocates_serial(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971043', HardwareFulfilmentState::ReadyForFulfilment, eligible: true);
+        $product = InventoryProduct::query()->create([
+            'sku' => 'MAP951',
+            'name' => 'MSO1300',
+            'hsn_code' => '84716050',
+            'gst_percentage' => 18,
+            'unit_price' => 3049,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 951,
+            'inventory_product_id' => $product->id,
+            'catalog_sku' => 'MAP951',
+            'channel_sku' => '951',
+        ]);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'serials' => [],
+            'invoice' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment->fresh(['commerceOrder.items', 'supportOrder']), $ready);
+
+        $this->assertSame('Allocate Serial', $row->nextAction);
+        $this->assertTrue($row->mutatingAction);
+    }
+
+    private function paidHardwareCommerce(Order $support, string $sourceId, int $modelId): CommerceOrder
+    {
+        $commerce = CommerceOrder::query()->create([
+            'order_no' => 'CO-'.$sourceId,
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => 'commerce_order',
+            'source_id' => $sourceId,
+            'idempotency_key' => 'statutory:radiumbox_com:commerce_order:'.$sourceId,
+            'payload_hash' => hash('sha256', $sourceId),
+            'status' => CommerceOrderStatus::Validated,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'received_at' => now(),
+            'ordered_at' => '2026-09-07 10:00:00',
+            'paid_at' => '2026-09-07 10:05:00',
+            'support_order_id' => $support->id,
+        ]);
+        CommerceOrderItem::query()->create([
+            'commerce_order_id' => $commerce->id,
+            'line_no' => 1,
+            'sku' => (string) $modelId,
+            'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
+            'requires_shipping' => true,
+            'model_id' => $modelId,
+            'description' => 'Hardware '.$modelId,
+            'qty' => 1,
+            'unit_price' => 1000,
+            'gst_percentage' => 18,
+            'taxable_value' => 847.46,
+            'tax_total' => 152.54,
+            'line_total' => 1000,
+        ]);
+
+        return $commerce->fresh(['items']);
     }
 
     /**

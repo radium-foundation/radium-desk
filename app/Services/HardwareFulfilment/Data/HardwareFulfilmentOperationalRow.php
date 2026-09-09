@@ -41,6 +41,7 @@ final class HardwareFulfilmentOperationalRow
         /** @var list<string> */
         public readonly array $allocatedSerialNumbers = [],
         public readonly ?int $expectedSerialQuantity = null,
+        public readonly ?string $productStatusLabel = null,
     ) {}
 
     public function operatorStatus(): string
@@ -87,7 +88,9 @@ final class HardwareFulfilmentOperationalRow
     public function productDisplay(): string
     {
         if ($this->productMissing) {
-            return 'Product data missing';
+            $label = trim((string) $this->productStatusLabel);
+
+            return $label !== '' ? $label : 'Product data missing';
         }
 
         $product = trim($this->product);
@@ -114,7 +117,11 @@ final class HardwareFulfilmentOperationalRow
             return null;
         }
 
-        return $this->hasFulfilment ? 'Fix order' : 'Review';
+        if ($this->nextAction !== '' && $this->nextAction !== 'Review') {
+            return $this->nextAction;
+        }
+
+        return $this->hasFulfilment ? 'Fix order' : 'View';
     }
 
     public function openOrderUrl(): ?string
@@ -146,6 +153,12 @@ final class HardwareFulfilmentOperationalRow
 
     public function primaryUrl(): ?string
     {
+        if ($this->mutatingAction && $this->nextUrl !== null) {
+            return $this->nextAnchor !== null && $this->nextAnchor !== ''
+                ? $this->nextUrl.'#'.$this->nextAnchor
+                : $this->nextUrl;
+        }
+
         if ($this->nextUrl === null) {
             return $this->customer360Url();
         }
@@ -155,5 +168,14 @@ final class HardwareFulfilmentOperationalRow
         }
 
         return $this->nextUrl;
+    }
+
+    public function awaitingActionDialogUrl(): ?string
+    {
+        if ($this->nextAction !== 'Open Fulfilment' || $this->supportOrderId === null) {
+            return null;
+        }
+
+        return route('inventory.hardware-fulfilments.awaiting.action-dialog', $this->supportOrderId);
     }
 }

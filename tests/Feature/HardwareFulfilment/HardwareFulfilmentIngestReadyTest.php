@@ -7,12 +7,14 @@ use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceSourceType;
+use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
 use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentEvent;
 use App\Models\HardwareFulfilmentSerial;
 use App\Models\HardwareRecoveredFulfilmentAuthorization as AuthorizationRow;
+use App\Models\InventoryProduct;
 use App\Models\Order;
 use App\Models\OutboxEvent;
 use App\Models\Shipment;
@@ -53,6 +55,23 @@ class HardwareFulfilmentIngestReadyTest extends TestCase
             'statutory_invoices.post_finance_journals' => false,
             'shipping.enabled' => true,
             'shipping.http_enabled' => false,
+        ]);
+
+        $product = InventoryProduct::query()->create([
+            'sku' => 'MSO1300-TEST',
+            'name' => 'MSO1300',
+            'hsn_code' => '84716050',
+            'gst_percentage' => 18,
+            'unit_price' => 3049,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 951,
+            'inventory_product_id' => $product->id,
+            'catalog_sku' => 'MSO1300-TEST',
+            'channel_sku' => '951',
         ]);
     }
 

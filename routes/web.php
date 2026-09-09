@@ -447,6 +447,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('serials/{serial}', [InventorySerialController::class, 'show'])->name('serials.show');
 
         Route::get('hardware-fulfilments', [InventoryHardwareFulfilmentSerialController::class, 'index'])->name('hardware-fulfilments.index');
+        Route::get('hardware-fulfilments/awaiting/{order}/action-dialog', [InventoryHardwareFulfilmentSerialController::class, 'awaitingActionDialog'])->name('hardware-fulfilments.awaiting.action-dialog');
+        Route::post('hardware-fulfilments/awaiting/{order}/open', [InventoryHardwareFulfilmentSerialController::class, 'storeOpen'])->name('hardware-fulfilments.awaiting.open');
         Route::get('hardware-fulfilments/{fulfilment}', [InventoryHardwareFulfilmentSerialController::class, 'show'])->name('hardware-fulfilments.show');
         Route::get('hardware-fulfilments/{fulfilment}/action-dialog', [InventoryHardwareFulfilmentSerialController::class, 'actionDialog'])->name('hardware-fulfilments.action-dialog');
         Route::get('hardware-fulfilments/{fulfilment}/serials/search', [InventoryHardwareFulfilmentSerialController::class, 'search'])->name('hardware-fulfilments.serials.search');

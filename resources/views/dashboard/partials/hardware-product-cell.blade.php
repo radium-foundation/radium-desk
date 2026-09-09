@@ -5,8 +5,8 @@
 
 @if($missing)
     <div class="dashboard-hardware-product dashboard-hardware-product--missing">
-        <span>Product data missing</span>
-        <div class="text-muted small">{{ $row->productExceptionAction() ?? 'Review' }}</div>
+        <span>{{ $row->productDisplay() }}</span>
+        <div class="text-muted small">{{ $row->productExceptionAction() ?? 'View' }}</div>
     </div>
 @elseif($row->productHasMore())
     <button type="button"

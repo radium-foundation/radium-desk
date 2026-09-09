@@ -5,7 +5,6 @@ namespace App\Services\HardwareFulfilment;
 use App\Enums\HardwareAwaitingFulfilmentReason;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
-use App\Services\HardwareFulfilment\Data\HardwareAwaitingFulfilmentClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareAwaitingFulfilmentRow;
 use App\Services\HardwareFulfilment\Data\HardwareAwaitingFulfilmentSummary;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -74,7 +73,7 @@ final class HardwareAwaitingFulfilmentQueue
 
     public function classify(Order $order): HardwareAwaitingFulfilmentReason
     {
-        return HardwareAwaitingFulfilmentClassifier::reason($order);
+        return HardwareAwaitingFulfilmentRow::fromOrder($order)->reason;
     }
 
     /**

@@ -182,7 +182,7 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->assertOk()
             ->assertSee('>Hardware<', false)
             ->assertSee('id="hardware-fulfilment"', false)
-            ->assertSee('Review this order before fulfilment can start.')
+            ->assertSee('Awaiting handoff. Box still holds the product payload; Desk has no Commerce line yet.')
             ->assertDontSee('Start Hardware Fulfilment')
             ->assertDontSee('Open Fulfilment');
 

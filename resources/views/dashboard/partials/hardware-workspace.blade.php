@@ -2,6 +2,7 @@
     $rows = $hardwareWorkspace['rows'] ?? collect();
     $incidentIds = $hardwareWorkspace['incidentIds'] ?? [];
     $operableFulfilmentIds = $hardwareWorkspace['operableFulfilmentIds'] ?? [];
+    $canOperateHardware = (bool) ($hardwareWorkspace['canOperateHardware'] ?? false);
     $search = $hardwareWorkspace['search'] ?? '';
 @endphp
 
@@ -52,7 +53,13 @@
                             $row->serialStatus,
                             collect($row->productDetails())->pluck('label')->implode(' '),
                         ]))));
-                        $canMutate = $row->mutatingAction && $row->fulfilmentId && isset($operableFulfilmentIds[$row->fulfilmentId]);
+                        $canMutate = $row->mutatingAction && (
+                            ($row->fulfilmentId && isset($operableFulfilmentIds[$row->fulfilmentId]))
+                            || ($row->nextAction === 'Open Fulfilment' && $canOperateHardware && $row->supportOrderId)
+                        );
+                        $actionDialogUrl = $row->fulfilmentId && isset($operableFulfilmentIds[$row->fulfilmentId])
+                            ? route('inventory.hardware-fulfilments.action-dialog', $row->fulfilmentId)
+                            : $row->awaitingActionDialogUrl();
                     @endphp
                     <tr @class([
                             'dashboard-case-row--clickable',
@@ -92,10 +99,10 @@
                             @endif
                         </td>
                         <td class="dashboard-hardware-action-cell">
-                            @if($canMutate)
+                            @if($canMutate && $actionDialogUrl)
                                 <button type="button"
                                         class="btn btn-sm btn-primary dashboard-btn-compact"
-                                        data-hardware-action-dialog="{{ route('inventory.hardware-fulfilments.action-dialog', $row->fulfilmentId) }}"
+                                        data-hardware-action-dialog="{{ $actionDialogUrl }}"
                                         data-hardware-fulfilment-link>
                                     {{ $row->nextAction }}
                                 </button>

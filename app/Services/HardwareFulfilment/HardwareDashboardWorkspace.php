@@ -30,6 +30,7 @@ final class HardwareDashboardWorkspace
      *     queues: list<HardwareDashboardQueue>,
      *     incidentIds: array<int, int>,
      *     operableFulfilmentIds: array<int, true>,
+     *     canOperateHardware: bool,
      *     unfilteredTotal: int
      * }
      */
@@ -56,6 +57,7 @@ final class HardwareDashboardWorkspace
             'queues' => HardwareDashboardQueue::cases(),
             'incidentIds' => $this->incidentIds($dashboard['rows']),
             'operableFulfilmentIds' => $this->operableFulfilmentIds($dashboard['rows'], $request->user()),
+            'canOperateHardware' => HardwareFulfilmentAccess::allows($request->user()),
             'unfilteredTotal' => $dashboard['unfiltered_total'],
         ];
     }
