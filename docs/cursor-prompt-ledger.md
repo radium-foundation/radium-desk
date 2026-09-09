@@ -312,5 +312,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-155 | 2026-09-09 | Hardware Dashboard queue visual polish | Compact Date/Time from existing `orderDateIst`. Match Ready Queue density. No query/API/fulfilment behaviour change. **Not deployed.** |
 | RadiumDesk-P-07-09-156 | 2026-09-09 | Keep `RBP` from hardware fulfilment classification | `BusinessOrderId` is authoritative for parsed IDs. `RBP` cannot become hardware via config or `RB` prefix. Hardware remains `RDE`/`RIN`. No Sign lookup spoke. **Not deployed.** |
 | RadiumDesk-P-07-09-157 | 2026-09-09 | Push Hardware Queue UI polish for review | Confirmed `367535cd` is presentation-only (`orderDateIst` format). Pushed `ui/hardware-queue-compact-datetime`. Did not merge or deploy. |
+| RadiumDesk-P-07-09-158 | 2026-09-09 | Overlay Hardware Queue UI polish to production | Named-file overlay of `367535cd` blades/PHP + Vite CSS `app-p7q6pM7z.css`. Did not overlay `03ee5070` RBP files. No migrate. Not deskd. Backup `p-07-09-158-20260909T153855Z`. |
 
 Do not renumber or overwrite earlier rows. Append only.
