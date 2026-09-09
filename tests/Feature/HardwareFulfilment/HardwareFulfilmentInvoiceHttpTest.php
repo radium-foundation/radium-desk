@@ -232,6 +232,33 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
         $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
     }
 
+    public function test_dashboard_json_post_issues_qty_ten_inclusive_one_paisa_line(): void
+    {
+        $fulfilment = $this->prepareIssuable('RDE901810', includeGstRate: false, lineOverrides: [
+            'qty' => 10,
+            'unit_price' => 2499.00,
+            'taxable_value' => 21177.96,
+            'tax_total' => 3812.04,
+            'line_total' => 24990.00,
+            'sku' => '946',
+            'model_id' => 946,
+        ], serialCount: 10);
+
+        $this->actingAs($this->operator)
+            ->withHeaders($this->dashboardAjaxHeaders())
+            ->post(route('inventory.hardware-fulfilments.invoice.store', $fulfilment))
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $invoice = StatutoryInvoice::query()->with('items')->first();
+        $this->assertNotNull($invoice);
+        $this->assertSame('21177.97', (string) $invoice->taxable_value);
+        $this->assertSame('3812.03', (string) $invoice->igst);
+        $this->assertSame('24990.00', (string) $invoice->invoice_value);
+        $this->assertSame('21177.96', (string) $fulfilment->fresh()->commerceOrder?->items->first()?->taxable_value);
+        $this->assertSame('3812.04', (string) $fulfilment->fresh()->commerceOrder?->items->first()?->tax_total);
+    }
+
     /**
      * @return array<string, string>
      */
@@ -243,22 +270,28 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
         ];
     }
 
-    private function prepareIssuable(string $sourceId, bool $includeGstRate = true): HardwareFulfilment
-    {
-        $fulfilment = $this->ingestHardware($sourceId, $includeGstRate);
+    private function prepareIssuable(
+        string $sourceId,
+        bool $includeGstRate = true,
+        array $lineOverrides = [],
+        int $serialCount = 1,
+    ): HardwareFulfilment {
+        $fulfilment = $this->ingestHardware($sourceId, $includeGstRate, $lineOverrides);
         $this->assignBranch($fulfilment, 'DELHI-RETAIL');
         $this->workflow->transition($fulfilment, HardwareFulfilmentState::ReadyForFulfilment);
         $this->workflow->transition($fulfilment->fresh(), HardwareFulfilmentState::SerialsAllocated);
         $item = $fulfilment->fresh()->commerceOrder?->items->first();
-        HardwareFulfilmentSerial::query()->create([
-            'hardware_fulfilment_id' => $fulfilment->id,
-            'commerce_order_item_id' => $item?->id,
-            'line_no' => 1,
-            'position' => 1,
-            'serial_number' => 'SN-'.$sourceId,
-            'status' => HardwareFulfilmentSerialStatus::Allocated,
-            'allocated_at' => now(),
-        ]);
+        for ($position = 1; $position <= $serialCount; $position++) {
+            HardwareFulfilmentSerial::query()->create([
+                'hardware_fulfilment_id' => $fulfilment->id,
+                'commerce_order_item_id' => $item?->id,
+                'line_no' => 1,
+                'position' => $position,
+                'serial_number' => 'SN-'.$sourceId.'-'.$position,
+                'status' => HardwareFulfilmentSerialStatus::Allocated,
+                'allocated_at' => now(),
+            ]);
+        }
 
         return $fulfilment->fresh(['commerceOrder.items']) ?? $fulfilment;
     }
@@ -276,9 +309,12 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
         $fulfilment->forceFill(['fulfilment_branch_id' => $branch->id])->save();
     }
 
-    private function ingestHardware(string $sourceId, bool $includeGstRate = true): HardwareFulfilment
+    /**
+     * @param  array<string, mixed>  $lineOverrides
+     */
+    private function ingestHardware(string $sourceId, bool $includeGstRate = true, array $lineOverrides = []): HardwareFulfilment
     {
-        $line = [
+        $line = array_merge([
             'description' => 'MSO1300',
             'sku' => '951',
             'qty' => 1,
@@ -290,9 +326,9 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
             'shipping_line_kind' => 'physical_merchandise',
             'requires_shipping' => true,
             'model_id' => 951,
-        ];
+        ], $lineOverrides);
         if ($includeGstRate) {
-            $line['gst_percentage'] = 18;
+            $line['gst_percentage'] = $line['gst_percentage'] ?? 18;
         }
 
         $payload = [
