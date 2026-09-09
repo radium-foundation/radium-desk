@@ -37,6 +37,7 @@
                     <th class="d-none d-md-table-cell">Product</th>
                     <th class="case-serial-cell">Serial</th>
                     <th>Status</th>
+                    <th class="dashboard-date-cell d-none d-sm-table-cell">Date/Time</th>
                     <th class="dashboard-hardware-action-cell">Next Action</th>
                 </tr>
             </thead>
@@ -60,6 +61,8 @@
                         $actionDialogUrl = $row->fulfilmentId && isset($operableFulfilmentIds[$row->fulfilmentId])
                             ? route('inventory.hardware-fulfilments.action-dialog', $row->fulfilmentId)
                             : $row->awaitingActionDialogUrl();
+                        $orderDateFull = $row->orderDateDisplay();
+                        $orderDateShort = $row->orderDateDisplayCompact();
                     @endphp
                     <tr @class([
                             'dashboard-case-row--clickable',
@@ -78,9 +81,11 @@
                                    aria-label="Select {{ $row->sourceId }}">
                         </td>
                         <td class="case-order-cell">
-                            <div class="fw-semibold">{{ $row->sourceId }}</div>
+                            <div class="dashboard-hardware-order">{{ $row->sourceId }}</div>
                         </td>
-                        <td>{{ $row->customer }}</td>
+                        <td class="case-meta-cell dashboard-hardware-customer-cell">
+                            <span class="dashboard-hardware-customer" title="{{ $row->customer }}">{{ $row->customer }}</span>
+                        </td>
                         <td class="d-none d-md-table-cell dashboard-hardware-product-cell">
                             @include('dashboard.partials.hardware-product-cell', ['row' => $row])
                         </td>
@@ -92,10 +97,20 @@
                                 'id' => 'hardware-workspace-serial-'.$row->sourceId,
                             ])
                         </td>
-                        <td>
-                            <span class="dashboard-hardware-status">{{ $row->operatorStatus() }}</span>
+                        <td class="status-cell">
+                            <span class="dashboard-hardware-status" title="{{ $row->operatorStatus() }}">{{ $row->operatorStatus() }}</span>
                             @if($row->source === 'RIN' && $row->operatorStatus() === 'Blocked')
-                                <div class="text-muted small">RIN mapping required</div>
+                                <span class="dashboard-hardware-status-note" title="RIN mapping required">RIN mapping required</span>
+                            @endif
+                        </td>
+                        <td class="dashboard-date-cell d-none d-sm-table-cell text-nowrap">
+                            @if($orderDateFull === '—')
+                                —
+                            @else
+                                <span class="dashboard-u-datetime-compact dashboard-hardware-datetime">
+                                    <span class="dashboard-hardware-datetime__full">{{ $orderDateFull }}</span>
+                                    <span class="dashboard-hardware-datetime__short">{{ $orderDateShort }}</span>
+                                </span>
                             @endif
                         </td>
                         <td class="dashboard-hardware-action-cell">
@@ -113,7 +128,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="dashboard-cases-empty">
+                        <td colspan="8" class="dashboard-cases-empty">
                             @if($search !== '')
                                 No hardware orders match this search.
                             @else

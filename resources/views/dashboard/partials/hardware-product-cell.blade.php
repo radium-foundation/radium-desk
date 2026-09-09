@@ -4,9 +4,9 @@
 @endphp
 
 @if($missing)
-    <div class="dashboard-hardware-product dashboard-hardware-product--missing">
+    <div class="dashboard-hardware-product dashboard-hardware-product--missing"
+         title="{{ trim(implode(' · ', array_filter([$row->productDisplay(), $row->productExceptionAction()]))) }}">
         <span>{{ $row->productDisplay() }}</span>
-        <div class="text-muted small">{{ $row->productExceptionAction() ?? 'View' }}</div>
     </div>
 @elseif($row->productHasMore())
     <button type="button"
@@ -30,5 +30,5 @@
         </ul>
     </div>
 @else
-    <span class="dashboard-hardware-product">{{ $row->productDisplay() }}</span>
+    <span class="dashboard-hardware-product" title="{{ $row->productDisplay() }}">{{ $row->productDisplay() }}</span>
 @endif

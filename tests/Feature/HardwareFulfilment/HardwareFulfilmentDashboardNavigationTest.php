@@ -66,6 +66,12 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             '/data-dashboard-case-filter-count="hardware">\(1\)/',
             $html,
         );
+        $this->assertStringContainsString('Date/Time', $html);
+        $this->assertStringContainsString('07 Sep · 10:00 AM', $html);
+        $this->assertStringContainsString('07 Sep 10:00 AM', $html);
+        $this->assertStringContainsString('dashboard-hardware-datetime', $html);
+        $this->assertStringNotContainsString('2026-09-07 10:00:00', $html);
+        $this->assertStringNotContainsString('2026-09-07 10:00', $html);
         $this->assertMatchesRegularExpression(
             '/data-dashboard-case-filter-count="hardware">\(1\)/',
             $this->actingAs($admin)

@@ -5,7 +5,9 @@ namespace App\Services\HardwareFulfilment\Data;
 use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareOperationsSection;
+use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Support\HardwareFulfilment\HardwareAllocatedSerialDisplay;
+use Illuminate\Support\Carbon;
 
 final class HardwareFulfilmentOperationalRow
 {
@@ -47,6 +49,47 @@ final class HardwareFulfilmentOperationalRow
     public function operatorStatus(): string
     {
         return $this->statusLabel ?? $this->stage->label();
+    }
+
+    /**
+     * Compact operator date/time from the existing IST sort field. No extra query.
+     * Example: 09 Sep · 8:18 PM
+     */
+    public function orderDateDisplay(): string
+    {
+        return $this->formatOrderDate('d M · g:i A');
+    }
+
+    /**
+     * Narrow-screen variant without the middle dot. Example: 09 Sep 8:18 PM
+     */
+    public function orderDateDisplayCompact(): string
+    {
+        return $this->formatOrderDate('d M g:i A');
+    }
+
+    private function formatOrderDate(string $format): string
+    {
+        $raw = trim($this->orderDateIst);
+        if ($raw === '' || $raw === '—') {
+            return '—';
+        }
+
+        try {
+            $parsed = Carbon::createFromFormat(
+                'Y-m-d H:i',
+                $raw,
+                HardwareFulfilmentEligibility::CUTOFF_TIMEZONE,
+            );
+        } catch (\Throwable) {
+            return $raw;
+        }
+
+        if (! $parsed instanceof Carbon) {
+            return $raw;
+        }
+
+        return $parsed->format($format);
     }
 
     public function dashboardQueue(): HardwareDashboardQueue
