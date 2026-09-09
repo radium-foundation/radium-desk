@@ -165,4 +165,18 @@ class ServiceSacResolverTest extends TestCase
 
         (new ServiceSacResolver)->resolve('rdservice_in', null, 'RD Service', '998314');
     }
+
+    public function test_physical_merchandise_keeps_incoming_hsn(): void
+    {
+        $sac = (new ServiceSacResolver)->resolve(
+            'rdservice_in',
+            'RBMFS110L1',
+            'Information technology (IT) consulting & support services (SAC - 998313) - (Sr. No. 10500255) - 1 Year Unlimited',
+            '84716050',
+            null,
+            'physical_merchandise',
+        );
+
+        $this->assertSame('84716050', $sac);
+    }
 }

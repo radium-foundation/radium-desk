@@ -5,14 +5,14 @@ namespace App\Services\ChannelIngest;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\ChannelIngest\Data\ChannelOrderLineDraft;
+use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareHandoffTenderContract;
 
 /**
  * Canonical payload identity for channel ingest retries.
  *
  * Service channels keep the historical hash so existing service retries stay 200.
- * radiumbox_com uses the hardware hash: business fields + canonical metadata,
- * excluding volatile transport timestamps.
+ * radiumbox_com and rdservice.in RIN hardware_direct_buy use the hardware hash.
  */
 class ChannelIngestPayloadHasher
 {
@@ -26,6 +26,12 @@ class ChannelIngestPayloadHasher
         'radiumbox_order_id',
         'ordertype',
         'order_type',
+        'source',
+        'source_order_type',
+        'source_product_id',
+        'bundle_rd_years',
+        'bundle_warranty_years',
+        'bundle_otg',
     ];
 
     /**
@@ -40,6 +46,7 @@ class ChannelIngestPayloadHasher
     public function hash(ChannelOrderIngestRequest $request): string
     {
         $payload = $request->channel === StatutoryInvoiceChannel::RadiumBoxCom
+            || HardwareFulfilmentEligibility::isRinHardwareRequest($request)
             ? $this->hardwareCanonical($request)
             : $this->serviceCanonical($request);
 

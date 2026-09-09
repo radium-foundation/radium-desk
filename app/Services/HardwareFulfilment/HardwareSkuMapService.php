@@ -20,7 +20,7 @@ class HardwareSkuMapService
 
         if ($modelId === null || $modelId < 1) {
             throw ValidationException::withMessages([
-                'sku_map' => 'Hardware serial allocation requires a Box model_id so the Owner SKU map can resolve a Desk product. Name or SKU text is not used.',
+                'sku_map' => 'Hardware serial allocation requires a model_id so the Owner SKU map can resolve a Desk product. Name or SKU text is not used.',
             ]);
         }
 

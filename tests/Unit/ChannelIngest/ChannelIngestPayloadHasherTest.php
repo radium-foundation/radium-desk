@@ -100,6 +100,59 @@ class ChannelIngestPayloadHasherTest extends TestCase
         $this->assertArrayNotHasKey('tenders', $this->hasher->serviceCanonical($request));
     }
 
+    public function test_rin_hardware_uses_the_hardware_hash_not_the_service_hash(): void
+    {
+        $payload = [
+            'channel' => StatutoryInvoiceChannel::RdServiceIn->value,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => 'RIN900777',
+            'source_order_id' => 'RIN900777',
+            'payment_status' => 'paid',
+            'payment_provider' => 'cashfree',
+            'payment_reference' => 'RIN900777',
+            'currency' => 'INR',
+            'customer' => ['name' => 'Buyer', 'phone' => '9000000001'],
+            'place_of_supply_state' => 'West Bengal',
+            'shipping_address' => [
+                'line1' => '12 Street',
+                'city' => 'Jaunpur',
+                'state' => 'Uttar Pradesh',
+                'pincode' => '222165',
+            ],
+            'ordered_at' => '2026-09-06T20:47:08+05:30',
+            'metadata' => [
+                'source' => 'rdservice.in',
+                'source_order_type' => 'hardware_direct_buy',
+                'source_product_id' => 'mantra-fingerprint',
+                'retry_count' => 1,
+            ],
+            'lines' => [[
+                'description' => 'MFS110',
+                'sku' => 'RBMFS110L1',
+                'catalog_sku' => 'mantra-fingerprint',
+                'qty' => 1,
+                'unit_price' => 2649,
+                'hsn_sac' => '84716050',
+                'gst_percentage' => 18,
+                'taxable_value' => 2244.92,
+                'tax_total' => 404.08,
+                'line_total' => 2649,
+                'shipping_line_kind' => 'physical_merchandise',
+                'requires_shipping' => true,
+                'model_id' => 91001,
+            ]],
+        ];
+        $first = $this->validator->validate($payload, StatutoryInvoiceChannel::RdServiceIn);
+        $payload['metadata']['retry_count'] = 9;
+        $payload['paid_at'] = '2026-09-07T12:00:00+05:30';
+        $second = $this->validator->validate($payload, StatutoryInvoiceChannel::RdServiceIn);
+
+        $this->assertSame($this->hasher->hash($first), $this->hasher->hash($second));
+        $this->assertSame($this->hasher->hash($first), hash('sha256', (string) json_encode($this->hasher->hardwareCanonical($first))));
+        $this->assertNotSame($this->hasher->hash($first), hash('sha256', (string) json_encode($this->hasher->serviceCanonical($first))));
+        $this->assertSame('hardware_direct_buy', $this->hasher->hardwareCanonical($first)['metadata']['source_order_type'] ?? null);
+    }
+
     public function test_hardware_hash_includes_split_tenders_and_omits_absent_tenders(): void
     {
         $plain = $this->hardwareRequest();

@@ -10,8 +10,8 @@ use Illuminate\Console\Command;
 use Illuminate\Validation\ValidationException;
 use JsonException;
 
-#[Signature('desk:fulfil-hardware {id? : Exactly one RDE source id or hardware_fulfilment.id} {--dry-run : Inspect gates without writing} {--step=status : status|ingest|ready|allocate|invoice|ship|awb|shipped|sync} {--through= : Advance this one order through a named step} {--serials= : Comma-separated serials; required to allocate} {--claimed-branch= : Optional operator branch claim} {--payload= : JSON file for isolated ingest of this id only} {--actor= : Active Desk user id for allocation/invoice} {--live-shipping : Use HttpShiprocketGateway for this process only} {--force-callback : Send the pending Box callback for this fulfilment only}')]
-#[Description('Isolated one-order hardware fulfilment. Never discovers or processes a batch.')]
+#[Signature('desk:fulfil-hardware {id? : Exactly one RDE or RIN source id or hardware_fulfilment.id} {--dry-run : Inspect gates without writing} {--step=status : status|ingest|ready|allocate|invoice|ship|awb|shipped|sync} {--through= : Advance this one order through a named step} {--serials= : Comma-separated serials; required to allocate} {--claimed-branch= : Optional operator branch claim} {--payload= : JSON file for isolated ingest of this id only} {--actor= : Active Desk user id for allocation/invoice} {--live-shipping : Use HttpShiprocketGateway for this process only} {--force-callback : Send the pending Box callback for this fulfilment only}')]
+#[Description('Isolated one-order hardware fulfilment for RDE or RIN. Never discovers or processes a batch.')]
 class FulfilHardwareCommand extends Command
 {
     public function handle(HardwareFulfilmentIsolatedWorkflowService $workflow): int

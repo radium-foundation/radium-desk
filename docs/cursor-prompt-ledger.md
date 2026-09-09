@@ -299,5 +299,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-142 | 2026-09-09 | Frozen-seven READY_FOR_FULFILMENT after authorized Commerce recovery | STOPPED. Commerce CO-000755…761 verified; HF 0. Desk has no authorized-recovered bypass of `FROZEN_SOURCE_IDS`. No mutation. Report + implementation prompt: `docs/desk-frozen-seven-ready-stop-p-07-09-142.md`. |
 | RadiumDesk-P-07-09-143 | 2026-09-09 | Desk-local recovered-Commerce fulfilment authorization | Table + isolated ingest-from-existing-Commerce. Frozen list unchanged. No production ingest/READY. Report: `docs/desk-recovered-fulfilment-authorization-p-07-09-143.md`. |
 | RadiumDesk-P-07-09-144 | 2026-09-09 | Recoverable provider-rejected shipment is not Dashboard Blocked | Classifier no longer treats unbound provider_rejected as permanent Blocked when create/courier retry is eligible. Shipment 10 preserved. No create. Report: `docs/desk-hardware-recoverable-provider-rejection-p-07-09-144.md`. |
+| RadiumDesk-P-07-09-145 | 2026-09-09 | rdservice.in RIN hardware_direct_buy ingest | `source=rdservice.in` + `RIN*` + `hardware_direct_buy` opens Hardware Fulfilment INGESTED. SKU maps 91001–91004. Frozen-seven recovery unchanged. No serial/invoice/ship. |
 
 Do not renumber or overwrite earlier rows. Append only.

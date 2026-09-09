@@ -22,6 +22,7 @@ final class ServiceSacResolver
             $item->description,
             $item->hsn_sac,
             $item->amcid !== null ? (int) $item->amcid : null,
+            $item->shipping_line_kind,
         );
     }
 
@@ -31,7 +32,11 @@ final class ServiceSacResolver
         ?string $description,
         ?string $incomingHsnSac,
         ?int $amcId = null,
+        ?string $shippingLineKind = null,
     ): ?string {
+        if ($shippingLineKind === 'physical_merchandise') {
+            return $this->normalizeSac($incomingHsnSac);
+        }
         $matched = [];
         foreach ($this->services() as $key => $service) {
             if (! is_array($service) || ! $this->matches($channel, $sku, $description, $amcId, $service)) {
