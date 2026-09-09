@@ -603,6 +603,7 @@ const openHardwareSerialSummary = (summary) => {
     summary.classList.add('is-open');
     toggle.setAttribute('aria-expanded', 'true');
     panel.hidden = false;
+    // Port to body so modal overflow cannot clip the list. Stacking is CSS z-index 1105.
     if (panel.parentElement !== document.body) {
         document.body.appendChild(panel);
         panel.dataset.hardwareSerialDetached = '1';
@@ -677,10 +678,18 @@ export const initHardwareSerialSummaries = () => {
     });
 
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' || event.code === 'Escape' || event.keyCode === 27) {
-            closeAllHardwareSerialSummaries();
+        if (event.key !== 'Escape' && event.code !== 'Escape' && event.keyCode !== 27) {
+            return;
         }
-    });
+
+        if (!document.querySelector('[data-hardware-serial-summary].is-open')) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        closeAllHardwareSerialSummaries();
+    }, true);
 };
 
 export const openDialog = async (url) => {

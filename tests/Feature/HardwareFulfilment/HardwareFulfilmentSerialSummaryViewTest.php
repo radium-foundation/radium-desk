@@ -43,8 +43,12 @@ class HardwareFulfilmentSerialSummaryViewTest extends TestCase
         $this->assertStringContainsString('Allocated Serials (10)', $html);
         $this->assertStringContainsString('Quantity 10 · 10 allocated', $html);
         $this->assertStringContainsString('Copy All', $html);
-        $this->assertStringContainsString(HardwareAllocatedSerialDisplay::copyValue($serials), $html);
+        $copy = HardwareAllocatedSerialDisplay::copyValue($serials);
+        $this->assertStringContainsString($copy, $html);
         $this->assertStringContainsString('Copied 10 serials', $html);
+        $this->assertMatchesRegularExpression('/data-copy-value="[^"]*10532347[^"]*10553763[^"]*"/', $html);
+        $this->assertDoesNotMatchRegularExpression('/data-copy-value="[^"]*\+9[^"]*"/', $html);
+        $this->assertDoesNotMatchRegularExpression('/data-copy-value="[^"]*Allocated Serials[^"]*"/', $html);
         foreach ($serials as $serial) {
             $this->assertStringContainsString($serial, $html);
         }

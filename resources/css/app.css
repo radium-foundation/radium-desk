@@ -6784,7 +6784,9 @@ a:focus-visible .stat-card {
 
 .hardware-serial-summary__panel {
     position: fixed;
-    z-index: 1090;
+    /* Workspace modal is 1095 and its backdrop is 1090. Stay above both so the
+       allocated-serial list is not trapped under Enter Package Dimensions. */
+    z-index: 1105;
     min-width: 16rem;
     max-width: min(24rem, calc(100vw - 1rem));
     max-height: min(20rem, calc(100vh - 2rem));

@@ -435,21 +435,48 @@ describe('hardware measured parcel form', () => {
 });
 
 describe('hardware allocated serial summary', () => {
+    const serials = [
+        '10532347',
+        '10556040',
+        '10561005',
+        '10553573',
+        '10556002',
+        '10532464',
+        '10566561',
+        '10566466',
+        '10562862',
+        '10553763',
+    ];
+
     beforeAll(() => {
         initHardwareSerialSummaries();
     });
 
     beforeEach(() => {
+        const style = document.createElement('style');
+        style.setAttribute('data-hardware-serial-test-style', 'true');
+        style.textContent = `
+            [data-workspace-modal-host].modal { position: fixed; z-index: 1095; overflow: hidden; }
+            [data-workspace-modal-content] { overflow: hidden; }
+            .hardware-serial-summary__panel { position: fixed; z-index: 1105; }
+        `;
+        document.head.appendChild(style);
+
         document.body.innerHTML = `
-            <div data-hardware-serial-summary data-hardware-serial-id="serial-summary-test" class="hardware-serial-summary">
-                <button type="button" data-hardware-serial-toggle aria-expanded="false">10532347 +9</button>
-                <div data-hardware-serial-panel hidden>
-                    <p>Allocated Serials (10)</p>
-                    <ol>
-                        <li>10532347</li>
-                        <li>10556040</li>
-                    </ol>
-                    <button type="button" data-copyable-identifier data-copy-value="10532347\n10556040">Copy All</button>
+            <div data-workspace-modal-host class="modal show" style="z-index: 1095; overflow: hidden; position: fixed;">
+                <div class="modal-dialog">
+                    <div class="modal-content" data-workspace-modal-content style="overflow: hidden;">
+                        <div data-hardware-serial-summary data-hardware-serial-id="serial-summary-test" class="hardware-serial-summary">
+                            <button type="button" data-hardware-serial-toggle aria-expanded="false">10532347 +9</button>
+                            <div data-hardware-serial-panel class="hardware-serial-summary__panel" hidden>
+                                <p>Allocated Serials (10)</p>
+                                <ol>
+                                    ${serials.map((serial) => `<li>${serial}</li>`).join('')}
+                                </ol>
+                                <button type="button" data-copyable-identifier data-copy-value="${serials.join('\n')}">Copy All</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -457,6 +484,7 @@ describe('hardware allocated serial summary', () => {
 
     afterEach(() => {
         document.body.innerHTML = '';
+        document.querySelector('[data-hardware-serial-test-style]')?.remove();
     });
 
     it('opens the complete list on click and keeps serials readable', () => {
@@ -469,15 +497,54 @@ describe('hardware allocated serial summary', () => {
         expect(panel.parentElement).toBe(document.body);
         expect(panel.textContent).toContain('10532347');
         expect(panel.textContent).toContain('10556040');
-        expect(panel.querySelector('[data-copyable-identifier]').dataset.copyValue).toBe('10532347\n10556040');
+        expect(panel.querySelector('[data-copyable-identifier]').dataset.copyValue).toBe(serials.join('\n'));
     });
 
-    it('closes on Escape', () => {
+    it('renders above the Package Dimensions modal instead of inside its overflow', () => {
         const toggle = document.querySelector('[data-hardware-serial-toggle]');
         toggle.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+        const panel = document.querySelector('[data-hardware-serial-panel]');
+        const modal = document.querySelector('[data-workspace-modal-host]');
+        const content = document.querySelector('[data-workspace-modal-content]');
+
+        expect(content.contains(panel)).toBe(false);
+        expect(modal.contains(panel)).toBe(false);
+        expect(panel.parentElement).toBe(document.body);
+        expect(Number.parseInt(window.getComputedStyle(panel).zIndex, 10)).toBeGreaterThan(
+            Number.parseInt(window.getComputedStyle(modal).zIndex, 10),
+        );
+        serials.forEach((serial) => {
+            expect(panel.textContent).toContain(serial);
+        });
+    });
+
+    it('Copy All uses every serial and never the compact +9 label', () => {
+        const toggle = document.querySelector('[data-hardware-serial-toggle]');
+        toggle.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+        const copyValue = document.querySelector('[data-copyable-identifier]').dataset.copyValue;
+        expect(copyValue).toBe(serials.join('\n'));
+        expect(copyValue.split('\n')).toEqual(serials);
+        expect(copyValue).not.toContain('+9');
+        expect(copyValue).not.toContain('Allocated Serials');
+        expect(toggle.textContent.trim()).toBe('10532347 +9');
+    });
+
+    it('closes on Escape without bubbling to the Package Dimensions modal', () => {
+        const toggle = document.querySelector('[data-hardware-serial-toggle]');
+        const modal = document.querySelector('[data-workspace-modal-host]');
+        let modalSawEscape = false;
+        modal.addEventListener('keydown', () => {
+            modalSawEscape = true;
+        });
+
+        toggle.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
 
         expect(toggle.getAttribute('aria-expanded')).toBe('false');
         expect(document.querySelector('[data-hardware-serial-panel]').hidden).toBe(true);
+        expect(modal.classList.contains('show')).toBe(true);
+        expect(modalSawEscape).toBe(false);
     });
 });

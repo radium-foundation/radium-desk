@@ -32,7 +32,11 @@ class HardwareAllocatedSerialDisplayTest extends TestCase
 
         $this->assertSame('10532347 +9', HardwareAllocatedSerialDisplay::compact($serials, 10));
         $this->assertTrue(HardwareAllocatedSerialDisplay::isComplete($serials, 10));
-        $this->assertSame(implode("\n", $serials), HardwareAllocatedSerialDisplay::copyValue($serials));
+        $copy = HardwareAllocatedSerialDisplay::copyValue($serials);
+        $this->assertSame(implode("\n", $serials), $copy);
+        $this->assertSame($serials, explode("\n", $copy));
+        $this->assertStringNotContainsString('+9', $copy);
+        $this->assertStringNotContainsString('Allocated Serials', $copy);
         $this->assertSame('Copied 10 serials', HardwareAllocatedSerialDisplay::copyToast($serials));
         $this->assertSame(10, count(HardwareAllocatedSerialDisplay::normalize($serials)));
         $this->assertSame($serials, HardwareAllocatedSerialDisplay::normalize($serials));
