@@ -74,7 +74,7 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
         $first = $this->isolated->run(identifier: 'RDE318367', step: 'ingest');
         $second = $this->isolated->run(identifier: 'RDE318367', step: 'ingest');
 
-        $this->assertSame(HardwareFulfilmentState::Ingested->value, $first['state']);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment->value, $first['state']);
         $this->assertFalse($first['duplicate']);
         $this->assertTrue($second['duplicate']);
         $this->assertSame(1, CommerceOrder::query()->count());
@@ -134,12 +134,12 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
 
         $this->assertFalse($first['duplicate']);
         $this->assertTrue($second['duplicate']);
-        $this->assertSame(HardwareFulfilmentState::Ingested->value, $status['state']);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment->value, $status['state']);
         $this->assertTrue($readyDry['dry_run']);
         $this->assertSame(1, HardwareFulfilment::query()->where('source_id', 'RDE318388')->count());
         $fulfilment = HardwareFulfilment::query()->where('source_id', 'RDE318388')->firstOrFail();
-        $this->assertSame(HardwareFulfilmentState::Ingested, $fulfilment->state);
-        $this->assertNull($fulfilment->ready_at);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->state);
+        $this->assertNotNull($fulfilment->ready_at);
         $this->assertSame(0, $fulfilment->serials()->count());
         $this->assertNull($fulfilment->statutory_invoice_id);
         $this->assertNull($fulfilment->shipment_id);
@@ -438,7 +438,7 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
         $this->assertSame(2, (int) $fresh->items[0]->qty);
         $this->assertSame(1006, (int) $fresh->items[1]->model_id);
         $this->assertSame(1, (int) $fresh->items[1]->qty);
-        $this->assertSame(HardwareFulfilmentState::Ingested, HardwareFulfilment::query()->firstOrFail()->state);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, HardwareFulfilment::query()->firstOrFail()->state);
     }
 
     public function test_initial_seven_command_authorizes_only_matching_pairs(): void

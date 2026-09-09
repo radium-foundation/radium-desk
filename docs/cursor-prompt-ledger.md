@@ -303,5 +303,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-146 | 2026-09-09 | Isolated ingest RDE318388 / CO-000755 to INGESTED | Dry-run then `desk:fulfil-hardware RDE318388 --step=ingest` with no payload. Stop at ingested. No READY/serial/invoice/ship. |
 | RadiumDesk-P-07-09-147 | 2026-09-09 | Authorization-aware isolated recovered-Commerce frozen gate | `assertIsolatedTarget()` honors recovered-Commerce authorization. Pre-write validation. HF19 stays ingested. No READY. Report: `docs/desk-recovered-isolated-gate-p-07-09-147.md`. |
 | RadiumDesk-P-07-09-148 | 2026-09-09 | Read-only Hardware queue READY-gap forensic (RDE318517) | Production WorkQueue 29 rows. Eligible INGESTED rows stay off READY because markReady is CLI-only; Dashboard still offers Allocate Serial. RDE318517 / HF16 dry-run PASS, not executed. Report: `docs/desk-hardware-ingested-ready-forensic-p-07-09-148.md`. |
+| RadiumDesk-P-07-09-149 | 2026-09-09 | Permanent Hardware ingest → READY via existing markReady() | Eligible channel/recovered ingest calls `HardwareFulfilmentWorkflowService::markReady()`. Dashboard INGESTED never offers Allocate Serial. No bulk-READY of existing production rows. Report: `docs/desk-hardware-ingest-auto-ready-p-07-09-149.md`. |
 
 Do not renumber or overwrite earlier rows. Append only.

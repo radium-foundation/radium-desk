@@ -430,7 +430,7 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             'source_type' => 'commerce_order',
             'source_id' => $orderId,
             'idempotency_key' => $commerce->idempotency_key,
-            'state' => HardwareFulfilmentState::Ingested,
+            'state' => HardwareFulfilmentState::ReadyForFulfilment,
             'support_order_id' => $order->id,
             'fulfilment_branch_id' => $branchId,
             'ingested_at' => now(),

@@ -9,6 +9,7 @@ use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\CommerceOrder;
+use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Models\User;
@@ -79,6 +80,32 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertSame('Allocate Serial', $row->nextAction);
         $this->assertTrue($row->hasFulfilment);
         $this->assertNotNull($row->fulfilmentUrl());
+    }
+
+    public function test_ingested_eligible_fulfilment_offers_ready_not_allocate_serial(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971030', HardwareFulfilmentState::Ingested, eligible: true);
+        $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame(HardwareFulfilmentOperationalStage::AwaitingFulfilment, $row->stage);
+        $this->assertSame('Ready for Fulfilment', $row->nextAction);
+        $this->assertNotSame('Allocate Serial', $row->nextAction);
+        $this->assertTrue($row->mutatingAction);
+        $this->assertSame('hardware-mark-ready', $row->nextAnchor);
+    }
+
+    public function test_ingested_blocked_fulfilment_shows_blocker_not_allocate_serial(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971031', HardwareFulfilmentState::Ingested, eligible: false);
+        $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('View', $row->nextAction);
+        $this->assertNotSame('Allocate Serial', $row->nextAction);
+        $this->assertFalse($row->mutatingAction);
+        $this->assertNotNull($row->blocker);
+        $this->assertSame(HardwareFulfilmentOperationalStage::BlockedReview, $row->stage);
     }
 
     public function test_label_without_package_photo_requests_pickup(): void
@@ -442,7 +469,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         return $order->fresh();
     }
 
-    private function fulfilment(string $sourceId, HardwareFulfilmentState $state): HardwareFulfilment
+    private function fulfilment(string $sourceId, HardwareFulfilmentState $state, bool $eligible = false): HardwareFulfilment
     {
         $order = $this->order($sourceId, [
             'cashfree_payment_id' => 'paid',
@@ -460,8 +487,27 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
             'payment_status' => 'paid',
             'currency' => 'INR',
             'received_at' => now(),
+            'ordered_at' => $eligible ? '2026-09-07 10:00:00' : null,
             'support_order_id' => $order->id,
         ]);
+
+        if ($eligible) {
+            CommerceOrderItem::query()->create([
+                'commerce_order_id' => $commerce->id,
+                'line_no' => 1,
+                'sku' => '951',
+                'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
+                'requires_shipping' => true,
+                'model_id' => 951,
+                'description' => 'MSO1300',
+                'qty' => 1,
+                'unit_price' => 3049,
+                'gst_percentage' => 18,
+                'taxable_value' => 2583.90,
+                'tax_total' => 465.10,
+                'line_total' => 3049,
+            ]);
+        }
 
         return HardwareFulfilment::query()->create([
             'commerce_order_id' => $commerce->id,

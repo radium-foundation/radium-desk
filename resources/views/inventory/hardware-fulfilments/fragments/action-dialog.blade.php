@@ -1,6 +1,7 @@
 @php
     $action = $row->nextAction;
     $subtitles = [
+        'Ready for Fulfilment' => 'Mark this ingested order ready so serials can be allocated.',
         'Allocate Serial' => 'Assign the verified physical device to this order.',
         'Issue Invoice' => 'Issue the hardware GST invoice for this one order.',
         'Enter Package Dimensions' => 'Measure the complete packed shipment, then save before courier options.',
@@ -15,6 +16,7 @@
         'Upload Package Photo' => 'Add package photo evidence. This does not block operations.',
     ];
     $icons = [
+        'Ready for Fulfilment' => '✅',
         'Allocate Serial' => '🔢',
         'Issue Invoice' => '🧾',
         'Enter Package Dimensions' => '📦',
@@ -109,7 +111,18 @@
                     'labelId' => 'hardware-action-label-download',
                     'manifestId' => 'hardware-action-manifest-download',
                 ])
-                @if($action === 'Allocate Serial')
+                @if($action === 'Ready for Fulfilment')
+                    @include('inventory.hardware-fulfilments.fragments.action-confirm', [
+                        'formAction' => route('inventory.hardware-fulfilments.ready.store', $fulfilment),
+                        'formId' => 'hardware-action-ready-form',
+                        'summary' => [
+                            'State' => $fulfilment->state?->value ?? 'ingested',
+                            'Payment' => $row->payment,
+                            'Product' => $productSummary !== '' ? $productSummary : $row->productDisplay(),
+                        ],
+                        'submitLabel' => 'Ready for Fulfilment',
+                    ])
+                @elseif($action === 'Allocate Serial')
                     @include('inventory.hardware-fulfilments.fragments.action-allocate-serial')
                 @elseif($action === 'Issue Invoice')
                     @include('inventory.hardware-fulfilments.fragments.action-issue-invoice')

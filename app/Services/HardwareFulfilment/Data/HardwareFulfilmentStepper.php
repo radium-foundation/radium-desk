@@ -37,6 +37,10 @@ final class HardwareFulfilmentStepper
             return 1;
         }
 
+        if ($row->stage === HardwareFulfilmentOperationalStage::AwaitingFulfilment) {
+            return 1;
+        }
+
         if ($ready === null) {
             return 1;
         }
@@ -76,6 +80,7 @@ final class HardwareFulfilmentStepper
     {
         return match ($row->nextAction) {
             'Review' => 'Review this order before fulfilment can start.',
+            'Ready for Fulfilment' => 'Mark this ingested order ready for fulfilment.',
             'Allocate Serial' => 'Allocate a stock serial to continue.',
             'Issue Invoice' => 'Issue the statutory invoice to continue.',
             'Get Courier Options' => 'Fetch courier options for this shipment.',

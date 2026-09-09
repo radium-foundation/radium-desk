@@ -18,6 +18,7 @@ use App\Http\Requests\Inventory\GenerateHardwareFulfilmentLabelRequest;
 use App\Http\Requests\Inventory\GenerateHardwareFulfilmentManifestRequest;
 use App\Http\Requests\Inventory\IssueHardwareFulfilmentInvoiceRequest;
 use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyForPickupRequest;
+use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyRequest;
 use App\Http\Requests\Inventory\RequestHardwareFulfilmentPickupRequest;
 use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
 use App\Http\Requests\Inventory\SelectHardwareFulfilmentCourierRequest;
@@ -35,6 +36,7 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentParcelSnapshotService;
+use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentCourierOptionsService;
@@ -67,6 +69,7 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentWorkQueue $workQueue,
         private readonly HardwareFulfilmentInvoiceService $invoices,
         private readonly HardwareFulfilmentOperationalClassifier $operationalClassifier,
+        private readonly HardwareFulfilmentWorkflowService $workflow,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -422,6 +425,18 @@ class HardwareFulfilmentSerialController extends Controller
                 $request->user(),
             ),
         ]);
+    }
+
+    public function storeReady(MarkHardwareFulfilmentReadyRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->workflow->markReady(
+            $fulfilment,
+            actorType: 'user',
+            actorId: $request->user()?->id,
+        );
+
+        return $this->mutationResponse($request, $fulfilment, 'Marked ready for fulfilment.');
     }
 
     public function store(AllocateHardwareFulfilmentSerialsRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse

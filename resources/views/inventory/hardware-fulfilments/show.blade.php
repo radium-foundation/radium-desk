@@ -110,7 +110,21 @@
                     @if($stepperCurrentCaption ?? null)
                         <p class="small text-muted mb-0 mt-2">{{ $stepperCurrentCaption }}</p>
                     @endif
+                    @if($opsRow->blocker)
+                        <p class="small text-danger mb-0 mt-2">{{ $opsRow->blocker }}</p>
+                    @endif
                 </div>
+            </div>
+        @endif
+
+        @if(isset($opsRow) && $opsRow->nextAction === 'Ready for Fulfilment')
+            <div class="hf-alloc-card mb-3" id="hardware-mark-ready">
+                <p class="text-muted small text-uppercase fw-semibold mb-2">Readiness</p>
+                <p class="small mb-3">This order is ingested. Mark it ready for fulfilment before allocating serials.</p>
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.ready.store', $fulfilment) }}">
+                    @csrf
+                    <button type="submit" class="btn btn-primary">Ready for Fulfilment</button>
+                </form>
             </div>
         @endif
 

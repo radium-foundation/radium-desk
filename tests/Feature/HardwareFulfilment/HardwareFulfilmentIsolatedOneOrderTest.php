@@ -195,7 +195,7 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
 
         $this->isolated->run(identifier: $sourceId, step: 'ingest', payload: $this->handoffPayload($sourceId));
         $fulfilment = HardwareFulfilment::query()->where('source_id', $sourceId)->firstOrFail();
-        $this->assertSame(HardwareFulfilmentState::Ingested, $fulfilment->state);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->state);
 
         $this->isolated->run(identifier: $sourceId, step: 'ready');
         $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->fresh()->state);

@@ -112,9 +112,17 @@ final class HardwareFulfilmentOperationalClassifier
         $ownerBlocked = HardwareFulfilmentEligibility::isFrozenForFulfilment($sourceId, $order)
             || HardwareFulfilmentEligibility::isHoldSourceId($sourceId)
             || HardwareFulfilmentEligibility::isBlockedUntilAuthorized($sourceId);
+        $readinessBlocker = (! $ownerBlocked && $fulfilment->state === HardwareFulfilmentState::Ingested)
+            ? HardwareFulfilmentEligibility::isolatedTargetBlocker($fulfilment, $order)
+            : null;
         $unrecoverableProviderError = $this->providerRejectionIsUnrecoverable($ready, $ownerBlocked);
 
-        [$stage, $nextAction, $anchor, $statusLabel] = $this->stageAndAction($fulfilment, $ready, $ownerBlocked);
+        [$stage, $nextAction, $anchor, $statusLabel] = $this->stageAndAction(
+            $fulfilment,
+            $ready,
+            $ownerBlocked,
+            $readinessBlocker,
+        );
         $photoRecorded = $ready->packagePhotoRecorded();
         $section = HardwareOperationsSection::fromStage($stage, $unrecoverableProviderError);
         if ($unrecoverableProviderError) {
@@ -150,7 +158,7 @@ final class HardwareFulfilmentOperationalClassifier
             nextUrl: $nextUrl,
             blocker: $ownerBlocked
                 ? 'Owner-blocked. Do not advance from this queue.'
-                : ($ready->providerRejection ?: ($ready->blockers[0] ?? null)),
+                : ($readinessBlocker ?: ($ready->providerRejection ?: ($ready->blockers[0] ?? null))),
             fulfilmentId: (int) $fulfilment->id,
             supportOrderId: $fulfilment->support_order_id !== null ? (int) $fulfilment->support_order_id : null,
             hasFulfilment: true,
@@ -174,9 +182,23 @@ final class HardwareFulfilmentOperationalClassifier
         HardwareFulfilment $fulfilment,
         HardwareShipmentReadiness $ready,
         bool $blocked,
+        ?string $readinessBlocker = null,
     ): array {
         if ($blocked) {
             return [HardwareFulfilmentOperationalStage::BlockedReview, 'View', null, 'Blocked'];
+        }
+
+        if ($fulfilment->state === HardwareFulfilmentState::Ingested) {
+            if ($readinessBlocker !== null) {
+                return [HardwareFulfilmentOperationalStage::BlockedReview, 'View', null, 'Ingested'];
+            }
+
+            return [
+                HardwareFulfilmentOperationalStage::AwaitingFulfilment,
+                'Ready for Fulfilment',
+                'hardware-mark-ready',
+                'Ingested',
+            ];
         }
 
         $photoRecorded = $ready->packagePhotoRecorded();

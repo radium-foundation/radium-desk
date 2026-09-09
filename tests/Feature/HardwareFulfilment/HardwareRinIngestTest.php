@@ -74,7 +74,7 @@ class HardwareRinIngestTest extends TestCase
         $this->assertSame('West Bengal', $order->shipping_address_structured['state'] ?? null);
         $this->assertSame('Tea garden gate', $order->shipping_address_structured['line2'] ?? null);
         $this->assertArrayNotHasKey('country', $order->shipping_address_structured ?? []);
-        $this->assertSame(HardwareFulfilmentState::Ingested, $fulfilment->state);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->state);
         $this->assertSame('RIN3512344', $fulfilment->source_id);
         $this->assertNoFulfilmentMutations();
     }
@@ -92,7 +92,7 @@ class HardwareRinIngestTest extends TestCase
         $this->assertSame($first->json('order_no'), $second->json('order_no'));
         $this->assertSame(1, CommerceOrder::query()->count());
         $this->assertSame(1, HardwareFulfilment::query()->count());
-        $this->assertSame(HardwareFulfilmentState::Ingested, HardwareFulfilment::query()->firstOrFail()->state);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, HardwareFulfilment::query()->firstOrFail()->state);
         $this->assertNoFulfilmentMutations();
     }
 
@@ -208,7 +208,7 @@ class HardwareRinIngestTest extends TestCase
             self::SERVICE_SECRET,
         )->assertCreated();
 
-        $this->assertSame(HardwareFulfilmentState::Ingested, HardwareFulfilment::query()->firstOrFail()->state);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, HardwareFulfilment::query()->firstOrFail()->state);
         $this->assertNoFulfilmentMutations();
     }
 
@@ -222,7 +222,7 @@ class HardwareRinIngestTest extends TestCase
 
         $this->assertSame(1, CommerceOrder::query()->count());
         $this->assertSame('radiumbox_com', CommerceOrder::query()->value('channel')?->value);
-        $this->assertSame(HardwareFulfilmentState::Ingested, HardwareFulfilment::query()->firstOrFail()->state);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, HardwareFulfilment::query()->firstOrFail()->state);
         $this->assertNoFulfilmentMutations();
     }
 

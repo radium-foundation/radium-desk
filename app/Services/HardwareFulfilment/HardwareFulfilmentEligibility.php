@@ -354,4 +354,25 @@ final class HardwareFulfilmentEligibility
             ]);
         }
     }
+
+    /**
+     * Non-throwing view of assertIsolatedTarget() for operator classification.
+     * Does not change fulfilment state.
+     */
+    public static function isolatedTargetBlocker(HardwareFulfilment $fulfilment, ?CommerceOrder $order): ?string
+    {
+        if ($order === null) {
+            return 'Hardware fulfilment is missing its commerce order.';
+        }
+
+        $order->loadMissing('items');
+
+        try {
+            self::assertIsolatedTarget($fulfilment, $order);
+
+            return null;
+        } catch (ValidationException $exception) {
+            return collect($exception->errors())->flatten()->first();
+        }
+    }
 }

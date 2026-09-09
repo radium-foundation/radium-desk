@@ -9,12 +9,14 @@ use App\Models\HardwareFulfilmentEvent;
 use App\Models\Order;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class HardwareFulfilmentFoundationService
 {
     public function __construct(
         private readonly HardwareFulfilmentPaymentCorrelationService $paymentCorrelation,
+        private readonly HardwareFulfilmentWorkflowService $workflow,
     ) {}
 
     public function ensureIngested(CommerceOrder $order, ChannelOrderIngestRequest $request): ?HardwareFulfilment
@@ -32,7 +34,7 @@ class HardwareFulfilmentFoundationService
             $this->fillMissingCorrelation($existing, $order, $request);
             $this->paymentCorrelation->attachPendingEvidence($existing);
 
-            return $existing;
+            return $this->attemptReady($existing);
         }
 
         $link = $this->resolveCashfreeLink($request);
@@ -58,6 +60,8 @@ class HardwareFulfilmentFoundationService
                 ->first();
             if ($raced !== null) {
                 $this->paymentCorrelation->attachPendingEvidence($raced);
+
+                return $this->attemptReady($raced);
             }
 
             return $raced;
@@ -77,7 +81,7 @@ class HardwareFulfilmentFoundationService
 
         $this->paymentCorrelation->attachPendingEvidence($fulfilment);
 
-        return $fulfilment;
+        return $this->attemptReady($fulfilment);
     }
 
     /**
@@ -96,7 +100,7 @@ class HardwareFulfilmentFoundationService
             $this->fillMissingCorrelationFromOrder($existing, $order);
             $this->paymentCorrelation->attachPendingEvidence($existing);
 
-            return $existing;
+            return $this->attemptReady($existing);
         }
 
         $bySource = HardwareFulfilment::query()
@@ -117,7 +121,7 @@ class HardwareFulfilmentFoundationService
             $this->fillMissingCorrelationFromOrder($found, $order);
             $this->paymentCorrelation->attachPendingEvidence($found);
 
-            return $found;
+            return $this->attemptReady($found);
         }
 
         $link = $this->resolveCashfreeLinkFromOrder($order);
@@ -154,7 +158,7 @@ class HardwareFulfilmentFoundationService
             }
             $this->paymentCorrelation->attachPendingEvidence($raced);
 
-            return $raced;
+            return $this->attemptReady($raced);
         }
 
         HardwareFulfilmentEvent::query()->create([
@@ -172,7 +176,35 @@ class HardwareFulfilmentFoundationService
 
         $this->paymentCorrelation->attachPendingEvidence($fulfilment);
 
-        return $fulfilment;
+        return $this->attemptReady($fulfilment);
+    }
+
+    /**
+     * Reuse the single readiness gate. Expected eligibility refusals keep INGESTED.
+     * Unexpected failures propagate so the surrounding ingest transaction can roll back.
+     */
+    private function attemptReady(?HardwareFulfilment $fulfilment): ?HardwareFulfilment
+    {
+        if ($fulfilment === null) {
+            return null;
+        }
+
+        $fresh = $fulfilment->fresh(['commerceOrder.items']) ?? $fulfilment;
+        if ($fresh->state !== HardwareFulfilmentState::Ingested) {
+            return $fresh;
+        }
+
+        try {
+            return $this->workflow->markReady($fresh);
+        } catch (ValidationException $exception) {
+            Log::notice('Hardware fulfilment remained ingested after readiness gate', [
+                'hardware_fulfilment_id' => $fresh->id,
+                'source_id' => $fresh->source_id,
+                'errors' => $exception->errors(),
+            ]);
+
+            return $fresh->fresh() ?? $fresh;
+        }
     }
 
     /**

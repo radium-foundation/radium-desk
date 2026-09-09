@@ -453,7 +453,7 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ->assertDontSee('Serial allocation is not available for this order yet.');
     }
 
-    public function test_action_dialog_explains_why_allocation_is_unavailable(): void
+    public function test_action_dialog_does_not_offer_allocate_serial_while_ingested(): void
     {
         $fulfilment = $this->ingestHardware('RDE900824', 1);
         ChannelSkuMap::query()->firstOrCreate(
@@ -469,11 +469,21 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ],
         );
 
+        $this->assertSame(HardwareFulfilmentState::Ingested, $fulfilment->state);
+        $itemId = (int) $fulfilment->commerceOrder?->items->first()?->id;
+
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.action-dialog', $fulfilment))
             ->assertOk()
-            ->assertSee('Serial allocation requires READY_FOR_FULFILMENT')
-            ->assertDontSee('>Serial allocation is not available for this order yet.', false);
+            ->assertDontSee('Allocate Serial')
+            ->assertDontSee('Serial allocation requires READY_FOR_FULFILMENT');
+
+        $this->actingAs($this->operator)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.serials.store', $fulfilment), [
+                'serials' => [$itemId => ['SN-UI-824']],
+            ])
+            ->assertSessionHasErrors('serials');
     }
 
     public function test_competing_http_allocation_cannot_reuse_the_same_serial(): void
