@@ -14,6 +14,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
+use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -203,6 +204,148 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertSame('hardware-courier', $row->nextAnchor);
     }
 
+    public function test_recoverable_provider_rejection_with_valid_courier_offers_create_shipment(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971020', HardwareFulfilmentState::InvoiceIssued);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => true,
+            'canSelectCourier' => true,
+            'canFetchCourierOptions' => true,
+            'selectedCourierId' => '15137',
+            'selectedCourierName' => 'Bluedart_Surface',
+            'courierOptions' => [['courier_id' => '15137', 'courier_name' => 'Bluedart_Surface']],
+            'actionLabel' => 'Create Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+            'providerRejection' => 'Shiprocket rejected shipment creation: HTTP 400 — Address 1 and Address 2 combined cannot be greater 190 than characters',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Create Shipment', $row->nextAction);
+        $this->assertSame('Ready for Shipment', $row->operatorStatus());
+        $this->assertSame('hardware-shipment-create', $row->nextAnchor);
+        $this->assertTrue($row->mutatingAction);
+        $this->assertSame(HardwareFulfilmentOperationalStage::ReadyForShipment, $row->stage);
+        $this->assertSame(HardwareDashboardQueue::Ready, $row->dashboardQueue());
+        $this->assertNotSame('Blocked', $row->operatorStatus());
+        $this->assertNotSame('View', $row->nextAction);
+    }
+
+    public function test_unrecoverable_provider_rejection_stays_blocked(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971021', HardwareFulfilmentState::InvoiceIssued);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => false,
+            'canSelectCourier' => false,
+            'canFetchCourierOptions' => false,
+            'canAttachMeasuredParcel' => false,
+            'selectedCourierId' => null,
+            'actionLabel' => 'Create Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+            'providerRejection' => 'Shiprocket rejected shipment creation: authentication failed.',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Blocked', $row->operatorStatus());
+        $this->assertSame('View', $row->nextAction);
+        $this->assertFalse($row->mutatingAction);
+        $this->assertSame(HardwareFulfilmentOperationalStage::BlockedReview, $row->stage);
+        $this->assertSame(HardwareOperationsSection::Exceptions, $row->section);
+    }
+
+    public function test_provider_rejection_with_expired_courier_asks_for_courier_options(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971022', HardwareFulfilmentState::InvoiceIssued);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => false,
+            'canSelectCourier' => false,
+            'canFetchCourierOptions' => true,
+            'selectedCourierId' => null,
+            'courierOptions' => [],
+            'actionLabel' => 'Create Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+            'providerRejection' => 'Shiprocket rejected shipment creation: HTTP 400',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Get Courier Options', $row->nextAction);
+        $this->assertSame('hardware-courier', $row->nextAnchor);
+        $this->assertTrue($row->mutatingAction);
+        $this->assertNotSame('Blocked', $row->operatorStatus());
+    }
+
+    public function test_provider_rejection_with_options_but_no_selection_asks_for_select_courier(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971023', HardwareFulfilmentState::InvoiceIssued);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => false,
+            'canSelectCourier' => true,
+            'canFetchCourierOptions' => true,
+            'selectedCourierId' => null,
+            'courierOptions' => [['courier_id' => '15137']],
+            'actionLabel' => 'Create Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+            'providerRejection' => 'Shiprocket rejected shipment creation: HTTP 400',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Select Courier', $row->nextAction);
+        $this->assertSame('hardware-courier', $row->nextAnchor);
+        $this->assertTrue($row->mutatingAction);
+    }
+
+    public function test_frozen_fulfilment_stays_blocked_even_with_can_create(): void
+    {
+        $fulfilment = $this->fulfilment(
+            HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0],
+            HardwareFulfilmentState::InvoiceIssued,
+        );
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => true,
+            'canFetchCourierOptions' => true,
+            'selectedCourierId' => '15137',
+            'actionLabel' => 'Create Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+            'providerRejection' => 'Shiprocket rejected shipment creation: HTTP 400',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Blocked', $row->operatorStatus());
+        $this->assertSame('View', $row->nextAction);
+        $this->assertFalse($row->mutatingAction);
+        $this->assertSame('Owner-blocked. Do not advance from this queue.', $row->blocker);
+    }
+
+    public function test_hold_fulfilment_stays_blocked_even_with_can_create(): void
+    {
+        $fulfilment = $this->fulfilment(
+            HardwareFulfilmentEligibility::HOLD_SOURCE_IDS[0],
+            HardwareFulfilmentState::InvoiceIssued,
+        );
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => true,
+            'selectedCourierId' => '15137',
+            'actionLabel' => 'Create Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Blocked', $row->operatorStatus());
+        $this->assertSame('View', $row->nextAction);
+        $this->assertFalse($row->mutatingAction);
+    }
+
     public function test_can_create_reconcile_takes_precedence_over_select_courier(): void
     {
         $fulfilment = $this->fulfilment('RDE971013', HardwareFulfilmentState::InvoiceIssued);
@@ -271,6 +414,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
             packageBeforeLabelRecorded: $overrides['packageBeforeLabelRecorded'] ?? false,
             packageLabelAppliedRecorded: $overrides['packageLabelAppliedRecorded'] ?? false,
             canAttachMeasuredParcel: (bool) ($overrides['canAttachMeasuredParcel'] ?? false),
+            providerRejection: $overrides['providerRejection'] ?? null,
         );
     }
 

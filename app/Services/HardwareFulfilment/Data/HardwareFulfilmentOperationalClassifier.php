@@ -112,12 +112,12 @@ final class HardwareFulfilmentOperationalClassifier
         $ownerBlocked = HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)
             || HardwareFulfilmentEligibility::isHoldSourceId($sourceId)
             || HardwareFulfilmentEligibility::isBlockedUntilAuthorized($sourceId);
-        $providerError = filled($ready->providerRejection);
+        $unrecoverableProviderError = $this->providerRejectionIsUnrecoverable($ready, $ownerBlocked);
 
         [$stage, $nextAction, $anchor, $statusLabel] = $this->stageAndAction($fulfilment, $ready, $ownerBlocked);
         $photoRecorded = $ready->packagePhotoRecorded();
-        $section = HardwareOperationsSection::fromStage($stage, $providerError && ! $ownerBlocked);
-        if ($providerError && ! $ownerBlocked) {
+        $section = HardwareOperationsSection::fromStage($stage, $unrecoverableProviderError);
+        if ($unrecoverableProviderError) {
             $stage = HardwareFulfilmentOperationalStage::BlockedReview;
             $nextAction = 'View';
             $anchor = null;
@@ -127,7 +127,7 @@ final class HardwareFulfilmentOperationalClassifier
 
         $nextUrl = route('inventory.hardware-fulfilments.show', $fulfilment);
         $mutating = ! $ownerBlocked
-            && ! $providerError
+            && ! $unrecoverableProviderError
             && ! in_array($nextAction, ['Ready', 'View', 'Completed'], true);
 
         return new HardwareFulfilmentOperationalRow(
@@ -278,6 +278,30 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         return [$ready->actionLabel, 'hardware-shipment-create'];
+    }
+
+    /**
+     * An unbound local provider_rejected row is historical evidence, not a
+     * permanent Blocked state, when create/courier/parcel retry is still open.
+     */
+    private function providerRejectionIsUnrecoverable(HardwareShipmentReadiness $ready, bool $ownerBlocked): bool
+    {
+        if ($ownerBlocked || $ready->alreadyCreated || ! filled($ready->providerRejection)) {
+            return false;
+        }
+
+        if ($ready->canCreate
+            || $ready->canFetchCourierOptions
+            || $ready->canSelectCourier
+            || $ready->canAttachMeasuredParcel) {
+            return false;
+        }
+
+        if ($ready->serials === [] || $ready->invoice === null || $ready->invoice === '') {
+            return false;
+        }
+
+        return true;
     }
 
     private function sourcePrefix(string $sourceId): string
