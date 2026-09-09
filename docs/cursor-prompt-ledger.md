@@ -311,5 +311,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-154 | 2026-09-09 | Business order-ID parser/routing for RB/RBP/RD/RDP/RN/RNP/RS/RSP | Longest-prefix-first. Historical RA/RDS/RD/RBX/RDE/RIN preserved. Hardware prefixes stay RDE/RIN only (no auto-hardware for RBP/RDP/RNP/RSP). **Not deployed.** |
 | RadiumDesk-P-07-09-155 | 2026-09-09 | Hardware Dashboard queue visual polish | Compact Date/Time from existing `orderDateIst`. Match Ready Queue density. No query/API/fulfilment behaviour change. **Not deployed.** |
 | RadiumDesk-P-07-09-156 | 2026-09-09 | Keep `RBP` from hardware fulfilment classification | `BusinessOrderId` is authoritative for parsed IDs. `RBP` cannot become hardware via config or `RB` prefix. Hardware remains `RDE`/`RIN`. No Sign lookup spoke. **Not deployed.** |
+| RadiumDesk-P-07-09-157 | 2026-09-09 | Push Hardware Queue UI polish for review | Confirmed `367535cd` is presentation-only (`orderDateIst` format). Pushed `ui/hardware-queue-compact-datetime`. Did not merge or deploy. |
 
 Do not renumber or overwrite earlier rows. Append only.
