@@ -89,6 +89,50 @@ class OrderSourceRoutingTest extends TestCase
         Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'admin.radiumbox.com'));
     }
 
+    public function test_rbp_is_not_routed_as_generic_rb_or_net_rd(): void
+    {
+        Http::fake([
+            'https://radiumbox.com/api/integrations/v1/rd-orders/RBP12' => Http::response($this->payload('RBP12', null), 200),
+            'https://rdservice.net/*' => Http::response(['status' => 400], 400),
+            'https://rdservice.in/*' => Http::response(['status' => 400], 400),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RBP12');
+
+        $this->assertSame('7710951', $enrichment?->serialNumber);
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'rdservice.net'));
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'rdservice.in'));
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'radiumbox.com') && str_contains($request->url(), 'RBP12'));
+    }
+
+    public function test_rdp_is_not_routed_as_generic_rd_on_net(): void
+    {
+        Http::fake([
+            'https://rdservice.in/api/integrations/v1/rd-orders/RDP9' => Http::response($this->payload('RDP9', null), 200),
+            'https://rdservice.net/*' => Http::response(['status' => 400], 400),
+            'https://radiumbox.com/*' => Http::response(['status' => 400], 400),
+        ]);
+
+        $enrichment = app(OrderEnrichmentLookupService::class)->fetchInteractive('RDP9');
+
+        $this->assertSame('7710951', $enrichment?->serialNumber);
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'rdservice.net'));
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'rdservice.in') && str_contains($request->url(), 'RDP9'));
+    }
+
+    public function test_new_rn_and_historical_ra_use_net(): void
+    {
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RN1' => Http::response($this->payload('RN1', null), 200),
+            'https://rdservice.net/api/integrations/v1/rd-orders/RA32' => Http::response($this->payload('RA32', null), 200),
+            'https://rdservice.in/*' => Http::response(['status' => 400], 400),
+        ]);
+
+        $this->assertSame('7710951', app(OrderEnrichmentLookupService::class)->fetchInteractive('RN1')?->serialNumber);
+        $this->assertSame('7710951', app(OrderEnrichmentLookupService::class)->fetchInteractive('RA32')?->serialNumber);
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'rdservice.in'));
+    }
+
     public function test_malformed_identifier_sends_no_http(): void
     {
         Http::fake();

@@ -41,8 +41,10 @@ class OrderProductOrderTest extends TestCase
     {
         config(['operations.hardware_order_prefixes' => ['RDE']]);
 
-        $this->assertFalse(Order::isHardwareOrderId('RD-253851'));
-        $this->assertFalse(Order::isHardwareOrderId('FM220100'));
+        $this->assertFalse(Order::isHardwareOrderId('RBP1'));
+        $this->assertFalse(Order::isHardwareOrderId('RDP1'));
+        $this->assertFalse(Order::isHardwareOrderId('RB1'));
+        $this->assertFalse(Order::isHardwareOrderId('RD3511756'));
     }
 
     public function test_is_product_order_instance_method(): void

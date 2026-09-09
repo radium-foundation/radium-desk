@@ -2,13 +2,14 @@
 
 namespace App\Services\RdService;
 
+use App\Support\BusinessOrderId;
+
 final class RdServiceOrderId
 {
     /**
-     * Matches RDService.net GET /api/integrations/v1/rd-orders/{rdorderid}.
+     * RDService.net lookup IDs: historical RD/RA and new RN/RNP.
+     * RDE/RDP/RDS/RB are other owners (longest-prefix).
      */
-    public const PATTERN = '/^RD[0-9A-Za-z]{1,61}$/';
-
     public static function normalize(?string $orderId): ?string
     {
         if ($orderId === null) {
@@ -21,7 +22,16 @@ final class RdServiceOrderId
             return null;
         }
 
-        if (preg_match(self::PATTERN, $trimmed) !== 1) {
+        if ($trimmed !== strtoupper($trimmed)) {
+            return null;
+        }
+
+        $parsed = BusinessOrderId::parse($trimmed);
+        if ($parsed === null) {
+            return null;
+        }
+
+        if (! in_array($parsed['prefix'], ['RD', 'RA', 'RN', 'RNP'], true)) {
             return null;
         }
 

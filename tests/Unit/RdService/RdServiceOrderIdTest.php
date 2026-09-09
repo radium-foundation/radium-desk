@@ -11,8 +11,11 @@ class RdServiceOrderIdTest extends TestCase
     {
         $this->assertSame('RD3000003', RdServiceOrderId::normalize('RD3000003'));
         $this->assertSame('RD3000003', RdServiceOrderId::normalize(' RD3000003 '));
-        $this->assertTrue(RdServiceOrderId::isValid('RDa1'));
-        $this->assertTrue(RdServiceOrderId::isValid('RDE1'));
+        $this->assertTrue(RdServiceOrderId::isValid('RDA1'));
+        $this->assertFalse(RdServiceOrderId::isValid('RDE1'));
+        $this->assertFalse(RdServiceOrderId::isValid('RDP1'));
+        $this->assertTrue(RdServiceOrderId::isValid('RA32'));
+        $this->assertTrue(RdServiceOrderId::isValid('RN1'));
     }
 
     public function test_invalid_rd_order_ids(): void

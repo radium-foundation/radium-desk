@@ -157,8 +157,19 @@ class Order extends Model
 
         $normalized = strtoupper(trim($orderId));
 
-        foreach (self::hardwareOrderPrefixes() as $prefix) {
-            if (str_starts_with($normalized, $prefix)) {
+        $parsed = \App\Support\BusinessOrderId::parse($normalized);
+        if ($parsed !== null) {
+            if ($parsed['hardware'] === true) {
+                return true;
+            }
+
+            return in_array($parsed['prefix'], self::hardwareOrderPrefixes(), true);
+        }
+
+        $prefixes = self::hardwareOrderPrefixes();
+        usort($prefixes, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
+        foreach ($prefixes as $prefix) {
+            if ($prefix !== '' && str_starts_with($normalized, $prefix)) {
                 return true;
             }
         }

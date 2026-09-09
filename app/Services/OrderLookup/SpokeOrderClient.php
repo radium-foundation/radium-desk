@@ -8,6 +8,7 @@ use App\Services\RadiumBox\Exceptions\RadiumBoxOrderNotFoundException;
 use App\Services\RdService\RdServiceFetchResult;
 use App\Services\RdService\RdServiceOrderId;
 use App\Services\RdService\RdServiceOrderMapper;
+use App\Support\BusinessOrderId;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -45,20 +46,35 @@ class SpokeOrderClient
             return false;
         }
 
+        $parsed = BusinessOrderId::parse($orderId);
+        $accepts = $this->config()['accepts'] ?? [];
+
+        if ($parsed !== null) {
+            $token = strtolower($parsed['prefix']);
+            if (in_array($token, $accepts, true)) {
+                if ($parsed['hardware'] && ! in_array($token, ['rde', 'rin'], true)) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            if ($parsed['prefix'] === 'RBX' && in_array('rbx', $accepts, true)) {
+                return true;
+            }
+
+            return false;
+        }
+
         if (Order::isInquiryOrderId($orderId)) {
             return false;
         }
 
-        $accepts = $this->config()['accepts'] ?? [];
         if (Order::isHardwareOrderId($orderId)) {
             $prefix = strtoupper(substr(trim($orderId), 0, 3));
 
             return ($prefix === 'RDE' && in_array('rde', $accepts, true))
                 || ($prefix === 'RIN' && in_array('rin', $accepts, true));
-        }
-
-        if (preg_match('/^RIN[0-9A-Za-z]{1,61}$/', trim($orderId)) === 1) {
-            return in_array('rin', $accepts, true);
         }
 
         return in_array('rd', $accepts, true) && RdServiceOrderId::isValid($orderId);
