@@ -293,5 +293,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-136 | 2026-09-09 | Serial popover above Package Dimensions modal | Panel z-index 1105 above workspace modal 1095. Copy All stays the full serial array, never compact `+9`. Escape closes popover only. Report: `docs/desk-hardware-serial-popover-modal-layer-p-07-09-136.md`. |
 | RadiumDesk-P-07-09-137 | 2026-09-09 | Hardware count mismatch + RDE318438 HOLD gate | Hardware chip vs rendered/selectable work queue. Isolated RDE318438 recovery only if current production evidence authorizes it. Do not touch frozen seven / RDE318400 / RIN3512344 / RIN3512331. |
 | RadiumDesk-P-07-09-138 | 2026-09-09 | Read-only RDE318516 / HF15 Shiprocket 190-char address | Production SELECT + in-process require()/mapper reconstruct. No create retry. Address 1+2 = 199 vs provider 190. Report: `docs/desk-rde318516-shiprocket-address-190-p-07-09-138.md`. |
+| RadiumDesk-P-07-09-139 | 2026-09-09 | Shiprocket-only combined Address 1+2 ≤190 normalizer | Payload-only strip of trailing duplicate state/PIN. No stored address mutation. Fail closed if still over 190. Report: `docs/desk-shiprocket-address-190-normalize-p-07-09-139.md`. |
 
 Do not renumber or overwrite earlier rows. Append only.

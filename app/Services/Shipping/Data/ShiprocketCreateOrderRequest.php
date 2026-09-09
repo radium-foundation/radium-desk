@@ -2,6 +2,9 @@
 
 namespace App\Services\Shipping\Data;
 
+use App\Services\Shipping\ShiprocketAdhocAddressLimitException;
+use Illuminate\Validation\ValidationException;
+
 final class ShiprocketCreateOrderRequest
 {
     /**
@@ -52,13 +55,20 @@ final class ShiprocketCreateOrderRequest
      */
     public function toAdhocPayload(): array
     {
+        [$billingAddress, $billingAddress2] = $this->adhocAddressLines(
+            $this->billingAddress,
+            $this->billingAddress2,
+            $this->billingState,
+            $this->billingPincode,
+        );
+
         $payload = [
             'order_id' => $this->merchantOrderId,
             'order_date' => $this->orderDate,
             'pickup_location' => $this->pickupLocation,
             'billing_customer_name' => $this->billingCustomerName,
-            'billing_address' => $this->billingAddress,
-            'billing_city' => $this->billingCity,
+            'billing_address' => $billingAddress,
+            'billing_city' => $this->billingCityForAdhoc(),
             'billing_pincode' => $this->billingPincode,
             'billing_state' => $this->billingState,
             'billing_country' => $this->billingCountry,
@@ -75,8 +85,8 @@ final class ShiprocketCreateOrderRequest
             'weight' => $this->weight,
         ];
 
-        if ($this->billingAddress2 !== null && trim($this->billingAddress2) !== '') {
-            $payload['billing_address_2'] = $this->billingAddress2;
+        if ($billingAddress2 !== null && trim($billingAddress2) !== '') {
+            $payload['billing_address_2'] = $billingAddress2;
         }
         if ($this->channelId !== null && trim($this->channelId) !== '') {
             $payload['channel_id'] = $this->channelId;
@@ -86,23 +96,78 @@ final class ShiprocketCreateOrderRequest
         }
 
         if (! $this->shippingIsBilling) {
+            [$shippingAddress, $shippingAddress2] = $this->adhocAddressLines(
+                (string) $this->shippingAddress,
+                $this->shippingAddress2,
+                (string) $this->shippingState,
+                (string) $this->shippingPincode,
+            );
+
             $payload['shipping_customer_name'] = $this->shippingCustomerName;
-            $payload['shipping_address'] = $this->shippingAddress;
+            $payload['shipping_address'] = $this->shippingAddress === null && $shippingAddress === ''
+                ? $this->shippingAddress
+                : $shippingAddress;
             $payload['shipping_city'] = $this->shippingCity;
             $payload['shipping_pincode'] = $this->shippingPincode;
             $payload['shipping_state'] = $this->shippingState;
             $payload['shipping_country'] = $this->shippingCountry;
             $payload['shipping_phone'] = $this->shippingPhone;
-            if ($this->shippingAddress2 !== null && trim($this->shippingAddress2) !== '') {
-                $payload['shipping_address_2'] = $this->shippingAddress2;
+            if ($shippingAddress2 !== null && trim($shippingAddress2) !== '') {
+                $payload['shipping_address_2'] = $shippingAddress2;
             }
         }
 
         return $payload;
     }
 
+    /**
+     * @return array{0: string, 1: ?string}
+     */
+    private function adhocAddressLines(string $line1, ?string $line2, string $state, string $pincode): array
+    {
+        try {
+            return ShiprocketAdhocAddressNormalizer::forPayload($line1, $line2, $state, $pincode);
+        } catch (ShiprocketAdhocAddressLimitException $exception) {
+            throw ValidationException::withMessages([
+                'shipping' => $exception->getMessage(),
+            ]);
+        }
+    }
+
     public function subTotalAsNumber(): float
     {
         return round((float) $this->subTotal, 2);
+    }
+
+    /**
+     * Official create/adhoc documents billing_city as required, max 30 characters.
+     * Does not invent a city. Trailing " (alias)" is dropped only when the
+     * remaining stored name already fits. Otherwise the stored value is cut to 30.
+     */
+    public function billingCityForAdhoc(): string
+    {
+        $city = trim($this->billingCity);
+        if ($this->characterLength($city) <= 30) {
+            return $city;
+        }
+
+        if (preg_match('/^(.*)\s+\([^)]+\)\s*$/u', $city, $matches) === 1) {
+            $withoutAlias = trim((string) $matches[1]);
+            if ($withoutAlias !== '' && $this->characterLength($withoutAlias) <= 30) {
+                return $withoutAlias;
+            }
+        }
+
+        return rtrim($this->limitCharacters($city, 30));
+    }
+
+    private function characterLength(string $value): int
+    {
+        return mb_strlen($value, 'UTF-8');
+    }
+
+    private function limitCharacters(string $value, int $max): string
+    {
+        return mb_substr($value, 0, $max, 'UTF-8');
     }
 }

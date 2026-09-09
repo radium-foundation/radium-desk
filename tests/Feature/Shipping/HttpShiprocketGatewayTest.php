@@ -9,6 +9,7 @@ use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class HttpShiprocketGatewayTest extends TestCase
@@ -485,6 +486,115 @@ class HttpShiprocketGatewayTest extends TestCase
             $this->fail('Missing credentials must fail closed.');
         } catch (ShiprocketDisabledException) {
             Http::assertNothingSent();
+        }
+    }
+
+    public function test_create_order_sends_normalized_combined_address(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc' => Http::response([
+                'order_id' => 88,
+                'shipment_id' => 99,
+            ], 200),
+        ]);
+
+        $line1 = 'Dr. Chandramma Dayananda Sagar Institute of Medical Education & Research, Deverakaggalahalli, Kanakapura Road,Bengaluru South District, Karnataka - 562 112';
+        $line2 = 'BANGALORE KANAKAPURA HIGHWAY, NEAR HAROHALLI';
+
+        $request = new ShiprocketCreateOrderRequest(
+            merchantOrderId: 'HW-RDE318516',
+            localShipmentId: 10,
+            correlationId: 'corr-516',
+            items: [[
+                'name' => 'MSO1300',
+                'sku' => '946',
+                'units' => 10,
+                'selling_price' => 2499,
+            ]],
+            orderDate: '2026-09-09 09:35',
+            pickupLocation: 'RADDELHI',
+            billingCustomerName: 'CDSIMER',
+            billingAddress: $line1,
+            billingCity: 'Ramanagara',
+            billingPincode: '562112',
+            billingState: 'Karnataka',
+            billingCountry: 'India',
+            billingEmail: 'buyer@example.test',
+            billingPhone: '9000000099',
+            paymentMethod: 'Prepaid',
+            subTotal: '24990.00',
+            length: 25,
+            breadth: 22,
+            height: 18,
+            weight: 2.5,
+            billingAddress2: $line2,
+        );
+
+        (new HttpShiprocketGateway)->createOrder($request);
+
+        $this->assertSame($line1, $request->billingAddress);
+        $this->assertSame($line2, $request->billingAddress2);
+
+        Http::assertSent(function ($httpRequest) use ($line1, $line2): bool {
+            if (! str_ends_with($httpRequest->url(), '/orders/create/adhoc')) {
+                return false;
+            }
+
+            $address = (string) $httpRequest['billing_address'];
+            $address2 = (string) $httpRequest['billing_address_2'];
+
+            return $httpRequest['billing_state'] === 'Karnataka'
+                && $httpRequest['billing_pincode'] === '562112'
+                && $httpRequest['billing_country'] === 'India'
+                && $address !== $line1
+                && $address2 === $line2
+                && str_contains($address, 'Bengaluru South District')
+                && str_contains($address2, 'NEAR HAROHALLI')
+                && ! str_contains($address, 'Karnataka - 562 112')
+                && (mb_strlen($address, 'UTF-8') + mb_strlen($address2, 'UTF-8')) <= 190;
+        });
+    }
+
+    public function test_create_order_does_not_call_http_when_address_cannot_be_normalized(): void
+    {
+        Http::fake();
+
+        $request = new ShiprocketCreateOrderRequest(
+            merchantOrderId: 'HW-RDE900800',
+            localShipmentId: 1,
+            correlationId: 'corr-1',
+            items: [[
+                'name' => 'MSO1300',
+                'sku' => '946',
+                'units' => 1,
+                'selling_price' => 3049,
+            ]],
+            orderDate: '2026-09-06 10:00',
+            pickupLocation: 'RADDELHI',
+            billingCustomerName: 'Hardware Buyer',
+            billingAddress: str_repeat('A', 150),
+            billingCity: 'Ramanagara',
+            billingPincode: '562112',
+            billingState: 'Karnataka',
+            billingCountry: 'India',
+            billingEmail: 'buyer@example.test',
+            billingPhone: '9000000099',
+            paymentMethod: 'Prepaid',
+            subTotal: '3049.00',
+            length: 20,
+            breadth: 15,
+            height: 10,
+            weight: 0.4,
+            billingAddress2: str_repeat('B', 50),
+        );
+
+        try {
+            (new HttpShiprocketGateway)->createOrder($request);
+            $this->fail('Over-limit addresses without a safe suffix must not call Shiprocket.');
+        } catch (ValidationException $exception) {
+            Http::assertNothingSent();
+            $this->assertArrayHasKey('shipping', $exception->errors());
         }
     }
 
