@@ -56,6 +56,36 @@ class HardwareFulfilmentProductLinesTest extends TestCase
         $this->assertSame(2, $catalog['lines'][1]['qty']);
     }
 
+    public function test_mantra_mfs_compact_uses_canonical_variant_not_generic_listing(): void
+    {
+        $order = $this->supportOrder('RDE980004', 'Ignored support name');
+        $commerce = $this->commerce($order, 'RDE980004');
+        CommerceOrderItem::query()->create([
+            'commerce_order_id' => $commerce->id,
+            'line_no' => 1,
+            'sku' => '946',
+            'catalog_sku' => 'RBMFS110L1',
+            'model_id' => 946,
+            'rdserviceid' => 1119,
+            'amcid' => 1120,
+            'otgid' => 1126,
+            'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
+            'requires_shipping' => true,
+            'description' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner',
+            'qty' => 1,
+            'unit_price' => 2499,
+            'gst_percentage' => 18,
+            'taxable_value' => 2117.80,
+            'tax_total' => 381.20,
+            'line_total' => 2499,
+        ]);
+
+        $catalog = HardwareFulfilmentProductLines::resolve($commerce->fresh('items'), $order);
+
+        $this->assertSame('Mantra MFS 110 1R 1W U · 1 Q', $catalog['compact']);
+        $this->assertSame('Mantra MFS 110 1R 1W U', $catalog['lines'][0]['label']);
+    }
+
     private function supportOrder(string $orderId, ?string $productName): Order
     {
         $creator = User::factory()->create(['is_active' => true]);

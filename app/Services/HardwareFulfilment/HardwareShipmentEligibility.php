@@ -14,6 +14,7 @@ use App\Models\StatutoryInvoice;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentCourierQuote;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
 use App\Services\Shipping\NullShiprocketGateway;
+use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Validation\ValidationException;
 
@@ -745,9 +746,9 @@ class HardwareShipmentEligibility
 
         foreach ($order->items as $item) {
             if (HardwareFulfilmentEligibility::isPhysicalCommerceItem($item)) {
-                return trim((string) $item->description) !== ''
-                    ? trim((string) $item->description)
-                    : (string) ($item->sku ?: $item->catalog_sku);
+                $label = HardwareConfigurableVariantDisplay::label($item);
+
+                return $label !== '' ? $label : null;
             }
         }
 
