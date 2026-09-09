@@ -57,6 +57,7 @@ class FinanceFoundationAccessTest extends TestCase
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_VIEW));
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_DASHBOARD_VIEW));
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_PAYMENTS_VIEW));
+        $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_LEGACY_CASH_VIEW));
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_SETTINGS_VIEW));
     }
 }

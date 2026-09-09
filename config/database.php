@@ -99,6 +99,26 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
+        'legacy_radiumbox' => [
+            'driver' => env('LEGACY_RADIUMBOX_DB_DRIVER', 'mysql'),
+            'url' => env('LEGACY_RADIUMBOX_DB_URL'),
+            'host' => env('LEGACY_RADIUMBOX_DB_HOST'),
+            'port' => env('LEGACY_RADIUMBOX_DB_PORT', '3306'),
+            'database' => env('LEGACY_RADIUMBOX_DB_DATABASE', 'radiumbox_prod'),
+            'username' => env('LEGACY_RADIUMBOX_DB_USERNAME'),
+            'password' => env('LEGACY_RADIUMBOX_DB_PASSWORD'),
+            'unix_socket' => env('LEGACY_RADIUMBOX_DB_SOCKET', ''),
+            'charset' => env('LEGACY_RADIUMBOX_DB_CHARSET', 'utf8mb4'),
+            'collation' => env('LEGACY_RADIUMBOX_DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                Mysql::ATTR_SSL_CA => env('LEGACY_RADIUMBOX_MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),

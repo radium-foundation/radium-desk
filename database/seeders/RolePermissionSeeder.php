@@ -56,6 +56,8 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_FINANCE_CASH_VIEW = 'finance.cash.view';
 
+    public const PERMISSION_FINANCE_LEGACY_CASH_VIEW = 'finance.legacy_cash.view';
+
     public const PERMISSION_FINANCE_CLOSINGS_VIEW = 'finance.closings.view';
 
     public const PERMISSION_FINANCE_BANK_VIEW = 'finance.bank.view';
@@ -232,6 +234,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_FINANCE_PAYMENTS_VIEW,
         self::PERMISSION_FINANCE_EXPENSES_VIEW,
         self::PERMISSION_FINANCE_CASH_VIEW,
+        self::PERMISSION_FINANCE_LEGACY_CASH_VIEW,
         self::PERMISSION_FINANCE_CLOSINGS_VIEW,
         self::PERMISSION_FINANCE_BANK_VIEW,
         self::PERMISSION_FINANCE_VENDOR_PAYMENTS_VIEW,

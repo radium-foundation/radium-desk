@@ -29,6 +29,11 @@
             'url' => route('finance.cash.index'),
             'visible' => FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_CASH_VIEW),
         ],
+        'legacy_cash' => [
+            'label' => 'Legacy Cash',
+            'url' => route('finance.legacy-cash.index'),
+            'visible' => FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_LEGACY_CASH_VIEW),
+        ],
         'closings' => [
             'label' => 'Daily Closing',
             'url' => route('finance.closings.index'),

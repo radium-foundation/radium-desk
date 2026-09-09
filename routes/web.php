@@ -36,6 +36,7 @@ use App\Http\Controllers\Finance\DashboardController as FinanceDashboardControll
 use App\Http\Controllers\Finance\ExpenseCategoryController;
 use App\Http\Controllers\Finance\ExpenseController as FinanceExpenseController;
 use App\Http\Controllers\Finance\HistoricalInvoiceController;
+use App\Http\Controllers\Finance\LegacyCashController;
 use App\Http\Controllers\Finance\PaymentMethodController;
 use App\Http\Controllers\Finance\SettingsController as FinanceSettingsController;
 use App\Http\Controllers\Finance\StatutoryInvoiceController;
@@ -382,6 +383,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::put('expenses/{expense}', [FinanceExpenseController::class, 'update'])->name('expenses.update');
         Route::post('expenses/{expense}/post', [FinanceExpenseController::class, 'post'])->name('expenses.post');
         Route::get('cash', [CashLedgerController::class, 'index'])->name('cash.index');
+        Route::get('legacy-cash', [LegacyCashController::class, 'index'])->name('legacy-cash.index');
         Route::get('closings', [DailyClosingController::class, 'index'])->name('closings.index');
         Route::get('bank', [BankLedgerController::class, 'index'])->name('bank.index');
         Route::get('vendor-payments', [VendorPaymentController::class, 'index'])->name('vendor-payments.index');

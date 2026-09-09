@@ -8,6 +8,7 @@ use App\Models\FinanceCashAccount;
 use App\Models\FinanceJournal;
 use App\Models\User;
 use App\Services\Finance\Data\JournalLineDraft;
+use App\Support\Finance\LegacyCashContract;
 use Illuminate\Validation\ValidationException;
 
 class OpeningBalanceService
@@ -86,6 +87,52 @@ class OpeningBalanceService
             memo: 'Opening balance — '.$account->code.' '.$account->name,
             entryDate: $entryDate,
             lines: $lines,
+            actor: $actor,
+        );
+    }
+
+    /**
+     * Single operational opening for the approved RadiumBox Admin cash cutover.
+     *
+     * Does not post the 1,765 Legacy Cash rows. Uses a dedicated idempotency key
+     * so the generic cash-account opening slot remains unused.
+     */
+    public function postLegacyAdminCashOpening(FinanceCashAccount $cashAccount, User $actor): FinanceJournal
+    {
+        if ($cashAccount->gl_account_id === null) {
+            throw ValidationException::withMessages([
+                'gl_account_id' => 'Cash account must be linked to a GL account before posting the legacy cash opening balance.',
+            ]);
+        }
+
+        $equity = $this->settings->openingEquityAccount();
+        if ($equity === null) {
+            throw ValidationException::withMessages([
+                'opening_equity' => 'Opening equity account is not configured.',
+            ]);
+        }
+
+        $amount = (float) LegacyCashContract::OPENING_AMOUNT;
+        if ($amount <= 0) {
+            throw ValidationException::withMessages([
+                'amount' => 'Legacy cash opening balance must be greater than zero.',
+            ]);
+        }
+
+        return $this->journals->post(
+            sourceType: FinanceJournalSourceType::OpeningBalance,
+            sourceId: $cashAccount->id,
+            idempotencyKey: LegacyCashContract::OPENING_IDEMPOTENCY_KEY,
+            memo: LegacyCashContract::OPENING_MEMO,
+            entryDate: LegacyCashContract::OPENING_DATE,
+            lines: [
+                JournalLineDraft::debit(
+                    (int) $cashAccount->gl_account_id,
+                    $amount,
+                    LegacyCashContract::OPENING_LINE_DESCRIPTION,
+                ),
+                JournalLineDraft::credit($equity->id, $amount, 'Opening equity — RadiumBox Admin legacy cash'),
+            ],
             actor: $actor,
         );
     }
