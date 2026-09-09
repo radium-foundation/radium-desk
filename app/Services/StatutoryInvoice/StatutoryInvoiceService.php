@@ -18,6 +18,7 @@ use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
+use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -275,7 +276,7 @@ class StatutoryInvoiceService
             $hsnSac = $this->serviceSac->forCommerceItem($order, $line);
             $resolvedHsns[] = $hsnSac;
             $lines[] = new StatutoryInvoiceLineDraft(
-                description: (string) $line->description,
+                description: HardwareConfigurableVariantDisplay::invoiceDescription($line),
                 qty: (int) $line->qty,
                 unitPrice: (float) $line->unit_price,
                 gstPercentage: (float) $line->gst_percentage,

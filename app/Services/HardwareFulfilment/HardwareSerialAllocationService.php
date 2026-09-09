@@ -15,6 +15,7 @@ use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
 use App\Models\User;
 use App\Services\Inventory\InventoryStockService;
+use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Support\Facades\DB;
@@ -101,7 +102,7 @@ class HardwareSerialAllocationService
                 'commerce_order_item_id' => (int) $item->id,
                 'line_no' => $item->line_no !== null ? (int) $item->line_no : null,
                 'qty' => (int) $item->qty,
-                'description' => (string) $item->description,
+                'description' => HardwareConfigurableVariantDisplay::label($item),
                 'sku' => $item->sku,
                 'catalog_sku' => $item->catalog_sku,
                 'model_id' => $item->model_id !== null ? (int) $item->model_id : null,
