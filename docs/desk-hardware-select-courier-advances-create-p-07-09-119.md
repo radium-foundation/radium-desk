@@ -28,3 +28,11 @@ No Shiprocket, invoice, serial, parcel, AWB, pickup, or manifest changes.
 ## Not performed in the implementation
 
 Create Shipment for HF12 / RDE318434. AWB/label/pickup/manifest. Other orders. `deskd` full tree rsync. Vite rebuild.
+
+## Production overlay
+
+Official `desk deploy` / `deploy-kvm.sh` was **not** used: working tree still has unrelated dirty shipping/statutory files, and 3 UPI migrations remain Pending.
+
+Named-file overlay of `HardwareFulfilmentOperationalClassifier.php` from `91c0ba9d` only (`install -m 644`). Backup `storage/app/private/overlays/p-07-09-119-20260909T050120Z`. Production hash MATCH `a3c1da44…`. Web root stayed `755`. `optimize:clear` + `optimize`. No migrate. No `.env`. No Vite. No Shiprocket create.
+
+HF12 after overlay: selected `15084` / `Delhivery_Surface` unchanged (`updated_at` still `2026-09-09 10:09:47`). Shipment 0. AWB null. Live next action is **Get Courier Options** because the courier-options TTL expired; in-memory classifier with `canCreate=true` returns **Create Shipment**. Restricted orders were not written.
