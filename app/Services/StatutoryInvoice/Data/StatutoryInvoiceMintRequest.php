@@ -33,6 +33,7 @@ final class StatutoryInvoiceMintRequest
         public readonly ?string $numberingLocation = null,
         public readonly ?string $financialYearToken = null,
         public readonly ?string $customerState = null,
+        public readonly bool $inclusiveHardwareGst = false,
     ) {}
 
     /**
@@ -63,6 +64,7 @@ final class StatutoryInvoiceMintRequest
             numberingLocation: $this->numberingLocation,
             financialYearToken: $this->financialYearToken,
             customerState: $this->customerState,
+            inclusiveHardwareGst: $this->inclusiveHardwareGst,
         );
     }
 

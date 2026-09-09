@@ -474,6 +474,7 @@ class StatutoryInvoiceService
                 $line->gstPercentage,
                 $line->taxableValue,
                 $line->taxTotal,
+                $request->inclusiveHardwareGst ? 1 : 0,
             );
             $lines[] = $line->withTaxComponents($split->cgst, $split->sgst, $split->igst);
         }

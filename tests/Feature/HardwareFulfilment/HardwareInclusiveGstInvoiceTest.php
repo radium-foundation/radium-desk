@@ -121,6 +121,94 @@ class HardwareInclusiveGstInvoiceTest extends TestCase
         $this->assertSame('10588.98', (string) $fulfilment->fresh()->commerceOrder?->items->first()?->taxable_value);
     }
 
+    public function test_rde318435_values_issue_igst_from_gross_residual(): void
+    {
+        $fulfilment = $this->prepareIssuable('RDE901908', [
+            'qty' => 1,
+            'unit_price' => 3849.00,
+            'taxable_value' => 3261.87,
+            'tax_total' => 587.13,
+            'line_total' => 3849.00,
+        ], placeOfSupply: 'Tamil Nadu');
+
+        $invoice = $this->invoices->issueInvoice($fulfilment);
+
+        $this->assertSame('3261.86', (string) $invoice->taxable_value);
+        $this->assertSame('587.14', (string) $invoice->tax_total);
+        $this->assertSame('0.00', (string) $invoice->cgst);
+        $this->assertSame('0.00', (string) $invoice->sgst);
+        $this->assertSame('587.14', (string) $invoice->igst);
+        $this->assertSame('3849.00', (string) $invoice->invoice_value);
+        $this->assertSame('18.00', (string) $invoice->items->first()?->gst_percentage);
+        $this->assertSame('3261.87', (string) $fulfilment->fresh()->commerceOrder?->items->first()?->taxable_value);
+        $this->assertSame('587.13', (string) $fulfilment->fresh()->commerceOrder?->items->first()?->tax_total);
+    }
+
+    public function test_rde318401_values_issue_igst_from_gross_residual(): void
+    {
+        $fulfilment = $this->prepareIssuable('RDE901909', [
+            'qty' => 1,
+            'unit_price' => 2999.00,
+            'taxable_value' => 2541.52,
+            'tax_total' => 457.48,
+            'line_total' => 2999.00,
+        ], placeOfSupply: 'Assam');
+
+        $invoice = $this->invoices->issueInvoice($fulfilment);
+
+        $this->assertSame('2541.53', (string) $invoice->taxable_value);
+        $this->assertSame('457.47', (string) $invoice->tax_total);
+        $this->assertSame('0.00', (string) $invoice->cgst);
+        $this->assertSame('0.00', (string) $invoice->sgst);
+        $this->assertSame('457.47', (string) $invoice->igst);
+        $this->assertSame('2999.00', (string) $invoice->invoice_value);
+        $this->assertSame('2541.52', (string) $fulfilment->fresh()->commerceOrder?->items->first()?->taxable_value);
+        $this->assertSame('457.48', (string) $fulfilment->fresh()->commerceOrder?->items->first()?->tax_total);
+    }
+
+    public function test_rin_2649_values_issue_with_explicit_eighteen_percent(): void
+    {
+        $fulfilment = $this->prepareIssuable('RDE901910', [
+            'qty' => 1,
+            'unit_price' => 2649.00,
+            'taxable_value' => 2244.92,
+            'tax_total' => 404.08,
+            'line_total' => 2649.00,
+            'gst_percentage' => 18,
+        ], placeOfSupply: 'West Bengal');
+
+        $invoice = $this->invoices->issueInvoice($fulfilment);
+
+        $this->assertSame('2244.92', (string) $invoice->taxable_value);
+        $this->assertSame('404.08', (string) $invoice->tax_total);
+        $this->assertSame('404.08', (string) $invoice->igst);
+        $this->assertSame('2649.00', (string) $invoice->invoice_value);
+        $this->assertSame('18.00', (string) $invoice->items->first()?->gst_percentage);
+        $this->assertSame('2244.92', (string) $fulfilment->fresh()->commerceOrder?->items->first()?->taxable_value);
+        $this->assertSame('404.08', (string) $fulfilment->fresh()->commerceOrder?->items->first()?->tax_total);
+    }
+
+    public function test_rde318435_delhi_intra_state_splits_projected_gst(): void
+    {
+        $fulfilment = $this->prepareIssuable('RDE901911', [
+            'qty' => 1,
+            'unit_price' => 3849.00,
+            'taxable_value' => 3261.87,
+            'tax_total' => 587.13,
+            'line_total' => 3849.00,
+        ], placeOfSupply: 'Delhi');
+
+        $invoice = $this->invoices->issueInvoice($fulfilment);
+
+        $this->assertSame('3261.86', (string) $invoice->taxable_value);
+        $this->assertSame('587.14', (string) $invoice->tax_total);
+        $this->assertSame('293.57', (string) $invoice->cgst);
+        $this->assertSame('293.57', (string) $invoice->sgst);
+        $this->assertSame('0.00', (string) $invoice->igst);
+        $this->assertSame('3849.00', (string) $invoice->invoice_value);
+        $this->assertSame(587.14, round((float) $invoice->cgst + (float) $invoice->sgst, 2));
+    }
+
     public function test_qty_ten_delhi_intra_state_splits_cgst_sgst(): void
     {
         $fulfilment = $this->prepareIssuable('RDE901904', [

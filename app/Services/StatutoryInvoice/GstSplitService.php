@@ -29,12 +29,18 @@ final class GstSplitService
 
     public const COMPONENTS_MISMATCH = 'GST components do not reconcile to total GST.';
 
+    /**
+     * Inclusive hardware lines may be 1 paisa off exclusive identity
+     * after GST = gross − round(gross / (1 + rate), 2). Default 0 keeps
+     * exclusive service invoices fail-closed.
+     */
     public function splitLine(
         string $sellerGstStateCode,
         ?string $placeOfSupplyState,
         ?float $gstPercentage,
         float $taxableValue,
         float $taxTotal,
+        int $exclusivePaisaTolerance = 0,
     ): GstComponentSplit {
         if (! GstStateCodes::isKnownCode($sellerGstStateCode)) {
             throw ValidationException::withMessages([
@@ -79,7 +85,8 @@ final class GstSplitService
 
         if ($gstPercentage > 0 || $taxable > 0) {
             $expected = $this->money($taxable * ($gstPercentage / 100));
-            if ($expected !== $tax) {
+            $exclusiveDelta = abs($this->paise($expected) - $this->paise($tax));
+            if ($exclusiveDelta > max(0, $exclusivePaisaTolerance)) {
                 throw ValidationException::withMessages([
                     'gst' => self::TAX_MISMATCH,
                 ]);
@@ -126,5 +133,10 @@ final class GstSplitService
     private function money(float $amount): float
     {
         return round($amount, 2);
+    }
+
+    private function paise(float $amount): int
+    {
+        return (int) round($this->money($amount) * 100);
     }
 }

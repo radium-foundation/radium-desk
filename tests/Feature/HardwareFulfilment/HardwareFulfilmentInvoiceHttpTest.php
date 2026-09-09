@@ -219,7 +219,7 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
     {
         $fulfilment = $this->prepareIssuable('RDE901809', includeGstRate: false);
         $item = $fulfilment->commerceOrder?->items->first();
-        $item?->forceFill(['tax_total' => 50])->save();
+        $item?->forceFill(['gst_percentage' => 18, 'tax_total' => 50])->save();
 
         $this->actingAs($this->operator)
             ->withHeaders($this->dashboardAjaxHeaders())

@@ -120,6 +120,38 @@ class GstSplitServiceTest extends TestCase
         }
     }
 
+    public function test_one_paisa_exclusive_mismatch_fails_without_tolerance(): void
+    {
+        try {
+            $this->split->splitLine('07', 'Tamil Nadu', 18.0, 3261.86, 587.14);
+            $this->fail('Expected a one-paisa exclusive mismatch to fail closed by default.');
+        } catch (ValidationException $exception) {
+            $this->assertSame([GstSplitService::TAX_MISMATCH], $exception->errors()['gst'] ?? []);
+        }
+    }
+
+    public function test_one_paisa_exclusive_mismatch_is_igst_when_tolerance_allows(): void
+    {
+        $result = $this->split->splitLine('07', 'Tamil Nadu', 18.0, 3261.86, 587.14, 1);
+
+        $this->assertFalse($result->intraState);
+        $this->assertSame(0.0, $result->cgst);
+        $this->assertSame(0.0, $result->sgst);
+        $this->assertSame(587.14, $result->igst);
+        $this->assertSame(18.0, $result->igstRate);
+    }
+
+    public function test_one_paisa_exclusive_mismatch_is_cgst_sgst_when_tolerance_allows(): void
+    {
+        $result = $this->split->splitLine('07', 'Delhi', 18.0, 3261.86, 587.14, 1);
+
+        $this->assertTrue($result->intraState);
+        $this->assertSame(293.57, $result->cgst);
+        $this->assertSame(293.57, $result->sgst);
+        $this->assertSame(0.0, $result->igst);
+        $this->assertSame(587.14, round($result->cgst + $result->sgst, 2));
+    }
+
     public function test_zero_value_line_keeps_applicable_zero_components(): void
     {
         $result = $this->split->splitLine('27', 'Maharashtra', 18.0, 0.0, 0.0);

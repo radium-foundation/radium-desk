@@ -285,6 +285,7 @@ class HardwareFulfilmentInvoiceService
             financialYearToken: $commercialDate !== null
                 ? StatutoryFinancialYear::containing($commercialDate)->token()
                 : null,
+            inclusiveHardwareGst: true,
         );
     }
 
