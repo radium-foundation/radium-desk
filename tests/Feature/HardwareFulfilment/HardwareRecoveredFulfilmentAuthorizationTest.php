@@ -6,6 +6,7 @@ use App\Console\Commands\AuthorizeRecoveredFulfilmentCommand;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
+use App\Enums\StatutoryInvoiceSourceType;
 use App\Models\CommerceOrder;
 use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
@@ -13,6 +14,8 @@ use App\Models\HardwareFulfilmentEvent;
 use App\Models\HardwareRecoveredFulfilmentAuthorization as AuthorizationRow;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
+use App\Services\ChannelIngest\Data\ChannelOrderLineDraft;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentIsolatedWorkflowService;
 use App\Services\HardwareFulfilment\HardwareRecoveredFulfilmentAuthorization;
@@ -84,6 +87,98 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
         $this->assertSame(946, (int) $order->fresh()->items->first()?->model_id);
     }
 
+    public function test_assert_isolated_target_allows_authorized_recovered_hf_and_rejects_unauthorized(): void
+    {
+        $authorized = $this->recoveredCommerce('RDE318388', 'CO-000755', [
+            ['model_id' => 1723, 'qty' => 1, 'sku' => '1723'],
+        ]);
+        $this->authorizations->authorizeOne(
+            $authorized,
+            HardwareRecoveredFulfilmentAuthorization::PURPOSE_OWNER_RECOVERED,
+            'test',
+        );
+        $authorizedHf = $this->ingestedFulfilmentFor($authorized);
+        HardwareFulfilmentEligibility::assertIsolatedTarget($authorizedHf, $authorized);
+
+        $unauthorized = $this->recoveredCommerce('RDE318391', 'CO-000758', [
+            ['model_id' => 946, 'qty' => 1, 'sku' => '946'],
+        ]);
+        $unauthorizedHf = $this->ingestedFulfilmentFor($unauthorized);
+
+        try {
+            HardwareFulfilmentEligibility::assertIsolatedTarget($unauthorizedHf, $unauthorized);
+            $this->fail('Unauthorized frozen HF must fail assertIsolatedTarget.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                'Frozen pending hardware orders cannot use the isolated fulfilment path.',
+                collect($exception->errors())->flatten()->first() ?? '',
+            );
+        }
+    }
+
+    public function test_existing_rde318388_hf_is_not_duplicated_and_status_passes(): void
+    {
+        $order = $this->recoveredCommerce('RDE318388', 'CO-000755', [
+            ['model_id' => 1723, 'qty' => 1, 'sku' => '1723'],
+        ]);
+        $this->authorizations->authorizeOne(
+            $order,
+            HardwareRecoveredFulfilmentAuthorization::PURPOSE_OWNER_RECOVERED,
+            'test',
+        );
+
+        $first = $this->isolated->run(identifier: 'RDE318388', step: 'ingest');
+        $second = $this->isolated->run(identifier: 'RDE318388', step: 'ingest');
+        $status = $this->isolated->run(identifier: 'RDE318388', step: 'status');
+        $readyDry = $this->isolated->run(identifier: 'RDE318388', step: 'ready', dryRun: true);
+
+        $this->assertFalse($first['duplicate']);
+        $this->assertTrue($second['duplicate']);
+        $this->assertSame(HardwareFulfilmentState::Ingested->value, $status['state']);
+        $this->assertTrue($readyDry['dry_run']);
+        $this->assertSame(1, HardwareFulfilment::query()->where('source_id', 'RDE318388')->count());
+        $fulfilment = HardwareFulfilment::query()->where('source_id', 'RDE318388')->firstOrFail();
+        $this->assertSame(HardwareFulfilmentState::Ingested, $fulfilment->state);
+        $this->assertNull($fulfilment->ready_at);
+        $this->assertSame(0, $fulfilment->serials()->count());
+        $this->assertNull($fulfilment->statutory_invoice_id);
+        $this->assertNull($fulfilment->shipment_id);
+        $this->assertNull($fulfilment->parcel_snapshot);
+    }
+
+    public function test_channel_ingest_still_refuses_authorized_frozen_source(): void
+    {
+        $order = $this->recoveredCommerce('RDE318388', 'CO-000755', [
+            ['model_id' => 1723, 'qty' => 1, 'sku' => '1723'],
+        ]);
+        $this->authorizations->authorizeOne(
+            $order,
+            HardwareRecoveredFulfilmentAuthorization::PURPOSE_OWNER_RECOVERED,
+            'test',
+        );
+
+        $request = new ChannelOrderIngestRequest(
+            channel: StatutoryInvoiceChannel::RadiumBoxCom,
+            sourceType: StatutoryInvoiceSourceType::CommerceOrder,
+            sourceId: 'RDE318388',
+            lines: [new ChannelOrderLineDraft(
+                description: 'Radium Box UGR',
+                qty: 1,
+                unitPrice: 1999,
+                sku: '1723',
+                shippingLineKind: HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
+                requiresShipping: true,
+                modelId: 1723,
+            )],
+            paymentStatus: 'paid',
+            currency: 'INR',
+        );
+
+        $this->assertTrue(HardwareFulfilmentEligibility::isFrozenSourceId('RDE318388'));
+        $this->assertFalse(HardwareFulfilmentEligibility::isFrozenForFulfilment('RDE318388', $order));
+        $this->assertFalse(HardwareFulfilmentEligibility::shouldOpenRecord($request));
+    }
+
     public function test_authorized_commerce_reaches_ready_through_existing_state_machine(): void
     {
         $order = $this->recoveredCommerce('RDE318379', 'CO-000756', [
@@ -142,11 +237,18 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
 
     public function test_unauthorized_frozen_commerce_cannot_open_hf(): void
     {
-        $this->recoveredCommerce('RDE318391', 'CO-000758', [
+        $order = $this->recoveredCommerce('RDE318391', 'CO-000758', [
             ['model_id' => 946, 'qty' => 1, 'sku' => '946'],
         ]);
 
         $this->assertTrue(HardwareFulfilmentEligibility::isFrozenForFulfilment('RDE318391'));
+
+        try {
+            HardwareFulfilmentEligibility::assertIsolatedCommerceOrder($order);
+            $this->fail('Unauthorized frozen commerce must fail before any HF write.');
+        } catch (ValidationException) {
+            // expected
+        }
 
         try {
             $this->isolated->run(identifier: 'RDE318391', step: 'ingest');
@@ -210,6 +312,64 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
         ]);
         $this->assertFalse($this->authorizations->isAuthorized($left));
         $this->assertTrue(HardwareFulfilmentEligibility::isFrozenForFulfilment('RDE318360', $left));
+
+        try {
+            $this->isolated->run(identifier: 'RDE318360', step: 'ingest');
+            $this->fail('Mismatched recovered authorization must not open HF.');
+        } catch (ValidationException) {
+            // expected
+        }
+        $this->assertSame(0, HardwareFulfilment::query()->count());
+    }
+
+    public function test_source_type_and_order_no_mismatch_cannot_open_hf(): void
+    {
+        $order = $this->recoveredCommerce('RDE318388', 'CO-000755', [
+            ['model_id' => 1723, 'qty' => 1, 'sku' => '1723'],
+        ]);
+
+        AuthorizationRow::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom->value,
+            'source_type' => 'support_order',
+            'source_id' => 'RDE318388',
+            'commerce_order_id' => $order->id,
+            'commerce_order_no' => $order->order_no,
+            'purpose' => HardwareRecoveredFulfilmentAuthorization::PURPOSE_OWNER_RECOVERED,
+            'status' => AuthorizationRow::STATUS_AUTHORIZED,
+            'authorized_at' => now(),
+            'authorized_by' => 'test',
+        ]);
+        $this->assertFalse($this->authorizations->isAuthorized($order));
+
+        try {
+            $this->isolated->run(identifier: 'RDE318388', step: 'ingest');
+            $this->fail('Source-type mismatch must not open HF.');
+        } catch (ValidationException) {
+            // expected
+        }
+        $this->assertSame(0, HardwareFulfilment::query()->count());
+
+        AuthorizationRow::query()->delete();
+        AuthorizationRow::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom->value,
+            'source_type' => 'commerce_order',
+            'source_id' => 'RDE318388',
+            'commerce_order_id' => $order->id,
+            'commerce_order_no' => 'CO-000756',
+            'purpose' => HardwareRecoveredFulfilmentAuthorization::PURPOSE_OWNER_RECOVERED,
+            'status' => AuthorizationRow::STATUS_AUTHORIZED,
+            'authorized_at' => now(),
+            'authorized_by' => 'test',
+        ]);
+        $this->assertFalse($this->authorizations->isAuthorized($order->fresh()));
+
+        try {
+            $this->isolated->run(identifier: 'RDE318388', step: 'ingest');
+            $this->fail('Commerce order-no mismatch must not open HF.');
+        } catch (ValidationException) {
+            // expected
+        }
+        $this->assertSame(0, HardwareFulfilment::query()->count());
     }
 
     public function test_hold_and_blocked_sources_cannot_be_authorized_or_ingested(): void
@@ -359,6 +519,19 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
         }
 
         return $order->fresh(['items']);
+    }
+
+    private function ingestedFulfilmentFor(CommerceOrder $order): HardwareFulfilment
+    {
+        return HardwareFulfilment::query()->create([
+            'commerce_order_id' => $order->id,
+            'channel' => $order->channel,
+            'source_type' => (string) $order->source_type,
+            'source_id' => (string) $order->source_id,
+            'idempotency_key' => (string) $order->idempotency_key,
+            'state' => HardwareFulfilmentState::Ingested,
+            'ingested_at' => now(),
+        ]);
     }
 
     /**

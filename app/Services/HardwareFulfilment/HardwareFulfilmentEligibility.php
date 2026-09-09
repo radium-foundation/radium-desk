@@ -284,23 +284,23 @@ final class HardwareFulfilmentEligibility
         return false;
     }
 
-    public static function assertIsolatedTarget(HardwareFulfilment $fulfilment, CommerceOrder $order): void
+    /**
+     * Isolated recovered-Commerce and isolated-step gates for a Commerce order.
+     * Frozen sources stay blocked unless a matching recovered-Commerce authorization exists.
+     * Call this before opening a hardware fulfilment so a later isolated-target
+     * check cannot create a row and then report failure.
+     */
+    public static function assertIsolatedCommerceOrder(CommerceOrder $order): void
     {
-        $sourceId = (string) $fulfilment->source_id;
+        $sourceId = (string) $order->source_id;
 
-        if ((int) $fulfilment->commerce_order_id !== (int) $order->id) {
-            throw ValidationException::withMessages([
-                'fulfilment' => 'Hardware fulfilment does not belong to the selected commerce order.',
-            ]);
-        }
-
-        if (self::isFrozenSourceId($sourceId)) {
+        if (self::isFrozenForFulfilment($sourceId, $order)) {
             throw ValidationException::withMessages([
                 'fulfilment' => 'Frozen pending hardware orders cannot use the isolated fulfilment path.',
             ]);
         }
 
-        if (self::isHoldSourceId($sourceId) || self::metadataShowsHold($order->metadata) || self::metadataShowsHold($fulfilment->metadata)) {
+        if (self::isHoldSourceId($sourceId) || self::metadataShowsHold($order->metadata)) {
             throw ValidationException::withMessages([
                 'fulfilment' => 'Owner-HOLD hardware orders cannot use the isolated fulfilment path.',
             ]);
@@ -333,6 +333,24 @@ final class HardwareFulfilmentEligibility
         if (! self::isOnOrAfterCutoff($order->ordered_at)) {
             throw ValidationException::withMessages([
                 'orderdate' => 'Isolated fulfilment accepts business orderdate on or after 2026-09-05 00:00:00 IST only.',
+            ]);
+        }
+    }
+
+    public static function assertIsolatedTarget(HardwareFulfilment $fulfilment, CommerceOrder $order): void
+    {
+        if ((int) $fulfilment->commerce_order_id !== (int) $order->id
+            || strcasecmp((string) $fulfilment->source_id, (string) $order->source_id) !== 0) {
+            throw ValidationException::withMessages([
+                'fulfilment' => 'Hardware fulfilment does not belong to the selected commerce order.',
+            ]);
+        }
+
+        self::assertIsolatedCommerceOrder($order);
+
+        if (self::metadataShowsHold($fulfilment->metadata)) {
+            throw ValidationException::withMessages([
+                'fulfilment' => 'Owner-HOLD hardware orders cannot use the isolated fulfilment path.',
             ]);
         }
     }

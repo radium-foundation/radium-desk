@@ -183,6 +183,7 @@ class HardwareFulfilmentIsolatedWorkflowService
             }
 
             $order = $this->assertRecoveredCommerceIngest($id);
+            HardwareFulfilmentEligibility::assertIsolatedCommerceOrder($order);
 
             return [
                 'ok' => true,
@@ -362,6 +363,7 @@ class HardwareFulfilmentIsolatedWorkflowService
         }
 
         $order = $this->assertRecoveredCommerceIngest($id);
+        HardwareFulfilmentEligibility::assertIsolatedCommerceOrder($order);
         $beforeItems = $order->items->map(fn ($item): array => [
             'id' => (int) $item->id,
             'line_no' => $item->line_no !== null ? (int) $item->line_no : null,
