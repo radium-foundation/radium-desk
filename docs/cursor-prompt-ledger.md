@@ -274,5 +274,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-117 | 2026-09-09 | Read-only investigation of `RBX3511545` prefix / Desk correlation | Companion `radiumbox.com-P-09-09-02`. Desk has both `RBX3511545` (Box Cashfree, ₹717, SC53106) and colliding rdservice.in `RD3511545` (₹597, SC51844). `RBX` is intentional. No ingest/repair/rename. |
 | RadiumDesk-P-07-09-118 | 2026-09-09 | Isolated ingest RDE318516 / RDE318517 from Box handoffs 92/93 | Companion `radiumbox.com-P-09-09-03`. Commerce CO-000811 / CO-000812, HF 15/16 `ingested`, support 52034/52040. Qty 10 and 5. No READY/serial/invoice/ship. Report: `docs/desk-rde318516-rde318517-isolated-ingest-p-07-09-118.md`. |
 | RadiumDesk-P-07-09-119 | 2026-09-09 | Advance Dashboard to Create Shipment after valid courier select | Classifier prefers `canCreate` over leftover courier options. No Shiprocket create. Report: `docs/desk-hardware-select-courier-advances-create-p-07-09-119.md`. |
+| RadiumDesk-P-07-09-120 | 2026-09-09 | HF12 refresh courier options and re-select 15084; stop before create | Live Get Courier Options + select Delhivery_Surface 15084. next_action Create Shipment. No create/AWB. Report: `docs/desk-rde318434-courier-refresh-stop-p-07-09-120.md`. |
 
 Do not renumber or overwrite earlier rows. Append only.
