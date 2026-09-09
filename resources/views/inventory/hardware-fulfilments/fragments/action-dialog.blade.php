@@ -27,7 +27,15 @@
         'Upload Package Photo' => '📷',
     ];
     $shipmentActions = ['Get Courier Options', 'Select Courier', 'Create Shipment', 'Reconcile Shipment'];
+    $requiredSerials = (int) collect($requirements ?? [])->sum('qty');
+    $allocateCompact = $action === 'Allocate Serial'
+        && collect($requirements ?? [])->count() <= 1
+        && $requiredSerials <= 1;
     $title = in_array($action, $shipmentActions, true) ? 'Start Shipment' : $action;
+    if ($action === 'Allocate Serial' && ! $allocateCompact) {
+        $title = 'Allocate Serials';
+        $subtitles['Allocate Serial'] = 'Assign a verified stock serial to each required unit.';
+    }
     $subtitle = $subtitles[$action] ?? 'Confirm this hardware operation.';
     $icon = $icons[$action] ?? '📦';
     $details = $row->productDetails();

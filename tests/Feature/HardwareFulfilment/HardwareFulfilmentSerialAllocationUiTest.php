@@ -345,6 +345,137 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
         $this->assertNoSideEffects();
     }
 
+    public function test_action_dialog_qty_one_is_compact_and_submit_starts_disabled(): void
+    {
+        $fulfilment = $this->readyFulfilment('RDE900820');
+        $itemId = $this->itemId($fulfilment);
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $fulfilment))
+            ->assertOk()
+            ->assertSee('Allocate Serial')
+            ->assertSee('Search / select serial')
+            ->assertSee('MFS110')
+            ->assertSee('SKU:')
+            ->assertSee('RBMFS110L1')
+            ->assertSee('Qty 1')
+            ->assertSee('Serials allocated: 0 / 1')
+            ->assertSee('Selected serials')
+            ->assertSee('data-qty="1"', false)
+            ->assertSee('data-item-id="'.$itemId.'"', false)
+            ->assertSee('data-hardware-serial-submit-idle="Allocate Serial"', false)
+            ->assertDontSee('Product 1')
+            ->assertDontSee('Total required:');
+    }
+
+    public function test_action_dialog_qty_two_and_qty_ten_require_matching_serial_counts(): void
+    {
+        $double = $this->readyFulfilment('RDE900821', qty: 2);
+        $ten = $this->readyFulfilment('RDE900822', qty: 10);
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $double))
+            ->assertOk()
+            ->assertSee('Allocate Serials')
+            ->assertSee('Qty 2')
+            ->assertSee('Serials allocated: 0 / 2')
+            ->assertSee('Total required: 2')
+            ->assertSee('Total selected: 0')
+            ->assertSee('data-qty="2"', false)
+            ->assertSee('data-hardware-serial-submit-idle="Allocate Serials"', false);
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $ten))
+            ->assertOk()
+            ->assertSee('Allocate Serials')
+            ->assertSee('Qty 10')
+            ->assertSee('Serials allocated: 0 / 10')
+            ->assertSee('Total required: 10')
+            ->assertSee('data-qty="10"', false);
+    }
+
+    public function test_action_dialog_renders_independent_pickers_for_multiple_products(): void
+    {
+        ChannelSkuMap::query()->firstOrCreate(
+            [
+                'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+                'model_id' => 946,
+            ],
+            [
+                'inventory_product_id' => $this->product->id,
+                'catalog_sku' => 'MFS110',
+                'channel_sku' => 'RBMFS110L1',
+                'notes' => 'Test-only UI map. Not a production write.',
+            ],
+        );
+        $second = InventoryProduct::query()->create([
+            'sku' => 'RBIMSOE3L1',
+            'name' => 'Morpho e3',
+            'hsn_code' => '84716050',
+            'gst_percentage' => 18,
+            'unit_price' => 1000,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 951,
+            'inventory_product_id' => $second->id,
+            'catalog_sku' => 'MSO1300',
+            'channel_sku' => 'RBIMSOE3L1',
+            'notes' => 'Test-only UI map. Not a production write.',
+        ]);
+
+        $fulfilment = $this->ingestHardwareLines('RDE900823', [
+            $this->physicalLine(946, 'RBMFS110L1', 'MFS110', 2),
+            $this->physicalLine(951, 'RBIMSOE3L1', 'Morpho e3', 1),
+        ]);
+        $this->workflow->transition($fulfilment, HardwareFulfilmentState::ReadyForFulfilment);
+        $items = $fulfilment->fresh('commerceOrder.items')->commerceOrder->items->values();
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('Allocate Serials')
+            ->assertSee('Product 1')
+            ->assertSee('Product 2')
+            ->assertSee('MFS110')
+            ->assertSee('Morpho e3')
+            ->assertSee('Qty 2')
+            ->assertSee('Qty 1')
+            ->assertSee('Serials allocated: 0 / 2')
+            ->assertSee('Serials allocated: 0 / 1')
+            ->assertSee('Total required: 3')
+            ->assertSee('data-item-id="'.$items[0]->id.'"', false)
+            ->assertSee('data-item-id="'.$items[1]->id.'"', false)
+            ->assertSee('data-qty="2"', false)
+            ->assertSee('data-qty="1"', false)
+            ->assertDontSee('Serial allocation is not available for this order yet.');
+    }
+
+    public function test_action_dialog_explains_why_allocation_is_unavailable(): void
+    {
+        $fulfilment = $this->ingestHardware('RDE900824', 1);
+        ChannelSkuMap::query()->firstOrCreate(
+            [
+                'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+                'model_id' => 946,
+            ],
+            [
+                'inventory_product_id' => $this->product->id,
+                'catalog_sku' => 'MFS110',
+                'channel_sku' => 'RBMFS110L1',
+                'notes' => 'Test-only UI map. Not a production write.',
+            ],
+        );
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $fulfilment))
+            ->assertOk()
+            ->assertSee('Serial allocation requires READY_FOR_FULFILMENT')
+            ->assertDontSee('>Serial allocation is not available for this order yet.', false);
+    }
+
     public function test_competing_http_allocation_cannot_reuse_the_same_serial(): void
     {
         $first = $this->readyFulfilment('RDE900813');
@@ -453,9 +584,42 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
 
     private function ingestHardware(string $sourceId, int $qty): HardwareFulfilment
     {
+        return $this->ingestHardwareLines($sourceId, [
+            $this->physicalLine(946, 'RBMFS110L1', 'MFS110', $qty),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function physicalLine(int $modelId, string $sku, string $description, int $qty): array
+    {
+        $unit = 2549;
+        $lineTotal = round($unit * $qty, 2);
         $taxable = round(2160.17 * $qty, 2);
-        $tax = round($taxable * 0.18, 2);
-        $lineTotal = round($taxable + $tax, 2);
+        $tax = round($lineTotal - $taxable, 2);
+
+        return [
+            'description' => $description,
+            'sku' => $sku,
+            'qty' => $qty,
+            'unit_price' => $unit,
+            'hsn_sac' => '84716050',
+            'gst_percentage' => 18,
+            'taxable_value' => $taxable,
+            'tax_total' => $tax,
+            'line_total' => $lineTotal,
+            'shipping_line_kind' => 'physical_merchandise',
+            'requires_shipping' => true,
+            'model_id' => $modelId,
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function ingestHardwareLines(string $sourceId, array $lines): HardwareFulfilment
+    {
         $payload = [
             'channel' => StatutoryInvoiceChannel::RadiumBoxCom->value,
             'source_type' => 'commerce_order',
@@ -471,20 +635,7 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ],
             'seller_gstin' => '07AAICP1128M1Z9',
             'place_of_supply_state' => 'Delhi',
-            'lines' => [[
-                'description' => 'MFS110',
-                'sku' => 'RBMFS110L1',
-                'qty' => $qty,
-                'unit_price' => 2549,
-                'hsn_sac' => '84716050',
-                'gst_percentage' => 18,
-                'taxable_value' => $taxable,
-                'tax_total' => $tax,
-                'line_total' => $lineTotal,
-                'shipping_line_kind' => 'physical_merchandise',
-                'requires_shipping' => true,
-                'model_id' => 946,
-            ]],
+            'lines' => $lines,
         ];
 
         $body = json_encode($payload, JSON_THROW_ON_ERROR);

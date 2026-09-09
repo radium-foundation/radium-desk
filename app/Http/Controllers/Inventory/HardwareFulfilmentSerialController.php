@@ -368,14 +368,20 @@ class HardwareFulfilmentSerialController extends Controller
         $row = $this->operationalClassifier->fromFulfilment($fulfilment, $ready);
         $requirements = [];
         $canAllocate = false;
+        $allocateUnavailableReason = null;
         if ($row->nextAction === 'Allocate Serial') {
             try {
                 $requirements = $this->allocation->requirements($fulfilment);
                 $canAllocate = $fulfilment->state === HardwareFulfilmentState::ReadyForFulfilment
                     && ! HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)
                     && collect($requirements)->every(fn (array $line): bool => $line['map_ready']);
-            } catch (ValidationException) {
+                if (! $canAllocate) {
+                    $allocateUnavailableReason = $this->allocateUnavailableReason($fulfilment, $requirements);
+                }
+            } catch (ValidationException $exception) {
                 $canAllocate = false;
+                $allocateUnavailableReason = collect($exception->errors())->flatten()->first()
+                    ?: 'Serial allocation is not available for this order yet.';
             }
         }
 
@@ -385,6 +391,7 @@ class HardwareFulfilmentSerialController extends Controller
             'ready' => $ready,
             'requirements' => $requirements,
             'canAllocate' => $canAllocate,
+            'allocateUnavailableReason' => $allocateUnavailableReason,
             'searchUrl' => route('inventory.hardware-fulfilments.serials.search', $fulfilment),
             'showUrl' => route('inventory.hardware-fulfilments.show', $fulfilment),
             'incidentId' => $this->incidentIdFor($fulfilment),
@@ -587,6 +594,30 @@ class HardwareFulfilmentSerialController extends Controller
             ->max('id');
 
         return $id !== null ? (int) $id : null;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $requirements
+     */
+    private function allocateUnavailableReason(HardwareFulfilment $fulfilment, array $requirements): string
+    {
+        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+            return 'Frozen pending hardware orders cannot receive serial allocation.';
+        }
+
+        if ($fulfilment->state !== HardwareFulfilmentState::ReadyForFulfilment) {
+            return 'Serial allocation requires READY_FOR_FULFILMENT. Payment success is not enough.';
+        }
+
+        if ($requirements === []) {
+            return 'No allocatable hardware lines are on this fulfilment.';
+        }
+
+        if (collect($requirements)->contains(fn (array $line): bool => ! ($line['map_ready'] ?? false))) {
+            return 'Owner SKU map is missing for a product on this order. Allocation is blocked.';
+        }
+
+        return 'Serial allocation is not available for this order yet.';
     }
 
     private function assertCanOperateFulfilment(Request $request, HardwareFulfilment $fulfilment): void
