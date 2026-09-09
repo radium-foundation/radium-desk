@@ -262,6 +262,103 @@ class HardwareHandoffSplitTenderTest extends TestCase
         $this->assertSame('2000.00', Order::query()->where('order_id', $sourceId)->value('payment_amount'));
     }
 
+    public function test_cashfree_tender_reference_must_match_existing_support_payment_id(): void
+    {
+        $sourceId = 'RDE900813';
+        Order::query()->create([
+            'order_id' => $sourceId,
+            'status' => 'active',
+            'cashfree_payment_id' => 'cf_pay_900813',
+            'payment_amount' => 2000,
+        ]);
+
+        try {
+            $this->isolated->run(
+                identifier: $sourceId,
+                step: 'ingest',
+                payload: $this->splitPayload($sourceId, cashfreeAmount: 2000, walletAmount: 499, cashfreeReference: 'cf_pay_WRONG'),
+            );
+            $this->fail('Cashfree tender reference must match the existing support payment id.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('tenders', $exception->errors());
+        }
+
+        $this->assertSame(0, CommerceOrder::query()->count());
+        $this->assertSame('cf_pay_900813', Order::query()->where('order_id', $sourceId)->value('cashfree_payment_id'));
+        $this->assertSame('2000.00', Order::query()->where('order_id', $sourceId)->value('payment_amount'));
+    }
+
+    public function test_missing_tender_amount_is_rejected(): void
+    {
+        $sourceId = 'RDE900809';
+        Order::query()->create([
+            'order_id' => $sourceId,
+            'status' => 'active',
+            'cashfree_payment_id' => 'cf_pay_900809',
+            'payment_amount' => 2000,
+        ]);
+        $payload = $this->splitPayload($sourceId, cashfreeAmount: 2000, walletAmount: 499, cashfreeReference: 'cf_pay_900809');
+        unset($payload['tenders'][1]['amount']);
+
+        $this->signedBoxPost($payload)->assertStatus(422);
+        $this->assertSame(0, CommerceOrder::query()->count());
+        $this->assertSame(0, HardwareFulfilmentPaymentEvidence::query()->count());
+    }
+
+    public function test_invalid_tender_type_is_rejected(): void
+    {
+        $sourceId = 'RDE900810';
+        Order::query()->create([
+            'order_id' => $sourceId,
+            'status' => 'active',
+            'cashfree_payment_id' => 'cf_pay_900810',
+            'payment_amount' => 2000,
+        ]);
+        $payload = $this->splitPayload($sourceId, cashfreeAmount: 2000, walletAmount: 499, cashfreeReference: 'cf_pay_900810');
+        $payload['tenders'][1]['type'] = 'upi';
+
+        $this->signedBoxPost($payload)->assertStatus(422);
+        $this->assertSame(0, CommerceOrder::query()->count());
+    }
+
+    public function test_duplicate_cashfree_reference_on_another_source_is_rejected(): void
+    {
+        $first = 'RDE900811';
+        $second = 'RDE900812';
+        Order::query()->create([
+            'order_id' => $first,
+            'status' => 'active',
+            'cashfree_payment_id' => 'cf_pay_900811',
+            'payment_amount' => 2000,
+        ]);
+        Order::query()->create([
+            'order_id' => $second,
+            'status' => 'active',
+            'cashfree_payment_id' => 'cf_pay_900812',
+            'payment_amount' => 2000,
+        ]);
+        $this->isolated->run(
+            identifier: $first,
+            step: 'ingest',
+            payload: $this->splitPayload($first, cashfreeAmount: 2000, walletAmount: 499, cashfreeReference: 'cf_pay_900811'),
+        );
+
+        try {
+            $this->isolated->run(
+                identifier: $second,
+                step: 'ingest',
+                payload: $this->splitPayload($second, cashfreeAmount: 2000, walletAmount: 499, cashfreeReference: 'cf_pay_900811'),
+            );
+            $this->fail('Duplicate Cashfree tender reference must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('tenders', $exception->errors());
+        }
+
+        $this->assertSame(1, CommerceOrder::query()->count());
+        $this->assertSame($first, CommerceOrder::query()->value('source_id'));
+        $this->assertSame('2000.00', Order::query()->where('order_id', $second)->value('payment_amount'));
+    }
+
     /**
      * @return array<string, mixed>
      */

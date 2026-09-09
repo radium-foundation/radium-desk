@@ -3,6 +3,8 @@
 namespace App\Services\HardwareFulfilment;
 
 use App\Enums\StatutoryInvoiceChannel;
+use App\Models\CommerceOrder;
+use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\ChannelIngest\Data\ChannelOrderLineDraft;
@@ -123,6 +125,7 @@ final class HardwareHandoffTenderContract
         $byType = $this->uniqueByType($request);
         $cashfree = $byType[ChannelOrderTenderDraft::TYPE_CASHFREE];
         $wallet = $byType[ChannelOrderTenderDraft::TYPE_WALLET];
+        $this->assertUniqueCashfreeReference($request, $cashfree);
 
         $support = Order::query()->where('order_id', $request->sourceId)->first();
         if ($support === null) {
@@ -145,6 +148,29 @@ final class HardwareHandoffTenderContract
         if ($wallet->reference !== null && $existingCf !== '' && hash_equals($existingCf, $wallet->reference)) {
             throw ValidationException::withMessages([
                 'tenders' => 'Wallet tender must not be represented as the Cashfree payment id.',
+            ]);
+        }
+    }
+
+    public function assertUniqueCashfreeReference(ChannelOrderIngestRequest $request, ChannelOrderTenderDraft $cashfree): void
+    {
+        $reference = $cashfree->reference;
+        if ($reference === null) {
+            return;
+        }
+
+        $taken = CommerceOrder::query()
+            ->where('channel', StatutoryInvoiceChannel::RadiumBoxCom)
+            ->where('source_id', '!=', $request->sourceId)
+            ->where('payment_reference', $reference)
+            ->exists();
+        $fulfilmentTaken = HardwareFulfilment::query()
+            ->where('source_id', '!=', $request->sourceId)
+            ->where('cashfree_payment_id', $reference)
+            ->exists();
+        if ($taken || $fulfilmentTaken) {
+            throw ValidationException::withMessages([
+                'tenders' => 'Cashfree tender reference is already used by another commerce order.',
             ]);
         }
     }
