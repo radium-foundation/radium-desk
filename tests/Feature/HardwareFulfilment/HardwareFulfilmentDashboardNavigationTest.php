@@ -305,7 +305,37 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->actingAs($supportAgent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
-            ->assertDontSee('id="c360-hardware-label-download"', false);
+            ->assertSee('Download Label')
+            ->assertSee('Download Manifest')
+            ->assertSee('id="c360-hardware-label-download"', false)
+            ->assertSee('id="c360-hardware-manifest-download"', false)
+            ->assertSee(route('inventory.hardware-fulfilments.label.download', $fulfilment), false)
+            ->assertSee(route('inventory.hardware-fulfilments.manifest.download', $fulfilment), false)
+            ->assertDontSee('Open Fulfilment')
+            ->assertDontSee('data-hardware-action-dialog', false)
+            ->assertDontSee($labelUrl, false)
+            ->assertDontSee($manifestUrl, false);
+
+        $this->actingAs($supportAgent)
+            ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
+            ->assertRedirect($labelUrl);
+        $this->actingAs($supportAgent)
+            ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
+            ->assertRedirect($manifestUrl);
+        $this->actingAs($supportAgent)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertForbidden();
+        $this->actingAs($supportAgent)
+            ->post(route('inventory.hardware-fulfilments.label.store', $fulfilment->fresh()))
+            ->assertForbidden();
+        $this->actingAs($supportAgent)
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertForbidden();
+
+        $supportSpecialist = $this->userWithRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
+        $this->actingAs($supportSpecialist)
+            ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
+            ->assertForbidden();
 
         $stranger = User::factory()->create(['is_active' => true]);
         $this->actingAs($stranger)

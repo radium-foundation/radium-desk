@@ -190,6 +190,13 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
             ->assertRedirect($shipment->label_url);
+        $supportAgent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT, []);
+        $this->actingAs($supportAgent)
+            ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
+            ->assertRedirect($shipment->label_url);
+        $this->actingAs($supportAgent)
+            ->post(route('inventory.hardware-fulfilments.label.store', $fulfilment->fresh()))
+            ->assertForbidden();
         $this->assertSame(1, $this->fake->labels);
 
         $stranger = User::factory()->create(['is_active' => true]);
@@ -238,6 +245,9 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->assertSee('Download Manifest')
             ->assertSee('id="hardware-action-label-download"', false)
             ->assertSee('id="hardware-action-manifest-download"', false);
+        $this->actingAs($supportAgent)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $fulfilment->fresh()))
+            ->assertForbidden();
 
         $this->actingAs($this->admin)
             ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
@@ -245,6 +255,12 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
             ->assertRedirect($freshShipment->manifest_url);
+        $this->actingAs($supportAgent)
+            ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
+            ->assertRedirect($freshShipment->manifest_url);
+        $this->actingAs($supportAgent)
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertForbidden();
         $this->assertSame(1, $this->fake->manifests);
 
         $this->actingAs($stranger)

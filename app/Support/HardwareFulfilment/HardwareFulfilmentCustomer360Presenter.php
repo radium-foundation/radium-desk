@@ -63,6 +63,8 @@ final class HardwareFulfilmentCustomer360Presenter
         $canOpen = $fulfilment !== null
             && $canOperate
             && HardwareFulfilmentNavigation::userCanOpen($user, $fulfilment);
+        $canDownloadDocuments = $fulfilment !== null
+            && HardwareFulfilmentAccess::allowsDocumentDownload($user);
 
         return [
             'row' => $row,
@@ -76,6 +78,7 @@ final class HardwareFulfilmentCustomer360Presenter
             'showUrl' => $canOpen ? $row->fulfilmentUrl() : null,
             'primaryUrl' => $canOperate ? $row->primaryUrl() : $row->customer360Url(),
             'canOperate' => $canOperate,
+            'canDownloadDocuments' => $canDownloadDocuments,
         ];
     }
 

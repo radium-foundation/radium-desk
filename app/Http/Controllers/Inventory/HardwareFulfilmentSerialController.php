@@ -72,7 +72,13 @@ class HardwareFulfilmentSerialController extends Controller
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
 
             return $next($request);
-        });
+        })->except(['downloadLabel', 'downloadManifest']);
+
+        $this->middleware(function ($request, $next) {
+            abort_unless(HardwareFulfilmentAccess::allowsDocumentDownload($request->user()), 403);
+
+            return $next($request);
+        })->only(['downloadLabel', 'downloadManifest']);
     }
 
     public function index(Request $request): View
@@ -476,7 +482,7 @@ class HardwareFulfilmentSerialController extends Controller
 
     public function downloadLabel(Request $request, HardwareFulfilment $fulfilment): RedirectResponse
     {
-        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->assertCanDownloadFulfilmentDocuments($request, $fulfilment);
         $url = $this->persistedDocumentUrl($fulfilment, 'label_url');
         abort_unless($url !== null, 404);
 
@@ -485,7 +491,7 @@ class HardwareFulfilmentSerialController extends Controller
 
     public function downloadManifest(Request $request, HardwareFulfilment $fulfilment): RedirectResponse
     {
-        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->assertCanDownloadFulfilmentDocuments($request, $fulfilment);
         $url = $this->persistedDocumentUrl($fulfilment, 'manifest_url');
         abort_unless($url !== null, 404);
 
@@ -657,6 +663,15 @@ class HardwareFulfilmentSerialController extends Controller
         }
 
         return 'Serial allocation is not available for this order yet.';
+    }
+
+    private function assertCanDownloadFulfilmentDocuments(Request $request, HardwareFulfilment $fulfilment): void
+    {
+        abort_unless(HardwareFulfilmentAccess::allowsDocumentDownload($request->user()), 403);
+
+        if (HardwareFulfilmentAccess::allows($request->user())) {
+            $this->assertCanOperateFulfilment($request, $fulfilment);
+        }
     }
 
     private function assertCanOperateFulfilment(Request $request, HardwareFulfilment $fulfilment): void

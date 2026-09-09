@@ -23,6 +23,32 @@ final class HardwareFulfilmentAccess
         );
     }
 
+    /**
+     * Persisted Label/Manifest download. Does not grant shipment mutation.
+     *
+     * Admin / hardware_team keep {@see self::allows()} (operate).
+     * Support Agent may download because Customer 360 already uses `orders.view`;
+     * they do not receive `hardware.fulfilment.operate`.
+     */
+    public static function allowsDocumentDownload(?User $user): bool
+    {
+        if (self::allows($user)) {
+            return true;
+        }
+
+        return self::allowsSupportAgentDocumentDownload($user);
+    }
+
+    public static function allowsSupportAgentDocumentDownload(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return $user->hasRole(RolePermissionSeeder::ROLE_AGENT)
+            && $user->can('orders.view');
+    }
+
     public static function allowsCountryCorrection(?User $user): bool
     {
         return InventoryAccess::allowsPermission(

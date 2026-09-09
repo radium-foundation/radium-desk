@@ -82,7 +82,7 @@
             @if($hardwareFulfilment['showUrl'] ?? null)
                 <a class="btn btn-sm btn-outline-secondary" href="{{ $hardwareFulfilment['showUrl'] }}">Open Fulfilment</a>
             @endif
-            @if($canOperate && $ready && $row->fulfilmentId)
+            @if(($hardwareFulfilment['canDownloadDocuments'] ?? false) && $ready && $row->fulfilmentId)
                 @include('inventory.hardware-fulfilments.fragments.document-downloads', [
                     'fulfilment' => $row->fulfilmentId,
                     'ready' => $ready,
