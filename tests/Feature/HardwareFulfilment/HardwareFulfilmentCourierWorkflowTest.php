@@ -218,6 +218,67 @@ class HardwareFulfilmentCourierWorkflowTest extends TestCase
             ->assertSessionHas('status', 'Courier selected.');
 
         $this->assertSame('12', $fulfilment->fresh()->selected_courier_id);
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertSame(0, Shipment::query()->count());
+    }
+
+    public function test_json_courier_selection_advances_dashboard_to_create_shipment_without_creating(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE930022', 'DELHI-RETAIL');
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.courier-options.store', $fulfilment));
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('hardware-action-courier-select-form', false)
+            ->assertSee('Select Courier')
+            ->assertDontSee('hardware-action-create-shipment-form', false);
+
+        $createsBefore = $this->fake->creates;
+
+        $this->actingAs($this->admin)
+            ->withHeaders([
+                'Accept' => 'application/json',
+                'X-Requested-With' => 'XMLHttpRequest',
+            ])
+            ->post(route('inventory.hardware-fulfilments.courier.store', $fulfilment->fresh()), [
+                'courier_id' => '12',
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('next_action', 'Create Shipment')
+            ->assertJsonPath('mutating', true)
+            ->assertJsonPath('status', 'Courier selected.');
+
+        $fresh = $fulfilment->fresh();
+        $this->assertSame('12', $fresh->selected_courier_id);
+        $this->assertSame('Fake Surface', $fresh->selected_courier_name);
+        $this->assertSame($createsBefore, $this->fake->creates);
+        $this->assertSame(0, Shipment::query()->count());
+        $this->assertNull($fresh->shipment_id);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fresh->state);
+
+        $dialog = $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $fresh))
+            ->assertOk()
+            ->assertSee('hardware-action-create-shipment-form', false)
+            ->assertSee('Create Shipment')
+            ->assertSee('Fake Surface')
+            ->assertDontSee('hardware-action-courier-select-form', false)
+            ->getContent();
+
+        $this->assertStringNotContainsString('id="hardware-action-courier-select-form"', $dialog);
+        $this->assertStringContainsString('id="hardware-action-create-shipment-form"', $dialog);
+
+        $this->actingAs($this->admin)
+            ->get(route('dashboard', ['workspace' => 'hardware']))
+            ->assertOk()
+            ->assertSee('RDE930022')
+            ->assertSee('Create Shipment');
+
+        $this->assertSame(0, $this->fake->creates);
+        Http::assertNothingSent();
     }
 
     public function test_stale_courier_options_are_rejected_after_input_change(): void

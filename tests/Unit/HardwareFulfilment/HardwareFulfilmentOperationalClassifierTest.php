@@ -119,13 +119,114 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertTrue($row->mutatingAction);
     }
 
+    public function test_valid_selected_courier_advances_to_create_shipment_even_when_options_remain(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971010', HardwareFulfilmentState::InvoiceIssued);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => true,
+            'canSelectCourier' => true,
+            'canFetchCourierOptions' => true,
+            'selectedCourierId' => '15084',
+            'selectedCourierName' => 'Delhivery_Surface',
+            'courierOptions' => [['courier_id' => '15084', 'courier_name' => 'Delhivery_Surface']],
+            'actionLabel' => 'Create Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertTrue($ready->canCreate);
+        $this->assertSame('Create Shipment', $row->nextAction);
+        $this->assertSame('hardware-shipment-create', $row->nextAnchor);
+        $this->assertTrue($row->mutatingAction);
+        $this->assertNotSame('Select Courier', $row->nextAction);
+    }
+
+    public function test_options_without_selection_still_require_select_courier(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971011', HardwareFulfilmentState::InvoiceIssued);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => false,
+            'canSelectCourier' => true,
+            'canFetchCourierOptions' => true,
+            'selectedCourierId' => null,
+            'courierOptions' => [['courier_id' => '15084']],
+            'actionLabel' => 'Create Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Select Courier', $row->nextAction);
+        $this->assertSame('hardware-courier', $row->nextAnchor);
+    }
+
+    public function test_no_options_and_no_selection_asks_for_courier_options(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971012', HardwareFulfilmentState::InvoiceIssued);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => false,
+            'canSelectCourier' => false,
+            'canFetchCourierOptions' => true,
+            'selectedCourierId' => null,
+            'courierOptions' => [],
+            'actionLabel' => 'Create Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Get Courier Options', $row->nextAction);
+        $this->assertSame('hardware-courier', $row->nextAnchor);
+    }
+
+    public function test_can_create_reconcile_takes_precedence_over_select_courier(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971013', HardwareFulfilmentState::InvoiceIssued);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => true,
+            'canSelectCourier' => true,
+            'canFetchCourierOptions' => true,
+            'selectedCourierId' => '12',
+            'actionLabel' => 'Reconcile Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Reconcile Shipment', $row->nextAction);
+        $this->assertSame('hardware-shipment-create', $row->nextAnchor);
+    }
+
+    public function test_existing_shipment_without_awb_stays_on_assign_awb(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971014', HardwareFulfilmentState::ShipmentCreated);
+        $ready = $this->readiness([
+            'alreadyCreated' => true,
+            'canCreate' => false,
+            'canSelectCourier' => true,
+            'selectedCourierId' => '15084',
+            'awb' => null,
+            'labelUrl' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Assign AWB', $row->nextAction);
+        $this->assertNotSame('Select Courier', $row->nextAction);
+        $this->assertNotSame('Create Shipment', $row->nextAction);
+    }
+
     /**
      * @param  array<string, mixed>  $overrides
      */
     private function readiness(array $overrides = []): HardwareShipmentReadiness
     {
         return new HardwareShipmentReadiness(
-            canCreate: false,
+            canCreate: (bool) ($overrides['canCreate'] ?? false),
             blockers: [],
             status: 'Created',
             pickupBranch: null,
@@ -137,8 +238,14 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
             order: 'RDE1',
             product: 'MFS',
             alreadyCreated: $overrides['alreadyCreated'] ?? true,
-            awb: $overrides['awb'] ?? 'AWB1',
-            labelUrl: $overrides['labelUrl'] ?? '/label.pdf',
+            actionLabel: $overrides['actionLabel'] ?? 'Create Shipment',
+            awb: array_key_exists('awb', $overrides) ? $overrides['awb'] : 'AWB1',
+            canFetchCourierOptions: (bool) ($overrides['canFetchCourierOptions'] ?? false),
+            canSelectCourier: (bool) ($overrides['canSelectCourier'] ?? false),
+            courierOptions: $overrides['courierOptions'] ?? [],
+            selectedCourierId: $overrides['selectedCourierId'] ?? null,
+            selectedCourierName: $overrides['selectedCourierName'] ?? null,
+            labelUrl: array_key_exists('labelUrl', $overrides) ? $overrides['labelUrl'] : '/label.pdf',
             pickupStatus: $overrides['pickupStatus'] ?? 'Not requested',
             manifestStatus: $overrides['manifestStatus'] ?? 'Not generated',
             packageBeforeLabelRecorded: $overrides['packageBeforeLabelRecorded'] ?? false,

@@ -201,14 +201,7 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         if (! $ready->alreadyCreated) {
-            $label = $ready->canSelectCourier
-                ? 'Select Courier'
-                : ($ready->canFetchCourierOptions && $ready->selectedCourierId === null
-                    ? 'Get Courier Options'
-                    : $ready->actionLabel);
-            $anchor = $ready->canSelectCourier || ($ready->canFetchCourierOptions && $ready->selectedCourierId === null)
-                ? 'hardware-courier'
-                : 'hardware-shipment-create';
+            [$label, $anchor] = $this->shipmentPrepAction($ready);
 
             return [HardwareFulfilmentOperationalStage::ReadyForShipment, $label, $anchor, 'Ready for Shipment'];
         }
@@ -256,6 +249,29 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         return [HardwareFulfilmentOperationalStage::ShipmentCreated, 'View', null, 'Shipment Created'];
+    }
+
+    /**
+     * Cached courier options do not keep the operator on Select Courier
+     * after a valid selection already permits create/reconcile.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function shipmentPrepAction(HardwareShipmentReadiness $ready): array
+    {
+        if ($ready->canCreate) {
+            return [$ready->actionLabel, 'hardware-shipment-create'];
+        }
+
+        if ($ready->canSelectCourier && $ready->selectedCourierId === null) {
+            return ['Select Courier', 'hardware-courier'];
+        }
+
+        if ($ready->canFetchCourierOptions && $ready->selectedCourierId === null) {
+            return ['Get Courier Options', 'hardware-courier'];
+        }
+
+        return [$ready->actionLabel, 'hardware-shipment-create'];
     }
 
     private function sourcePrefix(string $sourceId): string
