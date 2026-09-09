@@ -78,6 +78,8 @@ class HardwareFulfilmentIsolatedWorkflowService
         private readonly ChannelIngestPayloadValidator $payloads,
         private readonly ChannelIngestPayloadHasher $hasher,
         private readonly HardwareHandoffTenderContract $tenders,
+        private readonly HardwareFulfilmentFoundationService $foundation,
+        private readonly HardwareRecoveredFulfilmentAuthorization $recoveredAuthorizations,
     ) {}
 
     /**
@@ -149,8 +151,54 @@ class HardwareFulfilmentIsolatedWorkflowService
     private function dryRun(string $id, string $planned, ?array $payload): array
     {
         $fulfilment = $this->findExisting($id);
-        if ($planned === self::STEP_INGEST || ($fulfilment === null && $payload !== null)) {
-            $this->assertIngestPayload($id, $payload ?? []);
+        if ($planned === self::STEP_INGEST) {
+            if ($payload !== null && $payload !== []) {
+                $this->assertRecoveredPathRejectsPayload($id);
+                $this->assertIngestPayload($id, $payload);
+
+                return [
+                    'ok' => true,
+                    'dry_run' => true,
+                    'identifier' => $id,
+                    'planned' => self::STEP_INGEST,
+                    'state' => $fulfilment?->state?->value,
+                    'message' => 'Would ingest exactly one verified handoff payload. No commerce order was created.',
+                ];
+            }
+
+            if ($fulfilment !== null) {
+                $order = $this->requireOrder($fulfilment);
+                HardwareFulfilmentEligibility::assertIsolatedTarget($fulfilment, $order);
+
+                return [
+                    'ok' => true,
+                    'dry_run' => true,
+                    'identifier' => $id,
+                    'planned' => self::STEP_INGEST,
+                    'state' => $fulfilment->state->value,
+                    'commerce_order_id' => $fulfilment->commerce_order_id,
+                    'source_id' => $fulfilment->source_id,
+                    'message' => 'Hardware fulfilment already exists. No writes were performed.',
+                ];
+            }
+
+            $order = $this->assertRecoveredCommerceIngest($id);
+
+            return [
+                'ok' => true,
+                'dry_run' => true,
+                'identifier' => $id,
+                'planned' => self::STEP_INGEST,
+                'state' => null,
+                'commerce_order_id' => $order->id,
+                'source_id' => $order->source_id,
+                'message' => 'Would open exactly one hardware fulfilment from the existing Desk Commerce order. No Box handoff would be replayed.',
+            ];
+        }
+
+        if ($fulfilment === null && $payload !== null) {
+            $this->assertRecoveredPathRejectsPayload($id);
+            $this->assertIngestPayload($id, $payload);
 
             return [
                 'ok' => true,
@@ -307,10 +355,43 @@ class HardwareFulfilmentIsolatedWorkflowService
             ];
         }
 
-        $request = $this->assertIngestPayload($id, $payload ?? []);
+        if ($payload !== null && $payload !== []) {
+            $this->assertRecoveredPathRejectsPayload($id);
+
+            return $this->ingestFromPayload($id, $payload);
+        }
+
+        $order = $this->assertRecoveredCommerceIngest($id);
+        $beforeItems = $order->items->map(fn ($item): array => [
+            'id' => (int) $item->id,
+            'line_no' => $item->line_no !== null ? (int) $item->line_no : null,
+            'model_id' => $item->model_id !== null ? (int) $item->model_id : null,
+            'qty' => (int) $item->qty,
+        ])->all();
+        $fulfilment = $this->foundation->ensureIngestedFromExistingCommerce($order);
+        $this->assertCommerceLinesUnchanged($order->fresh(['items']) ?? $order, $beforeItems);
+        HardwareFulfilmentEligibility::assertIsolatedTarget($fulfilment, $order->fresh(['items']) ?? $order);
+
+        return [
+            'ok' => true,
+            'identifier' => $id,
+            'step' => self::STEP_INGEST,
+            'state' => $fulfilment->state->value,
+            'duplicate' => false,
+            'report' => $this->report($fulfilment),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function ingestFromPayload(string $id, array $payload): array
+    {
+        $request = $this->assertIngestPayload($id, $payload);
         $result = $this->ingest->ingest(
-            payload: $payload ?? [],
-            authenticatedChannel: StatutoryInvoiceChannel::RadiumBoxCom,
+            payload: $payload,
+            authenticatedChannel: $request->channel,
         );
 
         if (! in_array($result->outcome, [ChannelIngestOutcome::Accepted, ChannelIngestOutcome::Duplicate], true)
@@ -557,6 +638,93 @@ class HardwareFulfilmentIsolatedWorkflowService
             'state' => $updated->state->value,
             'report' => $this->report($updated),
         ];
+    }
+
+    private function assertRecoveredPathRejectsPayload(string $id): void
+    {
+        $sourceId = HardwareFulfilmentEligibility::assertSingularIdentifier($id);
+        if ($this->recoveredAuthorizations->isAuthorizedSource($sourceId)) {
+            throw ValidationException::withMessages([
+                'payload' => 'Recovered-commerce fulfilment refuses Box handoff payload replay. Use the existing Desk Commerce order without --payload.',
+            ]);
+        }
+    }
+
+    private function assertRecoveredCommerceIngest(string $id): CommerceOrder
+    {
+        $sourceId = HardwareFulfilmentEligibility::assertSingularIdentifier($id);
+
+        if (HardwareFulfilmentEligibility::isHoldSourceId($sourceId)) {
+            throw ValidationException::withMessages([
+                'fulfilment' => 'Owner-HOLD hardware orders cannot use the isolated fulfilment path.',
+            ]);
+        }
+
+        if (HardwareFulfilmentEligibility::isBlockedUntilAuthorized($sourceId)) {
+            throw ValidationException::withMessages([
+                'fulfilment' => 'This source id is not authorized for isolated fulfilment yet.',
+            ]);
+        }
+
+        if (! HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)) {
+            throw ValidationException::withMessages([
+                'payload' => 'Isolated ingest requires --payload with exactly one verified handoff JSON object. Desk does not discover Box handoffs.',
+            ]);
+        }
+
+        $matches = CommerceOrder::query()
+            ->with('items')
+            ->whereRaw('UPPER(source_id) = ?', [strtoupper($sourceId)])
+            ->get();
+
+        if ($matches->count() > 1) {
+            throw ValidationException::withMessages([
+                'commerce' => 'Multiple commerce orders match this source id. Recovered fulfilment fails closed.',
+            ]);
+        }
+
+        $order = $matches->first();
+        if ($order === null) {
+            throw ValidationException::withMessages([
+                'commerce' => 'Existing paid Desk Commerce order is required. Recovered fulfilment does not create Commerce.',
+            ]);
+        }
+
+        $this->recoveredAuthorizations->assertAuthorizableOrder($order);
+        $this->recoveredAuthorizations->requireAuthorized($order);
+
+        if ($order->ordered_at === null) {
+            throw ValidationException::withMessages([
+                'orderdate' => 'Isolated fulfilment requires a persisted business order date. created_at is not substituted.',
+            ]);
+        }
+
+        if (! HardwareFulfilmentEligibility::isOnOrAfterCutoff($order->ordered_at)) {
+            throw ValidationException::withMessages([
+                'orderdate' => 'Isolated fulfilment accepts business orderdate on or after 2026-09-05 00:00:00 IST only.',
+            ]);
+        }
+
+        return $order;
+    }
+
+    /**
+     * @param  list<array{id: int, line_no: ?int, model_id: ?int, qty: int}>  $before
+     */
+    private function assertCommerceLinesUnchanged(CommerceOrder $order, array $before): void
+    {
+        $after = $order->items->map(fn ($item): array => [
+            'id' => (int) $item->id,
+            'line_no' => $item->line_no !== null ? (int) $item->line_no : null,
+            'model_id' => $item->model_id !== null ? (int) $item->model_id : null,
+            'qty' => (int) $item->qty,
+        ])->all();
+
+        if ($after !== $before) {
+            throw ValidationException::withMessages([
+                'commerce' => 'Recovered fulfilment must not change commerce product lines or quantities.',
+            ]);
+        }
     }
 
     /**

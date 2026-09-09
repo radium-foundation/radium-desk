@@ -327,13 +327,13 @@ class HardwareFulfilmentSerialController extends Controller
 
         $requirements = $this->allocation->requirements($fulfilment);
         $canAllocate = $fulfilment->state === HardwareFulfilmentState::ReadyForFulfilment
-            && ! HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)
+            && ! HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)
             && collect($requirements)->every(fn (array $line): bool => $line['map_ready']);
 
         $shipment = $this->shipmentEligibility->inspect($fulfilment);
         $opsRow = $this->operationalClassifier->fromFulfilment($fulfilment, $shipment);
         $canIssueInvoice = $fulfilment->state === HardwareFulfilmentState::SerialsAllocated
-            && ! HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)
+            && ! HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)
             && ($shipment->invoice === null || $shipment->invoice === '');
 
         return view('inventory.hardware-fulfilments.show', [
@@ -381,7 +381,7 @@ class HardwareFulfilmentSerialController extends Controller
             try {
                 $requirements = $this->allocation->requirements($fulfilment);
                 $canAllocate = $fulfilment->state === HardwareFulfilmentState::ReadyForFulfilment
-                    && ! HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)
+                    && ! HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)
                     && collect($requirements)->every(fn (array $line): bool => $line['map_ready']);
                 if (! $canAllocate) {
                     $allocateUnavailableReason = $this->allocateUnavailableReason($fulfilment, $requirements);
@@ -646,7 +646,7 @@ class HardwareFulfilmentSerialController extends Controller
      */
     private function allocateUnavailableReason(HardwareFulfilment $fulfilment, array $requirements): string
     {
-        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             return 'Frozen pending hardware orders cannot receive serial allocation.';
         }
 

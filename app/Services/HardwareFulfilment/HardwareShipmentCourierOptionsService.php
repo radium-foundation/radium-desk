@@ -235,7 +235,7 @@ class HardwareShipmentCourierOptionsService
 
     private function assertNotFrozen(HardwareFulfilment $fulfilment): void
     {
-        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             throw ValidationException::withMessages([
                 'fulfilment' => 'Frozen pending hardware orders cannot be shipped.',
             ]);

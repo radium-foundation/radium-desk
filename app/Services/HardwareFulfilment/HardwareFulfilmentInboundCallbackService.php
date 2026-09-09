@@ -83,7 +83,7 @@ class HardwareFulfilmentInboundCallbackService
             ];
         }
 
-        if (HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment($sourceId)
             || HardwareFulfilmentEligibility::isHoldSourceId($sourceId)
             || HardwareFulfilmentEligibility::isBlockedUntilAuthorized($sourceId)) {
             return [

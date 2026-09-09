@@ -199,7 +199,7 @@ class HardwareFulfilmentParcelSnapshotService
             'shipment',
         ]);
 
-        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             return 'Frozen pending hardware orders cannot receive a parcel snapshot.';
         }
 
@@ -291,7 +291,7 @@ class HardwareFulfilmentParcelSnapshotService
             'shipment',
         ]);
 
-        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             return 'Frozen pending hardware orders cannot receive a parcel snapshot.';
         }
 

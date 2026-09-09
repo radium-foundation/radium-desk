@@ -22,7 +22,10 @@ class HardwareFulfilmentWorkflowService
         ?int $actorId = null,
         array $payload = [],
     ): HardwareFulfilment {
-        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment(
+            (string) $fulfilment->source_id,
+            $fulfilment->commerceOrder,
+        )) {
             throw ValidationException::withMessages([
                 'fulfilment' => 'Frozen pending hardware orders cannot change fulfilment state.',
             ]);

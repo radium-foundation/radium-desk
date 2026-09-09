@@ -18,6 +18,8 @@ final class HardwareFulfilmentEligibility
 
     public const SOURCE_PREFIX = 'RDE';
 
+    public const RIN_SOURCE_PREFIX = 'RIN';
+
     public const CUTOFF_IST = '2026-09-05 00:00:00';
 
     public const CUTOFF_TIMEZONE = 'Asia/Kolkata';
@@ -59,15 +61,7 @@ final class HardwareFulfilmentEligibility
 
     public static function shouldOpenRecord(ChannelOrderIngestRequest $request): bool
     {
-        if ($request->channel !== StatutoryInvoiceChannel::RadiumBoxCom) {
-            return false;
-        }
-
         if ($request->sourceType !== StatutoryInvoiceSourceType::CommerceOrder) {
-            return false;
-        }
-
-        if (! str_starts_with(strtoupper($request->sourceId), self::SOURCE_PREFIX)) {
             return false;
         }
 
@@ -75,7 +69,39 @@ final class HardwareFulfilmentEligibility
             return false;
         }
 
+        if (self::isRinHardwareRequest($request)) {
+            return self::hasPhysicalLine($request);
+        }
+
+        if ($request->channel !== StatutoryInvoiceChannel::RadiumBoxCom) {
+            return false;
+        }
+
+        if (! str_starts_with(strtoupper($request->sourceId), self::SOURCE_PREFIX)) {
+            return false;
+        }
+
         return self::hasPhysicalLine($request);
+    }
+
+    public static function isRinHardwareRequest(ChannelOrderIngestRequest $request): bool
+    {
+        if ($request->channel !== StatutoryInvoiceChannel::RdServiceIn) {
+            return false;
+        }
+
+        if (! self::looksLikeRinSourceId($request->sourceId)) {
+            return false;
+        }
+
+        $type = strtolower(trim((string) ($request->metadata['source_order_type'] ?? '')));
+
+        return $type === 'hardware_direct_buy';
+    }
+
+    public static function looksLikeRinSourceId(string $sourceId): bool
+    {
+        return (bool) preg_match('/^RIN\d+$/i', trim($sourceId));
     }
 
     public static function hasPhysicalLine(ChannelOrderIngestRequest $request): bool
@@ -109,12 +135,43 @@ final class HardwareFulfilmentEligibility
 
     public static function looksLikeHardwareSourceId(string $sourceId): bool
     {
-        return str_starts_with(strtoupper($sourceId), self::SOURCE_PREFIX);
+        $normalized = strtoupper(trim($sourceId));
+
+        return str_starts_with($normalized, self::SOURCE_PREFIX)
+            || self::looksLikeRinSourceId($normalized);
     }
 
     public static function isFrozenSourceId(string $sourceId): bool
     {
         return in_array(strtoupper(trim($sourceId)), self::FROZEN_SOURCE_IDS, true);
+    }
+
+    /**
+     * Frozen for fulfilment unless a Desk-local recovered-Commerce authorization matches.
+     * Channel ingest still uses isFrozenSourceId() so Box handoff replay cannot open HF.
+     */
+    public static function isFrozenForFulfilment(string $sourceId, ?CommerceOrder $order = null): bool
+    {
+        if (! self::isFrozenSourceId($sourceId)) {
+            return false;
+        }
+
+        $resolved = $order;
+        if ($resolved === null) {
+            $matches = CommerceOrder::query()
+                ->whereRaw('UPPER(source_id) = ?', [strtoupper(trim($sourceId))])
+                ->get();
+            if ($matches->count() !== 1) {
+                return true;
+            }
+            $resolved = $matches->first();
+        }
+
+        if (strcasecmp((string) $resolved->source_id, trim($sourceId)) !== 0) {
+            return true;
+        }
+
+        return ! app(HardwareRecoveredFulfilmentAuthorization::class)->isAuthorized($resolved);
     }
 
     public static function isHoldSourceId(string $sourceId): bool

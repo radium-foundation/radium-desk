@@ -16,7 +16,7 @@ final class HardwareAwaitingFulfilmentClassifier
             return HardwareAwaitingFulfilmentReason::Rin;
         }
 
-        if (HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment($sourceId)) {
             return HardwareAwaitingFulfilmentReason::Frozen;
         }
 

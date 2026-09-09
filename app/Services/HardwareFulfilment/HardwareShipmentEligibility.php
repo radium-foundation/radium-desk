@@ -41,7 +41,7 @@ class HardwareShipmentEligibility
      */
     public function require(HardwareFulfilment $fulfilment): array
     {
-        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             throw ValidationException::withMessages([
                 'fulfilment' => 'Frozen pending hardware orders cannot be shipped.',
             ]);
@@ -90,7 +90,7 @@ class HardwareShipmentEligibility
         $shipment = $this->existingShipment($fulfilment);
         $alreadyCreated = $shipment !== null && $shipment->isBound();
 
-        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             $blockers[] = 'Frozen pending hardware orders cannot be shipped.';
         }
 

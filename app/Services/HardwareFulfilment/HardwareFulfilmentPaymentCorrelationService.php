@@ -16,7 +16,7 @@ class HardwareFulfilmentPaymentCorrelationService
 
     public function recordPaidEvidence(HardwarePaymentEvidenceDraft $draft): ?HardwareFulfilmentPaymentEvidence
     {
-        if (HardwareFulfilmentEligibility::isFrozenSourceId($draft->sourceId)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment($draft->sourceId)) {
             return null;
         }
 
@@ -90,7 +90,7 @@ class HardwareFulfilmentPaymentCorrelationService
             return null;
         }
 
-        if (HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment($sourceId)) {
             return null;
         }
 
@@ -120,7 +120,7 @@ class HardwareFulfilmentPaymentCorrelationService
 
     public function attachPendingEvidence(HardwareFulfilment $fulfilment): void
     {
-        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             return;
         }
 

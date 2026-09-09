@@ -34,7 +34,7 @@ class HardwareFulfilmentInvoiceService
 
     public function issueInvoice(HardwareFulfilment $fulfilment, ?User $actor = null): StatutoryInvoice
     {
-        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             throw ValidationException::withMessages([
                 'fulfilment' => 'Frozen pending hardware orders cannot be invoiced.',
             ]);

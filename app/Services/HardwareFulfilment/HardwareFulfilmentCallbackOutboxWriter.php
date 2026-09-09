@@ -37,7 +37,7 @@ class HardwareFulfilmentCallbackOutboxWriter
 
     public function enqueue(HardwareFulfilment $fulfilment, HardwareFulfilmentEvent $event): ?OutboxEvent
     {
-        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             throw ValidationException::withMessages([
                 'fulfilment' => 'Frozen pending hardware orders cannot enqueue Box callbacks.',
             ]);

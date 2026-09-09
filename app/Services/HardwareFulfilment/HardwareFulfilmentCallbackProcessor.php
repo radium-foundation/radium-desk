@@ -38,7 +38,7 @@ class HardwareFulfilmentCallbackProcessor
             throw new HardwareFulfilmentCallbackNonRetryableException('Callback outbox payload is missing event identity.');
         }
 
-        if (HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment($sourceId)
             || HardwareFulfilmentEligibility::isHoldSourceId($sourceId)
             || HardwareFulfilmentEligibility::isBlockedUntilAuthorized($sourceId)) {
             throw new HardwareFulfilmentCallbackNonRetryableException('This hardware order cannot send Box callbacks.');

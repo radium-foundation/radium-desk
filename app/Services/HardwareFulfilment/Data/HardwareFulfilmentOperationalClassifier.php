@@ -109,7 +109,7 @@ final class HardwareFulfilmentOperationalClassifier
         $fulfilment->loadMissing('supportOrder');
         $catalog = HardwareFulfilmentProductLines::resolve($order, $fulfilment->supportOrder);
         $sourceId = (string) $fulfilment->source_id;
-        $ownerBlocked = HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)
+        $ownerBlocked = HardwareFulfilmentEligibility::isFrozenForFulfilment($sourceId, $order)
             || HardwareFulfilmentEligibility::isHoldSourceId($sourceId)
             || HardwareFulfilmentEligibility::isBlockedUntilAuthorized($sourceId);
         $unrecoverableProviderError = $this->providerRejectionIsUnrecoverable($ready, $ownerBlocked);
