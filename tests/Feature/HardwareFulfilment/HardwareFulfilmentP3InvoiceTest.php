@@ -332,6 +332,30 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $this->assertSame(3049.0, (float) $invoice->items->first()?->line_total);
     }
 
+    public function test_mantra_mfs_invoice_and_pdf_use_canonical_variant_description(): void
+    {
+        $fulfilment = $this->prepareIssuable(
+            'RDE900318',
+            'DELHI-RETAIL',
+            1,
+            placeOfSupply: 'Delhi',
+            rdserviceid: 1119,
+            modelId: 946,
+            description: 'Mantra MFS 100 / 110 L1 Fingerprint Scanner',
+            amcid: 1120,
+            otgid: 1126,
+        );
+        $invoice = $this->invoices->issueInvoice($fulfilment);
+        $pdf = app(StatutoryDocumentService::class)->binary($invoice->document);
+
+        $this->assertSame('Mantra MFS 110 1R 1W U', (string) $invoice->items->first()?->description);
+        $this->assertStringNotContainsString('bundled RD #', (string) $invoice->items->first()?->description);
+        $this->assertStringContainsString('Mantra MFS 110 1R 1W U', $pdf);
+        $this->assertStringNotContainsString('100 / 110', $pdf);
+        $this->assertSame(3049.0, (float) $invoice->items->first()?->line_total);
+        $this->assertSame('84716050', $invoice->items->first()?->hsn_sac);
+    }
+
     private function prepareIssuable(
         string $sourceId,
         string $branchCode,
@@ -339,8 +363,22 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         ?string $buyerGstin = null,
         string $placeOfSupply = 'Madhya Pradesh',
         ?int $rdserviceid = null,
+        int $modelId = 951,
+        string $description = 'MSO1300',
+        ?int $amcid = null,
+        ?int $otgid = null,
     ): HardwareFulfilment {
-        $fulfilment = $this->ingestHardware($sourceId, $qty, $buyerGstin, $placeOfSupply, $rdserviceid);
+        $fulfilment = $this->ingestHardware(
+            $sourceId,
+            $qty,
+            $buyerGstin,
+            $placeOfSupply,
+            $rdserviceid,
+            $modelId,
+            $description,
+            $amcid,
+            $otgid,
+        );
         $this->assignBranch($fulfilment, $branchCode);
         $this->workflow->transition($fulfilment, HardwareFulfilmentState::ReadyForFulfilment);
         $this->workflow->transition($fulfilment->fresh(), HardwareFulfilmentState::SerialsAllocated);
@@ -382,10 +420,35 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         ?string $buyerGstin = null,
         string $placeOfSupply = 'Madhya Pradesh',
         ?int $rdserviceid = null,
+        int $modelId = 951,
+        string $description = 'MSO1300',
+        ?int $amcid = null,
+        ?int $otgid = null,
     ): HardwareFulfilment {
         $taxable = round(2583.90 * $qty, 2);
         $tax = round($taxable * 0.18, 2);
         $lineTotal = round($taxable + $tax, 2);
+        $line = [
+            'description' => $description,
+            'sku' => (string) $modelId,
+            'qty' => $qty,
+            'unit_price' => 3049,
+            'hsn_sac' => '84716050',
+            'gst_percentage' => 18,
+            'taxable_value' => $taxable,
+            'tax_total' => $tax,
+            'line_total' => $lineTotal,
+            'shipping_line_kind' => 'physical_merchandise',
+            'requires_shipping' => true,
+            'model_id' => $modelId,
+            'rdserviceid' => $rdserviceid,
+        ];
+        if ($amcid !== null) {
+            $line['amcid'] = $amcid;
+        }
+        if ($otgid !== null) {
+            $line['otgid'] = $otgid;
+        }
         $payload = [
             'channel' => StatutoryInvoiceChannel::RadiumBoxCom->value,
             'source_type' => 'commerce_order',
@@ -402,21 +465,7 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
             ],
             'seller_gstin' => '07AAICP1128M1Z9',
             'place_of_supply_state' => $placeOfSupply,
-            'lines' => [[
-                'description' => 'MSO1300',
-                'sku' => '951',
-                'qty' => $qty,
-                'unit_price' => 3049,
-                'hsn_sac' => '84716050',
-                'gst_percentage' => 18,
-                'taxable_value' => $taxable,
-                'tax_total' => $tax,
-                'line_total' => $lineTotal,
-                'shipping_line_kind' => 'physical_merchandise',
-                'requires_shipping' => true,
-                'model_id' => 951,
-                'rdserviceid' => $rdserviceid,
-            ]],
+            'lines' => [$line],
         ];
 
         $body = json_encode($payload, JSON_THROW_ON_ERROR);
