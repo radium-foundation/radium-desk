@@ -307,6 +307,70 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringNotContainsString('statutory:', $pdf);
     }
 
+    public function test_shipping_and_payment_print_and_signed_qr_is_omitted_without_irn(): void
+    {
+        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-276799',
+            issuedAt: '2026-09-07 18:28:19',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '27AAICP1128M1Z7',
+            sellerAddress: 'G40, Harmony Mall, Link Road, Goregaon, Mumbai 400104',
+            sellerState: 'Maharashtra',
+            buyerName: 'CHANDRAKANT GANPAT SARODE',
+            buyerGstin: null,
+            billingAddress: '312 dhamankar plaza, Bhiwandi',
+            placeOfSupply: 'Maharashtra',
+            lines: [[
+                'description' => 'Information technology (IT) consulting & support services (SAC - 998313)',
+                'hsnSac' => '998313',
+                'qty' => 1,
+                'unitPrice' => '422.88',
+                'taxableValue' => '422.88',
+                'gstPercentage' => '18.00%',
+                'cgst' => '38.06',
+                'sgst' => '38.06',
+                'igst' => '0.00',
+                'taxTotal' => '76.12',
+                'lineTotal' => '499.00',
+            ]],
+            taxableValue: '422.88',
+            gstRate: '18.00%',
+            taxTotal: '76.12',
+            cgst: '38.06',
+            sgst: '38.06',
+            igst: '0.00',
+            invoiceValue: '499.00',
+            shippingAddress: 'Warehouse Gate 2, Andheri East, Mumbai 400069',
+            paymentMethod: 'UPI',
+            signedQr: 'eyJhbGciOiJFUzI1NiJ9.fake-signed-qr',
+        )));
+
+        $this->assertStringContainsString('Ship To', $pdf);
+        $this->assertStringContainsString('Andheri East', $pdf);
+        $this->assertStringContainsString('Payment', $pdf);
+        $this->assertStringContainsString('UPI', $pdf);
+        $this->assertStringNotContainsString('IRN', $pdf);
+        $this->assertStringNotContainsString('fake-signed-qr', $pdf);
+        $this->assertStringNotContainsString('eyJhbGciOiJFUzI1NiJ9', $pdf);
+    }
+
+    public function test_commerce_pdf_uses_order_shipping_and_payment_method(): void
+    {
+        $order = $this->commerceOrder('RD-PDF-SHIP');
+        $order->forceFill([
+            'shipping_address' => 'Warehouse Gate 2, Andheri East, Mumbai 400069',
+            'payment_method' => 'UPI',
+        ])->save();
+
+        $invoice = $this->invoices->issueFromCommerceOrder($order->fresh(), $this->actor);
+        $pdf = $this->text($this->pdf($invoice->id));
+
+        $this->assertStringContainsString('Ship To', $pdf);
+        $this->assertStringContainsString('Andheri East', $pdf);
+        $this->assertStringContainsString('UPI', $pdf);
+        $this->assertStringNotContainsString('IRN not submitted', $pdf);
+    }
+
     private function pdf(int $invoiceId): string
     {
         $document = StatutoryInvoiceDocument::query()->where('invoice_id', $invoiceId)->firstOrFail();

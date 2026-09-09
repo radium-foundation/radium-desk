@@ -20,6 +20,7 @@ enum WhatsAppTemplate: string
     case ReviewRequest = 'review_request';
     case BuyRdService = 'buy_rd_service';
     case BuyProduct = 'buy_product';
+    case StatutoryInvoice = 'statutory_invoice';
 
     public function purposeLabel(): string
     {
@@ -40,6 +41,7 @@ enum WhatsAppTemplate: string
             self::ReviewRequest => 'Review Request',
             self::BuyRdService => 'Buy RD Service',
             self::BuyProduct => 'Buy Product',
+            self::StatutoryInvoice => 'Tax Invoice',
         };
     }
 }

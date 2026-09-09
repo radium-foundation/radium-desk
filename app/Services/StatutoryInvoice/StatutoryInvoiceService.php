@@ -455,7 +455,10 @@ class StatutoryInvoiceService
 
     private function applyServiceGstSplit(StatutoryInvoiceMintRequest $request): StatutoryInvoiceMintRequest
     {
-        if ($request->sourceType !== StatutoryInvoiceSourceType::CommerceOrder) {
+        if (! in_array($request->sourceType, [
+            StatutoryInvoiceSourceType::CommerceOrder,
+            StatutoryInvoiceSourceType::InventorySale,
+        ], true)) {
             return $request;
         }
 

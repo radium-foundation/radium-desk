@@ -311,5 +311,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-154 | 2026-09-09 | Business order-ID parser/routing for RB/RBP/RD/RDP/RN/RNP/RS/RSP | Longest-prefix-first. Historical RA/RDS/RD/RBX/RDE/RIN preserved. Hardware prefixes stay RDE/RIN only (no auto-hardware for RBP/RDP/RNP/RSP). **Not deployed.** |
 | RadiumDesk-P-07-09-156 | 2026-09-09 | Keep `RBP` from hardware fulfilment classification | `BusinessOrderId` is authoritative for parsed IDs. `RBP` cannot become hardware via config or `RB` prefix. Hardware remains `RDE`/`RIN`. No Sign lookup spoke. **Not deployed.** |
 | RadiumDesk-P-07-09-159 | 2026-09-09 | Canonical Mantra MFS variant display | `HardwareConfigurableVariantDisplay`: `Mantra MFS {model} {rd}R {w}W {U|C}` from stored model_id/rdserviceid/amcid/otgid. Dashboard/Fulfilment/C360/new invoices. No historical invoice rewrite. No deploy. |
+| RadiumDesk-P-07-09-160 | 2026-09-09 | Invoice foundation: PDF, POS GST split, Customer 360 share | New mints only: GstSplitService on POS exclusive tax; clean A4 PDF with IRN/QR omitted unless issued; C360 view/download/email + Interakt WhatsApp if configured. No IRN submit. No historical rewrite. No deploy. |
 
 Do not renumber or overwrite earlier rows. Append only.

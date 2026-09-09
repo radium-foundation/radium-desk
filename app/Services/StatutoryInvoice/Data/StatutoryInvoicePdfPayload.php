@@ -45,10 +45,32 @@ final class StatutoryInvoicePdfPayload
         public readonly ?string $irn = null,
         public readonly ?string $ackNo = null,
         public readonly ?string $ackDate = null,
+        public readonly ?string $shippingAddress = null,
+        public readonly ?string $paymentMethod = null,
+        public readonly ?string $paymentStatus = null,
+        public readonly ?string $signedQr = null,
     ) {}
 
     public function hasIssuedIrn(): bool
     {
         return is_string($this->irn) && trim($this->irn) !== '';
+    }
+
+    /**
+     * Future IRN signed-QR image hook. Never treat a skip/queue payload as an IRN.
+     */
+    public function hasIssuedSignedQr(): bool
+    {
+        return $this->hasIssuedIrn() && is_string($this->signedQr) && trim($this->signedQr) !== '';
+    }
+
+    public function hasDistinctShippingAddress(): bool
+    {
+        $shipping = trim((string) $this->shippingAddress);
+        if ($shipping === '') {
+            return false;
+        }
+
+        return strcasecmp($shipping, trim((string) $this->billingAddress)) !== 0;
     }
 }

@@ -87,6 +87,15 @@ class PosFinanceHubIssueTest extends TestCase
         $this->assertSame((string) $sale->id, $invoice->source_id);
         $this->assertSame($sale->id, $sale->fresh()->statutory_invoice_id);
         $this->assertSame($sale->invoice_number, $sale->fresh()->invoice_number);
+        $this->assertSame(18.0, (float) $invoice->tax_total);
+        $this->assertSame(9.0, (float) $invoice->cgst);
+        $this->assertSame(9.0, (float) $invoice->sgst);
+        $this->assertSame(0.0, (float) $invoice->igst);
+        $line = $invoice->items->first();
+        $this->assertNotNull($line);
+        $this->assertSame(9.0, (float) $line->cgst);
+        $this->assertSame(9.0, (float) $line->sgst);
+        $this->assertSame(0.0, (float) $line->igst);
     }
 
     public function test_pos_statutory_issue_is_idempotent(): void
@@ -140,6 +149,23 @@ class PosFinanceHubIssueTest extends TestCase
         $this->assertSame(1, $invoice->allocation?->seq_int);
     }
 
+    public function test_pos_inter_state_sale_persists_igst_from_stored_exclusive_tax(): void
+    {
+        $sale = $this->completeEligibleSale(placeOfSupply: 'Kerala');
+
+        $invoice = $this->invoices->issueFromPosSale($sale, $this->actor);
+
+        $this->assertSame(18.0, (float) $invoice->tax_total);
+        $this->assertSame(0.0, (float) $invoice->cgst);
+        $this->assertSame(0.0, (float) $invoice->sgst);
+        $this->assertSame(18.0, (float) $invoice->igst);
+        $this->assertSame('Kerala', $invoice->place_of_supply_state);
+        $line = $invoice->items->first();
+        $this->assertSame(0.0, (float) $line->cgst);
+        $this->assertSame(0.0, (float) $line->sgst);
+        $this->assertSame(18.0, (float) $line->igst);
+    }
+
     public function test_issue_fails_closed_when_the_branch_is_not_delhi_or_mumbai(): void
     {
         $this->branch->update(['code' => 'HQ']);
@@ -184,7 +210,7 @@ class PosFinanceHubIssueTest extends TestCase
             ->assertDontSee($sale->invoice_number, false);
     }
 
-    private function completeEligibleSale(): InventorySale
+    private function completeEligibleSale(string $placeOfSupply = 'Delhi'): InventorySale
     {
         $product = InventoryProduct::query()->create([
             'sku' => 'MFS110-HUB',
@@ -208,7 +234,7 @@ class PosFinanceHubIssueTest extends TestCase
             paymentMethod: 'Cash',
             actor: $this->actor,
             statutory: [
-                'place_of_supply_state' => 'Delhi',
+                'place_of_supply_state' => $placeOfSupply,
             ],
         );
     }

@@ -174,5 +174,14 @@ return [
             'purpose' => 'Buy Product',
             'internal_note' => 'Shared product purchase information with the customer.',
         ],
+        'statutory_invoice' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_STATUTORY_INVOICE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'name' => env('INTERAKT_TEMPLATE_STATUTORY_INVOICE'),
+            'language_code' => env('INTERAKT_TEMPLATE_STATUTORY_INVOICE_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_STATUTORY_INVOICE_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_STATUTORY_INVOICE_DISPLAY', 'Tax Invoice'),
+            'purpose' => 'Tax Invoice',
+            'internal_note' => 'Notifies the customer that their tax invoice is available. Does not send a public PDF URL.',
+        ],
     ],
 ];

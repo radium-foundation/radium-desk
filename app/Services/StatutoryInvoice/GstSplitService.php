@@ -7,11 +7,11 @@ use App\Support\Finance\GstStateCodes;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Decomposes an authoritative service GST lump into CGST/SGST or IGST.
+ * Decomposes an authoritative exclusive GST lump into CGST/SGST or IGST.
  *
  * Intra-State vs inter-State follows IGST Act ss.7–8: seller GST state versus
- * place of supply. billing_state is not used. The commerce tax_total is never
- * rewritten; a mismatch fails closed.
+ * place of supply. billing_state is not used. The stored tax_total is never
+ * rewritten; a mismatch fails closed. Used for commerce and POS (exclusive) lines.
  */
 final class GstSplitService
 {

@@ -18,7 +18,7 @@ class SimplePdfRenderer
 
     private const FOOTER_Y = 42.0;
 
-    private const TOTALS_RESERVE = 148.0;
+    private const TOTALS_RESERVE = 168.0;
 
     public function render(StatutoryInvoicePdfPayload $payload): string
     {
@@ -135,15 +135,28 @@ class SimplePdfRenderer
         bool $includeTotals,
     ): array {
         $ops = [];
-        $y = 802.0;
+        $y = 806.0;
         $first = $page === 1;
 
-        $ops[] = $this->fill(self::MARGIN, 768, self::CONTENT_RIGHT - self::MARGIN, 50, 0.16, 0.20, 0.28);
-        $ops[] = $this->text(self::MARGIN + 10, 798, $payload->sellerLegalName, 13, true, 1, 1, 1);
-        $ops[] = $this->text(self::MARGIN + 10, 782, 'GSTIN '.$this->display($payload->sellerGstin), 9, false, 1, 1, 1);
-        $ops[] = $this->text(392, 798, 'TAX INVOICE', 16, true, 1, 1, 1);
-        $ops[] = $this->text(392, 780, $payload->invoiceNumber, 10, true, 1, 1, 1);
-        $y = 754.0;
+        $ops[] = $this->text(self::MARGIN, $y, 'Seller', 8, true);
+        $ops[] = $this->text(392, $y, 'TAX INVOICE', 12, true);
+        $y -= 14;
+        $ops[] = $this->text(self::MARGIN, $y, $payload->sellerLegalName, 11, true);
+        $ops[] = $this->text(392, $y, $payload->invoiceNumber, 10, true);
+        $y -= 13;
+        $ops[] = $this->text(self::MARGIN, $y, 'GSTIN '.$this->display($payload->sellerGstin), 9);
+        $ops[] = $this->text(392, $y, 'Invoice date '.$this->invoiceDate($payload->issuedAt), 9);
+        $y -= 12;
+        foreach (array_slice($this->wrapWidth($this->display($payload->sellerAddress), 330, 8), 0, 2) as $addressLine) {
+            $ops[] = $this->text(self::MARGIN, $y, $addressLine, 8);
+            $y -= 11;
+        }
+        if ($payload->sellerState !== '') {
+            $ops[] = $this->text(self::MARGIN, $y, 'State '.$this->display($payload->sellerState), 8);
+            $y -= 12;
+        }
+        $ops[] = $this->line(self::MARGIN, $y, self::CONTENT_RIGHT, $y);
+        $y -= 14;
 
         $ops[] = $this->text(self::MARGIN, $y, 'Invoice no. '.$payload->invoiceNumber, 9, true);
         $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, 'Invoice date '.$this->invoiceDate($payload->issuedAt), 9, true);
@@ -256,7 +269,23 @@ class SimplePdfRenderer
             $textY -= 11;
         }
 
-        return $y - $height - 6;
+        $y = $y - $height - 6;
+
+        if ($payload->hasDistinctShippingAddress()) {
+            $shipLines = $this->wrapWidth($this->display($payload->shippingAddress), 500, 8);
+            $shipHeight = 18 + (11 * count($shipLines)) + 8;
+            $ops[] = $this->rect($left, $y - $shipHeight + 8, self::CONTENT_RIGHT - self::MARGIN, $shipHeight);
+            $ops[] = $this->fill($left, $y - 4, self::CONTENT_RIGHT - self::MARGIN, 14, 0.93, 0.94, 0.95);
+            $ops[] = $this->text($left + 6, $y - 1, 'Ship To', 8, true);
+            $shipY = $y - 16;
+            foreach ($shipLines as $line) {
+                $ops[] = $this->text($left + 6, $shipY, $line, 8);
+                $shipY -= 11;
+            }
+            $y = $y - $shipHeight - 6;
+        }
+
+        return $y;
     }
 
     /**
@@ -379,7 +408,6 @@ class SimplePdfRenderer
     {
         $ops = [];
         $x = 330.0;
-        $ops[] = $this->rect($x - 8, $y - 118, 233, 130);
         $pairs = [
             ['Taxable', $this->money($payload->taxableValue), false],
             ['GST rate', $this->display($payload->gstRate), false],
@@ -390,6 +418,11 @@ class SimplePdfRenderer
             ['Invoice value', $this->money($payload->invoiceValue), true],
             ['Amount payable', $this->money($payload->invoiceValue), true],
         ];
+        $payment = trim((string) ($payload->paymentMethod ?? ''));
+        if ($payment !== '') {
+            $pairs[] = ['Payment', $this->display($payment), false];
+        }
+        $ops[] = $this->rect($x - 8, $y - 118 - ($payment !== '' ? 14 : 0), 233, 130 + ($payment !== '' ? 14 : 0));
         $lineY = $y;
         foreach ($pairs as [$label, $value, $bold]) {
             $ops[] = $this->text($x, $lineY, $label, $bold ? 9 : 8, $bold);

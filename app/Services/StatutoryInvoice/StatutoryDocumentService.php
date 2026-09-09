@@ -4,6 +4,8 @@ namespace App\Services\StatutoryInvoice;
 
 use App\Enums\EInvoiceRecordStatus;
 use App\Enums\StatutoryInvoiceDocumentStatus;
+use App\Enums\StatutoryInvoiceSourceType;
+use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceDocument;
@@ -106,6 +108,8 @@ class StatutoryDocumentService
             ->first();
         $serials = $this->serialsForInvoice($fulfilment);
 
+        $shipping = $this->shippingAddressFor($invoice);
+
         return new StatutoryInvoicePdfPayload(
             invoiceNumber: (string) $invoice->invoice_number,
             issuedAt: optional($invoice->issued_at)?->toDateTimeString() ?? '',
@@ -131,7 +135,45 @@ class StatutoryDocumentService
             irn: $this->issuedIrn($invoice),
             ackNo: $this->issuedAckNo($invoice),
             ackDate: $this->issuedAckDate($invoice),
+            shippingAddress: $shipping,
+            paymentMethod: $this->paymentMethodFor($invoice),
+            paymentStatus: null,
+            signedQr: $this->issuedSignedQr($invoice),
         );
+    }
+
+    private function shippingAddressFor(StatutoryInvoice $invoice): ?string
+    {
+        if ((string) $invoice->source_type !== StatutoryInvoiceSourceType::CommerceOrder->value) {
+            return null;
+        }
+
+        $shipping = CommerceOrder::query()
+            ->where('channel', $invoice->channel)
+            ->where('source_id', $invoice->source_id)
+            ->value('shipping_address');
+
+        $trimmed = is_string($shipping) ? trim($shipping) : '';
+
+        return $trimmed !== '' ? $trimmed : null;
+    }
+
+    private function paymentMethodFor(StatutoryInvoice $invoice): ?string
+    {
+        $method = trim((string) ($invoice->payment_method ?? ''));
+
+        return $method !== '' ? $method : null;
+    }
+
+    private function issuedSignedQr(StatutoryInvoice $invoice): ?string
+    {
+        if ($this->issuedIrn($invoice) === null) {
+            return null;
+        }
+
+        $qr = trim((string) ($invoice->eInvoiceRecord?->signed_qr ?? ''));
+
+        return $qr !== '' ? $qr : null;
     }
 
     private function issuedIrn(StatutoryInvoice $invoice): ?string
