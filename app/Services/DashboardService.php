@@ -19,6 +19,7 @@ use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Dashboard\LiveReverbMetricsBatch;
 use App\Services\Dashboard\OperatorDashboardCache;
+use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
 use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
 use App\Services\Operations\OperationsRoleService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -41,6 +42,7 @@ class DashboardService
         private readonly DashboardIncidentSortComparator $incidentSortComparator,
         private readonly RecentActivityPresenter $recentActivityPresenter,
         private readonly DashboardPersonalizationService $dashboardPersonalization,
+        private readonly HardwareDashboardWorkspace $hardwareDashboard,
     ) {}
 
     private function caseQueue(): CaseQueueReadModel
@@ -697,6 +699,19 @@ class DashboardService
     }
 
     /**
+     * Queue chips shown on the dashboard. Hardware is the fulfilment work queue,
+     * not every open RDE/RIN incident.
+     *
+     * @return array<string, int>
+     */
+    public function dashboardChipCounts(?User $assignedTo = null, ?User $user = null): array
+    {
+        return $this->hardwareDashboard->overlayFilterCounts(
+            $this->serviceCaseFilterCounts($assignedTo, $user),
+        );
+    }
+
+    /**
      * @return array{overdue_cases: int, warning_cases: int}
      */
     public function slaCounts(): array
@@ -756,7 +771,7 @@ class DashboardService
         $stats = $fast;
 
         $filterCounts = $user->can('incidents.view')
-            ? $this->serviceCaseFilterCounts($assignedTo, $user)
+            ? $this->dashboardChipCounts($assignedTo, $user)
             : [];
         $onlineUsers = $this->onlineUsersPayload($stats);
 
@@ -784,13 +799,13 @@ class DashboardService
         $stats = $this->fastChangingStatsForKpiStrip($user);
         $variants = [
             DashboardPersonalizationService::SCOPE_OPERATIONS => $user->can('incidents.view')
-                ? ($batch?->operationsFilterCounts ?? $this->serviceCaseFilterCounts(null, $user))
+                ? ($batch?->operationsFilterCounts ?? $this->dashboardChipCounts(null, $user))
                 : [],
         ];
 
         if ($this->dashboardPersonalization->usesSupportScopeVariants($user)) {
             $variants[DashboardPersonalizationService::SCOPE_SUPPORT] = $user->can('incidents.view')
-                ? ($batch?->supportFilterCountsByUserId[$user->id] ?? $this->serviceCaseFilterCounts($user, $user))
+                ? ($batch?->supportFilterCountsByUserId[$user->id] ?? $this->dashboardChipCounts($user, $user))
                 : [];
         }
 
@@ -807,12 +822,12 @@ class DashboardService
     {
         $this->snapshot();
 
-        $operationsFilterCounts = $this->serviceCaseFilterCounts(null, null);
+        $operationsFilterCounts = $this->dashboardChipCounts(null, null);
 
         $supportFilterCountsByUserId = [];
         foreach ($recipients as $recipient) {
             if ($this->dashboardPersonalization->usesSupportScopeVariants($recipient)) {
-                $supportFilterCountsByUserId[$recipient->id] = $this->serviceCaseFilterCounts($recipient, $recipient);
+                $supportFilterCountsByUserId[$recipient->id] = $this->dashboardChipCounts($recipient, $recipient);
             }
         }
 

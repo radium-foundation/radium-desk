@@ -58,7 +58,7 @@ class DashboardController extends Controller
         $openCustomer360Reference = $request->query('open_customer_360_reference', session('service_case_reference'));
 
         $serviceCaseFilterCounts = $user->can('incidents.view')
-            ? $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user)
+            ? $this->dashboardService->dashboardChipCounts($assignedTo, $user)
             : [];
 
         $isHardwareWorkspace = $operationQueue === OperationsWorkspaceResolver::WORKSPACE_HARDWARE;

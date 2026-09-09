@@ -32,6 +32,63 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
+    public function test_hardware_chip_matches_rendered_rows_and_excludes_pre_cutoff_hold_incidents(): void
+    {
+        $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
+        $visible = $this->hardwareCase('RDE902040');
+        $visible->order?->forceFill([
+            'cashfree_payment_id' => 'cf_RDE902040',
+            'created_at' => '2026-09-07 10:00:00',
+        ])->save();
+
+        $holdA = $this->hardwareCase('RDE255714');
+        $holdA->order?->forceFill([
+            'cashfree_payment_id' => 'cf_RDE255714',
+            'created_at' => '2026-07-02 12:19:09',
+        ])->save();
+
+        $holdB = $this->hardwareCase('RDE313554');
+        $holdB->order?->forceFill([
+            'cashfree_payment_id' => 'cf_RDE313554',
+            'created_at' => '2026-08-26 23:32:11',
+        ])->save();
+
+        $html = $this->actingAs($admin)
+            ->get(route('dashboard', ['workspace' => 'hardware']))
+            ->assertOk()
+            ->assertSee('RDE902040')
+            ->assertDontSee('RDE255714')
+            ->assertDontSee('RDE313554')
+            ->getContent();
+
+        $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
+        $this->assertMatchesRegularExpression(
+            '/data-dashboard-case-filter-count="hardware">\(1\)/',
+            $html,
+        );
+        $this->assertMatchesRegularExpression(
+            '/data-dashboard-case-filter-count="hardware">\(1\)/',
+            $this->actingAs($admin)
+                ->get(route('dashboard'))
+                ->assertOk()
+                ->getContent(),
+        );
+
+        $exceptions = $this->actingAs($admin)
+            ->get(route('dashboard', ['workspace' => 'hardware', 'hw_queue' => 'exceptions']))
+            ->assertOk()
+            ->assertDontSee('RDE902040')
+            ->getContent();
+
+        $this->assertSame(0, preg_match_all('/\sdata-hardware-select(\s|>)/', $exceptions));
+        $this->assertMatchesRegularExpression(
+            '/data-dashboard-case-filter-count="hardware">\(1\)/',
+            $exceptions,
+        );
+        $this->assertStringContainsString('(1)</span>', $html);
+        $this->assertStringContainsString('Ready', $html);
+    }
+
     public function test_hardware_row_with_fulfilment_shows_existing_show_link_for_authorized_user(): void
     {
         $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);

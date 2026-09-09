@@ -99,13 +99,23 @@ final class HardwareFulfilmentWorkQueue
     }
 
     /**
+     * Unfiltered Hardware workspace size for the dashboard chip.
+     * Same dataset as the default rendered/selectable work queue (no search, no sub-queue).
+     */
+    public function workspaceTotal(Carbon $fromIst, Carbon $toIst): int
+    {
+        return $this->allRows($fromIst, $toIst, '', '')->count();
+    }
+
+    /**
      * Presentation queue for the Hardware dashboard. Read-only. No provider calls.
      *
-     * @return array{rows: Collection<int, HardwareFulfilmentOperationalRow>, counts: array<string, int>, total: int}
+     * @return array{rows: Collection<int, HardwareFulfilmentOperationalRow>, counts: array<string, int>, total: int, unfiltered_total: int}
      */
     public function dashboard(Carbon $fromIst, Carbon $toIst, string $search = '', string $queue = ''): array
     {
         $rows = $this->allRows($fromIst, $toIst, '', '');
+        $unfilteredTotal = $rows->count();
         if ($search !== '') {
             $needle = strtoupper($search);
             $rows = $rows->filter(function (HardwareFulfilmentOperationalRow $row) use ($needle): bool {
@@ -134,6 +144,7 @@ final class HardwareFulfilmentWorkQueue
             'rows' => $rows,
             'counts' => $counts,
             'total' => $rows->count(),
+            'unfiltered_total' => $unfilteredTotal,
         ];
     }
 

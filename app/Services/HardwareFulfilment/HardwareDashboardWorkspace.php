@@ -29,7 +29,8 @@ final class HardwareDashboardWorkspace
      *     search: string,
      *     queues: list<HardwareDashboardQueue>,
      *     incidentIds: array<int, int>,
-     *     operableFulfilmentIds: array<int, true>
+     *     operableFulfilmentIds: array<int, true>,
+     *     unfilteredTotal: int
      * }
      */
     public function present(Request $request): array
@@ -55,7 +56,36 @@ final class HardwareDashboardWorkspace
             'queues' => HardwareDashboardQueue::cases(),
             'incidentIds' => $this->incidentIds($dashboard['rows']),
             'operableFulfilmentIds' => $this->operableFulfilmentIds($dashboard['rows'], $request->user()),
+            'unfilteredTotal' => $dashboard['unfiltered_total'],
         ];
+    }
+
+    /**
+     * Hardware workspace chip. Counts the same default work-queue dataset the
+     * operator can see/select — not every open RDE/RIN service case.
+     *
+     * @param  array<string, int>  $counts
+     * @return array<string, int>
+     */
+    public function overlayFilterCounts(array $counts): array
+    {
+        if ($counts === []) {
+            return $counts;
+        }
+
+        $counts['hardware'] = $this->chipCount();
+
+        return $counts;
+    }
+
+    public function chipCount(): int
+    {
+        $timezone = HardwareFulfilmentEligibility::CUTOFF_TIMEZONE;
+
+        return $this->workQueue->workspaceTotal(
+            HardwareFulfilmentEligibility::cutoffInstant(),
+            Carbon::now($timezone),
+        );
     }
 
     /**

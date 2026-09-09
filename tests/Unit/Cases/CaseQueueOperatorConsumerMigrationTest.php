@@ -101,11 +101,11 @@ class CaseQueueOperatorConsumerMigrationTest extends TestCase
         $dashboardService = app(DashboardService::class);
 
         $this->assertSame(
-            $dashboardService->serviceCaseFilterCounts(null, $agent),
+            $dashboardService->dashboardChipCounts(null, $agent),
             $metrics['service_case_filter_count_variants'][DashboardPersonalizationService::SCOPE_OPERATIONS],
         );
         $this->assertSame(
-            $dashboardService->serviceCaseFilterCounts($agent, $agent),
+            $dashboardService->dashboardChipCounts($agent, $agent),
             $metrics['service_case_filter_count_variants'][DashboardPersonalizationService::SCOPE_SUPPORT],
         );
     }
