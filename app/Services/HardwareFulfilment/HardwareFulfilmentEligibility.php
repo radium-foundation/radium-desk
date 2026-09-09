@@ -9,6 +9,7 @@ use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\ChannelIngest\Data\ChannelOrderLineDraft;
+use App\Support\BusinessOrderId;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
@@ -73,6 +74,11 @@ final class HardwareFulfilmentEligibility
             return self::hasPhysicalLine($request);
         }
 
+        $parsed = BusinessOrderId::parse($request->sourceId);
+        if ($parsed !== null && $parsed['hardware'] === false) {
+            return false;
+        }
+
         if ($request->channel !== StatutoryInvoiceChannel::RadiumBoxCom) {
             return false;
         }
@@ -135,6 +141,11 @@ final class HardwareFulfilmentEligibility
 
     public static function looksLikeHardwareSourceId(string $sourceId): bool
     {
+        $parsed = BusinessOrderId::parse($sourceId);
+        if ($parsed !== null) {
+            return $parsed['hardware'] === true;
+        }
+
         $normalized = strtoupper(trim($sourceId));
 
         return str_starts_with($normalized, self::SOURCE_PREFIX)

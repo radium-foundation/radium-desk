@@ -47,6 +47,16 @@ class OrderProductOrderTest extends TestCase
         $this->assertFalse(Order::isHardwareOrderId('RD3511756'));
     }
 
+    public function test_rbp_is_never_hardware_even_if_config_lists_rbp(): void
+    {
+        config(['operations.hardware_order_prefixes' => ['RDE', 'RIN', 'RBP', 'RB']]);
+
+        $this->assertFalse(Order::isHardwareOrderId('RBP1'));
+        $this->assertFalse(Order::isHardwareOrderId('RB1'));
+        $this->assertTrue(Order::isHardwareOrderId('RDE318516'));
+        $this->assertTrue(Order::isHardwareOrderId('RIN3460196'));
+    }
+
     public function test_is_product_order_instance_method(): void
     {
         $order = new Order(['order_id' => 'RDE100']);
