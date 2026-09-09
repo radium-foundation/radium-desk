@@ -133,6 +133,24 @@ class OrderSourceRoutingTest extends TestCase
         Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'rdservice.in'));
     }
 
+    public function test_rnp_uses_net_and_rs_has_no_lookup_spoke(): void
+    {
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RNP1' => Http::response($this->payload('RNP1', null), 200),
+            'https://rdservice.in/*' => Http::response(['status' => 400], 400),
+            'https://radiumbox.com/*' => Http::response(['status' => 400], 400),
+        ]);
+
+        $this->assertSame('7710951', app(OrderEnrichmentLookupService::class)->fetchInteractive('RNP1')?->serialNumber);
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'rdservice.in'));
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'radiumbox.com'));
+
+        Http::fake();
+        $this->assertNull(app(OrderEnrichmentLookupService::class)->fetchInteractive('RS1'));
+        $this->assertNull(app(OrderEnrichmentLookupService::class)->fetchInteractive('RSP1'));
+        Http::assertNothingSent();
+    }
+
     public function test_malformed_identifier_sends_no_http(): void
     {
         Http::fake();

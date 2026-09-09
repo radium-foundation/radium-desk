@@ -159,11 +159,7 @@ class Order extends Model
 
         $parsed = \App\Support\BusinessOrderId::parse($normalized);
         if ($parsed !== null) {
-            if ($parsed['hardware'] === true) {
-                return true;
-            }
-
-            return in_array($parsed['prefix'], self::hardwareOrderPrefixes(), true);
+            return $parsed['hardware'] === true;
         }
 
         $prefixes = self::hardwareOrderPrefixes();
