@@ -79,6 +79,7 @@ final class HardwareFulfilmentStepper
             'Allocate Serial' => 'Allocate a stock serial to continue.',
             'Issue Invoice' => 'Issue the statutory invoice to continue.',
             'Get Courier Options' => 'Fetch courier options for this shipment.',
+            'Enter Package Dimensions' => 'Enter the complete packed shipment dimensions and actual weight.',
             'Create Shipment', 'Reconcile Shipment' => 'Create the shipment after courier selection.',
             'Select Courier' => 'Select a courier to continue.',
             'Assign AWB' => 'Assign the AWB for the selected courier.',

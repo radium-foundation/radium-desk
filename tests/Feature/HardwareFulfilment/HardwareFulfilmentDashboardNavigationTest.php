@@ -5,6 +5,7 @@ namespace Tests\Feature\HardwareFulfilment;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\IncidentSource;
+use App\Enums\ShipmentStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
@@ -12,10 +13,12 @@ use App\Models\Incident;
 use App\Models\InventoryBranch;
 use App\Models\InventoryUserBranch;
 use App\Models\Order;
+use App\Models\Shipment;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class HardwareFulfilmentDashboardNavigationTest extends TestCase
@@ -247,6 +250,67 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->assertSee('c360-correction-dialog', false)
             ->assertSee('RDE902011')
             ->assertDontSee('Label-applied package photo');
+    }
+
+    public function test_customer_360_exposes_persisted_label_and_manifest_downloads(): void
+    {
+        $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+        [$incident, $fulfilment] = $this->hardwareCaseWithFulfilment('RDE902021');
+        $labelUrl = 'https://provider.test/labels/RDE902021.pdf';
+        $manifestUrl = 'https://provider.test/manifests/RDE902021.pdf';
+        $shipment = Shipment::query()->create([
+            'shipment_no' => 'HW-RDE902021',
+            'commerce_order_id' => $fulfilment->commerce_order_id,
+            'hardware_fulfilment_id' => $fulfilment->id,
+            'provider' => 'shiprocket',
+            'status' => ShipmentStatus::AwbAssigned,
+            'external_order_id' => 'ext-RDE902021',
+            'external_shipment_id' => 'shp-RDE902021',
+            'awb' => 'AWB902021',
+            'label_url' => $labelUrl,
+            'manifest_url' => $manifestUrl,
+            'idempotency_key' => 'ship:RDE902021',
+            'correlation_id' => (string) Str::uuid(),
+        ]);
+        $fulfilment->forceFill([
+            'state' => HardwareFulfilmentState::AwbAssigned,
+            'shipment_id' => $shipment->id,
+            'awb' => 'AWB902021',
+        ])->save();
+
+        $this->actingAs($admin)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('Download Label')
+            ->assertSee('Download Manifest')
+            ->assertSee('id="c360-hardware-label-download"', false)
+            ->assertSee('id="c360-hardware-manifest-download"', false)
+            ->assertSee(route('inventory.hardware-fulfilments.label.download', $fulfilment), false)
+            ->assertSee(route('inventory.hardware-fulfilments.manifest.download', $fulfilment), false)
+            ->assertSee('Label generated')
+            ->assertSee('Manifest generated')
+            ->assertDontSee($labelUrl, false)
+            ->assertDontSee($manifestUrl, false);
+
+        $this->actingAs($agent)
+            ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
+            ->assertRedirect($labelUrl);
+        $this->actingAs($agent)
+            ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
+            ->assertRedirect($manifestUrl);
+
+        $supportAgent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident->forceFill(['assigned_to_user_id' => $supportAgent->id])->save();
+        $this->actingAs($supportAgent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertDontSee('id="c360-hardware-label-download"', false);
+
+        $stranger = User::factory()->create(['is_active' => true]);
+        $this->actingAs($stranger)
+            ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
+            ->assertForbidden();
     }
 
     /**

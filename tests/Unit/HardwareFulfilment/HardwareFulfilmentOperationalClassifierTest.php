@@ -163,6 +163,26 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertSame('hardware-courier', $row->nextAnchor);
     }
 
+    public function test_measured_parcel_is_required_before_courier_options(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971015', HardwareFulfilmentState::InvoiceIssued);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'canCreate' => false,
+            'canSelectCourier' => false,
+            'canFetchCourierOptions' => false,
+            'canAttachMeasuredParcel' => true,
+            'selectedCourierId' => null,
+            'actionLabel' => 'Create Shipment',
+            'awb' => null,
+            'labelUrl' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Enter Package Dimensions', $row->nextAction);
+        $this->assertSame('hardware-parcel-measure', $row->nextAnchor);
+    }
+
     public function test_no_options_and_no_selection_asks_for_courier_options(): void
     {
         $fulfilment = $this->fulfilment('RDE971012', HardwareFulfilmentState::InvoiceIssued);
@@ -250,6 +270,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
             manifestStatus: $overrides['manifestStatus'] ?? 'Not generated',
             packageBeforeLabelRecorded: $overrides['packageBeforeLabelRecorded'] ?? false,
             packageLabelAppliedRecorded: $overrides['packageLabelAppliedRecorded'] ?? false,
+            canAttachMeasuredParcel: (bool) ($overrides['canAttachMeasuredParcel'] ?? false),
         );
     }
 

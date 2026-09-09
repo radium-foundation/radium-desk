@@ -373,3 +373,62 @@ describe('hardware issue invoice popup', () => {
         });
     });
 });
+
+describe('hardware measured parcel form', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        document.body.innerHTML = `
+            <form data-hardware-action-form
+                  data-hardware-measured-parcel
+                  action="/parcel-measured"
+                  data-volumetric-divisor="5000"
+                  data-max-dimension="200"
+                  data-max-weight="99.999">
+                <input type="number" data-hardware-measured-length>
+                <input type="number" data-hardware-measured-breadth>
+                <input type="number" data-hardware-measured-height>
+                <input type="number" data-hardware-measured-weight>
+                <span data-hardware-measured-actual-display>—</span>
+                <span data-hardware-measured-volumetric-display>—</span>
+                <button type="submit" data-hardware-action-submit data-hardware-measured-submit disabled>Save</button>
+            </form>
+        `;
+        bindHardwareActionForms(document);
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('keeps submit disabled until complete packed shipment values are valid', () => {
+        const submit = document.querySelector('[data-hardware-measured-submit]');
+        expect(submit.hasAttribute('disabled')).toBe(true);
+
+        document.querySelector('[data-hardware-measured-length]').value = '40';
+        document.querySelector('[data-hardware-measured-breadth]').value = '30';
+        document.querySelector('[data-hardware-measured-height]').value = '20';
+        document.querySelector('[data-hardware-measured-weight]').value = '2.5';
+        document.querySelector('[data-hardware-measured-length]').dispatchEvent(new Event('input'));
+
+        expect(submit.hasAttribute('disabled')).toBe(false);
+        expect(document.querySelector('[data-hardware-measured-actual-display]').textContent).toBe('2.50 kg');
+        expect(document.querySelector('[data-hardware-measured-volumetric-display]').textContent).toBe('4.80 kg');
+    });
+
+    it('rejects unit-style dimensions at or below 0.50 cm', () => {
+        document.querySelector('[data-hardware-measured-length]').value = '0.5';
+        document.querySelector('[data-hardware-measured-breadth]').value = '9';
+        document.querySelector('[data-hardware-measured-height]').value = '7';
+        document.querySelector('[data-hardware-measured-weight]').value = '0.24';
+        document.querySelector('[data-hardware-measured-length]').dispatchEvent(new Event('input'));
+
+        expect(document.querySelector('[data-hardware-measured-submit]').hasAttribute('disabled')).toBe(true);
+        expect(document.querySelector('[data-hardware-measured-volumetric-display]').textContent).toBe('—');
+    });
+
+    it('does not post until the packed shipment is valid', () => {
+        const form = document.querySelector('[data-hardware-measured-parcel]');
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        expect(workspaceFetch).not.toHaveBeenCalled();
+    });
+});

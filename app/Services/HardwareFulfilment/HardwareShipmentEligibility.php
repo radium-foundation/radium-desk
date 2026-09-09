@@ -269,6 +269,7 @@ class HardwareShipmentEligibility
             catalogVerified: (bool) ($catalog['verified'] ?? false),
             countryMissing: $countryMissing,
             canAttachSnapshot: $this->snapshots->canAttach($fulfilment),
+            canAttachMeasuredParcel: $this->snapshots->canAttachMeasured($fulfilment),
             canCorrectCountry: $this->countries->canCorrect($fulfilment),
             payment: ($order !== null && $this->isPaid($fulfilment, $order)) ? 'Paid' : 'Not verified',
             awb: $shipment?->awb ?: $fulfilment->awb,
@@ -311,6 +312,8 @@ class HardwareShipmentEligibility
             collectionModeLabel: $collection->label(),
             providerRejection: $providerRejection,
             pickupRequestedAt: $shipment?->pickup_requested_at?->timezone((string) config('app.timezone'))->format('Y-m-d H:i'),
+            volumetricWeight: $this->formatVolumetric($parcel),
+            actualWeight: $parcel !== null ? number_format($parcel['weight'], 2, '.', '').' kg' : null,
         );
     }
 
@@ -485,7 +488,11 @@ class HardwareShipmentEligibility
 
         $snapshot = $this->snapshots->validSnapshot($fulfilment);
         if ($snapshot !== null) {
-            return [$snapshot, 'snapshot'];
+            $source = $this->snapshots->snapshotSource($fulfilment) === HardwareFulfilmentParcelSnapshotService::SOURCE_MEASURED
+                ? 'measured'
+                : 'snapshot';
+
+            return [$snapshot, $source];
         }
 
         throw ValidationException::withMessages([
@@ -678,6 +685,24 @@ class HardwareShipmentEligibility
             $parcel['breadth'],
             $parcel['height'],
         );
+    }
+
+    /**
+     * @param  array{weight: float, length: float, breadth: float, height: float}|null  $parcel
+     */
+    private function formatVolumetric(?array $parcel): ?string
+    {
+        if ($parcel === null) {
+            return null;
+        }
+
+        $kg = HardwareShipmentVolumetricWeight::kilograms(
+            $parcel['length'],
+            $parcel['breadth'],
+            $parcel['height'],
+        );
+
+        return number_format($kg, 2, '.', '').' kg';
     }
 
     /**

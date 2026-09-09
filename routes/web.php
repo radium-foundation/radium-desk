@@ -454,6 +454,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('hardware-fulfilments/{fulfilment}/invoice', [InventoryHardwareFulfilmentSerialController::class, 'storeInvoice'])->name('hardware-fulfilments.invoice.store');
         Route::post('hardware-fulfilments/{fulfilment}/shipment', [InventoryHardwareFulfilmentSerialController::class, 'storeShipment'])->name('hardware-fulfilments.shipment.store');
         Route::post('hardware-fulfilments/{fulfilment}/parcel-snapshot', [InventoryHardwareFulfilmentSerialController::class, 'storeParcelSnapshot'])->name('hardware-fulfilments.parcel-snapshot.store');
+        Route::post('hardware-fulfilments/{fulfilment}/parcel-measured', [InventoryHardwareFulfilmentSerialController::class, 'storeMeasuredParcel'])->name('hardware-fulfilments.parcel-measured.store');
+        Route::get('hardware-fulfilments/{fulfilment}/label', [InventoryHardwareFulfilmentSerialController::class, 'downloadLabel'])->name('hardware-fulfilments.label.download');
+        Route::get('hardware-fulfilments/{fulfilment}/manifest', [InventoryHardwareFulfilmentSerialController::class, 'downloadManifest'])->name('hardware-fulfilments.manifest.download');
         Route::post('hardware-fulfilments/{fulfilment}/country', [InventoryHardwareFulfilmentSerialController::class, 'storeCountry'])->name('hardware-fulfilments.country.store');
         Route::post('hardware-fulfilments/{fulfilment}/courier-options', [InventoryHardwareFulfilmentSerialController::class, 'storeCourierOptions'])->name('hardware-fulfilments.courier-options.store');
         Route::post('hardware-fulfilments/{fulfilment}/courier', [InventoryHardwareFulfilmentSerialController::class, 'storeCourier'])->name('hardware-fulfilments.courier.store');

@@ -535,7 +535,7 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ->assertSee('284931178067631')
             ->assertSee('Delhivery_Surface (15084)')
             ->assertSee('1568724940')
-            ->assertSee('Print Shipping Label')
+            ->assertSee('Download Label')
             ->assertSee('Package photo pending');
 
         $this->assertSame(1, HardwareFulfilment::query()->where('source_id', 'RDE318421')->count());

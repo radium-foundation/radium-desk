@@ -149,6 +149,16 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->assertRedirect();
 
         $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertDontSee('Download Label')
+            ->assertDontSee('Download Manifest');
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
+            ->assertNotFound();
+
+        $this->actingAs($this->admin)
             ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
             ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
@@ -166,6 +176,26 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         $shipment = Shipment::query()->firstOrFail();
         $this->assertNotNull($shipment->label_url);
         $this->assertSame(1, $this->fake->labels);
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('Download Label')
+            ->assertSee(route('inventory.hardware-fulfilments.label.download', $fulfilment), false)
+            ->assertDontSee($shipment->label_url, false);
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
+            ->assertRedirect($shipment->label_url);
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
+            ->assertRedirect($shipment->label_url);
+        $this->assertSame(1, $this->fake->labels);
+
+        $stranger = User::factory()->create(['is_active' => true]);
+        $this->actingAs($stranger)
+            ->get(route('inventory.hardware-fulfilments.label.download', $fulfilment->fresh()))
+            ->assertForbidden();
 
         $this->actingAs($this->admin)
             ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment->fresh()))
@@ -197,8 +227,29 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
             ->assertOk()
             ->assertSee('Download Manifest')
-            ->assertSee($freshShipment->manifest_url, false)
+            ->assertSee(route('inventory.hardware-fulfilments.manifest.download', $fulfilment), false)
+            ->assertDontSee($freshShipment->manifest_url, false)
             ->assertDontSee('Print Manifest');
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertSee('Download Label')
+            ->assertSee('Download Manifest')
+            ->assertSee('id="hardware-action-label-download"', false)
+            ->assertSee('id="hardware-action-manifest-download"', false);
+
+        $this->actingAs($this->admin)
+            ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
+            ->assertRedirect($freshShipment->manifest_url);
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
+            ->assertRedirect($freshShipment->manifest_url);
+        $this->assertSame(1, $this->fake->manifests);
+
+        $this->actingAs($stranger)
+            ->get(route('inventory.hardware-fulfilments.manifest.download', $fulfilment->fresh()))
+            ->assertForbidden();
 
         Http::assertNothingSent();
     }

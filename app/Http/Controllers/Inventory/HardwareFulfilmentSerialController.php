@@ -9,6 +9,7 @@ use App\Enums\HardwareOperationsSection;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\AllocateHardwareFulfilmentSerialsRequest;
 use App\Http\Requests\Inventory\AssignHardwareFulfilmentAwbRequest;
+use App\Http\Requests\Inventory\AttachHardwareFulfilmentMeasuredParcelRequest;
 use App\Http\Requests\Inventory\AttachHardwareFulfilmentParcelRequest;
 use App\Http\Requests\Inventory\CorrectHardwareFulfilmentShippingCountryRequest;
 use App\Http\Requests\Inventory\CreateHardwareFulfilmentShipmentRequest;
@@ -25,6 +26,7 @@ use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
 use App\Models\Incident;
 use App\Models\InventoryBranch;
+use App\Models\Shipment;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentStepper;
 use App\Services\HardwareFulfilment\HardwareAwaitingFulfilmentQueue;
@@ -453,6 +455,43 @@ class HardwareFulfilmentSerialController extends Controller
         return $this->mutationResponse($request, $fulfilment, 'Parcel snapshot attached.');
     }
 
+    public function storeMeasuredParcel(AttachHardwareFulfilmentMeasuredParcelRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $validated = $request->validated();
+        $this->snapshots->attachMeasured(
+            $fulfilment,
+            [
+                'length' => $validated['length'],
+                'breadth' => $validated['breadth'],
+                'height' => $validated['height'],
+                'weight' => $validated['weight'],
+            ],
+            $request->user(),
+            $request->boolean('save_for_future'),
+        );
+
+        return $this->mutationResponse($request, $fulfilment, 'Packed shipment dimensions saved.');
+    }
+
+    public function downloadLabel(Request $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $url = $this->persistedDocumentUrl($fulfilment, 'label_url');
+        abort_unless($url !== null, 404);
+
+        return redirect()->away($url);
+    }
+
+    public function downloadManifest(Request $request, HardwareFulfilment $fulfilment): RedirectResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $url = $this->persistedDocumentUrl($fulfilment, 'manifest_url');
+        abort_unless($url !== null, 404);
+
+        return redirect()->away($url);
+    }
+
     public function storeCountry(CorrectHardwareFulfilmentShippingCountryRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
@@ -634,5 +673,20 @@ class HardwareFulfilmentSerialController extends Controller
         }
 
         InventoryBranchScope::assertCanOperate($request->user(), $branch);
+    }
+
+    private function persistedDocumentUrl(HardwareFulfilment $fulfilment, string $column): ?string
+    {
+        $shipment = $fulfilment->shipment;
+        if ($shipment === null && $fulfilment->shipment_id !== null) {
+            $shipment = Shipment::query()->find($fulfilment->shipment_id);
+        }
+        if ($shipment === null) {
+            $shipment = Shipment::query()->where('hardware_fulfilment_id', $fulfilment->id)->first();
+        }
+
+        $url = trim((string) ($shipment?->{$column} ?? ''));
+
+        return $url !== '' ? $url : null;
     }
 }

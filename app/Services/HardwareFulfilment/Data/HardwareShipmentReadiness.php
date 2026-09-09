@@ -70,6 +70,9 @@ final class HardwareShipmentReadiness
         public readonly string $collectionModeLabel = 'Prepaid',
         public readonly ?string $providerRejection = null,
         public readonly ?string $pickupRequestedAt = null,
+        public readonly bool $canAttachMeasuredParcel = false,
+        public readonly ?string $volumetricWeight = null,
+        public readonly ?string $actualWeight = null,
     ) {}
 
     public function packagePhotoRecorded(): bool

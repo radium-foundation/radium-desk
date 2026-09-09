@@ -259,6 +259,10 @@ final class HardwareFulfilmentOperationalClassifier
      */
     private function shipmentPrepAction(HardwareShipmentReadiness $ready): array
     {
+        if ($ready->canAttachMeasuredParcel) {
+            return ['Enter Package Dimensions', 'hardware-parcel-measure'];
+        }
+
         if ($ready->canCreate) {
             return [$ready->actionLabel, 'hardware-shipment-create'];
         }

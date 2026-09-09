@@ -301,6 +301,181 @@ class HardwareFulfilmentParcelSnapshotTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_qty_one_catalog_snapshot_does_not_require_measured_entry(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE910009', parcel: null);
+        $this->verifyPack();
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertOk()
+            ->assertSee('Attach verified packaging')
+            ->assertDontSee('Package Dimensions — Complete Packed Shipment')
+            ->assertDontSee('Enter Package Dimensions');
+
+        $this->actingAs($this->operator)
+            ->post(route('inventory.hardware-fulfilments.parcel-measured.store', $fulfilment), [
+                'length' => 40,
+                'breadth' => 30,
+                'height' => 20,
+                'weight' => 2.5,
+            ])
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors('parcel');
+
+        $this->assertNull($fulfilment->fresh()->parcel_snapshot);
+        Http::assertNothingSent();
+    }
+
+    public function test_qty_greater_than_one_accepts_measured_parcel_without_touching_masters(): void
+    {
+        $other = $this->allocatedFulfilment('RDE910010', parcel: null, qty: 2);
+        $fulfilment = $this->invoicedFulfilment('RDE910011', parcel: null, qty: 2);
+        $pack = $this->verifyPack();
+        $packUpdated = $pack->updated_at?->toDateTimeString();
+        $commerceParcel = $fulfilment->commerceOrder?->parcel;
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertOk()
+            ->assertSee('Package Dimensions — Complete Packed Shipment')
+            ->assertSee('Enter the dimensions and weight of the complete packed shipment')
+            ->assertDontSee('Attach verified packaging');
+
+        $this->actingAs($this->operator)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.parcel-measured.store', $fulfilment), [
+                'length' => 40,
+                'breadth' => 30,
+                'height' => 20,
+                'weight' => 2.5,
+                'save_for_future' => '1',
+            ])
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHas('status', 'Packed shipment dimensions saved.');
+
+        $fresh = $fulfilment->fresh();
+        $this->assertSame($commerceParcel, $fresh->commerceOrder?->parcel);
+        $this->assertNull($other->fresh()->parcel_snapshot);
+        $this->assertSame((int) $fresh->id, (int) $fresh->parcel_snapshot['hardware_fulfilment_id']);
+        $this->assertSame(2, (int) $fresh->parcel_snapshot['quantity']);
+        $this->assertSame(2.5, (float) $fresh->parcel_snapshot['weight']);
+        $this->assertSame(40.0, (float) $fresh->parcel_snapshot['length']);
+        $this->assertSame(30.0, (float) $fresh->parcel_snapshot['breadth']);
+        $this->assertSame(20.0, (float) $fresh->parcel_snapshot['height']);
+        $this->assertSame(4.8, (float) $fresh->parcel_snapshot['volumetric_weight']);
+        $this->assertSame('measured_shipment_package', $fresh->parcel_snapshot['source']);
+        $this->assertTrue((bool) $fresh->parcel_snapshot['save_for_future_requested']);
+        $this->assertSame($this->operator->id, $fresh->parcel_snapshot['snapshotted_by_user_id']);
+        $this->assertSame(0.240, (float) $pack->fresh()->gross_weight);
+        $this->assertSame(14.0, (float) $pack->fresh()->length);
+        $this->assertSame($packUpdated, $pack->fresh()->updated_at?->toDateTimeString());
+        $this->assertSame(1, InventoryProductPackaging::query()->count());
+
+        $ready = app(HardwareShipmentEligibility::class)->inspect($fresh);
+        $this->assertSame('measured', $ready->parcelSource);
+        $this->assertFalse($ready->canAttachMeasuredParcel);
+        $this->assertSame('2.50 kg', $ready->actualWeight);
+        $this->assertSame('4.80 kg', $ready->volumetricWeight);
+        Http::assertNothingSent();
+    }
+
+    public function test_qty_greater_than_one_rejects_invalid_measured_dimensions_and_weight(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE910012', parcel: null, qty: 2);
+        $this->verifyPack();
+
+        $this->actingAs($this->operator)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.parcel-measured.store', $fulfilment), [
+                'length' => 0.5,
+                'breadth' => 30,
+                'height' => 20,
+                'weight' => 2.5,
+            ])
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors('length');
+
+        $this->actingAs($this->operator)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.parcel-measured.store', $fulfilment), [
+                'length' => 40,
+                'breadth' => 30,
+                'height' => 20,
+                'weight' => 0,
+            ])
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors('weight');
+
+        $this->assertNull($fulfilment->fresh()->parcel_snapshot);
+        $this->assertSame(0.240, (float) InventoryProductPackaging::query()->firstOrFail()->gross_weight);
+        Http::assertNothingSent();
+    }
+
+    public function test_qty_greater_than_one_create_uses_measured_parcel_and_is_then_immutable(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE910013', parcel: null, qty: 2);
+        $this->verifyPack();
+        $this->enableFakeShipping();
+
+        $this->actingAs($this->operator)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.courier-options.store', $fulfilment))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors('parcel');
+
+        $this->actingAs($this->operator)
+            ->post(route('inventory.hardware-fulfilments.shipment.store', $fulfilment))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors();
+
+        $this->assertSame(0, $this->fake->courierLists);
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertSame(0, Shipment::query()->count());
+
+        $this->actingAs($this->operator)
+            ->post(route('inventory.hardware-fulfilments.parcel-measured.store', $fulfilment), [
+                'length' => 40,
+                'breadth' => 30,
+                'height' => 20,
+                'weight' => 2.5,
+            ])
+            ->assertSessionHas('status', 'Packed shipment dimensions saved.');
+
+        $ready = $this->selectTestCourier($fulfilment->fresh(), $this->operator);
+        $shipment = app(HardwareShipmentService::class)->createShipment($ready, $this->operator);
+
+        $this->assertSame(1, $this->fake->creates);
+        $this->assertSame(2.5, (float) $this->fake->lastCreateRequest?->weight);
+        $this->assertSame(40.0, (float) $this->fake->lastCreateRequest?->length);
+        $this->assertSame(30.0, (float) $this->fake->lastCreateRequest?->breadth);
+        $this->assertSame(20.0, (float) $this->fake->lastCreateRequest?->height);
+        $this->assertSame(2.5, (float) $shipment->create_snapshot['parcel']['weight']);
+        $this->assertSame('measured', $shipment->create_snapshot['parcel_source']);
+        $this->assertSame(2, (int) ($this->fake->lastCreateRequest->items[0]['units'] ?? 0));
+        $this->assertSame('Prepaid', $this->fake->lastCreateRequest?->paymentMethod);
+        $this->assertSame(0.240, (float) InventoryProductPackaging::query()->firstOrFail()->gross_weight);
+        $this->assertNull($fulfilment->fresh()->commerceOrder?->parcel);
+
+        $first = $fulfilment->fresh()->parcel_snapshot;
+        $this->actingAs($this->operator)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.parcel-measured.store', $fulfilment->fresh()), [
+                'length' => 99,
+                'breadth' => 99,
+                'height' => 99,
+                'weight' => 9.9,
+            ])
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors('parcel');
+
+        $this->assertSame($first, $fulfilment->fresh()->parcel_snapshot);
+
+        app(HardwareShipmentService::class)->createShipment($fulfilment->fresh(), $this->operator);
+        $this->assertSame(1, $this->fake->creates);
+        Http::assertNothingSent();
+    }
+
     private function enableFakeShipping(): void
     {
         $this->app->instance(ShiprocketGateway::class, $this->fake);
@@ -333,9 +508,9 @@ class HardwareFulfilmentParcelSnapshotTest extends TestCase
         'length' => 20,
         'breadth' => 15,
         'height' => 10,
-    ]): HardwareFulfilment
+    ], int $qty = 1): HardwareFulfilment
     {
-        $fulfilment = $this->allocatedFulfilment($sourceId, parcel: $parcel);
+        $fulfilment = $this->allocatedFulfilment($sourceId, parcel: $parcel, qty: $qty);
         app(HardwareFulfilmentInvoiceService::class)->issueInvoice($fulfilment);
 
         return $fulfilment->fresh(['commerceOrder.items']) ?? $fulfilment;

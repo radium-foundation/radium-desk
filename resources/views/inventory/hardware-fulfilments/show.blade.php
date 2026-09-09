@@ -284,6 +284,13 @@
                 <dd>
                     @if($shipment->parcel)
                         {{ $shipment->parcel }}
+                        @if($shipment->actualWeight || $shipment->volumetricWeight)
+                            <div class="text-muted small">
+                                @if($shipment->actualWeight)Actual Weight: {{ $shipment->actualWeight }}@endif
+                                @if($shipment->actualWeight && $shipment->volumetricWeight) · @endif
+                                @if($shipment->volumetricWeight)Volumetric Weight: {{ $shipment->volumetricWeight }}@endif
+                            </div>
+                        @endif
                     @else
                         Not attached
                     @endif
@@ -321,6 +328,14 @@
                     </p>
                     <button type="submit" class="btn btn-outline-primary" id="hardware-parcel-snapshot-submit">Attach verified packaging</button>
                 </form>
+            @endif
+            @if($shipment->canAttachMeasuredParcel)
+                <div class="mt-3" id="hardware-parcel-measure">
+                    @include('inventory.hardware-fulfilments.fragments.action-measure-parcel', [
+                        'ajax' => false,
+                        'formId' => 'hardware-show-measured-parcel-form',
+                    ])
+                </div>
             @endif
         </div>
 
@@ -456,7 +471,7 @@
             @endif
             @if($shipment->labelUrl)
                 <p class="mt-3 mb-0">
-                    <a href="{{ $shipment->labelUrl }}" target="_blank" rel="noopener" id="hardware-label-print">Print Shipping Label</a>
+                    <a href="{{ route('inventory.hardware-fulfilments.label.download', $fulfilment) }}" id="hardware-label-download">Download Label</a>
                 </p>
             @endif
         </div>
@@ -531,7 +546,7 @@
             @endif
             @if($shipment->manifestUrl)
                 <p class="mt-3 mb-0">
-                    <a href="{{ $shipment->manifestUrl }}" target="_blank" rel="noopener" id="hardware-manifest-download">Download Manifest</a>
+                    <a href="{{ route('inventory.hardware-fulfilments.manifest.download', $fulfilment) }}" id="hardware-manifest-download">Download Manifest</a>
                 </p>
             @endif
             @if($shipment->canMarkReadyForPickup)

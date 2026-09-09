@@ -3,6 +3,7 @@
     $subtitles = [
         'Allocate Serial' => 'Assign the verified physical device to this order.',
         'Issue Invoice' => 'Issue the hardware GST invoice for this one order.',
+        'Enter Package Dimensions' => 'Measure the complete packed shipment, then save before courier options.',
         'Get Courier Options' => 'Prepare shipment details, then fetch returned courier options.',
         'Select Courier' => 'Choose one courier returned by Shiprocket.',
         'Create Shipment' => 'Create the provider shipment for this prepared order.',
@@ -16,6 +17,7 @@
     $icons = [
         'Allocate Serial' => '🔢',
         'Issue Invoice' => '🧾',
+        'Enter Package Dimensions' => '📦',
         'Get Courier Options' => '🚚',
         'Select Courier' => '🚚',
         'Create Shipment' => '🚚',
@@ -93,10 +95,19 @@
             </x-slot:sidebar>
 
             <div class="c360-dialog-step">
+                @include('inventory.hardware-fulfilments.fragments.document-downloads', [
+                    'fulfilment' => $fulfilment,
+                    'ready' => $ready,
+                    'wrapperClass' => 'mb-3',
+                    'labelId' => 'hardware-action-label-download',
+                    'manifestId' => 'hardware-action-manifest-download',
+                ])
                 @if($action === 'Allocate Serial')
                     @include('inventory.hardware-fulfilments.fragments.action-allocate-serial')
                 @elseif($action === 'Issue Invoice')
                     @include('inventory.hardware-fulfilments.fragments.action-issue-invoice')
+                @elseif($action === 'Enter Package Dimensions')
+                    @include('inventory.hardware-fulfilments.fragments.action-measure-parcel')
                 @elseif(in_array($action, $shipmentActions, true))
                     @include('inventory.hardware-fulfilments.fragments.action-start-shipment', [
                         'showUrl' => $showUrl ?? null,

@@ -12,6 +12,10 @@ use Illuminate\Validation\ValidationException;
 
 class HardwareFulfilmentParcelSnapshotService
 {
+    public const SOURCE_CATALOG = 'inventory_product_packaging';
+
+    public const SOURCE_MEASURED = 'measured_shipment_package';
+
     /**
      * @return array<string, mixed>
      */
@@ -60,6 +64,178 @@ class HardwareFulfilmentParcelSnapshotService
     {
         return $this->validSnapshot($fulfilment) === null
             && $this->ineligibleReason($fulfilment) === null;
+    }
+
+    public function canAttachMeasured(HardwareFulfilment $fulfilment): bool
+    {
+        return $this->measuredIneligibleReason($fulfilment) === null;
+    }
+
+    public function requiresMeasuredParcel(HardwareFulfilment $fulfilment): bool
+    {
+        $fulfilment->loadMissing('commerceOrder.items');
+        $order = $fulfilment->commerceOrder;
+        if ($order === null) {
+            return false;
+        }
+
+        return $this->physicalQty($order) > 1
+            && $this->completeIngestParcel(is_array($order->parcel) ? $order->parcel : null) === null;
+    }
+
+    /**
+     * Persist an operator-measured outer carton for qty > 1.
+     * Does not write commerce_orders.parcel or inventory_product_packaging.
+     *
+     * @param  array{length: float|int|string, breadth: float|int|string, height: float|int|string, weight: float|int|string}  $measures
+     * @return array<string, mixed>
+     */
+    public function attachMeasured(
+        HardwareFulfilment $fulfilment,
+        array $measures,
+        ?User $actor = null,
+        bool $saveForFutureRequested = false,
+    ): array {
+        $reason = $this->measuredIneligibleReason($fulfilment, allowReplace: true);
+        if ($reason !== null) {
+            throw ValidationException::withMessages([
+                'parcel' => $reason,
+            ]);
+        }
+
+        if ($this->boundShipment($fulfilment) !== null) {
+            $existing = $this->validSnapshot($fulfilment);
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            throw ValidationException::withMessages([
+                'parcel' => 'A bound shipment already exists. The parcel snapshot cannot be changed.',
+            ]);
+        }
+
+        $length = $this->positiveNumber($measures['length'] ?? null);
+        $breadth = $this->positiveNumber($measures['breadth'] ?? null);
+        $height = $this->positiveNumber($measures['height'] ?? null);
+        $weight = $this->positiveNumber($measures['weight'] ?? null);
+        if ($length === null || $breadth === null || $height === null || $weight === null) {
+            throw ValidationException::withMessages([
+                'parcel' => 'Complete packed shipment length, breadth, height, and weight are required.',
+            ]);
+        }
+
+        if ($length <= 0.5 || $breadth <= 0.5 || $height <= 0.5) {
+            throw ValidationException::withMessages([
+                'parcel' => 'Packed shipment dimensions must be greater than 0.50 cm.',
+            ]);
+        }
+
+        if ($length > HardwareShipmentVolumetricWeight::MAX_DIMENSION_CM
+            || $breadth > HardwareShipmentVolumetricWeight::MAX_DIMENSION_CM
+            || $height > HardwareShipmentVolumetricWeight::MAX_DIMENSION_CM) {
+            throw ValidationException::withMessages([
+                'parcel' => 'Packed shipment dimensions exceed the allowed maximum.',
+            ]);
+        }
+
+        if ($weight > HardwareShipmentVolumetricWeight::MAX_WEIGHT_KG) {
+            throw ValidationException::withMessages([
+                'parcel' => 'Packed shipment weight exceeds the allowed maximum.',
+            ]);
+        }
+
+        $fulfilment->loadMissing(['commerceOrder.items', 'serials.inventorySerial']);
+        $product = $this->singleAllocatedProduct($fulfilment);
+        $snapshot = [
+            'hardware_fulfilment_id' => (int) $fulfilment->id,
+            'weight' => $weight,
+            'length' => $length,
+            'breadth' => $breadth,
+            'height' => $height,
+            'weight_unit' => 'kg',
+            'dimension_unit' => 'cm',
+            'volumetric_weight' => HardwareShipmentVolumetricWeight::kilograms($length, $breadth, $height),
+            'quantity' => $this->physicalQty($fulfilment->commerceOrder),
+            'source' => self::SOURCE_MEASURED,
+            'inventory_product_id' => $product?->id,
+            'packaging_id' => null,
+            'save_for_future_requested' => $saveForFutureRequested,
+            'snapshotted_at' => now()->toIso8601String(),
+            'snapshotted_by_user_id' => $actor?->id,
+        ];
+
+        $fulfilment->forceFill([
+            'parcel_snapshot' => $snapshot,
+            'courier_options_snapshot' => null,
+            'courier_options_fingerprint' => null,
+            'courier_options_fetched_at' => null,
+            'courier_options_expires_at' => null,
+            'selected_courier_id' => null,
+            'selected_courier_name' => null,
+            'selected_courier_at' => null,
+            'selected_courier_by_user_id' => null,
+        ])->save();
+
+        return $snapshot;
+    }
+
+    public function snapshotSource(HardwareFulfilment $fulfilment): ?string
+    {
+        $snapshot = $fulfilment->parcel_snapshot;
+        if (! is_array($snapshot)) {
+            return null;
+        }
+
+        $source = trim((string) ($snapshot['source'] ?? ''));
+
+        return $source !== '' ? $source : null;
+    }
+
+    public function measuredIneligibleReason(HardwareFulfilment $fulfilment, bool $allowReplace = false): ?string
+    {
+        $fulfilment->loadMissing([
+            'commerceOrder.items',
+            'serials.inventorySerial',
+            'shipment',
+        ]);
+
+        if (HardwareFulfilmentEligibility::isFrozenSourceId((string) $fulfilment->source_id)) {
+            return 'Frozen pending hardware orders cannot receive a parcel snapshot.';
+        }
+
+        if ($this->boundShipment($fulfilment) !== null) {
+            return 'A bound shipment already exists. The parcel snapshot cannot be changed.';
+        }
+
+        $order = $fulfilment->commerceOrder;
+        if ($order === null) {
+            return 'Hardware fulfilment is missing its commerce order.';
+        }
+
+        if ($this->completeIngestParcel($order->parcel) !== null) {
+            return 'An ingest parcel is already persisted. Measured packaging is not copied.';
+        }
+
+        $physicalQty = $this->physicalQty($order);
+        if ($physicalQty <= 1) {
+            return 'Measured shipment packaging is only used when quantity is greater than 1.';
+        }
+
+        $productIds = $this->allocatedProductIds($fulfilment);
+        if ($productIds === []) {
+            return 'Serial allocation required';
+        }
+
+        $existing = $this->validSnapshot($fulfilment);
+        if ($existing !== null && ! $allowReplace) {
+            return 'A parcel snapshot is already attached.';
+        }
+
+        if ($existing !== null && $this->snapshotSource($fulfilment) === self::SOURCE_CATALOG) {
+            return 'A catalog parcel snapshot is already attached.';
+        }
+
+        return null;
     }
 
     /**
@@ -219,7 +395,7 @@ class HardwareFulfilmentParcelSnapshotService
             'height' => (float) $pack->height,
             'weight_unit' => 'kg',
             'dimension_unit' => 'cm',
-            'source' => 'inventory_product_packaging',
+            'source' => self::SOURCE_CATALOG,
             'inventory_product_id' => $product->id,
             'packaging_id' => $pack->id,
             'verified_at' => optional($pack->verified_at)?->toIso8601String(),

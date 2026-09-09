@@ -82,6 +82,15 @@
             @if($hardwareFulfilment['showUrl'] ?? null)
                 <a class="btn btn-sm btn-outline-secondary" href="{{ $hardwareFulfilment['showUrl'] }}">Open Fulfilment</a>
             @endif
+            @if($canOperate && $ready && $row->fulfilmentId)
+                @include('inventory.hardware-fulfilments.fragments.document-downloads', [
+                    'fulfilment' => $row->fulfilmentId,
+                    'ready' => $ready,
+                    'wrapperClass' => 'mb-0',
+                    'labelId' => 'c360-hardware-label-download',
+                    'manifestId' => 'c360-hardware-manifest-download',
+                ])
+            @endif
         </div>
         @if($activity = ($hardwareFulfilment['activity'] ?? []))
             <ul class="list-unstyled small text-muted mb-0 mt-3">

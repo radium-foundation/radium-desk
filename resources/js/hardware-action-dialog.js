@@ -309,11 +309,65 @@ let activeSerialPickers = [];
 
 export const bindHardwareActionForms = (root) => {
     bindSerialPickers(root);
+    bindMeasuredParcelForms(root);
     root.querySelectorAll('[data-hardware-action-form]').forEach((form) => {
         form.addEventListener('submit', (event) => {
             event.preventDefault();
             void submitForm(form);
         });
+    });
+};
+
+export const bindMeasuredParcelForms = (root) => {
+    root.querySelectorAll('[data-hardware-measured-parcel]').forEach((form) => {
+        if (form.dataset.hardwareMeasuredBound === '1') {
+            return;
+        }
+        form.dataset.hardwareMeasuredBound = '1';
+        const onChange = () => updateMeasuredParcelState(form);
+        form.querySelectorAll('input[type="number"]').forEach((input) => {
+            input.addEventListener('input', onChange);
+            input.addEventListener('change', onChange);
+        });
+        onChange();
+    });
+};
+
+const measuredNumber = (form, selector) => {
+    const raw = form.querySelector(selector)?.value ?? '';
+    if (raw === '' || Number.isNaN(Number(raw))) {
+        return null;
+    }
+
+    return Number(raw);
+};
+
+const updateMeasuredParcelState = (form) => {
+    const divisor = Number(form.dataset.volumetricDivisor || '5000');
+    const maxDim = Number(form.dataset.maxDimension || '200');
+    const maxWeight = Number(form.dataset.maxWeight || '99.999');
+    const length = measuredNumber(form, '[data-hardware-measured-length]');
+    const breadth = measuredNumber(form, '[data-hardware-measured-breadth]');
+    const height = measuredNumber(form, '[data-hardware-measured-height]');
+    const weight = measuredNumber(form, '[data-hardware-measured-weight]');
+    const dimsOk = [length, breadth, height].every((value) => value !== null && value > 0.5 && value <= maxDim);
+    const weightOk = weight !== null && weight > 0 && weight <= maxWeight;
+    const actual = form.querySelector('[data-hardware-measured-actual-display]');
+    const volumetric = form.querySelector('[data-hardware-measured-volumetric-display]');
+    if (actual) {
+        actual.textContent = weightOk ? `${weight.toFixed(2)} kg` : '—';
+    }
+    if (volumetric) {
+        volumetric.textContent = dimsOk
+            ? `${((length * breadth * height) / divisor).toFixed(2)} kg`
+            : '—';
+    }
+    form.querySelectorAll('[data-hardware-measured-submit]').forEach((submit) => {
+        if (dimsOk && weightOk) {
+            submit.removeAttribute('disabled');
+        } else {
+            submit.setAttribute('disabled', 'disabled');
+        }
     });
 };
 
@@ -402,6 +456,14 @@ const submitForm = async (form) => {
         }
     }
 
+    if (form.hasAttribute('data-hardware-measured-parcel')) {
+        updateMeasuredParcelState(form);
+        const measuredSubmit = form.querySelector('[data-hardware-measured-submit]');
+        if (measuredSubmit?.hasAttribute('disabled')) {
+            return;
+        }
+    }
+
     form.dataset.hardwareSubmitting = '1';
     submit?.setAttribute('disabled', 'disabled');
     if (isSerialForm && submit) {
@@ -444,6 +506,8 @@ const submitForm = async (form) => {
                     submit.textContent = idle;
                 }
             }
+        } else if (form.hasAttribute('data-hardware-measured-parcel')) {
+            updateMeasuredParcelState(form);
         } else {
             submit?.removeAttribute('disabled');
         }
@@ -473,6 +537,7 @@ export const openDialog = async (url) => {
 
 export const initHardwareActionDialog = (options = {}) => {
     showToast = options.showToast ?? showToast;
+    bindMeasuredParcelForms(document);
 
     document.addEventListener('click', (event) => {
         const trigger = event.target.closest('[data-hardware-action-dialog]');
