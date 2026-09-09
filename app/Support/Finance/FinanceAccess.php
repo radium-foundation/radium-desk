@@ -8,8 +8,8 @@ use Database\Seeders\RolePermissionSeeder;
 /**
  * Gate helpers for the Finance module hub and workspace tabs.
  *
- * Phase 1 is view-only placeholders. Keep checks on Spatie permissions so
- * create/review/post can layer on later without changing nav structure.
+ * Keep checks on Spatie permissions so later create/review/post workflows
+ * can layer on without changing the Finance nav structure.
  */
 final class FinanceAccess
 {
@@ -49,5 +49,20 @@ final class FinanceAccess
 
         return $user->can(RolePermissionSeeder::PERMISSION_FINANCE_REPORTS_EXPORT)
             || $user->can(RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE);
+    }
+
+    public static function allowsParties(?User $user): bool
+    {
+        return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_PARTIES_VIEW);
+    }
+
+    public static function allowsPartyManage(?User $user): bool
+    {
+        return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_PARTIES_MANAGE);
+    }
+
+    public static function allowsPartyBank(?User $user): bool
+    {
+        return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_PARTIES_BANK_VIEW);
     }
 }

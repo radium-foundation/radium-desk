@@ -96,6 +96,15 @@
             'finance-expense-created' => 'Expense draft saved successfully.',
             'finance-expense-updated' => 'Expense draft updated successfully.',
             'finance-expense-posted' => 'Expense posted successfully. It can no longer be edited.',
+            'finance-party-created' => 'Party saved successfully.',
+            'finance-party-updated' => 'Party updated successfully.',
+            'finance-party-deactivated' => 'Party deactivated.',
+            'finance-party-activated' => 'Party activated.',
+            'finance-party-address-saved' => 'Address saved.',
+            'finance-party-contact-saved' => 'Contact saved.',
+            'finance-party-gst-saved' => 'GST registration saved.',
+            'finance-party-terms-saved' => 'Commercial terms saved.',
+            'finance-party-bank-saved' => 'Vendor bank account saved.',
             default => session('status'),
         };
     @endphp

@@ -15,6 +15,7 @@ class FinanceFoundationAccessTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
     }
 
@@ -58,5 +59,19 @@ class FinanceFoundationAccessTest extends TestCase
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_DASHBOARD_VIEW));
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_PAYMENTS_VIEW));
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_SETTINGS_VIEW));
+        $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_PARTIES_VIEW));
+        $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_PARTIES_MANAGE));
+        $this->assertFalse($user->can(RolePermissionSeeder::PERMISSION_FINANCE_PARTIES_BANK_VIEW));
+    }
+
+    public function test_admin_can_open_party_master(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($user)
+            ->get(route('finance.parties.index'))
+            ->assertOk()
+            ->assertSee('Parties');
     }
 }

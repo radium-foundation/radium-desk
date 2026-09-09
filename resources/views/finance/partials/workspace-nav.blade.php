@@ -44,6 +44,11 @@
             'url' => route('finance.vendor-payments.index'),
             'visible' => FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_VENDOR_PAYMENTS_VIEW),
         ],
+        'parties' => [
+            'label' => 'Parties',
+            'url' => route('finance.parties.index'),
+            'visible' => FinanceAccess::allowsParties($user),
+        ],
         'invoices' => [
             'label' => 'Statutory invoices',
             'url' => route('finance.invoices.index'),

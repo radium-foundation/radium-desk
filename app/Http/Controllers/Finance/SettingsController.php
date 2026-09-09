@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Enums\FinanceAccountType;
+use App\Enums\FinanceJournalSourceType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Finance\StoreFinanceAccountRequest;
 use App\Http\Requests\Finance\StoreOpeningBalanceRequest;
 use App\Http\Requests\Finance\UpdateFinancePreferencesRequest;
 use App\Models\FinanceAccount;
-use App\Models\FinanceCashAccount;
 use App\Models\FinanceBankAccount;
+use App\Models\FinanceCashAccount;
 use App\Models\FinanceExpenseCategory;
 use App\Models\FinanceJournal;
 use App\Models\FinancePaymentMethod;
@@ -74,9 +75,9 @@ class SettingsController extends Controller
         ]);
     }
 
-    public function vendorMaster(): View
+    public function vendorMaster(): RedirectResponse
     {
-        return view('finance.settings.vendor-master');
+        return redirect()->route('finance.parties.index', ['role' => 'vendor']);
     }
 
     public function chartOfAccounts(): View
@@ -196,7 +197,7 @@ class SettingsController extends Controller
 
         return view('finance.settings.journals', [
             'journals' => $journals,
-            'sourceTypes' => \App\Enums\FinanceJournalSourceType::cases(),
+            'sourceTypes' => FinanceJournalSourceType::cases(),
             'selectedSourceType' => $request->string('source_type')->toString() ?: null,
         ]);
     }

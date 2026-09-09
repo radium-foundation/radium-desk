@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Finance Party master: one legal entity can be a customer, a vendor, or both, with shared addresses, contacts, and GST registrations. Vendor bank details are permission-gated. POS till customers and issued invoices are unchanged.
+
 ## 4.0.67 — 2026-09-04 — POS UPI intent and bank verification
 
 - UPI on the POS counter creates a persisted unpaid payment intent and a local `upi://pay` QR. The QR is an instruction only and is never treated as payment confirmation.
