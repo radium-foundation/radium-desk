@@ -269,5 +269,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-110 | 2026-09-09 | Upgrade Hardware Allocate Serial popup for multi-unit / multi-line | Client-side picker + action-dialog HTML only. Existing `allocate()` payload unchanged. No schema, mint, ship, or production allocate. Report: `docs/desk-hardware-allocate-serial-popup-p-07-09-110.md`. |
 | RadiumDesk-P-07-09-111 | 2026-09-09 | Release multi-unit Allocate Serial popup to production | Commit/push P-07-09-110 UI + Vite named-file overlay. No migrate. No production allocate. Report: `docs/desk-hardware-allocate-serial-popup-deploy-p-07-09-111.md`. |
 | RadiumDesk-P-07-09-112 | 2026-09-09 | Split-tender ingest uniqueness + contract tests for RDE318437 | Companion to `radiumbox.com-P-08-09-30`. Duplicate Cashfree tender references rejected. Missing amount / invalid type rejected. Existing optional `tenders` cashfree+wallet contract preserved. **Did not ingest, rebuild, or deliver RDE318437.** |
+| RadiumDesk-P-07-09-115 | 2026-09-09 | Fix Dashboard Issue Invoice for RDE318434-class orders | JSON ValidationException for hardware fulfilment POSTs; derive reconciling GST rate when Box omits gst_percentage. No parcel/Shiprocket. Report: `docs/desk-rde318434-issue-invoice-fix-p-07-09-115.md`. |
 
 Do not renumber or overwrite earlier rows. Append only.

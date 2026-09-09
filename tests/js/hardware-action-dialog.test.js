@@ -261,3 +261,115 @@ describe('hardware allocate serial popup', () => {
         expect(document.querySelector('[data-hardware-action-submit]').disabled).toBe(false);
     });
 });
+
+const mountInvoiceForm = () => {
+    const showToast = vi.fn();
+    document.body.innerHTML = `
+        <div data-workspace-modal-host></div>
+        <div data-hardware-action-dialog-root>
+            <div class="c360-dialog-body"></div>
+            <form data-hardware-action-form id="hardware-action-invoice-form" action="/invoice">
+                <button type="submit" data-hardware-action-submit>Issue Invoice</button>
+            </form>
+        </div>
+    `;
+    bindHardwareActionForms(document);
+    return showToast;
+};
+
+describe('hardware issue invoice popup', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        document.body.innerHTML = '';
+        window.bootstrap = {
+            Modal: {
+                getOrCreateInstance: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
+            },
+        };
+    });
+
+    it('surfaces a JSON validation failure and keeps the modal open', async () => {
+        mountInvoiceForm();
+        workspaceFetch.mockResolvedValueOnce({
+            ok: false,
+            json: async () => ({
+                message: 'GST rate is missing or invalid.',
+                errors: { gst: ['GST rate is missing or invalid.'] },
+            }),
+        });
+
+        document.querySelector('#hardware-action-invoice-form')
+            .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-hardware-action-error]')?.textContent)
+                .toBe('GST rate is missing or invalid.');
+        });
+        expect(window.bootstrap.Modal.getOrCreateInstance).not.toHaveBeenCalled();
+        expect(document.querySelector('[data-hardware-action-submit]').disabled).toBe(false);
+    });
+
+    it('does not treat an HTML 200 redirect as a successful invoice', async () => {
+        mountInvoiceForm();
+        workspaceFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => {
+                throw new Error('Unexpected HTML');
+            },
+        });
+
+        document.querySelector('#hardware-action-invoice-form')
+            .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-hardware-action-error]')?.textContent)
+                .toBe('This hardware action could not be completed.');
+        });
+        expect(window.bootstrap.Modal.getOrCreateInstance).not.toHaveBeenCalled();
+    });
+
+    it('closes the modal when the invoice JSON contract succeeds', async () => {
+        mountInvoiceForm();
+        workspaceFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                ok: true,
+                status: 'Hardware invoice INV-67299 issued.',
+                next_action: 'Get Courier Options',
+                mutating: true,
+                action_dialog_url: null,
+            }),
+        });
+
+        document.querySelector('#hardware-action-invoice-form')
+            .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        await vi.waitFor(() => {
+            expect(window.bootstrap.Modal.getOrCreateInstance).toHaveBeenCalled();
+        });
+        expect(document.querySelector('[data-hardware-action-error]')).toBeNull();
+    });
+
+    it('ignores a repeated click while the invoice request is in flight', async () => {
+        mountInvoiceForm();
+        let resolvePost;
+        workspaceFetch.mockImplementationOnce(() => new Promise((resolve) => {
+            resolvePost = resolve;
+        }));
+
+        const form = document.querySelector('#hardware-action-invoice-form');
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+        expect(workspaceFetch).toHaveBeenCalledTimes(1);
+
+        resolvePost({
+            ok: true,
+            json: async () => ({ ok: true, status: 'Hardware invoice INV-1 issued.' }),
+        });
+
+        await vi.waitFor(() => {
+            expect(window.bootstrap.Modal.getOrCreateInstance).toHaveBeenCalled();
+        });
+    });
+});

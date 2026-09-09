@@ -149,9 +149,103 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
         $this->assertSame(0, StatutoryInvoice::query()->count());
     }
 
-    private function prepareIssuable(string $sourceId): HardwareFulfilment
+    public function test_dashboard_json_post_issues_invoice_once_and_is_idempotent(): void
     {
-        $fulfilment = $this->ingestHardware($sourceId);
+        $fulfilment = $this->prepareIssuable('RDE901805');
+        $other = $this->prepareIssuable('RDE901806');
+
+        $first = $this->actingAs($this->operator)
+            ->withHeaders($this->dashboardAjaxHeaders())
+            ->post(route('inventory.hardware-fulfilments.invoice.store', $fulfilment));
+
+        $first->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('status', 'Hardware invoice '.StatutoryInvoice::query()->value('invoice_number').' issued.');
+
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $number = StatutoryInvoice::query()->value('invoice_number');
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
+        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $other->fresh()->state);
+        $this->assertNull($other->fresh()->statutory_invoice_id);
+
+        $this->actingAs($this->operator)
+            ->withHeaders($this->dashboardAjaxHeaders())
+            ->post(route('inventory.hardware-fulfilments.invoice.store', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame($number, StatutoryInvoice::query()->value('invoice_number'));
+        $this->assertNull($other->fresh()->statutory_invoice_id);
+    }
+
+    public function test_dashboard_json_validation_failure_is_json_not_a_silent_redirect(): void
+    {
+        $fulfilment = $this->ingestHardware('RDE901807');
+        $this->assignBranch($fulfilment, 'DELHI-RETAIL');
+        $this->workflow->transition($fulfilment, HardwareFulfilmentState::ReadyForFulfilment);
+
+        $this->actingAs($this->operator)
+            ->withHeaders($this->dashboardAjaxHeaders())
+            ->from(route('dashboard'))
+            ->post(route('inventory.hardware-fulfilments.invoice.store', $fulfilment))
+            ->assertUnprocessable()
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertJsonFragment(['Hardware invoice issuance requires SERIALS_ALLOCATED. READY_FOR_FULFILMENT cannot skip serials.']);
+
+        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->fresh()->state);
+    }
+
+    public function test_dashboard_json_post_issues_when_gst_rate_is_absent_but_amounts_reconcile(): void
+    {
+        $fulfilment = $this->prepareIssuable('RDE901808', includeGstRate: false);
+
+        $this->assertNull($fulfilment->commerceOrder?->items->first()?->gst_percentage);
+
+        $this->actingAs($this->operator)
+            ->withHeaders($this->dashboardAjaxHeaders())
+            ->post(route('inventory.hardware-fulfilments.invoice.store', $fulfilment))
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $invoice = StatutoryInvoice::query()->with('items')->first();
+        $this->assertNotNull($invoice);
+        $this->assertSame('18.00', (string) $invoice->items->first()?->gst_percentage);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+    }
+
+    public function test_dashboard_json_rejects_unreconciled_gst_amounts(): void
+    {
+        $fulfilment = $this->prepareIssuable('RDE901809', includeGstRate: false);
+        $item = $fulfilment->commerceOrder?->items->first();
+        $item?->forceFill(['tax_total' => 50])->save();
+
+        $this->actingAs($this->operator)
+            ->withHeaders($this->dashboardAjaxHeaders())
+            ->post(route('inventory.hardware-fulfilments.invoice.store', $fulfilment->fresh(['commerceOrder.items'])))
+            ->assertUnprocessable()
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertJsonFragment(['GST amount does not match taxable value × rate.']);
+
+        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function dashboardAjaxHeaders(): array
+    {
+        return [
+            'Accept' => 'application/json',
+            'X-Requested-With' => 'XMLHttpRequest',
+        ];
+    }
+
+    private function prepareIssuable(string $sourceId, bool $includeGstRate = true): HardwareFulfilment
+    {
+        $fulfilment = $this->ingestHardware($sourceId, $includeGstRate);
         $this->assignBranch($fulfilment, 'DELHI-RETAIL');
         $this->workflow->transition($fulfilment, HardwareFulfilmentState::ReadyForFulfilment);
         $this->workflow->transition($fulfilment->fresh(), HardwareFulfilmentState::SerialsAllocated);
@@ -182,8 +276,25 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
         $fulfilment->forceFill(['fulfilment_branch_id' => $branch->id])->save();
     }
 
-    private function ingestHardware(string $sourceId): HardwareFulfilment
+    private function ingestHardware(string $sourceId, bool $includeGstRate = true): HardwareFulfilment
     {
+        $line = [
+            'description' => 'MSO1300',
+            'sku' => '951',
+            'qty' => 1,
+            'unit_price' => 3049,
+            'hsn_sac' => '84716050',
+            'taxable_value' => 2583.90,
+            'tax_total' => 465.10,
+            'line_total' => 3049,
+            'shipping_line_kind' => 'physical_merchandise',
+            'requires_shipping' => true,
+            'model_id' => 951,
+        ];
+        if ($includeGstRate) {
+            $line['gst_percentage'] = 18;
+        }
+
         $payload = [
             'channel' => StatutoryInvoiceChannel::RadiumBoxCom->value,
             'source_type' => 'commerce_order',
@@ -199,20 +310,7 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
             ],
             'seller_gstin' => '07AAICP1128M1Z9',
             'place_of_supply_state' => 'Madhya Pradesh',
-            'lines' => [[
-                'description' => 'MSO1300',
-                'sku' => '951',
-                'qty' => 1,
-                'unit_price' => 3049,
-                'hsn_sac' => '84716050',
-                'gst_percentage' => 18,
-                'taxable_value' => 2583.90,
-                'tax_total' => 465.10,
-                'line_total' => 3049,
-                'shipping_line_kind' => 'physical_merchandise',
-                'requires_shipping' => true,
-                'model_id' => 951,
-            ]],
+            'lines' => [$line],
         ];
 
         $body = json_encode($payload, JSON_THROW_ON_ERROR);

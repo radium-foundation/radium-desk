@@ -13,6 +13,8 @@ export const SERIAL_ALLOCATE_MESSAGES = {
 const modalHost = () => document.querySelector('[data-workspace-modal-host]');
 const modalContent = () => document.querySelector('[data-workspace-modal-content]');
 
+const ACTION_FAILURE_MESSAGE = 'This hardware action could not be completed.';
+
 const showError = (root, message) => {
     if (!root) {
         return;
@@ -25,11 +27,17 @@ const showError = (root, message) => {
         alert.setAttribute('data-hardware-action-error', 'true');
         alert.setAttribute('role', 'alert');
         const body = root.querySelector('.c360-dialog-body');
-        body?.prepend(alert);
+        (body ?? root).prepend(alert);
     }
 
     alert.textContent = message;
 };
+
+const actionErrorMessage = (payload) => (
+    payload?.message
+    ?? payload?.errors?.[Object.keys(payload?.errors ?? {})[0]]?.[0]
+    ?? ACTION_FAILURE_MESSAGE
+);
 
 const escapeHtml = (value) => String(value)
     .replace(/&/g, '&amp;')
@@ -340,11 +348,12 @@ export const bindSerialPickers = (root) => {
 
 const closeModal = () => {
     const host = modalHost();
-    if (!host || !window.bootstrap) {
+    const Modal = window.bootstrap?.Modal ?? bootstrap.Modal;
+    if (!host || !Modal?.getOrCreateInstance) {
         return;
     }
 
-    bootstrap.Modal.getOrCreateInstance(host).hide();
+    Modal.getOrCreateInstance(host).hide();
 };
 
 let showToast = () => {};
@@ -376,11 +385,11 @@ const submitForm = async (form) => {
     const submit = form.querySelector('[data-hardware-action-submit]');
     const isSerialForm = form.id === 'hardware-action-serial-form';
 
-    if (isSerialForm) {
-        if (form.dataset.hardwareSubmitting === '1') {
-            return;
-        }
+    if (form.dataset.hardwareSubmitting === '1') {
+        return;
+    }
 
+    if (isSerialForm) {
         const host = form.querySelector('[data-hardware-serial-allocate]') ?? form;
         const pickers = activeSerialPickers;
         if (Array.isArray(pickers) && pickers.length) {
@@ -391,14 +400,12 @@ const submitForm = async (form) => {
                 return;
             }
         }
+    }
 
-        form.dataset.hardwareSubmitting = '1';
-        submit?.setAttribute('disabled', 'disabled');
-        if (submit) {
-            submit.textContent = 'Allocating…';
-        }
-    } else {
-        submit?.setAttribute('disabled', 'disabled');
+    form.dataset.hardwareSubmitting = '1';
+    submit?.setAttribute('disabled', 'disabled');
+    if (isSerialForm && submit) {
+        submit.textContent = 'Allocating…';
     }
 
     try {
@@ -412,10 +419,8 @@ const submitForm = async (form) => {
             body,
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            const message = payload.message
-                ?? payload.errors?.[Object.keys(payload.errors ?? {})[0]]?.[0]
-                ?? 'This hardware action could not be completed.';
+        if (!response.ok || payload.ok !== true) {
+            const message = actionErrorMessage(payload);
             showError(root, message);
             if (isSerialForm) {
                 setFormError(form, message);
@@ -425,10 +430,10 @@ const submitForm = async (form) => {
 
         handleSuccess(payload);
     } catch (error) {
-        showError(root, error?.message ?? 'This hardware action could not be completed.');
+        showError(root, error?.message ?? ACTION_FAILURE_MESSAGE);
     } finally {
+        form.dataset.hardwareSubmitting = '';
         if (isSerialForm) {
-            form.dataset.hardwareSubmitting = '';
             const pickers = activeSerialPickers;
             if (Array.isArray(pickers)) {
                 updateAllocateState(form, pickers);

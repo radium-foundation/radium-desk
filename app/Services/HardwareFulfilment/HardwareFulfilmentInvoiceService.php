@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
+use App\Services\StatutoryInvoice\GstSplitService;
 use App\Services\StatutoryInvoice\StatutoryDocumentService;
 use App\Services\StatutoryInvoice\StatutoryFinancialYear;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
@@ -242,7 +243,7 @@ class HardwareFulfilmentInvoiceService
                 description: $description,
                 qty: (int) $item->qty,
                 unitPrice: (float) $item->unit_price,
-                gstPercentage: (float) $item->gst_percentage,
+                gstPercentage: $this->requireGstPercentage($item),
                 taxTotal: (float) $item->tax_total,
                 lineTotal: (float) $item->line_total,
                 taxableValue: (float) $item->taxable_value,
@@ -283,6 +284,36 @@ class HardwareFulfilmentInvoiceService
                 ? StatutoryFinancialYear::containing($commercialDate)->token()
                 : null,
         );
+    }
+
+    private function requireGstPercentage(CommerceOrderItem $item): float
+    {
+        if ($item->gst_percentage !== null && $item->gst_percentage !== '') {
+            return (float) $item->gst_percentage;
+        }
+
+        $taxable = $item->taxable_value !== null ? round((float) $item->taxable_value, 2) : null;
+        $tax = $item->tax_total !== null ? round((float) $item->tax_total, 2) : null;
+        if ($taxable === null || $tax === null || $taxable <= 0.0) {
+            throw ValidationException::withMessages([
+                'gst' => 'Hardware invoice issuance requires a GST rate, or taxable value and tax that reconcile to a GST rate.',
+            ]);
+        }
+
+        $rate = round(($tax / $taxable) * 100, 2);
+        if ($rate < 0.0 || $rate > 100.0) {
+            throw ValidationException::withMessages([
+                'gst' => GstSplitService::GST_RATE_INVALID,
+            ]);
+        }
+
+        if (round($taxable * ($rate / 100), 2) !== $tax) {
+            throw ValidationException::withMessages([
+                'gst' => GstSplitService::TAX_MISMATCH,
+            ]);
+        }
+
+        return $rate;
     }
 
     private function physicalQuantity(CommerceOrder $order): int
