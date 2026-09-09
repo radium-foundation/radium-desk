@@ -77,7 +77,14 @@
                         <td class="d-none d-md-table-cell dashboard-hardware-product-cell">
                             @include('dashboard.partials.hardware-product-cell', ['row' => $row])
                         </td>
-                        <td class="case-serial-cell">{{ $row->serialDisplay() }}</td>
+                        <td class="case-serial-cell">
+                            @include('inventory.hardware-fulfilments.fragments.serial-summary', [
+                                'serials' => $row->allocatedSerials(),
+                                'expected' => $row->expectedSerialQuantity,
+                                'compact' => $row->serialDisplay(),
+                                'id' => 'hardware-workspace-serial-'.$row->sourceId,
+                            ])
+                        </td>
                         <td>
                             <span class="dashboard-hardware-status">{{ $row->operatorStatus() }}</span>
                             @if($row->source === 'RIN' && $row->operatorStatus() === 'Blocked')

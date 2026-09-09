@@ -301,6 +301,42 @@ class HardwareFulfilmentParcelSnapshotTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_action_dialog_shows_qty_one_serial_without_remainder(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE910031', parcel: null);
+        $serial = $fulfilment->serials->first()?->serial_number;
+        $this->assertNotNull($serial);
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $fulfilment))
+            ->assertOk()
+            ->assertSee($serial)
+            ->assertDontSee($serial.' +0')
+            ->assertDontSee('Copy All');
+    }
+
+    public function test_action_dialog_shows_every_serial_for_qty_greater_than_one(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE910032', parcel: null, qty: 2);
+        $serials = $fulfilment->serials->pluck('serial_number')->filter()->values()->all();
+        $this->assertCount(2, $serials);
+
+        $html = $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $fulfilment))
+            ->assertOk()
+            ->assertSee($serials[0].' +1', false)
+            ->assertSee('Allocated Serials (2)')
+            ->assertSee('Copy All')
+            ->assertSee('Copied 2 serials')
+            ->getContent();
+
+        foreach ($serials as $serial) {
+            $this->assertStringContainsString($serial, $html);
+        }
+        $this->assertStringContainsString(implode("\n", $serials), $html);
+        Http::assertNothingSent();
+    }
+
     public function test_qty_one_catalog_snapshot_does_not_require_measured_entry(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE910009', parcel: null);

@@ -164,7 +164,14 @@
                                     <div class="small text-muted">{{ $row->sku }}</div>
                                 </td>
                                 <td>{{ $row->payment }}</td>
-                                <td>{{ $row->serialStatus }}</td>
+                                <td>
+                                    @include('inventory.hardware-fulfilments.fragments.serial-summary', [
+                                        'serials' => $row->allocatedSerials(),
+                                        'expected' => $row->expectedSerialQuantity,
+                                        'compact' => $row->serialDisplay(),
+                                        'id' => 'hardware-work-serial-'.$row->sourceId,
+                                    ])
+                                </td>
                                 <td>{{ $row->invoiceStatus }}</td>
                                 <td>{{ $row->shipmentStatus }}</td>
                                 <td>{{ $row->awbStatus }}</td>

@@ -10,7 +10,14 @@
             <dt class="col-4">Product</dt>
             <dd class="col-8">{{ $row->productDisplay() }}</dd>
             <dt class="col-4">Serial</dt>
-            <dd class="col-8">{{ $row->serialDisplay() }}</dd>
+            <dd class="col-8">
+                @include('inventory.hardware-fulfilments.fragments.serial-summary', [
+                    'serials' => $row->allocatedSerials(),
+                    'expected' => $row->expectedSerialQuantity,
+                    'compact' => $row->serialDisplay(),
+                    'id' => 'hardware-invoice-serial-summary',
+                ])
+            </dd>
             <dt class="col-4">Payment</dt>
             <dd class="col-8">{{ $row->payment }}</dd>
         </dl>

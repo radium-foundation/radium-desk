@@ -42,7 +42,16 @@
                     <div class="small">{{ $row->productDisplay() }}</div>
                 @endif
                 @if($row->serialDisplay() !== '—')
-                    <div class="text-muted small">Serial {{ $row->serialDisplay() }}</div>
+                    <div class="text-muted small">
+                        Serial
+                        @include('inventory.hardware-fulfilments.fragments.serial-summary', [
+                            'serials' => $row->allocatedSerials(),
+                            'expected' => $row->expectedSerialQuantity,
+                            'compact' => $row->serialDisplay(),
+                            'id' => 'c360-hardware-serial-summary-'.($row->fulfilmentId ?? $row->sourceId),
+                            'wrapperClass' => 'd-inline-block',
+                        ])
+                    </div>
                 @endif
             </div>
             <span class="dashboard-hardware-status">{{ $row->operatorStatus() }}</span>

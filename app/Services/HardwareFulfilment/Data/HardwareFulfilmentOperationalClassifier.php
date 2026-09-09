@@ -162,6 +162,8 @@ final class HardwareFulfilmentOperationalClassifier
             statusLabel: $statusLabel,
             productLines: $catalog['lines'],
             productMissing: $catalog['missing'],
+            allocatedSerialNumbers: $ready->serials,
+            expectedSerialQuantity: $ready->quantity,
         );
     }
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../resources/js/workspace/http', () => ({
     csrfToken: () => 'test-csrf',
@@ -9,6 +9,7 @@ vi.mock('../../resources/js/workspace/http', () => ({
 import { workspaceFetch } from '../../resources/js/workspace/http';
 import {
     bindHardwareActionForms,
+    initHardwareSerialSummaries,
     SERIAL_ALLOCATE_MESSAGES,
 } from '../../resources/js/hardware-action-dialog';
 
@@ -430,5 +431,53 @@ describe('hardware measured parcel form', () => {
         const form = document.querySelector('[data-hardware-measured-parcel]');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         expect(workspaceFetch).not.toHaveBeenCalled();
+    });
+});
+
+describe('hardware allocated serial summary', () => {
+    beforeAll(() => {
+        initHardwareSerialSummaries();
+    });
+
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div data-hardware-serial-summary data-hardware-serial-id="serial-summary-test" class="hardware-serial-summary">
+                <button type="button" data-hardware-serial-toggle aria-expanded="false">10532347 +9</button>
+                <div data-hardware-serial-panel hidden>
+                    <p>Allocated Serials (10)</p>
+                    <ol>
+                        <li>10532347</li>
+                        <li>10556040</li>
+                    </ol>
+                    <button type="button" data-copyable-identifier data-copy-value="10532347\n10556040">Copy All</button>
+                </div>
+            </div>
+        `;
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('opens the complete list on click and keeps serials readable', () => {
+        const toggle = document.querySelector('[data-hardware-serial-toggle]');
+        toggle.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+        const panel = document.querySelector('[data-hardware-serial-panel]');
+        expect(toggle.getAttribute('aria-expanded')).toBe('true');
+        expect(panel.hidden).toBe(false);
+        expect(panel.parentElement).toBe(document.body);
+        expect(panel.textContent).toContain('10532347');
+        expect(panel.textContent).toContain('10556040');
+        expect(panel.querySelector('[data-copyable-identifier]').dataset.copyValue).toBe('10532347\n10556040');
+    });
+
+    it('closes on Escape', () => {
+        const toggle = document.querySelector('[data-hardware-serial-toggle]');
+        toggle.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+        expect(toggle.getAttribute('aria-expanded')).toBe('false');
+        expect(document.querySelector('[data-hardware-serial-panel]').hidden).toBe(true);
     });
 });

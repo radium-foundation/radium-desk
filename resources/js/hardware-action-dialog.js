@@ -514,6 +514,175 @@ const submitForm = async (form) => {
     }
 };
 
+const escapeSelectorValue = (value) => {
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+        return CSS.escape(value);
+    }
+
+    return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+};
+
+const serialSummaryPanel = (summary) => {
+    const nested = summary?.querySelector('[data-hardware-serial-panel]') ?? null;
+    if (nested) {
+        return nested;
+    }
+
+    const owner = summary?.getAttribute('data-hardware-serial-id');
+    if (!owner) {
+        return document.querySelector('[data-hardware-serial-panel][data-hardware-serial-detached="1"]');
+    }
+
+    return document.querySelector(`[data-hardware-serial-panel][data-hardware-serial-owner="${escapeSelectorValue(owner)}"]`);
+};
+
+const summaryForSerialPanel = (panel) => {
+    const owner = panel?.getAttribute('data-hardware-serial-owner');
+    if (owner) {
+        return document.querySelector(`[data-hardware-serial-summary][data-hardware-serial-id="${escapeSelectorValue(owner)}"]`);
+    }
+
+    return panel?.closest('[data-hardware-serial-summary]') ?? null;
+};
+
+let serialSummaryCloseTimer = null;
+
+const cancelSerialSummaryClose = () => {
+    if (serialSummaryCloseTimer !== null) {
+        window.clearTimeout(serialSummaryCloseTimer);
+        serialSummaryCloseTimer = null;
+    }
+};
+
+const closeHardwareSerialSummary = (summary) => {
+    if (!summary) {
+        return;
+    }
+    const toggle = summary.querySelector('[data-hardware-serial-toggle]');
+    const panel = serialSummaryPanel(summary);
+    summary.classList.remove('is-open');
+    toggle?.setAttribute('aria-expanded', 'false');
+    if (panel) {
+        panel.hidden = true;
+        panel.style.top = '';
+        panel.style.left = '';
+        if (panel.dataset.hardwareSerialDetached === '1' && summary.contains(panel) === false) {
+            summary.appendChild(panel);
+            delete panel.dataset.hardwareSerialDetached;
+            delete panel.dataset.hardwareSerialOwner;
+        }
+    }
+};
+
+const closeAllHardwareSerialSummaries = (except = null) => {
+    cancelSerialSummaryClose();
+    document.querySelectorAll('[data-hardware-serial-summary].is-open').forEach((summary) => {
+        if (summary !== except) {
+            closeHardwareSerialSummary(summary);
+        }
+    });
+};
+
+const scheduleSerialSummaryClose = (summary) => {
+    cancelSerialSummaryClose();
+    serialSummaryCloseTimer = window.setTimeout(() => {
+        serialSummaryCloseTimer = null;
+        closeHardwareSerialSummary(summary);
+    }, 220);
+};
+
+const openHardwareSerialSummary = (summary) => {
+    const toggle = summary.querySelector('[data-hardware-serial-toggle]');
+    const panel = serialSummaryPanel(summary);
+    if (!toggle || !panel) {
+        return;
+    }
+
+    cancelSerialSummaryClose();
+    closeAllHardwareSerialSummaries(summary);
+    summary.classList.add('is-open');
+    toggle.setAttribute('aria-expanded', 'true');
+    panel.hidden = false;
+    if (panel.parentElement !== document.body) {
+        document.body.appendChild(panel);
+        panel.dataset.hardwareSerialDetached = '1';
+        panel.dataset.hardwareSerialOwner = summary.getAttribute('data-hardware-serial-id') || '';
+    }
+    const rect = toggle.getBoundingClientRect();
+    const width = Math.min(panel.offsetWidth || 280, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    let top = rect.bottom + 4;
+    if (top + panel.offsetHeight > window.innerHeight - 8) {
+        top = Math.max(8, rect.top - panel.offsetHeight - 4);
+    }
+    panel.style.top = `${top}px`;
+    panel.style.left = `${left}px`;
+};
+
+export const initHardwareSerialSummaries = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    window.RadiumDesk = window.RadiumDesk || {};
+    if (window.RadiumDesk.hardwareSerialSummariesBound === true) {
+        return;
+    }
+    window.RadiumDesk.hardwareSerialSummariesBound = true;
+
+    document.addEventListener('click', (event) => {
+        const toggle = event.target.closest('[data-hardware-serial-toggle]');
+        if (toggle) {
+            event.preventDefault();
+            event.stopPropagation();
+            const summary = toggle.closest('[data-hardware-serial-summary]');
+            if (!summary) {
+                return;
+            }
+            if (summary.classList.contains('is-open')) {
+                closeHardwareSerialSummary(summary);
+            } else {
+                openHardwareSerialSummary(summary);
+            }
+            return;
+        }
+
+        if (!event.target.closest('[data-hardware-serial-panel]')) {
+            closeAllHardwareSerialSummaries();
+        }
+    });
+
+    document.addEventListener('pointerover', (event) => {
+        const panel = event.target.closest('[data-hardware-serial-panel]');
+        const summary = event.target.closest('[data-hardware-serial-summary]')
+            ?? (panel ? summaryForSerialPanel(panel) : null);
+        if (summary) {
+            openHardwareSerialSummary(summary);
+        }
+    });
+
+    document.addEventListener('pointerout', (event) => {
+        const related = event.relatedTarget instanceof Element
+            ? event.relatedTarget.closest('[data-hardware-serial-summary], [data-hardware-serial-panel]')
+            : null;
+        if (related) {
+            return;
+        }
+
+        const leavingPanel = event.target.closest('[data-hardware-serial-panel]');
+        const summary = event.target.closest('[data-hardware-serial-summary]')
+            ?? (leavingPanel ? summaryForSerialPanel(leavingPanel) : null);
+        if (summary) {
+            scheduleSerialSummaryClose(summary);
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' || event.code === 'Escape' || event.keyCode === 27) {
+            closeAllHardwareSerialSummaries();
+        }
+    });
+};
+
 export const openDialog = async (url) => {
     const host = modalHost();
     const content = modalContent();
@@ -538,6 +707,7 @@ export const openDialog = async (url) => {
 export const initHardwareActionDialog = (options = {}) => {
     showToast = options.showToast ?? showToast;
     bindMeasuredParcelForms(document);
+    initHardwareSerialSummaries();
 
     document.addEventListener('click', (event) => {
         const trigger = event.target.closest('[data-hardware-action-dialog]');

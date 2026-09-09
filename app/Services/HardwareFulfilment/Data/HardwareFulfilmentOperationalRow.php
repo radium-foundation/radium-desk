@@ -5,6 +5,7 @@ namespace App\Services\HardwareFulfilment\Data;
 use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareOperationsSection;
+use App\Support\HardwareFulfilment\HardwareAllocatedSerialDisplay;
 
 final class HardwareFulfilmentOperationalRow
 {
@@ -37,6 +38,9 @@ final class HardwareFulfilmentOperationalRow
         /** @var list<array{label: string, qty: ?int}> */
         public readonly array $productLines = [],
         public readonly bool $productMissing = false,
+        /** @var list<string> */
+        public readonly array $allocatedSerialNumbers = [],
+        public readonly ?int $expectedSerialQuantity = null,
     ) {}
 
     public function operatorStatus(): string
@@ -49,16 +53,35 @@ final class HardwareFulfilmentOperationalRow
         return HardwareDashboardQueue::fromStage($this->stage, $this->packagePhotoRecorded);
     }
 
-    public function serialDisplay(): string
+    /**
+     * @return list<string>
+     */
+    public function allocatedSerials(): array
     {
-        $raw = trim($this->serialStatus);
-        if ($raw === '' || in_array($raw, ['Not allocated', 'None', 'On support order', '—'], true)) {
-            return '—';
+        $serials = HardwareAllocatedSerialDisplay::normalize($this->allocatedSerialNumbers);
+        if ($serials !== []) {
+            return $serials;
         }
 
-        $first = trim((string) explode(',', $raw)[0]);
+        $raw = trim($this->serialStatus);
+        if ($raw === '' || in_array($raw, ['Not allocated', 'None', 'On support order', '—'], true)) {
+            return [];
+        }
 
-        return $first !== '' ? $first : '—';
+        return HardwareAllocatedSerialDisplay::normalize(array_map('trim', explode(',', $raw)));
+    }
+
+    public function serialDisplay(): string
+    {
+        return HardwareAllocatedSerialDisplay::compact($this->allocatedSerials(), $this->expectedSerialQuantity);
+    }
+
+    public function serialsComplete(): bool
+    {
+        return HardwareAllocatedSerialDisplay::isComplete(
+            $this->allocatedSerials(),
+            $this->expectedSerialQuantity,
+        );
     }
 
     public function productDisplay(): string

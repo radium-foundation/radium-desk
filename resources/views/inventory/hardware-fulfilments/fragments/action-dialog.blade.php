@@ -83,7 +83,14 @@
                         @if($row->serialDisplay() !== '—')
                             <div class="c360-dialog-identity-row">
                                 <dt>Serial</dt>
-                                <dd><span class="c360-dialog-identity-value-text font-monospace">{{ $row->serialDisplay() }}</span></dd>
+                                <dd>
+                                    @include('inventory.hardware-fulfilments.fragments.serial-summary', [
+                                        'serials' => $row->allocatedSerials(),
+                                        'expected' => $row->expectedSerialQuantity,
+                                        'compact' => $row->serialDisplay(),
+                                        'id' => 'hardware-action-serial-summary',
+                                    ])
+                                </dd>
                             </div>
                         @endif
                         <div class="c360-dialog-identity-row">

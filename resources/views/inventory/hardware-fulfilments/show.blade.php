@@ -194,7 +194,13 @@
                     <dt>Quantity</dt>
                     <dd>{{ $lineQty }}</dd>
                     <dt>Serial</dt>
-                    <dd>{{ $lineSerials === [] ? '—' : implode(', ', $lineSerials) }}</dd>
+                    <dd>
+                        @include('inventory.hardware-fulfilments.fragments.serial-summary', [
+                            'serials' => $lineSerials,
+                            'expected' => $lineQty,
+                            'id' => 'hardware-show-line-serial-'.$line['commerce_order_item_id'],
+                        ])
+                    </dd>
                     <dt>Serial status</dt>
                     <dd>{{ $lineSerialStatus }}</dd>
                 </dl>
@@ -412,7 +418,13 @@
                             <dt>Product</dt>
                             <dd>{{ $shipment->product ?? '—' }}</dd>
                             <dt>Serial</dt>
-                            <dd>{{ implode(', ', $shipment->serials) }}</dd>
+                            <dd>
+                                @include('inventory.hardware-fulfilments.fragments.serial-summary', [
+                                    'serials' => $shipment->serials,
+                                    'expected' => $shipment->quantity,
+                                    'id' => 'hardware-show-shipment-serials',
+                                ])
+                            </dd>
                             <dt>Invoice</dt>
                             <dd>
                                 {{ $shipment->invoice }}
