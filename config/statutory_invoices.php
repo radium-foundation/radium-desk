@@ -122,7 +122,8 @@ return [
         /*
         | Automatic GENERATE rollout. Hardcoded hardware_only (Phase A).
         | all_eligible_b2b is implemented and testable; do not enable it here.
-        | Changing this later must not requeue previously skipped invoices.
+        | Not an env toggle: a policy key must not become an accidental
+        | issuance switch, and must not requeue previously skipped invoices.
         */
         'issuance_policy' => 'hardware_only',
         /*

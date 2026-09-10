@@ -19,9 +19,12 @@ final class WhitebooksResponseMapper
 
     /**
      * WhiteBooks GENERATE duplicate/existing-IRN codes with a verified production
-     * or Postman JSON envelope. Empty: NIC sandbox 2150 is not WhiteBooks proof
-     * (P-196). Do not guess codes. A GENERATE 200 with no IRN stays permanent
-     * unless a code is listed here, in which case it is recover-only (Get-IRN).
+     * or Postman JSON envelope.
+     *
+     * UNKNOWN — WhiteBooks production duplicate GENERATE envelope not verified.
+     * NIC sandbox 2150 is not WhiteBooks proof (P-196 / P-209). Do not guess.
+     * A GENERATE 200 with no IRN stays permanent unless a code is listed here,
+     * in which case it is recover-only (Get-IRN).
      *
      * @var list<string>
      */

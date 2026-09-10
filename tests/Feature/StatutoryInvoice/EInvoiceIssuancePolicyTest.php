@@ -292,6 +292,37 @@ class EInvoiceIssuancePolicyTest extends TestCase
         $this->assertSame(EInvoiceIssuancePolicy::SKIP_MIXED, app(EInvoiceEligibility::class)->evaluate($mixed->fresh(['items']))->reason);
     }
 
+    public function test_invalid_issuance_policy_config_fails_closed_to_hardware_only(): void
+    {
+        config(['statutory_invoices.einvoice.issuance_policy' => 'all_hardware']);
+        $this->app->forgetInstance(EInvoiceIssuancePolicy::class);
+
+        $this->assertSame(EInvoiceIssuancePolicyMode::HardwareOnly, app(EInvoiceIssuancePolicy::class)->mode());
+        $this->assertFalse(app(EInvoiceEligibility::class)->evaluate($this->makeTaxInvoice())->eligible);
+        $this->assertTrue(app(EInvoiceEligibility::class)->evaluate($this->makeHardwareTaxInvoice())->eligible);
+    }
+
+    public function test_phase_b_new_service_invoice_can_generate_when_worker_enabled_in_tests(): void
+    {
+        config(['statutory_invoices.einvoice.issuance_policy' => EInvoiceIssuancePolicyMode::AllEligibleB2b->value]);
+        $this->app->forgetInstance(EInvoiceIssuancePolicy::class);
+        $this->app->forgetInstance(EInvoiceEligibility::class);
+        $this->app->forgetInstance(StatutoryInvoiceService::class);
+
+        $invoice = $this->makeTaxInvoice();
+        app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
+        $event = OutboxEvent::query()
+            ->where('idempotency_key', EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice))
+            ->firstOrFail();
+        $fake = $this->bindLiveFake();
+
+        app(EInvoiceProcessor::class)->process($event);
+
+        $this->assertSame(1, $fake->submitCount);
+        $this->assertTrue(EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first()?->hasIssuedIrn());
+        Http::assertNothingSent();
+    }
+
     public function test_already_issued_hardware_does_not_generate_again(): void
     {
         $invoice = $this->makeHardwareTaxInvoice();
