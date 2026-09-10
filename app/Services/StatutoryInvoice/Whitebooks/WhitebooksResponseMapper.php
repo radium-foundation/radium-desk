@@ -18,6 +18,16 @@ final class WhitebooksResponseMapper
     public const GET_IRN_NOT_FOUND_ERROR_CODE = '2154';
 
     /**
+     * WhiteBooks GENERATE duplicate/existing-IRN codes with a verified production
+     * or Postman JSON envelope. Empty: NIC sandbox 2150 is not WhiteBooks proof
+     * (P-196). Do not guess codes. A GENERATE 200 with no IRN stays permanent
+     * unless a code is listed here, in which case it is recover-only (Get-IRN).
+     *
+     * @var list<string>
+     */
+    public const VERIFIED_GENERATE_DUPLICATE_ERROR_CODES = [];
+
+    /**
      * @param  array<string, mixed>  $body
      */
     public function mapGenerate(array $body, ?string $correlationId = null): EInvoiceSubmitResult
@@ -25,6 +35,15 @@ final class WhitebooksResponseMapper
         $data = $this->data($body);
         $irn = $this->string($data['Irn'] ?? null);
         if (! EInvoiceIrnGuard::isIssuedIrn($irn)) {
+            $duplicateCode = $this->verifiedGenerateDuplicateCode($body);
+            if ($duplicateCode !== null) {
+                return EInvoiceSubmitResult::ambiguous(
+                    'whitebooks',
+                    $this->safeFailurePayload($body, 'existing_irn', $duplicateCode),
+                    $correlationId,
+                );
+            }
+
             return EInvoiceSubmitResult::permanentFailure(
                 'whitebooks',
                 $this->safeFailurePayload($body, 'missing_irn'),
@@ -86,6 +105,20 @@ final class WhitebooksResponseMapper
     public function isVerifiedIrnNotFound(array $body): bool
     {
         return $this->statusCdIsZero($body) && $this->statusDescHasErrorCode($body, self::GET_IRN_NOT_FOUND_ERROR_CODE);
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     */
+    private function verifiedGenerateDuplicateCode(array $body): ?string
+    {
+        foreach (self::VERIFIED_GENERATE_DUPLICATE_ERROR_CODES as $code) {
+            if ($this->statusDescHasErrorCode($body, $code)) {
+                return $code;
+            }
+        }
+
+        return null;
     }
 
     /**

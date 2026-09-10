@@ -55,7 +55,14 @@ class EInvoiceProcessor
     private function claim(StatutoryInvoice $invoice): array
     {
         return DB::transaction(function () use ($invoice): array {
-            StatutoryInvoice::query()->whereKey($invoice->id)->lockForUpdate()->first();
+            $invoice = StatutoryInvoice::query()
+                ->whereKey($invoice->id)
+                ->lockForUpdate()
+                ->first();
+            if ($invoice === null) {
+                return ['kind' => 'done'];
+            }
+            $invoice->loadMissing('items');
             $record = $this->lockedRecord($invoice);
             if (EInvoiceIrnGuard::recordHasIssuedIrn($record) || EInvoiceIrnGuard::mustNotResubmit($record)) {
                 return ['kind' => 'done'];

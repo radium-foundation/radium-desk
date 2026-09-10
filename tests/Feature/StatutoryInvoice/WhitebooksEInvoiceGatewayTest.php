@@ -16,6 +16,7 @@ use App\Services\StatutoryInvoice\NullEInvoiceGateway;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Services\StatutoryInvoice\Whitebooks\WhitebooksEInvoiceGateway;
 use App\Services\StatutoryInvoice\Whitebooks\WhitebooksNicPayloadFactory;
+use App\Services\StatutoryInvoice\Whitebooks\WhitebooksResponseMapper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -182,6 +183,23 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
 
         $this->assertSame(EInvoiceSubmitOutcome::Ambiguous, $result->outcome);
         $this->assertSame('generate_timeout', $result->payload['reason'] ?? null);
+        $this->assertSecretsAbsent($result);
+    }
+
+    public function test_generate_2150_is_not_mapped_as_duplicate_without_whitebooks_proof(): void
+    {
+        $this->fakeAuthAndGenerate([
+            'irp' => 'NIC',
+            'status_cd' => '0',
+            'status_desc' => json_encode([
+                ['errorCode' => '2150', 'errorMessage' => 'Duplicate IRN'],
+            ]),
+        ]);
+        $result = $this->gateway()->submit($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame([], WhitebooksResponseMapper::VERIFIED_GENERATE_DUPLICATE_ERROR_CODES);
+        $this->assertSame(EInvoiceSubmitOutcome::PermanentFailure, $result->outcome);
+        $this->assertSame('missing_irn', $result->payload['reason'] ?? null);
         $this->assertSecretsAbsent($result);
     }
 
