@@ -44,7 +44,7 @@ class EInvoiceProcessorRecoveryBoundaryTest extends TestCase
 
     public function test_successful_generate_completes_outbox_once(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake();
 
@@ -64,7 +64,7 @@ class EInvoiceProcessorRecoveryBoundaryTest extends TestCase
 
     public function test_generate_timeout_stays_recoverable_and_does_not_complete_outbox(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake(EInvoiceSubmitResult::ambiguous('fake', ['timeout' => true]));
 
@@ -104,7 +104,7 @@ class EInvoiceProcessorRecoveryBoundaryTest extends TestCase
 
     public function test_crash_after_generate_recovers_without_second_generate(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $recoveredIrn = 'c1d2e3f4a5b6c1d2e3f4a5b6c1d2e3f4a5b6c1d2e3f4a5b6c1d2e3f4a5b6c1d2';
         $fake = $this->bindLiveFake()->crashOnSubmit();
@@ -140,7 +140,7 @@ class EInvoiceProcessorRecoveryBoundaryTest extends TestCase
 
     public function test_persistence_failure_after_successful_generate_uses_recovery(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake();
         $shouldFailPersist = true;
@@ -181,7 +181,7 @@ class EInvoiceProcessorRecoveryBoundaryTest extends TestCase
 
     public function test_stale_processing_does_not_return_to_generate(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake();
         $fake->withFetch(EInvoiceSubmitResult::success(
@@ -214,7 +214,7 @@ class EInvoiceProcessorRecoveryBoundaryTest extends TestCase
 
     public function test_concurrent_worker_during_generate_does_not_generate_twice(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake();
         $processor = app(EInvoiceProcessor::class);
@@ -241,7 +241,7 @@ class EInvoiceProcessorRecoveryBoundaryTest extends TestCase
 
     public function test_existing_irn_never_generates(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         EInvoiceRecord::query()->where('invoice_id', $invoice->id)->update([
             'irn' => 'already-issued-irn',
@@ -262,7 +262,7 @@ class EInvoiceProcessorRecoveryBoundaryTest extends TestCase
 
     public function test_recovery_2154_stays_irn_not_found_without_generate(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake(EInvoiceSubmitResult::ambiguous('fake', ['timeout' => true]));
         $fake->withFetch(EInvoiceSubmitResult::irnNotFound('fake', ['error_code' => '2154']));
@@ -282,7 +282,7 @@ class EInvoiceProcessorRecoveryBoundaryTest extends TestCase
 
     public function test_recovery_required_never_fails_outbox_at_max_attempts(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $this->bindLiveFake(EInvoiceSubmitResult::ambiguous('fake', ['timeout' => true]));
         $event->update(['attempts' => 4, 'available_at' => now()]);
@@ -298,7 +298,7 @@ class EInvoiceProcessorRecoveryBoundaryTest extends TestCase
 
     private function assertAmbiguousGenerateDoesNotRetry(EInvoiceSubmitResult $generateResult): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake($generateResult);
         $processor = app(EInvoiceProcessor::class);

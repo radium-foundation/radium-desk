@@ -65,4 +65,21 @@ trait CreatesStatutoryInvoicesForEinvoice
 
         return $invoice->fresh(['items']);
     }
+
+    /**
+     * Phase A hardware B2B tax invoice (POS + non-99 HSN).
+     *
+     * @param  array<string, mixed>  $overrides
+     * @param  array<string, mixed>  $itemOverrides
+     */
+    protected function makeHardwareTaxInvoice(array $overrides = [], array $itemOverrides = []): StatutoryInvoice
+    {
+        return $this->makeTaxInvoice(array_merge([
+            'channel' => StatutoryInvoiceChannel::DeskPos,
+        ], $overrides), array_merge([
+            'sku' => 'RBMFS110L1',
+            'description' => 'Mantra MFS 110',
+            'hsn_sac' => '84716050',
+        ], $itemOverrides));
+    }
 }

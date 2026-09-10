@@ -120,6 +120,12 @@ return [
     'einvoice' => [
         'provider' => env('STATUTORY_EINVOICE_PROVIDER', 'none'),
         /*
+        | Automatic GENERATE rollout. Hardcoded hardware_only (Phase A).
+        | all_eligible_b2b is implemented and testable; do not enable it here.
+        | Changing this later must not requeue previously skipped invoices.
+        */
+        'issuance_policy' => 'hardware_only',
+        /*
         | Direct WhiteBooks Production API. Default base is the verified host.
         | Leave secrets empty. Do not copy media.radiumbox.com or Admin secrets.
         | One WhiteBooks client pair + per-issuer GST portal username/password.

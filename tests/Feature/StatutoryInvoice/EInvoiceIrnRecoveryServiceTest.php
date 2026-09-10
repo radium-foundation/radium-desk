@@ -52,7 +52,7 @@ class EInvoiceIrnRecoveryServiceTest extends TestCase
         $this->assertNotInstanceOf(WhitebooksEInvoiceGateway::class, app(EInvoiceGateway::class));
 
         Http::fake();
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
         $outbox = OutboxEvent::query()
             ->where('idempotency_key', EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice))

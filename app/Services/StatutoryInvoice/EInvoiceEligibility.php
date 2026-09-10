@@ -9,6 +9,10 @@ use App\Services\StatutoryInvoice\Data\EInvoiceEligibilityResult;
 
 class EInvoiceEligibility
 {
+    public function __construct(
+        private readonly EInvoiceIssuancePolicy $issuancePolicy,
+    ) {}
+
     public function evaluate(StatutoryInvoice $invoice): EInvoiceEligibilityResult
     {
         if ($invoice->status === StatutoryInvoiceStatus::Cancelled) {
@@ -41,6 +45,11 @@ class EInvoiceEligibility
             return new EInvoiceEligibilityResult(false, 'incomplete_gst');
         }
 
-        return new EInvoiceEligibilityResult(true, 'b2b_eligible');
+        $policy = $this->issuancePolicy->evaluate($invoice);
+        if (! $policy->permitted) {
+            return new EInvoiceEligibilityResult(false, $policy->reason);
+        }
+
+        return new EInvoiceEligibilityResult(true, $policy->reason);
     }
 }

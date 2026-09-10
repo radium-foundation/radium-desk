@@ -426,31 +426,36 @@ class StatutoryInvoiceService
 
     public function queueEinvoiceIfEligible(StatutoryInvoice $invoice): void
     {
-        $decision = $this->einvoiceEligibility->evaluate($invoice);
-        if (! $decision->eligible) {
-            EInvoiceRecord::query()->updateOrCreate(
-                ['invoice_id' => $invoice->id],
-                [
-                    'provider' => (string) config('statutory_invoices.einvoice.provider', 'none'),
-                    'irn' => null,
-                    'status' => EInvoiceRecordStatus::Skipped->value,
-                    'response_payload' => ['skip_reason' => $decision->reason],
-                ],
-            );
-
+        $existing = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
+        if (EInvoiceIrnGuard::recordHasIssuedIrn($existing) || EInvoiceIrnGuard::mustNotResubmit($existing)) {
+            return;
+        }
+        if (EInvoiceIrnGuard::mustRecoverInsteadOfGenerate($existing)) {
+            return;
+        }
+        if ($existing !== null && $existing->status === EInvoiceRecordStatus::Skipped->value) {
             return;
         }
 
+        $decision = $this->einvoiceEligibility->evaluate($invoice);
+        $attributes = EInvoiceIrnGuard::attributesWithoutClearingIssuedIrn([
+            'provider' => (string) config('statutory_invoices.einvoice.provider', 'none'),
+            'status' => $decision->eligible
+                ? EInvoiceRecordStatus::Queued->value
+                : EInvoiceRecordStatus::Skipped->value,
+            'response_payload' => $decision->eligible
+                ? ['queue_reason' => $decision->reason]
+                : ['skip_reason' => $decision->reason],
+        ]);
+
         EInvoiceRecord::query()->updateOrCreate(
             ['invoice_id' => $invoice->id],
-            [
-                'provider' => (string) config('statutory_invoices.einvoice.provider', 'none'),
-                'irn' => null,
-                'status' => EInvoiceRecordStatus::Queued->value,
-                'response_payload' => ['queue_reason' => $decision->reason],
-            ],
+            $attributes,
         );
-        $this->einvoiceOutbox->write($invoice);
+
+        if ($decision->eligible) {
+            $this->einvoiceOutbox->write($invoice);
+        }
     }
 
     private function applyServiceGstSplit(StatutoryInvoiceMintRequest $request): StatutoryInvoiceMintRequest

@@ -62,7 +62,7 @@ class EInvoiceEligibilitySafetyTest extends TestCase
 
     public function test_cancelled_after_queue_skips_without_generate(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $invoice->update([
             'status' => StatutoryInvoiceStatus::Cancelled,
@@ -84,7 +84,7 @@ class EInvoiceEligibilitySafetyTest extends TestCase
 
     public function test_cancelled_while_processing_recovers_and_does_not_generate(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         EInvoiceRecord::query()->where('invoice_id', $invoice->id)->update([
             'status' => EInvoiceRecordStatus::Processing->value,
@@ -118,7 +118,7 @@ class EInvoiceEligibilitySafetyTest extends TestCase
 
     public function test_issued_irn_survives_later_cancellation_without_generate(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         EInvoiceRecord::query()->where('invoice_id', $invoice->id)->update([
             'irn' => 'already-issued-irn',
@@ -199,7 +199,7 @@ class EInvoiceEligibilitySafetyTest extends TestCase
 
     public function test_issued_tax_invoice_still_generates_once(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake();
 

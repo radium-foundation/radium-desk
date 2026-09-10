@@ -62,7 +62,7 @@ class EInvoiceSignedInvoicePersistenceTest extends TestCase
             'https://api.whitebooks.in/einvoice/type/GENERATE/*' => Http::response($this->successGenerateBody(), 200),
         ]);
         $this->app->instance(EInvoiceGateway::class, app(WhitebooksEInvoiceGateway::class));
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
         $outbox = OutboxEvent::query()
             ->where('idempotency_key', EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice))

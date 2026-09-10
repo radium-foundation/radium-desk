@@ -52,7 +52,7 @@ class EInvoiceFoundationTest extends TestCase
 
     public function test_queue_does_not_null_an_existing_irn(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
 
         EInvoiceRecord::query()->where('invoice_id', $invoice->id)->update([
@@ -75,7 +75,7 @@ class EInvoiceFoundationTest extends TestCase
 
     public function test_b2c_queue_skips_without_writing_irn(): void
     {
-        $invoice = $this->makeTaxInvoice(['buyer_gstin' => null]);
+        $invoice = $this->makeHardwareTaxInvoice(['buyer_gstin' => null]);
         app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
         $record = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
 
@@ -87,7 +87,7 @@ class EInvoiceFoundationTest extends TestCase
 
     public function test_processor_does_not_null_or_resubmit_existing_irn(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         EInvoiceRecord::query()->where('invoice_id', $invoice->id)->update([
             'irn' => 'already-issued-irn',
@@ -109,7 +109,7 @@ class EInvoiceFoundationTest extends TestCase
 
     public function test_duplicate_and_concurrent_process_submit_once(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake();
         $processor = app(EInvoiceProcessor::class);
@@ -130,7 +130,7 @@ class EInvoiceFoundationTest extends TestCase
 
     public function test_provider_timeout_is_ambiguous_and_not_retried(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake(EInvoiceSubmitResult::ambiguous('fake', ['timeout' => true], 'corr-timeout'));
         $processor = app(EInvoiceProcessor::class);
@@ -149,7 +149,7 @@ class EInvoiceFoundationTest extends TestCase
 
     public function test_ambiguous_recovery_persists_existing_irn_without_generate(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $recoveredIrn = 'b1c2d3e4f5a6b1c2d3e4f5a6b1c2d3e4f5a6b1c2d3e4f5a6b1c2d3e4f5a6b1c2';
         $fake = $this->bindLiveFake(EInvoiceSubmitResult::ambiguous('fake', ['timeout' => true], 'corr-timeout'));
@@ -177,7 +177,7 @@ class EInvoiceFoundationTest extends TestCase
 
     public function test_get_irn_provider_failure_does_not_generate_again(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake(EInvoiceSubmitResult::ambiguous('fake', ['timeout' => true]));
         $fake->withFetch(EInvoiceSubmitResult::temporaryFailure('fake', ['reason' => 'get_irn_provider_5xx']));
@@ -197,7 +197,7 @@ class EInvoiceFoundationTest extends TestCase
 
     public function test_temporary_failure_is_retryable_without_irn(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake(EInvoiceSubmitResult::temporaryFailure('fake', ['busy' => true]));
 
@@ -216,7 +216,7 @@ class EInvoiceFoundationTest extends TestCase
 
     public function test_permanent_provider_error_does_not_submit_again(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = $this->bindLiveFake(EInvoiceSubmitResult::permanentFailure('fake', ['code' => 'INVALID']));
         $processor = app(EInvoiceProcessor::class);
@@ -233,7 +233,7 @@ class EInvoiceFoundationTest extends TestCase
 
     public function test_flags_off_never_calls_gateway(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         $event = $this->queue($invoice);
         $fake = FakeEInvoiceGateway::succeeding();
         $this->app->instance(EInvoiceGateway::class, $fake);

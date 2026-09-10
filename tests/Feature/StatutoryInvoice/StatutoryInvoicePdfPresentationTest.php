@@ -114,7 +114,13 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
     public function test_b2b_queued_pdf_does_not_invent_or_debug_irn(): void
     {
         $invoice = $this->invoices->issueFromCommerceOrder(
-            $this->commerceOrder('RD-PDF-B2B', buyerGstin: '07AAAAA0000A1Z5'),
+            $this->commerceOrder(
+                'RB-PDF-B2B',
+                buyerGstin: '07AAAAA0000A1Z5',
+                description: 'Mantra MFS 110 L1 Single Fingerprint Biometric Scanner',
+                channel: StatutoryInvoiceChannel::RadiumBoxCom,
+                hsnSac: '84716050',
+            ),
             $this->actor,
         );
         $record = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
@@ -124,9 +130,29 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertNull($record?->irn);
         $this->assertStringContainsString('TAX INVOICE', $pdf);
         $this->assertStringContainsString('07AAAAA0000A1Z5', $pdf);
+        $this->assertStringContainsString('84716050', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
         $this->assertStringNotContainsString('queued', $pdf);
         $this->assertStringNotContainsString('b2b_eligible', $pdf);
+        $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);
+    }
+
+    public function test_phase_a_b2b_service_pdf_is_skipped_and_does_not_invent_irn(): void
+    {
+        $invoice = $this->invoices->issueFromCommerceOrder(
+            $this->commerceOrder('RD-PDF-B2B', buyerGstin: '07AAAAA0000A1Z5'),
+            $this->actor,
+        );
+        $record = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
+        $pdf = $this->text($this->pdf($invoice->id));
+
+        $this->assertSame(EInvoiceRecordStatus::Skipped->value, $record?->status);
+        $this->assertSame('issuance_policy_service_excluded', $record?->response_payload['skip_reason'] ?? null);
+        $this->assertNull($record?->irn);
+        $this->assertStringContainsString('TAX INVOICE', $pdf);
+        $this->assertStringContainsString('07AAAAA0000A1Z5', $pdf);
+        $this->assertStringNotContainsString('IRN not submitted', $pdf);
+        $this->assertStringNotContainsString('issuance_policy_service_excluded', $pdf);
         $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);
     }
 
@@ -518,14 +544,16 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         ?string $buyerGstin = null,
         string $description = 'Information technology (IT) consulting & support services',
         ?string $companion = null,
+        StatutoryInvoiceChannel $channel = StatutoryInvoiceChannel::RdServiceIn,
+        string $hsnSac = '998314',
     ): CommerceOrder {
         $order = CommerceOrder::query()->create([
             'order_no' => 'CO-'.$sourceId,
-            'channel' => StatutoryInvoiceChannel::RdServiceIn,
+            'channel' => $channel,
             'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
             'source_id' => $sourceId,
             'source_order_id' => $sourceId,
-            'idempotency_key' => 'statutory:rdservice_in:commerce_order:'.$sourceId,
+            'idempotency_key' => 'statutory:'.$channel->value.':commerce_order:'.$sourceId,
             'payload_hash' => hash('sha256', $sourceId),
             'status' => CommerceOrderStatus::InvoicePending,
             'invoice_eligible' => true,
@@ -546,7 +574,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $order->items()->create([
             'line_no' => 1,
             'description' => $description,
-            'hsn_sac' => '998314',
+            'hsn_sac' => $hsnSac,
             'qty' => 1,
             'unit_price' => 422.88,
             'gst_percentage' => 18,
@@ -558,7 +586,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             $order->items()->create([
                 'line_no' => 2,
                 'description' => $companion,
-                'hsn_sac' => '998314',
+                'hsn_sac' => $hsnSac,
                 'qty' => 1,
                 'unit_price' => 0,
                 'gst_percentage' => 18,

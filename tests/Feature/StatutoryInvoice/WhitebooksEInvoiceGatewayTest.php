@@ -580,7 +580,7 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
             'statutory_invoices.worker_may_mint' => true,
             'statutory_invoices.einvoice.provider' => 'whitebooks',
         ]);
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
         $outbox = OutboxEvent::query()
             ->where('idempotency_key', EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice))
@@ -636,7 +636,7 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
             'statutory_invoices.worker_may_mint' => true,
             'statutory_invoices.einvoice.provider' => 'whitebooks',
         ]);
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
         $outbox = OutboxEvent::query()
             ->where('idempotency_key', EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice))
@@ -679,7 +679,7 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
             'statutory_invoices.worker_may_mint' => true,
             'statutory_invoices.einvoice.provider' => 'whitebooks',
         ]);
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
         EInvoiceRecord::query()->where('invoice_id', $invoice->id)->update([
             'irn' => self::IRN,
@@ -714,7 +714,7 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
             'statutory_invoices.worker_may_mint' => true,
             'statutory_invoices.einvoice.provider' => 'whitebooks',
         ]);
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
         EInvoiceRecord::query()->where('invoice_id', $invoice->id)->update([
             'irn' => null,
@@ -759,7 +759,7 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
             'statutory_invoices.worker_may_mint' => true,
             'statutory_invoices.einvoice.provider' => 'whitebooks',
         ]);
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
         app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
         $outbox = OutboxEvent::query()
             ->where('idempotency_key', EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice))

@@ -9,6 +9,7 @@ use App\Enums\StatutoryInvoiceStatus;
 use App\Models\CommerceOrder;
 use App\Services\StatutoryInvoice\EInvoiceEligibility;
 use App\Services\StatutoryInvoice\EInvoiceIrnPayloadMapper;
+use App\Services\StatutoryInvoice\EInvoiceIssuancePolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\CreatesStatutoryInvoicesForEinvoice;
 use Tests\TestCase;
@@ -20,12 +21,22 @@ class EInvoiceEligibilityAndMapperTest extends TestCase
 
     public function test_b2b_with_complete_gst_is_eligible(): void
     {
-        $invoice = $this->makeTaxInvoice();
+        $invoice = $this->makeHardwareTaxInvoice();
 
         $decision = app(EInvoiceEligibility::class)->evaluate($invoice);
 
         $this->assertTrue($decision->eligible);
         $this->assertSame('b2b_eligible', $decision->reason);
+    }
+
+    public function test_phase_a_b2b_service_is_not_eligible(): void
+    {
+        $invoice = $this->makeTaxInvoice();
+
+        $decision = app(EInvoiceEligibility::class)->evaluate($invoice);
+
+        $this->assertFalse($decision->eligible);
+        $this->assertSame(EInvoiceIssuancePolicy::SKIP_SERVICE, $decision->reason);
     }
 
     public function test_b2c_without_gstin_is_rejected(): void

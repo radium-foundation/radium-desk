@@ -70,6 +70,9 @@ class EInvoiceProcessor
             if (EInvoiceIrnGuard::mustRecoverInsteadOfGenerate($record)) {
                 return ['kind' => 'recover'];
             }
+            if ($record !== null && $record->status === EInvoiceRecordStatus::Skipped->value) {
+                return ['kind' => 'done'];
+            }
 
             $decision = $this->eligibility->evaluate($invoice);
             if (! $decision->eligible) {
