@@ -41,9 +41,14 @@ final class EInvoiceIrnGuard
 
     public static function mustRecoverInsteadOfGenerate(?EInvoiceRecord $record): bool
     {
-        return $record !== null
-            && $record->status === EInvoiceRecordStatus::Ambiguous->value
-            && ! self::recordHasIssuedIrn($record);
+        if ($record === null || self::recordHasIssuedIrn($record)) {
+            return false;
+        }
+
+        $status = $record->status;
+
+        return $status === EInvoiceRecordStatus::Ambiguous->value
+            || $status === EInvoiceRecordStatus::Processing->value;
     }
 
     /**

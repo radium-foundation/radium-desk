@@ -170,7 +170,7 @@ final class WhitebooksEInvoiceGateway implements EInvoiceGateway
 
         $json = $response->json();
         if (! is_array($json)) {
-            return EInvoiceSubmitResult::permanentFailure(
+            return EInvoiceSubmitResult::ambiguous(
                 $this->provider(),
                 ['reason' => 'malformed_generate_response', 'http_status' => $response->status()],
             );
@@ -241,6 +241,16 @@ final class WhitebooksEInvoiceGateway implements EInvoiceGateway
             );
         }
         if ($status === 429) {
+            // GENERATE 429 cannot be proven as a pre-submit rejection; the
+            // request may already have reached WhiteBooks. Auth/Get-IRN 429
+            // is still a pre-submit temporary failure.
+            if ($generateSubmitted) {
+                return EInvoiceSubmitResult::ambiguous(
+                    $this->provider(),
+                    ['reason' => $operation.'_rate_limited', 'http_status' => $status],
+                );
+            }
+
             return EInvoiceSubmitResult::temporaryFailure(
                 $this->provider(),
                 ['reason' => $operation.'_rate_limited', 'http_status' => $status],

@@ -31,49 +31,65 @@ class EInvoiceProcessor
             return;
         }
 
-        $outcome = DB::transaction(function () use ($invoice): array {
-            $record = EInvoiceRecord::query()
-                ->where('invoice_id', $invoice->id)
-                ->lockForUpdate()
-                ->first();
+        $decision = $this->claim($invoice);
+        if ($decision['kind'] === 'done') {
+            return;
+        }
 
+        $payload = $decision['payload'] ?? $this->mapper->map($invoice);
+
+        if ($decision['kind'] === 'recover') {
+            $this->runRecovery($invoice, $payload);
+
+            return;
+        }
+
+        $this->runGenerate($invoice, $payload);
+    }
+
+    /**
+     * Short lock: decide GENERATE vs recover, and commit Processing before HTTP.
+     *
+     * @return array{kind: 'done'|'generate'|'recover', payload?: EInvoiceIrnPayload}
+     */
+    private function claim(StatutoryInvoice $invoice): array
+    {
+        return DB::transaction(function () use ($invoice): array {
+            StatutoryInvoice::query()->whereKey($invoice->id)->lockForUpdate()->first();
+            $record = $this->lockedRecord($invoice);
             if (EInvoiceIrnGuard::recordHasIssuedIrn($record) || EInvoiceIrnGuard::mustNotResubmit($record)) {
-                return ['retryable' => false, 'finalize' => false];
+                return ['kind' => 'done'];
             }
-
             if (EInvoiceIrnGuard::mustRecoverInsteadOfGenerate($record)) {
-                return $this->recover($invoice);
+                return ['kind' => 'recover'];
             }
 
             $decision = $this->eligibility->evaluate($invoice);
             if (! $decision->eligible) {
                 $this->persistSkip($invoice, $decision->reason);
 
-                return ['retryable' => false, 'finalize' => false];
+                return ['kind' => 'done'];
             }
 
             if (! $this->submissionEnabled()) {
                 $this->persistSkip($invoice, $this->skipReason());
 
-                return ['retryable' => false, 'finalize' => false];
+                return ['kind' => 'done'];
             }
 
             $payload = $this->mapper->map($invoice);
             if (! $payload->isSubmittable()) {
                 $this->persistSkip($invoice, 'irp_fields_incomplete', $payload);
 
-                return ['retryable' => false, 'finalize' => false];
+                return ['kind' => 'done'];
             }
 
-            $record = EInvoiceRecord::query()
-                ->where('invoice_id', $invoice->id)
-                ->lockForUpdate()
-                ->first();
+            $record = $this->lockedRecord($invoice);
             if (EInvoiceIrnGuard::recordHasIssuedIrn($record) || EInvoiceIrnGuard::mustNotResubmit($record)) {
-                return ['retryable' => false, 'finalize' => false];
+                return ['kind' => 'done'];
             }
             if (EInvoiceIrnGuard::mustRecoverInsteadOfGenerate($record)) {
-                return $this->recover($invoice, $payload);
+                return ['kind' => 'recover', 'payload' => $payload];
             }
 
             $this->writeRecord($invoice, [
@@ -82,52 +98,123 @@ class EInvoiceProcessor
                 'request_payload' => $payload->toArray(),
             ]);
 
-            $result = $this->gateway->submit($invoice, $payload);
-            $this->persistResult($invoice, $payload, $result);
-
-            return [
-                'retryable' => $result->outcome === EInvoiceSubmitOutcome::TemporaryFailure,
-                'finalize' => $result->outcome === EInvoiceSubmitOutcome::Success
-                    && EInvoiceIrnGuard::isIssuedIrn($result->irn),
-            ];
+            return ['kind' => 'generate', 'payload' => $payload];
         });
+    }
 
-        if ($outcome['finalize']) {
-            $this->finalizePdf($invoice);
+    private function runGenerate(StatutoryInvoice $invoice, EInvoiceIrnPayload $payload): void
+    {
+        try {
+            $result = $this->gateway->submit($invoice, $payload);
+        } catch (Throwable) {
+            $this->persistInterrupted($invoice, $payload, 'generate_interrupted');
+            throw new EInvoiceRecoveryRequiredException(
+                'E-invoice GENERATE was interrupted; Get-IRN recovery is required.',
+            );
         }
 
-        if ($outcome['retryable']) {
+        if ($result->outcome === EInvoiceSubmitOutcome::TemporaryFailure) {
+            $this->persistLocal($invoice, $payload, $result);
             throw new EInvoiceTemporaryFailureException(
-                'E-invoice provider returned a temporary failure.',
+                'E-invoice provider returned a pre-submit temporary failure.',
+            );
+        }
+
+        $this->persistLocal($invoice, $payload, $result);
+        $this->afterPersist($invoice, $result);
+    }
+
+    private function runRecovery(StatutoryInvoice $invoice, EInvoiceIrnPayload $payload): void
+    {
+        if (! $this->submissionEnabled()) {
+            return;
+        }
+
+        try {
+            $result = $this->gateway->fetchExisting($invoice, $payload);
+        } catch (Throwable) {
+            $this->persistInterrupted($invoice, $payload, 'get_irn_interrupted');
+            throw new EInvoiceRecoveryRequiredException(
+                'E-invoice Get-IRN was interrupted; recovery remains required.',
+            );
+        }
+
+        if ($result->outcome === EInvoiceSubmitOutcome::TemporaryFailure
+            || $result->outcome === EInvoiceSubmitOutcome::Ambiguous) {
+            $this->persistLocal($invoice, $payload, $this->asRecoverableAmbiguous($result));
+            throw new EInvoiceRecoveryRequiredException(
+                'E-invoice Get-IRN did not settle; recovery remains required.',
+            );
+        }
+
+        $this->persistLocal($invoice, $payload, $result);
+        $this->afterPersist($invoice, $result);
+    }
+
+    private function afterPersist(StatutoryInvoice $invoice, EInvoiceSubmitResult $result): void
+    {
+        if ($result->outcome === EInvoiceSubmitOutcome::Success && EInvoiceIrnGuard::isIssuedIrn($result->irn)) {
+            $this->finalizePdf($invoice);
+
+            return;
+        }
+
+        if ($result->outcome === EInvoiceSubmitOutcome::Ambiguous) {
+            throw new EInvoiceRecoveryRequiredException(
+                'E-invoice GENERATE is ambiguous; Get-IRN recovery is required.',
             );
         }
     }
 
-    /**
-     * @return array{retryable: bool, finalize: bool}
-     */
-    private function recover(StatutoryInvoice $invoice, ?EInvoiceIrnPayload $payload = null): array
+    private function asRecoverableAmbiguous(EInvoiceSubmitResult $result): EInvoiceSubmitResult
     {
-        if (! $this->submissionEnabled()) {
-            return ['retryable' => false, 'finalize' => false];
+        $payload = is_array($result->payload) ? $result->payload : ['detail' => $result->payload];
+
+        return EInvoiceSubmitResult::ambiguous(
+            $result->provider,
+            $payload,
+            $result->correlationId,
+        );
+    }
+
+    private function persistLocal(
+        StatutoryInvoice $invoice,
+        EInvoiceIrnPayload $payload,
+        EInvoiceSubmitResult $result,
+    ): void {
+        try {
+            DB::transaction(function () use ($invoice, $payload, $result): void {
+                $this->persistResult($invoice, $payload, $result);
+            });
+        } catch (EInvoiceRecoveryRequiredException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            $this->persistInterrupted($invoice, $payload, 'persist_interrupted');
+            throw new EInvoiceRecoveryRequiredException(
+                'E-invoice persistence failed after WhiteBooks; Get-IRN recovery is required.',
+            );
         }
+    }
 
-        $payload ??= $this->mapper->map($invoice);
-        $result = $this->gateway->fetchExisting($invoice, $payload);
+    private function persistInterrupted(StatutoryInvoice $invoice, EInvoiceIrnPayload $payload, string $reason): void
+    {
+        DB::transaction(function () use ($invoice, $payload, $reason): void {
+            StatutoryInvoice::query()->whereKey($invoice->id)->lockForUpdate()->first();
+            $locked = $this->lockedRecord($invoice);
+            if (EInvoiceIrnGuard::recordHasIssuedIrn($locked)) {
+                return;
+            }
 
-        if ($result->outcome === EInvoiceSubmitOutcome::TemporaryFailure) {
-            $this->persistOutcome($invoice, $payload, $result, EInvoiceRecordStatus::Ambiguous);
-
-            return ['retryable' => true, 'finalize' => false];
-        }
-
-        $this->persistResult($invoice, $payload, $result);
-
-        return [
-            'retryable' => false,
-            'finalize' => $result->outcome === EInvoiceSubmitOutcome::Success
-                && EInvoiceIrnGuard::isIssuedIrn($result->irn),
-        ];
+            $this->writeRecord($invoice, [
+                'provider' => $this->gateway->provider(),
+                'status' => EInvoiceRecordStatus::Ambiguous->value,
+                'request_payload' => $payload->toArray(),
+                'response_payload' => [
+                    'outcome' => EInvoiceSubmitOutcome::Ambiguous->value,
+                    'payload' => ['reason' => $reason],
+                ],
+            ]);
+        });
     }
 
     private function persistResult(
@@ -135,10 +222,7 @@ class EInvoiceProcessor
         EInvoiceIrnPayload $payload,
         EInvoiceSubmitResult $result,
     ): void {
-        $locked = EInvoiceRecord::query()
-            ->where('invoice_id', $invoice->id)
-            ->lockForUpdate()
-            ->first();
+        $locked = $this->lockedRecord($invoice);
         if (EInvoiceIrnGuard::recordHasIssuedIrn($locked)) {
             if ($result->outcome === EInvoiceSubmitOutcome::Success) {
                 $this->signedInvoices->persistFromResult($invoice, $result);
@@ -237,10 +321,7 @@ class EInvoiceProcessor
      */
     private function writeRecord(StatutoryInvoice $invoice, array $attributes): void
     {
-        $existing = EInvoiceRecord::query()
-            ->where('invoice_id', $invoice->id)
-            ->lockForUpdate()
-            ->first();
+        $existing = $this->lockedRecord($invoice);
         if (EInvoiceIrnGuard::recordHasIssuedIrn($existing)) {
             return;
         }
@@ -249,6 +330,14 @@ class EInvoiceProcessor
             ['invoice_id' => $invoice->id],
             EInvoiceIrnGuard::attributesWithoutClearingIssuedIrn($attributes),
         );
+    }
+
+    private function lockedRecord(StatutoryInvoice $invoice): ?EInvoiceRecord
+    {
+        return EInvoiceRecord::query()
+            ->where('invoice_id', $invoice->id)
+            ->lockForUpdate()
+            ->first();
     }
 
     /**

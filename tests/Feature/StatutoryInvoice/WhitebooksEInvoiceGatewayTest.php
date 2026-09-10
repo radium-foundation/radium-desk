@@ -11,6 +11,7 @@ use App\Services\StatutoryInvoice\Data\EInvoiceIrnPayload;
 use App\Services\StatutoryInvoice\EInvoiceIrnPayloadMapper;
 use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
 use App\Services\StatutoryInvoice\EInvoiceProcessor;
+use App\Services\StatutoryInvoice\EInvoiceRecoveryRequiredException;
 use App\Services\StatutoryInvoice\NullEInvoiceGateway;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Services\StatutoryInvoice\Whitebooks\WhitebooksEInvoiceGateway;
@@ -130,7 +131,33 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
         $this->assertSecretsAbsent($result);
     }
 
-    public function test_generate_malformed_response_is_permanent(): void
+    public function test_generate_429_is_ambiguous(): void
+    {
+        $this->fakeAuthAndGenerate(['status' => 'error'], 429);
+        $result = $this->gateway()->submit($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame(EInvoiceSubmitOutcome::Ambiguous, $result->outcome);
+        $this->assertSame('generate_rate_limited', $result->payload['reason'] ?? null);
+        $this->assertSecretsAbsent($result);
+    }
+
+    public function test_authenticate_429_is_temporary_and_does_not_generate(): void
+    {
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), 'authenticate')) {
+                return Http::response(['message' => 'rate limited'], 429);
+            }
+
+            $this->fail('GENERATE must not run after authenticate 429.');
+        });
+        $result = $this->gateway()->submit($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame(EInvoiceSubmitOutcome::TemporaryFailure, $result->outcome);
+        $this->assertSame('authenticate_rate_limited', $result->payload['reason'] ?? null);
+        $this->assertSecretsAbsent($result);
+    }
+
+    public function test_generate_malformed_response_is_ambiguous(): void
     {
         Http::fake([
             'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
@@ -138,7 +165,7 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
         ]);
         $result = $this->gateway()->submit($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
 
-        $this->assertSame(EInvoiceSubmitOutcome::PermanentFailure, $result->outcome);
+        $this->assertSame(EInvoiceSubmitOutcome::Ambiguous, $result->outcome);
         $this->assertSame('malformed_generate_response', $result->payload['reason'] ?? null);
         $this->assertSecretsAbsent($result);
     }
@@ -542,7 +569,7 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
             ->firstOrFail();
         $processor = app(EInvoiceProcessor::class);
 
-        $processor->process($outbox);
+        $this->processExpectingRecovery($processor, $outbox);
         $this->assertSame(1, $generateCalls);
         $this->assertSame(0, $getIrnCalls);
         $this->assertSame(EInvoiceRecordStatus::Ambiguous->value, EInvoiceRecord::query()->where('invoice_id', $invoice->id)->value('status'));
@@ -598,7 +625,7 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
             ->firstOrFail();
         $processor = app(EInvoiceProcessor::class);
 
-        $processor->process($outbox);
+        $this->processExpectingRecovery($processor, $outbox);
         $this->assertSame(1, $generateCalls);
         $this->assertSame(0, $getIrnCalls);
         $this->assertSame(EInvoiceRecordStatus::Ambiguous->value, EInvoiceRecord::query()->where('invoice_id', $invoice->id)->value('status'));
@@ -681,7 +708,7 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
             ->where('idempotency_key', EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice))
             ->firstOrFail();
 
-        app(EInvoiceProcessor::class)->process($outbox);
+        $this->processExpectingRecovery(app(EInvoiceProcessor::class), $outbox);
 
         $record = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
         $this->assertNull($record?->irn);
@@ -741,6 +768,15 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
         $this->assertArrayNotHasKey('PayDtls', $body);
         $this->assertSame('NOS', $body['ItemList'][0]['Unit'] ?? null);
         $this->assertNotSame('pcs', $body['ItemList'][0]['Unit'] ?? null);
+    }
+
+    private function processExpectingRecovery(EInvoiceProcessor $processor, OutboxEvent $outbox): void
+    {
+        try {
+            $processor->process($outbox);
+            $this->fail('Expected e-invoice recovery to remain required.');
+        } catch (EInvoiceRecoveryRequiredException) {
+        }
     }
 
     private function gateway(): WhitebooksEInvoiceGateway
