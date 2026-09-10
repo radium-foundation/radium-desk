@@ -102,10 +102,6 @@ class HardwareFulfilmentAwaitingQueueTest extends TestCase
             'cashfree_payment_id' => 'paid',
             'created_at' => '2026-09-07 10:00:00',
         ]);
-        $this->deskOrder(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0], [
-            'cashfree_payment_id' => 'paid',
-            'created_at' => '2026-09-07 10:00:00',
-        ]);
         $this->deskOrder('RDE961011', [
             'created_at' => '2026-09-07 10:00:00',
         ]);
@@ -134,7 +130,6 @@ class HardwareFulfilmentAwaitingQueueTest extends TestCase
             ->assertDontSee('RIN961010')
             ->assertDontSee(HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0])
             ->assertDontSee(HardwareFulfilmentEligibility::HOLD_SOURCE_IDS[0])
-            ->assertDontSee(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0])
             ->assertDontSee('RDE961011')
             ->assertDontSee('RDE961012')
             ->assertDontSee('RDE961013')
@@ -230,10 +225,6 @@ class HardwareFulfilmentAwaitingQueueTest extends TestCase
             'cashfree_payment_id' => 'paid',
             'created_at' => '2026-09-07 10:00:00',
         ]);
-        $this->deskOrder(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0], [
-            'cashfree_payment_id' => 'paid',
-            'created_at' => '2026-09-07 10:00:00',
-        ]);
         $this->deskOrder('RIN961047', [
             'cashfree_payment_id' => 'paid',
             'created_at' => '2026-09-08 16:00:00',
@@ -252,7 +243,6 @@ class HardwareFulfilmentAwaitingQueueTest extends TestCase
             ->assertDontSee('RDE961046')
             ->assertDontSee(HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0])
             ->assertDontSee('RDE255714')
-            ->assertDontSee(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0])
             ->assertDontSee('RIN961047')
             ->assertDontSee('RDE318421')
             ->assertDontSee('Create fulfilment');

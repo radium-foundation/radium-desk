@@ -448,7 +448,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
             'cashfree_payment_id' => 'paid',
             'created_at' => '2026-09-07 10:00:00',
         ]);
-        $blocked = $this->order(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0], [
+        $blocked = $this->order('RDE318400', [
             'cashfree_payment_id' => 'paid',
             'created_at' => '2026-09-07 10:00:00',
             'product_name' => '',
@@ -460,8 +460,8 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertSame('View', $frozenRow->nextAction);
         $this->assertFalse($frozenRow->mutatingAction);
         $this->assertSame('View', $blockedRow->nextAction);
-        $this->assertSame('Blocked', $blockedRow->operatorStatus());
-        $this->assertSame('Blocked until authorized', $blockedRow->productDisplay());
+        $this->assertNotSame('Blocked', $blockedRow->operatorStatus());
+        $this->assertFalse(HardwareFulfilmentEligibility::isBlockedUntilAuthorized('RDE318400'));
     }
 
     public function test_missing_support_product_shows_awaiting_handoff_not_generic_review(): void

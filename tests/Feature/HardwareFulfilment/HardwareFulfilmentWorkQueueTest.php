@@ -202,10 +202,6 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             'cashfree_payment_id' => 'paid',
             'created_at' => '2026-09-07 10:00:00',
         ]);
-        $this->deskOrder(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0], [
-            'cashfree_payment_id' => 'paid',
-            'created_at' => '2026-09-07 10:00:00',
-        ]);
         $this->deskOrder('RIN970199', [
             'cashfree_payment_id' => 'paid',
             'created_at' => '2026-09-07 10:00:00',
@@ -258,7 +254,6 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ->assertSee(HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0])
             ->assertSee('RDE255714')
             ->assertSee('RDE313554')
-            ->assertSee(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0])
             ->assertSee('Blocked')
             ->assertSee('RIN970199')
             ->assertSee('RIN mapping required')
@@ -385,10 +380,6 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             'cashfree_payment_id' => 'paid',
             'created_at' => '2026-09-07 10:00:00',
         ]);
-        $this->deskOrder(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0], [
-            'cashfree_payment_id' => 'paid',
-            'created_at' => '2026-09-07 10:00:00',
-        ]);
         $this->deskOrder('RIN970399', [
             'cashfree_payment_id' => 'paid',
             'created_at' => '2026-09-08 16:00:00',
@@ -426,7 +417,6 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             ->assertSee('Ready for Shipment')
             ->assertSee(HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0])
             ->assertSee('RDE255714')
-            ->assertSee(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0])
             ->assertSee('RIN970399')
             ->assertSee('Active date range (IST): 2026-09-05 00:00');
 

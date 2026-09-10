@@ -403,13 +403,14 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
             'test',
         );
         $this->assertFalse($blockedResult['ok']);
-        $this->assertTrue(HardwareFulfilmentEligibility::isBlockedUntilAuthorized('RDE318400'));
+        $this->assertFalse(HardwareFulfilmentEligibility::isBlockedUntilAuthorized('RDE318400'));
+        $this->assertFalse(HardwareFulfilmentEligibility::isFrozenSourceId('RDE318400'));
 
         try {
             $this->isolated->run(identifier: 'RDE318400', step: 'ingest');
-            $this->fail('RDE318400 recovered ingest must fail.');
+            $this->fail('RDE318400 recovered ingest without existing HF still requires payload, not recovered-frozen path.');
         } catch (ValidationException) {
-            // expected
+            // expected: not frozen, so recovered-without-payload remains closed
         }
 
         $this->assertSame(0, HardwareFulfilment::query()->count());

@@ -52,11 +52,21 @@ final class HardwareFulfilmentEligibility
     ];
 
     /**
-     * First real candidate later. Isolated fulfilment must not process it yet.
+     * Isolated fulfilment must not process these until an owner prompt
+     * moves the id into AUTHORIZED_ISOLATED_SOURCE_IDS.
      *
      * @var list<string>
      */
     public const BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS = [
+    ];
+
+    /**
+     * Owner-authorized isolated fulfilment. RDE318400 / CO-000740 / HF14
+     * was the sole prior member of BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS.
+     *
+     * @var list<string>
+     */
+    public const AUTHORIZED_ISOLATED_SOURCE_IDS = [
         'RDE318400',
     ];
 
@@ -207,7 +217,12 @@ final class HardwareFulfilmentEligibility
 
     public static function isBlockedUntilAuthorized(string $sourceId): bool
     {
-        return in_array(strtoupper(trim($sourceId)), self::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS, true);
+        $normalized = strtoupper(trim($sourceId));
+        if (in_array($normalized, self::AUTHORIZED_ISOLATED_SOURCE_IDS, true)) {
+            return false;
+        }
+
+        return in_array($normalized, self::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS, true);
     }
 
     public static function cutoffInstant(): Carbon

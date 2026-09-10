@@ -316,31 +316,30 @@ class HardwareFulfilmentIngestReadyTest extends TestCase
         $this->assertFalse(HardwareFulfilmentEligibility::shouldOpenRecord($request));
     }
 
-    public function test_hold_and_blocked_until_authorized_stay_ingested(): void
+    public function test_hold_stays_ingested_and_authorized_rde318400_can_become_ready(): void
     {
         $hold = $this->persistedIngested(HardwareFulfilmentEligibility::HOLD_SOURCE_IDS[0], eligible: true);
-        $blocked = $this->persistedIngested(
-            HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0],
+        $authorized = $this->persistedIngested(
+            HardwareFulfilmentEligibility::AUTHORIZED_ISOLATED_SOURCE_IDS[0],
             eligible: true,
         );
 
-        $holdReady = app(HardwareFulfilmentWorkflowService::class);
+        $workflow = app(HardwareFulfilmentWorkflowService::class);
         try {
-            $holdReady->markReady($hold);
+            $workflow->markReady($hold);
             $this->fail('HOLD must not become ready.');
         } catch (ValidationException $exception) {
             $this->assertStringContainsString('Owner-HOLD', collect($exception->errors())->flatten()->first() ?? '');
         }
 
-        try {
-            $holdReady->markReady($blocked);
-            $this->fail('RDE318400 must not become ready.');
-        } catch (ValidationException $exception) {
-            $this->assertStringContainsString('not authorized', collect($exception->errors())->flatten()->first() ?? '');
-        }
+        $this->assertFalse(HardwareFulfilmentEligibility::isBlockedUntilAuthorized('RDE318400'));
+        $ready = $workflow->markReady($authorized);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $ready->state);
+        $this->assertSame(0, $ready->serials()->count());
+        $this->assertNull($ready->statutory_invoice_id);
 
         $this->assertSame(HardwareFulfilmentState::Ingested, $hold->fresh()->state);
-        $this->assertSame(HardwareFulfilmentState::Ingested, $blocked->fresh()->state);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $authorized->fresh()->state);
     }
 
     /**

@@ -91,8 +91,8 @@ class HardwareFulfilmentOpenRecoveredHttpTest extends TestCase
         $frozen = $this->supportOrder(HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0]);
         $this->paidCommerce($frozen, HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[0], 946);
 
-        $blocked = $this->supportOrder(HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0]);
-        $this->paidCommerce($blocked, HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0], 946);
+        $blocked = $this->supportOrder('RDE971049');
+        $this->paidCommerce($blocked, 'RDE971049', 946);
 
         $hold = $this->supportOrder(HardwareFulfilmentEligibility::HOLD_SOURCE_IDS[0]);
         $awaiting = $this->supportOrder('RDE971050');

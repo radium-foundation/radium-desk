@@ -147,19 +147,28 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
         );
     }
 
-    public function test_owner_hold_and_blocked_candidate_are_refused(): void
+    public function test_owner_hold_is_refused_and_unapproved_ids_still_need_payload(): void
     {
-        foreach (['RDE318438', 'RDE318400'] as $sourceId) {
-            try {
-                $this->isolated->run(
-                    identifier: $sourceId,
-                    step: 'ingest',
-                    payload: $this->handoffPayload($sourceId),
-                );
-                $this->fail($sourceId.' must be refused.');
-            } catch (ValidationException) {
-                // expected
-            }
+        try {
+            $this->isolated->run(
+                identifier: 'RDE318438',
+                step: 'ingest',
+                payload: $this->handoffPayload('RDE318438'),
+            );
+            $this->fail('RDE318438 must be refused.');
+        } catch (ValidationException) {
+            // expected
+        }
+
+        $this->assertFalse(HardwareFulfilmentEligibility::isBlockedUntilAuthorized('RDE318400'));
+        $this->assertFalse(HardwareFulfilmentEligibility::isBlockedUntilAuthorized('RDE318437'));
+        $this->assertFalse(HardwareFulfilmentEligibility::isBlockedUntilAuthorized('RDE318467'));
+
+        try {
+            $this->isolated->run(identifier: 'RDE900799', step: 'ingest');
+            $this->fail('Unapproved source without payload must be refused.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('verified handoff JSON', collect($exception->errors())->flatten()->first() ?? '');
         }
 
         $this->assertSame(0, HardwareFulfilment::query()->count());

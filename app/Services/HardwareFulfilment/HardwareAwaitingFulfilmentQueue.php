@@ -63,7 +63,9 @@ final class HardwareAwaitingFulfilmentQueue
             reviewCandidates: $this->countFilter(self::FILTER_REVIEW),
             frozen: (clone $without)->whereIn('order_id', HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS)->count(),
             hold: (clone $without)->whereIn('order_id', HardwareFulfilmentEligibility::HOLD_SOURCE_IDS)->count(),
-            blocked: (clone $without)->whereIn('order_id', HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS)->count(),
+            blocked: HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS === []
+                ? 0
+                : (clone $without)->whereIn('order_id', HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS)->count(),
             unpaid: $this->countFilter(self::FILTER_UNPAID),
             preCutoff: $this->countFilter(self::FILTER_HISTORICAL),
             deskAlreadyCompleted: $this->countFilter(self::FILTER_COMPLETED),

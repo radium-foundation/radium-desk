@@ -58,12 +58,13 @@ class HardwareAwaitingFulfilmentClassifierTest extends TestCase
             ])),
         );
         $this->assertSame(
-            HardwareAwaitingFulfilmentReason::Blocked,
+            HardwareAwaitingFulfilmentReason::AwaitingHandoff,
             HardwareAwaitingFulfilmentClassifier::reason($this->order(
-                HardwareFulfilmentEligibility::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS[0],
+                HardwareFulfilmentEligibility::AUTHORIZED_ISOLATED_SOURCE_IDS[0],
                 ['cashfree_payment_id' => 'paid'],
             )),
         );
+        $this->assertFalse(HardwareFulfilmentEligibility::isBlockedUntilAuthorized('RDE318400'));
         $this->assertSame(
             HardwareAwaitingFulfilmentReason::Unpaid,
             HardwareAwaitingFulfilmentClassifier::reason($this->order('RDE960003')),
