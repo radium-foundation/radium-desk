@@ -5,7 +5,8 @@
 **Date:** 2026-09-10  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk-irn-foundation`  
 **Branch:** `feat/irn-foundation-phase-a`  
-**Before SHA:** `4c075b930f7d711840548ce03cd7f62d09be7c65`
+**Before SHA:** `4c075b930f7d711840548ce03cd7f62d09be7c65`  
+**After SHA:** `e6371221f96d6d606bb66d0ebf4b5a04cebe6c7d`
 
 ## Verified rule
 
@@ -112,9 +113,19 @@ Regression run on this change:
 
 No schema migration. No historical invoice rewrite. No bulk IRN requeue. WhiteBooks credentials unchanged. Unrelated UQC/catalog worktree files were not modified (parked in stash).
 
+Named-file overlay of `e6371221` PHP only (not `deskd`) on KVM8 `srv1910783` `/var/www/radium-desk` DB `radium_desk`. Backup `storage/app/private/overlays/p-07-09-214-20260910T155807Z`. Rollback: restore those four previous files and delete the new Guard file.
+
+## Production verification (controlled)
+
+Live `/up` 200 (`desk.radiumbox.com`, Cloudflare). Queue worker RUNNING. Invoice count **1202** before and after the gate probe.
+
+`RDE318526` / HF 29: paid B2C, `ready_for_fulfilment`, no serials, no statutory invoice. Finance Hub `evaluateOrder()` ineligible (`Serial allocation required`). `issueFromCommerceOrder()` threw `SERIALS_ALLOCATED`. Fulfilment state unchanged. No IRN generated.
+
+Serial assignment on a live customer order was **not** performed: no isolated authorized leftover (`serials_allocated` count 0); allocating would sell production stock. P-213 `HardwareStatutoryInvoiceIssuer` is still absent on production, so allocate still does not auto-mint; after serials, Finance Hub / `HardwareFulfilmentInvoiceService` is the statutory path.
+
 ## Remaining limitations
 
-- Production overlay/deploy and live hardware lifecycle verification are recorded in the completion report for this prompt, not assumed here.
 - True two-connection MariaDB lock races remain unproven in this sqlite PHPUnit environment.
 - HTTP Blade tests that render `layouts.app` still fail without a Vite manifest.
 - Historical invoices minted via Finance Hub before this gate are not rewritten.
+- P-213 after-commit POS/hardware auto-issuers are not on production; this overlay does not add them.
