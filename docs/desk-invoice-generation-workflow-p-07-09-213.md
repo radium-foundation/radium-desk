@@ -96,4 +96,7 @@ Do not flip `auto_issue_on_pos_complete`. Do not bulk-requeue `worker_may_mint_o
 
 - Finance Hub commerce hardware mint before serial allocation is closed in P-07-09-214 (`docs/desk-invoice-generation-workflow-p-07-09-214.md`).
 - HTTP Blade tests that render `layouts.app` fail in this worktree when `public/build/manifest.json` is absent (Vite). Not an invoice-logic failure.
-- No production overlay/deploy was performed in this prompt until a named-file review of only these workflow files.
+
+## Production overlay
+
+Named-file overlay of the P-213 after-commit issuers (preserving P-214) is recorded in `docs/desk-invoice-generation-deploy-p-07-09-215.md`. Payment still does not make a hardware order invoice-ready; required serial allocation does. Offline POS still mints after `completeSale()` commit without WhiteBooks. Service Reference No. or case closure still share one commerce identity.

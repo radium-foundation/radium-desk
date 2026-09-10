@@ -121,11 +121,12 @@ Live `/up` 200 (`desk.radiumbox.com`, Cloudflare). Queue worker RUNNING. Invoice
 
 `RDE318526` / HF 29: paid B2C, `ready_for_fulfilment`, no serials, no statutory invoice. Finance Hub `evaluateOrder()` ineligible (`Serial allocation required`). `issueFromCommerceOrder()` threw `SERIALS_ALLOCATED`. Fulfilment state unchanged. No IRN generated.
 
-Serial assignment on a live customer order was **not** performed: no isolated authorized leftover (`serials_allocated` count 0); allocating would sell production stock. P-213 `HardwareStatutoryInvoiceIssuer` is still absent on production, so allocate still does not auto-mint; after serials, Finance Hub / `HardwareFulfilmentInvoiceService` is the statutory path.
+Serial assignment on a live customer order was **not** performed in P-214: no isolated authorized leftover (`serials_allocated` count 0); allocating would sell production stock.
+
+P-07-09-215 overlaid the P-213 after-commit issuers while leaving this Finance Hub guard and `HardwareFulfilmentInvoiceService::issueInvoice()` intact. See `docs/desk-invoice-generation-deploy-p-07-09-215.md`.
 
 ## Remaining limitations
 
 - True two-connection MariaDB lock races remain unproven in this sqlite PHPUnit environment.
 - HTTP Blade tests that render `layouts.app` still fail without a Vite manifest.
 - Historical invoices minted via Finance Hub before this gate are not rewritten.
-- P-213 after-commit POS/hardware auto-issuers are not on production; this overlay does not add them.
