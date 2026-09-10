@@ -32,6 +32,10 @@ class SimplePdfRenderer
 
     private const PRODUCT_WIDTH = 184.0;
 
+    private const QR_SIZE = 96.0;
+
+    private const QR_GAP = 12.0;
+
     public function render(StatutoryInvoicePdfPayload $payload): string
     {
         $contents = $this->invoicePageStreams($payload);
@@ -294,9 +298,17 @@ class SimplePdfRenderer
      */
     private function irnBlock(array &$ops, StatutoryInvoicePdfPayload $payload, float $y): float
     {
+        $startY = $y;
+        $matrix = $payload->hasIssuedIrn()
+            ? (new EInvoiceSignedQrMatrix)->matrix($payload->signedQr)
+            : null;
+        $textWidth = $matrix !== null
+            ? self::CONTENT_RIGHT - self::MARGIN - self::QR_SIZE - self::QR_GAP
+            : 510.0;
+
         $ops[] = $this->text(self::MARGIN, $y, 'IRN', 7, true, 0.38, 0.38, 0.38);
         $y -= 11;
-        foreach ($this->wrapWidth((string) $payload->irn, 510, 8) as $irnLine) {
+        foreach ($this->wrapWidth((string) $payload->irn, $textWidth, 8) as $irnLine) {
             $ops[] = $this->text(self::MARGIN, $y, $irnLine, 8);
             $y -= 11;
         }
@@ -308,7 +320,13 @@ class SimplePdfRenderer
             $ops[] = $this->text(self::MARGIN, $y, $ack, 8);
             $y -= 11;
         }
-        if ($payload->hasIssuedSignedQr()) {
+        $image = $matrix !== null
+            ? $this->signedQrImage($matrix, self::CONTENT_RIGHT - self::QR_SIZE, $startY, self::QR_SIZE)
+            : '';
+        if ($image !== '') {
+            $ops[] = $image;
+            $y = min($y, $startY - self::QR_SIZE);
+        } elseif ($payload->hasIssuedSignedQr()) {
             $ops[] = $this->text(self::MARGIN, $y, 'Signed QR issued with this IRN.', 8, false, 0.28, 0.28, 0.28);
             $y -= 11;
         }
@@ -316,6 +334,53 @@ class SimplePdfRenderer
         $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
 
         return $y - 14;
+    }
+
+    /**
+     * @param  list<list<bool>>  $matrix
+     */
+    private function signedQrImage(array $matrix, float $x, float $top, float $size): string
+    {
+        $n = count($matrix);
+        if ($n < 21) {
+            return '';
+        }
+
+        $module = $size / $n;
+        $ops = ['% signed-qr-image'."\n"];
+        $ops[] = $this->fill($x, $top - $size, $size, $size, 1, 1, 1);
+        $rects = [];
+        foreach ($matrix as $row => $cells) {
+            if (! is_array($cells) || count($cells) !== $n) {
+                return '';
+            }
+            $col = 0;
+            while ($col < $n) {
+                if ($cells[$col] !== true) {
+                    $col++;
+
+                    continue;
+                }
+                $start = $col;
+                while ($col < $n && $cells[$col] === true) {
+                    $col++;
+                }
+                $rects[] = sprintf(
+                    '%.3F %.3F %.3F %.3F re',
+                    $x + ($start * $module),
+                    $top - $size + (($n - 1 - $row) * $module),
+                    ($col - $start) * $module,
+                    $module,
+                );
+            }
+        }
+        if ($rects === []) {
+            return '';
+        }
+
+        $ops[] = "q\n0.000 0.000 0.000 rg\n".implode("\n", $rects)."\nf\nQ\n";
+
+        return implode('', $ops);
     }
 
     /**

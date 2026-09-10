@@ -143,16 +143,20 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
                 'irn' => 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
                 'ack_no' => 'ACK-1001',
                 'ack_date' => '2026-09-07 18:40:00',
+                'signed_qr' => $this->jwtSignedQr(),
                 'status' => EInvoiceRecordStatus::Submitted->value,
                 'response_payload' => ['ok' => true],
             ],
         );
         $this->regenerate($invoice->id);
-        $pdf = $this->text($this->pdf($invoice->id));
+        $binary = $this->pdf($invoice->id);
+        $pdf = $this->text($binary);
 
         $this->assertStringContainsString('IRN', $pdf);
         $this->assertStringContainsString('a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2', $pdf);
         $this->assertStringContainsString('Ack. No. ACK-1001', $pdf);
+        $this->assertStringContainsString('% signed-qr-image', $binary);
+        $this->assertStringNotContainsString($this->jwtSignedQr(), $binary);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
     }
 
@@ -360,6 +364,111 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringNotContainsString('IRN', $pdf);
         $this->assertStringNotContainsString('fake-signed-qr', $pdf);
         $this->assertStringNotContainsString('eyJhbGciOiJFUzI1NiJ9', $pdf);
+        $this->assertStringNotContainsString('% signed-qr-image', $pdf);
+        $this->assertStringNotContainsString('Signed QR issued with this IRN.', $pdf);
+    }
+
+    public function test_irn_with_jwt_signed_qr_draws_a_visual_qr_and_keeps_ack(): void
+    {
+        $jwt = $this->jwtSignedQr();
+        $pdf = (new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076749',
+            issuedAt: '2026-09-10 17:20:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Phil Technologies (P) Limited',
+            buyerGstin: '27AAICP1128M1Z7',
+            billingAddress: 'G40, Harmony Mall, Link Road, Goregaon',
+            placeOfSupply: 'Maharashtra',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1 Single Fingerprint Biometric Scanner',
+                'hsnSac' => '84716050',
+                'qty' => 1,
+                'unitPrice' => '2117.80',
+                'taxableValue' => '2117.80',
+                'gstPercentage' => '18.00%',
+                'cgst' => '0.00',
+                'sgst' => '0.00',
+                'igst' => '381.20',
+                'taxTotal' => '381.20',
+                'lineTotal' => '2499.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '2117.80',
+            gstRate: '18.00%',
+            taxTotal: '381.20',
+            cgst: '0.00',
+            sgst: '0.00',
+            igst: '381.20',
+            invoiceValue: '2499.00',
+            irn: 'd858cf9f0a582a7aec79eade603e66cf584e9a68bdde5a50a823793527a9d776',
+            ackNo: '172621145994081',
+            ackDate: '2026-09-10 17:21:00',
+            signedQr: $jwt,
+        ));
+        $text = $this->text($pdf);
+
+        $this->assertStringContainsString('% signed-qr-image', $pdf);
+        $this->assertStringContainsString('IRN', $text);
+        $this->assertStringContainsString('d858cf9f0a582a7aec79eade603e66cf584e9a68bdde5a50a823793527a9d776', $text);
+        $this->assertStringContainsString('Ack. No. 172621145994081', $text);
+        $this->assertStringContainsString('Rs.2499.00', $text);
+        $this->assertStringContainsString('84716050', $text);
+        $this->assertStringContainsString('PCS', $text);
+        $this->assertStringNotContainsString('Signed QR issued with this IRN.', $pdf);
+        $this->assertStringNotContainsString($jwt, $pdf);
+        $this->assertStringNotContainsString('/Subtype /Image', $pdf);
+    }
+
+    public function test_irn_with_production_length_jwt_draws_qr_without_leaking_payload(): void
+    {
+        $header = 'eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9';
+        $jwt = $header.str_repeat('A', 150 - strlen($header)).'.'.str_repeat('B', 450).'.'.str_repeat('C', 342);
+        $pdf = (new SimplePdfRenderer)->render($this->payload(
+            irn: 'd858cf9f0a582a7aec79eade603e66cf584e9a68bdde5a50a823793527a9d776',
+            ackNo: '172621145994081',
+            ackDate: '2026-09-10 17:21:00',
+            signedQr: $jwt,
+        ));
+
+        $this->assertSame(944, strlen($jwt));
+        $this->assertStringContainsString('% signed-qr-image', $pdf);
+        $this->assertStringContainsString('Ack. No. 172621145994081', $this->text($pdf));
+        $this->assertStringNotContainsString('Signed QR issued with this IRN.', $pdf);
+        $this->assertStringNotContainsString($jwt, $pdf);
+        $this->assertStringNotContainsString(str_repeat('B', 32), $pdf);
+    }
+
+    public function test_irn_with_invalid_signed_qr_falls_back_to_caption_without_empty_qr(): void
+    {
+        $pdf = (new SimplePdfRenderer)->render($this->payload(
+            irn: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+            ackNo: 'ACK-1001',
+            ackDate: '2026-09-07 18:40:00',
+            signedQr: 'not-a-jwt',
+        ));
+        $text = $this->text($pdf);
+
+        $this->assertStringContainsString('IRN', $text);
+        $this->assertStringContainsString('Ack. No. ACK-1001', $text);
+        $this->assertStringContainsString('Signed QR issued with this IRN.', $pdf);
+        $this->assertStringNotContainsString('% signed-qr-image', $pdf);
+        $this->assertStringNotContainsString('not-a-jwt', $pdf);
+    }
+
+    public function test_irn_without_signed_qr_does_not_emit_qr_or_caption(): void
+    {
+        $pdf = (new SimplePdfRenderer)->render($this->payload(
+            irn: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+            ackNo: 'ACK-1001',
+            ackDate: '2026-09-07 18:40:00',
+        ));
+
+        $this->assertStringContainsString('IRN', $this->text($pdf));
+        $this->assertStringNotContainsString('% signed-qr-image', $pdf);
+        $this->assertStringNotContainsString('Signed QR issued with this IRN.', $pdf);
     }
 
     public function test_commerce_pdf_uses_order_shipping_and_payment_method(): void
@@ -462,10 +571,16 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         return $order->fresh(['items']);
     }
 
+    private function jwtSignedQr(): string
+    {
+        return 'eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoiZWluaXZvaWNlLXRlc3QtcGF5bG9hZC1maXh0dXJlIn0.dGVzdC1zaWduYXR1cmUtZml4dHVyZS1ub3QtcHJvZHVjdGlvbg';
+    }
+
     private function payload(
         ?string $irn = null,
         ?string $ackNo = null,
         ?string $ackDate = null,
+        ?string $signedQr = null,
     ): StatutoryInvoicePdfPayload {
         return new StatutoryInvoicePdfPayload(
             invoiceNumber: 'INV-276710',
@@ -501,6 +616,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             irn: $irn,
             ackNo: $ackNo,
             ackDate: $ackDate,
+            signedQr: $signedQr,
         );
     }
 }

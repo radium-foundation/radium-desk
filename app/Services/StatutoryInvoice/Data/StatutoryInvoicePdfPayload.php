@@ -66,7 +66,8 @@ final class StatutoryInvoicePdfPayload
     }
 
     /**
-     * Future IRN signed-QR image hook. Never treat a skip/queue payload as an IRN.
+     * Stored WhiteBooks/NIC SignedQRCode is present. The renderer encodes it as a
+     * visual QR when the payload is a JWT; otherwise it keeps the caption fallback.
      */
     public function hasIssuedSignedQr(): bool
     {
