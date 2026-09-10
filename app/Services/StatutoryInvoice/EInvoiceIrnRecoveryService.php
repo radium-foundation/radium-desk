@@ -20,6 +20,7 @@ final class EInvoiceIrnRecoveryService
     public function __construct(
         private readonly WhitebooksIrnRecoveryGateway $recovery,
         private readonly EInvoiceIrnPayloadMapper $mapper,
+        private readonly EInvoiceSignedInvoiceStore $signedInvoices,
     ) {}
 
     public function recover(StatutoryInvoice $invoice): EInvoiceSubmitResult
@@ -44,6 +45,10 @@ final class EInvoiceIrnRecoveryService
             ->lockForUpdate()
             ->first();
         if (EInvoiceIrnGuard::recordHasIssuedIrn($existing)) {
+            if ($result->outcome === EInvoiceSubmitOutcome::Success) {
+                $this->signedInvoices->persistFromResult($invoice, $result);
+            }
+
             return;
         }
 
@@ -74,6 +79,7 @@ final class EInvoiceIrnRecoveryService
             'ack_date' => $result->ackDate,
             'signed_qr' => $result->signedQr,
         ]);
+        $this->signedInvoices->persistFromResult($invoice, $result);
     }
 
     /**

@@ -14,6 +14,7 @@ final class EInvoiceSubmitResult
         public readonly mixed $payload = null,
         public readonly ?string $ackDate = null,
         public readonly ?string $signedQr = null,
+        public readonly ?string $signedInvoice = null,
         public readonly ?string $correlationId = null,
         public readonly EInvoiceSubmitOutcome $outcome = EInvoiceSubmitOutcome::Skipped,
     ) {}
@@ -34,6 +35,7 @@ final class EInvoiceSubmitResult
         ?string $ackNo = null,
         ?string $ackDate = null,
         ?string $signedQr = null,
+        ?string $signedInvoice = null,
         ?string $correlationId = null,
         mixed $payload = null,
     ): self {
@@ -45,6 +47,7 @@ final class EInvoiceSubmitResult
             payload: $payload,
             ackDate: $ackDate,
             signedQr: $signedQr,
+            signedInvoice: $signedInvoice,
             correlationId: $correlationId,
             outcome: EInvoiceSubmitOutcome::Success,
         );

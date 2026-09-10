@@ -38,6 +38,7 @@ final class WhitebooksResponseMapper
             ackNo: $this->string($data['AckNo'] ?? null),
             ackDate: $this->string($data['AckDt'] ?? $data['AckDate'] ?? null),
             signedQr: $this->string($data['SignedQRCode'] ?? $data['SignedQrCode'] ?? null),
+            signedInvoice: $this->string($data['SignedInvoice'] ?? null),
             correlationId: $correlationId ?? $this->string($data['AckNo'] ?? null),
             payload: $this->safeSuccessPayload($data, $body),
         );

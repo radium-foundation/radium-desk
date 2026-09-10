@@ -20,6 +20,7 @@ class EInvoiceProcessor
         private readonly EInvoiceEligibility $eligibility,
         private readonly EInvoiceIrnPayloadMapper $mapper,
         private readonly StatutoryDocumentService $documents,
+        private readonly EInvoiceSignedInvoiceStore $signedInvoices,
     ) {}
 
     public function process(OutboxEvent $event): void
@@ -139,6 +140,10 @@ class EInvoiceProcessor
             ->lockForUpdate()
             ->first();
         if (EInvoiceIrnGuard::recordHasIssuedIrn($locked)) {
+            if ($result->outcome === EInvoiceSubmitOutcome::Success) {
+                $this->signedInvoices->persistFromResult($invoice, $result);
+            }
+
             return;
         }
 
@@ -193,6 +198,7 @@ class EInvoiceProcessor
             'request_payload' => $payload->toArray(),
             'response_payload' => $this->responsePayload($result),
         ]);
+        $this->signedInvoices->persistFromResult($invoice, $result);
     }
 
     private function persistOutcome(
