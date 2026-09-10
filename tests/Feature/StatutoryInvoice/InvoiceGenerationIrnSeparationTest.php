@@ -5,11 +5,13 @@ namespace Tests\Feature\StatutoryInvoice;
 use App\Contracts\StatutoryInvoice\EInvoiceGateway;
 use App\Enums\EInvoiceRecordStatus;
 use App\Enums\InventorySaleStatus;
+use App\Enums\InventorySerialStatus;
 use App\Enums\StatutoryInvoiceStatus;
 use App\Models\EInvoiceRecord;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventorySale;
+use App\Models\InventorySerial;
 use App\Models\OutboxEvent;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
@@ -62,6 +64,77 @@ class InvoiceGenerationIrnSeparationTest extends TestCase
             'name' => 'Delhi Retail',
             'is_active' => true,
         ]);
+    }
+
+    public function test_offline_pos_hardware_sale_completes_without_whitebooks_then_worker_issues_irn(): void
+    {
+        Http::preventStrayRequests();
+        config(['statutory_invoices.einvoice.provider' => 'whitebooks']);
+        $fake = $this->bindCaptureFake();
+
+        $sale = $this->completeB2bSale('OFF-HW-1', idempotencyKey: 'offline-pos-hw-1');
+
+        $this->assertSame(InventorySaleStatus::Completed, $sale->status);
+        $this->assertSame(['OFF-HW-1'], $sale->serials->pluck('serial.serial_number')->filter()->values()->all());
+        $this->assertSame(InventorySerialStatus::Sold, InventorySerial::query()->where('serial_number', 'OFF-HW-1')->value('status'));
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertNotNull($sale->fresh()->statutory_invoice_id);
+        $this->assertSame(0, $fake->submitCount);
+        $this->assertSame(0, $fake->fetchCount);
+        $this->assertSame(1, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
+        Http::assertNothingSent();
+
+        config(['statutory_invoices.worker_may_mint' => true]);
+        $this->app->forgetInstance(EInvoiceProcessor::class);
+        $this->app->forgetInstance(OutboxProcessorService::class);
+        app(OutboxProcessorService::class)->process(1);
+
+        $record = EInvoiceRecord::query()->firstOrFail();
+        $this->assertSame(1, $fake->submitCount);
+        $this->assertTrue($record->hasIssuedIrn());
+        $this->assertTrue($record->hasPersistedSignedInvoice());
+        $this->assertSame('signed-qr-token', $record->signed_qr);
+        $this->assertSame(InventorySaleStatus::Completed, $sale->fresh()->status);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_offline_pos_b2c_hardware_sale_invoices_without_irn_outbox(): void
+    {
+        Http::preventStrayRequests();
+        config(['statutory_invoices.einvoice.provider' => 'whitebooks']);
+        $fake = $this->bindCaptureFake();
+
+        $sale = $this->completeB2bSale('OFF-B2C-1', buyerGstin: null);
+
+        $this->assertSame(InventorySaleStatus::Completed, $sale->status);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(
+            'b2c_not_eligible',
+            EInvoiceRecord::query()->where('invoice_id', $sale->fresh()->statutory_invoice_id)->value('response_payload')['skip_reason'] ?? null,
+        );
+        $this->assertSame(0, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
+        $this->assertSame(0, $fake->submitCount);
+        $this->assertSame(0, $fake->fetchCount);
+        Http::assertNothingSent();
+    }
+
+    public function test_offline_pos_repeated_complete_does_not_duplicate_invoice(): void
+    {
+        Http::preventStrayRequests();
+        config(['statutory_invoices.einvoice.provider' => 'whitebooks']);
+        $fake = $this->bindCaptureFake();
+
+        $first = $this->completeB2bSale('OFF-DUP-1', idempotencyKey: 'offline-pos-dup-1');
+        $second = $this->completeB2bSale('OFF-DUP-1', idempotencyKey: 'offline-pos-dup-1');
+
+        $this->assertSame($first->id, $second->id);
+        $this->assertSame(1, InventorySale::query()->count());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(1, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
+        $this->assertSame(0, $fake->submitCount);
+        $this->assertSame(0, $fake->fetchCount);
+        Http::assertNothingSent();
     }
 
     public function test_whitebooks_timeout_cannot_roll_back_pos_invoice_creation(): void
@@ -130,18 +203,36 @@ class InvoiceGenerationIrnSeparationTest extends TestCase
         Http::assertNothingSent();
     }
 
-    private function completeB2bSale(string $serial): InventorySale
-    {
-        $product = InventoryProduct::query()->create([
-            'sku' => 'MFS110-'.$serial,
-            'name' => 'Mantra MFS110',
-            'hsn_code' => '84716050',
-            'gst_percentage' => 18,
-            'unit_price' => 100,
-            'is_serialized' => true,
-            'is_active' => true,
-        ]);
-        app(InventoryStockService::class)->stockInSerialized($product, $this->branch, [$serial], $this->actor);
+    private function completeB2bSale(
+        string $serial,
+        ?string $buyerGstin = '07AAAAA0000A1Z5',
+        ?string $idempotencyKey = null,
+    ): InventorySale {
+        $product = InventoryProduct::query()->firstOrCreate(
+            ['sku' => 'MFS110-'.$serial],
+            [
+                'name' => 'Mantra MFS110',
+                'hsn_code' => '84716050',
+                'gst_percentage' => 18,
+                'unit_price' => 100,
+                'is_serialized' => true,
+                'is_active' => true,
+            ],
+        );
+        if (InventorySerial::query()->where('serial_number', $serial)->doesntExist()) {
+            app(InventoryStockService::class)->stockInSerialized($product, $this->branch, [$serial], $this->actor);
+        }
+
+        $statutory = [
+            'place_of_supply_state' => 'Delhi',
+            'billing_address' => '1 Test Street, Delhi',
+            'billing_city' => 'New Delhi',
+            'billing_state' => 'Delhi',
+            'billing_pincode' => '110001',
+        ];
+        if ($buyerGstin !== null) {
+            $statutory['buyer_gstin'] = $buyerGstin;
+        }
 
         return app(PosSaleService::class)->completeSale(
             branch: $this->branch,
@@ -153,14 +244,8 @@ class InvoiceGenerationIrnSeparationTest extends TestCase
             ]],
             paymentMethod: 'Cash',
             actor: $this->actor,
-            statutory: [
-                'buyer_gstin' => '07AAAAA0000A1Z5',
-                'place_of_supply_state' => 'Delhi',
-                'billing_address' => '1 Test Street, Delhi',
-                'billing_city' => 'New Delhi',
-                'billing_state' => 'Delhi',
-                'billing_pincode' => '110001',
-            ],
+            idempotencyKey: $idempotencyKey,
+            statutory: $statutory,
         );
     }
 
@@ -171,6 +256,17 @@ class InvoiceGenerationIrnSeparationTest extends TestCase
             $this->fail('Expected e-invoice recovery to remain required.');
         } catch (EInvoiceRecoveryRequiredException) {
         }
+    }
+
+    private function bindCaptureFake(): FakeEInvoiceGateway
+    {
+        $fake = FakeEInvoiceGateway::succeeding();
+        $this->app->instance(EInvoiceGateway::class, $fake);
+        $this->app->instance(EInvoiceIrnPayloadMapper::class, new FakeEInvoicePayloadMapper);
+        $this->app->forgetInstance(EInvoiceProcessor::class);
+        $this->app->forgetInstance(OutboxProcessorService::class);
+
+        return $fake;
     }
 
     private function bindLiveFake(?EInvoiceSubmitResult $result = null): FakeEInvoiceGateway

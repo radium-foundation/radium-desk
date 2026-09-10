@@ -46,6 +46,33 @@ WhiteBooks is not called there. A mint failure is logged (`pos_statutory_invoice
 
 `auto_issue_on_pos_complete` must stay false.
 
+## Offline POS
+
+There is no separate offline-POS module. Walk-in hardware POS is the same `completeSale()` path.
+
+**Verified:**
+
+```text
+Offline POS hardware sale (no WhiteBooks connectivity required)
+        ↓
+completeSale persists payment + required serials in one transaction
+        ↓
+invoice minted after that commit (PosStatutoryInvoiceIssuer)
+        ↓
+eligible B2B enters existing statutory.invoice.einvoice outbox
+        ↓
+IRN worker (when connectivity exists) → WhiteBooks GENERATE
+        ↓
+IRN + Ack + Signed Invoice + Signed QR
+```
+
+- Capture with `STATUTORY_EINVOICE_PROVIDER=whitebooks` does not call GENERATE or Get-IRN (`submitCount`/`fetchCount` stay 0; `Http::assertNothingSent()`). The gateway is not a prerequisite for completing the sale.
+- Serialized hardware cannot persist without the required serials in `completeSale()`. That is the serial-assignment step for walk-in POS (not a later Hardware Fulfilment allocate). Invoice mint runs after that commit.
+- B2C and other ineligible invoices mint (when otherwise eligible to mint) and skip IRN.
+- Worker retry / ambiguous GENERATE / Get-IRN recovery are the existing IRN path. No second IRN mechanism.
+
+Proof: `InvoiceGenerationIrnSeparationTest` (`test_offline_pos_hardware_sale_completes_without_whitebooks_then_worker_issues_irn`, B2C skip, repeated complete).
+
 ## IRN
 
 Eligible B2B tax invoices enter the existing IRN outbox once. B2C / historical / cancelled / incomplete / policy-skip remain fail-closed (record skipped, no GENERATE). Worker GENERATE / Get-IRN recovery / SignedInvoice / Signed QR are unchanged.
