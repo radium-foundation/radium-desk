@@ -19,6 +19,8 @@ final class HardwareFulfilmentEligibility
 
     public const SOURCE_PREFIX = 'RDE';
 
+    public const RBP_SOURCE_PREFIX = 'RBP';
+
     public const RIN_SOURCE_PREFIX = 'RIN';
 
     public const CUTOFF_IST = '2026-09-05 00:00:00';
@@ -93,7 +95,7 @@ final class HardwareFulfilmentEligibility
             return false;
         }
 
-        if (! str_starts_with(strtoupper($request->sourceId), self::SOURCE_PREFIX)) {
+        if (! self::looksLikeBoxHardwareSourceId($request->sourceId)) {
             return false;
         }
 
@@ -149,6 +151,19 @@ final class HardwareFulfilmentEligibility
         return $item->model_id !== null;
     }
 
+    public static function looksLikeBoxHardwareSourceId(string $sourceId): bool
+    {
+        $parsed = BusinessOrderId::parse($sourceId);
+        if ($parsed !== null) {
+            return $parsed['hardware'] === true && $parsed['owner'] === 'radiumbox.com';
+        }
+
+        $normalized = strtoupper(trim($sourceId));
+
+        return str_starts_with($normalized, self::SOURCE_PREFIX)
+            || str_starts_with($normalized, self::RBP_SOURCE_PREFIX);
+    }
+
     public static function looksLikeHardwareSourceId(string $sourceId): bool
     {
         $parsed = BusinessOrderId::parse($sourceId);
@@ -159,6 +174,7 @@ final class HardwareFulfilmentEligibility
         $normalized = strtoupper(trim($sourceId));
 
         return str_starts_with($normalized, self::SOURCE_PREFIX)
+            || str_starts_with($normalized, self::RBP_SOURCE_PREFIX)
             || self::looksLikeRinSourceId($normalized);
     }
 

@@ -10,7 +10,7 @@ final class BusinessOrderId
 {
     /** @var list<array{prefix:string,kind:string,owner:string,hardware:bool}> */
     private const RULES = [
-        ['prefix' => 'RBP', 'kind' => 'product', 'owner' => 'radiumbox.com', 'hardware' => false],
+        ['prefix' => 'RBP', 'kind' => 'product', 'owner' => 'radiumbox.com', 'hardware' => true],
         ['prefix' => 'RDP', 'kind' => 'product', 'owner' => 'rdservice.in', 'hardware' => false],
         ['prefix' => 'RNP', 'kind' => 'product', 'owner' => 'rdservice.net', 'hardware' => false],
         ['prefix' => 'RSP', 'kind' => 'product', 'owner' => 'radiumsign.com', 'hardware' => false],

@@ -93,6 +93,18 @@ class HardwareFulfilmentIngestReadyTest extends TestCase
         $this->assertNoDownstreamMutations();
     }
 
+    public function test_eligible_rbp_hardware_ingest_opens_ready_fulfilment(): void
+    {
+        $this->signedBoxPost($this->eligibleBoxPayload('RBP29'))->assertCreated();
+
+        $this->assertSame(1, CommerceOrder::query()->where('source_id', 'RBP29')->count());
+        $fulfilment = HardwareFulfilment::query()->where('source_id', 'RBP29')->firstOrFail();
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->state);
+        $this->assertNotNull($fulfilment->ready_at);
+        $this->assertSame(0, $fulfilment->serials()->count());
+        $this->assertNoDownstreamMutations();
+    }
+
     public function test_missing_order_date_keeps_ingested_and_exposes_blocker(): void
     {
         $payload = $this->eligibleBoxPayload('RDE910102');

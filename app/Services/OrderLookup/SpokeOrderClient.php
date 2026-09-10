@@ -52,7 +52,7 @@ class SpokeOrderClient
         if ($parsed !== null) {
             $token = strtolower($parsed['prefix']);
             if (in_array($token, $accepts, true)) {
-                if ($parsed['hardware'] && ! in_array($token, ['rde', 'rin'], true)) {
+                if ($parsed['hardware'] && ! in_array($token, ['rde', 'rin', 'rbp'], true)) {
                     return false;
                 }
 
@@ -74,7 +74,8 @@ class SpokeOrderClient
             $prefix = strtoupper(substr(trim($orderId), 0, 3));
 
             return ($prefix === 'RDE' && in_array('rde', $accepts, true))
-                || ($prefix === 'RIN' && in_array('rin', $accepts, true));
+                || ($prefix === 'RIN' && in_array('rin', $accepts, true))
+                || ($prefix === 'RBP' && in_array('rbp', $accepts, true));
         }
 
         return in_array('rd', $accepts, true) && RdServiceOrderId::isValid($orderId);

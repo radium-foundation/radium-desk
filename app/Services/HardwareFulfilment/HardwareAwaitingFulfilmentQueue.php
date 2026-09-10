@@ -180,7 +180,10 @@ final class HardwareAwaitingFulfilmentQueue
             ->all();
 
         return Order::query()
-            ->where('order_id', 'like', HardwareFulfilmentEligibility::SOURCE_PREFIX.'%')
+            ->where(function (Builder $query): void {
+                $query->where('order_id', 'like', HardwareFulfilmentEligibility::SOURCE_PREFIX.'%')
+                    ->orWhere('order_id', 'like', HardwareFulfilmentEligibility::RBP_SOURCE_PREFIX.'%');
+            })
             ->when($sourceIds !== [], static function (Builder $query) use ($sourceIds): void {
                 $query->whereNotIn('order_id', $sourceIds);
             })

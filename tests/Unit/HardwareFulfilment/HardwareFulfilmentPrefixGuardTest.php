@@ -11,12 +11,13 @@ use Tests\TestCase;
 
 class HardwareFulfilmentPrefixGuardTest extends TestCase
 {
-    public function test_rbp_never_opens_hardware_fulfilment_even_with_physical_lines(): void
+    public function test_rbp_physical_box_orders_open_hardware_fulfilment(): void
     {
         $request = $this->boxPhysical('RBP1');
 
-        $this->assertFalse(HardwareFulfilmentEligibility::shouldOpenRecord($request));
-        $this->assertFalse(HardwareFulfilmentEligibility::looksLikeHardwareSourceId('RBP1'));
+        $this->assertTrue(HardwareFulfilmentEligibility::shouldOpenRecord($request));
+        $this->assertTrue(HardwareFulfilmentEligibility::looksLikeHardwareSourceId('RBP1'));
+        $this->assertTrue(HardwareFulfilmentEligibility::looksLikeBoxHardwareSourceId('RBP29'));
     }
 
     public function test_rde_and_rin_remain_hardware(): void

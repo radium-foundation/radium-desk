@@ -92,7 +92,7 @@ return [
 
     'hardware_order_prefixes' => array_values(array_filter(array_map(
         static fn (string $prefix): string => strtoupper(trim($prefix)),
-        explode(',', (string) env('OPERATIONS_HARDWARE_ORDER_PREFIXES', 'RDE,RIN')),
+        explode(',', (string) env('OPERATIONS_HARDWARE_ORDER_PREFIXES', 'RDE,RIN,RBP')),
     ))),
 
     'dashboard' => [
