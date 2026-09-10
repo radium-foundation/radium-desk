@@ -121,14 +121,45 @@ GENERATE-eligible after Get-IRN 2154 (oldest first):
 | INV-076735 | 793 | RDE318517 | 5 | 12495.00 |
 | INV-076736 | 795 | RDE318490 | 10 | 30480.00 |
 
-INV-076724 is the hardware example: 10 serials, B2B, mapper gaps empty, skip `worker_may_mint_off`.
+INV-076724 is the hardware example: 10 serials, B2B. GENERATE was attempted once and WhiteBooks returned error 5002 (NIC Addr1 max 100). Stored billing_address is 232 characters (IRP Addr1+Addr2 max 200). **NOT ISSUED — buyer_address_exceeds_irp_limit.** Do not truncate or invent address text. Same for INV-076735 (232 chars).
 
-43 remaining B2B without IRN: mapper gaps (`missing_uqc` 34, plus PIN/loc/is_servc/state mismatch combinations). Fail-closed. Exact list in `docs/desk-einvoice-reconciliation-2026-09-05-p-07-09-218.md`.
+Addr1/Addr2 split was added so addresses 101–200 characters can GENERATE without changing stored invoice data.
+
+## Production backfill result (after overlay)
+
+Date range: `2026-09-05 00:00:00` through `2026-09-10 23:22:08` Asia/Kolkata. Examined **1219** invoices (2 arrived after the first inventory).
+
+| Count | Value |
+|------:|-------|
+| B2B | 51 |
+| B2C | 1168 |
+| Already had IRN | 3 |
+| Recovered via Get-IRN | 0 |
+| New IRNs generated | 3 |
+| Missing statutory data | 45 |
+| Cancelled | 0 |
+| Remaining genuinely eligible B2B without IRN | 0 |
+
+New IRNs (Get-IRN 2154 first, then GENERATE once):
+
+| Invoice | ID | Ack No | Notes |
+|---------|----|--------|-------|
+| INV-076729 | 645 | 172621148746971 | Addr2 split; PDF rewritten |
+| INV-076730 | 648 | 172621148747086 | Addr2 split; PDF rewritten |
+| INV-076736 | 795 | 172621148747174 | 10 serials + Annexure A; PDF rewritten |
+
+INV-076724 GENERATE once → 5002, no IRN created, not retried. Idempotent re-run of INV-076729: `already_had_irn`, GENERATE not attempted.
+
+Get-IRN on all 51 B2B: 6 already issued; 45 confirmed 2154. No duplicate IRN.
+
+PDF: presentation rewrite for all 1219 invoices in range. A4 MediaBox `[0 0 595 842]`. INV-076736: IRN + Ack. No. + Ack. date + QR matrix. INV-076724: first-page serial summary + Annexure A, no empty QR.
+
+Overlay backup: `/var/www/radium-desk/storage/app/private/overlays/p-07-09-218-20260910T173949Z` (files + invoice/IRN SQL gzip). HardwareFulfilmentInvoiceService UQC overlay preserved (`7a6e7bf0…`). **Not** deskd. No migrate. No `.env`.
 
 ## Rollback
 
-Restore overlay backup files under `/var/www/radium-desk/storage/app/private/overlays/p-07-09-218-*`. Do not delete invoice/IRN rows. Presentation PDF rewrite is not a financial reissue.
+Restore overlay backup files under `/var/www/radium-desk/storage/app/private/overlays/p-07-09-218-20260910T173949Z`. Restore `public/build` from that backup. Do not delete invoice/IRN rows. Presentation PDF rewrite is not a financial reissue.
 
 ## Testing
 
-Focused: Customer 360 invoice actions, PDF presentation, hardware P3 serials, backfill safety, Get-IRN recovery, processor recovery boundary, eligibility. Pint on dirty PHP. Pre-existing Vite `public/build/manifest.json` 500s on some layout GETs unchanged.
+Focused: Customer 360 invoice actions, PDF presentation, hardware P3 serials, backfill safety, Get-IRN recovery, GENERATE payload Addr2, processor recovery boundary, eligibility. Pint on dirty PHP. Pre-existing Vite `public/build/manifest.json` 500s on some layout GETs unchanged.

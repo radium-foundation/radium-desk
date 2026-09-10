@@ -31,17 +31,19 @@ Remaining unexpected missing IRN after backfill must be listed with reason.
 | 1062 | INV-076746 | RDE318400 | 172621144003124 | present | present |
 | 1123 | INV-076749 | POS-000002 | 172621145994081 | present | present |
 
-## GENERATE-eligible (mapper gaps empty)
+## GENERATE-eligible (mapper gaps empty) — before Addr2 split
 
 Oldest first. Get-IRN first. GENERATE only after 2154.
 
-| ID | Number | Source | Buyer GSTIN | Taxable | Tax | Total |
-|----|--------|--------|-------------|---------|-----|-------|
-| 629 | INV-076724 | RDE318516 | 29AAAJD1151D1ZS | 21177.97 | 3812.03 | 24990.00 |
-| 645 | INV-076729 | RDE318503 | 24ALOPM5381R2Z6 | 2583.90 | 465.10 | 3049.00 |
-| 648 | INV-076730 | RDE318500 | 02ADZPT2982Q1ZD | 2117.80 | 381.20 | 2499.00 |
-| 793 | INV-076735 | RDE318517 | 29AAAJD1151D1ZS | 10588.98 | 1906.02 | 12495.00 |
-| 795 | INV-076736 | RDE318490 | 36AADCO1540P1Z8 | 25830.51 | 4649.49 | 30480.00 |
+Addresses 101–200 characters need NIC Addr1+Addr2 mapping. Addresses over 200 cannot be issued without altering stored text.
+
+| ID | Number | Source | Buyer GSTIN | Taxable | Tax | Total | Final |
+|----|--------|--------|-------------|---------|-----|-------|-------|
+| 629 | INV-076724 | RDE318516 | 29AAAJD1151D1ZS | 21177.97 | 3812.03 | 24990.00 | NOT ISSUED — buyer_address_exceeds_irp_limit (232 chars). GENERATE once → WhiteBooks 5002. No IRN. Not retried. |
+| 645 | INV-076729 | RDE318503 | 24ALOPM5381R2Z6 | 2583.90 | 465.10 | 3049.00 | IRN issued after Addr2 split |
+| 648 | INV-076730 | RDE318500 | 02ADZPT2982Q1ZD | 2117.80 | 381.20 | 2499.00 | IRN issued after Addr2 split |
+| 793 | INV-076735 | RDE318517 | 29AAAJD1151D1ZS | 10588.98 | 1906.02 | 12495.00 | NOT ISSUED — buyer_address_exceeds_irp_limit (232 chars). GENERATE not attempted after 5002 lesson. |
+| 795 | INV-076736 | RDE318490 | 36AADCO1540P1Z8 | 25830.51 | 4649.49 | 30480.00 | IRN issued after Addr2 split |
 
 ## NOT ISSUED — statutory data incomplete (do not invent values)
 
@@ -93,4 +95,8 @@ Skip reason on file: `worker_may_mint_off`. Eligibility is B2B. Mapper gaps bloc
 | 1091 | INV-076748 | RD391 | missing_uqc |
 | 1131 | INV-276744 | RD473 | missing_uqc |
 
-Gap histogram: `missing_uqc` 34; PIN/loc/UQC/IsServc 4; UQC+IsServc 2; buyer_state_mismatch+UQC 2; buyer_state_mismatch 1.
+Gap histogram: `missing_uqc` 34; PIN/loc/UQC/IsServc 4; UQC+IsServc 2; buyer_state_mismatch+UQC 2; buyer_state_mismatch 1; buyer_address_exceeds_irp_limit 2 (INV-076724, INV-076735).
+
+## After backfill (2026-09-10 23:22 IST)
+
+B2B with verified IRN: 6 (3 pre-existing + 3 new). Get-IRN recoveries of a previously missing IRN: 0. Remaining B2B without IRN: 45, all with mapper gaps listed above. Remaining **unexpected** missing IRN among mapper-submittable B2B: **0**.
