@@ -35,7 +35,8 @@ final class EInvoiceIrnGuard
         $status = $record->status;
 
         return $status === EInvoiceRecordStatus::Submitted->value
-            || $status === EInvoiceRecordStatus::PermanentFailure->value;
+            || $status === EInvoiceRecordStatus::PermanentFailure->value
+            || $status === EInvoiceRecordStatus::IrnNotFound->value;
     }
 
     public static function mustRecoverInsteadOfGenerate(?EInvoiceRecord $record): bool

@@ -82,4 +82,19 @@ final class EInvoiceSubmitResult
             outcome: EInvoiceSubmitOutcome::Ambiguous,
         );
     }
+
+    /**
+     * WhiteBooks confirmed no IRN exists (P-196: HTTP 200, status_cd=0, errorCode 2154).
+     * This is not a GENERATE retry signal.
+     */
+    public static function irnNotFound(string $provider, mixed $payload = null, ?string $correlationId = null): self
+    {
+        return new self(
+            provider: $provider,
+            status: EInvoiceSubmitOutcome::IrnNotFound->value,
+            payload: $payload,
+            correlationId: $correlationId,
+            outcome: EInvoiceSubmitOutcome::IrnNotFound,
+        );
+    }
 }

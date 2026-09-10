@@ -12,4 +12,5 @@ enum EInvoiceRecordStatus: string
     case TemporaryFailure = 'temporary_failure';
     case PermanentFailure = 'permanent_failure';
     case Ambiguous = 'ambiguous';
+    case IrnNotFound = 'irn_not_found';
 }

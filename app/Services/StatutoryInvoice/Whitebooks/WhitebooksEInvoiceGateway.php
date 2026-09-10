@@ -179,10 +179,10 @@ final class WhitebooksEInvoiceGateway implements EInvoiceGateway
     }
 
     /**
-     * GETIRNBYDOCDETAILS recovery (P-194 production success path).
+     * GETIRNBYDOCDETAILS recovery (P-194 success, P-196 not-found).
      * Query is param1 (document type) + email. Document number/date are headers.
-     * Password is not sent. Error JSON remains unverified; HTTP classification
-     * stays the existing conservative adapter mapping and does not retry.
+     * Password is not sent. HTTP 200 / status_cd=0 / errorCode 2154 is confirmed
+     * IRN-not-found. HTTP 404/5xx and unknown codes stay conservative. No retries.
      *
      * @param  array{doctype: string, docnum: string, docdate: string}  $lookup
      */

@@ -162,6 +162,12 @@ class EInvoiceProcessor
                 $result,
                 EInvoiceRecordStatus::Ambiguous,
             ),
+            EInvoiceSubmitOutcome::IrnNotFound => $this->persistOutcome(
+                $invoice,
+                $payload,
+                $result,
+                EInvoiceRecordStatus::IrnNotFound,
+            ),
             EInvoiceSubmitOutcome::Skipped => $this->persistSkip($invoice, 'provider_skipped', $payload),
         };
     }

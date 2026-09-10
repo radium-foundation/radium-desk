@@ -296,6 +296,90 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
         $this->assertSecretsAbsent($result);
     }
 
+    public function test_get_irn_2154_without_data_is_confirmed_not_found(): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
+            'https://api.whitebooks.in/einvoice/type/GETIRNBYDOCDETAILS/*' => Http::response($this->notFound2154Body(), 200),
+        ]);
+        $result = $this->gateway()->fetchExisting($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame(EInvoiceSubmitOutcome::IrnNotFound, $result->outcome);
+        $this->assertSame('irn_not_found', $result->payload['reason'] ?? null);
+        $this->assertSame('2154', $result->payload['error_code'] ?? null);
+        $this->assertSame('0', $result->payload['status_cd'] ?? null);
+        $this->assertNull($result->irn);
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'GENERATE'));
+        $this->assertSecretsAbsent($result);
+    }
+
+    public function test_get_irn_2154_is_found_without_assuming_error_order(): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
+            'https://api.whitebooks.in/einvoice/type/GETIRNBYDOCDETAILS/*' => Http::response($this->notFound2154Body([
+                ['errorCode' => '2148', 'errorMessage' => 'Requested IRN data is not available'],
+                ['errorCode' => '2154', 'errorMessage' => 'IRN details are not found'],
+            ]), 200),
+        ]);
+        $result = $this->gateway()->fetchExisting($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame(EInvoiceSubmitOutcome::IrnNotFound, $result->outcome);
+        $this->assertSame('2154', $result->payload['error_code'] ?? null);
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'GENERATE'));
+    }
+
+    public function test_get_irn_http_404_remains_ambiguous(): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
+            'https://api.whitebooks.in/einvoice/type/GETIRNBYDOCDETAILS/*' => Http::response('', 404),
+        ]);
+        $result = $this->gateway()->fetchExisting($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame(EInvoiceSubmitOutcome::Ambiguous, $result->outcome);
+        $this->assertSame('not_found', $result->payload['reason'] ?? null);
+        $this->assertSame(404, $result->payload['http_status'] ?? null);
+        $this->assertNotSame(EInvoiceSubmitOutcome::IrnNotFound, $result->outcome);
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'GENERATE'));
+        $this->assertSecretsAbsent($result);
+    }
+
+    public function test_get_irn_unknown_error_code_remains_ambiguous(): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
+            'https://api.whitebooks.in/einvoice/type/GETIRNBYDOCDETAILS/*' => Http::response([
+                'irp' => 'NIC',
+                'status_cd' => '0',
+                'status_desc' => json_encode([
+                    ['errorCode' => '9999', 'errorMessage' => 'unverified code'],
+                ]),
+            ], 200),
+        ]);
+        $result = $this->gateway()->fetchExisting($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame(EInvoiceSubmitOutcome::Ambiguous, $result->outcome);
+        $this->assertSame('not_found', $result->payload['reason'] ?? null);
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'GENERATE'));
+        $this->assertSecretsAbsent($result);
+    }
+
+    public function test_get_irn_malformed_response_remains_conservative(): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
+            'https://api.whitebooks.in/einvoice/type/GETIRNBYDOCDETAILS/*' => Http::response('not-json', 200),
+        ]);
+        $result = $this->gateway()->fetchExisting($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame(EInvoiceSubmitOutcome::TemporaryFailure, $result->outcome);
+        $this->assertSame('malformed_get_irn_response', $result->payload['reason'] ?? null);
+        $this->assertNotSame(EInvoiceSubmitOutcome::IrnNotFound, $result->outcome);
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'GENERATE'));
+        $this->assertSecretsAbsent($result);
+    }
+
     public function test_get_irn_provider_failure_is_temporary(): void
     {
         Http::fake([
@@ -363,6 +447,63 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
         $this->assertSame(1, $generateCalls);
         $this->assertSame(1, $getIrnCalls);
         $this->assertSame(self::IRN, $record?->fresh()->irn);
+        $this->assertSecretsAbsentFrom(json_encode($record?->response_payload));
+    }
+
+    public function test_processor_2154_after_ambiguous_generate_does_not_generate_again(): void
+    {
+        $generateCalls = 0;
+        $getIrnCalls = 0;
+        Http::fake(function ($request) use (&$generateCalls, &$getIrnCalls) {
+            if (str_contains($request->url(), 'authenticate')) {
+                return Http::response(['data' => ['AuthToken' => self::TOKEN]], 200);
+            }
+            if (str_contains($request->url(), 'GENERATE')) {
+                $generateCalls++;
+
+                return Http::response(['status' => 'error'], 503);
+            }
+            if (str_contains($request->url(), 'GETIRNBYDOCDETAILS')) {
+                $getIrnCalls++;
+
+                return Http::response($this->notFound2154Body(), 200);
+            }
+
+            $this->fail('Unexpected WhiteBooks URL: '.$request->url());
+        });
+        $this->app->instance(EInvoiceGateway::class, $this->gateway());
+        $this->app->instance(EInvoiceIrnPayloadMapper::class, new FakeEInvoicePayloadMapper);
+        config([
+            'statutory_invoices.worker_may_mint' => true,
+            'statutory_invoices.einvoice.provider' => 'whitebooks',
+        ]);
+        $invoice = $this->makeTaxInvoice();
+        app(StatutoryInvoiceService::class)->queueEinvoiceIfEligible($invoice);
+        $outbox = OutboxEvent::query()
+            ->where('idempotency_key', EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice))
+            ->firstOrFail();
+        $processor = app(EInvoiceProcessor::class);
+
+        $processor->process($outbox);
+        $this->assertSame(1, $generateCalls);
+        $this->assertSame(0, $getIrnCalls);
+        $this->assertSame(EInvoiceRecordStatus::Ambiguous->value, EInvoiceRecord::query()->where('invoice_id', $invoice->id)->value('status'));
+
+        $processor->process($outbox);
+        $this->assertSame(1, $generateCalls);
+        $this->assertSame(1, $getIrnCalls);
+
+        $record = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
+        $this->assertNull($record?->irn);
+        $this->assertSame(EInvoiceRecordStatus::IrnNotFound->value, $record?->status);
+        $this->assertSame(EInvoiceSubmitOutcome::IrnNotFound->value, $record?->response_payload['outcome'] ?? null);
+        $this->assertSame('2154', $record?->response_payload['payload']['error_code'] ?? null);
+
+        $processor->process($outbox);
+        $this->assertSame(1, $generateCalls);
+        $this->assertSame(1, $getIrnCalls);
+        $this->assertNull($record?->fresh()->irn);
+        $this->assertSame(EInvoiceRecordStatus::IrnNotFound->value, $record?->fresh()->status);
         $this->assertSecretsAbsentFrom(json_encode($record?->response_payload));
     }
 
@@ -551,6 +692,23 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
                 'EwbValidTill' => null,
                 'Remarks' => null,
             ],
+        ];
+    }
+
+    /**
+     * P-196 production GETIRNBYDOCDETAILS not-found envelope. `data` is omitted.
+     *
+     * @param  list<array{errorCode: string, errorMessage: string}>|null  $errors
+     * @return array<string, mixed>
+     */
+    private function notFound2154Body(?array $errors = null): array
+    {
+        return [
+            'irp' => 'NIC',
+            'status_cd' => '0',
+            'status_desc' => json_encode($errors ?? [
+                ['errorCode' => '2154', 'errorMessage' => 'IRN details are not found'],
+            ]),
         ];
     }
 
