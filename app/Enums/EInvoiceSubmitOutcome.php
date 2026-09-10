@@ -2,13 +2,10 @@
 
 namespace App\Enums;
 
-enum EInvoiceRecordStatus: string
+enum EInvoiceSubmitOutcome: string
 {
-    case Queued = 'queued';
-    case Processing = 'processing';
     case Skipped = 'skipped';
-    case Submitted = 'submitted';
-    case Failed = 'failed';
+    case Success = 'success';
     case TemporaryFailure = 'temporary_failure';
     case PermanentFailure = 'permanent_failure';
     case Ambiguous = 'ambiguous';

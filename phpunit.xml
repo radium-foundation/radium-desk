@@ -56,6 +56,16 @@
         <env name="CHANNEL_INGEST_SECRET_FUTURE" value="" force="true"/>
         <env name="CHANNEL_INGEST_CUTOVER_APPROVED" value="false" force="true"/>
         <env name="STATUTORY_EINVOICE_PROVIDER" value="none" force="true"/>
+        <env name="STATUTORY_EINVOICE_GSP_BASE_URL" value="" force="true"/>
+        <env name="STATUTORY_EINVOICE_GSP_ENVIRONMENT" value="" force="true"/>
+        <env name="STATUTORY_EINVOICE_GSP_CLIENT_ID" value="" force="true"/>
+        <env name="STATUTORY_EINVOICE_GSP_CLIENT_SECRET" value="" force="true"/>
+        <env name="STATUTORY_EINVOICE_GSP_EMAIL" value="" force="true"/>
+        <env name="STATUTORY_EINVOICE_GSP_IP_ADDRESS" value="" force="true"/>
+        <env name="STATUTORY_EINVOICE_DELHI_GST_USERNAME" value="" force="true"/>
+        <env name="STATUTORY_EINVOICE_DELHI_GST_PASSWORD" value="" force="true"/>
+        <env name="STATUTORY_EINVOICE_MUMBAI_GST_USERNAME" value="" force="true"/>
+        <env name="STATUTORY_EINVOICE_MUMBAI_GST_PASSWORD" value="" force="true"/>
         <env name="STATUTORY_INVOICE_SERIES_CODE" value="" force="true"/>
         <env name="STATUTORY_INVOICE_NUMBER_FORMAT" value="" force="true"/>
         <env name="STATUTORY_INVOICE_GSTIN_SCOPE" value="" force="true"/>

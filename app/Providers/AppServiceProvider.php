@@ -313,6 +313,8 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
+        // IRN stays off: always Null until a later authorized provider bind.
+        // WhitebooksEInvoiceGateway exists for tests only. Do not bind it here.
         $this->app->bind(EInvoiceGateway::class, NullEInvoiceGateway::class);
         $this->app->bind(ShiprocketGateway::class, function ($app) {
             if ($this->shouldBindHttpShiprocket()) {

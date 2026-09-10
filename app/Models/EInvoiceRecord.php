@@ -32,4 +32,9 @@ class EInvoiceRecord extends Model
     {
         return $this->belongsTo(StatutoryInvoice::class, 'invoice_id');
     }
+
+    public function hasIssuedIrn(): bool
+    {
+        return is_string($this->irn) && trim($this->irn) !== '';
+    }
 }

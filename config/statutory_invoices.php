@@ -58,6 +58,9 @@ return [
                     '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
                 ),
                 'state' => $statutoryEnv('STATUTORY_INVOICE_DELHI_STATE', 'Delhi'),
+                // Owner-verified registered office (P-05-09-13), same source as address.
+                'pin' => $statutoryEnv('STATUTORY_INVOICE_DELHI_PIN', '110019'),
+                'loc' => $statutoryEnv('STATUTORY_INVOICE_DELHI_LOC', 'New Delhi'),
             ],
             'mumbai' => [
                 'gst_state_code' => '27',
@@ -68,6 +71,8 @@ return [
                     'G40, Harmony Mall, Link Road, Goregaon, Mumbai 400104',
                 ),
                 'state' => $statutoryEnv('STATUTORY_INVOICE_MUMBAI_STATE', 'Maharashtra'),
+                'pin' => $statutoryEnv('STATUTORY_INVOICE_MUMBAI_PIN', '400104'),
+                'loc' => $statutoryEnv('STATUTORY_INVOICE_MUMBAI_LOC', 'Mumbai'),
             ],
         ],
     ],
@@ -92,6 +97,11 @@ return [
     */
     'legal_name' => env('STATUTORY_INVOICE_LEGAL_NAME'),
 
+    // Printed on statutory PDFs only. Matches the published contact already
+    // used on current commerce/POS invoices. Not a GSP credential.
+    'contact_email' => $statutoryEnv('STATUTORY_INVOICE_CONTACT_EMAIL', 'mail@radiumbox.com'),
+    'contact_phone' => $statutoryEnv('STATUTORY_INVOICE_CONTACT_PHONE', '+91-84343 84343'),
+
     'seller_address' => env('STATUTORY_INVOICE_SELLER_ADDRESS'),
 
     'seller_state' => env('STATUTORY_INVOICE_SELLER_STATE'),
@@ -109,6 +119,29 @@ return [
 
     'einvoice' => [
         'provider' => env('STATUTORY_EINVOICE_PROVIDER', 'none'),
+        /*
+        | Direct WhiteBooks Production API. Default base is the verified host.
+        | Leave secrets empty. Do not copy media.radiumbox.com or Admin secrets.
+        | One WhiteBooks client pair + per-issuer GST portal username/password.
+        | IP must be the Desk server outbound/public IP, not the browser IP.
+        */
+        'gsp_base_url' => env('STATUTORY_EINVOICE_GSP_BASE_URL', 'https://api.whitebooks.in'),
+        'gsp_environment' => env('STATUTORY_EINVOICE_GSP_ENVIRONMENT'),
+        'gsp_client_id' => env('STATUTORY_EINVOICE_GSP_CLIENT_ID'),
+        'gsp_client_secret' => env('STATUTORY_EINVOICE_GSP_CLIENT_SECRET'),
+        'gsp_email' => env('STATUTORY_EINVOICE_GSP_EMAIL'),
+        'gsp_ip_address' => env('STATUTORY_EINVOICE_GSP_IP_ADDRESS'),
+        'timeout_seconds' => (int) env('STATUTORY_EINVOICE_GSP_TIMEOUT_SECONDS', 30),
+        'issuers' => [
+            'delhi' => [
+                'gst_username' => env('STATUTORY_EINVOICE_DELHI_GST_USERNAME'),
+                'gst_password' => env('STATUTORY_EINVOICE_DELHI_GST_PASSWORD'),
+            ],
+            'mumbai' => [
+                'gst_username' => env('STATUTORY_EINVOICE_MUMBAI_GST_USERNAME'),
+                'gst_password' => env('STATUTORY_EINVOICE_MUMBAI_GST_PASSWORD'),
+            ],
+        ],
     ],
 
     /*

@@ -4,6 +4,7 @@ namespace App\Services\StatutoryInvoice;
 
 use App\Contracts\StatutoryInvoice\EInvoiceGateway;
 use App\Models\StatutoryInvoice;
+use App\Services\StatutoryInvoice\Data\EInvoiceIrnPayload;
 use App\Services\StatutoryInvoice\Data\EInvoiceSubmitResult;
 
 /**
@@ -17,12 +18,14 @@ final class NullEInvoiceGateway implements EInvoiceGateway
         return 'none';
     }
 
-    public function submit(StatutoryInvoice $invoice): EInvoiceSubmitResult
+    public function submit(StatutoryInvoice $invoice, EInvoiceIrnPayload $payload): EInvoiceSubmitResult
     {
-        return new EInvoiceSubmitResult(
-            provider: $this->provider(),
-            status: 'skipped',
-        );
+        return EInvoiceSubmitResult::skipped($this->provider());
+    }
+
+    public function fetchExisting(StatutoryInvoice $invoice, EInvoiceIrnPayload $payload): EInvoiceSubmitResult
+    {
+        return EInvoiceSubmitResult::skipped($this->provider(), ['reason' => 'null_gateway']);
     }
 
     public function cancel(StatutoryInvoice $invoice, string $reason): void

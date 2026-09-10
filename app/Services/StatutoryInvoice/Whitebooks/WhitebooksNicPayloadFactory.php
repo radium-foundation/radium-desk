@@ -89,10 +89,8 @@ final class WhitebooksNicPayloadFactory
     }
 
     /**
-     * Query identity for GETIRNBYDOCDETAILS.
-     * WhiteBooks PDF names document no + date only; it does not name query keys.
-     * Path is from the public V1_03 catalogue. Exact query names remain UNVERIFIED
-     * against WhiteBooks account material. Do not treat as production-ready.
+     * Document identity for GETIRNBYDOCDETAILS (P-194).
+     * param1 is the document type; docnum/docdate are request headers (dd/MM/YYYY).
      *
      * @return array{doctype: string, docnum: string, docdate: string}|null
      */
