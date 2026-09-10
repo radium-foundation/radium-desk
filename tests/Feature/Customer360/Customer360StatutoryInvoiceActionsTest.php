@@ -132,6 +132,23 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
             ->assertDontSee('IRN Generated', false);
     }
 
+    public function test_customer_360_shows_failed_when_b2b_statutory_data_is_incomplete(): void
+    {
+        [$incident] = $this->issuedHardwareB2bCase(
+            'RB-C360-ADDR',
+            'addr@example.com',
+            billingAddress: str_repeat('X', 232),
+        );
+
+        $this->actingAs($this->agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('E-INVOICE', false)
+            ->assertSee('Status: Failed', false)
+            ->assertSee('Statutory data incomplete', false)
+            ->assertDontSee('IRN Generated', false);
+    }
+
     public function test_authorized_agent_can_view_and_download_the_desk_pdf(): void
     {
         [$incident, $invoice] = $this->issuedCase('RD-C360-INV-PDF', 'c360-pdf@example.com');
@@ -354,9 +371,19 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
     /**
      * @return array{0: Incident, 1: StatutoryInvoice}
      */
-    private function issuedHardwareB2bCase(string $orderId, string $email): array
+    private function issuedHardwareB2bCase(string $orderId, string $email, ?string $billingAddress = null): array
     {
         $incident = $this->openCase($orderId, $email);
+        \App\Models\InventoryProduct::query()->create([
+            'sku' => 'RBMFS110L1',
+            'name' => 'Mantra MFS 110 L1',
+            'hsn_code' => '84716050',
+            'uqc' => 'PCS',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
         $commerce = CommerceOrder::query()->create([
             'order_no' => 'CO-'.$orderId,
             'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
@@ -375,7 +402,14 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
             'customer_email' => $email,
             'buyer_gstin' => '07AAAAA0000A1Z5',
             'billing_state' => 'Delhi',
-            'billing_address' => '1 Test Street, Delhi',
+            'billing_address' => $billingAddress ?? '1 Test Street, Delhi',
+            'billing_address_structured' => [
+                'line1' => $billingAddress ?? '1 Test Street',
+                'line2' => 'Connaught Place',
+                'city' => 'New Delhi',
+                'state' => 'Delhi',
+                'pincode' => '110001',
+            ],
             'branch_code' => 'DELHI-RETAIL',
             'place_of_supply_state' => 'Delhi',
             'taxable_value' => 100.00,

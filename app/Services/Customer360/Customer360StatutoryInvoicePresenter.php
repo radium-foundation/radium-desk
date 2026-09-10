@@ -14,6 +14,7 @@ use App\Services\Notifications\NotificationCustomerContactResolver;
 use App\Services\Notifications\NotificationMailSender;
 use App\Services\StatutoryInvoice\EInvoiceEligibility;
 use App\Services\StatutoryInvoice\EInvoiceIrnGuard;
+use App\Services\StatutoryInvoice\EInvoiceIrnPayloadMapper;
 use App\Services\StatutoryInvoice\StatutoryInvoiceForIncidentResolver;
 use App\Support\AppDateFormatter;
 
@@ -31,6 +32,8 @@ class Customer360StatutoryInvoicePresenter
         'invalid_buyer_gstin' => 'Buyer GSTIN is not valid',
         'incomplete_gst' => 'Statutory tax data is incomplete',
         'irp_fields_incomplete' => 'Statutory data incomplete',
+        'buyer_address_exceeds_irp_limit' => 'Statutory data incomplete',
+        'seller_address_exceeds_irp_limit' => 'Statutory data incomplete',
         'issuance_policy_service_excluded' => 'Not eligible for e-invoice under current policy',
         'issuance_policy_mixed_lines' => 'Not eligible for e-invoice under current policy',
         'issuance_policy_unknown' => 'Not eligible for e-invoice under current policy',
@@ -42,6 +45,7 @@ class Customer360StatutoryInvoicePresenter
         private readonly NotificationMailSender $mailSender,
         private readonly NotificationChannelAvailabilityService $channels,
         private readonly EInvoiceEligibility $eligibility,
+        private readonly EInvoiceIrnPayloadMapper $mapper,
     ) {}
 
     /**
@@ -156,12 +160,6 @@ class Customer360StatutoryInvoicePresenter
             return $this->einvoiceState('Failed', $this->safeReason($skipReason) ?? 'E-invoice could not be issued');
         }
 
-        if (in_array($eligibility->reason, ['incomplete_gst', 'irp_fields_incomplete'], true)
-            || $skipReason === 'irp_fields_incomplete'
-            || $skipReason === 'incomplete_gst') {
-            return $this->einvoiceState('Failed', 'Statutory data incomplete');
-        }
-
         if (str_starts_with((string) $eligibility->reason, 'issuance_policy_')
             || str_starts_with((string) $skipReason, 'issuance_policy_')) {
             return $this->einvoiceState('Not Applicable', $this->safeReason($eligibility->reason) ?? $this->safeReason($skipReason));
@@ -169,6 +167,13 @@ class Customer360StatutoryInvoicePresenter
 
         if (in_array($eligibility->reason, ['invoice_cancelled', 'invalid_invoice_status', 'unsupported_document_type', 'outside_invoice_scope', 'invalid_buyer_gstin'], true)) {
             return $this->einvoiceState('Failed', $this->safeReason($eligibility->reason));
+        }
+
+        if (in_array($eligibility->reason, ['incomplete_gst', 'irp_fields_incomplete'], true)
+            || $skipReason === 'irp_fields_incomplete'
+            || $skipReason === 'incomplete_gst'
+            || ($eligibility->eligible && ! $this->mapper->map($invoice)->isSubmittable())) {
+            return $this->einvoiceState('Failed', 'Statutory data incomplete');
         }
 
         if ($eligibility->eligible || in_array($record?->status, [
