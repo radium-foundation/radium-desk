@@ -19,6 +19,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\CreatesStatutoryInvoicesForEinvoice;
 use Tests\Support\FakeEInvoicePayloadMapper;
 use Tests\TestCase;
@@ -192,6 +193,78 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_authenticate_uses_configured_ip_address(): void
+    {
+        $this->fakeAuthAndGenerate($this->successGenerateBody());
+        $this->gateway()->submit($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        Http::assertSent(function ($request): bool {
+            if (! str_contains($request->url(), 'authenticate')) {
+                return false;
+            }
+            $header = fn (string $name): string => (string) ($request->header($name)[0] ?? '');
+
+            return $request->method() === 'GET'
+                && str_contains($request->url(), '/einvoice/authenticate')
+                && str_contains($request->url(), 'email=')
+                && $header('ip_address') === '203.0.113.10'
+                && $header('client_id') === 'wb-test-client'
+                && $header('client_secret') === self::SECRET
+                && $header('username') === 'delhi-gst-user'
+                && $header('gstin') === '07AAICP1128M1Z9';
+        });
+    }
+
+    public function test_missing_gsp_ip_fails_closed_without_http_or_fallback(): void
+    {
+        config(['statutory_invoices.einvoice.gsp_ip_address' => null]);
+        request()->server->set('REMOTE_ADDR', '192.168.0.1');
+        $invoice = $this->makeTaxInvoice();
+        $result = $this->gateway()->fetchExisting($invoice, $this->payload($invoice));
+
+        $this->assertSame(EInvoiceSubmitOutcome::PermanentFailure, $result->outcome);
+        $this->assertContains('missing_gsp_ip_address', $result->payload['gaps'] ?? []);
+        Http::assertNothingSent();
+        $this->assertSecretsAbsent($result);
+    }
+
+    public function test_blank_gsp_ip_fails_closed_without_http(): void
+    {
+        config(['statutory_invoices.einvoice.gsp_ip_address' => '   ']);
+        $result = $this->gateway()->fetchExisting($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame(EInvoiceSubmitOutcome::PermanentFailure, $result->outcome);
+        $this->assertContains('missing_gsp_ip_address', $result->payload['gaps'] ?? []);
+        Http::assertNothingSent();
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    public static function invalidGspIpProvider(): array
+    {
+        return [
+            'hostname' => ['localhost'],
+            'malformed' => ['not-an-ip'],
+            'incomplete' => ['203.0.113'],
+            'ipv6' => ['2001:db8::1'],
+        ];
+    }
+
+    #[DataProvider('invalidGspIpProvider')]
+    public function test_invalid_gsp_ip_fails_closed_without_http(string $ip): void
+    {
+        config(['statutory_invoices.einvoice.gsp_ip_address' => $ip]);
+        request()->server->set('REMOTE_ADDR', '192.168.0.1');
+        $result = $this->gateway()->fetchExisting($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame(EInvoiceSubmitOutcome::PermanentFailure, $result->outcome);
+        $this->assertContains('invalid_gsp_ip_address', $result->payload['gaps'] ?? []);
+        $this->assertNotContains('missing_gsp_ip_address', $result->payload['gaps'] ?? []);
+        Http::assertNothingSent();
+        $this->assertSecretsAbsent($result);
+    }
+
     public function test_get_irn_uses_verified_p194_request_shape(): void
     {
         Http::fake([
@@ -227,6 +300,47 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
                 && $header('Password') === '';
         });
         Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'GENERATE'));
+    }
+
+    public function test_get_irn_uses_configured_ip_not_request_or_private_address(): void
+    {
+        config(['statutory_invoices.einvoice.gsp_ip_address' => '198.51.100.20']);
+        request()->server->set('REMOTE_ADDR', '192.168.0.1');
+        Http::fake([
+            'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
+            'https://api.whitebooks.in/einvoice/type/GETIRNBYDOCDETAILS/*' => Http::response($this->successGetIrnBody(), 200),
+        ]);
+        $this->gateway()->fetchExisting($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        Http::assertSent(function ($request): bool {
+            if (! str_contains($request->url(), 'authenticate')) {
+                return false;
+            }
+
+            return (string) ($request->header('ip_address')[0] ?? '') === '198.51.100.20'
+                && (string) ($request->header('ip_address')[0] ?? '') !== '192.168.0.1'
+                && (string) ($request->header('ip_address')[0] ?? '') !== '127.0.0.1';
+        });
+        Http::assertSent(function ($request): bool {
+            if (! str_contains($request->url(), 'GETIRNBYDOCDETAILS')) {
+                return false;
+            }
+            $header = fn (string $name): string => (string) ($request->header($name)[0] ?? '');
+
+            return $header('ip_address') === '198.51.100.20'
+                && $header('ip_address') !== '192.168.0.1'
+                && $header('password') === '';
+        });
+    }
+
+    public function test_missing_gsp_client_secret_fails_closed_without_http(): void
+    {
+        config(['statutory_invoices.einvoice.gsp_client_secret' => null]);
+        $result = $this->gateway()->fetchExisting($this->makeTaxInvoice(), $this->payload($this->makeTaxInvoice()));
+
+        $this->assertSame(EInvoiceSubmitOutcome::PermanentFailure, $result->outcome);
+        $this->assertContains('missing_gsp_client_secret', $result->payload['gaps'] ?? []);
+        Http::assertNothingSent();
     }
 
     public function test_get_irn_uses_issuer_specific_gstin_and_username(): void

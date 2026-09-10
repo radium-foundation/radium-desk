@@ -123,7 +123,8 @@ return [
         | Direct WhiteBooks Production API. Default base is the verified host.
         | Leave secrets empty. Do not copy media.radiumbox.com or Admin secrets.
         | One WhiteBooks client pair + per-issuer GST portal username/password.
-        | IP must be the Desk server outbound/public IP, not the browser IP.
+        | IP must be STATUTORY_EINVOICE_GSP_IP_ADDRESS (Desk outbound IPv4).
+        | Empty or non-IPv4 fails closed. Do not discover or default an address.
         */
         'gsp_base_url' => env('STATUTORY_EINVOICE_GSP_BASE_URL', 'https://api.whitebooks.in'),
         'gsp_environment' => env('STATUTORY_EINVOICE_GSP_ENVIRONMENT'),

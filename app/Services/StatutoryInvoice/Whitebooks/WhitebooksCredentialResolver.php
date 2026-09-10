@@ -28,10 +28,17 @@ final class WhitebooksCredentialResolver
             $reasons[] = 'invalid_gsp_base_url';
         }
 
-        foreach (['gsp_client_id' => 'missing_gsp_client_id', 'gsp_client_secret' => 'missing_gsp_client_secret', 'gsp_email' => 'missing_gsp_email', 'gsp_ip_address' => 'missing_gsp_ip_address'] as $key => $reason) {
+        foreach (['gsp_client_id' => 'missing_gsp_client_id', 'gsp_client_secret' => 'missing_gsp_client_secret', 'gsp_email' => 'missing_gsp_email'] as $key => $reason) {
             if ($this->nullable(config('statutory_invoices.einvoice.'.$key)) === null) {
                 $reasons[] = $reason;
             }
+        }
+
+        $ip = $this->nullable(config('statutory_invoices.einvoice.gsp_ip_address'));
+        if ($ip === null) {
+            $reasons[] = 'missing_gsp_ip_address';
+        } elseif (! $this->isConfiguredIpv4($ip)) {
+            $reasons[] = 'invalid_gsp_ip_address';
         }
 
         $sellerGstin = BuyerGstin::normalize($invoice->seller_gstin);
@@ -86,6 +93,15 @@ final class WhitebooksCredentialResolver
             ipAddress: (string) $this->nullable(config('statutory_invoices.einvoice.gsp_ip_address')),
             location: $location,
         );
+    }
+
+    /**
+     * WhiteBooks ip_address must be an explicit configured IPv4.
+     * Do not discover, default, or substitute request/localhost/private addresses.
+     */
+    private function isConfiguredIpv4(string $ip): bool
+    {
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
     }
 
     private function nullable(mixed $value): ?string
