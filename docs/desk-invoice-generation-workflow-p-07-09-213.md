@@ -94,6 +94,6 @@ Do not flip `auto_issue_on_pos_complete`. Do not bulk-requeue `worker_may_mint_o
 
 ## Remaining limitations
 
-- Finance Hub can still issue a commerce hardware invoice before serial allocation.
+- Finance Hub commerce hardware mint before serial allocation is closed in P-07-09-214 (`docs/desk-invoice-generation-workflow-p-07-09-214.md`).
 - HTTP Blade tests that render `layouts.app` fail in this worktree when `public/build/manifest.json` is absent (Vite). Not an invoice-logic failure.
 - No production overlay/deploy was performed in this prompt until a named-file review of only these workflow files.

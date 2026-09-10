@@ -16,6 +16,7 @@ use App\Models\Order;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
+use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
 use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
@@ -40,6 +41,7 @@ class StatutoryInvoiceService
         private readonly StatutoryLocationSeries $locations,
         private readonly GstSplitService $gstSplit,
         private readonly ServiceSacResolver $serviceSac,
+        private readonly HardwareCommerceStatutoryInvoiceGuard $hardwareCommerceInvoice,
     ) {}
 
     public function findBySource(
@@ -254,8 +256,6 @@ class StatutoryInvoiceService
 
     public function issueFromCommerceOrder(CommerceOrder $order, ?User $actor = null): StatutoryInvoice
     {
-        $this->eligibility->assertOrderCanMint($order);
-
         $existing = $this->findBySource(
             $order->channel,
             StatutoryInvoiceSourceType::CommerceOrder,
@@ -268,6 +268,12 @@ class StatutoryInvoiceService
 
             return $existing->load(['items', 'allocation', 'document']);
         }
+
+        if ($this->hardwareCommerceInvoice->requiresHardwareSerialPath($order)) {
+            return $this->hardwareCommerceInvoice->issue($order, $actor);
+        }
+
+        $this->eligibility->assertOrderCanMint($order);
 
         $order->loadMissing('items');
         $lines = [];

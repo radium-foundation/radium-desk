@@ -6,6 +6,7 @@ use App\Enums\CommerceOrderStatus;
 use App\Enums\InventorySaleStatus;
 use App\Models\CommerceOrder;
 use App\Models\InventorySale;
+use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
 use App\Services\StatutoryInvoice\Data\StatutoryMintEligibilityResult;
 use App\Support\Finance\GstStateCodes;
 use Illuminate\Support\Carbon;
@@ -21,6 +22,7 @@ class StatutoryMintEligibility
         private readonly StatutorySellerIdentity $seller,
         private readonly StatutoryLocationSeries $locations,
         private readonly GstSplitService $gstSplit,
+        private readonly HardwareCommerceStatutoryInvoiceGuard $hardwareCommerceInvoice,
     ) {}
 
     public function evaluateSale(InventorySale $sale): StatutoryMintEligibilityResult
@@ -115,27 +117,32 @@ class StatutoryMintEligibility
             $errors[] = 'Desk statutory numbering is unset.';
         }
 
-        $order->loadMissing('items');
+        $order->loadMissing(['items', 'hardwareFulfilment']);
+        $hardwarePath = $this->hardwareCommerceInvoice->requiresHardwareSerialPath($order);
         $hsnSacs = $order->items->pluck('hsn_sac')->all();
-        $issuerError = $this->issuer->errorForCommerceOrder(
-            $order->branch_code,
-            $order->buyer_gstin,
-            $order->billing_state,
-            $hsnSacs,
-        );
-        if ($issuerError !== null) {
-            $errors[] = $issuerError;
-        } else {
-            $sellerError = $this->seller->errorForLocation(
-                $this->issuer->requireForCommerceOrder(
-                    $order->branch_code,
-                    $order->buyer_gstin,
-                    $order->billing_state,
-                    $hsnSacs,
-                ),
+        $issuerError = null;
+
+        if (! $hardwarePath) {
+            $issuerError = $this->issuer->errorForCommerceOrder(
+                $order->branch_code,
+                $order->buyer_gstin,
+                $order->billing_state,
+                $hsnSacs,
             );
-            if ($sellerError !== null) {
-                $errors[] = $sellerError;
+            if ($issuerError !== null) {
+                $errors[] = $issuerError;
+            } else {
+                $sellerError = $this->seller->errorForLocation(
+                    $this->issuer->requireForCommerceOrder(
+                        $order->branch_code,
+                        $order->buyer_gstin,
+                        $order->billing_state,
+                        $hsnSacs,
+                    ),
+                );
+                if ($sellerError !== null) {
+                    $errors[] = $sellerError;
+                }
             }
         }
 
@@ -167,7 +174,9 @@ class StatutoryMintEligibility
             }
         }
 
-        if ($issuerError === null && $place !== '' && GstStateCodes::codeForName($place) !== null) {
+        if ($hardwarePath) {
+            $errors = array_merge($errors, $this->hardwareCommerceInvoice->blockingErrors($order));
+        } elseif ($issuerError === null && $place !== '' && GstStateCodes::codeForName($place) !== null) {
             $errors = array_merge($errors, $this->serviceGstSplitErrors($order, $place, $hsnSacs));
         }
 

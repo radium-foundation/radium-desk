@@ -347,6 +347,23 @@ final class HardwareFulfilmentEligibility
     }
 
     /**
+     * Commerce hardware orders cannot take the Finance Hub service mint path.
+     * A fulfilment row, or a hardware source id with physical lines, requires
+     * completed serial allocation before the statutory invoice.
+     */
+    public static function requiresSerialAllocatedInvoice(CommerceOrder $order): bool
+    {
+        $order->loadMissing(['items', 'hardwareFulfilment']);
+
+        if ($order->hardwareFulfilment !== null) {
+            return true;
+        }
+
+        return self::looksLikeHardwareSourceId((string) $order->source_id)
+            && self::hasHardwareLines($order);
+    }
+
+    /**
      * Isolated recovered-Commerce and isolated-step gates for a Commerce order.
      * Frozen sources stay blocked unless a matching recovered-Commerce authorization exists.
      * Call this before opening a hardware fulfilment so a later isolated-target
