@@ -48,6 +48,122 @@ class EInvoiceProcessor
     }
 
     /**
+     * Owner-gated GENERATE after Get-IRN confirmed the IRN is absent, or the
+     * invoice was never submitted. Never GENERATE when an IRN exists, or when
+     * the record is processing/ambiguous (Get-IRN only).
+     */
+    public function generateAfterConfirmedAbsent(StatutoryInvoice $invoice): EInvoiceSubmitResult
+    {
+        $invoice->loadMissing('items');
+        $decision = DB::transaction(function () use ($invoice): array {
+            $lockedInvoice = StatutoryInvoice::query()
+                ->whereKey($invoice->id)
+                ->lockForUpdate()
+                ->first();
+            if ($lockedInvoice === null) {
+                return ['kind' => 'skip', 'reason' => 'invoice_missing'];
+            }
+            $lockedInvoice->loadMissing('items');
+            $record = $this->lockedRecord($lockedInvoice);
+            if (EInvoiceIrnGuard::recordHasIssuedIrn($record)) {
+                return ['kind' => 'skip', 'reason' => 'irn_already_present'];
+            }
+            if (EInvoiceIrnGuard::mustRecoverInsteadOfGenerate($record)) {
+                return ['kind' => 'recover'];
+            }
+
+            $status = $record?->status;
+            $mayGenerate = $record === null || in_array($status, [
+                EInvoiceRecordStatus::Queued->value,
+                EInvoiceRecordStatus::Skipped->value,
+                EInvoiceRecordStatus::TemporaryFailure->value,
+                EInvoiceRecordStatus::IrnNotFound->value,
+            ], true);
+            if (! $mayGenerate) {
+                return ['kind' => 'skip', 'reason' => 'status_blocks_generate'];
+            }
+
+            $eligibility = $this->eligibility->evaluate($lockedInvoice);
+            if (! $eligibility->eligible) {
+                $this->persistSkip($lockedInvoice, $eligibility->reason);
+
+                return ['kind' => 'skip', 'reason' => $eligibility->reason];
+            }
+
+            if ($this->gateway->provider() === 'none') {
+                return ['kind' => 'skip', 'reason' => 'provider_disabled'];
+            }
+
+            $payload = $this->mapper->map($lockedInvoice);
+            if (! $payload->isSubmittable()) {
+                $this->persistSkip($lockedInvoice, 'irp_fields_incomplete', $payload);
+
+                return ['kind' => 'skip', 'reason' => 'irp_fields_incomplete'];
+            }
+
+            $record = $this->lockedRecord($lockedInvoice);
+            if (EInvoiceIrnGuard::recordHasIssuedIrn($record)) {
+                return ['kind' => 'skip', 'reason' => 'irn_already_present'];
+            }
+            if (EInvoiceIrnGuard::mustRecoverInsteadOfGenerate($record)) {
+                return ['kind' => 'recover'];
+            }
+
+            $this->writeRecord($lockedInvoice, [
+                'provider' => $this->gateway->provider(),
+                'status' => EInvoiceRecordStatus::Processing->value,
+                'request_payload' => $payload->toArray(),
+            ]);
+
+            return ['kind' => 'generate', 'payload' => $payload, 'invoice' => $lockedInvoice];
+        });
+
+        if (($decision['kind'] ?? '') === 'recover') {
+            return EInvoiceSubmitResult::ambiguous(
+                $this->gateway->provider(),
+                ['reason' => 'must_recover_instead_of_generate'],
+            );
+        }
+
+        if (($decision['kind'] ?? '') !== 'generate') {
+            return EInvoiceSubmitResult::skipped(
+                $this->gateway->provider(),
+                ['reason' => $decision['reason'] ?? 'not_generated'],
+            );
+        }
+
+        /** @var EInvoiceIrnPayload $payload */
+        $payload = $decision['payload'];
+        $lockedInvoice = $decision['invoice'] ?? $invoice;
+
+        try {
+            $result = $this->gateway->submit($lockedInvoice, $payload);
+        } catch (Throwable) {
+            $this->persistInterrupted($lockedInvoice, $payload, 'generate_interrupted');
+
+            return EInvoiceSubmitResult::ambiguous(
+                $this->gateway->provider(),
+                ['reason' => 'generate_interrupted'],
+            );
+        }
+
+        if ($result->outcome === EInvoiceSubmitOutcome::TemporaryFailure) {
+            $this->persistLocal($lockedInvoice, $payload, $result);
+
+            return $result;
+        }
+
+        $this->persistLocal($lockedInvoice, $payload, $result);
+        try {
+            $this->afterPersist($lockedInvoice, $result);
+        } catch (EInvoiceRecoveryRequiredException) {
+            return $result;
+        }
+
+        return $result;
+    }
+
+    /**
      * Short lock: decide GENERATE vs recover, and commit Processing before HTTP.
      *
      * @return array{kind: 'done'|'generate'|'recover', payload?: EInvoiceIrnPayload}

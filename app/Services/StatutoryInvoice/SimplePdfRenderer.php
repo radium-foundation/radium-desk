@@ -36,6 +36,8 @@ class SimplePdfRenderer
 
     private const QR_GAP = 12.0;
 
+    public const FIRST_PAGE_SERIAL_LIMIT = 8;
+
     public function render(StatutoryInvoicePdfPayload $payload): string
     {
         $contents = $this->invoicePageStreams($payload);
@@ -129,7 +131,7 @@ class SimplePdfRenderer
         $drewClosing = false;
 
         do {
-            $needClosing = $this->rowsFitWithClosing($remaining, $closing, $page === 1) || $page >= 20;
+            $needClosing = $this->rowsFitWithClosing($remaining, $closing, $page === 1, $payload) || $page >= 20;
             [$stream, $remaining, $closed] = $this->invoicePage($payload, $remaining, $page, $needClosing, $closing);
             $streams[] = $stream;
             $drewClosing = $drewClosing || $closed;
@@ -145,6 +147,10 @@ class SimplePdfRenderer
 
         if (! $drewClosing) {
             $streams[] = $this->invoicePage($payload, [], $page, true, $closing)[0];
+        }
+
+        foreach ($this->annexurePageStreams($payload) as $annexure) {
+            $streams[] = $annexure;
         }
 
         return $streams;
@@ -178,7 +184,9 @@ class SimplePdfRenderer
         $y -= 16;
 
         $drawn = 0;
+        $serialReserve = $first ? $this->serialSummaryHeight($payload) : 0.0;
         $floor = $includeClosing ? self::FOOTER_Y + $closing + 8 : self::FOOTER_Y + 18;
+        $floor += $serialReserve;
 
         while ($rows !== []) {
             $row = $rows[0];
@@ -205,6 +213,11 @@ class SimplePdfRenderer
                 array_unshift($rows, $leftover);
                 break;
             }
+        }
+
+        if ($first && $serialReserve > 0) {
+            $y -= 6;
+            $y = $this->serialSummaryBlock($ops, $payload, $y);
         }
 
         $drewClosing = false;
@@ -628,7 +641,7 @@ class SimplePdfRenderer
     /**
      * @param  list<array<string, mixed>>  $rows
      */
-    private function rowsFitWithClosing(array $rows, float $closing, bool $firstPage): bool
+    private function rowsFitWithClosing(array $rows, float $closing, bool $firstPage, StatutoryInvoicePdfPayload $payload): bool
     {
         $height = 0.0;
         foreach ($rows as $row) {
@@ -636,6 +649,9 @@ class SimplePdfRenderer
         }
 
         $budget = $firstPage ? 420.0 : 560.0;
+        if ($firstPage) {
+            $budget -= $this->serialSummaryHeight($payload);
+        }
 
         return $height + $closing <= $budget;
     }
@@ -645,14 +661,8 @@ class SimplePdfRenderer
      */
     private function lineRows(StatutoryInvoicePdfPayload $payload): array
     {
-        $serials = $this->normalizedSerials($payload);
-        $serialLines = $serials === []
-            ? []
-            : $this->wrapDelimited($serials, self::PRODUCT_WIDTH, 7);
-
         $rows = [];
-        foreach (array_values($payload->lines) as $index => $line) {
-            $itemSerials = ($index === 0) ? $serialLines : [];
+        foreach (array_values($payload->lines) as $line) {
             $rows[] = [
                 'kind' => 'item',
                 'descLines' => $this->wrapWidth((string) $line['description'], self::PRODUCT_WIDTH, 9),
@@ -663,7 +673,7 @@ class SimplePdfRenderer
                 'tax' => $this->money((string) $line['taxTotal']),
                 'gst' => $this->display((string) $line['gstPercentage']),
                 'amount' => $this->money((string) $line['lineTotal']),
-                'serialLines' => $itemSerials,
+                'serialLines' => [],
             ];
         }
 
@@ -840,6 +850,146 @@ class SimplePdfRenderer
         }
 
         return $out;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function firstPageSerials(StatutoryInvoicePdfPayload $payload): array
+    {
+        $all = $this->normalizedSerials($payload);
+        if ($all === []) {
+            return [];
+        }
+
+        if (count($all) <= self::FIRST_PAGE_SERIAL_LIMIT) {
+            return $all;
+        }
+
+        return array_slice($all, 0, self::FIRST_PAGE_SERIAL_LIMIT);
+    }
+
+    /**
+     * Complete unique serial list when page 1 cannot show every serial.
+     * Empty when everything fits on page 1 (no annexure).
+     *
+     * @return list<string>
+     */
+    private function annexureSerials(StatutoryInvoicePdfPayload $payload): array
+    {
+        $all = $this->normalizedSerials($payload);
+        if (count($all) <= self::FIRST_PAGE_SERIAL_LIMIT) {
+            return [];
+        }
+
+        return $all;
+    }
+
+    private function serialSummaryHeight(StatutoryInvoicePdfPayload $payload): float
+    {
+        $first = $this->firstPageSerials($payload);
+        if ($first === []) {
+            return 0.0;
+        }
+
+        $lines = $this->wrapDelimited($first, self::CONTENT_RIGHT - self::MARGIN, 8);
+        $height = 12.0 + (11.0 * count($lines)) + 16.0;
+        if ($this->annexureSerials($payload) !== []) {
+            $height += 11.0;
+        }
+
+        return $height;
+    }
+
+    /**
+     * @param  list<string>  $ops
+     */
+    private function serialSummaryBlock(array &$ops, StatutoryInvoicePdfPayload $payload, float $y): float
+    {
+        $first = $this->firstPageSerials($payload);
+        if ($first === []) {
+            return $y;
+        }
+
+        $ops[] = $this->text(self::MARGIN, $y, 'Serial Numbers', 7, true, 0.38, 0.38, 0.38);
+        $y -= 12;
+        foreach ($this->wrapDelimited($first, self::CONTENT_RIGHT - self::MARGIN, 8) as $line) {
+            $ops[] = $this->text(self::MARGIN, $y, $line, 8, false, 0.22, 0.22, 0.22);
+            $y -= 11;
+        }
+        if ($this->annexureSerials($payload) !== []) {
+            $ops[] = $this->text(self::MARGIN, $y, '* More serial numbers in Annexure A', 7, false, 0.32, 0.32, 0.32);
+            $y -= 11;
+        }
+        $y -= 4;
+        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
+
+        return $y - 12;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function annexurePageStreams(StatutoryInvoicePdfPayload $payload): array
+    {
+        $remaining = $this->annexureSerials($payload);
+        if ($remaining === []) {
+            return [];
+        }
+
+        $total = count($this->normalizedSerials($payload));
+        $perPage = 48;
+        $streams = [];
+        $offset = 0;
+        $first = true;
+        while ($offset < count($remaining)) {
+            $slice = array_slice($remaining, $offset, $perPage);
+            $streams[] = $this->annexurePage($payload, $slice, $total, $first);
+            $offset += count($slice);
+            $first = false;
+        }
+
+        return $streams;
+    }
+
+    /**
+     * @param  list<string>  $serials
+     */
+    private function annexurePage(StatutoryInvoicePdfPayload $payload, array $serials, int $total, bool $first): string
+    {
+        $ops = [];
+        $y = 806.0;
+        $title = $first ? 'ANNEXURE A — Serial Numbers' : 'ANNEXURE A — Serial Numbers (continued)';
+        $ops[] = $this->text(self::MARGIN, $y, $title, 11, true);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, $payload->invoiceNumber, 8);
+        $y -= 14;
+        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
+        $y -= 16;
+
+        if ($first) {
+            $order = $this->display($payload->orderId ?: $payload->sourceId);
+            foreach ([
+                'This annexure is part of tax invoice '.$payload->invoiceNumber.'.',
+                'Invoice number  '.$payload->invoiceNumber,
+                'Order/reference  '.$order,
+                'Total serial numbers  '.(string) $total,
+                'Complete serial list for this invoice.',
+            ] as $line) {
+                $ops[] = $this->text(self::MARGIN, $y, $line, 8, false, 0.18, 0.18, 0.18);
+                $y -= 12;
+            }
+            $y -= 6;
+        }
+
+        foreach ($serials as $serial) {
+            if ($y < self::FOOTER_Y + 18) {
+                break;
+            }
+            $ops[] = $this->text(self::MARGIN, $y, $serial, 8, false, 0.18, 0.18, 0.18);
+            $y -= 11;
+        }
+
+        return implode('', $ops);
     }
 
     /**

@@ -4,6 +4,7 @@ namespace Tests\Feature\Customer360;
 
 use App\Data\WhatsAppTemplateDispatchResult;
 use App\Enums\CommerceOrderStatus;
+use App\Enums\EInvoiceRecordStatus;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\StatutoryInvoiceChannel;
@@ -11,6 +12,7 @@ use App\Enums\StatutoryInvoiceSourceType;
 use App\Enums\WhatsAppTemplate;
 use App\Mail\StatutoryInvoiceMail;
 use App\Models\CommerceOrder;
+use App\Models\EInvoiceRecord;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\StatutoryInvoice;
@@ -79,10 +81,55 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
             ->assertOk()
             ->assertSee($invoice->invoice_number, false)
             ->assertSee('data-customer-360-section="statutory-invoice"', false)
-            ->assertSee('View', false)
+            ->assertSee('View Invoice', false)
             ->assertSee('Download PDF', false)
+            ->assertSee('Share Invoice', false)
             ->assertSee('Email', false)
-            ->assertSee('WhatsApp', false);
+            ->assertSee('WhatsApp', false)
+            ->assertSee('E-INVOICE', false)
+            ->assertSee('Not Applicable', false)
+            ->assertSee('B2C / not eligible', false);
+    }
+
+    public function test_customer_360_shows_empty_invoice_state_when_none_exists(): void
+    {
+        $incident = $this->openCase('RD-C360-NO-INV', 'none@example.com');
+
+        $this->actingAs($this->agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('data-customer-360-section="statutory-invoice"', false)
+            ->assertSee('No invoice has been generated for this order.', false)
+            ->assertDontSee('View Invoice', false)
+            ->assertDontSee('Download PDF', false);
+    }
+
+    public function test_customer_360_shows_irn_when_issued(): void
+    {
+        [$incident, $invoice] = $this->issuedHardwareB2bCase('RB-C360-IRN', 'irn@example.com');
+        $this->storeSubmittedIrn($invoice, 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2', 'ACK-3601');
+
+        $this->actingAs($this->agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('E-INVOICE', false)
+            ->assertSee('IRN Generated', false)
+            ->assertSee('a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2', false)
+            ->assertSee('Ack No: ACK-3601', false)
+            ->assertSee('Ack Date:', false)
+            ->assertDontSee('B2C / not eligible', false);
+    }
+
+    public function test_customer_360_shows_pending_e_invoice_for_eligible_b2b_without_irn(): void
+    {
+        [$incident] = $this->issuedHardwareB2bCase('RB-C360-PENDING', 'pending@example.com');
+
+        $this->actingAs($this->agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('E-INVOICE', false)
+            ->assertSee('Status: Pending', false)
+            ->assertDontSee('IRN Generated', false);
     }
 
     public function test_authorized_agent_can_view_and_download_the_desk_pdf(): void
@@ -274,6 +321,104 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
         $invoice = $this->invoices->issueFromCommerceOrder($commerce->fresh(['items']), $this->agent);
 
         return [$incident, $invoice];
+    }
+
+    private function openCase(string $orderId, string $email, string $phone = '9000000099'): Incident
+    {
+        $order = Order::query()->create([
+            'order_id' => $orderId,
+            'serial_number' => 'SN-'.$orderId,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'C360 Buyer',
+            'customer_email' => $email,
+            'customer_phone' => $phone,
+            'status' => 'active',
+            'created_by' => $this->agent->id,
+        ]);
+
+        return Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Invoice case '.$orderId,
+            'description' => 'Invoice case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $this->agent->id,
+            'updated_by' => $this->agent->id,
+            'assigned_to_user_id' => $this->agent->id,
+        ]);
+    }
+
+    /**
+     * @return array{0: Incident, 1: StatutoryInvoice}
+     */
+    private function issuedHardwareB2bCase(string $orderId, string $email): array
+    {
+        $incident = $this->openCase($orderId, $email);
+        $commerce = CommerceOrder::query()->create([
+            'order_no' => 'CO-'.$orderId,
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => $orderId,
+            'source_order_id' => $orderId,
+            'idempotency_key' => 'statutory:radiumbox_com:commerce_order:'.$orderId,
+            'payload_hash' => hash('sha256', $orderId),
+            'status' => CommerceOrderStatus::InvoicePending,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'payment_method' => 'UPI',
+            'currency' => 'INR',
+            'customer_name' => 'C360 Buyer',
+            'customer_phone' => '9000000099',
+            'customer_email' => $email,
+            'buyer_gstin' => '07AAAAA0000A1Z5',
+            'billing_state' => 'Delhi',
+            'billing_address' => '1 Test Street, Delhi',
+            'branch_code' => 'DELHI-RETAIL',
+            'place_of_supply_state' => 'Delhi',
+            'taxable_value' => 100.00,
+            'tax_total' => 18.00,
+            'order_value' => 118.00,
+            'ordered_at' => '2026-09-07 10:00:00',
+            'received_at' => now(),
+        ]);
+        $commerce->items()->create([
+            'line_no' => 1,
+            'sku' => 'RBMFS110L1',
+            'description' => 'Mantra MFS 110 L1',
+            'hsn_sac' => '84716050',
+            'qty' => 1,
+            'unit_price' => 100.00,
+            'gst_percentage' => 18,
+            'taxable_value' => 100.00,
+            'cgst' => 9.00,
+            'sgst' => 9.00,
+            'igst' => 0.00,
+            'tax_total' => 18.00,
+            'line_total' => 118.00,
+        ]);
+
+        $invoice = $this->invoices->issueFromCommerceOrder($commerce->fresh(['items']), $this->agent);
+
+        return [$incident, $invoice];
+    }
+
+    private function storeSubmittedIrn(StatutoryInvoice $invoice, string $irn, string $ackNo): void
+    {
+        EInvoiceRecord::query()->updateOrCreate(
+            ['invoice_id' => $invoice->id],
+            [
+                'provider' => 'test',
+                'irn' => $irn,
+                'ack_no' => $ackNo,
+                'ack_date' => '2026-09-07 18:40:00',
+                'signed_qr' => 'signed-qr-token',
+                'status' => EInvoiceRecordStatus::Submitted->value,
+                'response_payload' => ['ok' => true],
+            ],
+        );
     }
 
     private function enableWhatsAppInvoiceTemplate(): void

@@ -26,6 +26,7 @@ class StatutoryInvoiceForIncidentResolver
         $sourceId = trim((string) $order->order_id);
 
         return StatutoryInvoice::query()
+            ->with('eInvoiceRecord')
             ->where(function ($query) use ($order, $sourceId): void {
                 $query->where('support_order_id', $order->id);
 

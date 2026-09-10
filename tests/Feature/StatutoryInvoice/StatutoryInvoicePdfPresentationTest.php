@@ -345,6 +345,71 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringNotContainsString('statutory:', $pdf);
     }
 
+    public function test_ten_serials_show_first_page_summary_and_complete_annexure(): void
+    {
+        $serials = [];
+        for ($i = 1; $i <= 10; $i++) {
+            $serials[] = sprintf('SN-%02d', $i);
+        }
+
+        $binary = (new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076724',
+            issuedAt: '2026-09-07 20:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: 'Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Hardware Buyer',
+            buyerGstin: '07AAAAA0000A1Z5',
+            billingAddress: '1 Test Street, Delhi',
+            placeOfSupply: 'Delhi',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1',
+                'hsnSac' => '84716050',
+                'qty' => 10,
+                'unitPrice' => '100.00',
+                'taxableValue' => '1000.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '90.00',
+                'sgst' => '90.00',
+                'igst' => '0.00',
+                'taxTotal' => '180.00',
+                'lineTotal' => '1180.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '1000.00',
+            gstRate: '18.00%',
+            taxTotal: '180.00',
+            cgst: '90.00',
+            sgst: '90.00',
+            igst: '0.00',
+            invoiceValue: '1180.00',
+            serialNumbers: $serials,
+            sourceId: 'RDE318400',
+            orderId: 'RDE318400',
+        ));
+        $pdf = $this->text($binary);
+
+        $this->assertStringContainsString('TAX INVOICE', $pdf);
+        $this->assertStringContainsString('Serial Numbers', $pdf);
+        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('This annexure is part of tax invoice INV-076724.', $pdf);
+        $this->assertStringContainsString('Total serial numbers 10', $pdf);
+        $this->assertStringContainsString('UQC', $pdf);
+        $this->assertStringContainsString('PCS', $pdf);
+        $this->assertStringContainsString('Rs.1180.00', $pdf);
+        $seen = [];
+        foreach ($serials as $serial) {
+            $this->assertStringContainsString($serial, $pdf);
+            $this->assertArrayNotHasKey($serial, $seen);
+            $seen[$serial] = substr_count($pdf, $serial);
+        }
+        $this->assertSame(1, $seen['SN-09']);
+        $this->assertSame(1, $seen['SN-10']);
+        $this->assertGreaterThanOrEqual(1, $seen['SN-01']);
+    }
+
     public function test_shipping_and_payment_print_and_signed_qr_is_omitted_without_irn(): void
     {
         $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
@@ -495,6 +560,28 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('IRN', $this->text($pdf));
         $this->assertStringNotContainsString('% signed-qr-image', $pdf);
         $this->assertStringNotContainsString('Signed QR issued with this IRN.', $pdf);
+    }
+
+    public function test_presentation_rewrite_keeps_financial_totals(): void
+    {
+        $invoice = $this->invoices->issueFromCommerceOrder(
+            $this->commerceOrder('RD-PDF-REGEN'),
+            $this->actor,
+        );
+        $before = $invoice->fresh();
+        $first = $this->text($this->pdf($invoice->id));
+
+        app(StatutoryDocumentService::class)->regeneratePresentation($invoice->fresh(['items', 'eInvoiceRecord']));
+        $after = $invoice->fresh();
+        $second = $this->text($this->pdf($invoice->id));
+
+        $this->assertSame((string) $before->invoice_number, (string) $after->invoice_number);
+        $this->assertSame((string) $before->taxable_value, (string) $after->taxable_value);
+        $this->assertSame((string) $before->tax_total, (string) $after->tax_total);
+        $this->assertSame((string) $before->invoice_value, (string) $after->invoice_value);
+        $this->assertStringContainsString('Rs.'.number_format((float) $before->invoice_value, 2, '.', ''), $first);
+        $this->assertStringContainsString('Rs.'.number_format((float) $after->invoice_value, 2, '.', ''), $second);
+        $this->assertStringContainsString($before->invoice_number, $second);
     }
 
     public function test_commerce_pdf_uses_order_shipping_and_payment_method(): void

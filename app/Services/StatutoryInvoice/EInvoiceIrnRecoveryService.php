@@ -46,6 +46,7 @@ final class EInvoiceIrnRecoveryService
             ->first();
         if (EInvoiceIrnGuard::recordHasIssuedIrn($existing)) {
             if ($result->outcome === EInvoiceSubmitOutcome::Success) {
+                $this->fillMissingIssuedFields($existing, $result);
                 $this->signedInvoices->persistFromResult($invoice, $result);
             }
 
@@ -60,6 +61,26 @@ final class EInvoiceIrnRecoveryService
             EInvoiceSubmitOutcome::Ambiguous => $this->writeRecord($invoice, $payload, $result, EInvoiceRecordStatus::Ambiguous),
             EInvoiceSubmitOutcome::Skipped => $this->writeRecord($invoice, $payload, $result, EInvoiceRecordStatus::Skipped),
         };
+    }
+
+    private function fillMissingIssuedFields(EInvoiceRecord $existing, EInvoiceSubmitResult $result): void
+    {
+        $updates = [];
+        if (trim((string) $existing->ack_no) === '' && is_string($result->ackNo) && trim($result->ackNo) !== '') {
+            $updates['ack_no'] = trim($result->ackNo);
+        }
+        if ($existing->ack_date === null && $result->ackDate !== null && $result->ackDate !== '') {
+            $updates['ack_date'] = $result->ackDate;
+        }
+        if (trim((string) $existing->signed_qr) === '' && is_string($result->signedQr) && trim($result->signedQr) !== '') {
+            $updates['signed_qr'] = trim($result->signedQr);
+        }
+        if ($updates === []) {
+            return;
+        }
+
+        $existing->fill($updates);
+        $existing->save();
     }
 
     private function persistSuccess(

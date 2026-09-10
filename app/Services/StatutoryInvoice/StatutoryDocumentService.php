@@ -50,6 +50,18 @@ class StatutoryDocumentService
         return $this->writeGeneratedDocument($invoice, $document);
     }
 
+    /**
+     * Presentation-only rewrite from stored invoice/IRN/serials. Does not mint,
+     * recompute tax, or change invoice identity.
+     */
+    public function regeneratePresentation(StatutoryInvoice $invoice): StatutoryInvoiceDocument
+    {
+        $invoice->loadMissing(['items', 'eInvoiceRecord']);
+        $document = StatutoryInvoiceDocument::query()->firstOrNew(['invoice_id' => $invoice->id]);
+
+        return $this->writeGeneratedDocument($invoice, $document);
+    }
+
     private function writeGeneratedDocument(
         StatutoryInvoice $invoice,
         StatutoryInvoiceDocument $document,

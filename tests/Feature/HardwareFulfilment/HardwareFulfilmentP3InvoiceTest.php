@@ -108,7 +108,7 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $this->assertStringContainsString('Serial Numbers', $pdf);
         $this->assertStringContainsString('SN-RDE900304-001', $pdf);
         $this->assertStringContainsString('SN-RDE900304-005', $pdf);
-        $this->assertStringNotContainsString('See Annexure A', $pdf);
+        $this->assertStringNotContainsString('* More serial numbers in Annexure A', $pdf);
         $this->assertStringNotContainsString('ANNEXURE A', $pdf);
     }
 
@@ -122,12 +122,29 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $this->assertStringContainsString($invoice->invoice_number, $pdf);
         $this->assertStringContainsString('RDE900305', $pdf);
         $this->assertStringNotContainsString('statutory:radiumbox_com', $pdf);
+        $this->assertStringNotContainsString('* More serial numbers in Annexure A', $pdf);
         $this->assertStringNotContainsString('ANNEXURE A', $pdf);
-        $this->assertStringNotContainsString('See Annexure A', $pdf);
         $this->assertSame(1, substr_count($pdf, '%PDF-1.4'));
         for ($i = 1; $i <= 6; $i++) {
             $this->assertStringContainsString(sprintf('SN-RDE900305-%03d', $i), $pdf);
         }
+    }
+
+    public function test_ten_serials_show_first_page_summary_and_annexure_a(): void
+    {
+        $fulfilment = $this->prepareIssuable('RDE900308', 'DELHI-RETAIL', 10);
+        $invoice = $this->invoices->issueInvoice($fulfilment);
+        $pdf = app(StatutoryDocumentService::class)->binary($invoice->document);
+
+        $this->assertStringContainsString('Serial Numbers', $pdf);
+        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('This annexure is part of tax invoice '.$invoice->invoice_number.'.', $pdf);
+        $this->assertStringContainsString('Total serial numbers 10', $pdf);
+        for ($i = 1; $i <= 10; $i++) {
+            $this->assertStringContainsString(sprintf('SN-RDE900308-%03d', $i), $pdf);
+        }
+        $this->assertSame(1, StatutoryInvoice::query()->count());
     }
 
     public function test_two_hundred_serials_render_without_truncation_or_duplication(): void
@@ -137,7 +154,8 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $pdf = app(StatutoryDocumentService::class)->binary($invoice->document);
 
         $this->assertStringContainsString('Serial Numbers', $pdf);
-        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
         $this->assertMatchesRegularExpression('/\\/Count [2-9]\\d*/', $pdf);
         $seen = [];
         for ($i = 1; $i <= 200; $i++) {
