@@ -85,8 +85,9 @@ return [
     'post_finance_journals' => false,
 
     /*
-    | Guard: do not invent invoice-on-payment vs invoice-on-dispatch.
-    | POS complete never auto-mints a statutory invoice.
+    | Guard: POS complete must not mint a statutory invoice.
+    | true currently aborts checkout (StatutoryInvoiceAccountingPolicy).
+    | Automatic IRN is mint-then-worker, not this flag. Keep false.
     */
     'auto_issue_on_pos_complete' => false,
 
@@ -113,19 +114,21 @@ return [
     'invoice_scope_starts_at' => env('STATUTORY_INVOICE_SCOPE_STARTS_AT', '2026-09-01 00:00:00'),
 
     /*
-    | Worker must not mint or call an IRP. Left hardcoded false.
+    | Worker GENERATE. Default false. Production may set
+    | STATUTORY_EINVOICE_WORKER_MAY_MINT=true after WhiteBooks bind.
+    | Does not requeue skipped records. Does not mint on POS complete.
     */
-    'worker_may_mint' => false,
+    'worker_may_mint' => filter_var(env('STATUTORY_EINVOICE_WORKER_MAY_MINT', false), FILTER_VALIDATE_BOOLEAN),
 
     'einvoice' => [
         'provider' => env('STATUTORY_EINVOICE_PROVIDER', 'none'),
         /*
-        | Automatic GENERATE rollout. Hardcoded hardware_only (Phase A).
-        | all_eligible_b2b is implemented and testable; do not enable it here.
-        | Not an env toggle: a policy key must not become an accidental
-        | issuance switch, and must not requeue previously skipped invoices.
+        | Automatic GENERATE rollout. Default hardware_only (Phase A).
+        | Production Phase B: STATUTORY_EINVOICE_ISSUANCE_POLICY=all_eligible_b2b.
+        | Invalid values fail closed to hardware_only. Changing this key does
+        | not requeue previously skipped invoices.
         */
-        'issuance_policy' => 'hardware_only',
+        'issuance_policy' => env('STATUTORY_EINVOICE_ISSUANCE_POLICY', 'hardware_only'),
         /*
         | Direct WhiteBooks Production API. Default base is the verified host.
         | Leave secrets empty. Do not copy media.radiumbox.com or Admin secrets.

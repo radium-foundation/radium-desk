@@ -16,7 +16,8 @@ use Throwable;
  * Direct WhiteBooks Production API adapter.
  * Verified: GET /einvoice/authenticate, POST GENERATE V1_03,
  * GET GETIRNBYDOCDETAILS V1_03 (P-194: query param1+email, headers docnum/docdate).
- * Not OAuth. Not media.radiumbox.com. Do not bind this class as EInvoiceGateway.
+ * Not OAuth. Not media.radiumbox.com.
+ * Bound as EInvoiceGateway only when STATUTORY_EINVOICE_PROVIDER=whitebooks.
  * Get-IRN recovery uses WhitebooksIrnRecoveryGateway (no submit()).
  */
 final class WhitebooksEInvoiceGateway implements EInvoiceGateway

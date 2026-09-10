@@ -8,7 +8,8 @@ use App\Services\StatutoryInvoice\Data\EInvoiceSubmitResult;
 
 /**
  * Get-IRN-only surface. Does not expose submit() or cancel().
- * Do not bind this as EInvoiceGateway. Normal issuance stays on NullEInvoiceGateway.
+ * Do not bind this as EInvoiceGateway. GENERATE uses WhitebooksEInvoiceGateway
+ * when STATUTORY_EINVOICE_PROVIDER=whitebooks.
  */
 final class WhitebooksIrnRecoveryGateway
 {

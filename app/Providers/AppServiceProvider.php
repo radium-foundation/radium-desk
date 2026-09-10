@@ -91,6 +91,7 @@ use App\Services\SettingService;
 use App\Services\Shipping\HttpShiprocketGateway;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\StatutoryInvoice\NullEInvoiceGateway;
+use App\Services\StatutoryInvoice\Whitebooks\WhitebooksEInvoiceGateway;
 use App\Services\SupportContactConfiguration;
 use App\Services\SupportContactResolver;
 use App\Services\SystemSettingsAdminCollection;
@@ -313,10 +314,13 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        // IRN stays off: always Null until a later authorized provider bind.
-        // WhitebooksEInvoiceGateway is not bound here. Get-IRN recovery uses
-        // EInvoiceIrnRecoveryService / WhitebooksIrnRecoveryGateway (no submit()).
-        $this->app->bind(EInvoiceGateway::class, NullEInvoiceGateway::class);
+        $this->app->bind(EInvoiceGateway::class, function ($app) {
+            if ($this->shouldBindWhitebooksEInvoiceGateway()) {
+                return $app->make(WhitebooksEInvoiceGateway::class);
+            }
+
+            return $app->make(NullEInvoiceGateway::class);
+        });
         $this->app->bind(ShiprocketGateway::class, function ($app) {
             if ($this->shouldBindHttpShiprocket()) {
                 return $app->make(HttpShiprocketGateway::class);
@@ -475,6 +479,11 @@ class AppServiceProvider extends ServiceProvider
                 //
             }
         });
+    }
+
+    private function shouldBindWhitebooksEInvoiceGateway(): bool
+    {
+        return (string) config('statutory_invoices.einvoice.provider', 'none') === 'whitebooks';
     }
 
     private function shouldBindHttpShiprocket(): bool

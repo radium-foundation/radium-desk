@@ -58,17 +58,12 @@ class EInvoiceIrnRecoveryServiceTest extends TestCase
             ->where('idempotency_key', EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice))
             ->firstOrFail();
 
-        config([
-            'statutory_invoices.worker_may_mint' => true,
-            'statutory_invoices.einvoice.provider' => 'whitebooks',
-        ]);
         app(EInvoiceProcessor::class)->process($outbox);
 
         Http::assertNothingSent();
-        $this->assertSame(
-            EInvoiceRecordStatus::Skipped->value,
-            EInvoiceRecord::query()->where('invoice_id', $invoice->id)->value('status'),
-        );
+        $record = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
+        $this->assertSame(EInvoiceRecordStatus::Skipped->value, $record?->status);
+        $this->assertSame('worker_may_mint_off', $record?->response_payload['skip_reason'] ?? null);
     }
 
     public function test_recovery_uses_verified_get_irn_contract_and_persists_submitted(): void

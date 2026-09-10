@@ -56,6 +56,8 @@
         <env name="CHANNEL_INGEST_SECRET_FUTURE" value="" force="true"/>
         <env name="CHANNEL_INGEST_CUTOVER_APPROVED" value="false" force="true"/>
         <env name="STATUTORY_EINVOICE_PROVIDER" value="none" force="true"/>
+        <env name="STATUTORY_EINVOICE_WORKER_MAY_MINT" value="false" force="true"/>
+        <env name="STATUTORY_EINVOICE_ISSUANCE_POLICY" value="hardware_only" force="true"/>
         <env name="STATUTORY_EINVOICE_GSP_BASE_URL" value="" force="true"/>
         <env name="STATUTORY_EINVOICE_GSP_ENVIRONMENT" value="" force="true"/>
         <env name="STATUTORY_EINVOICE_GSP_CLIENT_ID" value="" force="true"/>

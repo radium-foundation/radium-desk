@@ -9,7 +9,8 @@ use App\Services\StatutoryInvoice\Data\EInvoiceIssuancePolicyResult;
 
 /**
  * Rollout permission for automatic GENERATE. Not payload/IsServc.
- * Default HARDWARE_ONLY. ALL_ELIGIBLE_B2B is testable, not production-enabled.
+ * Default HARDWARE_ONLY. ALL_ELIGIBLE_B2B via STATUTORY_EINVOICE_ISSUANCE_POLICY.
+ * Invalid config fails closed to hardware_only. Does not requeue skipped rows.
  */
 final class EInvoiceIssuancePolicy
 {
