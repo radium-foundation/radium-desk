@@ -25,19 +25,52 @@ class EInvoiceCatalogUqcReadinessTest extends TestCase
         $this->assertNotSame('NOS', $mapper->snapshot(null, null));
     }
 
-    public function test_priority_b2b_skus_are_not_hardcoded_to_a_convenience_uqc(): void
+    public function test_p186_did_not_infer_pcs_or_nos_without_owner_decision(): void
     {
         $path = dirname(__DIR__, 3).'/docs/desk-irn-catalog-uqc-readiness-p-07-09-186.md';
         $report = file_get_contents($path);
         $this->assertIsString($report);
         $this->assertStringContainsString('0 of 9 priority SKUs assigned', $report);
-        foreach ([
-            'RBMFS110L1', 'RBIMSOE3L1', 'RBUGR89GPS', 'RBFM220UFP', 'RBUGR86GPS',
-            'RBFUTFS80H', 'RBFUTFS88H', 'RBMFS100L0', 'RBMIS100IR',
-        ] as $sku) {
+        foreach ($this->prioritySkus() as $sku) {
             $this->assertStringContainsString($sku, $report);
         }
         $this->assertStringNotContainsString('Assigned UQC: PCS', $report);
         $this->assertStringNotContainsString('Assigned UQC: NOS', $report);
+    }
+
+    public function test_p187_owner_decision_assigns_pcs_only_to_the_nine_hardware_skus(): void
+    {
+        $path = dirname(__DIR__, 3).'/docs/desk-irn-catalog-uqc-assignment-pcs-p-07-09-187.md';
+        $report = file_get_contents($path);
+        $this->assertIsString($report);
+        $this->assertStringContainsString('9 of 9 priority B2B hardware SKUs assigned `PCS`', $report);
+        $this->assertStringContainsString('nine remaining NULL: **0**', $report);
+        $this->assertStringContainsString('`NOS` was not assigned', $report);
+        foreach ($this->prioritySkus() as $sku) {
+            $this->assertStringContainsString($sku, $report);
+            $this->assertMatchesRegularExpression('/\| '.$sku.' \| PCS \|/', $report);
+        }
+        $this->assertStringNotContainsString('| NOS |', $report);
+    }
+
+    public function test_stored_catalog_pcs_is_accepted_and_nos_is_not_substituted(): void
+    {
+        $mapper = new EInvoiceUqcMapper;
+
+        $this->assertSame(['code' => 'PCS', 'gap' => null], $mapper->resolve('PCS'));
+        $this->assertSame('PCS', $mapper->snapshot(null, 'PCS'));
+        $this->assertNotSame('NOS', $mapper->snapshot(null, 'PCS'));
+        $this->assertNull($mapper->snapshot(null, null));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function prioritySkus(): array
+    {
+        return [
+            'RBMFS110L1', 'RBIMSOE3L1', 'RBUGR89GPS', 'RBFM220UFP', 'RBUGR86GPS',
+            'RBFUTFS80H', 'RBFUTFS88H', 'RBMFS100L0', 'RBMIS100IR',
+        ];
     }
 }
