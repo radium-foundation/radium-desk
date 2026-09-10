@@ -278,22 +278,23 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment));
 
         $fresh = $fulfilment->fresh(['fulfilmentBranch', 'serials']);
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fresh->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fresh->state);
         $this->assertSame('DELHI-RETAIL', $fresh->fulfilmentBranch?->code);
         $this->assertSame(1, HardwareFulfilmentSerial::query()->count());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
 
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.show', $fresh))
             ->assertOk()
             ->assertSee('SN-UI-809')
             ->assertSee('DELHI-RETAIL')
-            ->assertSee('SERIALS ALLOCATED')
+            ->assertSee('INVOICE ISSUED')
             ->assertDontSee('Allocate Serial');
 
-        $this->assertNoSideEffects();
+        $this->assertNoShipmentOrCallback();
     }
 
-    public function test_successful_allocation_derives_branch_and_creates_no_invoice_shipment_or_callback(): void
+    public function test_successful_allocation_derives_branch_and_issues_one_invoice_without_shipment_or_callback(): void
     {
         $fulfilment = $this->readyFulfilment('RDE900810');
         $this->stockAt('MUMBAI', ['SN-UI-810']);
@@ -306,10 +307,11 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ->assertSessionHas('status');
 
         $fresh = $fulfilment->fresh(['fulfilmentBranch']);
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fresh->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fresh->state);
         $this->assertSame('MUMBAI', $fresh->fulfilmentBranch?->code);
         $this->assertSame(InventorySerialStatus::Sold, InventorySerial::query()->where('serial_number', 'SN-UI-810')->value('status'));
-        $this->assertNoSideEffects();
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertNoShipmentOrCallback();
         $callback = OutboxEvent::query()
             ->where('event_type', HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE)
             ->first();
@@ -506,10 +508,10 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ->assertRedirect(route('inventory.hardware-fulfilments.show', $second))
             ->assertSessionHasErrors('serials');
 
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $first->fresh()->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $first->fresh()->state);
         $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $second->fresh()->state);
         $this->assertSame(1, HardwareFulfilmentSerial::query()->count());
-        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertSame(0, Shipment::query()->count());
     }
 
@@ -579,6 +581,11 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
     private function assertNoSideEffects(): void
     {
         $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertNoShipmentOrCallback();
+    }
+
+    private function assertNoShipmentOrCallback(): void
+    {
         $this->assertSame(0, Shipment::query()->count());
         $this->assertSame(
             0,

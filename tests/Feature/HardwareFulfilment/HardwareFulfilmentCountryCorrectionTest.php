@@ -130,7 +130,7 @@ class HardwareFulfilmentCountryCorrectionTest extends TestCase
         $this->assertSame($invoiceId, $fresh->statutory_invoice_id);
         $this->assertSame($serials, $fresh->serials->pluck('serial_number')->all());
         $this->assertSame($events, HardwareFulfilmentEvent::query()->count());
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fresh->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fresh->state);
 
         $ready = app(HardwareShipmentEligibility::class)->inspect($fresh);
         $this->assertFalse($ready->countryMissing);

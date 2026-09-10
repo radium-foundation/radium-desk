@@ -4,12 +4,14 @@ namespace Tests\Feature\HardwareFulfilment;
 
 use App\Contracts\HardwareFulfilment\BoxFulfilmentCallbackGateway;
 use App\Contracts\Shipping\ShiprocketGateway;
+use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\OutboxEventStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
+use App\Models\HardwareFulfilmentSerial;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventoryUserBranch;
@@ -25,7 +27,6 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackSigner;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
-use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Services\HardwareFulfilment\NullBoxFulfilmentCallbackGateway;
 use App\Services\Inventory\InventoryStockService;
@@ -420,16 +421,29 @@ class HardwareFulfilmentP6CallbackTest extends TestCase
         ]);
         $fulfilment->forceFill(['fulfilment_branch_id' => $branch->id])->save();
         $this->workflow->transition($fulfilment, HardwareFulfilmentState::ReadyForFulfilment);
+        $serial = sprintf('SN-%s-001', $sourceId);
         app(InventoryStockService::class)->stockInSerialized(
             $this->product,
             $branch,
-            [sprintf('SN-%s-001', $sourceId)],
+            [$serial],
             $this->actor,
         );
-        app(HardwareSerialAllocationService::class)->allocateSerials(
+        $item = $fulfilment->fresh(['commerceOrder.items'])->commerceOrder?->items->first();
+        HardwareFulfilmentSerial::query()->create([
+            'hardware_fulfilment_id' => $fulfilment->id,
+            'commerce_order_item_id' => $item?->id,
+            'line_no' => 1,
+            'position' => 1,
+            'serial_number' => $serial,
+            'status' => HardwareFulfilmentSerialStatus::Allocated,
+            'allocated_at' => now(),
+        ]);
+        $this->workflow->transition(
             $fulfilment->fresh(),
-            [sprintf('SN-%s-001', $sourceId)],
-            $this->actor,
+            HardwareFulfilmentState::SerialsAllocated,
+            actorType: 'user',
+            actorId: $this->actor->id,
+            payload: ['reason' => 'test_serials_allocated_without_auto_invoice'],
         );
 
         return $fulfilment->fresh(['commerceOrder.items']) ?? $fulfilment;

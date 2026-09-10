@@ -215,8 +215,9 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
             serials: [$serial],
             actor: $this->actor,
         );
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
         $this->assertSame([$serial], $fulfilment->fresh()->serials->pluck('serial_number')->all());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
 
         $invoiceResult = $this->isolated->run(identifier: $sourceId, step: 'invoice', actor: $this->actor);
         $invoice = StatutoryInvoice::query()->firstOrFail();

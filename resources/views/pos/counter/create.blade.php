@@ -125,6 +125,26 @@
                                     <textarea name="billing_address" id="billing_address" class="form-control" rows="2" maxlength="1000">{{ old('billing_address') }}</textarea>
                                     @error('billing_address')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
+                                <div class="mb-2">
+                                    <label class="form-label" for="billing_city">City</label>
+                                    <input type="text" name="billing_city" id="billing_city" class="form-control" value="{{ old('billing_city') }}" maxlength="128" autocomplete="address-level2">
+                                    @error('billing_city')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label" for="billing_state">Billing state</label>
+                                    <select name="billing_state" id="billing_state" class="form-select">
+                                        <option value="">Select state</option>
+                                        @foreach($placeOfSupplyStates as $state)
+                                            <option value="{{ $state }}" @selected(old('billing_state') === $state)>{{ $state }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('billing_state')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label" for="billing_pincode">PIN</label>
+                                    <input type="text" name="billing_pincode" id="billing_pincode" class="form-control" value="{{ old('billing_pincode') }}" maxlength="6" inputmode="numeric" autocomplete="postal-code">
+                                    @error('billing_pincode')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
                                 <div>
                                     <label class="form-label" for="place_of_supply_state">Place of supply</label>
                                     <select name="place_of_supply_state" id="place_of_supply_state" class="form-select">
@@ -135,7 +155,7 @@
                                     </select>
                                     @error('place_of_supply_state')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
-                                <p class="small text-muted mb-0 mt-2">These values are stored on the sale for Finance Hub. Completing the sale does not issue a GST invoice.</p>
+                                <p class="small text-muted mb-0 mt-2">These values are stored on the sale for Finance Hub. Completing the sale does not issue a GST invoice. City, state, and PIN are required when a GSTIN is entered.</p>
                                 <p class="small text-muted mb-0 mt-2" id="pos-customer-status"></p>
                             </div>
                         </div>
@@ -228,6 +248,9 @@
                 const nameInput = document.getElementById('customer_name');
                 const emailInput = document.getElementById('customer_email');
                 const gstinInput = document.getElementById('buyer_gstin');
+                const billingCity = document.getElementById('billing_city');
+                const billingState = document.getElementById('billing_state');
+                const billingPincode = document.getElementById('billing_pincode');
                 const customerStatus = document.getElementById('pos-customer-status');
                 const form = document.getElementById('pos-counter-form');
                 const completeButton = document.getElementById('pos-complete');
@@ -245,6 +268,20 @@
                 }
                 paymentMethod.addEventListener('change', syncPaymentMethod);
                 syncPaymentMethod();
+
+                function syncB2bAddressFields() {
+                    const required = !!(gstinInput && gstinInput.value && gstinInput.value.trim() !== '');
+                    [billingCity, billingState, billingPincode].forEach(function (el) {
+                        if (el) {
+                            el.required = required;
+                        }
+                    });
+                }
+                if (gstinInput) {
+                    gstinInput.addEventListener('input', syncB2bAddressFields);
+                    gstinInput.addEventListener('change', syncB2bAddressFields);
+                }
+                syncB2bAddressFields();
 
                 let cart = [];
                 let pendingProduct = null;
@@ -532,6 +569,7 @@
                                     emailInput.value = data.email || emailInput.value;
                                     if (gstinInput && data.gstin && !gstinInput.value) {
                                         gstinInput.value = data.gstin;
+                                        syncB2bAddressFields();
                                     }
                                     customerStatus.textContent = 'Existing POS customer loaded. Sale snapshot fields stay on this sale.';
                                 } else {

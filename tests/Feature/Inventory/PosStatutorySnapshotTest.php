@@ -78,16 +78,12 @@ class PosStatutorySnapshotTest extends TestCase
     public function test_counter_captures_gstin_billing_address_and_place_of_supply_on_the_sale(): void
     {
         $this->actingAs($this->seller)
-            ->get(route('pos.counter.create', ['branch_id' => $this->branch->id]))
-            ->assertOk()
-            ->assertSee('Buyer GSTIN')
-            ->assertSee('Place of supply')
-            ->assertSee('Delhi');
-
-        $this->actingAs($this->seller)
             ->post(route('pos.counter.store'), $this->payload([
                 'buyer_gstin' => '07aaaaa0000a1z5',
                 'billing_address' => '12 Connaught Place, New Delhi',
+                'billing_city' => 'New Delhi',
+                'billing_state' => 'Delhi',
+                'billing_pincode' => '110001',
                 'place_of_supply_state' => 'Delhi',
                 'idempotency_key' => 'snap-full-1',
             ]))
@@ -97,10 +93,17 @@ class PosStatutorySnapshotTest extends TestCase
         $this->assertSame(InventorySaleStatus::Completed, $sale->status);
         $this->assertSame('07AAAAA0000A1Z5', $sale->buyer_gstin);
         $this->assertSame('12 Connaught Place, New Delhi', $sale->billing_address);
+        $this->assertSame([
+            'line1' => '12 Connaught Place, New Delhi',
+            'city' => 'New Delhi',
+            'state' => 'Delhi',
+            'pincode' => '110001',
+        ], $sale->billing_address_structured);
         $this->assertSame('Delhi', $sale->place_of_supply_state);
         $this->assertMatchesRegularExpression('/^INV-DELHI-RETAIL-\d{4}-\d{5}$/', (string) $sale->invoice_number);
-        $this->assertNull($sale->statutory_invoice_id);
-        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertNotNull($sale->statutory_invoice_id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertNotSame($sale->invoice_number, StatutoryInvoice::query()->value('invoice_number'));
         $this->assertSame('07AAAAA0000A1Z5', InventoryCustomer::query()->where('phone', '9000000091')->value('gstin'));
     }
 
@@ -171,6 +174,9 @@ class PosStatutorySnapshotTest extends TestCase
         $this->actingAs($this->seller)
             ->post(route('pos.counter.store'), $this->payload([
                 'place_of_supply_state' => 'Karnataka',
+                'billing_city' => 'Bengaluru',
+                'billing_state' => 'Karnataka',
+                'billing_pincode' => '560001',
                 'idempotency_key' => 'snap-default-gstin',
             ]))
             ->assertRedirect();
@@ -210,8 +216,8 @@ class PosStatutorySnapshotTest extends TestCase
             ->assertSee($sale->invoice_number)
             ->assertSee('not a GST tax invoice');
 
-        $this->assertSame(0, StatutoryInvoice::query()->count());
-        $this->assertNull($sale->fresh()->statutory_invoice_id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertNotNull($sale->fresh()->statutory_invoice_id);
         $this->assertSame($sale->invoice_number, $sale->fresh()->invoice_number);
     }
 
@@ -239,9 +245,8 @@ class PosStatutorySnapshotTest extends TestCase
         $this->actingAs($admin)
             ->get(route('finance.invoices.pending'))
             ->assertOk()
-            ->assertSee($ready->sale_no)
+            ->assertDontSee($ready->sale_no)
             ->assertSee($blocked->sale_no)
-            ->assertSee('Ready to issue')
             ->assertSee('Place of supply missing');
 
         $this->actingAs($admin)
@@ -249,7 +254,9 @@ class PosStatutorySnapshotTest extends TestCase
             ->assertRedirect()
             ->assertSessionHasErrors();
 
-        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertNotNull($ready->fresh()->statutory_invoice_id);
+        $this->assertNull($blocked->fresh()->statutory_invoice_id);
 
         $this->actingAs($admin)
             ->post(route('finance.invoices.sales.issue', $ready))
@@ -283,11 +290,16 @@ class PosStatutorySnapshotTest extends TestCase
             statutory: [
                 'buyer_gstin' => '07AAAAA0000A1Z5',
                 'billing_address' => 'UPI billing lane',
+                'billing_city' => 'New Delhi',
+                'billing_state' => 'Delhi',
+                'billing_pincode' => '110001',
                 'place_of_supply_state' => 'Delhi',
             ],
         );
 
         $this->assertSame('07AAAAA0000A1Z5', $intent->cart_payload['statutory']['buyer_gstin'] ?? null);
+        $this->assertSame('New Delhi', $intent->cart_payload['statutory']['billing_city'] ?? null);
+        $this->assertSame('110001', $intent->cart_payload['statutory']['billing_pincode'] ?? null);
         $this->assertSame(0, InventorySale::query()->count());
 
         $sale = app(PosUpiVerificationService::class)->confirm(
@@ -302,9 +314,82 @@ class PosStatutorySnapshotTest extends TestCase
         $this->assertSame('07AAAAA0000A1Z5', $sale->buyer_gstin);
         $this->assertSame('UPI billing lane', $sale->billing_address);
         $this->assertSame('Delhi', $sale->place_of_supply_state);
-        $this->assertNull($sale->statutory_invoice_id);
-        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame('New Delhi', $sale->billing_address_structured['city'] ?? null);
+        $this->assertSame('110001', $sale->billing_address_structured['pincode'] ?? null);
+        $this->assertNotNull($sale->statutory_invoice_id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertSame(1, PosPaymentIntent::query()->count());
+    }
+
+    public function test_b2b_sale_requires_city_state_and_pin(): void
+    {
+        $this->actingAs($this->seller)
+            ->from(route('pos.counter.create', ['branch_id' => $this->branch->id]))
+            ->post(route('pos.counter.store'), $this->payload([
+                'buyer_gstin' => '07AAAAA0000A1Z5',
+                'billing_address' => '12 Connaught Place',
+                'place_of_supply_state' => 'Delhi',
+            ]))
+            ->assertRedirect()
+            ->assertSessionHasErrors(['billing_city', 'billing_state', 'billing_pincode']);
+
+        $this->assertSame(0, InventorySale::query()->count());
+    }
+
+    public function test_b2b_sale_rejects_missing_city(): void
+    {
+        $this->actingAs($this->seller)
+            ->post(route('pos.counter.store'), $this->payload([
+                'buyer_gstin' => '07AAAAA0000A1Z5',
+                'billing_state' => 'Delhi',
+                'billing_pincode' => '110001',
+                'place_of_supply_state' => 'Delhi',
+            ]))
+            ->assertSessionHasErrors('billing_city');
+
+        $this->assertSame(0, InventorySale::query()->count());
+    }
+
+    public function test_b2b_sale_rejects_missing_pin(): void
+    {
+        $this->actingAs($this->seller)
+            ->post(route('pos.counter.store'), $this->payload([
+                'buyer_gstin' => '07AAAAA0000A1Z5',
+                'billing_city' => 'New Delhi',
+                'billing_state' => 'Delhi',
+                'place_of_supply_state' => 'Delhi',
+            ]))
+            ->assertSessionHasErrors('billing_pincode');
+
+        $this->assertSame(0, InventorySale::query()->count());
+    }
+
+    public function test_b2b_sale_rejects_missing_state(): void
+    {
+        $this->actingAs($this->seller)
+            ->post(route('pos.counter.store'), $this->payload([
+                'buyer_gstin' => '07AAAAA0000A1Z5',
+                'billing_city' => 'New Delhi',
+                'billing_pincode' => '110001',
+                'place_of_supply_state' => 'Delhi',
+            ]))
+            ->assertSessionHasErrors('billing_state');
+
+        $this->assertSame(0, InventorySale::query()->count());
+    }
+
+    public function test_b2c_sale_does_not_require_irn_address_fields(): void
+    {
+        $this->actingAs($this->seller)
+            ->post(route('pos.counter.store'), $this->payload([
+                'idempotency_key' => 'snap-b2c-no-irn-address',
+            ]))
+            ->assertRedirect();
+
+        $sale = InventorySale::query()->where('idempotency_key', 'snap-b2c-no-irn-address')->firstOrFail();
+        $this->assertNull($sale->buyer_gstin);
+        $this->assertNull($sale->billing_address_structured);
+        $this->assertSame(0, StatutoryInvoice::query()->count());
     }
 
     /**

@@ -6,11 +6,13 @@ use App\Enums\InventoryReservationStatus;
 use App\Enums\PosPaymentIntentStatus;
 use App\Models\FinanceBankAccount;
 use App\Models\InventoryBranch;
+use App\Models\InventoryCustomer;
 use App\Models\InventoryReservation;
 use App\Models\PosPaymentIntent;
 use App\Models\User;
 use App\Services\Inventory\InventoryStockService;
 use App\Services\Inventory\PosSaleService;
+use App\Services\Inventory\PosStatutorySnapshot;
 use App\Support\Pos\PosUpiUriBuilder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +26,7 @@ class PosUpiIntentService
         private readonly InventoryStockService $stock,
         private readonly PosSaleService $sales,
         private readonly PosUpiUriBuilder $uris,
+        private readonly PosStatutorySnapshot $statutorySnapshot,
     ) {}
 
     /**
@@ -109,6 +112,20 @@ class PosUpiIntentService
 
         $minutes = (int) config('pos.upi_intent_expires_minutes', 60);
 
+        $existingCustomer = InventoryCustomer::query()->where('phone', $phone)->first();
+        $snapshot = $this->statutorySnapshot->capture(
+            $existingCustomer?->gstin ?? ($customer['gstin'] ?? null),
+            $statutory,
+        );
+        $statutoryPayload = [
+            'buyer_gstin' => $snapshot['buyer_gstin'],
+            'billing_address' => $snapshot['billing_address'],
+            'billing_city' => $snapshot['billing_address_structured']['city'] ?? null,
+            'billing_state' => $snapshot['billing_address_structured']['state'] ?? null,
+            'billing_pincode' => $snapshot['billing_address_structured']['pincode'] ?? null,
+            'place_of_supply_state' => $snapshot['place_of_supply_state'],
+        ];
+
         return DB::transaction(function () use (
             $branch,
             $customer,
@@ -123,7 +140,7 @@ class PosUpiIntentService
             $name,
             $phone,
             $minutes,
-            $statutory,
+            $statutoryPayload,
         ): PosPaymentIntent {
             $reservation = $this->stock->reserveForCart(
                 $branch,
@@ -159,11 +176,7 @@ class PosUpiIntentService
                     'discount' => $headerDiscount,
                     'notes' => $notes,
                     'payment_method' => 'UPI',
-                    'statutory' => [
-                        'buyer_gstin' => $statutory['buyer_gstin'] ?? ($customer['gstin'] ?? null),
-                        'billing_address' => $statutory['billing_address'] ?? null,
-                        'place_of_supply_state' => $statutory['place_of_supply_state'] ?? null,
-                    ],
+                    'statutory' => $statutoryPayload,
                 ],
                 'customer_name' => $name,
                 'customer_phone' => $phone,

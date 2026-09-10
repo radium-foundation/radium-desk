@@ -15,9 +15,8 @@ use App\Models\InventoryReservation;
 use App\Models\InventorySale;
 use App\Models\User;
 use App\Services\Finance\PosSaleJournalService;
-use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Services\StatutoryInvoice\PosStatutoryInvoiceIssuer;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
-use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +30,8 @@ class PosSaleService
         private readonly InventoryStockService $stock,
         private readonly PosSaleJournalService $journals,
         private readonly StatutoryInvoiceAccountingPolicy $statutoryAccounting,
+        private readonly PosStatutorySnapshot $statutorySnapshot,
+        private readonly PosStatutoryInvoiceIssuer $posInvoices,
     ) {}
 
     /**
@@ -83,7 +84,7 @@ class PosSaleService
             : null;
 
         try {
-            return DB::transaction(function () use (
+            $sale = DB::transaction(function () use (
                 $branch,
                 $customer,
                 $lines,
@@ -128,7 +129,7 @@ class PosSaleService
 
                 $inventoryCustomer = $this->findOrCreateCustomer($customer);
 
-                $snapshot = $this->statutorySnapshot($inventoryCustomer, $statutory);
+                $snapshot = $this->statutorySnapshot->capture($inventoryCustomer->gstin, $statutory);
 
                 $sale = InventorySale::query()->create([
                     'sale_no' => 'POS-TMP-'.strtoupper(bin2hex(random_bytes(6))),
@@ -137,6 +138,7 @@ class PosSaleService
                     'customer_id' => $inventoryCustomer->id,
                     'buyer_gstin' => $snapshot['buyer_gstin'],
                     'billing_address' => $snapshot['billing_address'],
+                    'billing_address_structured' => $snapshot['billing_address_structured'],
                     'place_of_supply_state' => $snapshot['place_of_supply_state'],
                     'status' => InventorySaleStatus::Completed,
                     'subtotal' => 0,
@@ -319,12 +321,19 @@ class PosSaleService
                     ->where('idempotency_key', $idempotencyKey)
                     ->first();
                 if ($existing !== null) {
-                    return $existing->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $existing;
+                    $existing = $existing->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $existing;
+                    $this->posInvoices->issueAfterSaleCommit($existing, $actor);
+
+                    return $existing;
                 }
             }
 
             throw $exception;
         }
+
+        $this->posInvoices->issueAfterSaleCommit($sale, $actor);
+
+        return $sale;
     }
 
     public function cancelSale(InventorySale $sale, User $actor, string $reason): InventorySale
@@ -520,52 +529,6 @@ class PosSaleService
             'tax' => round($tax, 2),
             'total' => $total,
         ];
-    }
-
-    /**
-     * Optional Finance Hub snapshot only. Does not mint a GST invoice.
-     *
-     * Customer GSTIN is copied onto the sale at complete time. Later customer
-     * edits are not re-read by Finance Hub.
-     *
-     * @param  array<string, mixed>  $statutory
-     * @return array{buyer_gstin: ?string, billing_address: ?string, place_of_supply_state: ?string}
-     */
-    private function statutorySnapshot(InventoryCustomer $customer, array $statutory): array
-    {
-        $buyerGstin = BuyerGstin::normalize(
-            $this->nullableString($statutory['buyer_gstin'] ?? null)
-                ?? $this->nullableString($customer->gstin)
-        );
-        if ($buyerGstin !== null && ! BuyerGstin::isValid($buyerGstin)) {
-            throw ValidationException::withMessages([
-                'buyer_gstin' => 'Enter a valid 15-character GSTIN or leave it blank for B2C.',
-            ]);
-        }
-
-        $place = $this->nullableString($statutory['place_of_supply_state'] ?? null);
-        if ($place !== null && ! IndianStates::contains($place)) {
-            throw ValidationException::withMessages([
-                'place_of_supply_state' => 'Select a valid Indian place of supply state.',
-            ]);
-        }
-
-        return [
-            'buyer_gstin' => $buyerGstin,
-            'billing_address' => $this->nullableString($statutory['billing_address'] ?? null),
-            'place_of_supply_state' => $place,
-        ];
-    }
-
-    private function nullableString(mixed $value): ?string
-    {
-        if (! is_string($value)) {
-            return null;
-        }
-
-        $value = trim($value);
-
-        return $value === '' ? null : $value;
     }
 
     /**

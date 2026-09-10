@@ -89,6 +89,9 @@ class CounterController extends Controller
                 }
             }],
             'billing_address' => ['nullable', 'string', 'max:1000'],
+            'billing_city' => ['nullable', 'string', 'max:128'],
+            'billing_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
+            'billing_pincode' => ['nullable', 'string', 'max:16'],
             'place_of_supply_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'exists:inventory_products,id'],
@@ -127,6 +130,13 @@ class CounterController extends Controller
             'buyer_gstin' => BuyerGstin::normalize($data['buyer_gstin'] ?? null),
             'billing_address' => isset($data['billing_address']) && is_string($data['billing_address'])
                 ? trim($data['billing_address'])
+                : null,
+            'billing_city' => isset($data['billing_city']) && is_string($data['billing_city'])
+                ? trim($data['billing_city'])
+                : null,
+            'billing_state' => $data['billing_state'] ?? null,
+            'billing_pincode' => isset($data['billing_pincode']) && is_string($data['billing_pincode'])
+                ? trim($data['billing_pincode'])
                 : null,
             'place_of_supply_state' => $data['place_of_supply_state'] ?? null,
         ];

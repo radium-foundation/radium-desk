@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\TeamMemberActivityService;
+use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceIssuer;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -73,7 +74,7 @@ class ServiceCaseStatusService
             $this->validateAgentResolutionRequirements($incident, $actor);
         }
 
-        return DB::transaction(function () use ($incident, $status, $actor, $broadcast): Incident {
+        $updated = DB::transaction(function () use ($incident, $status, $actor, $broadcast): Incident {
             $oldStatus = $incident->status;
 
             $incident->update([
@@ -128,6 +129,16 @@ class ServiceCaseStatusService
 
             return $freshIncident;
         });
+
+        if ($status === IncidentStatus::Closed) {
+            $order = $updated->order ?? $updated->fresh(['order'])?->order;
+            if ($order instanceof Order) {
+                app(ServiceStatutoryInvoiceIssuer::class)
+                    ->issueAfterWorkflowCommit($order, $actor);
+            }
+        }
+
+        return $updated;
     }
 
     public function reopen(Incident $incident, User $actor): Incident

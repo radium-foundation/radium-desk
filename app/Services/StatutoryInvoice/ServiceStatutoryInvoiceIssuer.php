@@ -8,9 +8,9 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * After-commit service-invoice trigger used by the two Owner-approved
- * workflow hooks. Both hooks must call this method so retries and races
- * share one commerce-order statutory identity.
+ * After-commit service-invoice trigger. Reference assign, waiting auto-close,
+ * and operator/generic case close all share one commerce-order identity.
+ * WhiteBooks GENERATE is not called here.
  *
  * Fail-closed eligibility / missing commerce rows are logged and do not
  * roll back the already-committed workflow action.

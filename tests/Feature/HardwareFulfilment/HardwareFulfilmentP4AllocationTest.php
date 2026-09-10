@@ -2,18 +2,21 @@
 
 namespace Tests\Feature\HardwareFulfilment;
 
+use App\Enums\EInvoiceRecordStatus;
 use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\InventorySerialStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
+use App\Models\EInvoiceRecord;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentSerial;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
 use App\Models\InventoryUserBranch;
+use App\Models\OutboxEvent;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
@@ -23,6 +26,7 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareSkuMapService;
 use App\Services\Inventory\InventoryStockService;
+use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
 use App\Services\StatutoryInvoice\StatutoryDocumentService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -85,7 +89,8 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
 
         $allocated = $this->allocation->allocateSerials($fulfilment, ['SN-P4-001', 'SN-P4-002'], $this->actor);
 
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $allocated->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->state);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertSame(
             ['SN-P4-001', 'SN-P4-002'],
             $this->workflow->allocatedSerialNumbers($allocated),
@@ -196,8 +201,9 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
         $second = $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-P4-070'], $this->actor);
 
         $this->assertSame($first->id, $second->id);
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $second->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $second->state);
         $this->assertSame(1, HardwareFulfilmentSerial::query()->count());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertSame(['SN-P4-070'], $this->workflow->allocatedSerialNumbers($second));
     }
 
@@ -345,7 +351,78 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
             ])
             ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment));
 
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+    }
+
+    public function test_repeated_http_allocate_does_not_duplicate_the_invoice(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+        $fulfilment = $this->readyFulfilment('RDE900416', 'DELHI-RETAIL', 1);
+        $this->stockAt('DELHI-RETAIL', ['SN-P4-121']);
+        $operator = User::factory()->create(['is_active' => true]);
+        $operator->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+        InventoryUserBranch::query()->create([
+            'user_id' => $operator->id,
+            'branch_id' => InventoryBranch::query()->where('code', 'DELHI-RETAIL')->value('id'),
+        ]);
+        $itemId = (int) $fulfilment->commerceOrder?->items->first()?->id;
+        $payload = ['serials' => [$itemId => ['SN-P4-121']]];
+
+        $this->actingAs($operator)
+            ->post(route('inventory.hardware-fulfilments.serials.store', $fulfilment), $payload)
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment));
+        $this->actingAs($operator)
+            ->post(route('inventory.hardware-fulfilments.serials.store', $fulfilment), $payload)
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment));
+
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
+    }
+
+    public function test_allocate_and_issue_invoice_converge_on_one_invoice(): void
+    {
+        $fulfilment = $this->readyFulfilment('RDE900417', 'DELHI-RETAIL', 1);
+        $this->stockAt('DELHI-RETAIL', ['SN-P4-122']);
+
+        $this->allocation->allocateSerials($fulfilment, ['SN-P4-122'], $this->actor);
+        $first = app(HardwareFulfilmentInvoiceService::class)->issueInvoice($fulfilment->fresh());
+        $second = app(HardwareFulfilmentInvoiceService::class)->issueInvoice($fulfilment->fresh());
+
+        $this->assertSame($first->id, $second->id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+    }
+
+    public function test_b2c_hardware_invoice_does_not_enter_irn_outbox(): void
+    {
+        $fulfilment = $this->readyFulfilment('RDE900418', 'DELHI-RETAIL', 1);
+        $this->stockAt('DELHI-RETAIL', ['SN-P4-123']);
+        $this->allocation->allocateSerials($fulfilment, ['SN-P4-123'], $this->actor);
+
+        $invoice = StatutoryInvoice::query()->firstOrFail();
+        $this->assertNull($invoice->buyer_gstin);
+        $this->assertSame(
+            EInvoiceRecordStatus::Skipped->value,
+            EInvoiceRecord::query()->where('invoice_id', $invoice->id)->value('status'),
+        );
+        $this->assertSame(0, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
+    }
+
+    public function test_b2b_hardware_invoice_enters_irn_outbox_once(): void
+    {
+        $fulfilment = $this->readyFulfilment('RDE900419', 'DELHI-RETAIL', 1, buyerGstin: '07AAAAA0000A1Z5');
+        $this->stockAt('DELHI-RETAIL', ['SN-P4-124']);
+        $this->allocation->allocateSerials($fulfilment, ['SN-P4-124'], $this->actor);
+        app(HardwareFulfilmentInvoiceService::class)->issueInvoice($fulfilment->fresh());
+
+        $invoice = StatutoryInvoice::query()->firstOrFail();
+        $this->assertSame('07AAAAA0000A1Z5', $invoice->buyer_gstin);
+        $this->assertSame(
+            EInvoiceRecordStatus::Queued->value,
+            EInvoiceRecord::query()->where('invoice_id', $invoice->id)->value('status'),
+        );
+        $this->assertSame(1, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
     }
 
     private function readyFulfilment(
@@ -354,12 +431,13 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
         int $qty,
         bool $map = true,
         ?int $rdserviceid = null,
+        ?string $buyerGstin = null,
     ): HardwareFulfilment {
         if ($map) {
             $this->mapModel(951);
         }
 
-        $fulfilment = $this->ingestHardware($sourceId, $qty, $rdserviceid);
+        $fulfilment = $this->ingestHardware($sourceId, $qty, $rdserviceid, $buyerGstin);
         $this->assignBranch($fulfilment, $branchCode);
         $this->workflow->transition($fulfilment, HardwareFulfilmentState::ReadyForFulfilment);
 
@@ -410,7 +488,7 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
         return $branch;
     }
 
-    private function ingestHardware(string $sourceId, int $qty = 1, ?int $rdserviceid = null): HardwareFulfilment
+    private function ingestHardware(string $sourceId, int $qty = 1, ?int $rdserviceid = null, ?string $buyerGstin = null): HardwareFulfilment
     {
         $taxable = round(2583.90 * $qty, 2);
         $tax = round($taxable * 0.18, 2);
@@ -427,6 +505,7 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
             'customer' => [
                 'name' => 'Hardware Buyer',
                 'phone' => '9000000099',
+                'gstin' => $buyerGstin,
             ],
             'seller_gstin' => '07AAICP1128M1Z9',
             'place_of_supply_state' => 'Delhi',

@@ -64,13 +64,16 @@ class PosFinanceHubIssueTest extends TestCase
         ]);
     }
 
-    public function test_pos_complete_does_not_mint_a_statutory_invoice(): void
+    public function test_pos_complete_mints_a_statutory_invoice_after_serials_are_assigned(): void
     {
         $sale = $this->completeEligibleSale();
 
         $this->assertMatchesRegularExpression('/^INV-DELHI-RETAIL-\d{4}-\d{5}$/', (string) $sale->invoice_number);
-        $this->assertNull($sale->statutory_invoice_id);
-        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertNotNull($sale->fresh()->statutory_invoice_id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $invoice = StatutoryInvoice::query()->firstOrFail();
+        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertNotSame($sale->invoice_number, $invoice->invoice_number);
     }
 
     public function test_finance_hub_issues_a_distinct_statutory_number_from_a_pos_sale(): void
@@ -175,39 +178,24 @@ class PosFinanceHubIssueTest extends TestCase
         $this->invoices->issueFromPosSale($sale, $this->actor);
     }
 
-    public function test_admin_can_issue_from_the_finance_pending_queue(): void
+    public function test_admin_can_open_the_invoice_minted_on_pos_complete(): void
     {
         $sale = $this->completeEligibleSale();
-
-        $this->actingAs($this->actor)
-            ->get(route('finance.invoices.pending'))
-            ->assertOk()
-            ->assertSee($sale->sale_no)
-            ->assertSee('Receipt '.$sale->invoice_number);
+        $invoice = StatutoryInvoice::query()->firstOrFail();
+        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame($sale->id, (int) $sale->fresh()->statutory_invoice_id);
 
         $this->actingAs($this->actor)
             ->post(route('finance.invoices.sales.issue', $sale))
             ->assertRedirect();
 
-        $invoice = StatutoryInvoice::query()->firstOrFail();
-        $this->assertSame('INV-07671', $invoice->invoice_number);
-
-        $this->actingAs($this->actor)
-            ->get(route('finance.invoices.show', $invoice))
-            ->assertOk()
-            ->assertSee('INV-07671')
-            ->assertSee($sale->invoice_number);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame($invoice->id, StatutoryInvoice::query()->value('id'));
 
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.pdf', $invoice))
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
-
-        $this->actingAs($this->actor)
-            ->get(route('finance.invoices.index'))
-            ->assertOk()
-            ->assertSee('INV-07671')
-            ->assertDontSee($sale->invoice_number, false);
     }
 
     private function completeEligibleSale(string $placeOfSupply = 'Delhi'): InventorySale

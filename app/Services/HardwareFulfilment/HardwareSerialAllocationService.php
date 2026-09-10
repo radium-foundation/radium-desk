@@ -39,6 +39,7 @@ class HardwareSerialAllocationService
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly HardwareSkuMapService $skuMap,
         private readonly InventoryStockService $stock,
+        private readonly HardwareStatutoryInvoiceIssuer $invoices,
     ) {}
 
     /**
@@ -177,7 +178,7 @@ class HardwareSerialAllocationService
     ): HardwareFulfilment {
         $this->assertNotFrozen($fulfilment);
 
-        return DB::transaction(function () use ($fulfilment, $serialsByItemId, $actor, $claimedBranchCode): HardwareFulfilment {
+        $allocated = DB::transaction(function () use ($fulfilment, $serialsByItemId, $actor, $claimedBranchCode): HardwareFulfilment {
             $locked = HardwareFulfilment::query()
                 ->whereKey($fulfilment->id)
                 ->lockForUpdate()
@@ -186,7 +187,8 @@ class HardwareSerialAllocationService
 
             $this->assertNotFrozen($locked);
 
-            if ($locked->state === HardwareFulfilmentState::SerialsAllocated) {
+            if ($locked->state === HardwareFulfilmentState::SerialsAllocated
+                || $locked->state === HardwareFulfilmentState::InvoiceIssued) {
                 return $this->idempotentAllocated($locked, $serialsByItemId);
             }
 
@@ -266,7 +268,7 @@ class HardwareSerialAllocationService
                 ]);
             }
 
-            return $this->workflow->transition(
+            $transitioned = $this->workflow->transition(
                 $locked,
                 HardwareFulfilmentState::SerialsAllocated,
                 actorType: 'user',
@@ -276,7 +278,13 @@ class HardwareSerialAllocationService
                     'serials' => $allocated,
                 ],
             );
+
+            return $transitioned;
         });
+
+        $this->invoices->issueAfterSerialsAllocated($allocated, $actor);
+
+        return $allocated->fresh(['commerceOrder.items', 'serials']) ?? $allocated;
     }
 
     /**
