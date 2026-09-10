@@ -37,16 +37,28 @@ final class EInvoiceUqcMapper
      */
     public function snapshot(?string $lineUqc, ?string $catalogUqc): ?string
     {
+        return $this->resolveLineOrCatalog($lineUqc, $catalogUqc)['code'];
+    }
+
+    /**
+     * GENERATE/mint resolution. Statutory line UQC is the snapshot when populated.
+     * Catalog is consulted only when the line is empty. Invalid line codes are not
+     * replaced by catalog. Missing values are not defaulted to PCS/NOS.
+     *
+     * @return array{code: ?string, gap: ?string}
+     */
+    public function resolveLineOrCatalog(?string $lineUqc, ?string $catalogUqc): array
+    {
         $fromLine = $this->resolve($lineUqc);
         if ($fromLine['code'] !== null) {
-            return $fromLine['code'];
+            return $fromLine;
         }
 
         if ($fromLine['gap'] === 'unsupported_uqc') {
-            return null;
+            return $fromLine;
         }
 
-        return $this->resolve($catalogUqc)['code'];
+        return $this->resolve($catalogUqc);
     }
 
     /**

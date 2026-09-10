@@ -13,6 +13,7 @@ class InventoryProduct extends Model
         'sku',
         'name',
         'hsn_code',
+        'uqc',
         'gst_percentage',
         'unit_price',
         'unit_cost',

@@ -56,5 +56,22 @@ class EInvoiceUqcMapperTest extends TestCase
         $this->assertNull($mapper->snapshot('widget', 'NOS'));
         $this->assertSame('NOS', $mapper->snapshot(null, 'NOS'));
         $this->assertSame('PCS', $mapper->snapshot('pcs', 'NOS'));
+        $this->assertSame(
+            ['code' => 'PCS', 'gap' => null],
+            $mapper->resolveLineOrCatalog(null, 'PCS'),
+        );
+        $this->assertSame(['code' => 'NOS', 'gap' => null], $mapper->resolveLineOrCatalog('NOS', 'PCS'));
+        $this->assertSame(
+            ['code' => null, 'gap' => 'unsupported_uqc'],
+            $mapper->resolveLineOrCatalog('widget', 'PCS'),
+        );
+        $this->assertSame(
+            ['code' => null, 'gap' => 'unsupported_uqc'],
+            $mapper->resolveLineOrCatalog(null, 'widget'),
+        );
+        $this->assertSame(
+            ['code' => null, 'gap' => 'missing_uqc'],
+            $mapper->resolveLineOrCatalog(null, null),
+        );
     }
 }
