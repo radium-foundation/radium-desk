@@ -42,7 +42,7 @@ class OrderProductOrderTest extends TestCase
         config(['operations.hardware_order_prefixes' => ['RDE']]);
 
         $this->assertTrue(Order::isHardwareOrderId('RBP1'));
-        $this->assertFalse(Order::isHardwareOrderId('RDP1'));
+        $this->assertTrue(Order::isHardwareOrderId('RDP1'));
         $this->assertFalse(Order::isHardwareOrderId('RB1'));
         $this->assertFalse(Order::isHardwareOrderId('RD3511756'));
     }
@@ -52,6 +52,7 @@ class OrderProductOrderTest extends TestCase
         config(['operations.hardware_order_prefixes' => ['RDE', 'RIN']]);
 
         $this->assertTrue(Order::isHardwareOrderId('RBP1'));
+        $this->assertTrue(Order::isHardwareOrderId('RDP1'));
         $this->assertFalse(Order::isHardwareOrderId('RB1'));
         $this->assertTrue(Order::isHardwareOrderId('RDE318516'));
         $this->assertTrue(Order::isHardwareOrderId('RIN3460196'));
