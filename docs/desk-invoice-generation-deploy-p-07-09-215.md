@@ -209,3 +209,7 @@ No historical Finance Hub hardware invoices rewritten. No bulk IRN. No skipped-r
 ## Not performed
 
 `deskd`, tag/release, migrate, `.env` edit, `auto_issue_on_pos_complete=true`, live serial allocate, live POS sale, live service mint, live WhiteBooks GENERATE/Get-IRN for this ticket, rollback.
+
+## Follow-up
+
+P-07-09-216 re-hashed production vs committed HEAD: P-215 overlay still MATCH. No additional files deployed. Live hardware/POS/service end-to-end still not performed (no authorized samples). Report: `docs/desk-invoice-generation-production-gate-p-07-09-216.md`.

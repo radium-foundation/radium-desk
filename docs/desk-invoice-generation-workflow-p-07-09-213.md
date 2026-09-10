@@ -99,4 +99,6 @@ Do not flip `auto_issue_on_pos_complete`. Do not bulk-requeue `worker_may_mint_o
 
 ## Production overlay
 
-Named-file overlay of the P-213 after-commit issuers (preserving P-214) is recorded in `docs/desk-invoice-generation-deploy-p-07-09-215.md`. Payment still does not make a hardware order invoice-ready; required serial allocation does. Offline POS still mints after `completeSale()` commit without WhiteBooks. Service Reference No. or case closure still share one commerce identity.
+Named-file overlay of the P-213 after-commit issuers (preserving P-214) is recorded in `docs/desk-invoice-generation-deploy-p-07-09-215.md`. P-07-09-216 re-verified those production hashes MATCH committed HEAD and did not overlay again (`docs/desk-invoice-generation-production-gate-p-07-09-216.md`).
+
+**Paid does not equal invoice-ready. Required serial allocation triggers the statutory invoice.** Offline POS assigns serials in `completeSale()`, commits, then mints; WhiteBooks is not required during capture. Service Reference No. or case closure still share one commerce identity. Invoice creation stays separate from the existing WhiteBooks worker.

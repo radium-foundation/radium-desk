@@ -123,7 +123,7 @@ Live `/up` 200 (`desk.radiumbox.com`, Cloudflare). Queue worker RUNNING. Invoice
 
 Serial assignment on a live customer order was **not** performed in P-214: no isolated authorized leftover (`serials_allocated` count 0); allocating would sell production stock.
 
-P-07-09-215 overlaid the P-213 after-commit issuers while leaving this Finance Hub guard and `HardwareFulfilmentInvoiceService::issueInvoice()` intact. See `docs/desk-invoice-generation-deploy-p-07-09-215.md`.
+P-07-09-215 overlaid the P-213 after-commit issuers while leaving this Finance Hub guard and `HardwareFulfilmentInvoiceService::issueInvoice()` intact. P-07-09-216 re-verified the guard SHA MATCH and re-probed `RDE318526` (still blocked). See `docs/desk-invoice-generation-deploy-p-07-09-215.md` and `docs/desk-invoice-generation-production-gate-p-07-09-216.md`.
 
 ## Remaining limitations
 
