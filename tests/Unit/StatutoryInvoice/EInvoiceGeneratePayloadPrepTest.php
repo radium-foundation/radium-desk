@@ -137,6 +137,43 @@ class EInvoiceGeneratePayloadPrepTest extends TestCase
         $this->assertContains('missing_uqc', $payload->gaps);
     }
 
+    public function test_buyer_address_over_100_maps_to_nic_addr2_without_truncation(): void
+    {
+        $this->configureIssuer();
+        $this->catalogProduct('RBMFS110L1', 'PCS');
+        $this->mapBoxModel(946, 'RBMFS110L1');
+        $invoice = $this->invoice1062([], [
+            'billing_address' => str_repeat('A', 90).', '.str_repeat('B', 22),
+        ]);
+
+        $payload = app(EInvoiceIrnPayloadMapper::class)->map($invoice);
+        $body = (new WhitebooksNicPayloadFactory)->generateBody($payload);
+
+        $this->assertTrue($payload->isSubmittable());
+        $this->assertIsArray($body);
+        $this->assertLessThanOrEqual(100, strlen((string) $body['BuyerDtls']['Addr1']));
+        $this->assertArrayHasKey('Addr2', $body['BuyerDtls']);
+        $this->assertLessThanOrEqual(100, strlen((string) $body['BuyerDtls']['Addr2']));
+        $this->assertGreaterThan(100, strlen((string) $payload->buyer['address']));
+        $this->assertStringContainsString('B', (string) $body['BuyerDtls']['Addr2']);
+    }
+
+    public function test_buyer_address_over_200_fails_closed_without_generate_body(): void
+    {
+        $this->configureIssuer();
+        $this->catalogProduct('RBMFS110L1', 'PCS');
+        $this->mapBoxModel(946, 'RBMFS110L1');
+        $invoice = $this->invoice1062([], [
+            'billing_address' => str_repeat('X', 232),
+        ]);
+
+        $payload = app(EInvoiceIrnPayloadMapper::class)->map($invoice);
+
+        $this->assertContains('buyer_address_exceeds_irp_limit', $payload->gaps);
+        $this->assertFalse($payload->isSubmittable());
+        $this->assertNull((new WhitebooksNicPayloadFactory)->generateBody($payload));
+    }
+
     public function test_reconciled_mapper_accepts_pcs(): void
     {
         $mapper = new EInvoiceUqcMapper;
@@ -184,11 +221,12 @@ class EInvoiceGeneratePayloadPrepTest extends TestCase
 
     /**
      * @param  array<string, mixed>  $itemOverrides
+     * @param  array<string, mixed>  $invoiceOverrides
      */
-    private function invoice1062(array $itemOverrides = []): StatutoryInvoice
+    private function invoice1062(array $itemOverrides = [], array $invoiceOverrides = []): StatutoryInvoice
     {
         return $this->makeTaxInvoice(
-            [
+            array_merge([
                 'invoice_number' => 'INV-076746',
                 'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
                 'source_id' => 'RDE318400',
@@ -214,7 +252,7 @@ class EInvoiceGeneratePayloadPrepTest extends TestCase
                 'rounding' => '0.00',
                 'invoice_value' => '5098.00',
                 'issued_at' => '2026-09-10 14:21:29',
-            ],
+            ], $invoiceOverrides),
             array_merge([
                 'sku' => '946',
                 'description' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner (bundled RD #1119)',

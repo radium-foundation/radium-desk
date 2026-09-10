@@ -121,6 +121,8 @@ class EInvoiceIrnPayloadMapper
 
         if ($address === null) {
             $gaps[] = 'missing_seller_address';
+        } elseif (strlen($address) > 200) {
+            $gaps[] = 'seller_address_exceeds_irp_limit';
         }
         if ($pin === null) {
             $gaps[] = 'missing_seller_pin';
@@ -165,6 +167,8 @@ class EInvoiceIrnPayloadMapper
 
         if ($address === null) {
             $gaps[] = 'missing_buyer_address';
+        } elseif (strlen($address) > 200) {
+            $gaps[] = 'buyer_address_exceeds_irp_limit';
         }
         if ($this->nullable($structured['pincode'] ?? null) !== null && $pin === null) {
             $gaps[] = 'invalid_buyer_pin';

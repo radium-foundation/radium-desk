@@ -63,7 +63,7 @@ final class WhitebooksNicPayloadFactory
             'SellerDtls' => [
                 'Gstin' => (string) ($payload->seller['gstin'] ?? ''),
                 'LglNm' => (string) ($payload->seller['legal_name'] ?? ''),
-                'Addr1' => (string) ($payload->seller['address'] ?? ''),
+                ...$this->nicAddressLines((string) ($payload->seller['address'] ?? '')),
                 'Loc' => (string) ($payload->seller['location'] ?? ''),
                 'Pin' => (int) ($payload->seller['pin'] ?? 0),
                 'Stcd' => (string) ($payload->seller['state_code'] ?? ''),
@@ -72,7 +72,7 @@ final class WhitebooksNicPayloadFactory
                 'Gstin' => (string) ($payload->buyer['gstin'] ?? ''),
                 'LglNm' => (string) ($payload->buyer['legal_name'] ?? ''),
                 'Pos' => (string) ($payload->buyer['pos_code'] ?? $payload->buyer['state_code'] ?? ''),
-                'Addr1' => (string) ($payload->buyer['address'] ?? ''),
+                ...$this->nicAddressLines((string) ($payload->buyer['address'] ?? '')),
                 'Loc' => (string) ($payload->buyer['location'] ?? ''),
                 'Pin' => (int) ($payload->buyer['pin'] ?? 0),
                 'Stcd' => (string) ($payload->buyer['state_code'] ?? ''),
@@ -108,6 +108,50 @@ final class WhitebooksNicPayloadFactory
             'docnum' => $number,
             'docdate' => $date,
         ];
+    }
+
+    /**
+     * NIC Addr1 is 1–100 characters. Remainder maps to Addr2 (max 100).
+     * Does not invent address text or truncate past 200 characters.
+     *
+     * @return array{Addr1: string, Addr2?: string}
+     */
+    private function nicAddressLines(string $address): array
+    {
+        $address = trim($address);
+        if (strlen($address) <= 100) {
+            return ['Addr1' => $address];
+        }
+
+        $break = $this->addressBreakOffset($address, 100);
+        $addr1 = rtrim(substr($address, 0, $break), " \t,");
+        $addr2 = ltrim(substr($address, $break), " \t,");
+        if ($addr1 === '') {
+            $addr1 = substr($address, 0, 100);
+            $addr2 = ltrim(substr($address, 100), " \t,");
+        }
+
+        $lines = ['Addr1' => $addr1];
+        if ($addr2 !== '') {
+            $lines['Addr2'] = $addr2;
+        }
+
+        return $lines;
+    }
+
+    private function addressBreakOffset(string $address, int $max): int
+    {
+        $window = substr($address, 0, $max);
+        $comma = strrpos($window, ',');
+        if ($comma !== false && $comma >= 40) {
+            return $comma + 1;
+        }
+        $space = strrpos($window, ' ');
+        if ($space !== false && $space >= 40) {
+            return $space + 1;
+        }
+
+        return $max;
     }
 
     /**
