@@ -78,9 +78,9 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('TAX INVOICE', $pdf);
         $this->assertStringContainsString('Phil Technologies', $pdf);
         $this->assertStringContainsString($this->configuredSellerGstin('mumbai'), $pdf);
-        $this->assertStringContainsString('Invoice no. '.$invoice->invoice_number, $pdf);
-        $this->assertStringContainsString('Seller', $pdf);
-        $this->assertStringContainsString('Bill To', $pdf);
+        $this->assertStringContainsString('Invoice number', $pdf);
+        $this->assertStringContainsString($invoice->invoice_number, $pdf);
+        $this->assertStringContainsString('BILL TO', $pdf);
         $this->assertStringContainsString('CHANDRAKANT GANPAT SARODE', $pdf);
         $this->assertStringContainsString('GSTIN Unregistered', $pdf);
         $this->assertStringContainsString('Place of supply Maharashtra', $pdf);
@@ -89,14 +89,18 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('998313', $pdf);
         $this->assertStringNotContainsString('998314', $pdf);
         $this->assertStringContainsString('Qty', $pdf);
+        $this->assertStringContainsString('UQC', $pdf);
         $this->assertStringContainsString('Rs.422.88', $pdf);
         $this->assertStringContainsString('18.00%', $pdf);
-        $this->assertStringContainsString('CGST Rs.38.06', $pdf);
-        $this->assertStringContainsString('SGST Rs.38.06', $pdf);
-        $this->assertStringContainsString('IGST Rs.0.00', $pdf);
-        $this->assertStringContainsString('Total GST', $pdf);
+        $this->assertStringContainsString('CGST', $pdf);
+        $this->assertStringContainsString('SGST', $pdf);
+        $this->assertStringContainsString('Rs.38.06', $pdf);
+        $this->assertStringNotContainsString('IGST Rs.0.00', $pdf);
         $this->assertStringContainsString('Rs.499.00', $pdf);
-        $this->assertStringContainsString('Amount payable', $pdf);
+        $this->assertStringContainsString('TOTAL INVOICE VALUE', $pdf);
+        $this->assertStringContainsString('Four Hundred Ninety-Nine Rupees Only', $pdf);
+        $this->assertStringContainsString('Thank you for your business.', $pdf);
+        $this->assertStringNotContainsString('Thanks for shopping', $pdf);
         $this->assertStringContainsString('RD Technical Support - included', $pdf);
         $this->assertStringNotContainsString('???', $pdf);
         $this->assertStringNotContainsString('unset', $pdf);
@@ -219,6 +223,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Principal Arya Kanya Inter College', $pdf);
         $this->assertStringContainsString('Civil Lines', $pdf);
         $this->assertStringContainsString('Place of supply Uttar Pradesh', $pdf);
+        $this->assertStringContainsString('BILL TO', $pdf);
         $this->assertStringContainsString('SAC - 998313', $pdf);
         $this->assertStringContainsString('998314', $pdf);
         $this->assertStringNotContainsString('???', $pdf);
@@ -296,13 +301,16 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             sourceId: 'RDE900305',
         )));
 
-        $this->assertStringContainsString('Page 1 of 3', $pdf);
-        $this->assertStringContainsString('Page 3 of 3', $pdf);
+        $this->assertMatchesRegularExpression('/Page 1 of [2-9]/', $pdf);
         $this->assertStringContainsString('TAX INVOICE', $pdf);
-        $this->assertStringContainsString('Amount payable', $pdf);
+        $this->assertStringContainsString('TOTAL INVOICE VALUE', $pdf);
         $this->assertStringContainsString('Rs.1416.00', $pdf);
-        $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('Order RDE900305', $pdf);
+        $this->assertStringContainsString('Serial Numbers', $pdf);
+        $this->assertStringContainsString('SN-1', $pdf);
+        $this->assertStringContainsString('SN-6', $pdf);
+        $this->assertStringContainsString('Order ID', $pdf);
+        $this->assertStringContainsString('RDE900305', $pdf);
+        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
         $this->assertStringNotContainsString('statutory:', $pdf);
     }
@@ -345,7 +353,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             signedQr: 'eyJhbGciOiJFUzI1NiJ9.fake-signed-qr',
         )));
 
-        $this->assertStringContainsString('Ship To', $pdf);
+        $this->assertStringContainsString('SHIP TO', $pdf);
         $this->assertStringContainsString('Andheri East', $pdf);
         $this->assertStringContainsString('Payment', $pdf);
         $this->assertStringContainsString('UPI', $pdf);
@@ -365,7 +373,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $invoice = $this->invoices->issueFromCommerceOrder($order->fresh(), $this->actor);
         $pdf = $this->text($this->pdf($invoice->id));
 
-        $this->assertStringContainsString('Ship To', $pdf);
+        $this->assertStringContainsString('SHIP TO', $pdf);
         $this->assertStringContainsString('Andheri East', $pdf);
         $this->assertStringContainsString('UPI', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);

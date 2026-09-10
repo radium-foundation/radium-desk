@@ -16,7 +16,8 @@ final class StatutoryInvoicePdfPayload
      *     sgst: string,
      *     igst: string,
      *     taxTotal: string,
-     *     lineTotal: string
+     *     lineTotal: string,
+     *     uqc?: ?string
      * }>  $lines
      * @param  list<string>  $serialNumbers
      */
@@ -49,6 +50,14 @@ final class StatutoryInvoicePdfPayload
         public readonly ?string $paymentMethod = null,
         public readonly ?string $paymentStatus = null,
         public readonly ?string $signedQr = null,
+        public readonly ?string $sellerEmail = null,
+        public readonly ?string $sellerPhone = null,
+        public readonly ?string $buyerPhone = null,
+        public readonly ?string $buyerEmail = null,
+        public readonly ?string $discount = null,
+        public readonly ?string $rounding = null,
+        public readonly ?string $paymentReference = null,
+        public readonly ?string $orderId = null,
     ) {}
 
     public function hasIssuedIrn(): bool

@@ -105,7 +105,9 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $invoice = $this->invoices->issueInvoice($fulfilment);
         $pdf = app(StatutoryDocumentService::class)->binary($invoice->document);
 
-        $this->assertStringContainsString('Serial numbers: SN-RDE900304-001, SN-RDE900304-002, SN-RDE900304-003, SN-RDE900304-004, SN-RDE900304-005', $pdf);
+        $this->assertStringContainsString('Serial Numbers', $pdf);
+        $this->assertStringContainsString('SN-RDE900304-001', $pdf);
+        $this->assertStringContainsString('SN-RDE900304-005', $pdf);
         $this->assertStringNotContainsString('See Annexure A', $pdf);
         $this->assertStringNotContainsString('ANNEXURE A', $pdf);
     }
@@ -116,12 +118,12 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $invoice = $this->invoices->issueInvoice($fulfilment);
         $pdf = app(StatutoryDocumentService::class)->binary($invoice->document);
 
-        $this->assertStringContainsString('Serial Numbers: See Annexure A', $pdf);
-        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('Serial Numbers', $pdf);
         $this->assertStringContainsString($invoice->invoice_number, $pdf);
-        $this->assertStringContainsString('Order RDE900305', $pdf);
+        $this->assertStringContainsString('RDE900305', $pdf);
         $this->assertStringNotContainsString('statutory:radiumbox_com', $pdf);
-        $this->assertStringContainsString('not a second invoice', $pdf);
+        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
+        $this->assertStringNotContainsString('See Annexure A', $pdf);
         $this->assertSame(1, substr_count($pdf, '%PDF-1.4'));
         for ($i = 1; $i <= 6; $i++) {
             $this->assertStringContainsString(sprintf('SN-RDE900305-%03d', $i), $pdf);
@@ -134,8 +136,8 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $invoice = $this->invoices->issueInvoice($fulfilment);
         $pdf = app(StatutoryDocumentService::class)->binary($invoice->document);
 
-        $this->assertStringContainsString('Serial Numbers: See Annexure A', $pdf);
-        $this->assertStringContainsString('Total serials 200', $pdf);
+        $this->assertStringContainsString('Serial Numbers', $pdf);
+        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
         $this->assertMatchesRegularExpression('/\\/Count [2-9]\\d*/', $pdf);
         $seen = [];
         for ($i = 1; $i <= 200; $i++) {
