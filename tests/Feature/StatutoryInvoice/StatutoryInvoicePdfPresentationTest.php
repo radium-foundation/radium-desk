@@ -84,8 +84,10 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('BILL TO', $pdf);
         $this->assertStringContainsString('CHANDRAKANT GANPAT SARODE', $pdf);
         $this->assertStringContainsString('GSTIN Unregistered', $pdf);
-        $this->assertStringContainsString('Place of supply Maharashtra', $pdf);
-        $this->assertStringContainsString('SAC - 998313', $pdf);
+        $this->assertStringContainsString('Place of Supply Maharashtra', $pdf);
+        $this->assertStringContainsString('CIN: U72300DL2015PTC280283', $pdf);
+        $this->assertStringContainsString('Tax Rate', $pdf);
+        $this->assertStringContainsString('consulting', $pdf);
         $this->assertStringContainsString('HSN/SAC', $pdf);
         $this->assertStringContainsString('998313', $pdf);
         $this->assertStringNotContainsString('998314', $pdf);
@@ -253,9 +255,9 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
 
         $this->assertStringContainsString('Principal Arya Kanya Inter College', $pdf);
         $this->assertStringContainsString('Civil Lines', $pdf);
-        $this->assertStringContainsString('Place of supply Uttar Pradesh', $pdf);
+        $this->assertStringContainsString('Place of Supply Uttar Pradesh', $pdf);
         $this->assertStringContainsString('BILL TO', $pdf);
-        $this->assertStringContainsString('SAC - 998313', $pdf);
+        $this->assertStringContainsString('consulting', $pdf);
         $this->assertStringContainsString('998314', $pdf);
         $this->assertStringNotContainsString('???', $pdf);
         $this->assertStringNotContainsString('unset', $pdf);
@@ -819,6 +821,126 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             $this->assertStringContainsString($serial, $text);
         }
         $this->assertStringNotContainsString('ANNEXURE A', $text);
+    }
+
+    public function test_company_cin_is_printed_in_seller_block(): void
+    {
+        $text = $this->text((new SimplePdfRenderer)->render($this->payload()));
+
+        $this->assertStringContainsString('CIN: U72300DL2015PTC280283', $text);
+        $this->assertStringContainsString('GSTIN 27AAICP1128M1Z7', $text);
+        $this->assertStringContainsString('/Logo Do', (new SimplePdfRenderer)->render($this->payload()));
+    }
+
+    public function test_long_product_name_stays_in_product_column(): void
+    {
+        $text = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-LONG-SKU',
+            issuedAt: '2026-09-09 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Hardware Buyer',
+            buyerGstin: '07AAAAA0000A1Z5',
+            billingAddress: '1 Test Street, Delhi',
+            placeOfSupply: 'Delhi',
+            lines: [[
+                'description' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner (bundled RD #1119) with an unusually long commercial description that must wrap inside the product column',
+                'hsnSac' => '84716050',
+                'qty' => 1,
+                'unitPrice' => '2117.80',
+                'taxableValue' => '2117.80',
+                'gstPercentage' => '18.00%',
+                'cgst' => '0.00',
+                'sgst' => '0.00',
+                'igst' => '381.20',
+                'taxTotal' => '381.20',
+                'lineTotal' => '2499.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '2117.80',
+            gstRate: '18.00%',
+            taxTotal: '381.20',
+            cgst: '0.00',
+            sgst: '0.00',
+            igst: '381.20',
+            invoiceValue: '2499.00',
+        )));
+
+        $this->assertStringContainsString('Mantra MFS 100', $text);
+        $this->assertStringContainsString('Fingerprint', $text);
+        $this->assertStringContainsString('Scanner', $text);
+        $this->assertStringContainsString('84716050', $text);
+        $this->assertStringContainsString('Tax Rate', $text);
+        $this->assertStringContainsString('Rs.2117.80', $text);
+        $this->assertStringContainsString('Rs.2499.00', $text);
+    }
+
+    public function test_twenty_four_serials_keep_complete_unique_annexure(): void
+    {
+        $serials = [];
+        for ($i = 1; $i <= 24; $i++) {
+            $serials[] = sprintf('SN-%02d', $i);
+        }
+
+        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076740',
+            issuedAt: '2026-09-09 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Hardware Buyer',
+            buyerGstin: '07AAAAA0000A1Z5',
+            billingAddress: '1 Test Street, Delhi',
+            placeOfSupply: 'Delhi',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1',
+                'hsnSac' => '84716050',
+                'qty' => 24,
+                'unitPrice' => '100.00',
+                'taxableValue' => '2400.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '216.00',
+                'sgst' => '216.00',
+                'igst' => '0.00',
+                'taxTotal' => '432.00',
+                'lineTotal' => '2832.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '2400.00',
+            gstRate: '18.00%',
+            taxTotal: '432.00',
+            cgst: '216.00',
+            sgst: '216.00',
+            igst: '0.00',
+            invoiceValue: '2832.00',
+            serialNumbers: $serials,
+            orderId: 'RDE318900',
+        )));
+
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
+        foreach ($serials as $serial) {
+            $this->assertStringContainsString($serial, $pdf);
+        }
+        $this->assertSame(1, substr_count($pdf, 'SN-24'));
+        $this->assertStringContainsString('Rs.2832.00', $pdf);
+        $this->assertStringContainsString('Page 1 of', $pdf);
+    }
+
+    public function test_b2c_single_page_omits_empty_ship_to_and_einvoice_block(): void
+    {
+        $binary = (new SimplePdfRenderer)->render($this->payload());
+        $text = $this->text($binary);
+
+        $this->assertStringContainsString('/MediaBox [0 0 595 842]', $binary);
+        $this->assertStringContainsString('Page 1 of 1', $text);
+        $this->assertStringNotContainsString('SHIP TO', $text);
+        $this->assertStringNotContainsString('e-Invoice Verification', $text);
+        $this->assertStringContainsString('GSTIN Unregistered', $text);
+        $this->assertStringContainsString('CIN: U72300DL2015PTC280283', $text);
     }
 
     private function pdf(int $invoiceId): string

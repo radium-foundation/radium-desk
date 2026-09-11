@@ -10,31 +10,39 @@ class SimplePdfRenderer
 
     private const PAGE_HEIGHT = 842.0;
 
-    private const MARGIN = 42.0;
+    private const MARGIN = 36.0;
 
-    private const CONTENT_RIGHT = 553.0;
+    private const CONTENT_RIGHT = 559.0;
 
-    private const FOOTER_Y = 32.0;
+    private const FOOTER_Y = 28.0;
 
-    private const COL_PRODUCT = 42.0;
+    private const CONTENT_FLOOR = 50.0;
 
-    private const COL_HSN = 246.0;
+    private const COL_NO = 42.0;
 
-    private const COL_QTY = 306.0;
+    private const COL_PRODUCT = 56.0;
 
-    private const COL_UQC = 334.0;
+    private const COL_HSN = 220.0;
 
-    private const COL_RATE = 416.0;
+    private const COL_QTY = 268.0;
 
-    private const COL_TAX = 482.0;
+    private const COL_UQC = 286.0;
 
-    private const COL_AMOUNT = 553.0;
+    private const COL_RATE = 348.0;
 
-    private const PRODUCT_WIDTH = 200.0;
+    private const COL_TAXABLE = 396.0;
 
-    private const LOGO_MAX_WIDTH = 118.0;
+    private const COL_GST = 434.0;
 
-    private const LOGO_MAX_HEIGHT = 32.0;
+    private const COL_TAX = 492.0;
+
+    private const COL_AMOUNT = 559.0;
+
+    private const PRODUCT_WIDTH = 152.0;
+
+    private const LOGO_MAX_WIDTH = 132.0;
+
+    private const LOGO_MAX_HEIGHT = 36.0;
 
     private const STAMP_MAX_WIDTH = 84.0;
 
@@ -43,6 +51,12 @@ class SimplePdfRenderer
     private const QR_SIZE = 64.0;
 
     private const QR_GAP = 10.0;
+
+    private const NAVY_R = 0.145;
+
+    private const NAVY_G = 0.227;
+
+    private const NAVY_B = 0.373;
 
     public const FIRST_PAGE_SERIAL_LIMIT = 8;
 
@@ -60,19 +74,8 @@ class SimplePdfRenderer
         }
 
         $totalPages = count($contents);
-        if ($totalPages > 1) {
-            foreach ($contents as $index => $stream) {
-                $contents[$index] = $stream.$this->text(
-                    268,
-                    self::FOOTER_Y,
-                    'Page '.($index + 1).' of '.$totalPages,
-                    8,
-                    false,
-                    0.38,
-                    0.38,
-                    0.38,
-                );
-            }
+        foreach ($contents as $index => $stream) {
+            $contents[$index] = $stream.$this->pageFooter($index + 1, $totalPages);
         }
 
         return $this->assemble($contents);
@@ -217,12 +220,14 @@ class SimplePdfRenderer
             $y = $this->continuationHeader($ops, $payload);
         }
 
-        $ops[] = $this->tableHeader($y);
-        $y -= 16;
+        if ($first || $rows !== []) {
+            $ops[] = $this->tableHeader($y);
+            $y -= 18;
+        }
 
         $drawn = 0;
         $serialReserve = $first ? $this->serialSummaryHeight($payload) : 0.0;
-        $floor = $includeClosing ? self::FOOTER_Y + $closing + 8 : self::FOOTER_Y + 18;
+        $floor = $includeClosing ? self::CONTENT_FLOOR + $closing + 8 : self::CONTENT_FLOOR + 8;
         $floor += $serialReserve;
 
         while ($rows !== []) {
@@ -235,7 +240,7 @@ class SimplePdfRenderer
             [$visible, $leftover] = $this->splitRow($row, $available);
             if ($visible === null) {
                 if ($drawn === 0) {
-                    [$visible, $leftover] = $this->splitRow($row, $y - self::FOOTER_Y - 18);
+                    [$visible, $leftover] = $this->splitRow($row, $y - self::CONTENT_FLOOR);
                 }
                 if ($visible === null) {
                     break;
@@ -272,48 +277,64 @@ class SimplePdfRenderer
      */
     private function firstPageHeader(array &$ops, StatutoryInvoicePdfPayload $payload): float
     {
-        $y = 806.0;
+        $y = 808.0;
         $ops[] = $this->logoMark(self::MARGIN, $y);
 
-        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y + 2, 'TAX INVOICE', 15, true);
-        $accentWidth = 88.0;
-        $ops[] = $this->accentLine(self::CONTENT_RIGHT - $accentWidth, $y - 6, self::CONTENT_RIGHT);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y + 4, 'TAX INVOICE', 16, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->accentLine(self::CONTENT_RIGHT - 108, $y - 4, self::CONTENT_RIGHT);
 
+        $cardW = 176.0;
+        $cardX = self::CONTENT_RIGHT - $cardW;
         $meta = [
-            'Invoice No.  '.$payload->invoiceNumber,
-            'Date  '.$this->invoiceDate($payload->issuedAt),
+            ['Invoice No.', $payload->invoiceNumber],
+            ['Invoice Date', $this->invoiceDate($payload->issuedAt)],
         ];
         $orderId = $this->display($payload->orderId ?: $payload->sourceId);
         if ($orderId !== '-') {
-            $meta[] = 'Order ID  '.$orderId;
+            $meta[] = ['Order ID', $orderId];
+        }
+        $cardH = 12.0 + (12.0 * count($meta));
+        $cardTop = $y - 16;
+        $cardBottom = $cardTop - $cardH;
+        $ops[] = $this->card($cardX, $cardBottom, $cardW, $cardH);
+        $metaY = $cardTop - 12;
+        foreach ($meta as [$label, $value]) {
+            $ops[] = $this->text($cardX + 8, $metaY, $label, 7, false, 0.38, 0.42, 0.48);
+            $ops[] = $this->rightText(self::CONTENT_RIGHT - 8, $metaY, $this->clip((string) $value, 88, 8), 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+            $metaY -= 12;
         }
 
-        $metaY = $y - 16;
-        foreach ($meta as $line) {
-            $ops[] = $this->rightText(self::CONTENT_RIGHT, $metaY, $line, 8, false, 0.2, 0.2, 0.2);
-            $metaY -= 11;
+        $sellerRight = $cardX - 14;
+        $sellerWidth = $sellerRight - self::MARGIN;
+        $sellerY = $y - self::LOGO_MAX_HEIGHT - 10;
+        $ops[] = $this->text(self::MARGIN, $sellerY, $payload->sellerLegalName, 10, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $sellerY -= 12;
+        foreach (array_slice($this->wrapWidth($this->display($payload->sellerAddress), $sellerWidth, 8), 0, 2) as $addressLine) {
+            $ops[] = $this->text(self::MARGIN, $sellerY, $addressLine, 8, false, 0.22, 0.22, 0.22);
+            $sellerY -= 10;
         }
 
-        $y = min($y - self::LOGO_MAX_HEIGHT, $metaY) - 10;
-        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
-        $y -= 14;
-
-        $ops[] = $this->text(self::MARGIN, $y, $payload->sellerLegalName, 9, true);
-        $y -= 12;
-        foreach (array_slice($this->wrapWidth($this->display($payload->sellerAddress), 360, 8), 0, 2) as $addressLine) {
-            $ops[] = $this->text(self::MARGIN, $y, $addressLine, 8, false, 0.18, 0.18, 0.18);
-            $y -= 10;
-        }
         $contact = implode('  |  ', array_filter([
             $payload->sellerEmail !== null && trim($payload->sellerEmail) !== '' ? $this->display($payload->sellerEmail) : null,
             $payload->sellerPhone !== null && trim($payload->sellerPhone) !== '' ? $this->display($payload->sellerPhone) : null,
-            'GSTIN '.$this->display($payload->sellerGstin),
         ]));
-        $ops[] = $this->text(self::MARGIN, $y, $this->clip($contact, 500, 8), 8, false, 0.18, 0.18, 0.18);
-        $y -= 12;
-        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
+        if ($contact !== '') {
+            $ops[] = $this->text(self::MARGIN, $sellerY, $this->clip($contact, $sellerWidth, 8), 8, false, 0.22, 0.22, 0.22);
+            $sellerY -= 10;
+        }
 
-        return $y - 14;
+        $ops[] = $this->text(self::MARGIN, $sellerY, 'GSTIN '.$this->display($payload->sellerGstin), 8, false, 0.18, 0.18, 0.18);
+        $sellerY -= 10;
+        $cin = $this->sellerCin();
+        if ($cin !== '') {
+            $ops[] = $this->text(self::MARGIN, $sellerY, 'CIN: '.$cin, 8, false, 0.18, 0.18, 0.18);
+            $sellerY -= 10;
+        }
+
+        $y = min($sellerY, $cardBottom) - 10;
+        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT, 0.82);
+
+        return $y - 12;
     }
 
     /**
@@ -321,11 +342,12 @@ class SimplePdfRenderer
      */
     private function continuationHeader(array &$ops, StatutoryInvoicePdfPayload $payload): float
     {
-        $y = 806.0;
-        $ops[] = $this->text(self::MARGIN, $y, 'TAX INVOICE', 9, true);
-        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, $payload->invoiceNumber.'  (continued)', 8);
-        $y -= 12;
-        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
+        $y = 808.0;
+        $ops[] = $this->logoMark(self::MARGIN, $y);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y + 2, 'TAX INVOICE', 11, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y - 12, $payload->invoiceNumber.'  (continued)', 8, false, 0.32, 0.32, 0.32);
+        $y -= 38;
+        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT, 0.82);
 
         return $y - 14;
     }
@@ -423,46 +445,52 @@ class SimplePdfRenderer
     /**
      * @param  list<string>  $ops
      */
-    private function compactIrnVerificationBlock(array &$ops, StatutoryInvoicePdfPayload $payload, float $topY): float
-    {
+    private function compactIrnVerificationBlock(
+        array &$ops,
+        StatutoryInvoicePdfPayload $payload,
+        float $topY,
+        ?float $right = null,
+    ): float {
         if (! $payload->hasIssuedIrn()) {
             return $topY;
         }
 
+        $right ??= self::CONTENT_RIGHT;
         $matrix = $payload->hasIssuedSignedQr()
             ? (new EInvoiceSignedQrMatrix)->matrix($payload->signedQr)
             : null;
         $hasQr = $matrix !== null;
-        $textRight = $hasQr
-            ? self::CONTENT_RIGHT - self::QR_SIZE - self::QR_GAP - 4
-            : self::CONTENT_RIGHT - 8;
-        $irnLines = $this->wrapWidth((string) $payload->irn, $textRight - self::MARGIN - 10, 7);
+        $textX = self::MARGIN + ($hasQr ? self::QR_SIZE + self::QR_GAP + 10 : 8);
+        $textRight = $right - 8;
+        $irnLines = $this->wrapWidth((string) $payload->irn, max(80, $textRight - $textX), 7);
         $ack = trim(implode('    ', array_filter([
             $payload->ackNo !== null && $payload->ackNo !== '' ? 'Ack No: '.$payload->ackNo : null,
             $payload->ackDate !== null && $payload->ackDate !== '' ? 'Date: '.$this->formatAckDate($payload->ackDate) : null,
         ])));
-        $textHeight = 10 + 9 + (9 * count($irnLines)) + ($ack !== '' ? 9 : 0);
-        $blockHeight = max($textHeight + 8, $hasQr ? self::QR_SIZE + 10 : $textHeight + 8);
+        $textHeight = 12 + 9 + (9 * count($irnLines)) + ($ack !== '' ? 10 : 0) + 10;
+        $blockHeight = max($textHeight + 10, $hasQr ? self::QR_SIZE + 16 : $textHeight + 10);
         $bottomY = $topY - $blockHeight;
 
-        $ops[] = $this->strokeRect(self::MARGIN, $bottomY, self::CONTENT_RIGHT - self::MARGIN, $blockHeight, 0.84);
-
-        $ty = $topY - 10;
-        $ops[] = $this->text(self::MARGIN + 6, $ty, 'e-Invoice Verification', 7, true, 0.35, 0.35, 0.35);
-        $ty -= 10;
-        $ops[] = $this->text(self::MARGIN + 6, $ty, 'IRN', 6, true, 0.45, 0.45, 0.45);
+        $ops[] = $this->card(self::MARGIN, $bottomY, $right - self::MARGIN, $blockHeight);
+        $ty = $topY - 12;
+        $ops[] = $this->text(self::MARGIN + 8, $ty, 'e-Invoice Verification', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ty -= 12;
+        if ($hasQr) {
+            $ops[] = $this->signedQrImage($matrix, self::MARGIN + 8, $topY - 14, self::QR_SIZE);
+        }
+        $ops[] = $this->text($textX, $ty, 'IRN', 6, true, 0.42, 0.42, 0.42);
         $ty -= 9;
         foreach ($irnLines as $irnLine) {
-            $ops[] = $this->text(self::MARGIN + 6, $ty, $irnLine, 7);
+            $ops[] = $this->text($textX, $ty, $irnLine, 7);
             $ty -= 9;
         }
         if ($ack !== '') {
-            $ops[] = $this->text(self::MARGIN + 6, $ty, $ack, 7, false, 0.2, 0.2, 0.2);
+            $ops[] = $this->text($textX, $ty, $ack, 7, false, 0.2, 0.2, 0.2);
+            $ty -= 10;
         }
-        if ($hasQr) {
-            $ops[] = $this->signedQrImage($matrix, self::CONTENT_RIGHT - self::QR_SIZE - 4, $topY - 4, self::QR_SIZE);
-        } elseif ($payload->hasIssuedSignedQr()) {
-            $ops[] = $this->text(self::MARGIN + 6, $ty - 9, 'Signed QR issued with this IRN.', 7, false, 0.28, 0.28, 0.28);
+        $ops[] = $this->text($textX, $ty, 'Whether tax is payable on reverse charge basis: No', 6, false, 0.32, 0.32, 0.32);
+        if (! $hasQr && $payload->hasIssuedSignedQr()) {
+            $ops[] = $this->text($textX, $ty - 9, 'Signed QR issued with this IRN.', 7, false, 0.28, 0.28, 0.28);
         }
 
         return $bottomY - 8;
@@ -520,51 +548,52 @@ class SimplePdfRenderer
      */
     private function partyBlock(array &$ops, StatutoryInvoicePdfPayload $payload, float $y): float
     {
-        $left = self::MARGIN;
-        $right = 310.0;
-        $leftWidth = 250.0;
-        $rightWidth = 243.0;
+        $gap = 10.0;
+        $fullWidth = self::CONTENT_RIGHT - self::MARGIN;
+        $showShip = $payload->hasDistinctShippingAddress();
+        $leftWidth = $showShip ? ($fullWidth - $gap) / 2 : $fullWidth;
+        $rightX = self::MARGIN + $leftWidth + $gap;
+        $rightWidth = $fullWidth - $leftWidth - $gap;
 
         $buyerGstin = $payload->buyerGstin !== null && trim($payload->buyerGstin) !== ''
             ? $payload->buyerGstin
             : 'Unregistered';
-        $leftLines = $this->buyerLines($payload, $buyerGstin);
-        $rightLines = $this->rightPartyLines($payload);
-        $rows = max(count($leftLines), count($rightLines));
+        $leftLines = $this->buyerLines($payload, $buyerGstin, $leftWidth - 16);
+        $rightLines = $showShip ? $this->rightPartyLines($payload, $rightWidth - 16) : [];
+        $rows = max(count($leftLines), count($rightLines), 3);
+        $innerH = 16.0 + (11.0 * $rows) + 8.0;
+        $cardBottom = $y - $innerH;
 
-        $ops[] = $this->text($left, $y, 'BILL TO', 7, true, 0.38, 0.38, 0.38);
-        $heading = $this->rightPartyHeading($payload);
-        if ($rightLines !== [] && $heading !== '') {
-            $ops[] = $this->text($right, $y, $heading, 7, true, 0.38, 0.38, 0.38);
-        }
-        $y -= 13;
-
-        for ($i = 0; $i < $rows; $i++) {
-            if (isset($leftLines[$i])) {
-                $bold = $i === 0;
-                $ops[] = $this->text($left, $y, $this->clip($leftLines[$i], $leftWidth, $bold ? 9 : 8), $bold ? 9 : 8, $bold);
-            }
-            if (isset($rightLines[$i])) {
-                $ops[] = $this->text($right, $y, $this->clip($rightLines[$i], $rightWidth, 8), 8);
-            }
-            $y -= 11;
+        $ops[] = $this->card(self::MARGIN, $cardBottom, $leftWidth, $innerH);
+        $ops[] = $this->text(self::MARGIN + 8, $y - 12, 'BILL TO', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $lineY = $y - 24;
+        foreach ($leftLines as $i => $line) {
+            $ops[] = $this->text(self::MARGIN + 8, $lineY, $line, $i === 0 ? 9 : 8, $i === 0, $i === 0 ? self::NAVY_R : 0.18, $i === 0 ? self::NAVY_G : 0.18, $i === 0 ? self::NAVY_B : 0.18);
+            $lineY -= 11;
         }
 
-        $y -= 6;
-        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
+        if ($showShip) {
+            $ops[] = $this->card($rightX, $cardBottom, $rightWidth, $innerH);
+            $ops[] = $this->text($rightX + 8, $y - 12, 'SHIP TO', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+            $lineY = $y - 24;
+            foreach ($rightLines as $i => $line) {
+                $ops[] = $this->text($rightX + 8, $lineY, $line, $i === 0 ? 9 : 8, $i === 0, $i === 0 ? self::NAVY_R : 0.18, $i === 0 ? self::NAVY_G : 0.18, $i === 0 ? self::NAVY_B : 0.18);
+                $lineY -= 11;
+            }
+        }
 
-        return $y - 14;
+        return $cardBottom - 12;
     }
 
     /**
      * @return list<string>
      */
-    private function buyerLines(StatutoryInvoicePdfPayload $payload, string $buyerGstin): array
+    private function buyerLines(StatutoryInvoicePdfPayload $payload, string $buyerGstin, float $width): array
     {
-        $lines = $this->wrapWidth($this->display($payload->buyerName), 250, 9);
+        $lines = $this->wrapWidth($this->display($payload->buyerName), $width, 9);
         $addressDisplay = $this->display($payload->billingAddress);
         if ($addressDisplay !== '-') {
-            foreach ($this->wrapWidth($addressDisplay, 250, 8) as $line) {
+            foreach ($this->wrapWidth($addressDisplay, $width, 8) as $line) {
                 $lines[] = $line;
             }
         }
@@ -575,6 +604,9 @@ class SimplePdfRenderer
             $lines[] = $this->display($payload->buyerPhone);
         }
         $lines[] = 'GSTIN '.$this->display($buyerGstin);
+        if ($payload->placeOfSupply !== '') {
+            $lines[] = 'Place of Supply '.$this->display($payload->placeOfSupply);
+        }
 
         return $lines;
     }
@@ -582,43 +614,40 @@ class SimplePdfRenderer
     /**
      * @return list<string>
      */
-    private function rightPartyLines(StatutoryInvoicePdfPayload $payload): array
+    private function rightPartyLines(StatutoryInvoicePdfPayload $payload, float $width): array
     {
         $lines = [];
-        if ($payload->hasDistinctShippingAddress()) {
-            foreach ($this->wrapWidth($this->display($payload->shippingAddress), 240, 8) as $line) {
-                $lines[] = $line;
-            }
-            if ($payload->placeOfSupply !== '') {
-                $lines[] = 'Place of supply '.$this->display($payload->placeOfSupply);
-            }
-
-            return $lines;
+        $shippingName = $this->display($payload->buyerName);
+        if ($shippingName !== '-') {
+            $lines = $this->wrapWidth($shippingName, $width, 9);
         }
-
-        if ($payload->placeOfSupply !== '') {
-            $lines[] = 'Place of supply '.$this->display($payload->placeOfSupply);
+        foreach ($this->wrapWidth($this->display($payload->shippingAddress), $width, 8) as $line) {
+            $lines[] = $line;
+        }
+        if ($payload->buyerEmail !== null && trim($payload->buyerEmail) !== '') {
+            $lines[] = $this->display($payload->buyerEmail);
+        }
+        if ($payload->buyerPhone !== null && trim($payload->buyerPhone) !== '') {
+            $lines[] = $this->display($payload->buyerPhone);
         }
 
         return $lines;
     }
 
-    private function rightPartyHeading(StatutoryInvoicePdfPayload $payload): string
-    {
-        return $payload->hasDistinctShippingAddress() ? 'SHIP TO' : '';
-    }
-
     private function tableHeader(float $y): string
     {
         $ops = [];
-        $ops[] = $this->text(self::COL_PRODUCT, $y, 'Product / Service', 7, true, 0.35, 0.35, 0.35);
-        $ops[] = $this->text(self::COL_HSN, $y, 'HSN/SAC', 7, true, 0.35, 0.35, 0.35);
-        $ops[] = $this->rightText(self::COL_QTY, $y, 'Qty', 7, true, 0.35, 0.35, 0.35);
-        $ops[] = $this->text(self::COL_UQC, $y, 'UQC', 7, true, 0.35, 0.35, 0.35);
-        $ops[] = $this->rightText(self::COL_RATE, $y, 'Unit Price', 7, true, 0.35, 0.35, 0.35);
-        $ops[] = $this->rightText(self::COL_TAX, $y, 'Tax', 7, true, 0.35, 0.35, 0.35);
-        $ops[] = $this->rightText(self::COL_AMOUNT, $y, 'Amount', 7, true, 0.35, 0.35, 0.35);
-        $ops[] = $this->hairline(self::MARGIN, $y - 6, self::CONTENT_RIGHT);
+        $ops[] = $this->fill(self::MARGIN, $y - 6, self::CONTENT_RIGHT - self::MARGIN, 16, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->text(self::COL_NO, $y, '#', 6, true, 1, 1, 1);
+        $ops[] = $this->text(self::COL_PRODUCT, $y, 'Product / Service', 6, true, 1, 1, 1);
+        $ops[] = $this->text(self::COL_HSN, $y, 'HSN/SAC', 6, true, 1, 1, 1);
+        $ops[] = $this->rightText(self::COL_QTY, $y, 'Qty', 6, true, 1, 1, 1);
+        $ops[] = $this->text(self::COL_UQC + 2, $y, 'UQC', 6, true, 1, 1, 1);
+        $ops[] = $this->rightText(self::COL_RATE, $y, 'Unit Price', 6, true, 1, 1, 1);
+        $ops[] = $this->rightText(self::COL_TAXABLE, $y, 'Taxable', 6, true, 1, 1, 1);
+        $ops[] = $this->rightText(self::COL_GST, $y, 'Tax Rate', 6, true, 1, 1, 1);
+        $ops[] = $this->rightText(self::COL_TAX, $y, 'Tax Amount', 6, true, 1, 1, 1);
+        $ops[] = $this->rightText(self::COL_AMOUNT, $y, 'Amount', 6, true, 1, 1, 1);
 
         return implode('', $ops);
     }
@@ -647,18 +676,22 @@ class SimplePdfRenderer
 
         $descY = $y;
         foreach ($row['descLines'] as $index => $line) {
-            $ops[] = $this->text(self::COL_PRODUCT, $descY, $line, $index === 0 ? 9 : 8, $index === 0);
-            $descY -= $index === 0 ? 11 : 10;
+            $ops[] = $this->text(self::COL_PRODUCT, $descY, $line, $index === 0 ? 8 : 7, $index === 0);
+            $descY -= $index === 0 ? 10 : 9;
         }
-        $ops[] = $this->text(self::COL_HSN, $y, (string) $row['hsn'], 8, false, 0.22, 0.22, 0.22);
+        if (($row['lineNo'] ?? '') !== '') {
+            $ops[] = $this->text(self::COL_NO, $y, (string) $row['lineNo'], 8, false, 0.28, 0.28, 0.28);
+        }
+        $ops[] = $this->text(self::COL_HSN, $y, (string) $row['hsn'], 7, false, 0.22, 0.22, 0.22);
         $ops[] = $this->rightText(self::COL_QTY, $y, (string) $row['qty'], 8);
-        $ops[] = $this->text(self::COL_UQC, $y, (string) $row['uqc'], 8, false, 0.22, 0.22, 0.22);
-        $ops[] = $this->rightText(self::COL_RATE, $y, (string) $row['rate'], 8);
-        $ops[] = $this->rightText(self::COL_TAX, $y, (string) $row['tax'], 8);
-        $ops[] = $this->rightText(self::COL_AMOUNT, $y, (string) $row['amount'], 8, true);
+        $ops[] = $this->text(self::COL_UQC, $y, (string) $row['uqc'], 7, false, 0.22, 0.22, 0.22);
+        $ops[] = $this->rightText(self::COL_RATE, $y, (string) $row['rate'], 7);
+        $ops[] = $this->rightText(self::COL_TAXABLE, $y, (string) $row['taxable'], 7);
         if (($row['gst'] ?? '') !== '' && ($row['gst'] ?? '') !== '-') {
-            $ops[] = $this->rightText(self::COL_TAX, $y - 10, (string) $row['gst'], 7, false, 0.38, 0.38, 0.38);
+            $ops[] = $this->rightText(self::COL_GST, $y, (string) $row['gst'], 7, false, 0.22, 0.22, 0.22);
         }
+        $ops[] = $this->rightText(self::COL_TAX, $y, (string) $row['tax'], 7);
+        $ops[] = $this->rightText(self::COL_AMOUNT, $y, (string) $row['amount'], 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
 
         $serialY = $descY;
         if ($row['serialLines'] !== []) {
@@ -747,10 +780,12 @@ class SimplePdfRenderer
             'serialLabel' => '',
             'serialLines' => $rest,
             'descLines' => [],
+            'lineNo' => '',
             'hsn' => '',
             'qty' => '',
             'uqc' => '',
             'rate' => '',
+            'taxable' => '',
             'tax' => '',
             'gst' => '',
             'amount' => '',
@@ -767,7 +802,7 @@ class SimplePdfRenderer
             $height += $this->rowHeight($row);
         }
 
-        $budget = $firstPage ? 420.0 : 560.0;
+        $budget = $firstPage ? 400.0 : 560.0;
         if ($firstPage) {
             $budget -= $this->serialSummaryHeight($payload);
         }
@@ -781,14 +816,16 @@ class SimplePdfRenderer
     private function lineRows(StatutoryInvoicePdfPayload $payload): array
     {
         $rows = [];
-        foreach (array_values($payload->lines) as $line) {
+        foreach (array_values($payload->lines) as $index => $line) {
             $rows[] = [
                 'kind' => 'item',
-                'descLines' => $this->wrapWidth((string) $line['description'], self::PRODUCT_WIDTH, 9),
+                'lineNo' => (string) ($index + 1),
+                'descLines' => $this->wrapWidth((string) $line['description'], self::PRODUCT_WIDTH, 8),
                 'hsn' => $this->display((string) $line['hsnSac']),
                 'qty' => (string) $line['qty'],
                 'uqc' => $this->display(isset($line['uqc']) ? (string) $line['uqc'] : ''),
                 'rate' => $this->money((string) ($line['unitPrice'] ?? $line['taxableValue'])),
+                'taxable' => $this->money((string) ($line['taxableValue'] ?? $line['unitPrice'])),
                 'tax' => $this->money((string) $line['taxTotal']),
                 'gst' => $this->display((string) $line['gstPercentage']),
                 'amount' => $this->money((string) $line['lineTotal']),
@@ -802,18 +839,15 @@ class SimplePdfRenderer
     private function closingHeight(StatutoryInvoicePdfPayload $payload): float
     {
         $pairs = $this->totalsPairs($payload);
-        $words = $this->wrapWidth($this->amountInWords($payload->invoiceValue), 320, 9);
-        $height = 18 + (11 * count($words)) + 10;
+        $words = $this->wrapWidth($this->amountInWords($payload->invoiceValue), 280, 8);
+        $height = 28 + (11 * count($words)) + 16;
         $height += 12 * count($pairs);
         $height += 18;
         if ($this->hasPayment($payload)) {
-            $height += 44;
+            $height += 40;
         }
-        if ($payload->hasIssuedIrn()) {
-            $height += max(72.0, self::QR_SIZE + 24);
-        }
-        $height += 40;
-        $height += 58;
+        $irnH = $payload->hasIssuedIrn() ? max(76.0, self::QR_SIZE + 18) : 12.0;
+        $height += max($irnH, 58.0);
 
         return $height;
     }
@@ -821,54 +855,68 @@ class SimplePdfRenderer
     private function closingBlock(StatutoryInvoicePdfPayload $payload, float $y): string
     {
         $ops = [];
-        $wordY = $y;
-        $ops[] = $this->text(self::MARGIN, $wordY, 'Amount in words', 7, true, 0.38, 0.38, 0.38);
-        $wordY -= 12;
-        foreach ($this->wrapWidth($this->amountInWords($payload->invoiceValue), 300, 9) as $line) {
-            $ops[] = $this->text(self::MARGIN, $wordY, $line, 9, true);
-            $wordY -= 12;
+        $words = $this->wrapWidth($this->amountInWords($payload->invoiceValue), 268, 8);
+        $wordH = 18.0 + (11.0 * count($words)) + 8.0;
+        $pairs = $this->totalsPairs($payload);
+        $pairH = 8.0 + (12.0 * (count($pairs) - 1)) + 20.0;
+        $blockH = max($wordH, $pairH);
+        $gap = 10.0;
+        $leftW = 286.0;
+        $rightX = self::MARGIN + $leftW + $gap;
+        $rightW = self::CONTENT_RIGHT - $rightX;
+        $bottom = $y - $blockH;
+
+        $ops[] = $this->card(self::MARGIN, $bottom, $leftW, $blockH);
+        $ops[] = $this->text(self::MARGIN + 8, $y - 12, 'Amount in words', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $wordY = $y - 24;
+        foreach ($words as $line) {
+            $ops[] = $this->text(self::MARGIN + 8, $wordY, $line, 8, true, 0.16, 0.16, 0.16);
+            $wordY -= 11;
         }
 
-        $pairs = $this->totalsPairs($payload);
-        $pairY = $y;
+        $ops[] = $this->card($rightX, $bottom, $rightW, $blockH);
+        $pairY = $y - 14;
         foreach ($pairs as [$label, $value, $bold]) {
             if ($bold) {
-                $ops[] = $this->hairline(350, $pairY + 8, self::CONTENT_RIGHT);
-                $pairY -= 4;
+                $ops[] = $this->fill($rightX, $pairY - 6, $rightW, 16, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+                $ops[] = $this->text($rightX + 8, $pairY, $label, 8, true, 1, 1, 1);
+                $ops[] = $this->rightText(self::CONTENT_RIGHT - 8, $pairY, $value, 8, true, 1, 1, 1);
+                $pairY -= 16;
+
+                continue;
             }
-            $ops[] = $this->text(350, $pairY, $label, $bold ? 10 : 8, $bold);
-            $ops[] = $this->rightText(self::CONTENT_RIGHT, $pairY, $value, $bold ? 10 : 8, $bold);
-            $pairY -= $bold ? 16 : 12;
+            $ops[] = $this->text($rightX + 8, $pairY, $label, 7, false, 0.32, 0.32, 0.32);
+            $ops[] = $this->rightText(self::CONTENT_RIGHT - 8, $pairY, $value, 8, true, 0.12, 0.12, 0.12);
+            $pairY -= 12;
         }
 
-        $y = min($wordY, $pairY) - 8;
+        $y = $bottom - 10;
 
         if ($this->hasPayment($payload)) {
-            $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
-            $y -= 14;
-            $ops[] = $this->text(self::MARGIN, $y, 'Payment', 7, true, 0.38, 0.38, 0.38);
-            $y -= 12;
-            foreach ($this->paymentLines($payload) as $line) {
-                $ops[] = $this->text(self::MARGIN, $y, $line, 8, false, 0.22, 0.22, 0.22);
-                $y -= 10;
+            $cols = $this->paymentColumns($payload);
+            $payH = 34.0;
+            $payBottom = $y - $payH;
+            $ops[] = $this->card(self::MARGIN, $payBottom, self::CONTENT_RIGHT - self::MARGIN, $payH);
+            $ops[] = $this->text(self::MARGIN + 8, $y - 11, 'Payment Details', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+            $colW = (self::CONTENT_RIGHT - self::MARGIN - 16) / max(count($cols), 1);
+            $colX = self::MARGIN + 8;
+            foreach ($cols as [$label, $value]) {
+                $ops[] = $this->text($colX, $y - 21, $label, 6, false, 0.42, 0.42, 0.42);
+                $ops[] = $this->text($colX, $y - 31, $this->clip($value, $colW - 8, 8), 8, true, 0.14, 0.14, 0.14);
+                $colX += $colW;
             }
-            $y -= 6;
+            $y = $payBottom - 10;
         }
 
+        $signX = 392.0;
         if ($payload->hasIssuedIrn()) {
-            $y = $this->compactIrnVerificationBlock($ops, $payload, $y);
+            $verifyRight = $signX - 12;
+            $y = $this->compactIrnVerificationBlock($ops, $payload, $y, $verifyRight);
+        } else {
+            $ops[] = $this->text(self::MARGIN, $y - 2, 'Whether tax is payable on reverse charge basis: No', 7, false, 0.32, 0.32, 0.32);
         }
 
-        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
-        $y -= 14;
-        $noteY = $y;
-        foreach ($this->statutoryNotes() as $note) {
-            $ops[] = $this->text(self::MARGIN, $noteY, $note, 7, false, 0.32, 0.32, 0.32);
-            $noteY -= 10;
-        }
-
-        $signX = 368.0;
-        $ops[] = $this->text($signX, $y, 'For '.$payload->sellerLegalName, 7, false, 0.28, 0.28, 0.28);
+        $ops[] = $this->text($signX, $y, 'For '.$payload->sellerLegalName, 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
         $stampTop = $y - 10;
         $ops[] = $this->stampMark($signX, $stampTop);
         $ops[] = $this->text($signX, $stampTop - self::STAMP_MAX_HEIGHT - 6, 'Authorized Signatory', 7, true, 0.22, 0.22, 0.22);
@@ -882,7 +930,7 @@ class SimplePdfRenderer
     private function totalsPairs(StatutoryInvoicePdfPayload $payload): array
     {
         $pairs = [
-            ['Taxable Amount', $this->money($payload->taxableValue), false],
+            ['Total Taxable Amount', $this->money($payload->taxableValue), false],
         ];
         if ($payload->discount !== null && $this->numericAmount($payload->discount) !== null) {
             $pairs[] = ['Discount', $this->money($payload->discount), false];
@@ -932,36 +980,24 @@ class SimplePdfRenderer
     }
 
     /**
-     * @return list<string>
+     * @return list<array{0: string, 1: string}>
      */
-    private function paymentLines(StatutoryInvoicePdfPayload $payload): array
+    private function paymentColumns(StatutoryInvoicePdfPayload $payload): array
     {
-        $lines = [];
+        $cols = [];
         if (trim((string) ($payload->paymentReference ?? '')) !== '') {
-            $lines[] = 'Reference  '.$this->display($payload->paymentReference);
+            $cols[] = ['Reference No.', $this->display($payload->paymentReference)];
         }
         $date = $this->invoiceDate($payload->issuedAt);
         if ($date !== '-') {
-            $lines[] = 'Date  '.$date;
+            $cols[] = ['Payment Date', $date];
         }
-        $lines[] = 'Invoice value  '.$this->money($payload->invoiceValue);
+        $cols[] = ['Invoice Value', $this->money($payload->invoiceValue)];
         if (trim((string) ($payload->paymentMethod ?? '')) !== '') {
-            $lines[] = 'Mode of payment  '.$this->display($payload->paymentMethod);
+            $cols[] = ['Mode of Payment', $this->display($payload->paymentMethod)];
         }
 
-        return $lines;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function statutoryNotes(): array
-    {
-        return [
-            'Whether tax is payable on reverse charge basis: No',
-            'This is a computer-generated tax invoice.',
-            'Thank you for your business.',
-        ];
+        return $cols;
     }
 
     /**
@@ -1039,20 +1075,23 @@ class SimplePdfRenderer
             return $y;
         }
 
-        $ops[] = $this->text(self::MARGIN, $y, 'Serial Numbers', 7, true, 0.38, 0.38, 0.38);
+        $height = $this->serialSummaryHeight($payload);
+        $ops[] = $this->card(self::MARGIN, $y - $height + 12, self::CONTENT_RIGHT - self::MARGIN, $height - 4);
+        $ops[] = $this->text(self::MARGIN + 8, $y, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        if ($this->annexureSerials($payload) !== []) {
+            $ops[] = $this->text(self::MARGIN + 92, $y, '(More in Annexure A)', 7, false, 0.4, 0.4, 0.4);
+        }
         $y -= 12;
-        foreach ($this->wrapDelimited($first, self::CONTENT_RIGHT - self::MARGIN, 8) as $line) {
-            $ops[] = $this->text(self::MARGIN, $y, $line, 8, false, 0.22, 0.22, 0.22);
+        foreach ($this->wrapDelimited($first, self::CONTENT_RIGHT - self::MARGIN - 16, 8) as $line) {
+            $ops[] = $this->text(self::MARGIN + 8, $y, $line, 8, false, 0.18, 0.18, 0.18);
             $y -= 11;
         }
         if ($this->annexureSerials($payload) !== []) {
-            $ops[] = $this->text(self::MARGIN, $y, '* More serial numbers in Annexure A', 7, false, 0.32, 0.32, 0.32);
+            $ops[] = $this->text(self::MARGIN + 8, $y, '* More serial numbers in Annexure A', 7, false, 0.32, 0.32, 0.32);
             $y -= 11;
         }
-        $y -= 4;
-        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
 
-        return $y - 12;
+        return $y - 10;
     }
 
     /**
@@ -1086,54 +1125,57 @@ class SimplePdfRenderer
     private function annexurePage(StatutoryInvoicePdfPayload $payload, array $serials, int $total, bool $first): string
     {
         $ops = [];
-        $y = 806.0;
+        $y = 808.0;
         $ops[] = $this->logoMark(self::MARGIN, $y);
         $title = $first ? 'ANNEXURE A' : 'ANNEXURE A (continued)';
-        $ops[] = $this->text(self::MARGIN + 124, $y - 2, $title, 12, true);
-        $ops[] = $this->text(self::MARGIN + 124, $y - 16, 'Serial Numbers', 8, false, 0.35, 0.35, 0.35);
-        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, $payload->invoiceNumber, 8, true);
+        $ops[] = $this->text(self::MARGIN + 148, $y - 2, $title, 13, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->text(self::MARGIN + 148, $y - 16, 'Serial Numbers', 8, false, 0.38, 0.38, 0.38);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, $payload->invoiceNumber, 9, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
         $ops[] = $this->rightText(self::CONTENT_RIGHT, $y - 12, $this->invoiceDate($payload->issuedAt), 8, false, 0.35, 0.35, 0.35);
-        $y -= 34;
-        $ops[] = $this->accentLine(self::MARGIN, $y, self::CONTENT_RIGHT - 168);
+        $y -= 40;
+        $ops[] = $this->accentLine(self::MARGIN, $y, self::CONTENT_RIGHT);
         $y -= 14;
 
         if ($first) {
-            $metaTop = $y;
-            $metaHeight = 40.0;
-            $metaBottom = $metaTop - $metaHeight;
-            $ops[] = $this->strokeRect(self::MARGIN, $metaBottom, self::CONTENT_RIGHT - self::MARGIN, $metaHeight, 0.86);
+            $metaHeight = 44.0;
+            $metaBottom = $y - $metaHeight;
+            $ops[] = $this->card(self::MARGIN, $metaBottom, self::CONTENT_RIGHT - self::MARGIN, $metaHeight);
             $order = $this->display($payload->orderId ?: $payload->sourceId);
-            $metaY = $metaTop - 12;
+            $metaY = $y - 14;
             foreach ([
                 ['Invoice', $payload->invoiceNumber],
                 ['Order / reference', $order],
                 ['Total serials', (string) $total],
             ] as [$label, $value]) {
-                $ops[] = $this->text(self::MARGIN + 8, $metaY, $label, 7, true, 0.4, 0.4, 0.4);
-                $ops[] = $this->text(self::MARGIN + 108, $metaY, $this->clip((string) $value, 360, 8), 8);
+                $ops[] = $this->text(self::MARGIN + 10, $metaY, $label, 7, true, 0.4, 0.4, 0.4);
+                $ops[] = $this->text(self::MARGIN + 118, $metaY, $this->clip((string) $value, 380, 8), 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
                 $metaY -= 12;
             }
-            $y = $metaBottom - 12;
+            $y = $metaBottom - 14;
         }
 
-        $colWidth = (self::CONTENT_RIGHT - self::MARGIN - 12) / 3;
+        $colWidth = (self::CONTENT_RIGHT - self::MARGIN - 16) / 3;
         $col = 0;
         $rowY = $y;
+        $rowIndex = 0;
         foreach ($serials as $serial) {
-            if ($rowY < self::FOOTER_Y + 24) {
+            if ($rowY < self::CONTENT_FLOOR + 8) {
                 break;
             }
-            $x = self::MARGIN + 6 + ($col * $colWidth);
+            if ($col === 0 && $rowIndex % 2 === 0) {
+                $ops[] = $this->fill(self::MARGIN, $rowY - 4, self::CONTENT_RIGHT - self::MARGIN, 14, 0.965, 0.972, 0.985);
+            }
+            $x = self::MARGIN + 8 + ($col * $colWidth);
             $ops[] = $this->text($x, $rowY, $serial, 8, false, 0.15, 0.15, 0.15);
             $col++;
             if ($col >= 3) {
                 $col = 0;
-                $rowY -= 12;
+                $rowY -= 14;
+                $rowIndex++;
             }
         }
 
-        $ops[] = $this->hairline(self::MARGIN, self::FOOTER_Y + 14, self::CONTENT_RIGHT);
-        $ops[] = $this->text(self::MARGIN, self::FOOTER_Y + 4, 'Annexure to tax invoice '.$payload->invoiceNumber, 7, false, 0.4, 0.4, 0.4);
+        $ops[] = $this->text(self::MARGIN, self::CONTENT_FLOOR - 6, 'Annexure to tax invoice '.$payload->invoiceNumber, 7, false, 0.4, 0.4, 0.4);
 
         return implode('', $ops);
     }
@@ -1460,6 +1502,44 @@ class SimplePdfRenderer
     private function accentLine(float $x1, float $y, float $x2): string
     {
         return sprintf("q\n1.15 w\n0.890 0.110 0.141 RG\n%.2F %.2F m\n%.2F %.2F l\nS\nQ\n", $x1, $y, $x2, $y);
+    }
+
+    private function card(float $x, float $y, float $w, float $h): string
+    {
+        return $this->fill($x, $y, $w, $h, 0.965, 0.972, 0.985)
+            .$this->strokeRect($x, $y, $w, $h, 0.82);
+    }
+
+    private function pageFooter(int $page, int $totalPages): string
+    {
+        $ops = [];
+        $ops[] = $this->hairline(self::MARGIN, self::CONTENT_FLOOR - 8, self::CONTENT_RIGHT, 0.82);
+        $ops[] = $this->text(self::MARGIN, self::FOOTER_Y, 'This is a computer-generated tax invoice.', 7, false, 0.42, 0.42, 0.42);
+        $ops[] = $this->text(214, self::FOOTER_Y, 'Thank you for your business.', 7, false, 0.42, 0.42, 0.42);
+        $ops[] = $this->rightText(
+            self::CONTENT_RIGHT,
+            self::FOOTER_Y,
+            'Page '.$page.' of '.$totalPages,
+            7,
+            false,
+            0.38,
+            0.38,
+            0.38,
+        );
+
+        return implode('', $ops);
+    }
+
+    private function sellerCin(): string
+    {
+        $cin = config('branding.cin');
+        if (! is_string($cin)) {
+            return '';
+        }
+
+        $cin = strtoupper(trim($cin));
+
+        return $cin !== '' ? $cin : '';
     }
 
     private function strokeRect(float $x, float $y, float $w, float $h, float $gray = 0.78): string
