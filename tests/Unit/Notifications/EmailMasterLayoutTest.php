@@ -42,6 +42,8 @@ class EmailMasterLayoutTest extends TestCase
         $this->assertStringContainsString('Need Help?', $html);
         $this->assertStringContainsString('mailto:support@radiumbox.com', $html);
         $this->assertStringContainsString('support@radiumbox.com', $html);
+        $this->assertStringContainsString('+91 84343 84343', $html);
+        $this->assertStringNotContainsString('+91 XXXXX XXXXX', $html);
         $this->assertStringContainsString('Team Radium Box', $html);
     }
 

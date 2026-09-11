@@ -45,7 +45,8 @@ class RequestSerialNumberEmailTemplateTest extends TestCase
         $this->assertStringContainsString("Once we receive the serial number, we'll proceed with your request right away.", $html);
         $this->assertStringContainsString('Looking forward to getting you successfully connected!', $html);
         $this->assertStringContainsString('support@radiumbox.com', $html);
-        $this->assertStringContainsString('+91 XXXXX XXXXX', $html);
+        $this->assertStringContainsString('+91 84343 84343', $html);
+        $this->assertStringNotContainsString('+91 XXXXX XXXXX', $html);
         $this->assertStringContainsString('Team Radium Box', $html);
         $this->assertStringContainsString('Radium Box', $html);
         $this->assertStringContainsString('Schedule Technical Support', $html);

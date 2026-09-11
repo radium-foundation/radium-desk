@@ -80,7 +80,7 @@ class SupportContactResolverTest extends TestCase
     {
         config([
             'support_contact.email' => 'support@radiumbox.com',
-            'support_contact.phone' => '+91 XXXXX XXXXX',
+            'support_contact.phone' => '+91 84343 84343',
         ]);
 
         $variables = app(SupportContactResolver::class)->mergeIntoVariables([
@@ -90,7 +90,7 @@ class SupportContactResolverTest extends TestCase
 
         $this->assertSame('Jane Doe', $variables['customer_name']);
         $this->assertSame('support@radiumbox.com', $variables['support_email']);
-        $this->assertSame('+91 XXXXX XXXXX', $variables['support_phone']);
+        $this->assertSame('+91 84343 84343', $variables['support_phone']);
     }
 
     public function test_phone_tel_href_normalizes_display_formatting(): void

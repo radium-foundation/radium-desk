@@ -14,7 +14,7 @@ return [
 
     'email' => env('COMMUNICATION_ACTION_SUPPORT_EMAIL', env('COMMUNICATION_ACTION_SUPPORT_CONTACT', 'support@radiumbox.com')),
 
-    'phone' => env('COMMUNICATION_ACTION_SUPPORT_PHONE', '+91 XXXXX XXXXX'),
+    'phone' => env('COMMUNICATION_ACTION_SUPPORT_PHONE', '+91 84343 84343'),
 
     'whatsapp' => env('COMMUNICATION_ACTION_SUPPORT_WHATSAPP', ''),
 

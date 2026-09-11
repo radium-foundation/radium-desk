@@ -6,5 +6,9 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 |----|------|-------|-------|
 | RadiumDesk-P-07-09-253 | 2026-09-11 | Establish safe QA environment for P-07-09-250 | Next unused after P-07-09-252. Disposable sqlite + loopback :8765. Browser QA PASS except live 429 (not observed locally). P-250 preserved uncommitted. No sale/commit/push/deploy. |
 | RadiumDesk-P-07-09-254 | 2026-09-11 | Commit, push and deploy validated POS rapid-scan hardening | Next unused after P-07-09-253. After P-253 PASS. Commit/push P-250 only. Named-file overlay counter Blade to production. Cart-only verify. No sale/payment/invoice. |
+| RadiumDesk-P-07-09-255 | 2026-09-11 | Recover remaining KVM8 RadiumBox sync failures RA3506965 / RA3506957 | Next unused after P-07-09-254. Companion rdservice.net lookup fix verified. Isolated backfill-sync per order. No code/deploy/bulk replay. |
+| RadiumDesk-P-07-09-256 | 2026-09-12 | GLOBAL SEARCH SOURCE VERIFICATION (inspection-only gate) | Next unused after P-07-09-255. Read-only production spoke + Global Search tinker verification. Old Admin path off. No implementation. |
+| RadiumDesk-P-07-09-258 | 2026-09-12 | OPTION B — Old Admin database discovery (read-only) | Next unused after P-07-09-257. Stream-inspected both SQL backups; KVM8 live DB probes; Global Search gap analysis. No restore/import/code/deploy. |
+| RadiumDesk-P-07-09-259 | 2026-09-12 | Correct support phone number in customer-facing email templates | Next unused after P-07-09-258. Shared `support_contact` config + `SupportContactResolver` + master email layout footer. Service case complete and all notification/statutory mails. |
 
 Do not renumber or overwrite earlier rows. Append only.
