@@ -11,6 +11,7 @@ use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
 use App\Models\InventoryStockBalance;
 use App\Services\Inventory\PosSaleService;
+use App\Services\Pos\PosCustomerLookupService;
 use App\Services\Pos\PosUpiIntentService;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\StatutoryLocationSeries;
@@ -31,6 +32,7 @@ class CounterController extends Controller
     public function __construct(
         private readonly PosSaleService $sales,
         private readonly PosUpiIntentService $upiIntents,
+        private readonly PosCustomerLookupService $customerLookup,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(PosAccess::allows($request->user()), 403);
@@ -59,6 +61,8 @@ class CounterController extends Controller
             'searchProductsUrl' => route('pos.products.search'),
             'searchSerialsUrl' => route('pos.serials.search'),
             'lookupCustomerUrl' => route('pos.customers.lookup'),
+            'searchCustomersUrl' => route('pos.customers.search'),
+            'showCustomerUrl' => route('pos.customers.show', ['customer' => '__ID__']),
             'upiReceivingAccounts' => $this->upiIntents->enabledReceivingAccounts(),
             'canVerifyUpi' => PosAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_POS_PAYMENTS_VERIFY),
             'placeOfSupplyStates' => IndianStates::names(),
@@ -293,23 +297,31 @@ class CounterController extends Controller
             403,
         );
 
-        $phone = preg_replace('/\s+/', '', $request->string('phone')->trim()->toString()) ?? '';
-        if ($phone === '') {
-            return response()->json(['found' => false]);
-        }
+        $phone = $request->string('phone')->trim()->toString();
 
-        $customer = InventoryCustomer::query()->where('phone', $phone)->first();
-        if ($customer === null) {
-            return response()->json(['found' => false]);
-        }
+        return response()->json($this->customerLookup->resolveByPhone($phone));
+    }
+
+    public function searchCustomers(Request $request): JsonResponse
+    {
+        abort_unless(
+            PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_SELL),
+            403,
+        );
 
         return response()->json([
-            'found' => true,
-            'name' => $customer->name,
-            'phone' => $customer->phone,
-            'email' => $customer->email,
-            'gstin' => $customer->gstin,
+            'customers' => $this->customerLookup->search($request->string('q')->trim()->toString()),
         ]);
+    }
+
+    public function showCustomer(Request $request, InventoryCustomer $customer): JsonResponse
+    {
+        abort_unless(
+            PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_SELL),
+            403,
+        );
+
+        return response()->json($this->customerLookup->resolveById($customer->id));
     }
 
     /**

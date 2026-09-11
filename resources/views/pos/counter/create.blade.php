@@ -156,6 +156,7 @@
                                     @error('place_of_supply_state')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
                                 <p class="small text-muted mb-0 mt-2">These values are snapshotted on the sale. A GST tax invoice is issued automatically after a successful sale when statutory data is complete. B2C walk-in sales default place of supply to the selling branch state. City, state, and PIN are required when a GSTIN is entered.</p>
+                                <div id="pos-customer-results" class="list-group mt-2 d-none"></div>
                                 <p class="small text-muted mb-0 mt-2" id="pos-customer-status"></p>
                             </div>
                         </div>
@@ -232,6 +233,8 @@
                 const productSearchUrl = @json($searchProductsUrl);
                 const serialSearchUrl = @json($searchSerialsUrl);
                 const customerLookupUrl = @json($lookupCustomerUrl);
+                const searchCustomersUrl = @json($searchCustomersUrl);
+                const showCustomerUrlTemplate = @json($showCustomerUrl);
                 const oldLines = @json(array_values(old('lines', [])));
 
                 const productInput = document.getElementById('pos-product-search');
@@ -248,10 +251,13 @@
                 const nameInput = document.getElementById('customer_name');
                 const emailInput = document.getElementById('customer_email');
                 const gstinInput = document.getElementById('buyer_gstin');
+                const billingAddressInput = document.getElementById('billing_address');
                 const billingCity = document.getElementById('billing_city');
                 const billingState = document.getElementById('billing_state');
                 const billingPincode = document.getElementById('billing_pincode');
+                const customerResults = document.getElementById('pos-customer-results');
                 const customerStatus = document.getElementById('pos-customer-status');
+                const placeOfSupplyState = document.getElementById('place_of_supply_state');
                 const form = document.getElementById('pos-counter-form');
                 const completeButton = document.getElementById('pos-complete');
                 const paymentMethod = document.getElementById('payment_method');
@@ -288,7 +294,9 @@
                 let searchTimer = null;
                 let serialTimer = null;
                 let phoneTimer = null;
+                let nameTimer = null;
                 let submitting = false;
+                let selectedCustomerId = null;
 
                 function money(value) {
                     return (Math.round(value * 100) / 100).toFixed(2);
@@ -308,7 +316,11 @@
                         const totals = lineTotals(item);
                         const row = document.createElement('tr');
                         row.className = 'pos-cart-row';
-                        const serialNote = item.serials.length ? '<div class="small text-muted">' + item.serials.join(', ') + '</div>' : '';
+                        const serialNote = item.serials.length
+                            ? '<div class="small text-muted d-flex flex-wrap gap-1 mt-1">' + item.serials.map(function (serial) {
+                                return '<button type="button" class="btn btn-sm btn-outline-secondary py-0 pos-serial-remove" data-index="' + index + '" data-serial="' + serial + '">' + serial + ' ×</button>';
+                            }).join('') + '</div>'
+                            : '';
                         const variantNote = item.variant_name ? ' · ' + item.variant_name : '';
                         row.innerHTML =
                             '<td>' + item.sku + ' — ' + item.name + variantNote + serialNote + '</td>' +
@@ -396,19 +408,41 @@
                     if (cart.some(function (item) { return item.serials.indexOf(serialNumber) !== -1; })) {
                         return;
                     }
-                    cart.push({
-                        product_id: product.id,
-                        variant_id: variantId,
-                        sku: variant && variant.sku ? variant.sku : product.sku,
-                        name: product.name,
-                        variant_name: variant ? variant.name : '',
-                        is_serialized: true,
-                        gst_percentage: product.gst_percentage,
-                        unit_price: variant ? variant.unit_price : product.unit_price,
-                        qty: 1,
-                        discount: 0,
-                        serials: [serialNumber],
+                    const existing = cart.find(function (item) {
+                        return item.product_id === product.id && item.variant_id === variantId && item.is_serialized;
                     });
+                    if (existing) {
+                        existing.serials.push(serialNumber);
+                        existing.qty = existing.serials.length;
+                    } else {
+                        cart.push({
+                            product_id: product.id,
+                            variant_id: variantId,
+                            sku: variant && variant.sku ? variant.sku : product.sku,
+                            name: product.name,
+                            variant_name: variant ? variant.name : '',
+                            is_serialized: true,
+                            gst_percentage: product.gst_percentage,
+                            unit_price: variant ? variant.unit_price : product.unit_price,
+                            qty: 1,
+                            discount: 0,
+                            serials: [serialNumber],
+                        });
+                    }
+                    renderCart();
+                }
+
+                function removeSerializedUnit(cartIndex, serialNumber) {
+                    const item = cart[cartIndex];
+                    if (!item || !item.is_serialized) {
+                        return;
+                    }
+                    item.serials = item.serials.filter(function (value) { return value !== serialNumber; });
+                    if (item.serials.length === 0) {
+                        cart.splice(cartIndex, 1);
+                    } else {
+                        item.qty = item.serials.length;
+                    }
                     renderCart();
                 }
 
@@ -519,6 +553,14 @@
                 });
 
                 cartBody.addEventListener('click', function (event) {
+                    const serialButton = event.target.closest('.pos-serial-remove');
+                    if (serialButton) {
+                        removeSerializedUnit(
+                            parseInt(serialButton.getAttribute('data-index'), 10),
+                            serialButton.getAttribute('data-serial')
+                        );
+                        return;
+                    }
                     const button = event.target.closest('.pos-remove');
                     if (!button) {
                         return;
@@ -548,14 +590,99 @@
 
                 headerDiscount.addEventListener('input', renderTotals);
 
-                phoneInput.addEventListener('input', function () {
-                    clearTimeout(phoneTimer);
-                    const phone = phoneInput.value.replace(/\s+/g, '');
-                    if (phone.length < 8) {
-                        customerStatus.textContent = '';
+                function applyCustomerPayload(data) {
+                    if (!data || !data.found) {
                         return;
                     }
-                    phoneTimer = setTimeout(function () {
+                    selectedCustomerId = data.id || null;
+                    nameInput.value = data.name || nameInput.value;
+                    phoneInput.value = data.phone || phoneInput.value;
+                    emailInput.value = data.email || '';
+                    if (gstinInput) {
+                        gstinInput.value = data.gstin || '';
+                        syncB2bAddressFields();
+                    }
+                    if (billingAddressInput && data.billing_address) {
+                        billingAddressInput.value = data.billing_address;
+                    }
+                    if (billingCity && data.billing_city) {
+                        billingCity.value = data.billing_city;
+                    }
+                    if (billingState && data.billing_state) {
+                        billingState.value = data.billing_state;
+                    }
+                    if (billingPincode && data.billing_pincode) {
+                        billingPincode.value = data.billing_pincode;
+                    }
+                    if (placeOfSupplyState && data.place_of_supply_state) {
+                        placeOfSupplyState.value = data.place_of_supply_state;
+                    }
+                    customerResults.classList.add('d-none');
+                    customerStatus.textContent = 'Existing POS customer selected. Fields are snapshotted on this sale only.';
+                }
+
+                function showCustomerResults(customers) {
+                    customerResults.innerHTML = '';
+                    if (!customers.length) {
+                        customerResults.classList.add('d-none');
+                        customerStatus.textContent = 'No matching POS customers. A new customer will be created on complete.';
+                        return;
+                    }
+                    customers.forEach(function (customer) {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.className = 'list-group-item list-group-item-action';
+                        const gstinNote = customer.gstin ? ' · GSTIN ' + customer.gstin : '';
+                        button.textContent = customer.name + ' · ' + customer.phone + gstinNote;
+                        button.addEventListener('click', function () {
+                            fetch(showCustomerUrlTemplate.replace('__ID__', String(customer.id)), { headers: { 'Accept': 'application/json' } })
+                                .then(function (response) {
+                                    if (!response.ok) {
+                                        throw new Error('customer-show-failed');
+                                    }
+                                    return response.json();
+                                })
+                                .then(applyCustomerPayload)
+                                .catch(function () {
+                                    customerStatus.textContent = 'Could not load that customer. Try again.';
+                                });
+                        });
+                        customerResults.appendChild(button);
+                    });
+                    customerResults.classList.remove('d-none');
+                    customerStatus.textContent = 'Select a customer below, or continue typing to refine the search.';
+                }
+
+                function searchCustomers(query) {
+                    const trimmed = (query || '').trim();
+                    if (trimmed.length < 2) {
+                        customerResults.classList.add('d-none');
+                        customerStatus.textContent = '';
+                        selectedCustomerId = null;
+                        return;
+                    }
+                    fetch(searchCustomersUrl + '?q=' + encodeURIComponent(trimmed), { headers: { 'Accept': 'application/json' } })
+                        .then(function (response) {
+                            if (!response.ok) {
+                                throw new Error('customer-search-failed');
+                            }
+                            return response.json();
+                        })
+                        .then(function (data) { showCustomerResults(data.customers || []); })
+                        .catch(function () {
+                            customerStatus.textContent = 'Could not search customers. You can still complete the sale.';
+                        });
+                }
+
+                function scheduleCustomerSearch(query, timerRef) {
+                    clearTimeout(timerRef);
+                    return setTimeout(function () { searchCustomers(query); }, 250);
+                }
+
+                phoneInput.addEventListener('input', function () {
+                    const phone = phoneInput.value.replace(/\s+/g, '');
+                    phoneTimer = scheduleCustomerSearch(phone, phoneTimer);
+                    if (phone.length >= 10) {
                         fetch(customerLookupUrl + '?phone=' + encodeURIComponent(phone), { headers: { 'Accept': 'application/json' } })
                             .then(function (response) {
                                 if (!response.ok) {
@@ -565,21 +692,15 @@
                             })
                             .then(function (data) {
                                 if (data.found) {
-                                    nameInput.value = data.name || nameInput.value;
-                                    emailInput.value = data.email || emailInput.value;
-                                    if (gstinInput && data.gstin && !gstinInput.value) {
-                                        gstinInput.value = data.gstin;
-                                        syncB2bAddressFields();
-                                    }
-                                    customerStatus.textContent = 'Existing POS customer loaded. Sale snapshot fields stay on this sale.';
-                                } else {
-                                    customerStatus.textContent = 'New customer will be created on complete.';
+                                    applyCustomerPayload(data);
                                 }
                             })
-                            .catch(function () {
-                                customerStatus.textContent = 'Could not look up this phone. You can still complete the sale.';
-                            });
-                    }, 250);
+                            .catch(function () {});
+                    }
+                });
+
+                nameInput.addEventListener('input', function () {
+                    nameTimer = scheduleCustomerSearch(nameInput.value, nameTimer);
                 });
 
                 if (completeButton) {
