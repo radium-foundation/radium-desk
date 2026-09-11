@@ -18,15 +18,15 @@ class SimplePdfRenderer
 
     private const COL_PRODUCT = 42.0;
 
-    private const COL_HSN = 230.0;
+    private const COL_HSN = 246.0;
 
-    private const COL_QTY = 312.0;
+    private const COL_QTY = 306.0;
 
-    private const COL_UQC = 318.0;
+    private const COL_UQC = 334.0;
 
-    private const COL_RATE = 420.0;
+    private const COL_RATE = 416.0;
 
-    private const COL_TAX = 478.0;
+    private const COL_TAX = 482.0;
 
     private const COL_AMOUNT = 553.0;
 
@@ -34,7 +34,11 @@ class SimplePdfRenderer
 
     private const LOGO_MAX_WIDTH = 118.0;
 
-    private const LOGO_MAX_HEIGHT = 34.0;
+    private const LOGO_MAX_HEIGHT = 32.0;
+
+    private const STAMP_MAX_WIDTH = 84.0;
+
+    private const STAMP_MAX_HEIGHT = 48.0;
 
     private const QR_SIZE = 64.0;
 
@@ -42,12 +46,13 @@ class SimplePdfRenderer
 
     public const FIRST_PAGE_SERIAL_LIMIT = 8;
 
-    /** @var array{width: int, height: int, data: string}|array{}|null */
-    private ?array $embeddedLogo = null;
+    /** @var array<string, array{width: int, height: int, data: string}> */
+    private array $embeddedImages = [];
 
     public function render(StatutoryInvoicePdfPayload $payload): string
     {
-        $this->embeddedLogo = null;
+        $this->embeddedImages = [];
+        $this->prepareEmbeddedImages();
         $contents = $this->invoicePageStreams($payload);
 
         if ($contents === []) {
@@ -78,11 +83,15 @@ class SimplePdfRenderer
      */
     private function assemble(array $contents): string
     {
-        $logo = $this->prepareLogoImage();
         $pageCount = count($contents);
         $regularFont = 3 + ($pageCount * 2);
         $boldFont = $regularFont + 1;
-        $logoObject = $logo !== null ? $boldFont + 1 : null;
+        $imageObjectIds = [];
+        $nextObjectId = $boldFont + 1;
+        foreach ($this->embeddedImages as $name => $image) {
+            $imageObjectIds[$name] = $nextObjectId++;
+            unset($image);
+        }
         $kids = [];
         for ($i = 0; $i < $pageCount; $i++) {
             $kids[] = (3 + ($i * 2)).' 0 R';
@@ -93,12 +102,23 @@ class SimplePdfRenderer
             '<< /Type /Pages /Kids ['.implode(' ', $kids).'] /Count '.$pageCount.' >>',
         ];
 
+        $xobjectResource = '';
+        if ($imageObjectIds !== []) {
+            $pairs = [];
+            foreach ($imageObjectIds as $name => $objectId) {
+                $pairs[] = '/'.$name.' '.$objectId.' 0 R';
+            }
+            $xobjectResource = ' /XObject << '.implode(' ', $pairs).' >>';
+        }
+
         for ($i = 0; $i < $pageCount; $i++) {
             $contentObject = 4 + ($i * 2);
-            $resources = sprintf('/Font << /F1 %d 0 R /F2 %d 0 R >>', $regularFont, $boldFont);
-            if ($logoObject !== null) {
-                $resources .= sprintf(' /XObject << /Logo %d 0 R >>', $logoObject);
-            }
+            $resources = sprintf(
+                '/Font << /F1 %d 0 R /F2 %d 0 R >>%s',
+                $regularFont,
+                $boldFont,
+                $xobjectResource,
+            );
             $objects[] = sprintf(
                 '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.0F %.0F] /Contents %d 0 R /Resources << %s >> >>',
                 self::PAGE_WIDTH,
@@ -111,14 +131,12 @@ class SimplePdfRenderer
 
         $objects[] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
         $objects[] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
-        if ($logo !== null) {
-            $objects[] = sprintf(
-                '<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length %d >>\nstream\n%s\nendstream',
-                $logo['width'],
-                $logo['height'],
-                strlen($logo['data']),
-                $logo['data'],
-            );
+        foreach ($this->embeddedImages as $image) {
+            $objects[] = '<< /Type /XObject /Subtype /Image /Width '.$image['width']
+                .' /Height '.$image['height']
+                .' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '
+                .strlen($image['data'])
+                ." >>\nstream\n".$image['data']."\nendstream";
         }
 
         $pdf = "%PDF-1.4\n";
@@ -314,69 +332,92 @@ class SimplePdfRenderer
 
     private function logoMark(float $x, float $topY): string
     {
-        $logo = $this->prepareLogoImage();
-        if ($logo === null) {
-            return $this->legacyBrandMark($x, $topY);
-        }
-
-        $scale = min(self::LOGO_MAX_WIDTH / $logo['width'], self::LOGO_MAX_HEIGHT / $logo['height']);
-        $drawW = $logo['width'] * $scale;
-        $drawH = $logo['height'] * $scale;
-        $drawY = $topY - $drawH;
-
-        return sprintf("q\n%.3F 0 0 %.3F %.3F %.3F cm\n/Logo Do\nQ\n", $drawW, $drawH, $x, $drawY);
+        return $this->imageDraw('Logo', $x, $topY, self::LOGO_MAX_WIDTH, self::LOGO_MAX_HEIGHT);
     }
 
-    private function legacyBrandMark(float $x, float $y): string
+    private function stampMark(float $x, float $topY): string
     {
-        $ops = [];
-        $ops[] = $this->fill($x, $y - 2, 13, 13, 0.10, 0.10, 0.12);
-        $ops[] = $this->text($x + 3.1, $y + 1.2, 'R', 10, true, 1, 1, 1);
-        $ops[] = $this->text($x + 17, $y + 0.6, 'ADIUM', 10, true);
-        $iOffset = $this->textWidth('AD', 10) + ($this->textWidth('I', 10) / 2);
-        $ops[] = $this->fill($x + 17 + $iOffset - 1.15, $y + 11.2, 2.3, 2.3, 0.89, 0.11, 0.14);
+        return $this->imageDraw('Stamp', $x, $topY, self::STAMP_MAX_WIDTH, self::STAMP_MAX_HEIGHT);
+    }
 
-        return implode('', $ops);
+    private function imageDraw(string $name, float $x, float $topY, float $maxWidth, float $maxHeight): string
+    {
+        $image = $this->embeddedImages[$name] ?? null;
+        if ($image === null) {
+            throw new StatutoryInvoicePdfAssetException('Embedded invoice image missing: '.$name);
+        }
+
+        $scale = min($maxWidth / $image['width'], $maxHeight / $image['height']);
+        $drawW = $image['width'] * $scale;
+        $drawH = $image['height'] * $scale;
+        $drawY = $topY - $drawH;
+
+        return sprintf("q\n%.3F 0 0 %.3F %.3F %.3F cm\n/%s Do\nQ\n", $drawW, $drawH, $x, $drawY, $name);
+    }
+
+    private function prepareEmbeddedImages(): void
+    {
+        if ($this->embeddedImages !== []) {
+            return;
+        }
+
+        $this->embeddedImages['Logo'] = $this->rasterBrandAsset(
+            $this->brandAssetPath('logo', 'brand/logo.svg'),
+            480,
+        );
+        $this->embeddedImages['Stamp'] = $this->rasterBrandAsset(
+            $this->brandAssetPath('stamp', 'brand/stamp-bgr.png'),
+            360,
+        );
+    }
+
+    private function brandAssetPath(string $key, string $defaultRelative): string
+    {
+        $configured = config('branding.'.$key);
+        $relative = is_string($configured) && $configured !== '' ? $configured : $defaultRelative;
+        $path = public_path($relative);
+        if (! is_file($path)) {
+            throw new StatutoryInvoicePdfAssetException('Authoritative invoice asset missing: '.$relative);
+        }
+
+        return $path;
     }
 
     /**
-     * @return array{width: int, height: int, data: string}|null
+     * @return array{width: int, height: int, data: string}
      */
-    private function prepareLogoImage(): ?array
+    private function rasterBrandAsset(string $path, int $maxRasterWidth): array
     {
-        if ($this->embeddedLogo !== null) {
-            return $this->embeddedLogo === [] ? null : $this->embeddedLogo;
-        }
-
-        $configured = config('branding.logo');
-        $path = is_string($configured) && $configured !== ''
-            ? public_path($configured)
-            : public_path('brand/logo.svg');
-
-        if (! is_file($path) || ! extension_loaded('imagick') || ! class_exists(\Imagick::class)) {
-            $this->embeddedLogo = [];
-
-            return null;
+        if (! extension_loaded('imagick') || ! class_exists(\Imagick::class)) {
+            throw new StatutoryInvoicePdfAssetException('Imagick extension is required to render invoice brand assets.');
         }
 
         try {
             $image = new \Imagick;
-            $image->setBackgroundColor(new \ImagickPixel('transparent'));
+            $image->setBackgroundColor(new \ImagickPixel('white'));
             $image->readImage($path);
+            if ($image->getImageWidth() > $maxRasterWidth) {
+                $image->resizeImage($maxRasterWidth, 0, \Imagick::FILTER_LANCZOS, 1);
+            }
+            $flattened = $image->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+            $image->destroy();
+            $image = $flattened;
             $image->setImageFormat('jpeg');
             $image->setImageCompressionQuality(95);
-            $image->resizeImage(480, 0, \Imagick::FILTER_LANCZOS, 1);
-            $this->embeddedLogo = [
+            $result = [
                 'width' => $image->getImageWidth(),
                 'height' => $image->getImageHeight(),
                 'data' => $image->getImageBlob(),
             ];
             $image->destroy();
-        } catch (\Throwable) {
-            $this->embeddedLogo = [];
+        } catch (\Throwable $exception) {
+            throw new StatutoryInvoicePdfAssetException(
+                'Unable to rasterize invoice asset at '.$path.': '.$exception->getMessage(),
+                previous: $exception,
+            );
         }
 
-        return $this->embeddedLogo === [] ? null : $this->embeddedLogo;
+        return $result;
     }
 
     /**
@@ -771,8 +812,8 @@ class SimplePdfRenderer
         if ($payload->hasIssuedIrn()) {
             $height += max(72.0, self::QR_SIZE + 24);
         }
-        $height += 44;
-        $height += 48;
+        $height += 40;
+        $height += 58;
 
         return $height;
     }
@@ -826,9 +867,11 @@ class SimplePdfRenderer
             $noteY -= 10;
         }
 
-        $signX = 380.0;
+        $signX = 368.0;
         $ops[] = $this->text($signX, $y, 'For '.$payload->sellerLegalName, 7, false, 0.28, 0.28, 0.28);
-        $ops[] = $this->text($signX, $y - 36, 'Authorized Signatory', 7, true, 0.22, 0.22, 0.22);
+        $stampTop = $y - 10;
+        $ops[] = $this->stampMark($signX, $stampTop);
+        $ops[] = $this->text($signX, $stampTop - self::STAMP_MAX_HEIGHT - 6, 'Authorized Signatory', 7, true, 0.22, 0.22, 0.22);
 
         return implode('', $ops);
     }
@@ -1023,7 +1066,7 @@ class SimplePdfRenderer
         }
 
         $total = count($this->normalizedSerials($payload));
-        $perPage = 48;
+        $perPage = 60;
         $streams = [];
         $offset = 0;
         $first = true;
@@ -1044,35 +1087,53 @@ class SimplePdfRenderer
     {
         $ops = [];
         $y = 806.0;
-        $title = $first ? 'ANNEXURE A — Serial Numbers' : 'ANNEXURE A — Serial Numbers (continued)';
-        $ops[] = $this->text(self::MARGIN, $y, $title, 11, true);
-        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, $payload->invoiceNumber, 8);
+        $ops[] = $this->logoMark(self::MARGIN, $y);
+        $title = $first ? 'ANNEXURE A' : 'ANNEXURE A (continued)';
+        $ops[] = $this->text(self::MARGIN + 124, $y - 2, $title, 12, true);
+        $ops[] = $this->text(self::MARGIN + 124, $y - 16, 'Serial Numbers', 8, false, 0.35, 0.35, 0.35);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, $payload->invoiceNumber, 8, true);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y - 12, $this->invoiceDate($payload->issuedAt), 8, false, 0.35, 0.35, 0.35);
+        $y -= 34;
+        $ops[] = $this->accentLine(self::MARGIN, $y, self::CONTENT_RIGHT - 168);
         $y -= 14;
-        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
-        $y -= 16;
 
         if ($first) {
+            $metaTop = $y;
+            $metaHeight = 40.0;
+            $metaBottom = $metaTop - $metaHeight;
+            $ops[] = $this->strokeRect(self::MARGIN, $metaBottom, self::CONTENT_RIGHT - self::MARGIN, $metaHeight, 0.86);
             $order = $this->display($payload->orderId ?: $payload->sourceId);
+            $metaY = $metaTop - 12;
             foreach ([
-                'This annexure is part of tax invoice '.$payload->invoiceNumber.'.',
-                'Invoice number  '.$payload->invoiceNumber,
-                'Order/reference  '.$order,
-                'Total serial numbers  '.(string) $total,
-                'Complete serial list for this invoice.',
-            ] as $line) {
-                $ops[] = $this->text(self::MARGIN, $y, $line, 8, false, 0.18, 0.18, 0.18);
-                $y -= 12;
+                ['Invoice', $payload->invoiceNumber],
+                ['Order / reference', $order],
+                ['Total serials', (string) $total],
+            ] as [$label, $value]) {
+                $ops[] = $this->text(self::MARGIN + 8, $metaY, $label, 7, true, 0.4, 0.4, 0.4);
+                $ops[] = $this->text(self::MARGIN + 108, $metaY, $this->clip((string) $value, 360, 8), 8);
+                $metaY -= 12;
             }
-            $y -= 6;
+            $y = $metaBottom - 12;
         }
 
+        $colWidth = (self::CONTENT_RIGHT - self::MARGIN - 12) / 3;
+        $col = 0;
+        $rowY = $y;
         foreach ($serials as $serial) {
-            if ($y < self::FOOTER_Y + 18) {
+            if ($rowY < self::FOOTER_Y + 24) {
                 break;
             }
-            $ops[] = $this->text(self::MARGIN, $y, $serial, 8, false, 0.18, 0.18, 0.18);
-            $y -= 11;
+            $x = self::MARGIN + 6 + ($col * $colWidth);
+            $ops[] = $this->text($x, $rowY, $serial, 8, false, 0.15, 0.15, 0.15);
+            $col++;
+            if ($col >= 3) {
+                $col = 0;
+                $rowY -= 12;
+            }
         }
+
+        $ops[] = $this->hairline(self::MARGIN, self::FOOTER_Y + 14, self::CONTENT_RIGHT);
+        $ops[] = $this->text(self::MARGIN, self::FOOTER_Y + 4, 'Annexure to tax invoice '.$payload->invoiceNumber, 7, false, 0.4, 0.4, 0.4);
 
         return implode('', $ops);
     }

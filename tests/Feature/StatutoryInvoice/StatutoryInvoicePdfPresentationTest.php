@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
 use App\Services\StatutoryInvoice\SimplePdfRenderer;
 use App\Services\StatutoryInvoice\StatutoryDocumentService;
+use App\Services\StatutoryInvoice\StatutoryInvoicePdfAssetException;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
@@ -395,8 +396,8 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Serial Numbers', $pdf);
         $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
         $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('This annexure is part of tax invoice INV-076724.', $pdf);
-        $this->assertStringContainsString('Total serial numbers 10', $pdf);
+        $this->assertStringContainsString('Annexure to tax invoice INV-076724', $pdf);
+        $this->assertStringContainsString('Total serials', $pdf);
         $this->assertStringContainsString('UQC', $pdf);
         $this->assertStringContainsString('PCS', $pdf);
         $this->assertStringContainsString('Rs.1180.00', $pdf);
@@ -614,6 +615,94 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('DCTDecode', $binary);
         $this->assertStringContainsString('TAX INVOICE', $text);
         $this->assertStringNotContainsString('ADIUM', $text);
+    }
+
+    public function test_pdf_embeds_authoritative_stamp_and_signatory_block(): void
+    {
+        $binary = (new SimplePdfRenderer)->render($this->payload());
+        $text = $this->text($binary);
+
+        $this->assertFileExists(public_path('brand/stamp-bgr.png'));
+        $this->assertStringContainsString('/Stamp Do', $binary);
+        $this->assertStringContainsString('Authorized Signatory', $text);
+        $this->assertStringContainsString('For Phil Technologies (P) Limited', $text);
+    }
+
+    public function test_missing_logo_asset_fails_clearly_without_legacy_fallback(): void
+    {
+        $logoPath = public_path('brand/logo.svg');
+        $backup = $logoPath.'.p224-backup';
+        $this->assertTrue(rename($logoPath, $backup));
+
+        try {
+            $this->expectException(StatutoryInvoicePdfAssetException::class);
+            $this->expectExceptionMessage('brand/logo.svg');
+
+            (new SimplePdfRenderer)->render($this->payload());
+        } finally {
+            rename($backup, $logoPath);
+        }
+    }
+
+    public function test_missing_stamp_asset_fails_clearly(): void
+    {
+        $stampPath = public_path('brand/stamp-bgr.png');
+        $backup = $stampPath.'.p224-backup';
+        $this->assertTrue(rename($stampPath, $backup));
+
+        try {
+            $this->expectException(StatutoryInvoicePdfAssetException::class);
+            $this->expectExceptionMessage('brand/stamp-bgr.png');
+
+            (new SimplePdfRenderer)->render($this->payload());
+        } finally {
+            rename($backup, $stampPath);
+        }
+    }
+
+    public function test_signed_qr_at_64px_decodes_from_rendered_pdf_when_zbar_available(): void
+    {
+        $zbar = null;
+        foreach (['/opt/homebrew/bin/zbarimg', '/usr/local/bin/zbarimg', '/usr/bin/zbarimg'] as $candidate) {
+            if (is_executable($candidate)) {
+                $zbar = $candidate;
+                break;
+            }
+        }
+        if ($zbar === null) {
+            $this->markTestSkipped('zbarimg unavailable for QR decode verification.');
+        }
+
+        $jwt = $this->jwtSignedQr();
+        $pdfPath = storage_path('framework/testing/invoice-qr-decode.pdf');
+        file_put_contents($pdfPath, (new SimplePdfRenderer)->render($this->payload(
+            irn: 'issued-irn-token-0001',
+            ackNo: '112233',
+            ackDate: '07 Sep 2026 18:40',
+            signedQr: $jwt,
+        )));
+        $pngPrefix = storage_path('framework/testing/invoice-qr-decode');
+        @unlink($pngPrefix.'-1.png');
+        $pdftoppm = null;
+        foreach (['/opt/homebrew/bin/pdftoppm', '/usr/local/bin/pdftoppm', '/usr/bin/pdftoppm'] as $candidate) {
+            if (is_executable($candidate)) {
+                $pdftoppm = $candidate;
+                break;
+            }
+        }
+        if ($pdftoppm === null) {
+            $this->markTestSkipped('pdftoppm unavailable for QR decode verification.');
+        }
+
+        $command = escapeshellarg($pdftoppm).' -png -r 180 '.escapeshellarg($pdfPath).' '.escapeshellarg($pngPrefix);
+        exec($command.' 2>/dev/null', $output, $exitCode);
+        $pngFile = $pngPrefix.'-1.png';
+        $this->assertSame(0, $exitCode);
+        $this->assertFileExists($pngFile);
+
+        $decodeCommand = escapeshellarg($zbar).' --raw -q '.escapeshellarg($pngFile);
+        $decoded = trim((string) shell_exec($decodeCommand.' 2>/dev/null'));
+        $this->assertSame($jwt, $decoded);
     }
 
     public function test_pdf_uses_true_a4_dimensions(): void
