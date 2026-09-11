@@ -163,6 +163,33 @@ class PosSerializedCartCompletionTest extends TestCase
         $this->assertSame(4128.82, (float) $line->line_total);
     }
 
+    public function test_overridden_unit_price_2300_qty_one_keeps_backend_gst_inclusive_total(): void
+    {
+        $product = $this->serializedProduct('RBMARC11L1-OVR1', 'Mantra MARC11 override one', 3499);
+        $this->stock->stockInSerialized($product, $this->branch, ['2503999222'], $this->actor);
+
+        $sale = $this->sales->completeSale(
+            branch: $this->branch,
+            customer: ['name' => 'Walk-in', 'phone' => '9000002394'],
+            lines: [[
+                'product_id' => $product->id,
+                'qty' => 1,
+                'unit_price' => 2300,
+                'serials' => '2503999222',
+            ]],
+            paymentMethod: 'Cash',
+            actor: $this->actor,
+            statutory: ['place_of_supply_state' => 'Delhi'],
+        );
+
+        $line = $sale->lines->first();
+        $this->assertSame(1, (int) $line->qty);
+        $this->assertSame(2300.0, (float) $sale->subtotal);
+        $this->assertSame(414.0, (float) $sale->tax);
+        $this->assertSame(2714.0, (float) $line->line_total);
+        $this->assertSame(2714.0, (float) $sale->total);
+    }
+
     public function test_duplicate_serial_is_rejected(): void
     {
         $product = $this->serializedProduct('RBMBAS50L1-DUP', 'Duplicate serial product');

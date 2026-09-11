@@ -81,7 +81,7 @@
                                                 <th class="text-end">Qty</th>
                                                 <th class="text-end">Price</th>
                                                 <th class="text-end">Disc.</th>
-                                                <th class="text-end">Line <span class="small text-muted fw-normal">incl. GST</span></th>
+                                                <th class="text-end">Line</th>
                                                 <th></th>
                                             </tr>
                                         </thead>
@@ -307,7 +307,7 @@
                     const lineSubtotal = item.unit_price * item.qty;
                     const taxable = Math.max(0, lineSubtotal - item.discount);
                     const tax = taxable * (item.gst_percentage / 100);
-                    return { lineSubtotal, tax, lineTotal: taxable + tax };
+                    return { lineSubtotal, taxable, tax, lineTotal: taxable + tax };
                 }
 
                 function renderCart() {
@@ -328,7 +328,7 @@
                             '<td class="text-end"><input type="number" min="1" class="form-control form-control-sm text-end pos-qty" data-index="' + index + '" value="' + item.qty + '"' + (item.is_serialized ? ' readonly' : '') + '></td>' +
                             '<td class="text-end"><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end pos-price" data-index="' + index + '" value="' + money(item.unit_price) + '"></td>' +
                             '<td class="text-end"><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end pos-line-discount" data-index="' + index + '" value="' + money(item.discount) + '"></td>' +
-                            '<td class="text-end pos-line-amount">' + money(totals.lineTotal) + '</td>' +
+                            '<td class="text-end pos-line-amount">' + money(totals.taxable) + '</td>' +
                             '<td><button type="button" class="btn btn-sm btn-outline-danger pos-remove" data-index="' + index + '">Remove</button></td>';
                         cartBody.appendChild(row);
                     });
@@ -362,7 +362,7 @@
                     }
                     const cell = row.querySelector('td.pos-line-amount');
                     if (cell) {
-                        cell.textContent = money(lineTotals(cart[index]).lineTotal);
+                        cell.textContent = money(lineTotals(cart[index]).taxable);
                     }
                 }
 
