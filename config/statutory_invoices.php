@@ -80,10 +80,17 @@ return [
     'post_finance_journals' => false,
 
     /*
-    | Guard: do not invent invoice-on-payment vs invoice-on-dispatch.
-    | POS complete never auto-mints a statutory invoice.
+    | Legacy fail-closed guard. Enabling this rejects checkout via
+    | StatutoryInvoiceAccountingPolicy::assertMustNotAutoIssueOnPosComplete().
+    | Walk-in POS uses walk_in_auto_issue_statutory instead.
     */
     'auto_issue_on_pos_complete' => false,
+
+    /*
+    | When true, PosWalkInCompletionService issues a statutory invoice
+    | immediately after a successful POS sale (exactly-once idempotency).
+    */
+    'walk_in_auto_issue_statutory' => env('STATUTORY_INVOICE_WALK_IN_AUTO_ISSUE', true),
 
     /*
     | Company-level legal seller name. GSTIN and registered address are

@@ -159,11 +159,7 @@ class PosUpiIntentService
                     'discount' => $headerDiscount,
                     'notes' => $notes,
                     'payment_method' => 'UPI',
-                    'statutory' => [
-                        'buyer_gstin' => $statutory['buyer_gstin'] ?? ($customer['gstin'] ?? null),
-                        'billing_address' => $statutory['billing_address'] ?? null,
-                        'place_of_supply_state' => $statutory['place_of_supply_state'] ?? null,
-                    ],
+                    'statutory' => $statutory,
                 ],
                 'customer_name' => $name,
                 'customer_phone' => $phone,

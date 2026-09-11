@@ -16,7 +16,6 @@ use App\Models\InventorySale;
 use App\Models\User;
 use App\Services\Finance\PosSaleJournalService;
 use App\Services\StatutoryInvoice\BuyerGstin;
-use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
 use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -30,7 +29,6 @@ class PosSaleService
     public function __construct(
         private readonly InventoryStockService $stock,
         private readonly PosSaleJournalService $journals,
-        private readonly StatutoryInvoiceAccountingPolicy $statutoryAccounting,
     ) {}
 
     /**
@@ -58,8 +56,6 @@ class PosSaleService
         ?string $idempotencyKey = null,
         array $statutory = [],
     ): InventorySale {
-        $this->statutoryAccounting->assertMustNotAutoIssueOnPosComplete();
-
         if ($lines === []) {
             throw ValidationException::withMessages([
                 'lines' => 'Add at least one product line.',
@@ -135,9 +131,20 @@ class PosSaleService
                     'idempotency_key' => $idempotencyKey,
                     'branch_id' => $lockedBranch->id,
                     'customer_id' => $inventoryCustomer->id,
+                    'customer_type' => $snapshot['customer_type'],
+                    'snapshot_buyer_name' => $snapshot['snapshot_buyer_name'],
+                    'snapshot_buyer_phone' => $snapshot['snapshot_buyer_phone'],
+                    'snapshot_buyer_email' => $snapshot['snapshot_buyer_email'],
                     'buyer_gstin' => $snapshot['buyer_gstin'],
+                    'buyer_pan' => $snapshot['buyer_pan'],
                     'billing_address' => $snapshot['billing_address'],
+                    'billing_state' => $snapshot['billing_state'],
+                    'billing_city' => $snapshot['billing_city'],
+                    'billing_postal_code' => $snapshot['billing_postal_code'],
+                    'finance_party_id' => $snapshot['finance_party_id'],
+                    'finance_party_gst_registration_id' => $snapshot['finance_party_gst_registration_id'],
                     'place_of_supply_state' => $snapshot['place_of_supply_state'],
+                    'place_of_supply_source' => $snapshot['place_of_supply_source'],
                     'status' => InventorySaleStatus::Completed,
                     'subtotal' => 0,
                     'discount' => $headerDiscount,
@@ -529,7 +536,22 @@ class PosSaleService
      * edits are not re-read by Finance Hub.
      *
      * @param  array<string, mixed>  $statutory
-     * @return array{buyer_gstin: ?string, billing_address: ?string, place_of_supply_state: ?string}
+     * @return array{
+     *     customer_type: ?string,
+     *     snapshot_buyer_name: string,
+     *     snapshot_buyer_phone: string,
+     *     snapshot_buyer_email: ?string,
+     *     buyer_gstin: ?string,
+     *     buyer_pan: ?string,
+     *     billing_address: ?string,
+     *     billing_state: ?string,
+     *     billing_city: ?string,
+     *     billing_postal_code: ?string,
+     *     finance_party_id: ?int,
+     *     finance_party_gst_registration_id: ?int,
+     *     place_of_supply_state: ?string,
+     *     place_of_supply_source: ?string
+     * }
      */
     private function statutorySnapshot(InventoryCustomer $customer, array $statutory): array
     {
@@ -551,9 +573,22 @@ class PosSaleService
         }
 
         return [
+            'customer_type' => $this->nullableString($statutory['customer_type'] ?? null),
+            'snapshot_buyer_name' => $this->nullableString($statutory['snapshot_buyer_name'] ?? null) ?? $customer->name,
+            'snapshot_buyer_phone' => $this->nullableString($statutory['snapshot_buyer_phone'] ?? null) ?? $customer->phone,
+            'snapshot_buyer_email' => $this->nullableString($statutory['snapshot_buyer_email'] ?? null) ?? $customer->email,
             'buyer_gstin' => $buyerGstin,
+            'buyer_pan' => $this->nullableString($statutory['buyer_pan'] ?? null),
             'billing_address' => $this->nullableString($statutory['billing_address'] ?? null),
+            'billing_state' => $this->nullableString($statutory['billing_state'] ?? null),
+            'billing_city' => $this->nullableString($statutory['billing_city'] ?? null),
+            'billing_postal_code' => $this->nullableString($statutory['billing_postal_code'] ?? null),
+            'finance_party_id' => isset($statutory['finance_party_id']) ? (int) $statutory['finance_party_id'] : null,
+            'finance_party_gst_registration_id' => isset($statutory['finance_party_gst_registration_id'])
+                ? (int) $statutory['finance_party_gst_registration_id']
+                : null,
             'place_of_supply_state' => $place,
+            'place_of_supply_source' => $this->nullableString($statutory['place_of_supply_source'] ?? null),
         ];
     }
 
@@ -569,7 +604,7 @@ class PosSaleService
     }
 
     /**
-     * @param  array{name?: string, phone?: string, email?: string|null, gstin?: string|null}  $customer
+     * @param  array{name?: string, phone?: string, email?: string|null, gstin?: string|null, finance_party_id?: int|null}  $customer
      */
     public function findOrCreateCustomer(array $customer): InventoryCustomer
     {
@@ -589,6 +624,7 @@ class PosSaleService
                 'name' => $name,
                 'email' => $customer['email'] ?? $locked->email,
                 'gstin' => $customer['gstin'] ?? $locked->gstin,
+                'finance_party_id' => $customer['finance_party_id'] ?? $locked->finance_party_id,
             ])->save();
 
             return $locked;
@@ -600,6 +636,7 @@ class PosSaleService
                 'phone' => $phone,
                 'email' => $customer['email'] ?? null,
                 'gstin' => $customer['gstin'] ?? null,
+                'finance_party_id' => $customer['finance_party_id'] ?? null,
             ]);
         } catch (UniqueConstraintViolationException $exception) {
             $locked = InventoryCustomer::query()->where('phone', $phone)->lockForUpdate()->first();
@@ -608,6 +645,7 @@ class PosSaleService
                     'name' => $name,
                     'email' => $customer['email'] ?? $locked->email,
                     'gstin' => $customer['gstin'] ?? $locked->gstin,
+                    'finance_party_id' => $customer['finance_party_id'] ?? $locked->finance_party_id,
                 ])->save();
 
                 return $locked;

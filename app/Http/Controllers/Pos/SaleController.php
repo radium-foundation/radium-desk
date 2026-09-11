@@ -3,19 +3,24 @@
 namespace App\Http\Controllers\Pos;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Finance\StatutoryInvoiceController;
 use App\Models\InventorySale;
+use App\Models\StatutoryInvoiceDispatch;
 use App\Services\Inventory\PosSaleService;
+use App\Services\StatutoryInvoice\StatutoryInvoiceDispatchService;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\PosAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 class SaleController extends Controller
 {
     public function __construct(
         private readonly PosSaleService $sales,
+        private readonly StatutoryInvoiceDispatchService $invoiceDispatches,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(PosAccess::allows($request->user()), 403);
@@ -66,8 +71,25 @@ class SaleController extends Controller
         $sale->load(['branch', 'customer', 'createdBy', 'lines.product', 'lines.variant', 'lines.serials.serial', 'serials.serial', 'upiIntent.receivingBankAccount']);
         InventoryBranchScope::assertCanOperate($request->user(), $sale->branch);
 
+        $statutoryInvoice = $sale->statutoryInvoice?->loadMissing(['document', 'eInvoiceRecord']);
+        $emailDispatches = $statutoryInvoice
+            ? StatutoryInvoiceDispatch::query()
+                ->where('invoice_id', $statutoryInvoice->id)
+                ->where('channel', 'email')
+                ->latest('id')
+                ->get()
+            : collect();
+
         return view('pos.sales.show', [
-            'sale' => $sale->loadMissing('statutoryInvoice'),
+            'sale' => $sale,
+            'statutoryInvoice' => $statutoryInvoice,
+            'emailDispatches' => $emailDispatches,
+            'whatsAppShareUrl' => $statutoryInvoice
+                ? $this->invoiceDispatches->whatsAppShareUrl(
+                    $statutoryInvoice,
+                    $sale->snapshot_buyer_phone ?? $sale->customer?->phone,
+                )
+                : null,
             'canCancel' => PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_CANCEL),
         ]);
     }
@@ -112,5 +134,39 @@ class SaleController extends Controller
         $this->sales->returnSale($sale, $request->user(), $data['reason']);
 
         return redirect()->route('pos.sales.show', $sale)->with('status', 'Sale returned and stock restored.');
+    }
+
+    public function downloadStatutoryInvoice(Request $request, InventorySale $sale): Response
+    {
+        InventoryBranchScope::assertCanOperate($request->user(), $sale->branch);
+        $invoice = $sale->statutoryInvoice;
+        abort_if($invoice === null, 404);
+
+        return app(StatutoryInvoiceController::class)->download($invoice);
+    }
+
+    public function emailStatutoryInvoice(Request $request, InventorySale $sale): RedirectResponse
+    {
+        InventoryBranchScope::assertCanOperate($request->user(), $sale->branch);
+        $invoice = $sale->statutoryInvoice;
+        abort_if($invoice === null, 404);
+
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:160'],
+        ]);
+
+        $dispatch = $this->invoiceDispatches->sendEmail(
+            $invoice,
+            $data['email'],
+            $request->user(),
+        );
+
+        if ($dispatch->status !== 'sent') {
+            return redirect()->route('pos.sales.show', $sale)
+                ->withErrors(['email' => $dispatch->last_error ?: 'Email could not be sent.']);
+        }
+
+        return redirect()->route('pos.sales.show', $sale)
+            ->with('status', 'Invoice emailed to '.$data['email'].'.');
     }
 }

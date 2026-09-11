@@ -10,31 +10,79 @@
             <p class="text-muted mb-0">
                 Internal receipt {{ $sale->invoice_number }} · {{ $sale->status->label() }} ·
                 Finance {{ $sale->finance_handoff_status->label() }}
-                @if($sale->statutoryInvoice)
-                    · GST invoice {{ $sale->statutoryInvoice->invoice_number }}
+                @if($statutoryInvoice)
+                    · GST invoice {{ $statutoryInvoice->invoice_number }}
                 @else
                     · No statutory GST invoice
                 @endif
             </p>
         </div>
-        <a href="{{ route('pos.sales.invoice', $sale) }}" class="btn btn-outline-secondary">Invoice</a>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ route('pos.sales.invoice', $sale) }}" class="btn btn-outline-secondary">Internal receipt</a>
+            @if($statutoryInvoice)
+                <a href="{{ route('finance.invoices.show', $statutoryInvoice) }}" class="btn btn-outline-primary">View GST invoice</a>
+                <a href="{{ route('pos.sales.statutory-invoice.pdf', $sale) }}" class="btn btn-outline-primary">Download PDF</a>
+            @endif
+        </div>
     </div>
     @include('pos.partials.workspace-nav', ['active' => 'sales'])
+
+    @if($statutoryInvoice)
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h6 text-muted">Invoice status</h2>
+                <div class="row g-2 small">
+                    <div class="col-md-3"><strong>Sale</strong> Completed</div>
+                    <div class="col-md-3"><strong>Invoice</strong> Generated ({{ $statutoryInvoice->invoice_number }})</div>
+                    <div class="col-md-3">
+                        <strong>IRN</strong>
+                        @php($irn = $statutoryInvoice->eInvoiceRecord?->irn)
+                        @if($irn)
+                            Generated
+                        @elseif($statutoryInvoice->buyer_gstin)
+                            {{ $statutoryInvoice->eInvoiceRecord?->status ?: 'Pending / not applicable' }}
+                        @else
+                            Not applicable (B2C)
+                        @endif
+                    </div>
+                    <div class="col-md-3">
+                        <strong>PDF</strong>
+                        {{ $statutoryInvoice->document?->status?->label() ?? 'Pending' }}
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Email</strong>
+                        @if($emailDispatches->where('status', 'sent')->isNotEmpty())
+                            Sent
+                        @else
+                            Not sent
+                        @endif
+                    </div>
+                    <div class="col-md-3"><strong>WhatsApp</strong> Ready</div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <div class="row g-3 mb-3">
         <div class="col-md-6">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <h2 class="h6 text-muted">Customer</h2>
-                    <div>{{ $sale->customer?->name }}</div>
-                    <div>{{ $sale->customer?->phone }}</div>
-                    <div>{{ $sale->customer?->email ?: '—' }}</div>
+                    <div>{{ $sale->snapshot_buyer_name ?? $sale->customer?->name }}</div>
+                    <div>{{ $sale->snapshot_buyer_phone ?? $sale->customer?->phone }}</div>
+                    <div>{{ $sale->snapshot_buyer_email ?? $sale->customer?->email ?: '—' }}</div>
                     <div class="mt-3 small">
                         <div class="text-muted text-uppercase fw-semibold">Sale statutory snapshot</div>
+                        <div>Type {{ strtoupper((string) ($sale->customer_type ?: 'b2c')) }}</div>
                         <div>GSTIN {{ $sale->buyer_gstin ?: 'B2C / not captured' }}</div>
                         <div>Place of supply {{ $sale->place_of_supply_state ?: 'not captured' }}</div>
+                        @if($sale->place_of_supply_source)
+                            <div class="text-muted">POS source {{ $sale->place_of_supply_source }}</div>
+                        @endif
                         <div>{{ $sale->billing_address ?: 'No billing address captured' }}</div>
-                        <div class="text-muted">Finance Hub issues the GST invoice later. This sale did not mint one.</div>
+                        @if($sale->billing_state)
+                            <div>{{ $sale->billing_city }} {{ $sale->billing_state }} {{ $sale->billing_postal_code }}</div>
+                        @endif
                     </div>
                     <div class="mt-2 small text-muted">{{ $sale->branch?->name }} · {{ $sale->payment_method }}</div>
                     @if($sale->upiIntent)
@@ -63,6 +111,36 @@
             </div>
         </div>
     </div>
+
+    @if($statutoryInvoice)
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h6">Share invoice</h2>
+                <form method="POST" action="{{ route('pos.sales.statutory-invoice.email', $sale) }}" class="row g-2 align-items-end mb-3">
+                    @csrf
+                    <div class="col-md-6">
+                        <label class="form-label" for="invoice-email">Email invoice</label>
+                        <input type="email" name="email" id="invoice-email" class="form-control" required
+                               value="{{ old('email', $sale->snapshot_buyer_email ?? $sale->customer?->email) }}">
+                        @error('email')<div class="text-danger small">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-auto">
+                        <button class="btn btn-primary">Send email</button>
+                    </div>
+                </form>
+                @if($whatsAppShareUrl)
+                    <a href="{{ $whatsAppShareUrl }}" class="btn btn-success" target="_blank" rel="noopener">WhatsApp share</a>
+                @endif
+                @if($emailDispatches->isNotEmpty())
+                    <div class="small text-muted mt-3">
+                        @foreach($emailDispatches as $dispatch)
+                            <div>{{ $dispatch->destination }} · {{ $dispatch->status }} · {{ optional($dispatch->sent_at)->format('d M Y H:i') }}</div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        </div>
+    @endif
 
     <div class="card border-0 shadow-sm mb-3">
         <div class="table-responsive">

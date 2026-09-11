@@ -19,6 +19,7 @@ class PosUpiVerificationService
     public function __construct(
         private readonly PosSaleService $sales,
         private readonly PosUpiIntentService $intents,
+        private readonly PosWalkInCompletionService $walkInSales,
     ) {}
 
     public static function normalizeUtr(string $utr): string
@@ -112,12 +113,19 @@ class PosUpiVerificationService
                     ? InventoryReservation::query()->find($locked->reservation_id)
                     : null;
 
-                $sale = $this->sales->completeSale(
+                $statutory = is_array($payload['statutory'] ?? null) ? $payload['statutory'] : [];
+                $walkInInput = is_array($statutory['walk_in_input'] ?? null)
+                    ? $statutory['walk_in_input']
+                    : array_merge([
+                        'customer_name' => $payload['customer']['name'] ?? $locked->customer_name,
+                        'customer_phone' => $payload['customer']['phone'] ?? $locked->customer_phone,
+                        'customer_email' => $payload['customer']['email'] ?? null,
+                        'customer_type' => 'b2c',
+                    ], $statutory);
+
+                $result = $this->walkInSales->complete(
                     branch: $locked->branch,
-                    customer: $payload['customer'] ?? [
-                        'name' => $locked->customer_name,
-                        'phone' => $locked->customer_phone,
-                    ],
+                    input: $walkInInput,
                     lines: $lines,
                     paymentMethod: 'UPI',
                     actor: $actor,
@@ -126,8 +134,8 @@ class PosUpiVerificationService
                     notes: $payload['notes'] ?? null,
                     reservation: $reservation,
                     idempotencyKey: $locked->sale_idempotency_key,
-                    statutory: is_array($payload['statutory'] ?? null) ? $payload['statutory'] : [],
                 );
+                $sale = $result->sale;
 
                 if (PosUpiUriBuilder::formatAmount($sale->total) !== $expected) {
                     throw ValidationException::withMessages([

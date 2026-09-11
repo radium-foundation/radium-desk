@@ -311,5 +311,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-154 | 2026-09-09 | Business order-ID parser/routing for RB/RBP/RD/RDP/RN/RNP/RS/RSP | Longest-prefix-first. Historical RA/RDS/RD/RBX/RDE/RIN preserved. Hardware prefixes stay RDE/RIN only (no auto-hardware for RBP/RDP/RNP/RSP). **Not deployed.** |
 | RadiumDesk-P-07-09-156 | 2026-09-09 | Keep `RBP` from hardware fulfilment classification | `BusinessOrderId` is authoritative for parsed IDs. `RBP` cannot become hardware via config or `RB` prefix. Hardware remains `RDE`/`RIN`. No Sign lookup spoke. **Not deployed.** |
 | RadiumDesk-P-07-09-160 | 2026-09-09 | Finance Party Master foundation (Phase 1) | Additive `finance_parties` + roles/addresses/contacts/GST/vendor bank/legacy-identity tables. Customer and vendor share one legal entity. No Admin import, PO/PI, invoice snapshot, or deploy. Report: `docs/desk-finance-party-master-p-07-09-160.md`. |
+| RadiumDesk-P-07-09-163 | 2026-09-11 | Walk-in POS: sales → statutory invoice → PDF → email/WhatsApp | Merge Finance Party; `PosWalkInCompletionService`; walk-in POS resolver; B2C/B2B counter UX; GST split on POS mint; PDF serials; email dispatch; session idempotency. No Admin import or production deploy. Report: `docs/desk-walk-in-pos-p-07-09-163.md`. |
 
 Do not renumber or overwrite earlier rows. Append only.

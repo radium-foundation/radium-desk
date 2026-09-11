@@ -624,16 +624,14 @@ class PosSaleServiceTest extends TestCase
         ]);
     }
 
-    public function test_complete_fails_closed_if_auto_issue_flag_is_enabled(): void
+    public function test_complete_sale_no_longer_blocks_on_legacy_auto_issue_flag(): void
     {
         config(['statutory_invoices.auto_issue_on_pos_complete' => true]);
 
         $product = $this->serializedProduct('MFS110-AUTO', 'Mantra auto-issue gate');
         $this->stock->stockInSerialized($product, $this->branch, ['POS-AUTO-1'], $this->actor);
 
-        $this->expectException(ValidationException::class);
-
-        $this->sales->completeSale(
+        $sale = $this->sales->completeSale(
             branch: $this->branch,
             customer: ['name' => 'Auto Issue', 'phone' => '9999933334'],
             lines: [[
@@ -644,6 +642,8 @@ class PosSaleServiceTest extends TestCase
             paymentMethod: 'Cash',
             actor: $this->actor,
         );
+
+        $this->assertSame('9999933334', $sale->customer?->phone);
     }
 
     private function serializedProduct(string $sku = 'MFS110-POS', string $name = 'Mantra MFS110'): InventoryProduct

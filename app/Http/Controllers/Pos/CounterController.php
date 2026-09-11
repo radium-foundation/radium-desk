@@ -3,15 +3,17 @@
 namespace App\Http\Controllers\Pos;
 
 use App\Enums\InventorySerialStatus;
+use App\Enums\PosCustomerType;
 use App\Http\Controllers\Controller;
 use App\Models\FinancePaymentMethod;
 use App\Models\InventoryBranch;
-use App\Models\InventoryCustomer;
 use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
 use App\Models\InventoryStockBalance;
-use App\Services\Inventory\PosSaleService;
+use App\Services\Pos\PosFinancePartyCustomerService;
 use App\Services\Pos\PosUpiIntentService;
+use App\Services\Pos\PosWalkInCompletionService;
+use App\Services\Pos\WalkInPlaceOfSupplyResolver;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventoryBranchScope;
@@ -28,8 +30,10 @@ use Illuminate\View\View;
 class CounterController extends Controller
 {
     public function __construct(
-        private readonly PosSaleService $sales,
+        private readonly PosWalkInCompletionService $walkInSales,
         private readonly PosUpiIntentService $upiIntents,
+        private readonly PosFinancePartyCustomerService $partyCustomers,
+        private readonly WalkInPlaceOfSupplyResolver $placeOfSupply,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(PosAccess::allows($request->user()), 403);
@@ -49,18 +53,33 @@ class CounterController extends Controller
         $branches = InventoryBranchScope::allowedBranches($user);
         $operatingBranch = $this->resolveOperatingBranch($request, $branches);
 
+        $defaultPlaceOfSupply = $operatingBranch
+            ? $this->placeOfSupply->sellerStateForBranch($operatingBranch)
+            : null;
+
+        $sessionKey = 'pos.checkout_idempotency_key.'.$operatingBranch?->id;
+        $idempotencyKey = old('idempotency_key');
+        if (! is_string($idempotencyKey) || trim($idempotencyKey) === '') {
+            $idempotencyKey = $request->session()->get($sessionKey);
+            if (! is_string($idempotencyKey) || trim($idempotencyKey) === '') {
+                $idempotencyKey = (string) Str::uuid();
+                $request->session()->put($sessionKey, $idempotencyKey);
+            }
+        }
+
         return view('pos.counter.create', [
             'branches' => $branches,
             'operatingBranch' => $operatingBranch,
             'paymentMethods' => $this->paymentMethods(),
             'needsBranchAssignment' => InventoryBranchScope::needsAssignment($user),
-            'idempotencyKey' => old('idempotency_key', (string) Str::uuid()),
+            'idempotencyKey' => $idempotencyKey,
             'searchProductsUrl' => route('pos.products.search'),
             'searchSerialsUrl' => route('pos.serials.search'),
             'lookupCustomerUrl' => route('pos.customers.lookup'),
             'upiReceivingAccounts' => $this->upiIntents->enabledReceivingAccounts(),
             'canVerifyUpi' => PosAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_POS_PAYMENTS_VERIFY),
             'placeOfSupplyStates' => IndianStates::names(),
+            'defaultPlaceOfSupply' => $defaultPlaceOfSupply,
         ]);
     }
 
@@ -73,6 +92,9 @@ class CounterController extends Controller
 
         $data = $request->validate([
             'branch_id' => ['required', 'exists:inventory_branches,id'],
+            'customer_type' => ['required', Rule::in([PosCustomerType::B2c->value, PosCustomerType::B2b->value])],
+            'finance_party_id' => ['nullable', 'integer', 'exists:finance_parties,id'],
+            'finance_party_gst_registration_id' => ['nullable', 'integer', 'exists:finance_party_gst_registrations,id'],
             'customer_name' => ['required', 'string', 'max:160'],
             'customer_phone' => ['required', 'string', 'max:20'],
             'customer_email' => ['nullable', 'email', 'max:160'],
@@ -89,7 +111,11 @@ class CounterController extends Controller
                 }
             }],
             'billing_address' => ['nullable', 'string', 'max:1000'],
+            'billing_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
+            'billing_city' => ['nullable', 'string', 'max:120'],
+            'billing_postal_code' => ['nullable', 'string', 'max:16'],
             'place_of_supply_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
+            'delivery_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'exists:inventory_products,id'],
             'lines.*.variant_id' => ['nullable', 'exists:inventory_product_variants,id'],
@@ -117,40 +143,37 @@ class CounterController extends Controller
             ];
         }
 
-        $customer = [
-            'name' => $data['customer_name'],
-            'phone' => $data['customer_phone'],
-            'email' => $data['customer_email'] ?? null,
-            'gstin' => BuyerGstin::normalize($data['buyer_gstin'] ?? null),
-        ];
-        $statutory = [
+        $walkInInput = array_merge($data, [
             'buyer_gstin' => BuyerGstin::normalize($data['buyer_gstin'] ?? null),
-            'billing_address' => isset($data['billing_address']) && is_string($data['billing_address'])
-                ? trim($data['billing_address'])
-                : null,
-            'place_of_supply_state' => $data['place_of_supply_state'] ?? null,
-        ];
+            'place_of_supply_state' => $data['place_of_supply_state']
+                ?? $this->placeOfSupply->sellerStateForBranch($branch),
+        ]);
 
         if (strcasecmp(trim($data['payment_method']), 'UPI') === 0) {
             $intent = $this->upiIntents->create(
                 branch: $branch,
-                customer: $customer,
+                customer: [
+                    'name' => $data['customer_name'],
+                    'phone' => $data['customer_phone'],
+                    'email' => $data['customer_email'] ?? null,
+                    'gstin' => $walkInInput['buyer_gstin'],
+                ],
                 lines: $lines,
                 receivingBankAccountId: (int) ($data['receiving_bank_account_id'] ?? 0),
                 actor: $request->user(),
                 headerDiscount: (float) ($data['discount'] ?? 0),
                 notes: $data['notes'] ?? null,
                 saleIdempotencyKey: $data['idempotency_key'] ?? null,
-                statutory: $statutory,
+                statutory: ['walk_in_input' => $walkInInput],
             );
 
             return redirect()->route('pos.upi.intents.show', $intent)
                 ->with('status', 'UPI payment created. The QR is an instruction only — it is not payment confirmation.');
         }
 
-        $sale = $this->sales->completeSale(
+        $result = $this->walkInSales->complete(
             branch: $branch,
-            customer: $customer,
+            input: $walkInInput,
             lines: $lines,
             paymentMethod: $data['payment_method'],
             actor: $request->user(),
@@ -158,10 +181,18 @@ class CounterController extends Controller
             paymentReference: $data['payment_reference'] ?? null,
             notes: $data['notes'] ?? null,
             idempotencyKey: $data['idempotency_key'] ?? null,
-            statutory: $statutory,
         );
 
-        return redirect()->route('pos.sales.show', $sale)->with('status', 'Sale '.$sale->sale_no.' completed.');
+        $request->session()->put('pos.checkout_idempotency_key.'.$branch->id, (string) Str::uuid());
+
+        $flash = 'Sale '.$result->sale->sale_no.' completed.';
+        if ($result->invoiceIssued()) {
+            $flash .= ' GST invoice '.$result->statutoryInvoice?->invoice_number.' generated.';
+        } elseif ($result->invoiceErrors !== []) {
+            $flash .= ' Statutory invoice pending: '.implode(' ', $result->invoiceErrors);
+        }
+
+        return redirect()->route('pos.sales.show', $result->sale)->with('status', $flash);
     }
 
     public function searchProducts(Request $request): JsonResponse
@@ -279,18 +310,12 @@ class CounterController extends Controller
             return response()->json(['found' => false]);
         }
 
-        $customer = InventoryCustomer::query()->where('phone', $phone)->first();
-        if ($customer === null) {
+        $lookup = $this->partyCustomers->lookupByPhone($phone);
+        if (! ($lookup['found'] ?? false)) {
             return response()->json(['found' => false]);
         }
 
-        return response()->json([
-            'found' => true,
-            'name' => $customer->name,
-            'phone' => $customer->phone,
-            'email' => $customer->email,
-            'gstin' => $customer->gstin,
-        ]);
+        return response()->json($lookup);
     }
 
     /**

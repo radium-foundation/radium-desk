@@ -64,7 +64,7 @@ class StatutoryInvoiceService
             return $existing->load(['items', 'allocation']);
         }
 
-        $request = $this->applyServiceGstSplit($request);
+        $request = $this->applyGstSplit($request);
 
         try {
             return DB::transaction(function () use ($request, $actor): StatutoryInvoice {
@@ -73,7 +73,7 @@ class StatutoryInvoiceService
                     return $again->load(['items', 'allocation']);
                 }
 
-                $request = $this->applyServiceGstSplit($request);
+                $request = $this->applyGstSplit($request);
 
                 $allocation = $this->numbering->allocate(
                     $request->idempotencyKey(),
@@ -192,7 +192,7 @@ class StatutoryInvoiceService
         }
 
         $this->eligibility->assertSaleCanMint($sale);
-        $sale->loadMissing(['lines.product', 'lines.variant', 'customer', 'branch']);
+        $sale->loadMissing(['lines.product', 'lines.variant', 'customer', 'branch', 'serials.serial']);
 
         $lines = [];
         foreach ($sale->lines as $line) {
@@ -230,10 +230,10 @@ class StatutoryInvoiceService
             branchId: $sale->branch_id,
             sellerGstin: null,
             sellerName: null,
-            buyerName: $sale->customer?->name,
-            buyerPhone: $sale->customer?->phone,
+            buyerName: $sale->snapshot_buyer_name ?? $sale->customer?->name,
+            buyerPhone: $sale->snapshot_buyer_phone ?? $sale->customer?->phone,
             buyerGstin: BuyerGstin::normalize($sale->buyer_gstin),
-            billingAddress: $sale->billing_address,
+            billingAddress: $this->formattedBillingAddress($sale),
             placeOfSupplyState: $sale->place_of_supply_state,
             discount: $headerDiscount,
             paymentMethod: $sale->payment_method,
@@ -452,9 +452,12 @@ class StatutoryInvoiceService
         $this->einvoiceOutbox->write($invoice);
     }
 
-    private function applyServiceGstSplit(StatutoryInvoiceMintRequest $request): StatutoryInvoiceMintRequest
+    private function applyGstSplit(StatutoryInvoiceMintRequest $request): StatutoryInvoiceMintRequest
     {
-        if ($request->sourceType !== StatutoryInvoiceSourceType::CommerceOrder) {
+        if (! in_array($request->sourceType, [
+            StatutoryInvoiceSourceType::CommerceOrder,
+            StatutoryInvoiceSourceType::InventorySale,
+        ], true)) {
             return $request;
         }
 
@@ -480,6 +483,22 @@ class StatutoryInvoiceService
         }
 
         return $request->withLines($lines);
+    }
+
+    private function formattedBillingAddress(InventorySale $sale): ?string
+    {
+        $parts = array_filter([
+            $sale->billing_address,
+            $sale->billing_city,
+            $sale->billing_state,
+            $sale->billing_postal_code,
+        ], static fn (mixed $part): bool => is_string($part) && trim($part) !== '');
+
+        if ($parts === []) {
+            return $sale->billing_address;
+        }
+
+        return implode(', ', $parts);
     }
 
     private function financialYear(StatutoryInvoiceMintRequest $request): ?StatutoryFinancialYear

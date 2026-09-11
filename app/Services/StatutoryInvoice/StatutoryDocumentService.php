@@ -5,6 +5,7 @@ namespace App\Services\StatutoryInvoice;
 use App\Enums\EInvoiceRecordStatus;
 use App\Enums\StatutoryInvoiceDocumentStatus;
 use App\Models\HardwareFulfilment;
+use App\Models\InventorySale;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceDocument;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
@@ -105,6 +106,13 @@ class StatutoryDocumentService
             ->where('statutory_invoice_id', $invoice->id)
             ->first();
         $serials = $this->serialsForInvoice($fulfilment);
+        if ($serials === [] && $invoice->inventory_sale_id !== null) {
+            $serials = $this->serialsForPosSale(
+                InventorySale::query()
+                    ->with(['serials.serial'])
+                    ->find($invoice->inventory_sale_id)
+            );
+        }
 
         return new StatutoryInvoicePdfPayload(
             invoiceNumber: (string) $invoice->invoice_number,
@@ -186,6 +194,23 @@ class StatutoryDocumentService
         }
 
         return $this->hardwareWorkflow->allocatedSerialNumbers($fulfilment);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function serialsForPosSale(?InventorySale $sale): array
+    {
+        if ($sale === null) {
+            return [];
+        }
+
+        return $sale->serials
+            ->map(static fn ($assignment) => trim((string) ($assignment->serial?->serial_number ?? '')))
+            ->filter(static fn (string $serial): bool => $serial !== '')
+            ->sort()
+            ->values()
+            ->all();
     }
 
     private function headerGstRate(StatutoryInvoice $invoice): string

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -17,7 +18,13 @@ class InventoryCustomer extends Model
         'phone',
         'email',
         'gstin',
+        'finance_party_id',
     ];
+
+    public function financeParty(): BelongsTo
+    {
+        return $this->belongsTo(FinanceParty::class, 'finance_party_id');
+    }
 
     public function sales(): HasMany
     {

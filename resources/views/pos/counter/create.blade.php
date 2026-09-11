@@ -101,6 +101,16 @@
                         <div class="card border-0 shadow-sm mb-3">
                             <div class="card-body">
                                 <h2 class="h5">Customer</h2>
+                                <input type="hidden" name="finance_party_id" id="finance_party_id" value="{{ old('finance_party_id') }}">
+                                <div class="mb-2">
+                                    <label class="form-label d-block">Sale type</label>
+                                    <div class="btn-group" role="group" aria-label="Customer type">
+                                        <input type="radio" class="btn-check" name="customer_type" id="customer_type_b2c" value="b2c" @checked(old('customer_type', 'b2c') === 'b2c')>
+                                        <label class="btn btn-outline-secondary" for="customer_type_b2c">B2C</label>
+                                        <input type="radio" class="btn-check" name="customer_type" id="customer_type_b2b" value="b2b" @checked(old('customer_type') === 'b2b')>
+                                        <label class="btn btn-outline-secondary" for="customer_type_b2b">B2B</label>
+                                    </div>
+                                </div>
                                 <div class="mb-2">
                                     <label class="form-label" for="customer_phone">Phone</label>
                                     <input type="text" name="customer_phone" id="customer_phone" class="form-control" required value="{{ old('customer_phone') }}" autocomplete="off">
@@ -115,27 +125,54 @@
                                     <label class="form-label" for="customer_email">Email</label>
                                     <input type="email" name="customer_email" id="customer_email" class="form-control" value="{{ old('customer_email') }}">
                                 </div>
-                                <div class="mb-2">
+                                <div class="mb-2" id="pos-gst-registration-wrap" hidden>
+                                    <label class="form-label" for="finance_party_gst_registration_id">GST registration</label>
+                                    <select name="finance_party_gst_registration_id" id="finance_party_gst_registration_id" class="form-select">
+                                        <option value="">Select registration</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2" id="pos-buyer-gstin-wrap">
                                     <label class="form-label" for="buyer_gstin">Buyer GSTIN</label>
-                                    <input type="text" name="buyer_gstin" id="buyer_gstin" class="form-control" value="{{ old('buyer_gstin') }}" maxlength="32" autocomplete="off" placeholder="Optional — leave blank for B2C">
+                                    <input type="text" name="buyer_gstin" id="buyer_gstin" class="form-control" value="{{ old('buyer_gstin') }}" maxlength="32" autocomplete="off" placeholder="Optional for B2C">
                                     @error('buyer_gstin')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
-                                <div class="mb-2">
+                                <div class="mb-2" id="pos-billing-fields">
                                     <label class="form-label" for="billing_address">Billing address</label>
                                     <textarea name="billing_address" id="billing_address" class="form-control" rows="2" maxlength="1000">{{ old('billing_address') }}</textarea>
                                     @error('billing_address')<div class="text-danger small">{{ $message }}</div>@enderror
+                                    <div class="row g-2 mt-2">
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="billing_city">City</label>
+                                            <input type="text" name="billing_city" id="billing_city" class="form-control" value="{{ old('billing_city') }}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="billing_state">Billing state</label>
+                                            <select name="billing_state" id="billing_state" class="form-select">
+                                                <option value="">Select state</option>
+                                                @foreach($placeOfSupplyStates as $state)
+                                                    <option value="{{ $state }}" @selected(old('billing_state') === $state)>{{ $state }}</option>
+                                                @endforeach
+                                            </select>
+                                            @error('billing_state')<div class="text-danger small">{{ $message }}</div>@enderror
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="billing_postal_code">PIN</label>
+                                            <input type="text" name="billing_postal_code" id="billing_postal_code" class="form-control" value="{{ old('billing_postal_code') }}" maxlength="16">
+                                            @error('billing_postal_code')<div class="text-danger small">{{ $message }}</div>@enderror
+                                        </div>
+                                    </div>
                                 </div>
                                 <div>
                                     <label class="form-label" for="place_of_supply_state">Place of supply</label>
                                     <select name="place_of_supply_state" id="place_of_supply_state" class="form-select">
-                                        <option value="">Select state (required later for GST invoice)</option>
+                                        <option value="">Walk-in handover state</option>
                                         @foreach($placeOfSupplyStates as $state)
-                                            <option value="{{ $state }}" @selected(old('place_of_supply_state') === $state)>{{ $state }}</option>
+                                            <option value="{{ $state }}" @selected(old('place_of_supply_state', $defaultPlaceOfSupply) === $state)>{{ $state }}</option>
                                         @endforeach
                                     </select>
                                     @error('place_of_supply_state')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
-                                <p class="small text-muted mb-0 mt-2">These values are stored on the sale for Finance Hub. Completing the sale does not issue a GST invoice.</p>
+                                <p class="small text-muted mb-0 mt-2">Walk-in handover defaults to the selling branch state. A GST invoice is issued automatically when the sale completes.</p>
                                 <p class="small text-muted mb-0 mt-2" id="pos-customer-status"></p>
                             </div>
                         </div>
@@ -190,7 +227,7 @@
                                 <div class="d-flex justify-content-between"><span>Discount</span><span id="pos-discount">0.00</span></div>
                                 <div class="d-flex justify-content-between"><span>Tax</span><span id="pos-tax">0.00</span></div>
                                 <div class="d-flex justify-content-between fw-semibold fs-5 mt-2"><span>Total</span><span id="pos-total">0.00</span></div>
-                                <p class="small text-muted mb-0 mt-2">Internal invoice only — not a GST e-invoice.</p>
+                                <p class="small text-muted mb-0 mt-2">Internal receipt number is separate from the statutory GST invoice.</p>
                             </div>
                         </div>
 
@@ -228,6 +265,14 @@
                 const nameInput = document.getElementById('customer_name');
                 const emailInput = document.getElementById('customer_email');
                 const gstinInput = document.getElementById('buyer_gstin');
+                const partyIdInput = document.getElementById('finance_party_id');
+                const gstRegistrationWrap = document.getElementById('pos-gst-registration-wrap');
+                const gstRegistrationSelect = document.getElementById('finance_party_gst_registration_id');
+                const billingAddressInput = document.getElementById('billing_address');
+                const billingCityInput = document.getElementById('billing_city');
+                const billingStateInput = document.getElementById('billing_state');
+                const billingPostalInput = document.getElementById('billing_postal_code');
+                const customerTypeInputs = document.querySelectorAll('input[name="customer_type"]');
                 const customerStatus = document.getElementById('pos-customer-status');
                 const form = document.getElementById('pos-counter-form');
                 const completeButton = document.getElementById('pos-complete');
@@ -511,6 +556,51 @@
 
                 headerDiscount.addEventListener('input', renderTotals);
 
+                function selectedCustomerType() {
+                    const checked = document.querySelector('input[name="customer_type"]:checked');
+                    return checked ? checked.value : 'b2c';
+                }
+
+                function syncCustomerTypeUi() {
+                    const isB2b = selectedCustomerType() === 'b2b';
+                    gstinInput.required = isB2b;
+                    billingAddressInput.required = isB2b;
+                    billingStateInput.required = isB2b;
+                    billingPostalInput.required = isB2b;
+                    gstinInput.placeholder = isB2b ? 'Required for B2B' : 'Optional for B2C';
+                }
+
+                function populateGstRegistrations(registrations) {
+                    gstRegistrationSelect.innerHTML = '<option value="">Select registration</option>';
+                    (registrations || []).forEach(function (row) {
+                        const option = document.createElement('option');
+                        option.value = String(row.id);
+                        option.textContent = row.gstin + (row.registered_name ? ' — ' + row.registered_name : '');
+                        gstRegistrationSelect.appendChild(option);
+                    });
+                    gstRegistrationWrap.hidden = !(registrations || []).length;
+                }
+
+                customerTypeInputs.forEach(function (input) {
+                    input.addEventListener('change', syncCustomerTypeUi);
+                });
+                gstRegistrationSelect.addEventListener('change', function () {
+                    const option = gstRegistrationSelect.selectedOptions[0];
+                    if (!option || !option.value) {
+                        return;
+                    }
+                    const registration = (window.__posGstRegistrations || []).find(function (row) {
+                        return String(row.id) === option.value;
+                    });
+                    if (registration) {
+                        gstinInput.value = registration.gstin || gstinInput.value;
+                        if (registration.state && !billingStateInput.value) {
+                            billingStateInput.value = registration.state;
+                        }
+                    }
+                });
+                syncCustomerTypeUi();
+
                 phoneInput.addEventListener('input', function () {
                     clearTimeout(phoneTimer);
                     const phone = phoneInput.value.replace(/\s+/g, '');
@@ -530,11 +620,39 @@
                                 if (data.found) {
                                     nameInput.value = data.name || nameInput.value;
                                     emailInput.value = data.email || emailInput.value;
+                                    if (partyIdInput) {
+                                        partyIdInput.value = data.party_id ? String(data.party_id) : '';
+                                    }
+                                    if (data.customer_type) {
+                                        const target = document.getElementById('customer_type_' + data.customer_type);
+                                        if (target) {
+                                            target.checked = true;
+                                            syncCustomerTypeUi();
+                                        }
+                                    }
+                                    window.__posGstRegistrations = data.gst_registrations || [];
+                                    populateGstRegistrations(window.__posGstRegistrations);
                                     if (gstinInput && data.gstin && !gstinInput.value) {
                                         gstinInput.value = data.gstin;
                                     }
-                                    customerStatus.textContent = 'Existing POS customer loaded. Sale snapshot fields stay on this sale.';
+                                    if (billingAddressInput && data.billing_address && !billingAddressInput.value) {
+                                        billingAddressInput.value = data.billing_address;
+                                    }
+                                    if (billingCityInput && data.billing_city && !billingCityInput.value) {
+                                        billingCityInput.value = data.billing_city;
+                                    }
+                                    if (billingStateInput && data.billing_state && !billingStateInput.value) {
+                                        billingStateInput.value = data.billing_state;
+                                    }
+                                    if (billingPostalInput && data.billing_postal_code && !billingPostalInput.value) {
+                                        billingPostalInput.value = data.billing_postal_code;
+                                    }
+                                    customerStatus.textContent = 'Existing customer loaded. Snapshot fields stay on this sale.';
                                 } else {
+                                    if (partyIdInput) {
+                                        partyIdInput.value = '';
+                                    }
+                                    populateGstRegistrations([]);
                                     customerStatus.textContent = 'New customer will be created on complete.';
                                 }
                             })

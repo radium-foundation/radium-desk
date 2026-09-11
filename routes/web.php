@@ -527,6 +527,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('sales', [PosSaleController::class, 'index'])->name('sales.index');
         Route::get('sales/{sale}', [PosSaleController::class, 'show'])->name('sales.show');
         Route::get('sales/{sale}/invoice', [PosSaleController::class, 'invoice'])->name('sales.invoice');
+        Route::get('sales/{sale}/statutory-invoice/pdf', [PosSaleController::class, 'downloadStatutoryInvoice'])->name('sales.statutory-invoice.pdf');
+        Route::post('sales/{sale}/statutory-invoice/email', [PosSaleController::class, 'emailStatutoryInvoice'])->name('sales.statutory-invoice.email');
         Route::post('sales/{sale}/cancel', [PosSaleController::class, 'cancel'])->name('sales.cancel');
         Route::post('sales/{sale}/return', [PosSaleController::class, 'returnSale'])->name('sales.return');
         Route::get('upi/intents', [PosUpiIntentController::class, 'index'])->name('upi.intents.index');
