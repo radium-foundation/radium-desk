@@ -21,6 +21,9 @@
     </div>
     @include('pos.partials.workspace-nav', ['active' => 'sales'])
 
+    @if(session('status'))
+        <div class="alert alert-success">{{ session('status') }}</div>
+    @endif
     @if(session('warning'))
         <div class="alert alert-warning">{{ session('warning') }}</div>
     @endif
@@ -68,6 +71,8 @@
                     <div>Subtotal {{ number_format((float) $sale->subtotal, 2) }}</div>
                     <div>Discount {{ number_format((float) $sale->discount, 2) }}</div>
                     <div>Tax {{ number_format((float) $sale->tax, 2) }}</div>
+                    @php($roundOff = round((float) $sale->total - ((float) $sale->subtotal - (float) $sale->discount + (float) $sale->tax), 2))
+                    <div>Round Off {{ number_format($roundOff, 2) }}</div>
                     <div class="fw-semibold">Total {{ number_format((float) $sale->total, 2) }}</div>
                 </div>
             </div>

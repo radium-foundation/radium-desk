@@ -33,24 +33,28 @@
                     @endif
                 </div>
                 @if(is_array($presentation['einvoice'] ?? null))
+                    @php($einvoice = $presentation['einvoice'])
+                    @php($tone = $einvoice['tone'] ?? 'info')
                     <div class="small border-top pt-3">
-                        <div class="text-muted text-uppercase fw-semibold mb-1">E-invoice</div>
-                        <div>Status: {{ $presentation['einvoice']['status_label'] }}</div>
-                        @if(filled($presentation['einvoice']['irn'] ?? null))
-                            <div>IRN: {{ $presentation['einvoice']['irn'] }}</div>
-                        @endif
-                        @if(filled($presentation['einvoice']['ack_no'] ?? null))
-                            <div>Ack No: {{ $presentation['einvoice']['ack_no'] }}</div>
-                        @endif
-                        @if(filled($presentation['einvoice']['ack_date'] ?? null))
-                            <div>Ack Date: {{ $presentation['einvoice']['ack_date'] }}</div>
-                        @endif
-                        @if(filled($presentation['einvoice']['why'] ?? null))
-                            <div class="text-muted mt-2">Why? {{ $presentation['einvoice']['why'] }}</div>
-                        @endif
-                        @if(filled($presentation['einvoice']['next_action'] ?? null))
-                            <div class="text-muted">Next action: {{ $presentation['einvoice']['next_action'] }}</div>
-                        @endif
+                        <div class="alert alert-{{ $tone === 'success' ? 'success' : ($tone === 'danger' ? 'danger' : ($tone === 'warning' ? 'warning' : 'secondary')) }} mb-2">
+                            <div class="text-uppercase fw-semibold mb-1">E-invoice</div>
+                            <div class="fw-semibold">{{ $einvoice['status_label'] }}</div>
+                            @if(filled($einvoice['irn'] ?? null))
+                                <div>IRN: {{ $einvoice['irn'] }}</div>
+                            @endif
+                            @if(filled($einvoice['ack_no'] ?? null))
+                                <div>Ack No: {{ $einvoice['ack_no'] }}</div>
+                            @endif
+                            @if(filled($einvoice['ack_date'] ?? null))
+                                <div>Ack Date: {{ $einvoice['ack_date'] }}</div>
+                            @endif
+                            @if(filled($einvoice['why'] ?? null))
+                                <div class="mt-2">{{ $einvoice['why'] }}</div>
+                            @endif
+                            @if(filled($einvoice['next_action'] ?? null))
+                                <div>{{ $einvoice['next_action'] }}</div>
+                            @endif
+                        </div>
                     </div>
                 @endif
             @else

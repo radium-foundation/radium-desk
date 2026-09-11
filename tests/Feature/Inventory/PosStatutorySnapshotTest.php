@@ -22,7 +22,6 @@ use App\Services\StatutoryInvoice\StatutoryMintEligibility;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class PosStatutorySnapshotTest extends TestCase
@@ -159,7 +158,7 @@ class PosStatutorySnapshotTest extends TestCase
         $this->assertTrue($eligibility->eligible);
     }
 
-    public function test_customer_gstin_default_is_copied_onto_the_sale_snapshot(): void
+    public function test_customer_gstin_from_the_form_is_snapshotted_and_later_master_edits_do_not_change_it(): void
     {
         InventoryCustomer::query()->create([
             'name' => 'Repeat Buyer',
@@ -169,6 +168,7 @@ class PosStatutorySnapshotTest extends TestCase
 
         $this->actingAs($this->seller)
             ->post(route('pos.counter.store'), $this->payload([
+                'buyer_gstin' => '29AAAAA0000A1Z5',
                 'place_of_supply_state' => 'Karnataka',
                 'billing_city' => 'Bengaluru',
                 'billing_state' => 'Karnataka',
@@ -394,6 +394,28 @@ class PosStatutorySnapshotTest extends TestCase
         $this->assertSame('Delhi', $sale->place_of_supply_state);
         $this->assertNotNull($sale->statutory_invoice_id);
         $this->assertSame(1, StatutoryInvoice::query()->count());
+    }
+
+    public function test_blank_form_gstin_does_not_copy_master_gstin_onto_the_sale(): void
+    {
+        InventoryCustomer::query()->create([
+            'name' => 'ABC MOBILE MART',
+            'phone' => '8279573885',
+            'gstin' => '09ANQPA2385P1ZB',
+        ]);
+
+        $this->actingAs($this->seller)
+            ->post(route('pos.counter.store'), $this->payload([
+                'customer_name' => 'ABC MOBILE MART',
+                'customer_phone' => '8279573885',
+                'buyer_gstin' => '',
+                'idempotency_key' => 'snap-b2c-keep-master-gstin',
+            ]))
+            ->assertRedirect();
+
+        $sale = InventorySale::query()->where('idempotency_key', 'snap-b2c-keep-master-gstin')->firstOrFail();
+        $this->assertNull($sale->buyer_gstin);
+        $this->assertSame('09ANQPA2385P1ZB', $sale->customer?->gstin);
     }
 
     /**

@@ -51,7 +51,8 @@ class PosCustomerLookupTest extends TestCase
         $this->actingAs($this->seller)
             ->getJson(route('pos.customers.search', ['q' => '98']))
             ->assertOk()
-            ->assertJsonPath('customers.0.phone', '9898989898');
+            ->assertJsonPath('customers.0.phone', '9898989898')
+            ->assertJsonPath('customers.0.gstin', '07AAAAA0000A1Z5');
 
         $this->actingAs($this->seller)
             ->getJson(route('pos.customers.search', ['q' => 'ob']))
@@ -236,7 +237,11 @@ class PosCustomerLookupTest extends TestCase
         $this->assertStringContainsString('money(totals.taxable)', $html);
         $this->assertStringContainsString('lineTotals(cart[index]).taxable', $html);
         $this->assertStringNotContainsString('incl. GST', $html);
-        $this->assertStringContainsString('lineTotal: taxable + tax', $html);
+        $this->assertStringContainsString('setBuyerGstin(data.gstin || \'\')', $html);
+        $this->assertStringContainsString('captureScan', $html);
+        $this->assertStringContainsString('pos-roundoff', $html);
+        $this->assertStringContainsString('matchSerialUrl', $html);
+        $this->assertStringContainsString('pos-gstin-source', $html);
     }
 
     /**

@@ -12,8 +12,8 @@ final class EInvoiceAgentPresentation
      */
     private const MESSAGES = [
         'missing_uqc' => [
-            'why' => 'Product/service unit code is missing.',
-            'next_action' => 'Statutory service classification is being completed.',
+            'why' => 'UQC is missing for a product on this invoice.',
+            'next_action' => 'Set the unit (PCS, NOS, …) on the product master, then retry e-invoice from this sale.',
         ],
         'missing_buyer_pin' => [
             'why' => 'Buyer PIN code is missing.',
@@ -54,6 +54,10 @@ final class EInvoiceAgentPresentation
         'incomplete_gst' => [
             'why' => 'Statutory tax data is incomplete.',
             'next_action' => 'Tax details require verification before e-Invoice generation.',
+        ],
+        'missing_buyer_gstin' => [
+            'why' => 'Buyer GSTIN is missing or invalid.',
+            'next_action' => 'Enter the buyer GSTIN on the sale/invoice, or leave it blank only for B2C.',
         ],
         'gstin_requires_verification' => [
             'why' => 'Buyer GSTIN requires verification.',

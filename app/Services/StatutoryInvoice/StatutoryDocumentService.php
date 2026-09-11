@@ -183,7 +183,7 @@ class StatutoryDocumentService
             ackDate: $this->issuedAckDate($invoice),
             shippingAddress: $commerce['shipping'],
             paymentMethod: $this->paymentMethodFor($invoice),
-            paymentStatus: null,
+            paymentStatus: $this->paymentMethodFor($invoice) !== null ? 'Paid' : null,
             signedQr: $this->issuedSignedQr($invoice),
             sellerEmail: $this->nullableString(config('statutory_invoices.contact_email')),
             sellerPhone: $this->nullableString(config('statutory_invoices.contact_phone')),

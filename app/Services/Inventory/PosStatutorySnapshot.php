@@ -22,9 +22,11 @@ final class PosStatutorySnapshot
      */
     public function capture(?string $customerGstin, array $statutory, ?string $branchCode = null): array
     {
+        $fromForm = array_key_exists('buyer_gstin', $statutory);
         $buyerGstin = BuyerGstin::normalize(
-            StatutoryBillingStructured::nullable($statutory['buyer_gstin'] ?? null)
-                ?? StatutoryBillingStructured::nullable($customerGstin)
+            $fromForm
+                ? StatutoryBillingStructured::nullable($statutory['buyer_gstin'] ?? null)
+                : StatutoryBillingStructured::nullable($customerGstin)
         );
         if ($buyerGstin !== null && ! BuyerGstin::isValid($buyerGstin)) {
             throw ValidationException::withMessages([

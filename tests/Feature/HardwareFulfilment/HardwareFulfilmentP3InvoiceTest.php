@@ -137,10 +137,12 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $pdf = app(StatutoryDocumentService::class)->binary($invoice->document);
 
         $this->assertStringContainsString('Serial Numbers', $pdf);
-        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
-        $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('Annexure to tax invoice '.$invoice->invoice_number, $pdf);
-        $this->assertStringContainsString('Total serials', $pdf);
+        $this->assertStringNotContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString($invoice->invoice_number, $pdf);
+        $this->assertStringContainsString('RDE900308', $pdf);
+        $this->assertStringNotContainsString('statutory:radiumbox_com', $pdf);
+        $this->assertSame(1, substr_count($pdf, '%PDF-1.4'));
         for ($i = 1; $i <= 10; $i++) {
             $this->assertStringContainsString(sprintf('SN-RDE900308-%03d', $i), $pdf);
         }

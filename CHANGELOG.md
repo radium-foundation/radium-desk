@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — 2026-09-11 — P-243 POS + invoice operator workflow
+
+- Statutory PDF uses a low-ink layout (stroke cards, no filled table/total bars), always prints BILL TO and SHIP TO (`Same` when shipping is not distinct), fits 50 serials on page 1 with remainder-only Annexure A, and places stamp/signatory beside the e-Invoice Verification block.
+- POS invoice totals round to the nearest rupee without changing GST. Round Off is stored on new statutory invoices and sent as NIC `RndOffAmt`. Historical invoices are unchanged.
+- Selecting a POS customer fills master GSTIN into the form. A blank GSTIN on the sale does not wipe the customer master and does not silently copy master GSTIN onto a B2C snapshot.
+- Serial scanning uses Enter on a focused field (does not submit the sale), matches the selected product, and rejects sold/reserved/wrong-SKU/unknown serials with a visible message.
+- Completing a sale shows whether e-invoice generated, is pending, or was blocked, with an actionable reason. Completing Bank Transfer still means the sale was settled in Desk — it is not a bank-receipt proof.
+
+## 4.0.67 — 2026-09-04 — POS UPI intent and bank verification
+
 ## 4.0.67 — 2026-09-04 — POS UPI intent and bank verification
 
 - UPI on the POS counter creates a persisted unpaid payment intent and a local `upi://pay` QR. The QR is an instruction only and is never treated as payment confirmation.

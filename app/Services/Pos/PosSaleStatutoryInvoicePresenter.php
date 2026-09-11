@@ -2,6 +2,7 @@
 
 namespace App\Services\Pos;
 
+use App\Enums\EInvoiceRecordStatus;
 use App\Models\InventorySale;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
@@ -81,7 +82,8 @@ final class PosSaleStatutoryInvoicePresenter
         $record = $invoice->eInvoiceRecord;
         if (EInvoiceIrnGuard::recordHasIssuedIrn($record)) {
             return [
-                'status_label' => 'IRN Generated',
+                'status_label' => 'e-Invoice generated successfully',
+                'tone' => 'success',
                 'irn' => trim((string) $record?->irn),
                 'ack_no' => $this->nullableTrim($record?->ack_no),
                 'ack_date' => AppDateFormatter::datetime24($record?->ack_date),
@@ -96,10 +98,11 @@ final class PosSaleStatutoryInvoicePresenter
         if ($eligibility->reason === 'b2c_not_eligible') {
             return [
                 'status_label' => 'Not Applicable',
+                'tone' => 'info',
                 'irn' => null,
                 'ack_no' => null,
                 'ack_date' => null,
-                'why' => 'B2C / not eligible',
+                'why' => 'B2C / not eligible for IRN.',
                 'next_action' => null,
             ];
         }
@@ -113,13 +116,42 @@ final class PosSaleStatutoryInvoicePresenter
             return $this->blockedPresentation([$providerReason]);
         }
 
+        $status = $record?->status;
+        if ($status === EInvoiceRecordStatus::Failed
+            || $status === EInvoiceRecordStatus::PermanentFailure
+            || $status === EInvoiceRecordStatus::Ambiguous
+            || $status === EInvoiceRecordStatus::IrnNotFound) {
+            return [
+                'status_label' => 'e-Invoice not generated',
+                'tone' => 'danger',
+                'irn' => null,
+                'ack_no' => null,
+                'ack_date' => null,
+                'why' => 'The e-invoice provider did not issue an IRN for this invoice.',
+                'next_action' => 'Retry from this sale after the blocker is cleared. Do not generate IRN twice.',
+            ];
+        }
+
+        if ($status === EInvoiceRecordStatus::TemporaryFailure) {
+            return [
+                'status_label' => 'e-Invoice pending',
+                'tone' => 'warning',
+                'irn' => null,
+                'ack_no' => null,
+                'ack_date' => null,
+                'why' => 'The e-invoice provider was temporarily unavailable. The worker will retry without creating a duplicate GENERATE.',
+                'next_action' => 'Refresh this page shortly.',
+            ];
+        }
+
         return [
-            'status_label' => 'Pending',
+            'status_label' => 'e-Invoice pending',
+            'tone' => 'warning',
             'irn' => null,
             'ack_no' => null,
             'ack_date' => null,
-            'why' => null,
-            'next_action' => null,
+            'why' => 'Eligible B2B invoice is queued for IRN.',
+            'next_action' => 'Refresh this page after the queue worker runs. PDF finalizes automatically after IRN.',
         ];
     }
 
@@ -136,7 +168,8 @@ final class PosSaleStatutoryInvoicePresenter
             : $this->agentPresentation->blocked($blocked);
 
         return [
-            'status_label' => $presentation['status_label'],
+            'status_label' => 'e-Invoice not generated',
+            'tone' => 'danger',
             'irn' => null,
             'ack_no' => null,
             'ack_date' => null,

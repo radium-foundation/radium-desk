@@ -58,7 +58,11 @@ class SimplePdfRenderer
 
     private const NAVY_B = 0.373;
 
-    public const FIRST_PAGE_SERIAL_LIMIT = 8;
+    public const FIRST_PAGE_SERIAL_LIMIT = 50;
+
+    private const SERIAL_COLUMNS = 4;
+
+    private const SERIAL_ROW_HEIGHT = 10.0;
 
     /** @var array<string, array{width: int, height: int, data: string}> */
     private array $embeddedImages = [];
@@ -550,8 +554,7 @@ class SimplePdfRenderer
     {
         $gap = 10.0;
         $fullWidth = self::CONTENT_RIGHT - self::MARGIN;
-        $showShip = $payload->hasDistinctShippingAddress();
-        $leftWidth = $showShip ? ($fullWidth - $gap) / 2 : $fullWidth;
+        $leftWidth = ($fullWidth - $gap) / 2;
         $rightX = self::MARGIN + $leftWidth + $gap;
         $rightWidth = $fullWidth - $leftWidth - $gap;
 
@@ -559,7 +562,9 @@ class SimplePdfRenderer
             ? $payload->buyerGstin
             : 'Unregistered';
         $leftLines = $this->buyerLines($payload, $buyerGstin, $leftWidth - 16);
-        $rightLines = $showShip ? $this->rightPartyLines($payload, $rightWidth - 16) : [];
+        $rightLines = $payload->hasDistinctShippingAddress()
+            ? $this->rightPartyLines($payload, $rightWidth - 16)
+            : ['Same'];
         $rows = max(count($leftLines), count($rightLines), 3);
         $innerH = 16.0 + (11.0 * $rows) + 8.0;
         $cardBottom = $y - $innerH;
@@ -572,14 +577,13 @@ class SimplePdfRenderer
             $lineY -= 11;
         }
 
-        if ($showShip) {
-            $ops[] = $this->card($rightX, $cardBottom, $rightWidth, $innerH);
-            $ops[] = $this->text($rightX + 8, $y - 12, 'SHIP TO', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-            $lineY = $y - 24;
-            foreach ($rightLines as $i => $line) {
-                $ops[] = $this->text($rightX + 8, $lineY, $line, $i === 0 ? 9 : 8, $i === 0, $i === 0 ? self::NAVY_R : 0.18, $i === 0 ? self::NAVY_G : 0.18, $i === 0 ? self::NAVY_B : 0.18);
-                $lineY -= 11;
-            }
+        $ops[] = $this->card($rightX, $cardBottom, $rightWidth, $innerH);
+        $ops[] = $this->text($rightX + 8, $y - 12, 'SHIP TO', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $lineY = $y - 24;
+        foreach ($rightLines as $i => $line) {
+            $same = $line === 'Same';
+            $ops[] = $this->text($rightX + 8, $lineY, $line, $same ? 9 : ($i === 0 ? 9 : 8), $same || $i === 0, $i === 0 || $same ? self::NAVY_R : 0.18, $i === 0 || $same ? self::NAVY_G : 0.18, $i === 0 || $same ? self::NAVY_B : 0.18);
+            $lineY -= 11;
         }
 
         return $cardBottom - 12;
@@ -637,17 +641,18 @@ class SimplePdfRenderer
     private function tableHeader(float $y): string
     {
         $ops = [];
-        $ops[] = $this->fill(self::MARGIN, $y - 6, self::CONTENT_RIGHT - self::MARGIN, 16, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-        $ops[] = $this->text(self::COL_NO, $y, '#', 6, true, 1, 1, 1);
-        $ops[] = $this->text(self::COL_PRODUCT, $y, 'Product / Service', 6, true, 1, 1, 1);
-        $ops[] = $this->text(self::COL_HSN, $y, 'HSN/SAC', 6, true, 1, 1, 1);
-        $ops[] = $this->rightText(self::COL_QTY, $y, 'Qty', 6, true, 1, 1, 1);
-        $ops[] = $this->text(self::COL_UQC + 2, $y, 'UQC', 6, true, 1, 1, 1);
-        $ops[] = $this->rightText(self::COL_RATE, $y, 'Unit Price', 6, true, 1, 1, 1);
-        $ops[] = $this->rightText(self::COL_TAXABLE, $y, 'Taxable', 6, true, 1, 1, 1);
-        $ops[] = $this->rightText(self::COL_GST, $y, 'Tax Rate', 6, true, 1, 1, 1);
-        $ops[] = $this->rightText(self::COL_TAX, $y, 'Tax Amount', 6, true, 1, 1, 1);
-        $ops[] = $this->rightText(self::COL_AMOUNT, $y, 'Amount', 6, true, 1, 1, 1);
+        $ops[] = $this->hairline(self::MARGIN, $y + 6, self::CONTENT_RIGHT, 0.45);
+        $ops[] = $this->hairline(self::MARGIN, $y - 8, self::CONTENT_RIGHT, 0.45);
+        $ops[] = $this->text(self::COL_NO, $y, '#', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->text(self::COL_PRODUCT, $y, 'Product / Service', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->text(self::COL_HSN, $y, 'HSN/SAC', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->rightText(self::COL_QTY, $y, 'Qty', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->text(self::COL_UQC + 2, $y, 'UQC', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->rightText(self::COL_RATE, $y, 'Unit Price', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->rightText(self::COL_TAXABLE, $y, 'Taxable', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->rightText(self::COL_GST, $y, 'Tax Rate', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->rightText(self::COL_TAX, $y, 'Tax Amount', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->rightText(self::COL_AMOUNT, $y, 'Amount', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
 
         return implode('', $ops);
     }
@@ -878,9 +883,9 @@ class SimplePdfRenderer
         $pairY = $y - 14;
         foreach ($pairs as [$label, $value, $bold]) {
             if ($bold) {
-                $ops[] = $this->fill($rightX, $pairY - 6, $rightW, 16, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-                $ops[] = $this->text($rightX + 8, $pairY, $label, 8, true, 1, 1, 1);
-                $ops[] = $this->rightText(self::CONTENT_RIGHT - 8, $pairY, $value, 8, true, 1, 1, 1);
+                $ops[] = $this->hairline($rightX + 6, $pairY + 8, self::CONTENT_RIGHT - 6, 0.45);
+                $ops[] = $this->text($rightX + 8, $pairY, $label, 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+                $ops[] = $this->rightText(self::CONTENT_RIGHT - 8, $pairY, $value, 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
                 $pairY -= 16;
 
                 continue;
@@ -909,15 +914,15 @@ class SimplePdfRenderer
         }
 
         $signX = 392.0;
+        $closingTop = $y;
         if ($payload->hasIssuedIrn()) {
-            $verifyRight = $signX - 12;
-            $y = $this->compactIrnVerificationBlock($ops, $payload, $y, $verifyRight);
+            $this->compactIrnVerificationBlock($ops, $payload, $closingTop, $signX - 12);
         } else {
-            $ops[] = $this->text(self::MARGIN, $y - 2, 'Whether tax is payable on reverse charge basis: No', 7, false, 0.32, 0.32, 0.32);
+            $ops[] = $this->text(self::MARGIN, $closingTop - 2, 'Whether tax is payable on reverse charge basis: No', 7, false, 0.32, 0.32, 0.32);
         }
 
-        $ops[] = $this->text($signX, $y, 'For '.$payload->sellerLegalName, 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-        $stampTop = $y - 10;
+        $ops[] = $this->text($signX, $closingTop, 'For '.$payload->sellerLegalName, 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $stampTop = $closingTop - 10;
         $ops[] = $this->stampMark($signX, $stampTop);
         $ops[] = $this->text($signX, $stampTop - self::STAMP_MAX_HEIGHT - 6, 'Authorized Signatory', 7, true, 0.22, 0.22, 0.22);
 
@@ -985,17 +990,22 @@ class SimplePdfRenderer
     private function paymentColumns(StatutoryInvoicePdfPayload $payload): array
     {
         $cols = [];
-        if (trim((string) ($payload->paymentReference ?? '')) !== '') {
+        $status = strtoupper(trim((string) ($payload->paymentStatus ?? '')));
+        $method = trim((string) ($payload->paymentMethod ?? ''));
+        if ($status === '') {
+            $status = $method !== '' ? 'PAID' : '';
+        }
+        $unpaid = $status === 'UNPAID';
+        if ($status !== '') {
+            $cols[] = ['Payment Status', $unpaid ? 'UNPAID' : 'Paid'];
+        }
+        if ($method !== '') {
+            $cols[] = ['Mode of Payment', $this->display($method)];
+        }
+        if (! $unpaid && trim((string) ($payload->paymentReference ?? '')) !== '') {
             $cols[] = ['Reference No.', $this->display($payload->paymentReference)];
         }
-        $date = $this->invoiceDate($payload->issuedAt);
-        if ($date !== '-') {
-            $cols[] = ['Payment Date', $date];
-        }
         $cols[] = ['Invoice Value', $this->money($payload->invoiceValue)];
-        if (trim((string) ($payload->paymentMethod ?? '')) !== '') {
-            $cols[] = ['Mode of Payment', $this->display($payload->paymentMethod)];
-        }
 
         return $cols;
     }
@@ -1034,8 +1044,7 @@ class SimplePdfRenderer
     }
 
     /**
-     * Complete unique serial list when page 1 cannot show every serial.
-     * Empty when everything fits on page 1 (no annexure).
+     * Serials after FIRST_PAGE_SERIAL_LIMIT. Empty when everything fits on page 1.
      *
      * @return list<string>
      */
@@ -1046,7 +1055,7 @@ class SimplePdfRenderer
             return [];
         }
 
-        return $all;
+        return array_values(array_slice($all, self::FIRST_PAGE_SERIAL_LIMIT));
     }
 
     private function serialSummaryHeight(StatutoryInvoicePdfPayload $payload): float
@@ -1056,10 +1065,10 @@ class SimplePdfRenderer
             return 0.0;
         }
 
-        $lines = $this->wrapDelimited($first, self::CONTENT_RIGHT - self::MARGIN, 8);
-        $height = 12.0 + (11.0 * count($lines)) + 16.0;
+        $rows = (int) ceil(count($first) / self::SERIAL_COLUMNS);
+        $height = 16.0 + ($rows * self::SERIAL_ROW_HEIGHT) + 12.0;
         if ($this->annexureSerials($payload) !== []) {
-            $height += 11.0;
+            $height += 10.0;
         }
 
         return $height;
@@ -1082,10 +1091,7 @@ class SimplePdfRenderer
             $ops[] = $this->text(self::MARGIN + 92, $y, '(More in Annexure A)', 7, false, 0.4, 0.4, 0.4);
         }
         $y -= 12;
-        foreach ($this->wrapDelimited($first, self::CONTENT_RIGHT - self::MARGIN - 16, 8) as $line) {
-            $ops[] = $this->text(self::MARGIN + 8, $y, $line, 8, false, 0.18, 0.18, 0.18);
-            $y -= 11;
-        }
+        $y = $this->numberedSerialGrid($ops, $first, 1, $y);
         if ($this->annexureSerials($payload) !== []) {
             $ops[] = $this->text(self::MARGIN + 8, $y, '* More serial numbers in Annexure A', 7, false, 0.32, 0.32, 0.32);
             $y -= 11;
@@ -1105,13 +1111,14 @@ class SimplePdfRenderer
         }
 
         $total = count($this->normalizedSerials($payload));
-        $perPage = 60;
+        $startNumber = self::FIRST_PAGE_SERIAL_LIMIT + 1;
+        $perPage = 80;
         $streams = [];
         $offset = 0;
         $first = true;
         while ($offset < count($remaining)) {
             $slice = array_slice($remaining, $offset, $perPage);
-            $streams[] = $this->annexurePage($payload, $slice, $total, $first);
+            $streams[] = $this->annexurePage($payload, $slice, $total, $first, $startNumber + $offset);
             $offset += count($slice);
             $first = false;
         }
@@ -1122,7 +1129,7 @@ class SimplePdfRenderer
     /**
      * @param  list<string>  $serials
      */
-    private function annexurePage(StatutoryInvoicePdfPayload $payload, array $serials, int $total, bool $first): string
+    private function annexurePage(StatutoryInvoicePdfPayload $payload, array $serials, int $total, bool $first, int $startNumber): string
     {
         $ops = [];
         $y = 808.0;
@@ -1154,30 +1161,40 @@ class SimplePdfRenderer
             $y = $metaBottom - 14;
         }
 
-        $colWidth = (self::CONTENT_RIGHT - self::MARGIN - 16) / 3;
-        $col = 0;
-        $rowY = $y;
-        $rowIndex = 0;
-        foreach ($serials as $serial) {
-            if ($rowY < self::CONTENT_FLOOR + 8) {
-                break;
-            }
-            if ($col === 0 && $rowIndex % 2 === 0) {
-                $ops[] = $this->fill(self::MARGIN, $rowY - 4, self::CONTENT_RIGHT - self::MARGIN, 14, 0.965, 0.972, 0.985);
-            }
-            $x = self::MARGIN + 8 + ($col * $colWidth);
-            $ops[] = $this->text($x, $rowY, $serial, 8, false, 0.15, 0.15, 0.15);
-            $col++;
-            if ($col >= 3) {
-                $col = 0;
-                $rowY -= 14;
-                $rowIndex++;
-            }
-        }
+        $this->numberedSerialGrid($ops, $serials, $startNumber, $y);
 
         $ops[] = $this->text(self::MARGIN, self::CONTENT_FLOOR - 6, 'Annexure to tax invoice '.$payload->invoiceNumber, 7, false, 0.4, 0.4, 0.4);
 
         return implode('', $ops);
+    }
+
+    /**
+     * @param  list<string>  $ops
+     * @param  list<string>  $serials
+     */
+    private function numberedSerialGrid(array &$ops, array $serials, int $startNumber, float $y): float
+    {
+        $colWidth = (self::CONTENT_RIGHT - self::MARGIN - 16) / self::SERIAL_COLUMNS;
+        $col = 0;
+        $rowY = $y;
+        foreach ($serials as $i => $serial) {
+            if ($rowY < self::CONTENT_FLOOR + 8) {
+                break;
+            }
+            $x = self::MARGIN + 8 + ($col * $colWidth);
+            $label = ($startNumber + $i).'. '.$this->ascii($serial);
+            $ops[] = $this->text($x, $rowY, $this->clip($label, $colWidth - 6, 7), 7, false, 0.15, 0.15, 0.15);
+            $col++;
+            if ($col >= self::SERIAL_COLUMNS) {
+                $col = 0;
+                $rowY -= self::SERIAL_ROW_HEIGHT;
+            }
+        }
+        if ($col > 0) {
+            $rowY -= self::SERIAL_ROW_HEIGHT;
+        }
+
+        return $rowY;
     }
 
     /**
@@ -1506,8 +1523,7 @@ class SimplePdfRenderer
 
     private function card(float $x, float $y, float $w, float $h): string
     {
-        return $this->fill($x, $y, $w, $h, 0.965, 0.972, 0.985)
-            .$this->strokeRect($x, $y, $w, $h, 0.82);
+        return $this->strokeRect($x, $y, $w, $h, 0.55);
     }
 
     private function pageFooter(int $page, int $totalPages): string

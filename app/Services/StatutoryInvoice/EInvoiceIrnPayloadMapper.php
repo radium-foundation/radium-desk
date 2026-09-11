@@ -107,6 +107,7 @@ class EInvoiceIrnPayloadMapper
                 'sgst' => $this->storedDecimal($invoice->sgst),
                 'igst' => $this->storedDecimal($invoice->igst),
                 'tax_total' => $this->storedDecimal($invoice->tax_total),
+                'rounding' => $this->storedDecimal($invoice->rounding),
                 'invoice_value' => $this->storedDecimal($invoice->invoice_value),
             ],
             gaps: $gaps,

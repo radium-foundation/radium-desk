@@ -396,10 +396,8 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
 
         $this->assertStringContainsString('TAX INVOICE', $pdf);
         $this->assertStringContainsString('Serial Numbers', $pdf);
-        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
-        $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('Annexure to tax invoice INV-076724', $pdf);
-        $this->assertStringContainsString('Total serials', $pdf);
+        $this->assertStringNotContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
         $this->assertStringContainsString('UQC', $pdf);
         $this->assertStringContainsString('PCS', $pdf);
         $this->assertStringContainsString('Rs.1180.00', $pdf);
@@ -456,6 +454,9 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Andheri East', $pdf);
         $this->assertStringContainsString('Payment', $pdf);
         $this->assertStringContainsString('UPI', $pdf);
+        $this->assertStringContainsString('Payment Status', $pdf);
+        $this->assertStringContainsString('Paid', $pdf);
+        $this->assertStringNotContainsString('Payment Date', $pdf);
         $this->assertStringNotContainsString('e-Invoice Verification', $pdf);
         $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);
         $this->assertStringNotContainsString('fake-signed-qr', $pdf);
@@ -920,14 +921,212 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             orderId: 'RDE318900',
         )));
 
-        $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
+        $this->assertStringNotContainsString('* More serial numbers in Annexure A', $pdf);
         foreach ($serials as $serial) {
             $this->assertStringContainsString($serial, $pdf);
         }
         $this->assertSame(1, substr_count($pdf, 'SN-24'));
         $this->assertStringContainsString('Rs.2832.00', $pdf);
         $this->assertStringContainsString('Page 1 of', $pdf);
+    }
+
+    public function test_fifty_serials_fit_on_page_one_without_annexure(): void
+    {
+        $serials = [];
+        for ($i = 1; $i <= 50; $i++) {
+            $serials[] = sprintf('SN-%03d', $i);
+        }
+
+        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076850',
+            issuedAt: '2026-09-11 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Hardware Buyer',
+            buyerGstin: '07AAAAA0000A1Z5',
+            billingAddress: '1 Test Street, Delhi',
+            placeOfSupply: 'Delhi',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1',
+                'hsnSac' => '84716050',
+                'qty' => 50,
+                'unitPrice' => '100.00',
+                'taxableValue' => '5000.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '450.00',
+                'sgst' => '450.00',
+                'igst' => '0.00',
+                'taxTotal' => '900.00',
+                'lineTotal' => '5900.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '5000.00',
+            gstRate: '18.00%',
+            taxTotal: '900.00',
+            cgst: '450.00',
+            sgst: '450.00',
+            igst: '0.00',
+            invoiceValue: '5900.00',
+            serialNumbers: $serials,
+            orderId: 'POS-000050',
+        )));
+
+        $this->assertStringContainsString('1. SN-001', $pdf);
+        $this->assertStringContainsString('50. SN-050', $pdf);
+        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
+        $this->assertStringNotContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertStringContainsString('SHIP TO', $pdf);
+        $this->assertStringContainsString('Same', $pdf);
+    }
+
+    public function test_fifty_one_serials_put_remainder_only_in_annexure(): void
+    {
+        $serials = [];
+        for ($i = 1; $i <= 51; $i++) {
+            $serials[] = sprintf('SN-%03d', $i);
+        }
+
+        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076851',
+            issuedAt: '2026-09-11 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Hardware Buyer',
+            buyerGstin: '07AAAAA0000A1Z5',
+            billingAddress: '1 Test Street, Delhi',
+            placeOfSupply: 'Delhi',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1',
+                'hsnSac' => '84716050',
+                'qty' => 51,
+                'unitPrice' => '100.00',
+                'taxableValue' => '5100.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '459.00',
+                'sgst' => '459.00',
+                'igst' => '0.00',
+                'taxTotal' => '918.00',
+                'lineTotal' => '6018.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '5100.00',
+            gstRate: '18.00%',
+            taxTotal: '900.00',
+            cgst: '459.00',
+            sgst: '459.00',
+            igst: '0.00',
+            invoiceValue: '6018.00',
+            serialNumbers: $serials,
+            orderId: 'POS-000051',
+        )));
+
+        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('51. SN-051', $pdf);
+        $this->assertSame(1, substr_count($pdf, 'SN-001'));
+        $this->assertSame(1, substr_count($pdf, 'SN-051'));
+    }
+
+    public function test_one_hundred_serials_are_never_truncated(): void
+    {
+        $serials = [];
+        for ($i = 1; $i <= 100; $i++) {
+            $serials[] = sprintf('SN-%03d', $i);
+        }
+
+        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076900',
+            issuedAt: '2026-09-11 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Hardware Buyer',
+            buyerGstin: '07AAAAA0000A1Z5',
+            billingAddress: '1 Test Street, Delhi',
+            placeOfSupply: 'Delhi',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1',
+                'hsnSac' => '84716050',
+                'qty' => 100,
+                'unitPrice' => '100.00',
+                'taxableValue' => '10000.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '900.00',
+                'sgst' => '900.00',
+                'igst' => '0.00',
+                'taxTotal' => '1800.00',
+                'lineTotal' => '11800.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '10000.00',
+            gstRate: '18.00%',
+            taxTotal: '1800.00',
+            cgst: '900.00',
+            sgst: '900.00',
+            igst: '0.00',
+            invoiceValue: '11800.00',
+            serialNumbers: $serials,
+            rounding: '0.00',
+            orderId: 'POS-000100',
+        )));
+
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        foreach ($serials as $serial) {
+            $this->assertStringContainsString($serial, $pdf);
+        }
+        $this->assertSame(1, substr_count($pdf, 'SN-050'));
+        $this->assertSame(1, substr_count($pdf, 'SN-100'));
+    }
+
+    public function test_unpaid_payment_does_not_print_a_receipt_date(): void
+    {
+        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076860',
+            issuedAt: '2026-09-11 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'ABC MOBILE MART',
+            buyerGstin: '09ANQPA2385P1ZB',
+            billingAddress: 'B18 BUTLER PLAZA, BAREILLY',
+            placeOfSupply: 'Uttar Pradesh',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1',
+                'hsnSac' => '84716050',
+                'qty' => 1,
+                'unitPrice' => '100.00',
+                'taxableValue' => '100.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '9.00',
+                'sgst' => '9.00',
+                'igst' => '0.00',
+                'taxTotal' => '18.00',
+                'lineTotal' => '118.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '100.00',
+            gstRate: '18.00%',
+            taxTotal: '18.00',
+            cgst: '9.00',
+            sgst: '9.00',
+            igst: '0.00',
+            invoiceValue: '118.00',
+            paymentMethod: 'Bank Transfer',
+            paymentStatus: 'UNPAID',
+            rounding: '0.06',
+        )));
+
+        $this->assertStringContainsString('UNPAID', $pdf);
+        $this->assertStringContainsString('Bank Transfer', $pdf);
+        $this->assertStringNotContainsString('Payment Date', $pdf);
+        $this->assertStringContainsString('Round Off', $pdf);
     }
 
     public function test_b2c_single_page_omits_empty_ship_to_and_einvoice_block(): void
@@ -937,7 +1136,8 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
 
         $this->assertStringContainsString('/MediaBox [0 0 595 842]', $binary);
         $this->assertStringContainsString('Page 1 of 1', $text);
-        $this->assertStringNotContainsString('SHIP TO', $text);
+        $this->assertStringContainsString('SHIP TO', $text);
+        $this->assertStringContainsString('Same', $text);
         $this->assertStringNotContainsString('e-Invoice Verification', $text);
         $this->assertStringContainsString('GSTIN Unregistered', $text);
         $this->assertStringContainsString('CIN: U72300DL2015PTC280283', $text);

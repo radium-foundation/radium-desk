@@ -212,14 +212,14 @@ class InventoryPosOperationalWorkflowTest extends TestCase
         $this->assertSame(2580.00, (float) $sale->subtotal);
         $this->assertSame(10.00, (float) $sale->discount);
         $this->assertSame(464.40, (float) $sale->tax);
-        $this->assertSame(3034.40, (float) $sale->total);
+        $this->assertEqualsWithDelta(3034.00, (float) $sale->total, 0.001);
         $this->assertSame(InventorySerialStatus::Sold, InventorySerial::query()->where('serial_number', 'QA-SN-001')->value('status'));
         $this->assertSame(3, (int) $quantity->balances()->where('branch_id', $this->branchA->id)->where('variant_id', $variant->id)->value('available_qty'));
 
         $journal = FinanceJournal::query()->findOrFail($sale->finance_journal_id);
         $this->assertSame('pos_sale:'.$sale->id, $journal->idempotency_key);
-        $this->assertSame('3034.40', $journal->totalDebits());
-        $this->assertSame('3034.40', $journal->totalCredits());
+        $this->assertSame('3034.00', $journal->totalDebits());
+        $this->assertSame('3034.00', $journal->totalCredits());
 
         $this->actingAs($this->hardware)
             ->get(route('pos.sales.show', $sale))

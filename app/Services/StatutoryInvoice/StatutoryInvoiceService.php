@@ -22,6 +22,7 @@ use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
 use App\Support\Finance\GstStateCodes;
 use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
+use App\Support\StatutoryInvoice\InvoiceRoundOff;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -138,7 +139,7 @@ class StatutoryInvoiceService
                     'cgst' => $totals['cgst'],
                     'sgst' => $totals['sgst'],
                     'igst' => $totals['igst'],
-                    'rounding' => 0,
+                    'rounding' => $totals['rounding'],
                     'invoice_value' => $totals['invoice_value'],
                     'payment_method' => $request->paymentMethod,
                     'payment_reference' => $request->paymentReference,
@@ -629,10 +630,14 @@ class StatutoryInvoiceService
             }
         }
 
+        $unrounded = round($lineTotal - $request->discount, 2);
+        $roundOff = InvoiceRoundOff::nearestRupee($unrounded);
+
         return [
             'taxable_value' => round($taxable, 2),
             'tax_total' => round($tax, 2),
-            'invoice_value' => round($lineTotal - $request->discount, 2),
+            'rounding' => $roundOff['rounding'],
+            'invoice_value' => $roundOff['rounded'],
             'cgst' => $hasCgst ? round($cgst, 2) : null,
             'sgst' => $hasSgst ? round($sgst, 2) : null,
             'igst' => $hasIgst ? round($igst, 2) : null,

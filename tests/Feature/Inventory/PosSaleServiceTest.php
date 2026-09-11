@@ -6,6 +6,7 @@ use App\Enums\InventoryFinanceHandoffStatus;
 use App\Enums\InventorySaleStatus;
 use App\Enums\InventorySerialStatus;
 use App\Models\InventoryBranch;
+use App\Models\InventoryCustomer;
 use App\Models\InventoryProduct;
 use App\Models\InventorySale;
 use App\Models\InventorySerial;
@@ -644,6 +645,60 @@ class PosSaleServiceTest extends TestCase
             paymentMethod: 'Cash',
             actor: $this->actor,
         );
+    }
+
+    public function test_blank_sale_gstin_does_not_wipe_customer_master(): void
+    {
+        InventoryCustomer::query()->create([
+            'name' => 'ABC MOBILE MART',
+            'phone' => '8279573885',
+            'gstin' => '09ANQPA2385P1ZB',
+        ]);
+        $product = $this->serializedProduct('MFS110-GSTIN', 'Mantra GSTIN keep');
+        $this->stock->stockInSerialized($product, $this->branch, ['POS-GSTIN-1'], $this->actor);
+
+        $sale = $this->sales->completeSale(
+            branch: $this->branch,
+            customer: [
+                'name' => 'ABC MOBILE MART',
+                'phone' => '8279573885',
+                'gstin' => '',
+            ],
+            lines: [[
+                'product_id' => $product->id,
+                'qty' => 1,
+                'serials' => ['POS-GSTIN-1'],
+            ]],
+            paymentMethod: 'Bank Transfer',
+            actor: $this->actor,
+            statutory: ['buyer_gstin' => ''],
+        );
+
+        $this->assertSame('09ANQPA2385P1ZB', $sale->customer?->fresh()->gstin);
+        $this->assertNull($sale->buyer_gstin);
+    }
+
+    public function test_quote_totals_round_nearest_rupee_without_changing_tax(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'ROUND-POS',
+            'name' => 'Round off product',
+            'hsn_code' => '84716050',
+            'uqc' => 'PCS',
+            'gst_percentage' => 18,
+            'unit_price' => 9533.85,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+
+        $quote = $this->sales->quoteTotals([
+            ['product_id' => $product->id, 'qty' => 1, 'unit_price' => 9533.85, 'discount' => 0],
+        ]);
+
+        $this->assertEqualsWithDelta(9533.85, $quote['subtotal'], 0.001);
+        $this->assertEqualsWithDelta(1716.09, $quote['tax'], 0.001);
+        $this->assertEqualsWithDelta(0.06, $quote['rounding'], 0.001);
+        $this->assertEqualsWithDelta(11250.00, $quote['total'], 0.001);
     }
 
     private function serializedProduct(string $sku = 'MFS110-POS', string $name = 'Mantra MFS110'): InventoryProduct

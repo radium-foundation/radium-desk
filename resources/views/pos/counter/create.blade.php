@@ -64,9 +64,10 @@
                             <div class="card-body">
                                 <h2 class="h6" id="pos-serial-heading">Available serials</h2>
                                 <label class="form-label" for="pos-serial-search">Serial search</label>
-                                <input type="search" id="pos-serial-search" class="form-control" placeholder="Scan or type serial" autocomplete="off">
+                                <input type="text" id="pos-serial-search" class="form-control" placeholder="Scan barcode/QR or type serial, then Enter" autocomplete="off" spellcheck="false" enterkeyhint="done">
+                                <p class="small mb-0 mt-2" id="pos-serial-status"></p>
                                 <div id="pos-serial-results" class="list-group mt-2"></div>
-                                <p class="small text-muted mb-0 mt-2">One serial is one unit. Sold or reserved serials will not appear.</p>
+                                <p class="small text-muted mb-0 mt-2">Keep this field focused. Scan each serial — Enter adds it. One cart row; Qty = unique serials. Sold, reserved, duplicate, and wrong-SKU serials are rejected.</p>
                             </div>
                         </div>
 
@@ -120,7 +121,8 @@
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label" for="buyer_gstin">Buyer GSTIN</label>
-                                    <input type="text" name="buyer_gstin" id="buyer_gstin" class="form-control" value="{{ old('buyer_gstin') }}" maxlength="32" autocomplete="off" placeholder="Optional — leave blank for B2C">
+                                    <input type="text" name="buyer_gstin" id="buyer_gstin" class="form-control" value="{{ old('buyer_gstin') }}" maxlength="32" autocomplete="off" spellcheck="false" placeholder="Optional — leave blank for B2C">
+                                    <p class="small text-muted mb-0 mt-1" id="pos-gstin-source"></p>
                                     @error('buyer_gstin')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="mb-2">
@@ -172,6 +174,7 @@
                                             <option value="{{ $method }}" @selected(old('payment_method') === $method)>{{ $method }}</option>
                                         @endforeach
                                     </select>
+                                    <p class="small text-muted mb-0 mt-1">Completing a sale records this method as how the sale was settled. Bank Transfer does not by itself prove the money has arrived — enter a reference when you have one. UPI stays unpaid until the UTR is verified.</p>
                                 </div>
                                 <div class="mb-2" id="upi-receiving-account-wrap" hidden>
                                     <label class="form-label" for="receiving_bank_account_id">Receiving bank account</label>
@@ -211,8 +214,9 @@
                                 <div class="d-flex justify-content-between"><span>Subtotal</span><span id="pos-subtotal">0.00</span></div>
                                 <div class="d-flex justify-content-between"><span>Discount</span><span id="pos-discount">0.00</span></div>
                                 <div class="d-flex justify-content-between"><span>Tax</span><span id="pos-tax">0.00</span></div>
+                                <div class="d-flex justify-content-between"><span>Round Off</span><span id="pos-roundoff">0.00</span></div>
                                 <div class="d-flex justify-content-between fw-semibold fs-5 mt-2"><span>Total</span><span id="pos-total">0.00</span></div>
-                                <p class="small text-muted mb-0 mt-2">Internal invoice only — not a GST e-invoice.</p>
+                                <p class="small text-muted mb-0 mt-2">GST is unchanged. Round Off is nearest rupee. Internal receipt is not a GST e-invoice.</p>
                             </div>
                         </div>
 
@@ -233,6 +237,7 @@
                 const branchId = @json($operatingBranch->id);
                 const productSearchUrl = @json($searchProductsUrl);
                 const serialSearchUrl = @json($searchSerialsUrl);
+                const matchSerialUrl = @json($matchSerialUrl);
                 const searchCustomersUrl = @json($searchCustomersUrl);
                 const showCustomerUrlTemplate = @json($showCustomerUrl);
                 const defaultPlaceOfSupplyState = @json($defaultPlaceOfSupplyState);
@@ -244,6 +249,8 @@
                 const serialHeading = document.getElementById('pos-serial-heading');
                 const serialInput = document.getElementById('pos-serial-search');
                 const serialResults = document.getElementById('pos-serial-results');
+                const serialStatus = document.getElementById('pos-serial-status');
+                const gstinSource = document.getElementById('pos-gstin-source');
                 const cartBody = document.getElementById('pos-cart-body');
                 const cartEmpty = document.getElementById('pos-cart-empty');
                 const cartFields = document.getElementById('pos-cart-fields');
@@ -285,7 +292,12 @@
                     });
                 }
                 if (gstinInput) {
-                    gstinInput.addEventListener('input', syncB2bAddressFields);
+                    gstinInput.addEventListener('input', function () {
+                        if (gstinSource && !gstinInput.value.trim()) {
+                            gstinSource.textContent = 'GSTIN cleared — this sale will be B2C unless a GSTIN is entered.';
+                        }
+                        syncB2bAddressFields();
+                    });
                     gstinInput.addEventListener('change', syncB2bAddressFields);
                 }
                 syncB2bAddressFields();
@@ -298,6 +310,7 @@
                 let nameTimer = null;
                 let submitting = false;
                 let selectedCustomerId = null;
+                let serialBusy = false;
 
                 function money(value) {
                     return (Math.round(value * 100) / 100).toFixed(2);
@@ -348,11 +361,17 @@
                     });
                     const header = parseFloat(headerDiscount.value || '0') || 0;
                     const discount = header + lineDiscount;
-                    const total = subtotal - discount + tax;
+                    const unrounded = Math.round(Math.max(0, total) * 100) / 100;
+                    const rounded = Math.round(unrounded);
+                    const roundOff = Math.round((rounded - unrounded) * 100) / 100;
                     document.getElementById('pos-subtotal').textContent = money(subtotal);
                     document.getElementById('pos-discount').textContent = money(discount);
                     document.getElementById('pos-tax').textContent = money(tax);
-                    document.getElementById('pos-total').textContent = money(Math.max(0, total));
+                    const roundEl = document.getElementById('pos-roundoff');
+                    if (roundEl) {
+                        roundEl.textContent = money(roundOff);
+                    }
+                    document.getElementById('pos-total').textContent = money(rounded);
                 }
 
                 function paintLineCell(index) {
@@ -415,10 +434,19 @@
                     productResults.classList.add('d-none');
                 }
 
+                function setSerialStatus(message, ok) {
+                    if (!serialStatus) {
+                        return;
+                    }
+                    serialStatus.textContent = message || '';
+                    serialStatus.className = 'small mb-0 mt-2 ' + (ok === true ? 'text-success' : (ok === false ? 'text-danger' : 'text-muted'));
+                }
+
                 function addSerializedItem(product, variant, serialNumber) {
                     const variantId = variant ? variant.id : null;
                     if (cart.some(function (item) { return item.serials.indexOf(serialNumber) !== -1; })) {
-                        return;
+                        setSerialStatus('Duplicate: ' + serialNumber + ' is already in the cart.', false);
+                        return false;
                     }
                     const existing = cart.find(function (item) {
                         return item.product_id === product.id && item.variant_id === variantId && item.is_serialized;
@@ -442,6 +470,8 @@
                         });
                     }
                     renderCart();
+                    setSerialStatus('Added ' + serialNumber + ' · Qty ' + (existing ? existing.qty : 1) + '.', true);
+                    return true;
                 }
 
                 function removeSerializedUnit(cartIndex, serialNumber) {
@@ -479,6 +509,7 @@
                                     serialCard.hidden = false;
                                     serialHeading.textContent = 'Serials for ' + choice.label;
                                     serialInput.value = '';
+                                    setSerialStatus('Ready to scan. Enter adds the serial.', null);
                                     serialInput.focus();
                                     loadSerials('');
                                     productResults.classList.add('d-none');
@@ -559,9 +590,72 @@
                     searchTimer = setTimeout(function () { loadProducts(query); }, 200);
                 });
 
+                function captureScan(raw) {
+                    if (!pendingProduct) {
+                        setSerialStatus('Select a product before scanning serials.', false);
+                        return;
+                    }
+                    const query = (raw || serialInput.value || '').replace(/[\r\n]+/g, '').trim();
+                    if (!query) {
+                        return;
+                    }
+                    if (cart.some(function (item) { return item.serials.indexOf(query) !== -1 || item.serials.indexOf(query.toUpperCase()) !== -1; })) {
+                        setSerialStatus('Duplicate: ' + query + ' is already in the cart.', false);
+                        serialInput.value = '';
+                        serialInput.focus();
+                        return;
+                    }
+                    if (serialBusy) {
+                        return;
+                    }
+                    serialBusy = true;
+                    setSerialStatus('Checking ' + query + '…', null);
+                    const params = new URLSearchParams({
+                        branch_id: String(branchId),
+                        q: query,
+                        product_id: String(pendingProduct.product.id),
+                    });
+                    if (pendingProduct.variant) {
+                        params.set('variant_id', String(pendingProduct.variant.id));
+                    }
+                    fetch(matchSerialUrl + '?' + params.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                        .then(function (response) {
+                            if (!response.ok) {
+                                throw new Error('serial-match-failed');
+                            }
+                            return response.json();
+                        })
+                        .then(function (data) {
+                            if (!data || !data.ok) {
+                                setSerialStatus((data && data.message) ? data.message : 'Serial was rejected.', false);
+                                return;
+                            }
+                            const number = data.serial && data.serial.serial_number ? data.serial.serial_number : query;
+                            addSerializedItem(pendingProduct.product, pendingProduct.variant, number);
+                            loadSerials('');
+                        })
+                        .catch(function () {
+                            setSerialStatus('Could not verify that serial. Try again.', false);
+                        })
+                        .finally(function () {
+                            serialBusy = false;
+                            serialInput.value = '';
+                            serialInput.focus();
+                        });
+                }
+
                 serialInput.addEventListener('input', function () {
                     clearTimeout(serialTimer);
                     serialTimer = setTimeout(function () { loadSerials(serialInput.value.trim()); }, 200);
+                });
+
+                serialInput.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Enter') {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    captureScan(serialInput.value);
                 });
 
                 cartBody.addEventListener('click', function (event) {
@@ -603,6 +697,22 @@
 
                 headerDiscount.addEventListener('input', renderTotals);
 
+                function setBuyerGstin(value) {
+                    const normalized = (value || '').toString().replace(/\s+/g, '').toUpperCase();
+                    if (gstinInput) {
+                        gstinInput.value = normalized;
+                        gstinInput.setAttribute('value', normalized);
+                    }
+                    if (gstinSource) {
+                        gstinSource.textContent = normalized
+                            ? 'Customer master GSTIN ' + normalized + ' — leave blank only for a B2C sale.'
+                            : 'No GSTIN on the customer master. Leave blank for B2C or type a valid GSTIN.';
+                    }
+                    if (gstinInput) {
+                        syncB2bAddressFields();
+                    }
+                }
+
                 function applyCustomerPayload(data) {
                     if (!data || !data.found) {
                         return;
@@ -611,9 +721,7 @@
                     nameInput.value = data.name || '';
                     phoneInput.value = data.phone || '';
                     emailInput.value = data.email || '';
-                    if (gstinInput) {
-                        gstinInput.value = data.gstin || '';
-                    }
+                    setBuyerGstin(data.gstin || '');
                     if (billingAddressInput) {
                         billingAddressInput.value = data.billing_address || '';
                     }
@@ -629,9 +737,6 @@
                     if (placeOfSupplyState) {
                         placeOfSupplyState.value = data.place_of_supply_state || defaultPlaceOfSupplyState || '';
                     }
-                    if (gstinInput) {
-                        syncB2bAddressFields();
-                    }
                     customerResults.classList.add('d-none');
                     if (data.billing_source === 'last_sale_snapshot') {
                         customerStatus.textContent = 'Existing POS customer. Name, phone, email, and GSTIN are from the customer master. Address shown is last-sale billing, not a stored customer-master address. Review before completing.';
@@ -640,6 +745,7 @@
                     } else {
                         customerStatus.textContent = 'Existing POS customer. Name, phone, email, and GSTIN are from the customer master. No stored billing address — leave blank for B2C or enter only known details. Place of supply defaults to the selling branch for B2C.';
                     }
+                    window.setTimeout(function () { setBuyerGstin(data.gstin || ''); }, 50);
                 }
 
                 function showCustomerResults(customers) {
@@ -656,6 +762,7 @@
                         const gstinNote = customer.gstin ? ' · GSTIN ' + customer.gstin : '';
                         button.textContent = customer.name + ' · ' + customer.phone + gstinNote;
                         button.addEventListener('click', function () {
+                            setBuyerGstin(customer.gstin || '');
                             fetch(showCustomerUrlTemplate.replace('__ID__', String(customer.id)), { headers: { 'Accept': 'application/json' } })
                                 .then(function (response) {
                                     if (!response.ok) {
@@ -718,6 +825,23 @@
                         }
                     }, true);
                 }
+
+                form.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Enter') {
+                        return;
+                    }
+                    const target = event.target;
+                    if (!target || target === completeButton) {
+                        return;
+                    }
+                    if (target.tagName === 'TEXTAREA') {
+                        return;
+                    }
+                    event.preventDefault();
+                    if (target === serialInput) {
+                        captureScan(serialInput.value);
+                    }
+                });
 
                 form.addEventListener('submit', function (event) {
                     syncFields();

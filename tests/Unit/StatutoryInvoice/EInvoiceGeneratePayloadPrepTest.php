@@ -105,6 +105,7 @@ class EInvoiceGeneratePayloadPrepTest extends TestCase
         $this->assertSame(777.66, $body['ItemList'][0]['IgstAmt']);
         $this->assertSame(5098.00, $body['ItemList'][0]['TotItemVal']);
         $this->assertSame(5098.00, $body['ValDtls']['TotInvVal']);
+        $this->assertSame(0.0, $body['ValDtls']['RndOffAmt']);
         $this->assertEqualsWithDelta(4320.34, $body['ItemList'][0]['UnitPrice'] * $body['ItemList'][0]['Qty'], 0.001);
         $this->assertEqualsWithDelta(5098.00, 4320.34 + 777.66, 0.001);
         $this->assertNotSame(2549.00, $body['ItemList'][0]['UnitPrice']);

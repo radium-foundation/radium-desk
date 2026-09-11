@@ -8,15 +8,19 @@ use App\Models\FinancePaymentMethod;
 use App\Models\InventoryBranch;
 use App\Models\InventoryCustomer;
 use App\Models\InventoryProduct;
+use App\Models\InventorySale;
 use App\Models\InventorySerial;
 use App\Models\InventoryStockBalance;
+use App\Models\User;
 use App\Services\Inventory\PosSaleService;
 use App\Services\Pos\PosCustomerLookupService;
+use App\Services\Pos\PosSaleStatutoryInvoicePresenter;
 use App\Services\Pos\PosUpiIntentService;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\StatutoryLocationSeries;
 use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventoryBranchScope;
+use App\Support\Inventory\InventorySerialNumber;
 use App\Support\Inventory\PosAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +37,7 @@ class CounterController extends Controller
         private readonly PosSaleService $sales,
         private readonly PosUpiIntentService $upiIntents,
         private readonly PosCustomerLookupService $customerLookup,
+        private readonly PosSaleStatutoryInvoicePresenter $statutoryPresentation,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(PosAccess::allows($request->user()), 403);
@@ -60,6 +65,7 @@ class CounterController extends Controller
             'idempotencyKey' => old('idempotency_key', (string) Str::uuid()),
             'searchProductsUrl' => route('pos.products.search'),
             'searchSerialsUrl' => route('pos.serials.search'),
+            'matchSerialUrl' => route('pos.serials.match'),
             'lookupCustomerUrl' => route('pos.customers.lookup'),
             'searchCustomersUrl' => route('pos.customers.search'),
             'showCustomerUrl' => route('pos.customers.show', ['customer' => '__ID__']),
@@ -180,8 +186,14 @@ class CounterController extends Controller
         $redirect = redirect()->route('pos.sales.show', $sale)
             ->with('status', 'Sale '.$sale->sale_no.' completed.');
         $warning = $this->sales->lastStatutoryIssueWarning();
+        $einvoiceFlash = $this->einvoiceFlash($sale, $request->user());
+        if ($einvoiceFlash['status'] !== null) {
+            $redirect->with('status', $einvoiceFlash['status']);
+        }
         if ($warning !== null) {
             $redirect->with('warning', $warning);
+        } elseif ($einvoiceFlash['warning'] !== null) {
+            $redirect->with('warning', $einvoiceFlash['warning']);
         }
 
         return $redirect;
@@ -290,6 +302,98 @@ class CounterController extends Controller
         ]);
     }
 
+    public function matchSerial(Request $request): JsonResponse
+    {
+        abort_unless(
+            PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_SELL),
+            403,
+        );
+
+        $branch = InventoryBranchScope::requireBranchId($request->input('branch_id'), $request->user());
+        $raw = $request->string('q')->toString();
+        $serial = InventorySerialNumber::normalize($raw);
+        $productId = $request->integer('product_id');
+        $variantId = $request->integer('variant_id');
+
+        if ($serial === '') {
+            return response()->json([
+                'ok' => false,
+                'reason' => 'empty',
+                'message' => 'Scan or type a serial number.',
+            ]);
+        }
+
+        $row = InventorySerial::query()
+            ->with(['product', 'variant'])
+            ->where('branch_id', $branch->id)
+            ->where(function ($query) use ($serial): void {
+                $query->where('serial_number', $serial)
+                    ->orWhereRaw('UPPER(serial_number) = ?', [$serial]);
+            })
+            ->first();
+
+        if ($row === null) {
+            return response()->json([
+                'ok' => false,
+                'reason' => 'not_found',
+                'message' => 'Serial '.$serial.' was not found at this branch.',
+            ]);
+        }
+
+        if ($productId > 0 && (int) $row->product_id !== $productId) {
+            return response()->json([
+                'ok' => false,
+                'reason' => 'wrong_product',
+                'message' => 'Serial '.$row->serial_number.' belongs to '.($row->product?->sku ?? 'another SKU').', not the selected product.',
+            ]);
+        }
+
+        if ($variantId > 0 && (int) ($row->variant_id ?? 0) !== $variantId) {
+            return response()->json([
+                'ok' => false,
+                'reason' => 'wrong_product',
+                'message' => 'Serial '.$row->serial_number.' belongs to a different variant.',
+            ]);
+        }
+
+        if ($row->status === InventorySerialStatus::Sold) {
+            return response()->json([
+                'ok' => false,
+                'reason' => 'sold',
+                'message' => 'Serial '.$row->serial_number.' is already sold.',
+            ]);
+        }
+
+        if ($row->status === InventorySerialStatus::Reserved) {
+            return response()->json([
+                'ok' => false,
+                'reason' => 'reserved',
+                'message' => 'Serial '.$row->serial_number.' is reserved.',
+            ]);
+        }
+
+        if ($row->status !== InventorySerialStatus::Available) {
+            return response()->json([
+                'ok' => false,
+                'reason' => $row->status->value,
+                'message' => 'Serial '.$row->serial_number.' is not available ('.$row->status->label().').',
+            ]);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'reason' => 'available',
+            'serial' => [
+                'id' => $row->id,
+                'serial_number' => $row->serial_number,
+                'product_id' => $row->product_id,
+                'variant_id' => $row->variant_id,
+                'sku' => $row->product?->sku,
+                'product_name' => $row->product?->name,
+            ],
+        ]);
+    }
+
     public function lookupCustomer(Request $request): JsonResponse
     {
         abort_unless(
@@ -355,6 +459,72 @@ class CounterController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * @return array{status: ?string, warning: ?string}
+     */
+    private function einvoiceFlash(InventorySale $sale, User $user): array
+    {
+        $sale->loadMissing(['statutoryInvoice.eInvoiceRecord', 'customer']);
+        $presentation = $this->statutoryPresentation->forSale($sale, $user);
+        if (! ($presentation['minted'] ?? false)) {
+            $errors = $presentation['eligibility_errors'] ?? [];
+            $summary = (string) ($presentation['eligibility_summary'] ?? 'GST invoice was not issued for this sale.');
+
+            return [
+                'status' => 'Sale '.$sale->sale_no.' completed. GST tax invoice was not issued.',
+                'warning' => $errors !== [] ? $summary.' '.implode(' ', $errors) : $summary,
+            ];
+        }
+
+        $einvoice = is_array($presentation['einvoice'] ?? null) ? $presentation['einvoice'] : null;
+        if ($einvoice === null) {
+            return [
+                'status' => 'Sale '.$sale->sale_no.' completed. GST tax invoice '.$presentation['invoice_number'].' issued.',
+                'warning' => null,
+            ];
+        }
+
+        $invoiceNo = (string) ($presentation['invoice_number'] ?? '');
+        $tone = (string) ($einvoice['tone'] ?? '');
+        if ($tone === 'success') {
+            $parts = ['Sale '.$sale->sale_no.' completed. e-Invoice generated successfully.'];
+            if (filled($einvoice['irn'] ?? null)) {
+                $parts[] = 'IRN '.$einvoice['irn'];
+            }
+            if (filled($einvoice['ack_no'] ?? null)) {
+                $parts[] = 'Ack No. '.$einvoice['ack_no'];
+            }
+            if (filled($einvoice['ack_date'] ?? null)) {
+                $parts[] = 'Ack Date '.$einvoice['ack_date'];
+            }
+
+            return ['status' => implode(' — ', $parts), 'warning' => null];
+        }
+
+        if (($einvoice['status_label'] ?? '') === 'Not Applicable') {
+            return [
+                'status' => 'Sale '.$sale->sale_no.' completed. GST tax invoice '.$invoiceNo.' issued (B2C — IRN not applicable).',
+                'warning' => null,
+            ];
+        }
+
+        $why = trim((string) ($einvoice['why'] ?? ''));
+        $next = trim((string) ($einvoice['next_action'] ?? ''));
+        $detail = trim($why.($next !== '' ? ' '.$next : ''));
+
+        if ($tone === 'danger') {
+            return [
+                'status' => 'Sale '.$sale->sale_no.' completed. GST tax invoice '.$invoiceNo.' issued.',
+                'warning' => 'e-Invoice not generated'.($detail !== '' ? ': '.$detail : '.'),
+            ];
+        }
+
+        return [
+            'status' => 'Sale '.$sale->sale_no.' completed. GST tax invoice '.$invoiceNo.' issued.',
+            'warning' => 'e-Invoice pending'.($detail !== '' ? ': '.$detail : '.'),
+        ];
     }
 
     /**

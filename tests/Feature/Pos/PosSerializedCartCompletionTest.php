@@ -101,7 +101,7 @@ class PosSerializedCartCompletionTest extends TestCase
         $this->assertSame(6998.0, (float) $sale->subtotal);
         $this->assertSame(1259.64, (float) $sale->tax);
         $this->assertSame(8257.64, (float) $line->line_total);
-        $this->assertSame(8257.64, (float) $sale->total);
+        $this->assertEqualsWithDelta(8258.00, (float) $sale->total, 0.001);
         $this->assertSame(2, $sale->serials->count());
     }
 

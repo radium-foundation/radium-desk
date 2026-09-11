@@ -5,6 +5,7 @@ namespace App\Services\Pos;
 use App\Enums\InventorySaleStatus;
 use App\Models\InventoryCustomer;
 use App\Models\InventorySale;
+use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Support\Finance\IndianStates;
 
 final class PosCustomerLookupService
@@ -48,7 +49,7 @@ final class PosCustomerLookupService
                 'name' => $customer->name,
                 'phone' => $customer->phone,
                 'email' => $customer->email,
-                'gstin' => $customer->gstin,
+                'gstin' => BuyerGstin::normalize($customer->gstin),
             ])
             ->values()
             ->all();
@@ -134,7 +135,7 @@ final class PosCustomerLookupService
             'name' => $customer->name,
             'phone' => $customer->phone,
             'email' => $customer->email,
-            'gstin' => $customer->gstin,
+            'gstin' => BuyerGstin::normalize($customer->gstin),
             'billing_address' => $snapshot['billing_address'],
             'billing_city' => $snapshot['billing_city'],
             'billing_state' => $snapshot['billing_state'],

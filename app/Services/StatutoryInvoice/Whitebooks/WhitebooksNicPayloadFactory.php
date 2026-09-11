@@ -83,6 +83,7 @@ final class WhitebooksNicPayloadFactory
                 'CgstVal' => (float) ($payload->values['cgst'] ?? 0),
                 'SgstVal' => (float) ($payload->values['sgst'] ?? 0),
                 'IgstVal' => (float) ($payload->values['igst'] ?? 0),
+                'RndOffAmt' => (float) ($payload->values['rounding'] ?? 0),
                 'TotInvVal' => (float) ($payload->values['invoice_value'] ?? 0),
             ],
         ];
