@@ -30,16 +30,24 @@ class SimplePdfRenderer
 
     private const COL_AMOUNT = 553.0;
 
-    private const PRODUCT_WIDTH = 184.0;
+    private const PRODUCT_WIDTH = 200.0;
 
-    private const QR_SIZE = 96.0;
+    private const LOGO_MAX_WIDTH = 118.0;
 
-    private const QR_GAP = 12.0;
+    private const LOGO_MAX_HEIGHT = 34.0;
+
+    private const QR_SIZE = 64.0;
+
+    private const QR_GAP = 10.0;
 
     public const FIRST_PAGE_SERIAL_LIMIT = 8;
 
+    /** @var array{width: int, height: int, data: string}|array{}|null */
+    private ?array $embeddedLogo = null;
+
     public function render(StatutoryInvoicePdfPayload $payload): string
     {
+        $this->embeddedLogo = null;
         $contents = $this->invoicePageStreams($payload);
 
         if ($contents === []) {
@@ -70,9 +78,11 @@ class SimplePdfRenderer
      */
     private function assemble(array $contents): string
     {
+        $logo = $this->prepareLogoImage();
         $pageCount = count($contents);
         $regularFont = 3 + ($pageCount * 2);
         $boldFont = $regularFont + 1;
+        $logoObject = $logo !== null ? $boldFont + 1 : null;
         $kids = [];
         for ($i = 0; $i < $pageCount; $i++) {
             $kids[] = (3 + ($i * 2)).' 0 R';
@@ -85,19 +95,31 @@ class SimplePdfRenderer
 
         for ($i = 0; $i < $pageCount; $i++) {
             $contentObject = 4 + ($i * 2);
+            $resources = sprintf('/Font << /F1 %d 0 R /F2 %d 0 R >>', $regularFont, $boldFont);
+            if ($logoObject !== null) {
+                $resources .= sprintf(' /XObject << /Logo %d 0 R >>', $logoObject);
+            }
             $objects[] = sprintf(
-                '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.0F %.0F] /Contents %d 0 R /Resources << /Font << /F1 %d 0 R /F2 %d 0 R >> >> >>',
+                '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.0F %.0F] /Contents %d 0 R /Resources << %s >> >>',
                 self::PAGE_WIDTH,
                 self::PAGE_HEIGHT,
                 $contentObject,
-                $regularFont,
-                $boldFont,
+                $resources,
             );
             $objects[] = '<< /Length '.strlen($contents[$i])." >>\nstream\n".$contents[$i].'endstream';
         }
 
         $objects[] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
         $objects[] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
+        if ($logo !== null) {
+            $objects[] = sprintf(
+                '<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length %d >>\nstream\n%s\nendstream',
+                $logo['width'],
+                $logo['height'],
+                strlen($logo['data']),
+                $logo['data'],
+            );
+        }
 
         $pdf = "%PDF-1.4\n";
         $offsets = [0];
@@ -172,9 +194,6 @@ class SimplePdfRenderer
 
         if ($first) {
             $y = $this->firstPageHeader($ops, $payload);
-            if ($payload->hasIssuedIrn()) {
-                $y = $this->irnBlock($ops, $payload, $y);
-            }
             $y = $this->partyBlock($ops, $payload, $y);
         } else {
             $y = $this->continuationHeader($ops, $payload);
@@ -236,48 +255,47 @@ class SimplePdfRenderer
     private function firstPageHeader(array &$ops, StatutoryInvoicePdfPayload $payload): float
     {
         $y = 806.0;
-        $ops[] = $this->brandMark(self::MARGIN, $y);
+        $ops[] = $this->logoMark(self::MARGIN, $y);
 
-        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y + 4, 'TAX INVOICE', 16, true);
-        $accentWidth = 92.0;
-        $ops[] = $this->accentLine(self::CONTENT_RIGHT - $accentWidth, $y - 4, self::CONTENT_RIGHT);
-
-        $y -= 20;
-        $ops[] = $this->text(self::MARGIN, $y, $payload->sellerLegalName, 10, true);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y + 2, 'TAX INVOICE', 15, true);
+        $accentWidth = 88.0;
+        $ops[] = $this->accentLine(self::CONTENT_RIGHT - $accentWidth, $y - 6, self::CONTENT_RIGHT);
 
         $meta = [
-            'Invoice number  '.$payload->invoiceNumber,
-            'Invoice date  '.$this->invoiceDate($payload->issuedAt),
+            'Invoice No.  '.$payload->invoiceNumber,
+            'Date  '.$this->invoiceDate($payload->issuedAt),
         ];
         $orderId = $this->display($payload->orderId ?: $payload->sourceId);
         if ($orderId !== '-') {
             $meta[] = 'Order ID  '.$orderId;
         }
 
-        $metaY = $y;
+        $metaY = $y - 16;
         foreach ($meta as $line) {
-            $ops[] = $this->rightText(self::CONTENT_RIGHT, $metaY, $line, 8);
+            $ops[] = $this->rightText(self::CONTENT_RIGHT, $metaY, $line, 8, false, 0.2, 0.2, 0.2);
             $metaY -= 11;
         }
 
-        $y -= 13;
-        foreach (array_slice($this->wrapWidth($this->display($payload->sellerAddress), 300, 8), 0, 3) as $addressLine) {
+        $y = min($y - self::LOGO_MAX_HEIGHT, $metaY) - 10;
+        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
+        $y -= 14;
+
+        $ops[] = $this->text(self::MARGIN, $y, $payload->sellerLegalName, 9, true);
+        $y -= 12;
+        foreach (array_slice($this->wrapWidth($this->display($payload->sellerAddress), 360, 8), 0, 2) as $addressLine) {
             $ops[] = $this->text(self::MARGIN, $y, $addressLine, 8, false, 0.18, 0.18, 0.18);
-            $y -= 11;
+            $y -= 10;
         }
-        if ($payload->sellerEmail !== null && trim($payload->sellerEmail) !== '') {
-            $ops[] = $this->text(self::MARGIN, $y, $this->display($payload->sellerEmail), 8, false, 0.18, 0.18, 0.18);
-            $y -= 11;
-        }
-        if ($payload->sellerPhone !== null && trim($payload->sellerPhone) !== '') {
-            $ops[] = $this->text(self::MARGIN, $y, $this->display($payload->sellerPhone), 8, false, 0.18, 0.18, 0.18);
-            $y -= 11;
-        }
-        $ops[] = $this->text(self::MARGIN, $y, 'GSTIN '.$this->display($payload->sellerGstin), 8);
-        $y = min($y, $metaY) - 10;
+        $contact = implode('  |  ', array_filter([
+            $payload->sellerEmail !== null && trim($payload->sellerEmail) !== '' ? $this->display($payload->sellerEmail) : null,
+            $payload->sellerPhone !== null && trim($payload->sellerPhone) !== '' ? $this->display($payload->sellerPhone) : null,
+            'GSTIN '.$this->display($payload->sellerGstin),
+        ]));
+        $ops[] = $this->text(self::MARGIN, $y, $this->clip($contact, 500, 8), 8, false, 0.18, 0.18, 0.18);
+        $y -= 12;
         $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
 
-        return $y - 16;
+        return $y - 14;
     }
 
     /**
@@ -294,7 +312,22 @@ class SimplePdfRenderer
         return $y - 14;
     }
 
-    private function brandMark(float $x, float $y): string
+    private function logoMark(float $x, float $topY): string
+    {
+        $logo = $this->prepareLogoImage();
+        if ($logo === null) {
+            return $this->legacyBrandMark($x, $topY);
+        }
+
+        $scale = min(self::LOGO_MAX_WIDTH / $logo['width'], self::LOGO_MAX_HEIGHT / $logo['height']);
+        $drawW = $logo['width'] * $scale;
+        $drawH = $logo['height'] * $scale;
+        $drawY = $topY - $drawH;
+
+        return sprintf("q\n%.3F 0 0 %.3F %.3F %.3F cm\n/Logo Do\nQ\n", $drawW, $drawH, $x, $drawY);
+    }
+
+    private function legacyBrandMark(float $x, float $y): string
     {
         $ops = [];
         $ops[] = $this->fill($x, $y - 2, 13, 13, 0.10, 0.10, 0.12);
@@ -307,46 +340,91 @@ class SimplePdfRenderer
     }
 
     /**
+     * @return array{width: int, height: int, data: string}|null
+     */
+    private function prepareLogoImage(): ?array
+    {
+        if ($this->embeddedLogo !== null) {
+            return $this->embeddedLogo === [] ? null : $this->embeddedLogo;
+        }
+
+        $configured = config('branding.logo');
+        $path = is_string($configured) && $configured !== ''
+            ? public_path($configured)
+            : public_path('brand/logo.svg');
+
+        if (! is_file($path) || ! extension_loaded('imagick') || ! class_exists(\Imagick::class)) {
+            $this->embeddedLogo = [];
+
+            return null;
+        }
+
+        try {
+            $image = new \Imagick;
+            $image->setBackgroundColor(new \ImagickPixel('transparent'));
+            $image->readImage($path);
+            $image->setImageFormat('jpeg');
+            $image->setImageCompressionQuality(95);
+            $image->resizeImage(480, 0, \Imagick::FILTER_LANCZOS, 1);
+            $this->embeddedLogo = [
+                'width' => $image->getImageWidth(),
+                'height' => $image->getImageHeight(),
+                'data' => $image->getImageBlob(),
+            ];
+            $image->destroy();
+        } catch (\Throwable) {
+            $this->embeddedLogo = [];
+        }
+
+        return $this->embeddedLogo === [] ? null : $this->embeddedLogo;
+    }
+
+    /**
      * @param  list<string>  $ops
      */
-    private function irnBlock(array &$ops, StatutoryInvoicePdfPayload $payload, float $y): float
+    private function compactIrnVerificationBlock(array &$ops, StatutoryInvoicePdfPayload $payload, float $topY): float
     {
-        $startY = $y;
-        $matrix = $payload->hasIssuedIrn()
+        if (! $payload->hasIssuedIrn()) {
+            return $topY;
+        }
+
+        $matrix = $payload->hasIssuedSignedQr()
             ? (new EInvoiceSignedQrMatrix)->matrix($payload->signedQr)
             : null;
-        $textWidth = $matrix !== null
-            ? self::CONTENT_RIGHT - self::MARGIN - self::QR_SIZE - self::QR_GAP
-            : 510.0;
-
-        $ops[] = $this->text(self::MARGIN, $y, 'IRN', 7, true, 0.38, 0.38, 0.38);
-        $y -= 11;
-        foreach ($this->wrapWidth((string) $payload->irn, $textWidth, 8) as $irnLine) {
-            $ops[] = $this->text(self::MARGIN, $y, $irnLine, 8);
-            $y -= 11;
-        }
+        $hasQr = $matrix !== null;
+        $textRight = $hasQr
+            ? self::CONTENT_RIGHT - self::QR_SIZE - self::QR_GAP - 4
+            : self::CONTENT_RIGHT - 8;
+        $irnLines = $this->wrapWidth((string) $payload->irn, $textRight - self::MARGIN - 10, 7);
         $ack = trim(implode('    ', array_filter([
-            $payload->ackNo !== null && $payload->ackNo !== '' ? 'Ack. No. '.$payload->ackNo : null,
-            $payload->ackDate !== null && $payload->ackDate !== '' ? 'Ack. date '.$payload->ackDate : null,
+            $payload->ackNo !== null && $payload->ackNo !== '' ? 'Ack No: '.$payload->ackNo : null,
+            $payload->ackDate !== null && $payload->ackDate !== '' ? 'Date: '.$this->formatAckDate($payload->ackDate) : null,
         ])));
-        if ($ack !== '') {
-            $ops[] = $this->text(self::MARGIN, $y, $ack, 8);
-            $y -= 11;
-        }
-        $image = $matrix !== null
-            ? $this->signedQrImage($matrix, self::CONTENT_RIGHT - self::QR_SIZE, $startY, self::QR_SIZE)
-            : '';
-        if ($image !== '') {
-            $ops[] = $image;
-            $y = min($y, $startY - self::QR_SIZE);
-        } elseif ($payload->hasIssuedSignedQr()) {
-            $ops[] = $this->text(self::MARGIN, $y, 'Signed QR issued with this IRN.', 8, false, 0.28, 0.28, 0.28);
-            $y -= 11;
-        }
-        $y -= 4;
-        $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
+        $textHeight = 10 + 9 + (9 * count($irnLines)) + ($ack !== '' ? 9 : 0);
+        $blockHeight = max($textHeight + 8, $hasQr ? self::QR_SIZE + 10 : $textHeight + 8);
+        $bottomY = $topY - $blockHeight;
 
-        return $y - 14;
+        $ops[] = $this->strokeRect(self::MARGIN, $bottomY, self::CONTENT_RIGHT - self::MARGIN, $blockHeight, 0.84);
+
+        $ty = $topY - 10;
+        $ops[] = $this->text(self::MARGIN + 6, $ty, 'e-Invoice Verification', 7, true, 0.35, 0.35, 0.35);
+        $ty -= 10;
+        $ops[] = $this->text(self::MARGIN + 6, $ty, 'IRN', 6, true, 0.45, 0.45, 0.45);
+        $ty -= 9;
+        foreach ($irnLines as $irnLine) {
+            $ops[] = $this->text(self::MARGIN + 6, $ty, $irnLine, 7);
+            $ty -= 9;
+        }
+        if ($ack !== '') {
+            $ops[] = $this->text(self::MARGIN + 6, $ty, $ack, 7, false, 0.2, 0.2, 0.2);
+        }
+        if ($hasQr) {
+            $ops[] = $this->signedQrImage($matrix, self::CONTENT_RIGHT - self::QR_SIZE - 4, $topY - 4, self::QR_SIZE);
+        } elseif ($payload->hasIssuedSignedQr()) {
+            $ops[] = $this->text(self::MARGIN + 6, $ty - 9, 'Signed QR issued with this IRN.', 7, false, 0.28, 0.28, 0.28);
+        }
+
+        return $bottomY - 8;
     }
 
     /**
@@ -688,10 +766,13 @@ class SimplePdfRenderer
         $height += 12 * count($pairs);
         $height += 18;
         if ($this->hasPayment($payload)) {
-            $height += 52;
+            $height += 44;
         }
+        if ($payload->hasIssuedIrn()) {
+            $height += max(72.0, self::QR_SIZE + 24);
+        }
+        $height += 44;
         $height += 48;
-        $height += 52;
 
         return $height;
     }
@@ -728,9 +809,13 @@ class SimplePdfRenderer
             $y -= 12;
             foreach ($this->paymentLines($payload) as $line) {
                 $ops[] = $this->text(self::MARGIN, $y, $line, 8, false, 0.22, 0.22, 0.22);
-                $y -= 11;
+                $y -= 10;
             }
-            $y -= 4;
+            $y -= 6;
+        }
+
+        if ($payload->hasIssuedIrn()) {
+            $y = $this->compactIrnVerificationBlock($ops, $payload, $y);
         }
 
         $ops[] = $this->hairline(self::MARGIN, $y, self::CONTENT_RIGHT);
@@ -1112,6 +1197,20 @@ class SimplePdfRenderer
         }
     }
 
+    private function formatAckDate(string $ackDate): string
+    {
+        $trimmed = trim($ackDate);
+        if ($trimmed === '') {
+            return '-';
+        }
+
+        try {
+            return (new \DateTimeImmutable($trimmed))->format('d M Y H:i');
+        } catch (\Exception) {
+            return $this->ascii($trimmed);
+        }
+    }
+
     private function money(string $value): string
     {
         $display = $this->display($value);
@@ -1300,6 +1399,20 @@ class SimplePdfRenderer
     private function accentLine(float $x1, float $y, float $x2): string
     {
         return sprintf("q\n1.15 w\n0.890 0.110 0.141 RG\n%.2F %.2F m\n%.2F %.2F l\nS\nQ\n", $x1, $y, $x2, $y);
+    }
+
+    private function strokeRect(float $x, float $y, float $w, float $h, float $gray = 0.78): string
+    {
+        return sprintf(
+            "q\n0.5 w\n%.3F %.3F %.3F RG\n%.2F %.2F %.2F %.2F re\nS\nQ\n",
+            $gray,
+            $gray,
+            $gray,
+            $x,
+            $y,
+            $w,
+            $h,
+        );
     }
 
     private function fill(float $x, float $y, float $w, float $h, float $r, float $g, float $b): string

@@ -78,7 +78,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('TAX INVOICE', $pdf);
         $this->assertStringContainsString('Phil Technologies', $pdf);
         $this->assertStringContainsString($this->configuredSellerGstin('mumbai'), $pdf);
-        $this->assertStringContainsString('Invoice number', $pdf);
+        $this->assertStringContainsString('Invoice No.', $pdf);
         $this->assertStringContainsString($invoice->invoice_number, $pdf);
         $this->assertStringContainsString('BILL TO', $pdf);
         $this->assertStringContainsString('CHANDRAKANT GANPAT SARODE', $pdf);
@@ -180,7 +180,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
 
         $this->assertStringContainsString('IRN', $pdf);
         $this->assertStringContainsString('a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2', $pdf);
-        $this->assertStringContainsString('Ack. No. ACK-1001', $pdf);
+        $this->assertStringContainsString('Ack No: ACK-1001', $pdf);
         $this->assertStringContainsString('% signed-qr-image', $binary);
         $this->assertStringNotContainsString($this->jwtSignedQr(), $binary);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
@@ -284,8 +284,9 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
 
         $this->assertStringContainsString('IRN', $pdf);
         $this->assertStringContainsString('issued-irn-token-0001', $pdf);
-        $this->assertStringContainsString('Ack. No. 112233', $pdf);
-        $this->assertStringContainsString('Ack. date 07 Sep 2026 18:40', $pdf);
+        $this->assertStringContainsString('Ack No: 112233', $pdf);
+        $this->assertStringContainsString('Date: 07 Sep 2026 18:40', $pdf);
+        $this->assertStringContainsString('e-Invoice Verification', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
     }
 
@@ -452,7 +453,8 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Andheri East', $pdf);
         $this->assertStringContainsString('Payment', $pdf);
         $this->assertStringContainsString('UPI', $pdf);
-        $this->assertStringNotContainsString('IRN', $pdf);
+        $this->assertStringNotContainsString('e-Invoice Verification', $pdf);
+        $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);
         $this->assertStringNotContainsString('fake-signed-qr', $pdf);
         $this->assertStringNotContainsString('eyJhbGciOiJFUzI1NiJ9', $pdf);
         $this->assertStringNotContainsString('% signed-qr-image', $pdf);
@@ -504,13 +506,14 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('% signed-qr-image', $pdf);
         $this->assertStringContainsString('IRN', $text);
         $this->assertStringContainsString('d858cf9f0a582a7aec79eade603e66cf584e9a68bdde5a50a823793527a9d776', $text);
-        $this->assertStringContainsString('Ack. No. 172621145994081', $text);
+        $this->assertStringContainsString('Ack No: 172621145994081', $text);
+        $this->assertStringContainsString('e-Invoice Verification', $text);
         $this->assertStringContainsString('Rs.2499.00', $text);
         $this->assertStringContainsString('84716050', $text);
         $this->assertStringContainsString('PCS', $text);
         $this->assertStringNotContainsString('Signed QR issued with this IRN.', $pdf);
         $this->assertStringNotContainsString($jwt, $pdf);
-        $this->assertStringNotContainsString('/Subtype /Image', $pdf);
+        $this->assertStringContainsString('/Logo Do', $pdf);
     }
 
     public function test_irn_with_production_length_jwt_draws_qr_without_leaking_payload(): void
@@ -526,7 +529,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
 
         $this->assertSame(944, strlen($jwt));
         $this->assertStringContainsString('% signed-qr-image', $pdf);
-        $this->assertStringContainsString('Ack. No. 172621145994081', $this->text($pdf));
+        $this->assertStringContainsString('Ack No: 172621145994081', $this->text($pdf));
         $this->assertStringNotContainsString('Signed QR issued with this IRN.', $pdf);
         $this->assertStringNotContainsString($jwt, $pdf);
         $this->assertStringNotContainsString(str_repeat('B', 32), $pdf);
@@ -543,7 +546,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $text = $this->text($pdf);
 
         $this->assertStringContainsString('IRN', $text);
-        $this->assertStringContainsString('Ack. No. ACK-1001', $text);
+        $this->assertStringContainsString('Ack No: ACK-1001', $text);
         $this->assertStringContainsString('Signed QR issued with this IRN.', $pdf);
         $this->assertStringNotContainsString('% signed-qr-image', $pdf);
         $this->assertStringNotContainsString('not-a-jwt', $pdf);
@@ -599,6 +602,134 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Andheri East', $pdf);
         $this->assertStringContainsString('UPI', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
+    }
+
+    public function test_pdf_embeds_authoritative_brand_logo(): void
+    {
+        $binary = (new SimplePdfRenderer)->render($this->payload());
+        $text = $this->text($binary);
+
+        $this->assertFileExists(public_path('brand/logo.svg'));
+        $this->assertStringContainsString('/Logo Do', $binary);
+        $this->assertStringContainsString('DCTDecode', $binary);
+        $this->assertStringContainsString('TAX INVOICE', $text);
+        $this->assertStringNotContainsString('ADIUM', $text);
+    }
+
+    public function test_pdf_uses_true_a4_dimensions(): void
+    {
+        $binary = (new SimplePdfRenderer)->render($this->payload());
+
+        $this->assertStringContainsString('/MediaBox [0 0 595 842]', $binary);
+    }
+
+    public function test_inv_076730_style_hardware_invoice_layout(): void
+    {
+        $jwt = $this->jwtSignedQr();
+        $binary = (new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076730',
+            issuedAt: '2026-09-09 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            sellerEmail: 'mail@radiumbox.com',
+            sellerPhone: '+91-84343 84343',
+            buyerName: 'vijay thakur',
+            buyerGstin: '02ADZPT2982Q1ZD',
+            billingAddress: 'Global Computer Solutions, lower bazar sarkaghat tehsil sarkaghat dist mandi 175024, opposite uco bank, Mandi, Himachal Pradesh, 175024',
+            buyerEmail: 'csc.sarkaghart175024@gmail.com',
+            buyerPhone: '9816004621',
+            placeOfSupply: 'Himachal Pradesh',
+            lines: [[
+                'description' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner (bundled RD #1119)',
+                'hsnSac' => '84716050',
+                'qty' => 1,
+                'unitPrice' => '2499.00',
+                'taxableValue' => '2117.80',
+                'gstPercentage' => '18.00%',
+                'cgst' => '0.00',
+                'sgst' => '0.00',
+                'igst' => '381.20',
+                'taxTotal' => '381.20',
+                'lineTotal' => '2499.00',
+                'uqc' => '-',
+            ]],
+            taxableValue: '2117.80',
+            gstRate: '18.00%',
+            taxTotal: '381.20',
+            cgst: '0.00',
+            sgst: '0.00',
+            igst: '381.20',
+            invoiceValue: '2499.00',
+            serialNumbers: ['10532500'],
+            orderId: 'RDE318500',
+            paymentReference: '6859184740',
+            paymentMethod: 'cashfree',
+            irn: 'b24bf9cba16f8698baf6983aa7594621c1862c6bc84162cddcaf6da73287ec8',
+            ackNo: '172621148747086',
+            ackDate: '2026-09-10 23:18:00',
+            signedQr: $jwt,
+        ));
+        $text = $this->text($binary);
+
+        $this->assertStringContainsString('INV-076730', $text);
+        $this->assertStringContainsString('RDE318500', $text);
+        $this->assertStringContainsString('b24bf9cba16f8698baf6983aa7594621c1862c6bc84162cddcaf6da73287ec8', $text);
+        $this->assertStringContainsString('Ack No: 172621148747086', $text);
+        $this->assertStringContainsString('Date: 10 Sep 2026 23:18', $text);
+        $this->assertStringContainsString('Rs.2117.80', $text);
+        $this->assertStringContainsString('Rs.381.20', $text);
+        $this->assertStringContainsString('Rs.2499.00', $text);
+        $this->assertStringContainsString('Two Thousand Four Hundred Ninety-Nine Rupees Only', $text);
+        $this->assertStringContainsString('10532500', $text);
+        $this->assertStringContainsString('% signed-qr-image', $binary);
+        $this->assertStringContainsString('e-Invoice Verification', $text);
+        $this->assertStringContainsString('Whether tax is payable on reverse charge basis: No', $text);
+    }
+
+    public function test_five_serial_numbers_fit_on_first_page_without_annexure(): void
+    {
+        $serials = ['10532500', '10532501', '10532502', '10532503', '10532504'];
+        $text = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076731',
+            issuedAt: '2026-09-09 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Hardware Buyer',
+            buyerGstin: '07AAAAA0000A1Z5',
+            billingAddress: '1 Test Street, Delhi',
+            placeOfSupply: 'Delhi',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1',
+                'hsnSac' => '84716050',
+                'qty' => 5,
+                'unitPrice' => '100.00',
+                'taxableValue' => '500.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '45.00',
+                'sgst' => '45.00',
+                'igst' => '0.00',
+                'taxTotal' => '90.00',
+                'lineTotal' => '590.00',
+            ]],
+            taxableValue: '500.00',
+            gstRate: '18.00%',
+            taxTotal: '90.00',
+            cgst: '45.00',
+            sgst: '45.00',
+            igst: '0.00',
+            invoiceValue: '590.00',
+            serialNumbers: $serials,
+        )));
+
+        $this->assertStringContainsString('Serial Numbers', $text);
+        foreach ($serials as $serial) {
+            $this->assertStringContainsString($serial, $text);
+        }
+        $this->assertStringNotContainsString('ANNEXURE A', $text);
     }
 
     private function pdf(int $invoiceId): string
