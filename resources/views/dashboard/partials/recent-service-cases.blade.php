@@ -93,7 +93,7 @@
                     </div>
                 @endif
 
-                @if($showsQueueNavigation ?? true)
+                @if(($showsQueueNavigation ?? true) && ! $isHardwareWorkspace)
                     <div @class([
                             'dashboard-case-filters dashboard-operation-queues',
                             'dashboard-operation-queues--agent' => $compactAgentLayout,

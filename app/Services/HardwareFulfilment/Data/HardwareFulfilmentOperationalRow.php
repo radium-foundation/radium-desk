@@ -197,6 +197,14 @@ final class HardwareFulfilmentOperationalRow
             return $label !== '' ? $label : 'Product data missing';
         }
 
+        $first = $this->productLines[0] ?? null;
+        if (is_array($first)) {
+            $primary = trim((string) ($first['primary'] ?? ''));
+            if ($primary !== '') {
+                return $primary;
+            }
+        }
+
         $product = trim($this->product);
 
         return $product !== '' ? $product : 'Product data missing';

@@ -63,7 +63,7 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
 
         $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
         $this->assertMatchesRegularExpression(
-            '/data-dashboard-case-filter-count="hardware">\(1\)/',
+            '/data-hardware-scope-count="active">\(1\)/',
             $html,
         );
         $this->assertMatchesRegularExpression(
@@ -75,18 +75,15 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         );
 
         $exceptions = $this->actingAs($admin)
-            ->get(route('dashboard', ['workspace' => 'hardware', 'hw_queue' => 'exceptions']))
+            ->get(route('dashboard', ['workspace' => 'hardware', 'hw_filter' => 'exceptions']))
             ->assertOk()
             ->assertDontSee('RDE902040')
             ->getContent();
 
         $this->assertSame(0, preg_match_all('/\sdata-hardware-select(\s|>)/', $exceptions));
-        $this->assertMatchesRegularExpression(
-            '/data-dashboard-case-filter-count="hardware">\(1\)/',
-            $exceptions,
-        );
-        $this->assertStringContainsString('(1)</span>', $html);
+        $this->assertStringContainsString('data-hardware-filter-count="exceptions"', $exceptions);
         $this->assertStringContainsString('Ready', $html);
+        $this->assertStringContainsString('Shipped', $html);
     }
 
     public function test_hardware_row_with_fulfilment_shows_existing_show_link_for_authorized_user(): void

@@ -1886,12 +1886,29 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-hardware-product {
-    display: inline-block;
-    max-width: 16rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    max-width: 18rem;
+    line-height: 1.2;
+    vertical-align: middle;
+}
+
+.dashboard-hardware-product__primary {
+    font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    vertical-align: middle;
+}
+
+.dashboard-hardware-product__secondary {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-hardware-product--ambiguous .dashboard-hardware-product__primary {
+    color: #b02a37;
 }
 
 .dashboard-hardware-product--more {

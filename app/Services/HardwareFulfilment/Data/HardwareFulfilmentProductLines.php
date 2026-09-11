@@ -16,7 +16,14 @@ final class HardwareFulfilmentProductLines
 {
     /**
      * @return array{
-     *     lines: list<array{label: string, qty: ?int}>,
+     *     lines: list<array{
+     *         label: string,
+     *         qty: ?int,
+     *         primary: string,
+     *         secondary: ?string,
+     *         title: string,
+     *         ambiguous: bool
+     *     }>,
      *     missing: bool,
      *     compact: string,
      *     product: string,
@@ -29,7 +36,7 @@ final class HardwareFulfilmentProductLines
         if ($lines === [] && $support !== null) {
             $name = trim((string) ($support->product_name ?? ''));
             if ($name !== '') {
-                $lines[] = ['label' => $name, 'qty' => null];
+                $lines[] = self::supportLine($name);
             }
         }
 
@@ -56,13 +63,20 @@ final class HardwareFulfilmentProductLines
             'lines' => $lines,
             'missing' => false,
             'compact' => self::compact($lines),
-            'product' => $lines[0]['label'],
+            'product' => $lines[0]['primary'],
             'quantity' => $hasQty ? (string) $qtyTotal : '',
         ];
     }
 
     /**
-     * @return list<array{label: string, qty: ?int}>
+     * @return list<array{
+     *     label: string,
+     *     qty: ?int,
+     *     primary: string,
+     *     secondary: ?string,
+     *     title: string,
+     *     ambiguous: bool
+     * }>
      */
     private static function fromCommerce(?CommerceOrder $commerce): array
     {
@@ -79,18 +93,48 @@ final class HardwareFulfilmentProductLines
                 continue;
             }
 
-            $label = HardwareConfigurableVariantDisplay::label($item);
-            if ($label === '') {
+            $presentation = HardwareConfigurableVariantDisplay::workspaceLine($item);
+            if ($presentation['label'] === '') {
                 continue;
             }
 
             $lines[] = [
-                'label' => $label,
+                'label' => $presentation['label'],
                 'qty' => $item->qty !== null ? (int) $item->qty : null,
+                'primary' => $presentation['primary'],
+                'secondary' => $presentation['secondary'],
+                'title' => $presentation['title'],
+                'ambiguous' => $presentation['ambiguous'],
             ];
         }
 
         return $lines;
+    }
+
+    /**
+     * @return array{
+     *     label: string,
+     *     qty: ?int,
+     *     primary: string,
+     *     secondary: ?string,
+     *     title: string,
+     *     ambiguous: bool
+     * }
+     */
+    private static function supportLine(string $name): array
+    {
+        $ambiguous = str_contains($name, '100 / 110');
+
+        return [
+            'label' => $name,
+            'qty' => null,
+            'primary' => $ambiguous ? 'Exact variant unavailable' : $name,
+            'secondary' => $ambiguous ? 'Awaiting commerce handoff — verify before allocating serial' : null,
+            'title' => $ambiguous
+                ? 'Product variant details pending — commerce line FKs not available yet.'
+                : $name,
+            'ambiguous' => $ambiguous,
+        ];
     }
 
     /**
@@ -103,7 +147,7 @@ final class HardwareFulfilmentProductLines
         }
 
         $first = $lines[0];
-        $head = $first['qty'] !== null
+        $head = $first['qty'] !== null && ! str_contains($first['label'], ' Q')
             ? $first['label'].' · '.$first['qty'].' Q'
             : $first['label'];
         $extra = count($lines) - 1;

@@ -26,7 +26,8 @@ class HardwareFulfilmentProductLinesTest extends TestCase
         $this->assertFalse($catalog['missing']);
         $this->assertSame('Mantra L1', $catalog['compact']);
         $this->assertSame('', $catalog['quantity']);
-        $this->assertSame([['label' => 'Mantra L1', 'qty' => null]], $catalog['lines']);
+        $this->assertSame('Mantra L1', $catalog['lines'][0]['primary']);
+        $this->assertFalse($catalog['lines'][0]['ambiguous']);
     }
 
     public function test_missing_product_is_an_exception_not_a_dash(): void
@@ -52,8 +53,28 @@ class HardwareFulfilmentProductLinesTest extends TestCase
         $this->assertFalse($catalog['missing']);
         $this->assertSame('Mantra L1 · 1 Q +1', $catalog['compact']);
         $this->assertSame('3', $catalog['quantity']);
-        $this->assertSame('Mantra L1', $catalog['lines'][0]['label']);
+        $this->assertSame('Mantra L1', $catalog['lines'][0]['primary']);
         $this->assertSame(2, $catalog['lines'][1]['qty']);
+    }
+
+    public function test_mantra_mfs_commerce_line_uses_canonical_variant_not_marketing_description(): void
+    {
+        $order = $this->supportOrder('RBP31', null);
+        $commerce = $this->commerce($order, 'RBP31');
+        $this->physicalItem($commerce, 1, 'Mantra MFS 100 / 110 L1 Fingerprint Scanner', 1, [
+            'model_id' => 946,
+            'rdserviceid' => 1119,
+            'amcid' => 1120,
+            'otgid' => 1127,
+        ]);
+
+        $catalog = HardwareFulfilmentProductLines::resolve($commerce->fresh('items'), $order);
+
+        $this->assertFalse($catalog['missing']);
+        $this->assertSame('Mantra MFS 110 1R 1W UC · 1 Q', $catalog['compact']);
+        $this->assertSame('Mantra MFS 110 · L1', $catalog['lines'][0]['primary']);
+        $this->assertStringContainsString('USB + Type-C', $catalog['lines'][0]['secondary']);
+        $this->assertFalse($catalog['lines'][0]['ambiguous']);
     }
 
     public function test_mantra_mfs_compact_uses_canonical_variant_not_generic_listing(): void
@@ -83,7 +104,7 @@ class HardwareFulfilmentProductLinesTest extends TestCase
         $catalog = HardwareFulfilmentProductLines::resolve($commerce->fresh('items'), $order);
 
         $this->assertSame('Mantra MFS 110 1R 1W U · 1 Q', $catalog['compact']);
-        $this->assertSame('Mantra MFS 110 1R 1W U', $catalog['lines'][0]['label']);
+        $this->assertSame('Mantra MFS 110 · L1', $catalog['lines'][0]['primary']);
     }
 
     private function supportOrder(string $orderId, ?string $productName): Order
@@ -116,9 +137,12 @@ class HardwareFulfilmentProductLinesTest extends TestCase
         ]);
     }
 
-    private function physicalItem(CommerceOrder $commerce, int $lineNo, string $description, int $qty): void
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function physicalItem(CommerceOrder $commerce, int $lineNo, string $description, int $qty, array $overrides = []): void
     {
-        CommerceOrderItem::query()->create([
+        CommerceOrderItem::query()->create(array_merge([
             'commerce_order_id' => $commerce->id,
             'line_no' => $lineNo,
             'sku' => 'SKU-'.$lineNo,
@@ -133,6 +157,6 @@ class HardwareFulfilmentProductLinesTest extends TestCase
             'taxable_value' => 847.46,
             'tax_total' => 152.54,
             'line_total' => 1000,
-        ]);
+        ], $overrides));
     }
 }

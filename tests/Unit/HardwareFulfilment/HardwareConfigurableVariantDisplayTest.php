@@ -30,17 +30,28 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
 
         $this->assertSame('Mantra MFS 110 1R 1W U', HardwareConfigurableVariantDisplay::forItem($item));
         $this->assertSame('Mantra MFS 110 1R 1W U', HardwareConfigurableVariantDisplay::label($item));
-        $this->assertSame(
-            'Mantra MFS 110 1R 1W U',
-            HardwareConfigurableVariantDisplay::invoiceDescription($item, annotateBundledRd: true),
-        );
     }
 
-    public function test_item_110_2_3_c_uses_stored_fks(): void
+    public function test_item_110_usb_plus_type_c_uses_verified_otg_mapping(): void
     {
-        $item = $this->item(946, 1121, 1125, 1724, 'Mantra MFS 100 / 110 L1 Fingerprint Scanner');
+        $item = $this->item(946, 1119, 1120, 1127, 'Mantra MFS 100 / 110 L1 Fingerprint Scanner');
 
-        $this->assertSame('Mantra MFS 110 2R 3W C', HardwareConfigurableVariantDisplay::forItem($item));
+        $this->assertSame('Mantra MFS 110 1R 1W UC', HardwareConfigurableVariantDisplay::forItem($item));
+        $this->assertSame('Mantra MFS 110 1R 1W UC', HardwareConfigurableVariantDisplay::label($item));
+    }
+
+    public function test_workspace_line_for_rbp31_style_item_is_operationally_explicit(): void
+    {
+        $item = $this->item(946, 1119, 1120, 1127, 'Mantra MFS 100 / 110 L1 Fingerprint Scanner', 1);
+        $line = HardwareConfigurableVariantDisplay::workspaceLine($item);
+
+        $this->assertSame('Mantra MFS 110 · L1', $line['primary']);
+        $this->assertStringContainsString('RD 1Y', $line['secondary']);
+        $this->assertStringContainsString('Warranty 1Y', $line['secondary']);
+        $this->assertStringContainsString('USB + Type-C', $line['secondary']);
+        $this->assertStringContainsString('Qty 1', $line['secondary']);
+        $this->assertFalse($line['ambiguous']);
+        $this->assertStringContainsString('RD Level: L1', $line['title']);
     }
 
     public function test_item_100_1_2_u_uses_stored_fks(): void
@@ -50,18 +61,19 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
         $this->assertSame('Mantra MFS 100 1R 2W U', HardwareConfigurableVariantDisplay::forItem($item));
     }
 
-    public function test_usb_plus_type_c_is_not_invented(): void
+    public function test_ambiguous_marketing_description_is_not_shown_as_exact_variant(): void
     {
-        $item = $this->item(946, 1119, 1120, 1127, 'Mantra MFS 100 / 110 L1 Fingerprint Scanner');
+        $item = $this->item(946, null, null, null, 'Mantra MFS 100 / 110 L1 Fingerprint Scanner');
 
         $this->assertNull(HardwareConfigurableVariantDisplay::forItem($item));
-        $this->assertSame(
-            'Mantra MFS 100 / 110 L1 Fingerprint Scanner',
-            HardwareConfigurableVariantDisplay::label($item),
-        );
+        $this->assertSame('Exact variant unavailable', HardwareConfigurableVariantDisplay::label($item));
+
+        $line = HardwareConfigurableVariantDisplay::workspaceLine($item);
+        $this->assertTrue($line['ambiguous']);
+        $this->assertSame('Exact variant unavailable', $line['primary']);
     }
 
-    public function test_incomplete_variant_keeps_existing_description(): void
+    public function test_incomplete_variant_keeps_existing_description_for_invoice_annotation(): void
     {
         $item = $this->item(946, 1119, null, null, 'Mantra MFS 100 / 110 L1 Fingerprint Scanner');
 
@@ -86,6 +98,7 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
         ?int $amcid,
         ?int $otgid,
         string $description,
+        ?int $qty = null,
     ): CommerceOrderItem {
         $item = new CommerceOrderItem;
         $item->model_id = $modelId;
@@ -93,6 +106,7 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
         $item->amcid = $amcid;
         $item->otgid = $otgid;
         $item->description = $description;
+        $item->qty = $qty;
 
         return $item;
     }
