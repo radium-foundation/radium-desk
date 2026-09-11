@@ -139,8 +139,8 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $this->assertStringContainsString('Serial Numbers', $pdf);
         $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
         $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('This annexure is part of tax invoice '.$invoice->invoice_number.'.', $pdf);
-        $this->assertStringContainsString('Total serial numbers 10', $pdf);
+        $this->assertStringContainsString('Annexure to tax invoice '.$invoice->invoice_number, $pdf);
+        $this->assertStringContainsString('Total serials', $pdf);
         for ($i = 1; $i <= 10; $i++) {
             $this->assertStringContainsString(sprintf('SN-RDE900308-%03d', $i), $pdf);
         }

@@ -62,6 +62,16 @@ class StatutoryDocumentService
         return $this->writeGeneratedDocument($invoice, $document);
     }
 
+    /**
+     * Production serial-correction callers still invoke this name. Same
+     * presentation rewrite as regeneratePresentation(); does not change
+     * invoice identity, tax, or serial allocation.
+     */
+    public function regenerateForHardwareSerialCorrection(StatutoryInvoice $invoice): StatutoryInvoiceDocument
+    {
+        return $this->regeneratePresentation($invoice);
+    }
+
     private function writeGeneratedDocument(
         StatutoryInvoice $invoice,
         StatutoryInvoiceDocument $document,
@@ -175,8 +185,8 @@ class StatutoryDocumentService
             paymentMethod: $this->paymentMethodFor($invoice),
             paymentStatus: null,
             signedQr: $this->issuedSignedQr($invoice),
-            sellerEmail: $this->nullableString(config('statutory_invoices.contact_email')) ?? 'mail@radiumbox.com',
-            sellerPhone: $this->nullableString(config('statutory_invoices.contact_phone')) ?? '+91-84343 84343',
+            sellerEmail: $this->nullableString(config('statutory_invoices.contact_email')),
+            sellerPhone: $this->nullableString(config('statutory_invoices.contact_phone')),
             buyerPhone: $this->nullableString($invoice->buyer_phone),
             buyerEmail: $commerce['email'],
             discount: $this->optionalMoney($invoice->discount),
