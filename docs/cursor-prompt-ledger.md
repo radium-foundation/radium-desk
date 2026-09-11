@@ -392,5 +392,7 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-241 | 2026-09-11 | Permanent B2B IRN + QR automation | `docs/desk-irn-automatic-b2b-pipeline-p-07-09-241.md`. INV-076765 skipped `missing_uqc` (RBMARC11L1 catalog NULL). No GENERATE. Catalog PCS for remaining P-187-class hardware. Product UQC field restored. Real-mapper POS lifecycle tests. INV-076765 not submitted. |
 | RadiumDesk-P-07-09-242 | 2026-09-11 | Final production IRN + QR verification for INV-076765 | Get-IRN first. Requeue only if no provider IRN. One GENERATE via existing outbox. No new sale. No fabricate. |
 | RadiumDesk-P-07-09-243 | 2026-09-11 | POS + invoice daily operator workflow | `docs/desk-pos-invoice-operator-workflow-p-07-09-243.md`. Low-ink PDF, BILL/SHIP Same, 50 serials, stamp/IRN align, GSTIN populate without wiping master, nearest-rupee round-off, serial scan/Enter, IRN operator flash. STOP: unpaid AR, RP1 order IDs, POS warranty/AMC/RD SAC, remaining accessory UQC. |
+| RadiumDesk-P-07-09-244 | 2026-09-11 | P-243 production acceptance verification | Authenticated browser + PDF gate. NOT READY: `renderTotals()` ReferenceError (`total` undefined after P-243 round-off). No sale. |
+| RadiumDesk-P-07-09-245 | 2026-09-11 | Fix POS renderTotals + production re-verify | Restore `const total = subtotal - discount + tax` in counter Blade. Surgical overlay only. Browser totals/Line repaint. No sale. |
 
 Do not renumber or overwrite earlier rows. Append only.

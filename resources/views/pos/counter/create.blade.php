@@ -361,6 +361,7 @@
                     });
                     const header = parseFloat(headerDiscount.value || '0') || 0;
                     const discount = header + lineDiscount;
+                    const total = subtotal - discount + tax;
                     const unrounded = Math.round(Math.max(0, total) * 100) / 100;
                     const rounded = Math.round(unrounded);
                     const roundOff = Math.round((rounded - unrounded) * 100) / 100;
