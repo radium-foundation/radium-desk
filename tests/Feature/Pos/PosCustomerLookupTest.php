@@ -231,6 +231,10 @@ class PosCustomerLookupTest extends TestCase
         $this->assertNotFalse($resultsPos);
         $this->assertNotFalse($gstinPos);
         $this->assertTrue($resultsPos < $gstinPos, 'Customer matches must appear next to phone/name, not below billing fields.');
+        $this->assertStringContainsString('pos-line-amount', $html);
+        $this->assertStringContainsString('paintLineCell(index)', $html);
+        $this->assertStringContainsString('incl. GST', $html);
+        $this->assertStringContainsString('lineTotal: taxable + tax', $html);
     }
 
     /**

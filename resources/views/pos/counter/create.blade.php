@@ -81,7 +81,7 @@
                                                 <th class="text-end">Qty</th>
                                                 <th class="text-end">Price</th>
                                                 <th class="text-end">Disc.</th>
-                                                <th class="text-end">Line</th>
+                                                <th class="text-end">Line <span class="small text-muted fw-normal">incl. GST</span></th>
                                                 <th></th>
                                             </tr>
                                         </thead>
@@ -328,7 +328,7 @@
                             '<td class="text-end"><input type="number" min="1" class="form-control form-control-sm text-end pos-qty" data-index="' + index + '" value="' + item.qty + '"' + (item.is_serialized ? ' readonly' : '') + '></td>' +
                             '<td class="text-end"><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end pos-price" data-index="' + index + '" value="' + money(item.unit_price) + '"></td>' +
                             '<td class="text-end"><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end pos-line-discount" data-index="' + index + '" value="' + money(item.discount) + '"></td>' +
-                            '<td class="text-end">' + money(totals.lineTotal) + '</td>' +
+                            '<td class="text-end pos-line-amount">' + money(totals.lineTotal) + '</td>' +
                             '<td><button type="button" class="btn btn-sm btn-outline-danger pos-remove" data-index="' + index + '">Remove</button></td>';
                         cartBody.appendChild(row);
                     });
@@ -353,6 +353,17 @@
                     document.getElementById('pos-discount').textContent = money(discount);
                     document.getElementById('pos-tax').textContent = money(tax);
                     document.getElementById('pos-total').textContent = money(Math.max(0, total));
+                }
+
+                function paintLineCell(index) {
+                    const row = cartBody.querySelectorAll('tr.pos-cart-row')[index];
+                    if (!row || !cart[index]) {
+                        return;
+                    }
+                    const cell = row.querySelector('td.pos-line-amount');
+                    if (cell) {
+                        cell.textContent = money(lineTotals(cart[index]).lineTotal);
+                    }
                 }
 
                 function syncFields() {
@@ -586,6 +597,7 @@
                         cart[index].discount = Math.max(0, parseFloat(field.value) || 0);
                     }
                     renderTotals();
+                    paintLineCell(index);
                     syncFields();
                 });
 

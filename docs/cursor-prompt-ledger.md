@@ -387,5 +387,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-236 | 2026-09-11 | One-time Admin POS customer import into inventory_customers | P-161 A+B subset only. No runtime radiumbox_prod. No Finance Party. No C/D. Phone-unique INSERT. Manifest outside schema. Preserve POS-000004/5/6. |
 | RadiumDesk-P-07-09-237 | 2026-09-11 | Historical POS billing profile for imported customers | Last invoiced Admin POS `userdetails` → Desk billing profile (not a sale, not customer-master). Lookup fallback after Desk sale snapshot. No radiumbox_prod runtime. No POS-000004/5/6. |
 | RadiumDesk-P-07-09-238 | 2026-09-11 | Fix live POS customer autocomplete visibility | Diagnose and fix TYPE → SEE MATCH → CLICK → POPULATE in the real POS counter UI. Do not assume P-237 complete. No radiumbox_prod. No sale. |
+| RadiumDesk-P-07-09-239 | 2026-09-11 | Verify POS cart Line amount vs Qty × Price | Read-only trace of Line column for RBMARC11L1 Qty 2 / Price 2300 / Discount 0 showing 8257.64. No sale. |
 
 Do not renumber or overwrite earlier rows. Append only.
