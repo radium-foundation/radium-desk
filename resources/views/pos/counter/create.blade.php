@@ -623,6 +623,8 @@
                     customerResults.classList.add('d-none');
                     if (data.billing_source === 'last_sale_snapshot') {
                         customerStatus.textContent = 'Existing POS customer. Name, phone, email, and GSTIN are from the customer master. Address shown is last-sale billing, not a stored customer-master address. Review before completing.';
+                    } else if (data.billing_source === 'imported_billing_profile') {
+                        customerStatus.textContent = 'Existing POS customer. Name, phone, email, and GSTIN are from the customer master. Address shown is last invoiced historical POS billing — review before completing. This sale snapshots the form.';
                     } else {
                         customerStatus.textContent = 'Existing POS customer. Name, phone, email, and GSTIN are from the customer master. No stored billing address — leave blank for B2C or enter only known details. Place of supply defaults to the selling branch for B2C.';
                     }

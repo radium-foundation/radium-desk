@@ -5,12 +5,15 @@ namespace App\Services\Pos;
 use App\Enums\InventorySaleStatus;
 use App\Models\InventoryCustomer;
 use App\Models\InventorySale;
+use App\Support\Finance\IndianStates;
 
 final class PosCustomerLookupService
 {
     public const BILLING_SOURCE_NONE = 'none';
 
     public const BILLING_SOURCE_LAST_SALE = 'last_sale_snapshot';
+
+    public const BILLING_SOURCE_IMPORTED_PROFILE = 'imported_billing_profile';
 
     private const MIN_QUERY_LENGTH = 2;
 
@@ -123,7 +126,7 @@ final class PosCustomerLookupService
      */
     private function payloadForCustomer(InventoryCustomer $customer): array
     {
-        $snapshot = $this->latestSaleSnapshot($customer);
+        $snapshot = $this->billingSnapshot($customer);
 
         return [
             'found' => true,
@@ -143,9 +146,63 @@ final class PosCustomerLookupService
     }
 
     /**
-     * Address and place of supply are never stored on inventory_customers.
-     * A completed sale is historical snapshot only — not customer-master data.
+     * Identity comes from inventory_customers. Billing prefers the latest completed
+     * Desk sale snapshot. Imported Admin last-invoiced POS userdetails is a last-known
+     * profile only when no Desk sale snapshot exists. Place of supply is never stored
+     * on the profile: B2B uses billing state when valid; otherwise the counter default.
      *
+     * @return array{
+     *     billing_address: ?string,
+     *     billing_city: ?string,
+     *     billing_state: ?string,
+     *     billing_pincode: ?string,
+     *     place_of_supply_state: ?string,
+     *     billing_source: string,
+     *     place_of_supply_source: string
+     * }
+     */
+    private function billingSnapshot(InventoryCustomer $customer): array
+    {
+        $saleSnapshot = $this->latestSaleSnapshot($customer);
+        if ($saleSnapshot['billing_source'] === self::BILLING_SOURCE_LAST_SALE
+            || $saleSnapshot['place_of_supply_source'] === self::BILLING_SOURCE_LAST_SALE) {
+            return $saleSnapshot;
+        }
+
+        $profile = $customer->billingProfile;
+        if ($profile === null) {
+            return $saleSnapshot;
+        }
+
+        $address = $this->nullableString($profile->line1);
+        $city = $this->nullableString($profile->city);
+        $state = $this->nullableString($profile->state);
+        $pincode = $this->nullableString($profile->pincode);
+        $hasAddress = $address !== null || $city !== null || $state !== null || $pincode !== null;
+        if (! $hasAddress) {
+            return $saleSnapshot;
+        }
+
+        $place = null;
+        $placeSource = self::BILLING_SOURCE_NONE;
+        $gstin = $this->nullableString($customer->gstin);
+        if ($gstin !== null && $state !== null && IndianStates::contains($state)) {
+            $place = $state;
+            $placeSource = 'billing_state';
+        }
+
+        return [
+            'billing_address' => $address,
+            'billing_city' => $city,
+            'billing_state' => $state,
+            'billing_pincode' => $pincode,
+            'place_of_supply_state' => $place,
+            'billing_source' => self::BILLING_SOURCE_IMPORTED_PROFILE,
+            'place_of_supply_source' => $placeSource,
+        ];
+    }
+
+    /**
      * @return array{
      *     billing_address: ?string,
      *     billing_city: ?string,

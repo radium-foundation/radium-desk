@@ -221,6 +221,7 @@ class PosCustomerLookupTest extends TestCase
         $this->assertStringContainsString("billingAddressInput.value = data.billing_address || ''", $html);
         $this->assertStringContainsString('placeOfSupplyState.value = data.place_of_supply_state || defaultPlaceOfSupplyState', $html);
         $this->assertStringContainsString('No stored billing address', $html);
+        $this->assertStringContainsString("data.billing_source === 'imported_billing_profile'", $html);
     }
 
     /**
