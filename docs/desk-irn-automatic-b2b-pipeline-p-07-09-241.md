@@ -39,9 +39,11 @@ That path is fail-closed: missing UQC skips GENERATE and does not invent PCS/NOS
 
 ## This prompt’s fix
 
-1. Catalog: assign `PCS` to remaining serialized active products in the P-187 hardware HSN class (`84716050`, `85269190`, `84716090`) where `uqc` is NULL. Does not backfill historical invoice lines. Does not requeue INV-076765.
-2. Product create/edit: persist NIC UQC (already tested; the form/controller field was missing).
+1. Catalog: assigned `PCS` to 47 remaining serialized active products in the P-187 hardware HSN class (`84716050`, `85269190`, `84716090`) where `uqc` was NULL. Catalog filled 9 → 56. Does not backfill historical invoice lines. Does not requeue INV-076765.
+2. Product create/edit: persist NIC UQC (already tested; the form/controller field was missing). Deployed named files only.
 3. Automated tests use the **real** IRP mapper (not `FakeEInvoicePayloadMapper`) for the POS B2B lifecycle.
+
+After catalog fill, a **read-only** remap of INV-076765 is submittable (`unit=PCS`, gaps `[]`). The e-invoice row remains `skipped` and outbox remains `completed`. That invoice was **not** requeued or GENERATE’d.
 
 ## INV-076765 repair
 
