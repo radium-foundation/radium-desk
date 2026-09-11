@@ -55,6 +55,22 @@ final class EInvoiceAgentPresentation
             'why' => 'Statutory tax data is incomplete.',
             'next_action' => 'Tax details require verification before e-Invoice generation.',
         ],
+        'gstin_requires_verification' => [
+            'why' => 'Buyer GSTIN requires verification.',
+            'next_action' => 'Buyer GST registration must be verified or corrected before e-Invoice generation.',
+        ],
+        'buyer_pin_requires_verification' => [
+            'why' => 'Buyer PIN code requires verification.',
+            'next_action' => 'Billing PIN code needs to be verified or corrected before e-Invoice generation.',
+        ],
+        'buyer_pin_gstin_state_mismatch' => [
+            'why' => 'Buyer PIN does not match registered GST state.',
+            'next_action' => 'Billing address or buyer GST registration details require verification.',
+        ],
+        'invalid_buyer_pin' => [
+            'why' => 'Buyer PIN code is not valid.',
+            'next_action' => 'Billing PIN code needs to be corrected before e-Invoice generation.',
+        ],
     ];
 
     /**

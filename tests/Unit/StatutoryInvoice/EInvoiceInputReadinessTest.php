@@ -347,6 +347,25 @@ class EInvoiceInputReadinessTest extends TestCase
     /**
      * @param  array<string, string>  $structured
      */
+    public function test_billing_state_differs_from_gstin_state_fails_closed_before_generate(): void
+    {
+        $this->configureIssuer('delhi', '07AAICP1128M1Z9');
+        $invoice = $this->makeTaxInvoice([
+            'buyer_gstin' => '29AAICA3918J1ZE',
+            'billing_address_structured' => [
+                'line1' => 'Vpo Budhi Bawal',
+                'city' => 'Alwar',
+                'state' => 'Rajasthan',
+                'pincode' => '301707',
+            ],
+        ]);
+
+        $payload = app(EInvoiceIrnPayloadMapper::class)->map($invoice);
+
+        $this->assertContains('buyer_pin_gstin_state_mismatch', $payload->gaps);
+        $this->assertFalse($payload->isSubmittable());
+    }
+
     private function attachCommerce(StatutoryInvoice $invoice, array $structured): void
     {
         CommerceOrder::query()->create([

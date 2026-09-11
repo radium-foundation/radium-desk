@@ -196,6 +196,12 @@ class EInvoiceIrnPayloadMapper
         if ($structuredState !== null && GstStateCodes::codeForName($structuredState) === null) {
             $gaps[] = 'invalid_buyer_state';
         }
+        $billingStateCode = $structuredState !== null ? GstStateCodes::codeForName($structuredState) : null;
+        if ($buyerStateFromGstin !== null
+            && $billingStateCode !== null
+            && $billingStateCode !== $buyerStateFromGstin) {
+            $gaps[] = 'buyer_pin_gstin_state_mismatch';
+        }
         if ($legalName === null) {
             $gaps[] = 'missing_buyer_name';
         }

@@ -15,6 +15,7 @@ use App\Services\Notifications\NotificationMailSender;
 use App\Services\StatutoryInvoice\EInvoiceEligibility;
 use App\Services\StatutoryInvoice\EInvoiceInputReadiness;
 use App\Services\StatutoryInvoice\EInvoiceIrnGuard;
+use App\Services\StatutoryInvoice\EInvoiceProviderSubmissionBlocker;
 use App\Services\StatutoryInvoice\StatutoryInvoiceForIncidentResolver;
 use App\Support\AppDateFormatter;
 
@@ -47,6 +48,7 @@ class Customer360StatutoryInvoicePresenter
         private readonly EInvoiceEligibility $eligibility,
         private readonly EInvoiceInputReadiness $readiness,
         private readonly EInvoiceAgentPresentation $agentPresentation,
+        private readonly EInvoiceProviderSubmissionBlocker $providerBlocker,
     ) {}
 
     /**
@@ -151,13 +153,6 @@ class Customer360StatutoryInvoicePresenter
             return $this->einvoiceState('Not Applicable', 'B2C / not eligible');
         }
 
-        if (in_array($record?->status, [
-            EInvoiceRecordStatus::Failed->value,
-            EInvoiceRecordStatus::PermanentFailure->value,
-        ], true)) {
-            return $this->einvoiceState('Failed', $this->safeReason($skipReason) ?? 'E-invoice could not be issued');
-        }
-
         if (str_starts_with((string) $eligibility->reason, 'issuance_policy_')
             || str_starts_with((string) $skipReason, 'issuance_policy_')) {
             return $this->einvoiceState('Not Applicable', $this->safeReason($eligibility->reason) ?? $this->safeReason($skipReason));
@@ -168,21 +163,19 @@ class Customer360StatutoryInvoicePresenter
         }
 
         if (! $readiness->ready) {
-            $blocked = $readiness->blockedReasonLines();
-            $presentation = in_array('buyer_state_mismatch', $blocked, true)
-                && ! in_array('place_of_supply_unresolved', $blocked, true)
-                ? $this->agentPresentation->posReview()
-                : $this->agentPresentation->blocked($blocked);
+            return $this->blockedAgentPresentation($readiness->blockedReasonLines());
+        }
 
-            return [
-                'status_label' => $presentation['status_label'],
-                'irn' => null,
-                'ack_no' => null,
-                'ack_date' => null,
-                'reason' => $presentation['why'],
-                'why' => $presentation['why'],
-                'next_action' => $presentation['next_action'],
-            ];
+        $providerReason = $this->providerBlocker->blockedReason($record);
+        if ($providerReason !== null) {
+            return $this->blockedAgentPresentation([$providerReason]);
+        }
+
+        if (in_array($record?->status, [
+            EInvoiceRecordStatus::Failed->value,
+            EInvoiceRecordStatus::PermanentFailure->value,
+        ], true)) {
+            return $this->einvoiceState('Failed', $this->safeReason($skipReason) ?? 'E-invoice could not be issued');
         }
 
         if ($eligibility->eligible || in_array($record?->status, [
@@ -196,6 +189,29 @@ class Customer360StatutoryInvoicePresenter
         }
 
         return $this->einvoiceState('Failed', $this->safeReason($eligibility->reason) ?? $this->safeReason($skipReason) ?? 'E-invoice status is unavailable');
+    }
+
+    /**
+     * @param  list<string>  $blocked
+     * @return array{status_label: string, irn: null, ack_no: null, ack_date: null, reason: string, why: string, next_action: string}
+     */
+    private function blockedAgentPresentation(array $blocked): array
+    {
+        $presentation = in_array('buyer_state_mismatch', $blocked, true)
+            && ! in_array('place_of_supply_unresolved', $blocked, true)
+            && ! in_array('buyer_pin_gstin_state_mismatch', $blocked, true)
+            ? $this->agentPresentation->posReview()
+            : $this->agentPresentation->blocked($blocked);
+
+        return [
+            'status_label' => $presentation['status_label'],
+            'irn' => null,
+            'ack_no' => null,
+            'ack_date' => null,
+            'reason' => $presentation['why'],
+            'why' => $presentation['why'],
+            'next_action' => $presentation['next_action'],
+        ];
     }
 
     /**

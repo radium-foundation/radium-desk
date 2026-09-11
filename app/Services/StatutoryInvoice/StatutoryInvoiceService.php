@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
+use App\Support\Finance\GstStateCodes;
 use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -690,6 +691,17 @@ class StatutoryInvoiceService
         $pos = $this->placeOfSupply->resolveForMint($request);
         if (! $pos->isResolvable()) {
             $blocked[] = 'place_of_supply_unresolved';
+        }
+
+        $structured = StatutoryBillingStructured::fromStored($request->billingAddressStructured);
+        $billingStateCode = $structured !== null
+            ? GstStateCodes::codeForName((string) ($structured['state'] ?? ''))
+            : null;
+        $gstinStateCode = BuyerGstin::stateCode($buyerGstin);
+        if ($gstinStateCode !== null
+            && $billingStateCode !== null
+            && $gstinStateCode !== $billingStateCode) {
+            $blocked[] = 'buyer_pin_gstin_state_mismatch';
         }
 
         foreach ($request->lines as $line) {

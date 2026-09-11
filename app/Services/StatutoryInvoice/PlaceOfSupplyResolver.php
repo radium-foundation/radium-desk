@@ -97,7 +97,8 @@ final class PlaceOfSupplyResolver
         ?string $sellerGstin,
         ?StatutoryInvoice $invoice = null,
     ): PlaceOfSupplyResolution {
-        $deliveryState = StatutoryBillingStructured::nullable($structured['state'] ?? null);
+        $destination = $this->goodsDestinationStructured($structured, $invoice);
+        $deliveryState = StatutoryBillingStructured::nullable($destination['state'] ?? null);
         if ($deliveryState !== null) {
             $code = GstStateCodes::codeForName($deliveryState);
             if ($code !== null) {
@@ -283,6 +284,42 @@ final class PlaceOfSupplyResolver
         }
 
         return false;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $billingStructured
+     * @return array<string, mixed>
+     */
+    private function goodsDestinationStructured(?array $billingStructured, ?StatutoryInvoice $invoice): array
+    {
+        if ($invoice !== null) {
+            $shipping = $this->commerceShippingStructured($invoice);
+            if ($shipping !== null && StatutoryBillingStructured::nullable($shipping['state'] ?? null) !== null) {
+                return $shipping;
+            }
+        }
+
+        return $billingStructured ?? [];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function commerceShippingStructured(StatutoryInvoice $invoice): ?array
+    {
+        if ((string) $invoice->source_type !== StatutoryInvoiceSourceType::CommerceOrder->value) {
+            return null;
+        }
+
+        $order = CommerceOrder::query()->where('statutory_invoice_id', $invoice->id)->first();
+        if ($order === null) {
+            $order = CommerceOrder::query()
+                ->where('channel', $invoice->channel)
+                ->where('source_id', $invoice->source_id)
+                ->first();
+        }
+
+        return StatutoryBillingStructured::fromStored($order?->shipping_address_structured);
     }
 
     /**
