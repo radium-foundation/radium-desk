@@ -147,9 +147,10 @@ final class HardwareFulfilmentProductLines
         }
 
         $first = $lines[0];
-        $head = $first['qty'] !== null && ! str_contains($first['label'], ' Q')
-            ? $first['label'].' · '.$first['qty'].' Q'
-            : $first['label'];
+        $head = $first['label'];
+        if ($first['qty'] !== null && ! preg_match('/\bQ'.$first['qty'].'\b/', $head)) {
+            $head .= ' · '.$first['qty'].' Q';
+        }
         $extra = count($lines) - 1;
 
         return $extra > 0 ? $head.' +'.$extra : $head;

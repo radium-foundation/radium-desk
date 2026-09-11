@@ -1902,6 +1902,9 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-hardware-product__secondary {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

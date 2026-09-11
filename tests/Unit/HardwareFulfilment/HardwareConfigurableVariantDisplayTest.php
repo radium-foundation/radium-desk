@@ -40,18 +40,39 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
         $this->assertSame('Mantra MFS 110 1R 1W UC', HardwareConfigurableVariantDisplay::label($item));
     }
 
-    public function test_workspace_line_for_rbp31_style_item_is_operationally_explicit(): void
+    public function test_workspace_line_uses_compact_operational_tokens(): void
     {
         $item = $this->item(946, 1119, 1120, 1127, 'Mantra MFS 100 / 110 L1 Fingerprint Scanner', 1);
         $line = HardwareConfigurableVariantDisplay::workspaceLine($item);
 
-        $this->assertSame('Mantra MFS 110 · L1', $line['primary']);
-        $this->assertStringContainsString('RD 1Y', $line['secondary']);
-        $this->assertStringContainsString('Warranty 1Y', $line['secondary']);
-        $this->assertStringContainsString('USB + Type-C', $line['secondary']);
-        $this->assertStringContainsString('Qty 1', $line['secondary']);
+        $this->assertSame('Mantra MFS 110 L1', $line['primary']);
+        $this->assertSame('R1 W1 UC Q1', $line['secondary']);
         $this->assertFalse($line['ambiguous']);
-        $this->assertStringContainsString('RD Level: L1', $line['title']);
+        $this->assertStringContainsString("Mantra MFS 110 L1\n", $line['title']);
+        $this->assertStringContainsString('RD Service       1 Year (R1)', $line['title']);
+        $this->assertStringContainsString('Warranty         1 Year (W1)', $line['title']);
+        $this->assertStringContainsString('USB / OTG        USB + Type-C (UC)', $line['title']);
+        $this->assertStringContainsString('Quantity         1 (Q1)', $line['title']);
+        $this->assertStringNotContainsString('1R =', $line['title']);
+    }
+
+    public function test_workspace_line_mfs_100_l0_compact_tokens(): void
+    {
+        $item = $this->item(945, 989, 993, 995, 'Mantra MFS 100 / 110 L1 Fingerprint Scanner', 1);
+        $line = HardwareConfigurableVariantDisplay::workspaceLine($item);
+
+        $this->assertSame('Mantra MFS 100 L0', $line['primary']);
+        $this->assertSame('R1 W2 U Q1', $line['secondary']);
+    }
+
+    public function test_workspace_line_supports_multi_year_and_usb_c_tokens(): void
+    {
+        $item = $this->item(946, 1121, 1125, 1724, 'Mantra MFS 100 / 110 L1 Fingerprint Scanner', 1);
+        $line = HardwareConfigurableVariantDisplay::workspaceLine($item);
+
+        $this->assertSame('Mantra MFS 110 L1', $line['primary']);
+        $this->assertSame('R2 W3 C Q1', $line['secondary']);
+        $this->assertStringContainsString('USB / OTG        USB-C (C)', $line['title']);
     }
 
     public function test_item_100_1_2_u_uses_stored_fks(): void

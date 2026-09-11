@@ -71,9 +71,9 @@ class HardwareFulfilmentProductLinesTest extends TestCase
         $catalog = HardwareFulfilmentProductLines::resolve($commerce->fresh('items'), $order);
 
         $this->assertFalse($catalog['missing']);
-        $this->assertSame('Mantra MFS 110 1R 1W UC · 1 Q', $catalog['compact']);
-        $this->assertSame('Mantra MFS 110 · L1', $catalog['lines'][0]['primary']);
-        $this->assertStringContainsString('USB + Type-C', $catalog['lines'][0]['secondary']);
+        $this->assertSame('Mantra MFS 110 L1 R1 W1 UC Q1', $catalog['compact']);
+        $this->assertSame('Mantra MFS 110 L1', $catalog['lines'][0]['primary']);
+        $this->assertSame('R1 W1 UC Q1', $catalog['lines'][0]['secondary']);
         $this->assertFalse($catalog['lines'][0]['ambiguous']);
     }
 
@@ -103,8 +103,9 @@ class HardwareFulfilmentProductLinesTest extends TestCase
 
         $catalog = HardwareFulfilmentProductLines::resolve($commerce->fresh('items'), $order);
 
-        $this->assertSame('Mantra MFS 110 1R 1W U · 1 Q', $catalog['compact']);
-        $this->assertSame('Mantra MFS 110 · L1', $catalog['lines'][0]['primary']);
+        $this->assertSame('Mantra MFS 110 L1 R1 W1 U Q1', $catalog['compact']);
+        $this->assertSame('Mantra MFS 110 L1', $catalog['lines'][0]['primary']);
+        $this->assertSame('R1 W1 U Q1', $catalog['lines'][0]['secondary']);
     }
 
     private function supportOrder(string $orderId, ?string $productName): Order

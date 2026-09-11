@@ -116,20 +116,14 @@ final class HardwareConfigurableVariantDisplay
     {
         $parts = self::mantraMfsParts($item);
         if ($parts !== null) {
-            $canonical = self::format(
-                self::FAMILY_MANTRA_MFS,
-                $parts['model'],
-                $parts['rd_years'],
-                $parts['warranty_years'],
-                $parts['otg_code'],
-            );
             $qty = $item->qty !== null ? (int) $item->qty : null;
-            $label = $qty !== null ? $canonical.' · '.$qty.' Q' : $canonical;
+            $primary = self::workspaceIdentity($parts);
+            $secondary = self::workspaceConfigTokens($parts, $qty);
 
             return [
-                'label' => $label,
-                'primary' => trim(self::FAMILY_MANTRA_MFS.' '.$parts['model'].' · '.$parts['rd_level']),
-                'secondary' => self::workspaceSecondary($parts, $qty),
+                'label' => trim($primary.' '.$secondary),
+                'primary' => $primary,
+                'secondary' => $secondary,
                 'title' => self::workspaceTitle($parts, $qty),
                 'ambiguous' => false,
             ];
@@ -225,19 +219,27 @@ final class HardwareConfigurableVariantDisplay
     /**
      * @param  array{model: string, rd_level: string, rd_years: int, warranty_years: int, otg_code: string}  $parts
      */
-    private static function workspaceSecondary(array $parts, ?int $qty): string
+    private static function workspaceIdentity(array $parts): string
     {
-        $segments = [
-            'RD '.$parts['rd_years'].'Y',
-            'Warranty '.$parts['warranty_years'].'Y',
-            self::otgLabel($parts['otg_code']),
+        return trim(self::FAMILY_MANTRA_MFS.' '.$parts['model'].' '.$parts['rd_level']);
+    }
+
+    /**
+     * @param  array{model: string, rd_level: string, rd_years: int, warranty_years: int, otg_code: string}  $parts
+     */
+    private static function workspaceConfigTokens(array $parts, ?int $qty): string
+    {
+        $tokens = [
+            'R'.$parts['rd_years'],
+            'W'.$parts['warranty_years'],
+            $parts['otg_code'],
         ];
 
         if ($qty !== null) {
-            $segments[] = 'Qty '.$qty;
+            $tokens[] = 'Q'.$qty;
         }
 
-        return implode(' · ', $segments);
+        return implode(' ', $tokens);
     }
 
     /**
@@ -245,21 +247,23 @@ final class HardwareConfigurableVariantDisplay
      */
     private static function workspaceTitle(array $parts, ?int $qty): string
     {
+        $yearLabel = static fn (int $years): string => $years.' Year'.($years === 1 ? '' : 's');
+
         $lines = [
-            'Product: '.self::FAMILY_MANTRA_MFS.' '.$parts['model'],
-            'RD Level: '.$parts['rd_level'],
-            'RD Service: '.$parts['rd_years'].' Year'.($parts['rd_years'] === 1 ? '' : 's'),
-            'Warranty: '.$parts['warranty_years'].' Year'.($parts['warranty_years'] === 1 ? '' : 's'),
-            'OTG / USB: '.self::otgLabel($parts['otg_code']),
-            $parts['rd_years'].'R = '.$parts['rd_years'].' Year RD Service',
-            $parts['warranty_years'].'W = '.$parts['warranty_years'].' Year Warranty',
+            self::workspaceIdentity($parts),
+            '',
+            'Model            '.self::FAMILY_MANTRA_MFS.' '.$parts['model'],
+            'RD Level         '.$parts['rd_level'],
+            'RD Service       '.$yearLabel($parts['rd_years']).' (R'.$parts['rd_years'].')',
+            'Warranty         '.$yearLabel($parts['warranty_years']).' (W'.$parts['warranty_years'].')',
+            'USB / OTG        '.self::otgLabel($parts['otg_code']).' ('.$parts['otg_code'].')',
         ];
 
         if ($qty !== null) {
-            $lines[] = 'Quantity: '.$qty;
+            $lines[] = 'Quantity         '.$qty.' (Q'.$qty.')';
         }
 
-        return implode(' · ', $lines);
+        return implode("\n", $lines);
     }
 
     private static function fallbackLabel(CommerceOrderItem $item): string
