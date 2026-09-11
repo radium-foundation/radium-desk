@@ -166,7 +166,8 @@
                                role="tab"
                                @if($hwActive) aria-selected="true" aria-current="page" @else aria-selected="false" @endif>
                                 <span class="dashboard-case-filter-chip__label">{{ $hwQueue->label() }}</span>
-                                <span class="dashboard-case-filter-chip__count">({{ $hwCount }})</span>
+                                <span class="dashboard-case-filter-chip__count"
+                                      data-hardware-queue-count="{{ $hwQueue->value }}">({{ $hwCount }})</span>
                             </a>
                         @endforeach
                     </div>

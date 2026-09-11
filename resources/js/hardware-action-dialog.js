@@ -425,6 +425,8 @@ const handleSuccess = (payload) => {
         showToast(payload.status);
     }
 
+    document.dispatchEvent(new CustomEvent('hardware-workspace:refresh'));
+
     const next = payload.next_action;
     const dialogUrl = payload.action_dialog_url;
     if (payload.mutating && dialogUrl && next && next !== 'Ready' && next !== 'View' && next !== 'Completed') {

@@ -11,6 +11,7 @@ use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareSkuMapService;
+use App\Support\HardwareFulfilment\HardwareFulfilmentActivityTimestamps;
 
 final class HardwareFulfilmentOperationalClassifier
 {
@@ -29,6 +30,7 @@ final class HardwareFulfilmentOperationalClassifier
         return new HardwareFulfilmentOperationalRow(
             sourceId: (string) $order->order_id,
             orderDateIst: $created?->format('Y-m-d H:i') ?? '—',
+            lastActionDateIst: HardwareFulfilmentActivityTimestamps::lastActionIstForOrder($order),
             customer: trim((string) ($order->customer_name ?? '')) ?: '—',
             product: $catalog['compact'],
             sku: '—',
@@ -68,6 +70,7 @@ final class HardwareFulfilmentOperationalClassifier
         return new HardwareFulfilmentOperationalRow(
             sourceId: (string) $order->order_id,
             orderDateIst: $created?->format('Y-m-d H:i') ?? '—',
+            lastActionDateIst: HardwareFulfilmentActivityTimestamps::lastActionIstForOrder($order),
             customer: trim((string) ($order->customer_name ?? '')) ?: '—',
             product: $catalog['compact'],
             sku: '—',
@@ -161,6 +164,7 @@ final class HardwareFulfilmentOperationalClassifier
         return new HardwareFulfilmentOperationalRow(
             sourceId: $sourceId,
             orderDateIst: $ist?->format('Y-m-d H:i') ?? '—',
+            lastActionDateIst: HardwareFulfilmentActivityTimestamps::lastActionIstForFulfilment($fulfilment),
             customer: $ready->customer ?: '—',
             product: $catalog['compact'],
             sku: trim((string) ($item?->sku ?: $item?->catalog_sku ?: '')) ?: '—',

@@ -18,6 +18,7 @@ use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\DashboardActivityController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
+use App\Http\Controllers\DashboardHardwareWorkspaceController;
 use App\Http\Controllers\DashboardLiveController;
 use App\Http\Controllers\DashboardServiceCaseController;
 use App\Http\Controllers\DashboardTeamActivityController;
@@ -130,6 +131,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard/live', [DashboardLiveController::class, 'refresh'])->name('dashboard.live');
     Route::get('/dashboard/live/counts', [DashboardLiveController::class, 'counts'])->name('dashboard.live.counts');
     Route::get('/dashboard/live/rows', [DashboardLiveController::class, 'rows'])->name('dashboard.live.rows');
+    Route::get('/dashboard/hardware-workspace', [DashboardHardwareWorkspaceController::class, 'refresh'])
+        ->name('dashboard.hardware-workspace');
     Route::get('/dashboard/workspace', [OperationsWorkspaceController::class, 'show'])
         ->name('dashboard.workspace');
     Route::get('/dashboard/activity', [DashboardActivityController::class, 'refresh'])->name('dashboard.activity');

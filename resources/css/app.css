@@ -1765,6 +1765,64 @@ a:focus-visible .stat-card {
     vertical-align: middle;
 }
 
+.dashboard-hardware-datetime-header {
+    width: 8.5rem;
+}
+
+.dashboard-hardware-datetime-cell {
+    min-width: 8.5rem;
+    max-width: 9.5rem;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.dashboard-hardware-datetime {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.dashboard-hardware-datetime__line {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+}
+
+.dashboard-hardware-datetime__label {
+    color: #6c757d;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.dashboard-hardware-datetime time {
+    color: #212529;
+    font-variant-numeric: tabular-nums;
+}
+
+.c360-hardware-status {
+    margin: 0;
+}
+
+.c360-hardware-status__row {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.c360-hardware-status__row dt {
+    color: #6c757d;
+    font-weight: 600;
+    margin: 0;
+}
+
+.c360-hardware-status__row dd {
+    margin: 0;
+}
+
 .dashboard-hardware-status {
     display: inline-block;
     padding: 0.15rem 0.5rem;

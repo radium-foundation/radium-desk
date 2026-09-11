@@ -68,6 +68,7 @@ class HardwareFulfilmentOperationalRowSerialDisplayTest extends TestCase
         return new HardwareFulfilmentOperationalRow(
             sourceId: 'RDE318516',
             orderDateIst: '2026-09-08 10:00',
+            lastActionDateIst: '2026-09-08 12:30',
             customer: 'Buyer',
             product: 'MFS',
             sku: 'SKU',

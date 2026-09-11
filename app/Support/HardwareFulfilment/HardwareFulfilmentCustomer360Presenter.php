@@ -69,6 +69,9 @@ final class HardwareFulfilmentCustomer360Presenter
         return [
             'row' => $row,
             'ready' => $ready,
+            'serialLabel' => $row->serialStatusLabel(),
+            'fulfilmentLabel' => $row->fulfilmentStatusLabel(),
+            'shipment' => HardwareFulfilmentCustomer360ShipmentPresentation::present($ready),
             'milestones' => HardwareFulfilmentStepper::milestones(),
             'currentIndex' => HardwareFulfilmentStepper::currentIndex($row, $ready),
             'currentCaption' => HardwareFulfilmentStepper::currentCaption($row),

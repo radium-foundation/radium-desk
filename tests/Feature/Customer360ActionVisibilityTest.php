@@ -13,11 +13,13 @@ use App\Models\IncidentBonvoiceCallLink;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\Customer360\CustomerContactAttemptEvidenceService;
 use App\Services\IncidentReferenceService;
 use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
+use App\Services\SerialValidation\SerialInsightService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -126,7 +128,7 @@ class Customer360ActionVisibilityTest extends TestCase
 
         $missingSerialHtml = $this->customer360Html($agent, $missingSerialIncident);
         $this->assertStringContainsString('data-workspace-trigger="request-serial"', $missingSerialHtml);
-        $this->assertStringContainsString('Request Serial', $missingSerialHtml);
+        $this->assertStringContainsString('Request serial from customer', $missingSerialHtml);
 
         [$agent, $resolvedSerialIncident] = $this->createAssignedIncident([
             'order_id' => 'RD-VIS-RESOLVED',
@@ -196,7 +198,7 @@ class Customer360ActionVisibilityTest extends TestCase
             'device_model' => 'Access FM220 L1',
         ]);
 
-        $insight = app(\App\Services\SerialValidation\SerialInsightService::class)->analyze($incident->order);
+        $insight = app(SerialInsightService::class)->analyze($incident->order);
         $this->assertSame('warning', $insight->status->value);
         $this->assertSame('Needs verification', $insight->status->label());
         $this->assertFalse(app(RequestSerialNumberEligibilityService::class)->canShowAction($incident));
@@ -231,7 +233,7 @@ class Customer360ActionVisibilityTest extends TestCase
         $incident = $incident->fresh(['activeWaitingState', 'order']);
 
         $this->assertTrue(app(RequestCorrectSerialEligibilityService::class)->canShowAction($incident));
-        $this->assertFalse(app(\App\Services\Customer360\Customer360ActionVisibilityService::class)->forIncident($incident)['canRequestCorrectSerial']);
+        $this->assertFalse(app(Customer360ActionVisibilityService::class)->forIncident($incident)['canRequestCorrectSerial']);
 
         $html = $this->customer360Html($agent, $incident);
         $this->assertStringNotContainsString('Recommended Actions', $html);

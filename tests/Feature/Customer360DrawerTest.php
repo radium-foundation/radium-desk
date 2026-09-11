@@ -11,8 +11,8 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
 use App\Services\AuditLogService;
-use App\Services\IncidentReferenceService;
 use App\Services\Customer360\Customer360RecentCommunicationService;
+use App\Services\IncidentReferenceService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Support\AppDateFormatter;
@@ -441,7 +441,7 @@ class Customer360DrawerTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('data-workspace-trigger="request-serial"', false)
-            ->assertSee('Request Serial', false)
+            ->assertSee('Request serial from customer', false)
             ->assertDontSee('Serial requested', false);
     }
 

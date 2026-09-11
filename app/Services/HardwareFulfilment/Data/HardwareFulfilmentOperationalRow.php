@@ -5,13 +5,16 @@ namespace App\Services\HardwareFulfilment\Data;
 use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareOperationsSection;
+use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Support\HardwareFulfilment\HardwareAllocatedSerialDisplay;
+use Illuminate\Support\Carbon;
 
 final class HardwareFulfilmentOperationalRow
 {
     public function __construct(
         public readonly string $sourceId,
         public readonly string $orderDateIst,
+        public readonly string $lastActionDateIst,
         public readonly string $customer,
         public readonly string $product,
         public readonly string $sku,
@@ -52,6 +55,54 @@ final class HardwareFulfilmentOperationalRow
     public function dashboardQueue(): HardwareDashboardQueue
     {
         return HardwareDashboardQueue::fromStage($this->stage, $this->packagePhotoRecorded);
+    }
+
+    public function orderDateDisplay(): string
+    {
+        return $this->formatIstDisplay($this->orderDateIst, 'd M · g:i A');
+    }
+
+    public function orderDateDisplayCompact(): string
+    {
+        return $this->formatIstDisplay($this->orderDateIst, 'd M g:i A');
+    }
+
+    public function lastActionDateDisplay(): string
+    {
+        return $this->formatIstDisplay($this->lastActionDateIst, 'd M · g:i A');
+    }
+
+    public function lastActionDateDisplayCompact(): string
+    {
+        return $this->formatIstDisplay($this->lastActionDateIst, 'd M g:i A');
+    }
+
+    public function orderDateTitle(): string
+    {
+        return $this->formatIstTitle($this->orderDateIst);
+    }
+
+    public function lastActionDateTitle(): string
+    {
+        return $this->formatIstTitle($this->lastActionDateIst);
+    }
+
+    public function serialStatusLabel(): string
+    {
+        if ($this->allocatedSerials() !== []) {
+            return $this->serialDisplay();
+        }
+
+        if ($this->serialStatus === 'On support order') {
+            return 'On support order';
+        }
+
+        return 'Awaiting allocation';
+    }
+
+    public function fulfilmentStatusLabel(): string
+    {
+        return $this->operatorStatus();
     }
 
     /**
@@ -177,5 +228,44 @@ final class HardwareFulfilmentOperationalRow
         }
 
         return route('inventory.hardware-fulfilments.awaiting.action-dialog', $this->supportOrderId);
+    }
+
+    private function formatIstDisplay(string $raw, string $format): string
+    {
+        $parsed = $this->parseIst($raw);
+        if ($parsed === null) {
+            return '—';
+        }
+
+        return $parsed->format($format);
+    }
+
+    private function formatIstTitle(string $raw): string
+    {
+        $parsed = $this->parseIst($raw);
+
+        return $parsed !== null
+            ? $parsed->format('Y-m-d H:i').' IST'
+            : '—';
+    }
+
+    private function parseIst(string $raw): ?Carbon
+    {
+        $raw = trim($raw);
+        if ($raw === '' || $raw === '—') {
+            return null;
+        }
+
+        try {
+            $parsed = Carbon::createFromFormat(
+                'Y-m-d H:i',
+                $raw,
+                HardwareFulfilmentEligibility::CUTOFF_TIMEZONE,
+            );
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $parsed instanceof Carbon ? $parsed : null;
     }
 }

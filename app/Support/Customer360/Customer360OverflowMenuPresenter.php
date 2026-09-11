@@ -104,10 +104,10 @@ final class Customer360OverflowMenuPresenter implements ProvidesContextScope
         if ($visibility['canRequestSerialNumber'] && ! ($serialRequestState['requested'] ?? false)) {
             $items[] = $this->triggerItem(
                 id: 'request-serial',
-                label: 'Request Serial',
+                label: 'Request serial from customer',
                 icon: 'scan-barcode',
                 trigger: 'request-serial',
-                keywords: ['serial', 'request', 'communication'],
+                keywords: ['serial', 'request', 'communication', 'customer'],
             );
         }
 

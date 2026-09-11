@@ -34,6 +34,7 @@
                     </th>
                     <th>Order</th>
                     <th>Customer</th>
+                    <th class="d-none d-lg-table-cell dashboard-hardware-datetime-header">Date</th>
                     <th class="d-none d-md-table-cell">Product</th>
                     <th class="case-serial-cell">Serial</th>
                     <th>Status</th>
@@ -81,6 +82,18 @@
                             <div class="fw-semibold">{{ $row->sourceId }}</div>
                         </td>
                         <td>{{ $row->customer }}</td>
+                        <td class="d-none d-lg-table-cell dashboard-hardware-datetime-cell">
+                            <div class="dashboard-hardware-datetime">
+                                <div class="dashboard-hardware-datetime__line" title="{{ $row->orderDateTitle() }}">
+                                    <span class="dashboard-hardware-datetime__label">Order</span>
+                                    <time datetime="{{ $row->orderDateIst }}">{{ $row->orderDateDisplay() }}</time>
+                                </div>
+                                <div class="dashboard-hardware-datetime__line" title="{{ $row->lastActionDateTitle() }}">
+                                    <span class="dashboard-hardware-datetime__label">Last action</span>
+                                    <time datetime="{{ $row->lastActionDateIst }}">{{ $row->lastActionDateDisplay() }}</time>
+                                </div>
+                            </div>
+                        </td>
                         <td class="d-none d-md-table-cell dashboard-hardware-product-cell">
                             @include('dashboard.partials.hardware-product-cell', ['row' => $row])
                         </td>
@@ -113,7 +126,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="dashboard-cases-empty">
+                        <td colspan="8" class="dashboard-cases-empty">
                             @if($search !== '')
                                 No hardware orders match this search.
                             @else

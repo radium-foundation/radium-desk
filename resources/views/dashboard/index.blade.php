@@ -28,6 +28,7 @@
          data-operations-workspace-soft-switch="{{ ($operationsWorkspaceSoftSwitch ?? true) ? '1' : '0' }}"
          data-operations-workspace-phase2-embed="{{ ($operationsWorkspacePhase2Embed ?? true) ? '1' : '0' }}"
          data-operations-workspace-url="{{ route('dashboard.workspace') }}"
+         data-hardware-workspace-url="{{ route('dashboard.hardware-workspace') }}"
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
          data-live-interval-active="{{ $dashboardPollIntervalActiveMs ?? 20000 }}"
          data-live-interval-idle="{{ $dashboardPollIntervalIdleMs ?? 60000 }}"
