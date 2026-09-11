@@ -9,6 +9,36 @@ use Tests\TestCase;
 
 class HardwareFulfilmentOperationalRowDatetimeTest extends TestCase
 {
+    public function test_compact_timeline_same_calendar_date(): void
+    {
+        $row = $this->row('2026-09-10 19:16', '2026-09-10 19:22');
+
+        $this->assertSame('10 Sep 07:16 PM L 07:22 PM', $row->compactTimelineDisplay());
+        $this->assertStringContainsString('2026-09-10 19:16 IST', $row->compactTimelineTitle());
+        $this->assertStringContainsString('2026-09-10 19:22 IST', $row->compactTimelineTitle());
+    }
+
+    public function test_compact_timeline_different_calendar_dates(): void
+    {
+        $row = $this->row('2026-09-10 19:16', '2026-09-11 19:22');
+
+        $this->assertSame('10 Sep 07:16 PM L 11 Sep 07:22 PM', $row->compactTimelineDisplay());
+    }
+
+    public function test_compact_timeline_missing_order_renders_dash(): void
+    {
+        $row = $this->row('—', '2026-09-10 19:22');
+
+        $this->assertSame('—', $row->compactTimelineDisplay());
+    }
+
+    public function test_compact_timeline_missing_last_action_shows_order_only(): void
+    {
+        $row = $this->row('2026-09-10 19:16', '—');
+
+        $this->assertSame('10 Sep 07:16 PM', $row->compactTimelineDisplay());
+    }
+
     public function test_order_and_last_action_use_ist_labels_even_when_identical(): void
     {
         $row = $this->row('2026-09-10 19:16', '2026-09-10 19:16');
@@ -33,6 +63,7 @@ class HardwareFulfilmentOperationalRowDatetimeTest extends TestCase
 
         $this->assertSame('—', $row->orderDateDisplay());
         $this->assertSame('—', $row->lastActionDateDisplay());
+        $this->assertSame('—', $row->compactTimelineDisplay());
     }
 
     private function row(string $orderDateIst, string $lastActionDateIst): HardwareFulfilmentOperationalRow

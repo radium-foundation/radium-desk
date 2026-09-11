@@ -5,6 +5,7 @@ namespace App\Services\HardwareFulfilment\Data;
 use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareOperationsSection;
+use App\Enums\HardwareWorkspaceFilter;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Support\HardwareFulfilment\HardwareAllocatedSerialDisplay;
 use Illuminate\Support\Carbon;
@@ -45,7 +46,25 @@ final class HardwareFulfilmentOperationalRow
         public readonly array $allocatedSerialNumbers = [],
         public readonly ?int $expectedSerialQuantity = null,
         public readonly ?string $productStatusLabel = null,
+        public readonly bool $isB2bCustomer = false,
     ) {}
+
+    public function isShippedWorkspaceItem(): bool
+    {
+        return $this->stage === HardwareFulfilmentOperationalStage::Completed;
+    }
+
+    public function matchesWorkspaceFilter(HardwareWorkspaceFilter $filter): bool
+    {
+        return match ($filter) {
+            HardwareWorkspaceFilter::All => true,
+            HardwareWorkspaceFilter::Ready => $this->dashboardQueue() === HardwareDashboardQueue::Ready
+                && $this->stage !== HardwareFulfilmentOperationalStage::AwaitingFulfilment,
+            HardwareWorkspaceFilter::Exceptions => $this->dashboardQueue() === HardwareDashboardQueue::Exceptions,
+            HardwareWorkspaceFilter::Pickup => $this->dashboardQueue() === HardwareDashboardQueue::Pickup,
+            HardwareWorkspaceFilter::Scheduled => $this->stage === HardwareFulfilmentOperationalStage::AwaitingFulfilment,
+        };
+    }
 
     public function operatorStatus(): string
     {
@@ -85,6 +104,40 @@ final class HardwareFulfilmentOperationalRow
     public function lastActionDateTitle(): string
     {
         return $this->formatIstTitle($this->lastActionDateIst);
+    }
+
+    public function compactTimelineDisplay(): string
+    {
+        $order = $this->parseIst($this->orderDateIst);
+        $last = $this->parseIst($this->lastActionDateIst);
+
+        if ($order === null) {
+            return '—';
+        }
+
+        if ($last === null) {
+            return $order->format('d M h:i A');
+        }
+
+        $orderPart = $order->format('d M h:i A');
+
+        if ($order->isSameDay($last)) {
+            return $orderPart.' L '.$last->format('h:i A');
+        }
+
+        return $orderPart.' L '.$last->format('d M h:i A');
+    }
+
+    public function compactTimelineTitle(): string
+    {
+        $orderTitle = $this->orderDateTitle();
+        $lastTitle = $this->lastActionDateTitle();
+
+        if ($orderTitle === '—' && $lastTitle === '—') {
+            return '—';
+        }
+
+        return 'Order: '.$orderTitle.' · Last action: '.$lastTitle;
     }
 
     public function serialStatusLabel(): string

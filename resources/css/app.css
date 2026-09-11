@@ -1765,41 +1765,64 @@ a:focus-visible .stat-card {
     vertical-align: middle;
 }
 
+.dashboard-hardware-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.dashboard-hardware-nav__scopes,
+.dashboard-hardware-nav__filters {
+    flex-wrap: wrap;
+}
+
+.dashboard-case-filter-chip--subtle {
+    font-size: 0.8125rem;
+    padding-inline: 0.55rem;
+}
+
 .dashboard-hardware-datetime-header {
-    width: 8.5rem;
+    width: 11.5rem;
 }
 
 .dashboard-hardware-datetime-cell {
-    min-width: 8.5rem;
-    max-width: 9.5rem;
-    font-size: 0.75rem;
-    line-height: 1.25;
+    min-width: 11rem;
+    max-width: 13rem;
     white-space: nowrap;
 }
 
-.dashboard-hardware-datetime {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
+.dashboard-hardware-table td {
+    padding-top: 0.3rem;
+    padding-bottom: 0.3rem;
 }
 
-.dashboard-hardware-datetime__line {
-    display: flex;
-    flex-direction: column;
-    gap: 0.05rem;
+.dashboard-hardware-customer-cell {
+    max-width: 10rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.dashboard-hardware-datetime__label {
+.dashboard-hardware-customer {
+    vertical-align: baseline;
+}
+
+.dashboard-hardware-b2b {
+    margin-left: 0.1rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1;
     color: #6c757d;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
+    vertical-align: super;
 }
 
-.dashboard-hardware-datetime time {
-    color: #212529;
-    font-variant-numeric: tabular-nums;
+.dashboard-hardware-status-cell .dashboard-hardware-shipment-meta {
+    margin-top: 0.1rem;
+    line-height: 1.2;
+}
+
+.dashboard-hardware-product {
+    max-width: 18rem;
 }
 
 .c360-hardware-status {

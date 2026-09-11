@@ -26,7 +26,8 @@ class DashboardHardwareWorkspaceController extends Controller
             'workspace_html' => view('dashboard.partials.hardware-workspace', [
                 'hardwareWorkspace' => $hardwareWorkspace,
             ])->render(),
-            'counts' => $hardwareWorkspace['counts'],
+            'scope_counts' => $hardwareWorkspace['scope_counts'],
+            'filter_counts' => $hardwareWorkspace['filter_counts'],
             'hardware_chip_count' => $this->hardwareDashboard->chipCount(),
         ]);
     }

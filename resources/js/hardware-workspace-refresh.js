@@ -8,9 +8,18 @@ export const isHardwareWorkspaceActive = (pageRoot) => (
     || pageRoot?.dataset?.liveWorkspace === HARDWARE_QUEUE
 );
 
-const updateQueueCounts = (pageRoot, counts) => {
-    Object.entries(counts ?? {}).forEach(([queue, count]) => {
-        const chip = pageRoot.querySelector(`[data-hardware-queue-count="${queue}"]`);
+const updateScopeCounts = (pageRoot, counts) => {
+    Object.entries(counts ?? {}).forEach(([scope, count]) => {
+        const chip = pageRoot.querySelector(`[data-hardware-scope-count="${scope}"]`);
+        if (chip) {
+            chip.textContent = `(${count})`;
+        }
+    });
+};
+
+const updateFilterCounts = (pageRoot, counts) => {
+    Object.entries(counts ?? {}).forEach(([filter, count]) => {
+        const chip = pageRoot.querySelector(`[data-hardware-filter-count="${filter}"]`);
         if (chip) {
             chip.textContent = `(${count})`;
         }
@@ -41,10 +50,17 @@ export const refreshHardwareWorkspace = async (pageRoot, { preserveSelection = f
     const params = new URLSearchParams(window.location.search);
     const query = new URLSearchParams();
     query.set('workspace', 'hardware');
-    const hwQueue = params.get('hw_queue');
+    const hwScope = params.get('hw_scope');
+    const hwFilter = params.get('hw_filter');
+    const legacyQueue = params.get('hw_queue');
     const search = params.get('q');
-    if (hwQueue) {
-        query.set('hw_queue', hwQueue);
+    if (hwScope) {
+        query.set('hw_scope', hwScope);
+    }
+    if (hwFilter) {
+        query.set('hw_filter', hwFilter);
+    } else if (legacyQueue) {
+        query.set('hw_queue', legacyQueue);
     }
     if (search) {
         query.set('q', search);
@@ -77,8 +93,12 @@ export const refreshHardwareWorkspace = async (pageRoot, { preserveSelection = f
         initHardwareDashboardSelection(pageRoot);
     }
 
-    if (payload.counts) {
-        updateQueueCounts(pageRoot, payload.counts);
+    if (payload.scope_counts) {
+        updateScopeCounts(pageRoot, payload.scope_counts);
+    }
+
+    if (payload.filter_counts) {
+        updateFilterCounts(pageRoot, payload.filter_counts);
     }
 
     updateHardwareChipCount(pageRoot, payload.hardware_chip_count);

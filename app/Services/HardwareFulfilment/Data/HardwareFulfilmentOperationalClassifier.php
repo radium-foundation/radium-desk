@@ -11,6 +11,7 @@ use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareSkuMapService;
+use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Support\HardwareFulfilment\HardwareFulfilmentActivityTimestamps;
 
 final class HardwareFulfilmentOperationalClassifier
@@ -57,6 +58,7 @@ final class HardwareFulfilmentOperationalClassifier
             productLines: $catalog['lines'],
             productMissing: $catalog['missing'],
             productStatusLabel: $catalog['missing'] ? $this->missingProductLabel($reason) : null,
+            isB2bCustomer: $this->isB2bCommerce($commerce),
         );
     }
 
@@ -97,6 +99,7 @@ final class HardwareFulfilmentOperationalClassifier
             productLines: $catalog['lines'],
             productMissing: $catalog['missing'],
             productStatusLabel: $catalog['missing'] ? $reason->label() : null,
+            isB2bCustomer: $this->isB2bCommerce($commerce),
         );
     }
 
@@ -197,7 +200,17 @@ final class HardwareFulfilmentOperationalClassifier
             productStatusLabel: $catalog['missing']
                 ? ($mappingMissing ? HardwareAwaitingFulfilmentReason::ProductMappingRequired->label() : 'Product data missing')
                 : null,
+            isB2bCustomer: $this->isB2bCommerce($order),
         );
+    }
+
+    private function isB2bCommerce(?CommerceOrder $commerce): bool
+    {
+        if ($commerce === null) {
+            return false;
+        }
+
+        return BuyerGstin::isValid($commerce->buyer_gstin);
     }
 
     /**

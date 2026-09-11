@@ -2,7 +2,8 @@
 
 namespace App\Services\HardwareFulfilment;
 
-use App\Enums\HardwareDashboardQueue;
+use App\Enums\HardwareWorkspaceFilter;
+use App\Enums\HardwareWorkspaceScope;
 use App\Models\HardwareFulfilment;
 use App\Models\Incident;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalRow;
@@ -24,10 +25,13 @@ final class HardwareDashboardWorkspace
     /**
      * @return array{
      *     rows: Collection<int, HardwareFulfilmentOperationalRow>,
-     *     counts: array<string, int>,
-     *     queue: string,
+     *     scope_counts: array<string, int>,
+     *     filter_counts: array<string, int>,
+     *     scope: string,
+     *     filter: string,
      *     search: string,
-     *     queues: list<HardwareDashboardQueue>,
+     *     scopes: list<HardwareWorkspaceScope>,
+     *     filters: list<HardwareWorkspaceFilter>,
      *     incidentIds: array<int, int>,
      *     operableFulfilmentIds: array<int, true>,
      *     canOperateHardware: bool,
@@ -37,24 +41,21 @@ final class HardwareDashboardWorkspace
     public function present(Request $request): array
     {
         $search = trim((string) $request->query('q', ''));
-        $queue = trim((string) $request->query('hw_queue', ''));
-        $allowed = array_map(
-            static fn (HardwareDashboardQueue $row): string => $row->value,
-            HardwareDashboardQueue::cases(),
-        );
-        if ($queue !== '' && ! in_array($queue, $allowed, true)) {
-            $queue = '';
-        }
+        $scope = $this->resolveScope($request);
+        $filter = $this->resolveFilter($request, $scope);
 
         $range = $this->range($request);
-        $dashboard = $this->workQueue->dashboard($range['from'], $range['to'], $search, $queue);
+        $dashboard = $this->workQueue->dashboard($range['from'], $range['to'], $search, $scope, $filter);
 
         return [
             'rows' => $dashboard['rows'],
-            'counts' => $dashboard['counts'],
-            'queue' => $queue,
+            'scope_counts' => $dashboard['scope_counts'],
+            'filter_counts' => $dashboard['filter_counts'],
+            'scope' => $scope->value,
+            'filter' => $filter->value,
             'search' => $search,
-            'queues' => HardwareDashboardQueue::cases(),
+            'scopes' => HardwareWorkspaceScope::cases(),
+            'filters' => HardwareWorkspaceFilter::cases(),
             'incidentIds' => $this->incidentIds($dashboard['rows']),
             'operableFulfilmentIds' => $this->operableFulfilmentIds($dashboard['rows'], $request->user()),
             'canOperateHardware' => HardwareFulfilmentAccess::allows($request->user()),
@@ -88,6 +89,37 @@ final class HardwareDashboardWorkspace
             HardwareFulfilmentEligibility::cutoffInstant(),
             Carbon::now($timezone),
         );
+    }
+
+    private function resolveScope(Request $request): HardwareWorkspaceScope
+    {
+        $legacyQueue = trim((string) $request->query('hw_queue', ''));
+        if ($legacyQueue === 'completed') {
+            return HardwareWorkspaceScope::Shipped;
+        }
+
+        $scope = HardwareWorkspaceScope::tryFrom(trim((string) $request->query('hw_scope', '')));
+
+        return $scope ?? HardwareWorkspaceScope::Active;
+    }
+
+    private function resolveFilter(Request $request, HardwareWorkspaceScope $scope): HardwareWorkspaceFilter
+    {
+        if ($scope === HardwareWorkspaceScope::Shipped) {
+            return HardwareWorkspaceFilter::All;
+        }
+
+        $legacyQueue = trim((string) $request->query('hw_queue', ''));
+        if ($legacyQueue !== '' && $legacyQueue !== 'completed') {
+            $legacyFilter = HardwareWorkspaceFilter::tryFrom($legacyQueue);
+            if ($legacyFilter !== null) {
+                return $legacyFilter;
+            }
+        }
+
+        $filter = HardwareWorkspaceFilter::tryFrom(trim((string) $request->query('hw_filter', '')));
+
+        return $filter ?? HardwareWorkspaceFilter::All;
     }
 
     /**

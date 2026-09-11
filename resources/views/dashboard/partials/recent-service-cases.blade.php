@@ -145,32 +145,9 @@
                 @endif
 
                 @if($isHardwareWorkspace && is_array($hardwareWorkspace))
-                    <div class="dashboard-case-filters dashboard-operation-queues"
-                         role="tablist"
-                         aria-label="Hardware queues">
-                        @foreach($hardwareWorkspace['queues'] as $hwQueue)
-                            @php
-                                $hwCount = $hardwareWorkspace['counts'][$hwQueue->value] ?? 0;
-                                $hwActive = ($hardwareWorkspace['queue'] ?? '') === $hwQueue->value;
-                            @endphp
-                            <a href="{{ route('dashboard', array_filter([
-                                    'workspace' => 'hardware',
-                                    'hw_queue' => $hwQueue->value,
-                                    'q' => $hardwareWorkspace['search'] ?: null,
-                                ])) }}"
-                               @class([
-                                   'dashboard-case-filter-chip',
-                                   'dashboard-case-filter-chip--' . $hwQueue->tone(),
-                                   'is-active' => $hwActive,
-                               ])
-                               role="tab"
-                               @if($hwActive) aria-selected="true" aria-current="page" @else aria-selected="false" @endif>
-                                <span class="dashboard-case-filter-chip__label">{{ $hwQueue->label() }}</span>
-                                <span class="dashboard-case-filter-chip__count"
-                                      data-hardware-queue-count="{{ $hwQueue->value }}">({{ $hwCount }})</span>
-                            </a>
-                        @endforeach
-                    </div>
+                    @include('dashboard.partials.hardware-workspace-nav', [
+                        'hardwareWorkspace' => $hardwareWorkspace,
+                    ])
                 @endif
 
                 <div @class([
@@ -191,8 +168,11 @@
                         @if($isHardwareWorkspace)
                             <form method="GET" action="{{ route('dashboard') }}" class="w-100">
                                 <input type="hidden" name="workspace" value="hardware">
-                                @if(($hardwareWorkspace['queue'] ?? '') !== '')
-                                    <input type="hidden" name="hw_queue" value="{{ $hardwareWorkspace['queue'] }}">
+                                @if(($hardwareWorkspace['scope'] ?? '') !== '')
+                                    <input type="hidden" name="hw_scope" value="{{ $hardwareWorkspace['scope'] }}">
+                                @endif
+                                @if(($hardwareWorkspace['filter'] ?? '') !== '' && ($hardwareWorkspace['filter'] ?? 'all') !== 'all')
+                                    <input type="hidden" name="hw_filter" value="{{ $hardwareWorkspace['filter'] }}">
                                 @endif
                                 <input type="search"
                                        id="hardware-quick-filter-input"
