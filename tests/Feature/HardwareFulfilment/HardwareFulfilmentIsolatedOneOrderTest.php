@@ -147,9 +147,9 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
         );
     }
 
-    public function test_owner_hold_and_blocked_candidate_are_refused(): void
+    public function test_owner_hold_sources_are_refused(): void
     {
-        foreach (['RDE318438', 'RDE318400'] as $sourceId) {
+        foreach (['RDE255714', 'RDE313554'] as $sourceId) {
             try {
                 $this->isolated->run(
                     identifier: $sourceId,
@@ -164,6 +164,21 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
 
         $this->assertSame(0, HardwareFulfilment::query()->count());
         $this->assertSame(0, CommerceOrder::query()->count());
+    }
+
+    public function test_authorized_hold_release_rde318438_can_ingest_with_verified_payload(): void
+    {
+        $this->assertFalse(HardwareFulfilmentEligibility::isHoldSourceId('RDE318438'));
+
+        $result = $this->isolated->run(
+            identifier: 'RDE318438',
+            step: 'ingest',
+            payload: $this->handoffPayload('RDE318438', modelId: 1006, lineTotal: 3799.0),
+        );
+
+        $this->assertTrue($result['ok']);
+        $fulfilment = HardwareFulfilment::query()->where('source_id', 'RDE318438')->firstOrFail();
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->state);
     }
 
     public function test_frozen_seven_remain_ineligible(): void
@@ -465,7 +480,12 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
         string $sourceId,
         string $orderedAt = '2026-09-06T10:00:00+05:30',
         string $paymentStatus = 'paid',
+        int $modelId = 951,
+        float $lineTotal = 3049.00,
     ): array {
+        $taxable = round($lineTotal / 1.18, 2);
+        $tax = round($lineTotal - $taxable, 2);
+
         return [
             'channel' => StatutoryInvoiceChannel::RadiumBoxCom->value,
             'source_type' => 'commerce_order',
@@ -498,17 +518,17 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
             ],
             'lines' => [[
                 'description' => 'MSO1300',
-                'sku' => '951',
+                'sku' => (string) $modelId,
                 'qty' => 1,
-                'unit_price' => 3049,
+                'unit_price' => $lineTotal,
                 'hsn_sac' => '84716050',
                 'gst_percentage' => 18,
-                'taxable_value' => 2583.90,
-                'tax_total' => 465.10,
-                'line_total' => 3049.00,
+                'taxable_value' => $taxable,
+                'tax_total' => $tax,
+                'line_total' => $lineTotal,
                 'shipping_line_kind' => 'physical_merchandise',
                 'requires_shipping' => true,
-                'model_id' => 951,
+                'model_id' => $modelId,
             ]],
         ];
     }

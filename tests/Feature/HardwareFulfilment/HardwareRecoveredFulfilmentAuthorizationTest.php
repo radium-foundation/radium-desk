@@ -374,7 +374,7 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
 
     public function test_hold_and_blocked_sources_cannot_be_authorized_or_ingested(): void
     {
-        foreach (['RDE318438', 'RDE255714', 'RDE313554'] as $sourceId) {
+        foreach (['RDE255714', 'RDE313554'] as $sourceId) {
             $order = $this->recoveredCommerce($sourceId, 'CO-HOLD-'.$sourceId, [
                 ['model_id' => 946, 'qty' => 1, 'sku' => '946'],
             ]);
@@ -394,6 +394,8 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
             }
         }
 
+        $this->assertFalse(HardwareFulfilmentEligibility::isHoldSourceId('RDE318438'));
+
         $blocked = $this->recoveredCommerce('RDE318400', 'CO-000740', [
             ['model_id' => 946, 'qty' => 1, 'sku' => '946'],
         ]);
@@ -403,7 +405,7 @@ class HardwareRecoveredFulfilmentAuthorizationTest extends TestCase
             'test',
         );
         $this->assertFalse($blockedResult['ok']);
-        $this->assertTrue(HardwareFulfilmentEligibility::isBlockedUntilAuthorized('RDE318400'));
+        $this->assertFalse(HardwareFulfilmentEligibility::isBlockedUntilAuthorized('RDE318400'));
 
         try {
             $this->isolated->run(identifier: 'RDE318400', step: 'ingest');

@@ -19,7 +19,11 @@ final class HardwareFulfilmentEligibility
 
     public const SOURCE_PREFIX = 'RDE';
 
+    public const RBP_SOURCE_PREFIX = 'RBP';
+
     public const RIN_SOURCE_PREFIX = 'RIN';
+
+    public const RDP_SOURCE_PREFIX = 'RDP';
 
     public const CUTOFF_IST = '2026-09-05 00:00:00';
 
@@ -46,17 +50,36 @@ final class HardwareFulfilmentEligibility
      * @var list<string>
      */
     public const HOLD_SOURCE_IDS = [
-        'RDE318438',
         'RDE255714',
         'RDE313554',
     ];
 
     /**
-     * First real candidate later. Isolated fulfilment must not process it yet.
+     * Owner-authorized release from HOLD after verified Box product evidence.
+     * RDE318438 was held for pre-P7A payload; Box order_details now carry model 1006.
+     *
+     * @var list<string>
+     */
+    public const AUTHORIZED_HOLD_RELEASE_SOURCE_IDS = [
+        'RDE318438',
+    ];
+
+    /**
+     * Isolated fulfilment must not process these until an owner prompt
+     * moves the id into AUTHORIZED_ISOLATED_SOURCE_IDS.
      *
      * @var list<string>
      */
     public const BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS = [
+    ];
+
+    /**
+     * Owner-authorized isolated fulfilment. RDE318400 / CO-000740 / HF14
+     * was the sole prior member of BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS.
+     *
+     * @var list<string>
+     */
+    public const AUTHORIZED_ISOLATED_SOURCE_IDS = [
         'RDE318400',
     ];
 
@@ -70,7 +93,7 @@ final class HardwareFulfilmentEligibility
             return false;
         }
 
-        if (self::isRinHardwareRequest($request)) {
+        if (self::isRdServiceInHardwareRequest($request)) {
             return self::hasPhysicalLine($request);
         }
 
@@ -83,7 +106,7 @@ final class HardwareFulfilmentEligibility
             return false;
         }
 
-        if (! str_starts_with(strtoupper($request->sourceId), self::SOURCE_PREFIX)) {
+        if (! self::looksLikeBoxHardwareSourceId($request->sourceId)) {
             return false;
         }
 
@@ -92,11 +115,16 @@ final class HardwareFulfilmentEligibility
 
     public static function isRinHardwareRequest(ChannelOrderIngestRequest $request): bool
     {
+        return self::isRdServiceInHardwareRequest($request);
+    }
+
+    public static function isRdServiceInHardwareRequest(ChannelOrderIngestRequest $request): bool
+    {
         if ($request->channel !== StatutoryInvoiceChannel::RdServiceIn) {
             return false;
         }
 
-        if (! self::looksLikeRinSourceId($request->sourceId)) {
+        if (! self::looksLikeRdServiceInHardwareSourceId($request->sourceId)) {
             return false;
         }
 
@@ -108,6 +136,19 @@ final class HardwareFulfilmentEligibility
     public static function looksLikeRinSourceId(string $sourceId): bool
     {
         return (bool) preg_match('/^RIN\d+$/i', trim($sourceId));
+    }
+
+    public static function looksLikeRdServiceInHardwareSourceId(string $sourceId): bool
+    {
+        $parsed = BusinessOrderId::parse($sourceId);
+        if ($parsed !== null) {
+            return $parsed['hardware'] === true && $parsed['owner'] === 'rdservice.in';
+        }
+
+        $normalized = strtoupper(trim($sourceId));
+
+        return self::looksLikeRinSourceId($normalized)
+            || (bool) preg_match('/^RDP\d+$/i', $normalized);
     }
 
     public static function hasPhysicalLine(ChannelOrderIngestRequest $request): bool
@@ -139,6 +180,19 @@ final class HardwareFulfilmentEligibility
         return $item->model_id !== null;
     }
 
+    public static function looksLikeBoxHardwareSourceId(string $sourceId): bool
+    {
+        $parsed = BusinessOrderId::parse($sourceId);
+        if ($parsed !== null) {
+            return $parsed['hardware'] === true && $parsed['owner'] === 'radiumbox.com';
+        }
+
+        $normalized = strtoupper(trim($sourceId));
+
+        return str_starts_with($normalized, self::SOURCE_PREFIX)
+            || str_starts_with($normalized, self::RBP_SOURCE_PREFIX);
+    }
+
     public static function looksLikeHardwareSourceId(string $sourceId): bool
     {
         $parsed = BusinessOrderId::parse($sourceId);
@@ -149,7 +203,8 @@ final class HardwareFulfilmentEligibility
         $normalized = strtoupper(trim($sourceId));
 
         return str_starts_with($normalized, self::SOURCE_PREFIX)
-            || self::looksLikeRinSourceId($normalized);
+            || str_starts_with($normalized, self::RBP_SOURCE_PREFIX)
+            || self::looksLikeRdServiceInHardwareSourceId($normalized);
     }
 
     public static function isFrozenSourceId(string $sourceId): bool
@@ -188,6 +243,10 @@ final class HardwareFulfilmentEligibility
     public static function isHoldSourceId(string $sourceId): bool
     {
         $normalized = strtoupper(trim($sourceId));
+        if (in_array($normalized, self::AUTHORIZED_HOLD_RELEASE_SOURCE_IDS, true)) {
+            return false;
+        }
+
         if (in_array($normalized, self::HOLD_SOURCE_IDS, true)) {
             return true;
         }
@@ -207,7 +266,12 @@ final class HardwareFulfilmentEligibility
 
     public static function isBlockedUntilAuthorized(string $sourceId): bool
     {
-        return in_array(strtoupper(trim($sourceId)), self::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS, true);
+        $normalized = strtoupper(trim($sourceId));
+        if (in_array($normalized, self::AUTHORIZED_ISOLATED_SOURCE_IDS, true)) {
+            return false;
+        }
+
+        return in_array($normalized, self::BLOCKED_UNTIL_AUTHORIZED_SOURCE_IDS, true);
     }
 
     public static function cutoffInstant(): Carbon
@@ -293,6 +357,23 @@ final class HardwareFulfilmentEligibility
         }
 
         return false;
+    }
+
+    /**
+     * Commerce hardware orders cannot take the Finance Hub service mint path.
+     * A fulfilment row, or a hardware source id with physical lines, requires
+     * completed serial allocation before the statutory invoice.
+     */
+    public static function requiresSerialAllocatedInvoice(CommerceOrder $order): bool
+    {
+        $order->loadMissing(['items', 'hardwareFulfilment']);
+
+        if ($order->hardwareFulfilment !== null) {
+            return true;
+        }
+
+        return self::looksLikeHardwareSourceId((string) $order->source_id)
+            && self::hasHardwareLines($order);
     }
 
     /**
