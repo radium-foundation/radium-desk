@@ -118,6 +118,10 @@ final class QueueDeadLetterInventory
             ->where('order_id', $orderId)
             ->value('radiumbox_sync_status');
 
+        if ($syncStatus instanceof RadiumBoxEnrichmentSyncStatus) {
+            return $syncStatus !== RadiumBoxEnrichmentSyncStatus::Failed;
+        }
+
         if (! is_string($syncStatus) || $syncStatus === '') {
             return false;
         }
