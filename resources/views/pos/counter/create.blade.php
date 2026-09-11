@@ -101,16 +101,19 @@
                         <div class="card border-0 shadow-sm mb-3">
                             <div class="card-body">
                                 <h2 class="h5">Customer</h2>
+                                <p class="small text-muted mb-2">Type a phone or name to find an existing customer, then click a match. Typing does not select automatically.</p>
                                 <div class="mb-2">
                                     <label class="form-label" for="customer_phone">Phone</label>
-                                    <input type="text" name="customer_phone" id="customer_phone" class="form-control" required value="{{ old('customer_phone') }}" autocomplete="off">
+                                    <input type="text" name="customer_phone" id="customer_phone" class="form-control" required value="{{ old('customer_phone') }}" autocomplete="off" placeholder="Search existing customer…">
                                     @error('customer_phone')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label" for="customer_name">Name</label>
-                                    <input type="text" name="customer_name" id="customer_name" class="form-control" required value="{{ old('customer_name') }}">
+                                    <input type="text" name="customer_name" id="customer_name" class="form-control" required value="{{ old('customer_name') }}" autocomplete="off" placeholder="Search existing customer…">
                                     @error('customer_name')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
+                                <div id="pos-customer-results" class="list-group mb-2 d-none" style="max-height: 16rem; overflow-y: auto;"></div>
+                                <p class="small text-muted mb-2" id="pos-customer-status"></p>
                                 <div class="mb-2">
                                     <label class="form-label" for="customer_email">Email</label>
                                     <input type="email" name="customer_email" id="customer_email" class="form-control" value="{{ old('customer_email') }}">
@@ -156,8 +159,6 @@
                                     @error('place_of_supply_state')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
                                 <p class="small text-muted mb-0 mt-2">These values are snapshotted on the sale. A GST tax invoice is issued automatically after a successful sale when statutory data is complete. B2C walk-in sales default place of supply to the selling branch state. City, state, and PIN are required when a GSTIN is entered.</p>
-                                <div id="pos-customer-results" class="list-group mt-2 d-none"></div>
-                                <p class="small text-muted mb-0 mt-2" id="pos-customer-status"></p>
                             </div>
                         </div>
 
@@ -232,7 +233,6 @@
                 const branchId = @json($operatingBranch->id);
                 const productSearchUrl = @json($searchProductsUrl);
                 const serialSearchUrl = @json($searchSerialsUrl);
-                const customerLookupUrl = @json($lookupCustomerUrl);
                 const searchCustomersUrl = @json($searchCustomersUrl);
                 const showCustomerUrlTemplate = @json($showCustomerUrl);
                 const defaultPlaceOfSupplyState = @json($defaultPlaceOfSupplyState);
@@ -659,7 +659,9 @@
                         customerResults.appendChild(button);
                     });
                     customerResults.classList.remove('d-none');
-                    customerStatus.textContent = 'Select a customer below, or continue typing to refine the search.';
+                    customerStatus.textContent = customers.length === 1
+                        ? '1 customer found. Click the match to fill this form.'
+                        : customers.length + ' customers found. Click a match to fill this form.';
                 }
 
                 function searchCustomers(query) {
@@ -689,23 +691,7 @@
                 }
 
                 phoneInput.addEventListener('input', function () {
-                    const phone = phoneInput.value.replace(/\s+/g, '');
-                    phoneTimer = scheduleCustomerSearch(phone, phoneTimer);
-                    if (phone.length >= 10) {
-                        fetch(customerLookupUrl + '?phone=' + encodeURIComponent(phone), { headers: { 'Accept': 'application/json' } })
-                            .then(function (response) {
-                                if (!response.ok) {
-                                    throw new Error('customer-lookup-failed');
-                                }
-                                return response.json();
-                            })
-                            .then(function (data) {
-                                if (data.found) {
-                                    applyCustomerPayload(data);
-                                }
-                            })
-                            .catch(function () {});
-                    }
+                    phoneTimer = scheduleCustomerSearch(phoneInput.value.replace(/\s+/g, ''), phoneTimer);
                 });
 
                 nameInput.addEventListener('input', function () {

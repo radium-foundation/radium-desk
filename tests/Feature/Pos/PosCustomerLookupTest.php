@@ -222,6 +222,15 @@ class PosCustomerLookupTest extends TestCase
         $this->assertStringContainsString('placeOfSupplyState.value = data.place_of_supply_state || defaultPlaceOfSupplyState', $html);
         $this->assertStringContainsString('No stored billing address', $html);
         $this->assertStringContainsString("data.billing_source === 'imported_billing_profile'", $html);
+        $this->assertStringContainsString('Type a phone or name to find an existing customer', $html);
+        $this->assertStringContainsString('Click a match to fill this form', $html);
+        $this->assertStringNotContainsString('phone.length >= 10', $html);
+
+        $resultsPos = strpos($html, 'id="pos-customer-results"');
+        $gstinPos = strpos($html, 'id="buyer_gstin"');
+        $this->assertNotFalse($resultsPos);
+        $this->assertNotFalse($gstinPos);
+        $this->assertTrue($resultsPos < $gstinPos, 'Customer matches must appear next to phone/name, not below billing fields.');
     }
 
     /**

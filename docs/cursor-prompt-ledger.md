@@ -386,5 +386,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-235 | 2026-09-11 | Walk-in POS customer/billing reliability for real billing | Production architecture `feat/irn-foundation-phase-a` only. Audit customer-master vs sale-snapshot billing; make lookup populate legitimate fields without fabricating address/GSTIN/POS. Preserve Gate 4 + P-230 serial merge. Do not merge Finance Party. No wholesale routes. |
 | RadiumDesk-P-07-09-236 | 2026-09-11 | One-time Admin POS customer import into inventory_customers | P-161 A+B subset only. No runtime radiumbox_prod. No Finance Party. No C/D. Phone-unique INSERT. Manifest outside schema. Preserve POS-000004/5/6. |
 | RadiumDesk-P-07-09-237 | 2026-09-11 | Historical POS billing profile for imported customers | Last invoiced Admin POS `userdetails` → Desk billing profile (not a sale, not customer-master). Lookup fallback after Desk sale snapshot. No radiumbox_prod runtime. No POS-000004/5/6. |
+| RadiumDesk-P-07-09-238 | 2026-09-11 | Fix live POS customer autocomplete visibility | Diagnose and fix TYPE → SEE MATCH → CLICK → POPULATE in the real POS counter UI. Do not assume P-237 complete. No radiumbox_prod. No sale. |
 
 Do not renumber or overwrite earlier rows. Append only.
