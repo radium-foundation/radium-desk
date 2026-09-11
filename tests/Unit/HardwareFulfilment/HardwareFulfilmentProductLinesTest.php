@@ -77,6 +77,21 @@ class HardwareFulfilmentProductLinesTest extends TestCase
         $this->assertFalse($catalog['lines'][0]['ambiguous']);
     }
 
+    public function test_rbp29_ugr_product_line_uses_model_id_variant(): void
+    {
+        $order = $this->supportOrder('RBP29', null);
+        $commerce = $this->commerce($order, 'RBP29');
+        $this->physicalItem($commerce, 1, 'Radium Box UGR 86 UIDAI Approved USB GPS Receiver for AADHAAR', 1, [
+            'model_id' => 1723,
+            'amcid' => 1788,
+        ]);
+
+        $catalog = HardwareFulfilmentProductLines::resolve($commerce->fresh('items'), $order);
+
+        $this->assertSame('Radium Box UGR 89', $catalog['lines'][0]['primary']);
+        $this->assertSame('NaviC Q1', $catalog['lines'][0]['secondary']);
+    }
+
     public function test_mantra_mfs_compact_uses_canonical_variant_not_generic_listing(): void
     {
         $order = $this->supportOrder('RDE980004', 'Ignored support name');

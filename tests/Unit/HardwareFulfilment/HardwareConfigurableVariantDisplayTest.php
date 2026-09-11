@@ -105,12 +105,68 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
         );
     }
 
-    public function test_non_mfs_model_is_unchanged(): void
+    public function test_rbp29_ugr89_resolves_from_model_id_not_marketing_description(): void
     {
-        $item = $this->item(951, 88, null, null, 'MSO1300');
+        $item = $this->item(
+            1723,
+            null,
+            1788,
+            null,
+            'Radium Box UGR 86 UIDAI Approved USB GPS Receiver for AADHAAR',
+            1,
+        );
+        $line = HardwareConfigurableVariantDisplay::workspaceLine($item);
+
+        $this->assertSame('Radium Box UGR 89', $line['primary']);
+        $this->assertSame('NaviC Q1', $line['secondary']);
+        $this->assertStringContainsString('Chipset          NaviC', $line['title']);
+        $this->assertFalse($line['ambiguous']);
+        $this->assertStringNotContainsString('UGR 86', $line['primary']);
+    }
+
+    public function test_ugr86_model_resolves_from_model_id(): void
+    {
+        $item = $this->item(926, null, null, null, 'Radium Box UGR 86 UIDAI Approved USB GPS Receiver for AADHAAR', 1);
+        $line = HardwareConfigurableVariantDisplay::workspaceLine($item);
+
+        $this->assertSame('Radium Box UGR 86', $line['primary']);
+        $this->assertSame('Q1', $line['secondary']);
+    }
+
+    public function test_rbp24_iris_resolves_from_model_id_with_shared_option_fks(): void
+    {
+        $item = $this->item(
+            1006,
+            1130,
+            1133,
+            1136,
+            'Mantra Iris Scanner - Single USB MIS 100 V2 Biometric Device',
+            1,
+        );
+        $line = HardwareConfigurableVariantDisplay::workspaceLine($item);
+
+        $this->assertSame('Mantra Iris MIS 100 V2', $line['primary']);
+        $this->assertSame('W2 U Q1', $line['secondary']);
+        $this->assertStringContainsString('Warranty         2 Years (W2)', $line['title']);
+    }
+
+    public function test_ambiguous_ugr_marketing_description_without_model_fk(): void
+    {
+        $item = new CommerceOrderItem;
+        $item->description = 'Radium Box UGR86/ UGR89 UIDAI Approved USB GPS Receiver for AADHAAR';
+
+        $line = HardwareConfigurableVariantDisplay::workspaceLine($item);
+
+        $this->assertTrue($line['ambiguous']);
+        $this->assertSame('Exact variant unavailable', $line['primary']);
+    }
+
+    public function test_non_mfs_model_uses_catalog_identity(): void
+    {
+        $item = $this->item(951, null, null, null, 'MSO1300');
 
         $this->assertNull(HardwareConfigurableVariantDisplay::forItem($item));
-        $this->assertSame('MSO1300', HardwareConfigurableVariantDisplay::label($item));
+        $this->assertSame('MSO 1300 E3 L1', HardwareConfigurableVariantDisplay::label($item));
     }
 
     private function item(

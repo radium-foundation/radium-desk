@@ -440,7 +440,7 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ->assertSee('Product 1')
             ->assertSee('Product 2')
             ->assertSee('MFS110')
-            ->assertSee('Morpho e3')
+            ->assertSee('MSO 1300 E3 L1')
             ->assertSee('Qty 2')
             ->assertSee('Qty 1')
             ->assertSee('Serials allocated: 0 / 2')

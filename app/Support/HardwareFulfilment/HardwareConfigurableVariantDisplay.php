@@ -8,10 +8,9 @@ use App\Models\CommerceOrderItem;
  * Deterministic hardware variant labels from stored commerce line FKs.
  * Does not query Box, inventory, or channel_sku_maps (no N+1).
  *
- * Mantra MFS option IDs were verified 2026-09-09 against radiumbox_prod.products:
- * models 945/946 (attribute 5), RD attribute 1, warranty attribute 2, OTG attribute 4.
- * OTG 996/1127 = USB + Type-C (verified P-03-09-04 / radiumbox_prod attribute 4).
- * Desk inventory SKUs RBMFS100L0 / RBMFS110L1 map model 945 → L0 and 946 → L1.
+ * Mantra MFS option IDs verified 2026-09-09 against radiumbox_prod.products.
+ * UGR model IDs verified via Owner P0-M1 channel_sku_maps (926→UGR86, 1723→UGR89).
+ * Desk inventory SKUs RBMFS100L0 / RBMFS110L1 map model 945→L0 and 946→L1.
  */
 final class HardwareConfigurableVariantDisplay
 {
@@ -56,11 +55,12 @@ final class HardwareConfigurableVariantDisplay
         1120 => 1,
         1123 => 2,
         1125 => 3,
+        1131 => 1,
+        1132 => 2,
+        1133 => 2,
     ];
 
     /**
-     * Compact OTG codes for canonical string and invoice use.
-     *
      * @var array<int, string>
      */
     private const MANTRA_MFS_OTG = [
@@ -68,12 +68,29 @@ final class HardwareConfigurableVariantDisplay
         996 => 'UC',
         1126 => 'U',
         1127 => 'UC',
+        1134 => 'U',
+        1136 => 'U',
         1724 => 'C',
     ];
 
     /**
-     * Human-readable OTG labels for workspace tooltips.
+     * Verified Box model_id → operational identity (P0-M1 channel_sku_maps).
      *
+     * @var array<int, array{primary: string, chipset?: string}>
+     */
+    private const CATALOG_MODELS = [
+        406 => ['primary' => 'ProxKey'],
+        926 => ['primary' => 'Radium Box UGR 86'],
+        930 => ['primary' => 'Futronic FS80H'],
+        931 => ['primary' => 'Futronic FS88H'],
+        951 => ['primary' => 'MSO 1300 E3 L1'],
+        970 => ['primary' => 'FM220 UFP'],
+        1006 => ['primary' => 'Mantra Iris MIS 100 V2'],
+        1693 => ['primary' => 'Mantra MARC11 L1'],
+        1723 => ['primary' => 'Radium Box UGR 89', 'chipset' => 'NaviC'],
+    ];
+
+    /**
      * @var array<string, string>
      */
     private const OTG_LABELS = [
@@ -114,33 +131,15 @@ final class HardwareConfigurableVariantDisplay
      */
     public static function workspaceLine(CommerceOrderItem $item): array
     {
-        $parts = self::mantraMfsParts($item);
-        if ($parts !== null) {
-            $qty = $item->qty !== null ? (int) $item->qty : null;
-            $primary = self::workspaceIdentity($parts);
-            $secondary = self::workspaceConfigTokens($parts, $qty);
+        $presentation = self::mantraMfsPresentation($item)
+            ?? self::ugrGpsPresentation($item)
+            ?? self::catalogModelPresentation($item);
 
-            return [
-                'label' => trim($primary.' '.$secondary),
-                'primary' => $primary,
-                'secondary' => $secondary,
-                'title' => self::workspaceTitle($parts, $qty),
-                'ambiguous' => false,
-            ];
+        if ($presentation !== null) {
+            return $presentation;
         }
 
-        $fallback = self::fallbackLabel($item);
-        $ambiguous = self::isAmbiguousMarketingDescription($fallback);
-
-        return [
-            'label' => $ambiguous ? 'Exact variant unavailable' : $fallback,
-            'primary' => $ambiguous ? 'Exact variant unavailable' : $fallback,
-            'secondary' => $ambiguous ? 'Order metadata incomplete — verify before allocating serial' : null,
-            'title' => $ambiguous
-                ? 'Product variant could not be resolved from order line FKs. Verify commerce line model/RD/warranty/OTG before allocating.'
-                : $fallback,
-            'ambiguous' => $ambiguous,
-        ];
+        return self::unavailablePresentation($item);
     }
 
     public static function label(CommerceOrderItem $item): string
@@ -150,22 +149,23 @@ final class HardwareConfigurableVariantDisplay
             return $canonical;
         }
 
-        $fallback = self::fallbackLabel($item);
-        if (self::isAmbiguousMarketingDescription($fallback)) {
-            return 'Exact variant unavailable';
+        $line = self::workspaceLine($item);
+        if (! $line['ambiguous']) {
+            return $line['label'];
         }
 
-        return $fallback;
+        return 'Exact variant unavailable';
     }
 
     public static function invoiceDescription(CommerceOrderItem $item, bool $annotateBundledRd = false): string
     {
         $canonical = self::forItem($item);
-        if ($canonical !== null) {
-            return $canonical;
+        $description = $canonical;
+        if ($description === null) {
+            $line = self::workspaceLine($item);
+            $description = ! $line['ambiguous'] ? $line['primary'] : self::fallbackLabel($item);
         }
 
-        $description = self::fallbackLabel($item);
         if ($annotateBundledRd && $item->rdserviceid !== null) {
             $description .= ' (bundled RD #'.$item->rdserviceid.')';
         }
@@ -179,6 +179,138 @@ final class HardwareConfigurableVariantDisplay
     }
 
     /**
+     * @return ?array{label: string, primary: string, secondary: ?string, title: string, ambiguous: bool}
+     */
+    private static function mantraMfsPresentation(CommerceOrderItem $item): ?array
+    {
+        $parts = self::mantraMfsParts($item);
+        if ($parts === null) {
+            return null;
+        }
+
+        $qty = self::itemQty($item);
+        $primary = self::workspaceIdentity($parts);
+        $secondary = self::mfsConfigTokens($parts, $qty);
+
+        return self::buildPresentation($primary, $secondary, self::mfsTitle($parts, $qty), $qty);
+    }
+
+    /**
+     * @return ?array{label: string, primary: string, secondary: ?string, title: string, ambiguous: bool}
+     */
+    private static function ugrGpsPresentation(CommerceOrderItem $item): ?array
+    {
+        $modelId = self::modelId($item);
+        $catalog = self::CATALOG_MODELS[$modelId] ?? null;
+        if ($catalog === null || ! str_starts_with($catalog['primary'], 'Radium Box UGR')) {
+            return null;
+        }
+
+        $qty = self::itemQty($item);
+        $primary = $catalog['primary'];
+        $tokens = [];
+        if (($catalog['chipset'] ?? null) !== null) {
+            $tokens[] = $catalog['chipset'];
+        }
+        $warranty = self::warrantyYears($item);
+        if ($warranty !== null) {
+            $tokens[] = 'W'.$warranty;
+        }
+        if ($qty !== null) {
+            $tokens[] = 'Q'.$qty;
+        }
+        $secondary = $tokens === [] ? null : implode(' ', $tokens);
+
+        $titleLines = [
+            $primary,
+            '',
+            'Model            '.$primary,
+        ];
+        if (($catalog['chipset'] ?? null) !== null) {
+            $titleLines[] = 'Chipset          '.$catalog['chipset'];
+        }
+        if ($warranty !== null) {
+            $titleLines[] = 'Warranty         '.$warranty.' Year'.($warranty === 1 ? '' : 's').' (W'.$warranty.')';
+        }
+        if ($qty !== null) {
+            $titleLines[] = 'Quantity         '.$qty.' (Q'.$qty.')';
+        }
+
+        return self::buildPresentation($primary, $secondary, implode("\n", $titleLines), $qty);
+    }
+
+    /**
+     * @return ?array{label: string, primary: string, secondary: ?string, title: string, ambiguous: bool}
+     */
+    private static function catalogModelPresentation(CommerceOrderItem $item): ?array
+    {
+        $modelId = self::modelId($item);
+        $catalog = self::CATALOG_MODELS[$modelId] ?? null;
+        if ($catalog === null) {
+            return null;
+        }
+
+        $qty = self::itemQty($item);
+        $primary = $catalog['primary'];
+        $tokens = self::genericConfigTokens($item, $qty);
+        $secondary = $tokens === [] ? null : implode(' ', $tokens);
+
+        $titleLines = [$primary, '', 'Model            '.$primary];
+        $rd = self::rdYears($item);
+        if ($rd !== null) {
+            $titleLines[] = 'RD Service       '.$rd.' Year'.($rd === 1 ? '' : 's').' (R'.$rd.')';
+        }
+        $warranty = self::warrantyYears($item);
+        if ($warranty !== null) {
+            $titleLines[] = 'Warranty         '.$warranty.' Year'.($warranty === 1 ? '' : 's').' (W'.$warranty.')';
+        }
+        $otg = self::otgCode($item);
+        if ($otg !== null) {
+            $titleLines[] = 'USB / OTG        '.self::otgLabel($otg).' ('.$otg.')';
+        }
+        if ($qty !== null) {
+            $titleLines[] = 'Quantity         '.$qty.' (Q'.$qty.')';
+        }
+
+        return self::buildPresentation($primary, $secondary, implode("\n", $titleLines), $qty);
+    }
+
+    /**
+     * @return array{label: string, primary: string, secondary: ?string, title: string, ambiguous: bool}
+     */
+    private static function unavailablePresentation(CommerceOrderItem $item): array
+    {
+        $fallback = self::fallbackLabel($item);
+        $ambiguous = self::isAmbiguousMarketingDescription($fallback);
+
+        return [
+            'label' => $ambiguous ? 'Exact variant unavailable' : $fallback,
+            'primary' => $ambiguous ? 'Exact variant unavailable' : $fallback,
+            'secondary' => $ambiguous ? 'Order metadata incomplete — verify before allocating serial' : null,
+            'title' => $ambiguous
+                ? 'Product variant could not be resolved from order line FKs. Verify commerce line model/configuration before allocating.'
+                : $fallback,
+            'ambiguous' => $ambiguous,
+        ];
+    }
+
+    /**
+     * @return array{label: string, primary: string, secondary: ?string, title: string, ambiguous: bool}
+     */
+    private static function buildPresentation(string $primary, ?string $secondary, string $title, ?int $qty): array
+    {
+        $label = trim($primary.($secondary !== null && $secondary !== '' ? ' '.$secondary : ''));
+
+        return [
+            'label' => $label,
+            'primary' => $primary,
+            'secondary' => $secondary,
+            'title' => $title,
+            'ambiguous' => false,
+        ];
+    }
+
+    /**
      * @return ?array{
      *     model: string,
      *     rd_level: string,
@@ -189,19 +321,15 @@ final class HardwareConfigurableVariantDisplay
      */
     private static function mantraMfsParts(CommerceOrderItem $item): ?array
     {
-        $modelId = $item->model_id !== null ? (int) $item->model_id : 0;
+        $modelId = self::modelId($item);
         $model = self::MANTRA_MFS_MODELS[$modelId] ?? null;
         if ($model === null) {
             return null;
         }
 
-        $rdId = $item->rdserviceid !== null ? (int) $item->rdserviceid : 0;
-        $amcId = $item->amcid !== null ? (int) $item->amcid : 0;
-        $otgId = $item->otgid !== null ? (int) $item->otgid : 0;
-
-        $rd = self::MANTRA_MFS_RD_YEARS[$rdId] ?? null;
-        $warranty = self::MANTRA_MFS_WARRANTY_YEARS[$amcId] ?? null;
-        $otg = self::MANTRA_MFS_OTG[$otgId] ?? null;
+        $rd = self::rdYears($item);
+        $warranty = self::warrantyYears($item);
+        $otg = self::otgCode($item);
 
         if ($rd === null || $warranty === null || $otg === null) {
             return null;
@@ -227,7 +355,7 @@ final class HardwareConfigurableVariantDisplay
     /**
      * @param  array{model: string, rd_level: string, rd_years: int, warranty_years: int, otg_code: string}  $parts
      */
-    private static function workspaceConfigTokens(array $parts, ?int $qty): string
+    private static function mfsConfigTokens(array $parts, ?int $qty): string
     {
         $tokens = [
             'R'.$parts['rd_years'],
@@ -243,9 +371,34 @@ final class HardwareConfigurableVariantDisplay
     }
 
     /**
+     * @return list<string>
+     */
+    private static function genericConfigTokens(CommerceOrderItem $item, ?int $qty): array
+    {
+        $tokens = [];
+        $rd = self::rdYears($item);
+        if ($rd !== null) {
+            $tokens[] = 'R'.$rd;
+        }
+        $warranty = self::warrantyYears($item);
+        if ($warranty !== null) {
+            $tokens[] = 'W'.$warranty;
+        }
+        $otg = self::otgCode($item);
+        if ($otg !== null) {
+            $tokens[] = $otg;
+        }
+        if ($qty !== null) {
+            $tokens[] = 'Q'.$qty;
+        }
+
+        return $tokens;
+    }
+
+    /**
      * @param  array{model: string, rd_level: string, rd_years: int, warranty_years: int, otg_code: string}  $parts
      */
-    private static function workspaceTitle(array $parts, ?int $qty): string
+    private static function mfsTitle(array $parts, ?int $qty): string
     {
         $yearLabel = static fn (int $years): string => $years.' Year'.($years === 1 ? '' : 's');
 
@@ -266,6 +419,37 @@ final class HardwareConfigurableVariantDisplay
         return implode("\n", $lines);
     }
 
+    private static function modelId(CommerceOrderItem $item): int
+    {
+        return $item->model_id !== null ? (int) $item->model_id : 0;
+    }
+
+    private static function itemQty(CommerceOrderItem $item): ?int
+    {
+        return $item->qty !== null ? (int) $item->qty : null;
+    }
+
+    private static function rdYears(CommerceOrderItem $item): ?int
+    {
+        $rdId = $item->rdserviceid !== null ? (int) $item->rdserviceid : 0;
+
+        return self::MANTRA_MFS_RD_YEARS[$rdId] ?? null;
+    }
+
+    private static function warrantyYears(CommerceOrderItem $item): ?int
+    {
+        $amcId = $item->amcid !== null ? (int) $item->amcid : 0;
+
+        return self::MANTRA_MFS_WARRANTY_YEARS[$amcId] ?? null;
+    }
+
+    private static function otgCode(CommerceOrderItem $item): ?string
+    {
+        $otgId = $item->otgid !== null ? (int) $item->otgid : 0;
+
+        return self::MANTRA_MFS_OTG[$otgId] ?? null;
+    }
+
     private static function fallbackLabel(CommerceOrderItem $item): string
     {
         $label = trim((string) $item->description);
@@ -278,6 +462,14 @@ final class HardwareConfigurableVariantDisplay
 
     private static function isAmbiguousMarketingDescription(string $label): bool
     {
-        return (bool) preg_match('/\b100\s*\/\s*110\b/i', $label);
+        if (preg_match('/\b100\s*\/\s*110\b/i', $label)) {
+            return true;
+        }
+
+        if (preg_match('/UGR\s*86\s*\/\s*UGR\s*89/i', $label)) {
+            return true;
+        }
+
+        return (bool) preg_match('/UGR86\s*\/\s*UGR89/i', $label);
     }
 }
