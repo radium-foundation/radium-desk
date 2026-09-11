@@ -373,5 +373,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-219 | 2026-09-11 | READ-ONLY Gate 1 statutory audit of 45 B2B IRN exceptions | Production SELECT only. Verified 45 invoices, root causes, permanent-fix matrix. No DB/code/IRN changes. |
 | RadiumDesk-P-07-09-220 | 2026-09-11 | Permanent statutory data quality + 45 B2B IRN remediation | Service UQC OTH, SAC 998313, POS resolver/snapshot, address formatter, IRN readiness, C360 agent visibility, controlled remediation + backfill. Report: `docs/desk-irn-statutory-quality-remediation-p-07-09-220.md`. |
 | RadiumDesk-P-07-09-221 | 2026-09-11 | Gate 3 buyer data correction + POS resolver audit | Five blocked invoices investigated; no evidence-backed corrections. PIN/GSTIN mismatch fail-closed + provider blocker + C360 agent messaging. Report: `docs/desk-irn-buyer-data-gate3-p-07-09-221.md`. |
+| RadiumDesk-P-07-09-222 | 2026-09-11 | Gate 4 walk-in retail POS end-to-end integration | POS sale show invoice actions, B2C branch-default POS at snapshot, mint-failure warning, counter copy fix. Finance Party not merged. Report: `docs/desk-walk-in-pos-gate4-p-07-09-222.md`. |
 
 Do not renumber or overwrite earlier rows. Append only.
