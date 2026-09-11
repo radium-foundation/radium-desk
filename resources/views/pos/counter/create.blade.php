@@ -311,6 +311,9 @@
                 let submitting = false;
                 let selectedCustomerId = null;
                 let serialBusy = false;
+                let serialQueue = [];
+                let serialSearchGeneration = 0;
+                let serialListRefreshTimer = null;
 
                 function money(value) {
                     return (Math.round(value * 100) / 100).toFixed(2);
@@ -540,10 +543,21 @@
                         });
                 }
 
-                function loadSerials(query) {
-                    if (!pendingProduct) {
+                function scheduleSerialListRefresh() {
+                    if (serialBusy || serialQueue.length > 0 || !pendingProduct) {
                         return;
                     }
+                    clearTimeout(serialListRefreshTimer);
+                    serialListRefreshTimer = setTimeout(function () {
+                        loadSerials(serialInput.value.trim());
+                    }, 400);
+                }
+
+                function loadSerials(query) {
+                    if (!pendingProduct || serialBusy || serialQueue.length > 0) {
+                        return;
+                    }
+                    const generation = ++serialSearchGeneration;
                     const params = new URLSearchParams({
                         branch_id: String(branchId),
                         q: query,
@@ -554,12 +568,21 @@
                     }
                     fetch(serialSearchUrl + '?' + params.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                         .then(function (response) {
+                            if (generation !== serialSearchGeneration) {
+                                return null;
+                            }
+                            if (response.status === 429) {
+                                throw new Error('serial-search-rate-limited');
+                            }
                             if (!response.ok) {
                                 throw new Error('serial-search-failed');
                             }
                             return response.json();
                         })
                         .then(function (data) {
+                            if (data === null || generation !== serialSearchGeneration) {
+                                return;
+                            }
                             serialResults.innerHTML = '';
                             (data.serials || []).forEach(function (serial) {
                                 const button = document.createElement('button');
@@ -567,8 +590,7 @@
                                 button.className = 'list-group-item list-group-item-action';
                                 button.textContent = serial.serial_number;
                                 button.addEventListener('click', function () {
-                                    addSerializedItem(pendingProduct.product, pendingProduct.variant, serial.serial_number);
-                                    loadSerials(serialInput.value);
+                                    enqueueScan(serial.serial_number);
                                 });
                                 serialResults.appendChild(button);
                             });
@@ -576,7 +598,14 @@
                                 serialResults.innerHTML = '<div class="list-group-item text-muted">No available serials at this branch.</div>';
                             }
                         })
-                        .catch(function () {
+                        .catch(function (error) {
+                            if (generation !== serialSearchGeneration) {
+                                return;
+                            }
+                            if (error && error.message === 'serial-search-rate-limited') {
+                                serialResults.innerHTML = '<div class="list-group-item text-warning">Serial list paused — server rate limit. Scanning can continue.</div>';
+                                return;
+                            }
                             serialResults.innerHTML = '<div class="list-group-item text-danger">Could not search serials. Try again.</div>';
                         });
                 }
@@ -591,26 +620,44 @@
                     searchTimer = setTimeout(function () { loadProducts(query); }, 200);
                 });
 
-                function captureScan(raw) {
+                function normalizeScan(raw) {
+                    return (raw || '').replace(/[\r\n]+/g, '').trim();
+                }
+
+                function serialAlreadyInCart(query) {
+                    const upper = query.toUpperCase();
+                    return cart.some(function (item) {
+                        return item.serials.some(function (serial) {
+                            return serial === query || serial.toUpperCase() === upper;
+                        });
+                    });
+                }
+
+                function finishSerialMatchAttempt() {
+                    serialBusy = false;
+                    serialInput.value = '';
+                    serialInput.focus();
+                    drainSerialQueue();
+                }
+
+                function drainSerialQueue() {
+                    if (serialBusy || serialQueue.length === 0) {
+                        scheduleSerialListRefresh();
+                        return;
+                    }
                     if (!pendingProduct) {
+                        serialQueue = [];
                         setSerialStatus('Select a product before scanning serials.', false);
                         return;
                     }
-                    const query = (raw || serialInput.value || '').replace(/[\r\n]+/g, '').trim();
-                    if (!query) {
-                        return;
-                    }
-                    if (cart.some(function (item) { return item.serials.indexOf(query) !== -1 || item.serials.indexOf(query.toUpperCase()) !== -1; })) {
-                        setSerialStatus('Duplicate: ' + query + ' is already in the cart.', false);
-                        serialInput.value = '';
-                        serialInput.focus();
-                        return;
-                    }
-                    if (serialBusy) {
-                        return;
-                    }
+
                     serialBusy = true;
-                    setSerialStatus('Checking ' + query + '…', null);
+                    clearTimeout(serialTimer);
+                    serialSearchGeneration += 1;
+                    const query = serialQueue.shift();
+                    const queuedNote = serialQueue.length ? ' · ' + serialQueue.length + ' queued' : '';
+                    setSerialStatus('Checking ' + query + queuedNote + '…', null);
+
                     const params = new URLSearchParams({
                         branch_id: String(branchId),
                         q: query,
@@ -619,35 +666,82 @@
                     if (pendingProduct.variant) {
                         params.set('variant_id', String(pendingProduct.variant.id));
                     }
+
                     fetch(matchSerialUrl + '?' + params.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                         .then(function (response) {
+                            if (response.status === 429) {
+                                serialQueue.unshift(query);
+                                const retryAfter = parseInt(response.headers.get('Retry-After') || '1', 10);
+                                const retryMs = Math.max(1000, (Number.isFinite(retryAfter) ? retryAfter : 1) * 1000);
+                                setSerialStatus('Server rate limit — pausing scans for ' + Math.ceil(retryMs / 1000) + 's. Serials stay queued.', false);
+                                return new Promise(function (resolve) {
+                                    setTimeout(resolve, retryMs);
+                                }).then(function () {
+                                    return { rateLimited: true };
+                                });
+                            }
                             if (!response.ok) {
                                 throw new Error('serial-match-failed');
                             }
                             return response.json();
                         })
                         .then(function (data) {
-                            if (!data || !data.ok) {
+                            if (!data || data.rateLimited) {
+                                return;
+                            }
+                            if (!data.ok) {
                                 setSerialStatus((data && data.message) ? data.message : 'Serial was rejected.', false);
                                 return;
                             }
                             const number = data.serial && data.serial.serial_number ? data.serial.serial_number : query;
                             addSerializedItem(pendingProduct.product, pendingProduct.variant, number);
-                            loadSerials('');
                         })
                         .catch(function () {
                             setSerialStatus('Could not verify that serial. Try again.', false);
                         })
                         .finally(function () {
-                            serialBusy = false;
-                            serialInput.value = '';
-                            serialInput.focus();
+                            finishSerialMatchAttempt();
                         });
                 }
 
+                function enqueueScan(raw) {
+                    if (!pendingProduct) {
+                        setSerialStatus('Select a product before scanning serials.', false);
+                        return;
+                    }
+                    const query = normalizeScan(raw || serialInput.value);
+                    if (!query) {
+                        return;
+                    }
+                    if (serialAlreadyInCart(query)) {
+                        setSerialStatus('Duplicate: ' + query + ' is already in the cart.', false);
+                        serialInput.value = '';
+                        serialInput.focus();
+                        return;
+                    }
+                    const upper = query.toUpperCase();
+                    if (serialQueue.some(function (queued) { return queued.toUpperCase() === upper; })) {
+                        setSerialStatus('Duplicate scan: ' + query + ' is already queued.', false);
+                        serialInput.value = '';
+                        serialInput.focus();
+                        return;
+                    }
+                    serialQueue.push(query);
+                    serialInput.value = '';
+                    drainSerialQueue();
+                }
+
                 serialInput.addEventListener('input', function () {
+                    const value = serialInput.value;
+                    if (/[\r\n]/.test(value)) {
+                        enqueueScan(value);
+                        return;
+                    }
+                    if (serialBusy || serialQueue.length > 0) {
+                        return;
+                    }
                     clearTimeout(serialTimer);
-                    serialTimer = setTimeout(function () { loadSerials(serialInput.value.trim()); }, 200);
+                    serialTimer = setTimeout(function () { loadSerials(value.trim()); }, 200);
                 });
 
                 serialInput.addEventListener('keydown', function (event) {
@@ -656,7 +750,7 @@
                     }
                     event.preventDefault();
                     event.stopPropagation();
-                    captureScan(serialInput.value);
+                    enqueueScan(serialInput.value);
                 });
 
                 cartBody.addEventListener('click', function (event) {

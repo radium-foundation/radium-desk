@@ -150,4 +150,21 @@ class PosSerialMatchTest extends TestCase
             ->assertJsonPath('ok', false)
             ->assertJsonPath('reason', 'reserved');
     }
+
+    public function test_rapid_sequential_match_requests_stay_available(): void
+    {
+        $serials = ['2508103320', '2503104063'];
+
+        foreach ($serials as $serial) {
+            $this->actingAs($this->seller)
+                ->getJson(route('pos.serials.match', [
+                    'branch_id' => $this->branch->id,
+                    'product_id' => $this->product->id,
+                    'q' => $serial,
+                ]))
+                ->assertOk()
+                ->assertJsonPath('ok', true)
+                ->assertJsonPath('serial.serial_number', $serial);
+        }
+    }
 }
