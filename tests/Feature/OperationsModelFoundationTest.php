@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\RefundStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Enums\WaitingReason;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
+use App\Models\RefundRequest;
 use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
@@ -17,8 +19,8 @@ use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\Operations\OperationsRoleService;
-use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\Operations\TeamMemberActivityService;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RemarkService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -51,6 +53,7 @@ class OperationsModelFoundationTest extends TestCase
 
         $this->assertTrue($admin->can('users.manage'));
         $this->assertTrue($admin->can('dashboard.hardware.view'));
+        $this->assertTrue($admin->can(RolePermissionSeeder::PERMISSION_READY_QUEUE_VIEW));
     }
 
     public function test_new_operational_roles_map_to_expected_permissions(): void
@@ -407,7 +410,7 @@ class OperationsModelFoundationTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        \App\Models\RefundRequest::query()->create([
+        RefundRequest::query()->create([
             'order_id' => Order::query()->create([
                 'order_id' => 'RD-REF-KPI',
                 'serial_number' => 'SN-REF',
@@ -419,7 +422,7 @@ class OperationsModelFoundationTest extends TestCase
             'reference_no' => 'REF-'.now()->format('Y').'-000099',
             'amount' => 100,
             'reason' => 'Test refund',
-            'status' => \App\Enums\RefundStatus::Pending,
+            'status' => RefundStatus::Pending,
             'requested_by' => $admin->id,
         ]);
 

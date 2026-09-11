@@ -192,4 +192,17 @@ class DashboardPersonalizationServiceTest extends TestCase
         $this->assertTrue($this->service->hidesZeroCountQueueTabs($agent));
         $this->assertTrue($this->service->hidesZeroCountQueueTabs($admin));
     }
+
+    public function test_ready_queue_permission_grants_hybrid_hardware_operator_queues(): void
+    {
+        $operator = User::factory()->create();
+        $operator->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+        $operator->givePermissionTo(RolePermissionSeeder::PERMISSION_READY_QUEUE_VIEW);
+
+        $queues = $this->service->availableQueuesFor($operator);
+
+        $this->assertContains(DashboardPersonalizationService::QUEUE_ACTION_REQUIRED, $queues);
+        $this->assertContains(DashboardPersonalizationService::QUEUE_HARDWARE, $queues);
+        $this->assertNotContains(DashboardPersonalizationService::QUEUE_ATTENTION, $queues);
+    }
 }

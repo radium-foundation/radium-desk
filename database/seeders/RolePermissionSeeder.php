@@ -113,6 +113,9 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_POS_SELL = 'pos.sell';
 
+    /** View the Ready Queue operations workspace tab. Not a named-user grant. */
+    public const PERMISSION_READY_QUEUE_VIEW = 'dashboard.ready_queue.view';
+
     /** Allocate Desk stock serials to hardware fulfilments. Not a named-user grant. */
     public const PERMISSION_HARDWARE_FULFILMENT_OPERATE = 'hardware.fulfilment.operate';
 
@@ -376,6 +379,7 @@ class RolePermissionSeeder extends Seeder
         ],
         self::ROLE_ADMIN => [
             'dashboard.hardware.view',
+            self::PERMISSION_READY_QUEUE_VIEW,
             'orders.view',
             'orders.create',
             'orders.update',
@@ -425,6 +429,7 @@ class RolePermissionSeeder extends Seeder
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
+            self::PERMISSION_READY_QUEUE_VIEW,
             'orders.view',
             'orders.create',
             'orders.update',
@@ -475,6 +480,7 @@ class RolePermissionSeeder extends Seeder
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
+            self::PERMISSION_READY_QUEUE_VIEW,
             'orders.view',
             'orders.create',
             'orders.update',

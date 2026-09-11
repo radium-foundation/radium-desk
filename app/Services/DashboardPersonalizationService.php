@@ -40,6 +40,8 @@ class DashboardPersonalizationService
 
     public const PERMISSION_HARDWARE_VIEW = 'dashboard.hardware.view';
 
+    public const PERMISSION_READY_QUEUE_VIEW = RolePermissionSeeder::PERMISSION_READY_QUEUE_VIEW;
+
     /**
      * @var list<string>
      */
@@ -82,6 +84,19 @@ class DashboardPersonalizationService
                 self::QUEUE_ATTENTION,
                 self::QUEUE_SCHEDULED,
                 self::QUEUE_WAITING_CUSTOMER,
+            ];
+
+            if ($this->canViewHardwareOrders($user)) {
+                $queues[] = self::QUEUE_HARDWARE;
+            }
+
+            return $queues;
+        }
+
+        if ($this->operationsRoles->canViewReadyQueue($user)) {
+            $queues = [
+                self::QUEUE_ACTION_REQUIRED,
+                self::QUEUE_MY_WORK,
             ];
 
             if ($this->canViewHardwareOrders($user)) {
@@ -155,7 +170,8 @@ class DashboardPersonalizationService
     public function hidesZeroCountQueueTabs(User $user): bool
     {
         return $this->operationsRoles->usesSupportQueues($user)
-            || $this->operationsRoles->usesAdminQueues($user);
+            || $this->operationsRoles->usesAdminQueues($user)
+            || $this->operationsRoles->canViewReadyQueue($user);
     }
 
     /**
@@ -492,6 +508,7 @@ class DashboardPersonalizationService
 
         if ($filter === 'pending_admin' || $filter === 'all' || $view === self::VIEW_ALL || $view === self::VIEW_TEAM) {
             return $this->operationsRoles->usesAdminQueues($user)
+                || $this->operationsRoles->canViewReadyQueue($user)
                 ? self::QUEUE_ACTION_REQUIRED
                 : self::QUEUE_MY_WORK;
         }
