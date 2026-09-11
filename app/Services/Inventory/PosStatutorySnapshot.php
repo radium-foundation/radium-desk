@@ -3,6 +3,7 @@
 namespace App\Services\Inventory;
 
 use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Services\StatutoryInvoice\StatutoryLocationSeries;
 use App\Support\Finance\GstStateCodes;
 use App\Support\Finance\IndianStates;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
@@ -19,7 +20,7 @@ final class PosStatutorySnapshot
      *     billing_address_structured: ?array<string, string>
      * }
      */
-    public function capture(?string $customerGstin, array $statutory): array
+    public function capture(?string $customerGstin, array $statutory, ?string $branchCode = null): array
     {
         $buyerGstin = BuyerGstin::normalize(
             StatutoryBillingStructured::nullable($statutory['buyer_gstin'] ?? null)
@@ -32,6 +33,9 @@ final class PosStatutorySnapshot
         }
 
         $place = StatutoryBillingStructured::nullable($statutory['place_of_supply_state'] ?? null);
+        if ($place === null && $buyerGstin === null) {
+            $place = $this->defaultWalkInPlaceOfSupply($branchCode);
+        }
         if ($place !== null && ! IndianStates::contains($place)) {
             throw ValidationException::withMessages([
                 'place_of_supply_state' => 'Select a valid Indian place of supply state.',
@@ -113,5 +117,17 @@ final class PosStatutorySnapshot
                 'billing_state' => 'Billing state must match the GSTIN registered state.',
             ]);
         }
+    }
+
+    private function defaultWalkInPlaceOfSupply(?string $branchCode): ?string
+    {
+        $location = app(StatutoryLocationSeries::class)->resolveFromBranchCode($branchCode);
+        if ($location === null) {
+            return null;
+        }
+
+        $state = config('statutory_invoices.location_series.locations.'.$location.'.state');
+
+        return is_string($state) && trim($state) !== '' ? trim($state) : null;
     }
 }

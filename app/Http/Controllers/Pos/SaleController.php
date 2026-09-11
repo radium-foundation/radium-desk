@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pos;
 use App\Http\Controllers\Controller;
 use App\Models\InventorySale;
 use App\Services\Inventory\PosSaleService;
+use App\Services\Pos\PosSaleStatutoryInvoicePresenter;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\PosAccess;
 use Database\Seeders\RolePermissionSeeder;
@@ -16,6 +17,7 @@ class SaleController extends Controller
 {
     public function __construct(
         private readonly PosSaleService $sales,
+        private readonly PosSaleStatutoryInvoicePresenter $statutoryPresentation,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(PosAccess::allows($request->user()), 403);
@@ -69,6 +71,7 @@ class SaleController extends Controller
         return view('pos.sales.show', [
             'sale' => $sale->loadMissing('statutoryInvoice'),
             'canCancel' => PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_CANCEL),
+            'statutoryPresentation' => $this->statutoryPresentation->forSale($sale, $request->user()),
         ]);
     }
 

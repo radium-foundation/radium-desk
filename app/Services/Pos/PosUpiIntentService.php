@@ -116,6 +116,7 @@ class PosUpiIntentService
         $snapshot = $this->statutorySnapshot->capture(
             $existingCustomer?->gstin ?? ($customer['gstin'] ?? null),
             $statutory,
+            $branch->code,
         );
         $statutoryPayload = [
             'buyer_gstin' => $snapshot['buyer_gstin'],

@@ -21,6 +21,12 @@
     </div>
     @include('pos.partials.workspace-nav', ['active' => 'sales'])
 
+    @if(session('warning'))
+        <div class="alert alert-warning">{{ session('warning') }}</div>
+    @endif
+
+    @include('pos.sales.partials.statutory-invoice', ['statutoryPresentation' => $statutoryPresentation ?? null])
+
     <div class="row g-3 mb-3">
         <div class="col-md-6">
             <div class="card border-0 shadow-sm h-100">
@@ -34,7 +40,11 @@
                         <div>GSTIN {{ $sale->buyer_gstin ?: 'B2C / not captured' }}</div>
                         <div>Place of supply {{ $sale->place_of_supply_state ?: 'not captured' }}</div>
                         <div>{{ $sale->billing_address ?: 'No billing address captured' }}</div>
-                        <div class="text-muted">Finance Hub issues the GST invoice later. This sale did not mint one.</div>
+                        @php($structured = is_array($sale->billing_address_structured) ? $sale->billing_address_structured : [])
+                        <div>City {{ $structured['city'] ?? 'not captured' }}</div>
+                        <div>State {{ $structured['state'] ?? 'not captured' }}</div>
+                        <div>PIN {{ $structured['pincode'] ?? 'not captured' }}</div>
+                        <div class="text-muted">Captured at sale time. The GST invoice uses this snapshot, not later customer edits.</div>
                     </div>
                     <div class="mt-2 small text-muted">{{ $sale->branch?->name }} · {{ $sale->payment_method }}</div>
                     @if($sale->upiIntent)
@@ -124,6 +134,55 @@
 
 @push('scripts')
     <script>
+        document.querySelectorAll('[data-pos-invoice-share]').forEach(function (button) {
+            button.addEventListener('click', async function () {
+                const shareData = {
+                    title: button.dataset.shareTitle || 'Tax invoice',
+                    url: button.dataset.shareUrl || window.location.href,
+                };
+                if (navigator.share) {
+                    try {
+                        await navigator.share(shareData);
+                    } catch (error) {
+                        if (error && error.name !== 'AbortError') {
+                            window.open(shareData.url, '_blank', 'noopener');
+                        }
+                    }
+                    return;
+                }
+                window.open(shareData.url, '_blank', 'noopener');
+            });
+        });
+
+        document.querySelectorAll('[data-pos-invoice-email]').forEach(function (button) {
+            button.addEventListener('click', async function () {
+                const url = button.dataset.emailUrl;
+                const defaultEmail = button.dataset.customerEmail || '';
+                const email = window.prompt('Send invoice to email:', defaultEmail);
+                if (!email) {
+                    return;
+                }
+                button.disabled = true;
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        },
+                        body: JSON.stringify({ email }),
+                    });
+                    const payload = await response.json();
+                    window.alert(payload.message || (payload.success ? 'Invoice emailed.' : 'Email failed.'));
+                } catch (error) {
+                    window.alert('Email could not be sent.');
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
+
         document.querySelectorAll('form[data-once-submit]').forEach(function (form) {
             form.addEventListener('submit', function (event) {
                 if (form.dataset.submitting === '1') {

@@ -57,6 +57,7 @@ class PosStatutorySnapshotTest extends TestCase
             'sku' => 'MFS110-SNAP',
             'name' => 'Mantra snapshot',
             'hsn_code' => '84716050',
+            'uqc' => 'NOS',
             'gst_percentage' => 18,
             'unit_price' => 100,
             'is_serialized' => false,
@@ -140,7 +141,7 @@ class PosStatutorySnapshotTest extends TestCase
         $this->assertSame(0, InventorySale::query()->count());
     }
 
-    public function test_sale_completes_without_place_of_supply_and_does_not_mint(): void
+    public function test_b2c_sale_without_explicit_place_of_supply_defaults_to_branch_state_and_mints(): void
     {
         $this->actingAs($this->seller)
             ->post(route('pos.counter.store'), $this->payload([
@@ -149,18 +150,13 @@ class PosStatutorySnapshotTest extends TestCase
             ->assertRedirect();
 
         $sale = InventorySale::query()->where('idempotency_key', 'snap-no-pos-1')->firstOrFail();
-        $this->assertNull($sale->place_of_supply_state);
-        $this->assertNull($sale->statutory_invoice_id);
-        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame('Delhi', $sale->place_of_supply_state);
+        $this->assertNotNull($sale->statutory_invoice_id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertMatchesRegularExpression('/^INV-DELHI-RETAIL-\d{4}-\d{5}$/', (string) $sale->invoice_number);
 
         $eligibility = app(StatutoryMintEligibility::class)->evaluateSale($sale);
-        $this->assertFalse($eligibility->eligible);
-        $this->assertTrue($eligibility->missingPlaceOfSupply());
-        $this->assertSame('Place of supply missing', $eligibility->staffSummary());
-
-        $this->expectException(ValidationException::class);
-        app(StatutoryInvoiceService::class)->issueFromPosSale($sale, $this->seller);
+        $this->assertTrue($eligibility->eligible);
     }
 
     public function test_customer_gstin_default_is_copied_onto_the_sale_snapshot(): void
@@ -234,8 +230,14 @@ class PosStatutorySnapshotTest extends TestCase
             actor: $this->seller,
             statutory: ['place_of_supply_state' => 'Delhi'],
         );
+        $unmappedBranch = InventoryBranch::query()->create([
+            'code' => 'CHENNAI-RETAIL',
+            'name' => 'Chennai Retail',
+            'is_active' => true,
+        ]);
+        app(InventoryStockService::class)->stockInQuantity($this->product, $unmappedBranch, 5, $this->seller);
         $blocked = app(PosSaleService::class)->completeSale(
-            branch: $this->branch,
+            branch: $unmappedBranch,
             customer: ['name' => 'Blocked', 'phone' => '9000000093'],
             lines: [['product_id' => $this->product->id, 'qty' => 1]],
             paymentMethod: 'Cash',
@@ -389,7 +391,9 @@ class PosStatutorySnapshotTest extends TestCase
         $sale = InventorySale::query()->where('idempotency_key', 'snap-b2c-no-irn-address')->firstOrFail();
         $this->assertNull($sale->buyer_gstin);
         $this->assertNull($sale->billing_address_structured);
-        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame('Delhi', $sale->place_of_supply_state);
+        $this->assertNotNull($sale->statutory_invoice_id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
     }
 
     /**

@@ -13,6 +13,7 @@ use App\Models\InventoryStockBalance;
 use App\Services\Inventory\PosSaleService;
 use App\Services\Pos\PosUpiIntentService;
 use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Services\StatutoryInvoice\StatutoryLocationSeries;
 use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\PosAccess;
@@ -61,6 +62,7 @@ class CounterController extends Controller
             'upiReceivingAccounts' => $this->upiIntents->enabledReceivingAccounts(),
             'canVerifyUpi' => PosAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_POS_PAYMENTS_VERIFY),
             'placeOfSupplyStates' => IndianStates::names(),
+            'defaultPlaceOfSupplyState' => $this->defaultPlaceOfSupplyState($operatingBranch),
         ]);
     }
 
@@ -171,7 +173,14 @@ class CounterController extends Controller
             statutory: $statutory,
         );
 
-        return redirect()->route('pos.sales.show', $sale)->with('status', 'Sale '.$sale->sale_no.' completed.');
+        $redirect = redirect()->route('pos.sales.show', $sale)
+            ->with('status', 'Sale '.$sale->sale_no.' completed.');
+        $warning = $this->sales->lastStatutoryIssueWarning();
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
+
+        return $redirect;
     }
 
     public function searchProducts(Request $request): JsonResponse
@@ -347,5 +356,21 @@ class CounterController extends Controller
         }
 
         return ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'];
+    }
+
+    private function defaultPlaceOfSupplyState(?InventoryBranch $branch): ?string
+    {
+        if ($branch === null) {
+            return null;
+        }
+
+        $location = app(StatutoryLocationSeries::class)->resolveFromBranchCode($branch->code);
+        if ($location === null) {
+            return null;
+        }
+
+        $state = config('statutory_invoices.location_series.locations.'.$location.'.state');
+
+        return is_string($state) && trim($state) !== '' ? trim($state) : null;
     }
 }

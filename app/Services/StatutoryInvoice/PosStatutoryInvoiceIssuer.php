@@ -17,10 +17,12 @@ final class PosStatutoryInvoiceIssuer
         private readonly StatutoryInvoiceService $invoices,
     ) {}
 
-    public function issueAfterSaleCommit(InventorySale $sale, ?User $actor = null): void
+    public function issueAfterSaleCommit(InventorySale $sale, ?User $actor = null): ?string
     {
         try {
             $this->invoices->issueFromPosSale($sale, $actor);
+
+            return null;
         } catch (Throwable $exception) {
             Log::warning('pos_statutory_invoice.sale_issue_failed', [
                 'sale_id' => $sale->id,
@@ -28,6 +30,8 @@ final class PosStatutoryInvoiceIssuer
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),
             ]);
+
+            return 'Sale completed, but the GST invoice could not be issued automatically. Open this sale to review or retry from Finance Hub.';
         }
     }
 }

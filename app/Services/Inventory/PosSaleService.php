@@ -26,6 +26,8 @@ class PosSaleService
 {
     private const COMPLETION_ATTEMPTS = 5;
 
+    private ?string $lastStatutoryIssueWarning = null;
+
     public function __construct(
         private readonly InventoryStockService $stock,
         private readonly PosSaleJournalService $journals,
@@ -60,6 +62,7 @@ class PosSaleService
         array $statutory = [],
     ): InventorySale {
         $this->statutoryAccounting->assertMustNotAutoIssueOnPosComplete();
+        $this->lastStatutoryIssueWarning = null;
 
         if ($lines === []) {
             throw ValidationException::withMessages([
@@ -129,7 +132,11 @@ class PosSaleService
 
                 $inventoryCustomer = $this->findOrCreateCustomer($customer);
 
-                $snapshot = $this->statutorySnapshot->capture($inventoryCustomer->gstin, $statutory);
+                $snapshot = $this->statutorySnapshot->capture(
+                    $inventoryCustomer->gstin,
+                    $statutory,
+                    $lockedBranch->code,
+                );
 
                 $sale = InventorySale::query()->create([
                     'sale_no' => 'POS-TMP-'.strtoupper(bin2hex(random_bytes(6))),
@@ -322,7 +329,7 @@ class PosSaleService
                     ->first();
                 if ($existing !== null) {
                     $existing = $existing->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $existing;
-                    $this->posInvoices->issueAfterSaleCommit($existing, $actor);
+                    $this->lastStatutoryIssueWarning = $this->posInvoices->issueAfterSaleCommit($existing, $actor);
 
                     return $existing;
                 }
@@ -331,9 +338,14 @@ class PosSaleService
             throw $exception;
         }
 
-        $this->posInvoices->issueAfterSaleCommit($sale, $actor);
+        $this->lastStatutoryIssueWarning = $this->posInvoices->issueAfterSaleCommit($sale, $actor);
 
         return $sale;
+    }
+
+    public function lastStatutoryIssueWarning(): ?string
+    {
+        return $this->lastStatutoryIssueWarning;
     }
 
     public function cancelSale(InventorySale $sale, User $actor, string $reason): InventorySale

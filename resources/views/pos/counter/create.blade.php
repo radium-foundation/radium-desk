@@ -148,14 +148,14 @@
                                 <div>
                                     <label class="form-label" for="place_of_supply_state">Place of supply</label>
                                     <select name="place_of_supply_state" id="place_of_supply_state" class="form-select">
-                                        <option value="">Select state (required later for GST invoice)</option>
+                                        <option value="">Use branch default for B2C</option>
                                         @foreach($placeOfSupplyStates as $state)
-                                            <option value="{{ $state }}" @selected(old('place_of_supply_state') === $state)>{{ $state }}</option>
+                                            <option value="{{ $state }}" @selected(old('place_of_supply_state', $defaultPlaceOfSupplyState) === $state)>{{ $state }}</option>
                                         @endforeach
                                     </select>
                                     @error('place_of_supply_state')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
-                                <p class="small text-muted mb-0 mt-2">These values are stored on the sale for Finance Hub. Completing the sale does not issue a GST invoice. City, state, and PIN are required when a GSTIN is entered.</p>
+                                <p class="small text-muted mb-0 mt-2">These values are snapshotted on the sale. A GST tax invoice is issued automatically after a successful sale when statutory data is complete. B2C walk-in sales default place of supply to the selling branch state. City, state, and PIN are required when a GSTIN is entered.</p>
                                 <p class="small text-muted mb-0 mt-2" id="pos-customer-status"></p>
                             </div>
                         </div>

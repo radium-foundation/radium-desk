@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pos;
 use App\Enums\PosPaymentIntentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\PosPaymentIntent;
+use App\Services\Inventory\PosSaleService;
 use App\Services\Pos\PosUpiIntentService;
 use App\Services\Pos\PosUpiVerificationService;
 use App\Support\Inventory\InventoryBranchScope;
@@ -19,6 +20,7 @@ class UpiPaymentVerificationController extends Controller
     public function __construct(
         private readonly PosUpiIntentService $intents,
         private readonly PosUpiVerificationService $verifications,
+        private readonly PosSaleService $sales,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(
@@ -104,7 +106,13 @@ class UpiPaymentVerificationController extends Controller
             $data['confirmed_amount'],
         );
 
-        return redirect()->route('pos.sales.show', $sale)
+        $redirect = redirect()->route('pos.sales.show', $sale)
             ->with('status', 'UPI payment verified. Sale '.$sale->sale_no.' completed.');
+        $warning = $this->sales->lastStatutoryIssueWarning();
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
+
+        return $redirect;
     }
 }
