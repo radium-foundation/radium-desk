@@ -84,8 +84,11 @@
                     @if(filled($invoice['einvoice']['ack_date'] ?? null))
                         <p class="mb-0">Ack Date: {{ $invoice['einvoice']['ack_date'] }}</p>
                     @endif
-                    @if(filled($invoice['einvoice']['reason'] ?? null))
-                        <p class="mb-0 text-muted">Reason: {{ $invoice['einvoice']['reason'] }}</p>
+                    @if(filled($invoice['einvoice']['why'] ?? null))
+                        <p class="mb-0 text-muted">Why? {{ $invoice['einvoice']['why'] }}</p>
+                    @endif
+                    @if(filled($invoice['einvoice']['next_action'] ?? null))
+                        <p class="mb-0 text-muted">Next action: {{ $invoice['einvoice']['next_action'] }}</p>
                     @endif
                 </div>
             @endif

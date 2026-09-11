@@ -18,6 +18,7 @@ final class StatutoryInvoiceLineDraft
         public readonly ?float $cgst = null,
         public readonly ?float $sgst = null,
         public readonly ?float $igst = null,
+        public readonly ?string $uqc = null,
     ) {}
 
     public function withTaxComponents(float $cgst, float $sgst, float $igst): self
@@ -36,6 +37,7 @@ final class StatutoryInvoiceLineDraft
             cgst: $cgst,
             sgst: $sgst,
             igst: $igst,
+            uqc: $this->uqc,
         );
     }
 }

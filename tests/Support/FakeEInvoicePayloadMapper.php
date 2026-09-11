@@ -7,6 +7,9 @@ use App\Services\StatutoryInvoice\Data\EInvoiceIrnPayload;
 use App\Services\StatutoryInvoice\EInvoiceIrnPayloadMapper;
 use App\Services\StatutoryInvoice\EInvoiceServiceClassification;
 use App\Services\StatutoryInvoice\EInvoiceUqcMapper;
+use App\Services\StatutoryInvoice\PlaceOfSupplyResolver;
+use App\Services\StatutoryInvoice\ServiceStatutoryClassification;
+use App\Services\StatutoryInvoice\StatutoryAddressFormatter;
 use App\Services\StatutoryInvoice\StatutorySellerIdentity;
 
 /**
@@ -21,6 +24,9 @@ final class FakeEInvoicePayloadMapper extends EInvoiceIrnPayloadMapper
             app(StatutorySellerIdentity::class),
             app(EInvoiceServiceClassification::class),
             app(EInvoiceUqcMapper::class),
+            app(ServiceStatutoryClassification::class),
+            app(PlaceOfSupplyResolver::class),
+            app(StatutoryAddressFormatter::class),
         );
     }
 

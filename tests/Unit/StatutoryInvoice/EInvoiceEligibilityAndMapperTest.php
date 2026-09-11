@@ -151,9 +151,9 @@ class EInvoiceEligibilityAndMapperTest extends TestCase
         $this->assertSame('38.06', $payload->values['sgst']);
         $this->assertSame('0.00', $payload->values['igst']);
         $this->assertSame('499.00', $payload->values['invoice_value']);
-        $this->assertNull($payload->items[0]['unit']);
+        $this->assertSame('OTH', $payload->items[0]['unit']);
         $this->assertSame('Y', $payload->items[0]['is_servc']);
-        $this->assertContains('missing_uqc', $payload->gaps);
+        $this->assertNotContains('missing_uqc', $payload->gaps);
         $this->assertContains('missing_seller_pin', $payload->gaps);
         $this->assertContains('missing_seller_loc', $payload->gaps);
         $this->assertContains('missing_buyer_pin', $payload->gaps);
@@ -212,8 +212,9 @@ class EInvoiceEligibilityAndMapperTest extends TestCase
         $this->assertSame('Y', $payload->items[0]['is_servc']);
         $this->assertSame('B2B', $payload->supplyType);
         $this->assertSame('INV', $payload->document['type']);
-        $this->assertContains('missing_uqc', $payload->gaps);
-        $this->assertFalse($payload->isSubmittable());
+        $this->assertSame('OTH', $payload->items[0]['unit']);
+        $this->assertNotContains('missing_uqc', $payload->gaps);
+        $this->assertTrue($payload->isSubmittable());
     }
 
     public function test_hardware_channel_sets_is_servc_n(): void

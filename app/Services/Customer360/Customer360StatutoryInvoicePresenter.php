@@ -13,8 +13,8 @@ use App\Services\Notifications\NotificationChannelAvailabilityService;
 use App\Services\Notifications\NotificationCustomerContactResolver;
 use App\Services\Notifications\NotificationMailSender;
 use App\Services\StatutoryInvoice\EInvoiceEligibility;
+use App\Services\StatutoryInvoice\EInvoiceInputReadiness;
 use App\Services\StatutoryInvoice\EInvoiceIrnGuard;
-use App\Services\StatutoryInvoice\EInvoiceIrnPayloadMapper;
 use App\Services\StatutoryInvoice\StatutoryInvoiceForIncidentResolver;
 use App\Support\AppDateFormatter;
 
@@ -45,7 +45,8 @@ class Customer360StatutoryInvoicePresenter
         private readonly NotificationMailSender $mailSender,
         private readonly NotificationChannelAvailabilityService $channels,
         private readonly EInvoiceEligibility $eligibility,
-        private readonly EInvoiceIrnPayloadMapper $mapper,
+        private readonly EInvoiceInputReadiness $readiness,
+        private readonly EInvoiceAgentPresentation $agentPresentation,
     ) {}
 
     /**
@@ -125,13 +126,7 @@ class Customer360StatutoryInvoicePresenter
     }
 
     /**
-     * @return array{
-     *     status_label: string,
-     *     irn: ?string,
-     *     ack_no: ?string,
-     *     ack_date: ?string,
-     *     reason: ?string
-     * }
+     * @return array<string, mixed>
      */
     private function einvoicePresentation(StatutoryInvoice $invoice): array
     {
@@ -143,11 +138,14 @@ class Customer360StatutoryInvoicePresenter
                 'ack_no' => $this->nullableTrim($record?->ack_no),
                 'ack_date' => AppDateFormatter::datetime24($record?->ack_date),
                 'reason' => null,
+                'why' => null,
+                'next_action' => null,
             ];
         }
 
         $eligibility = $this->eligibility->evaluate($invoice);
         $skipReason = $this->storedSkipReason($record);
+        $readiness = $this->readiness->evaluate($invoice);
 
         if ($eligibility->reason === 'b2c_not_eligible' || $skipReason === 'b2c_not_eligible') {
             return $this->einvoiceState('Not Applicable', 'B2C / not eligible');
@@ -169,11 +167,22 @@ class Customer360StatutoryInvoicePresenter
             return $this->einvoiceState('Failed', $this->safeReason($eligibility->reason));
         }
 
-        if (in_array($eligibility->reason, ['incomplete_gst', 'irp_fields_incomplete'], true)
-            || $skipReason === 'irp_fields_incomplete'
-            || $skipReason === 'incomplete_gst'
-            || ($eligibility->eligible && ! $this->mapper->map($invoice)->isSubmittable())) {
-            return $this->einvoiceState('Failed', 'Statutory data incomplete');
+        if (! $readiness->ready) {
+            $blocked = $readiness->blockedReasonLines();
+            $presentation = in_array('buyer_state_mismatch', $blocked, true)
+                && ! in_array('place_of_supply_unresolved', $blocked, true)
+                ? $this->agentPresentation->posReview()
+                : $this->agentPresentation->blocked($blocked);
+
+            return [
+                'status_label' => $presentation['status_label'],
+                'irn' => null,
+                'ack_no' => null,
+                'ack_date' => null,
+                'reason' => $presentation['why'],
+                'why' => $presentation['why'],
+                'next_action' => $presentation['next_action'],
+            ];
         }
 
         if ($eligibility->eligible || in_array($record?->status, [
@@ -190,7 +199,7 @@ class Customer360StatutoryInvoicePresenter
     }
 
     /**
-     * @return array{status_label: string, irn: null, ack_no: null, ack_date: null, reason: ?string}
+     * @return array{status_label: string, irn: null, ack_no: null, ack_date: null, reason: ?string, why: ?string, next_action: ?string}
      */
     private function einvoiceState(string $status, ?string $reason): array
     {
@@ -200,6 +209,8 @@ class Customer360StatutoryInvoicePresenter
             'ack_no' => null,
             'ack_date' => null,
             'reason' => $reason,
+            'why' => $reason,
+            'next_action' => null,
         ];
     }
 

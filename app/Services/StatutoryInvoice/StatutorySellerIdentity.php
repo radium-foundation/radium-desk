@@ -139,7 +139,7 @@ final class StatutorySellerIdentity
     }
 
     /**
-     * @return array{gst_state_code: string, branch_codes: list<string>, gstin: string, address: string, state: string}
+     * @return array{gst_state_code: string, branch_codes: list<string>, gstin: string, address: string, state: string, pin: string, loc: string}
      */
     private function locationConfig(string $location): array
     {

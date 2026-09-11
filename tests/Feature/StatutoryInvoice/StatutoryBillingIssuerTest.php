@@ -272,6 +272,10 @@ class StatutoryBillingIssuerTest extends TestCase
             statutory: [
                 'buyer_gstin' => '27AAAAA0000A1Z5',
                 'place_of_supply_state' => 'Maharashtra',
+                'billing_address' => '1 Test Street, Maharashtra',
+                'billing_city' => 'Mumbai',
+                'billing_state' => 'Maharashtra',
+                'billing_pincode' => '400001',
             ],
         );
         $invoice = $this->invoices->issueFromPosSale($sale, $this->actor);

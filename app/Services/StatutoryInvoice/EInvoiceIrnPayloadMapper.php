@@ -10,6 +10,7 @@ use App\Models\InventoryProduct;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
 use App\Services\StatutoryInvoice\Data\EInvoiceIrnPayload;
+use App\Services\StatutoryInvoice\Data\PlaceOfSupplyResolution;
 use App\Support\Finance\GstStateCodes;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 
@@ -25,6 +26,9 @@ class EInvoiceIrnPayloadMapper
         private readonly StatutorySellerIdentity $sellers,
         private readonly EInvoiceServiceClassification $services,
         private readonly EInvoiceUqcMapper $uqc,
+        private readonly ServiceStatutoryClassification $serviceStatutory,
+        private readonly PlaceOfSupplyResolver $placeOfSupply,
+        private readonly StatutoryAddressFormatter $addressFormatter,
     ) {}
 
     public function map(StatutoryInvoice $invoice): EInvoiceIrnPayload
@@ -36,12 +40,12 @@ class EInvoiceIrnPayloadMapper
         $buyerGstin = BuyerGstin::normalize($invoice->buyer_gstin);
         $sellerState = BuyerGstin::stateCode($sellerGstin);
         $buyerStateFromGstin = BuyerGstin::stateCode($buyerGstin);
-        $buyerStateFromPlace = GstStateCodes::codeForName($invoice->place_of_supply_state);
-        $buyerState = $buyerStateFromPlace ?? $buyerStateFromGstin;
+        $pos = $this->placeOfSupply->resolveForInvoice($invoice);
+        $buyerStateFromPlace = $pos->stateCode ?? GstStateCodes::codeForName($invoice->place_of_supply_state);
         $issuedAt = $invoice->issued_at;
         $invoiceNumber = is_string($invoice->invoice_number) ? trim($invoice->invoice_number) : '';
         $seller = $this->sellerFromIssuer($invoice, $sellerGstin, $sellerState);
-        $buyer = $this->buyerFromSnapshot($invoice, $buyerGstin, $buyerState, $buyerStateFromPlace);
+        $buyer = $this->buyerFromSnapshot($invoice, $buyerGstin, $buyerStateFromGstin, $buyerStateFromPlace, $pos);
 
         if ($invoiceNumber === '') {
             $gaps[] = 'missing_invoice_number';
@@ -58,10 +62,16 @@ class EInvoiceIrnPayloadMapper
         if ($sellerState === null) {
             $gaps[] = 'missing_seller_stcd';
         }
-        if ($buyerState === null) {
+        if ($buyerStateFromGstin === null) {
             $gaps[] = 'missing_buyer_stcd';
         }
-        if ($buyerStateFromPlace !== null && $buyerStateFromGstin !== null && $buyerStateFromPlace !== $buyerStateFromGstin) {
+        if (! $pos->isResolvable()) {
+            $gaps[] = 'place_of_supply_unresolved';
+        }
+        if ($buyerStateFromPlace !== null
+            && $buyerStateFromGstin !== null
+            && $buyerStateFromPlace !== $buyerStateFromGstin
+            && $pos->gstinPosClassification === PlaceOfSupplyResolution::CLASSIFICATION_BLOCKED) {
             $gaps[] = 'buyer_state_mismatch';
         }
         $gaps = array_merge($gaps, $seller['gaps'], $buyer['gaps']);
@@ -153,21 +163,26 @@ class EInvoiceIrnPayloadMapper
     private function buyerFromSnapshot(
         StatutoryInvoice $invoice,
         ?string $buyerGstin,
-        ?string $buyerState,
+        ?string $buyerStateFromGstin,
         ?string $buyerStateFromPlace,
+        PlaceOfSupplyResolution $pos,
     ): array {
         $gaps = [];
         $structured = $this->issuedBillingStructured($invoice) ?? [];
-        $address = $this->buyerAddress($invoice, $structured === [] ? null : $structured);
+        $flatAddress = $this->buyerAddress($invoice, $structured === [] ? null : $structured);
+        $formatted = $this->addressFormatter->format(
+            $flatAddress,
+            $structured === [] ? null : $structured,
+        );
         $pin = $this->pin($structured['pincode'] ?? null);
         $loc = $this->nullable($structured['city'] ?? null);
         $legalName = $this->nullable($invoice->buyer_name);
-        $pos = $buyerStateFromPlace ?? $buyerState;
+        $posCode = $buyerStateFromPlace;
         $structuredState = $this->nullable($structured['state'] ?? null);
 
-        if ($address === null) {
+        if ($flatAddress === null && $formatted['combined'] === '') {
             $gaps[] = 'missing_buyer_address';
-        } elseif (strlen($address) > 200) {
+        } elseif ($formatted['exceeds_limit']) {
             $gaps[] = 'buyer_address_exceeds_irp_limit';
         }
         if ($this->nullable($structured['pincode'] ?? null) !== null && $pin === null) {
@@ -184,7 +199,7 @@ class EInvoiceIrnPayloadMapper
         if ($legalName === null) {
             $gaps[] = 'missing_buyer_name';
         }
-        if ($pos === null) {
+        if ($posCode === null) {
             $gaps[] = 'missing_pos_code';
         }
 
@@ -192,11 +207,14 @@ class EInvoiceIrnPayloadMapper
             'fields' => [
                 'gstin' => $buyerGstin,
                 'legal_name' => $legalName,
-                'state_code' => $buyerState,
+                'state_code' => $buyerStateFromGstin,
                 'location' => $loc,
-                'address' => $address,
+                'address' => $formatted['combined'] !== '' ? $formatted['combined'] : $flatAddress,
+                'address_addr1' => $formatted['addr1'],
+                'address_addr2' => $formatted['addr2'],
                 'pin' => $pin,
-                'pos_code' => $pos,
+                'pos_code' => $posCode,
+                'pos_source' => $pos->source,
             ],
             'gaps' => $gaps,
         ];
@@ -215,14 +233,17 @@ class EInvoiceIrnPayloadMapper
         if ((int) $item->qty < 1) {
             $gaps[] = 'missing_qty';
         }
-        $uqc = $this->uqc->resolveLineOrCatalog(
-            $item->getAttribute('uqc') ?? null,
-            $this->catalogUqcForItem($invoice, $item),
-        );
+        $serviceProfile = $this->serviceStatutory->profileForInvoiceItem($invoice, $item);
+        $uqc = $serviceProfile !== null
+            ? $this->uqc->resolveLineOrCatalog($item->getAttribute('uqc') ?? null, $serviceProfile->uqc)
+            : $this->uqc->resolveLineOrCatalog(
+                $item->getAttribute('uqc') ?? null,
+                $this->catalogUqcForItem($invoice, $item),
+            );
         if ($uqc['gap'] !== null) {
             $gaps[] = $uqc['gap'];
         }
-        $isServc = $this->services->isServc($invoice, $item);
+        $isServc = $serviceProfile?->isServc ?? $this->services->isServc($invoice, $item);
         if ($isServc === null) {
             $gaps[] = 'missing_is_servc';
         }

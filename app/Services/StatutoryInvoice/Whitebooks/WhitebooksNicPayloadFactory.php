@@ -63,7 +63,7 @@ final class WhitebooksNicPayloadFactory
             'SellerDtls' => [
                 'Gstin' => (string) ($payload->seller['gstin'] ?? ''),
                 'LglNm' => (string) ($payload->seller['legal_name'] ?? ''),
-                ...$this->nicAddressLines((string) ($payload->seller['address'] ?? '')),
+                ...$this->nicAddressFromPayload($payload->seller),
                 'Loc' => (string) ($payload->seller['location'] ?? ''),
                 'Pin' => (int) ($payload->seller['pin'] ?? 0),
                 'Stcd' => (string) ($payload->seller['state_code'] ?? ''),
@@ -72,7 +72,7 @@ final class WhitebooksNicPayloadFactory
                 'Gstin' => (string) ($payload->buyer['gstin'] ?? ''),
                 'LglNm' => (string) ($payload->buyer['legal_name'] ?? ''),
                 'Pos' => (string) ($payload->buyer['pos_code'] ?? $payload->buyer['state_code'] ?? ''),
-                ...$this->nicAddressLines((string) ($payload->buyer['address'] ?? '')),
+                ...$this->nicAddressFromPayload($payload->buyer),
                 'Loc' => (string) ($payload->buyer['location'] ?? ''),
                 'Pin' => (int) ($payload->buyer['pin'] ?? 0),
                 'Stcd' => (string) ($payload->buyer['state_code'] ?? ''),
@@ -108,6 +108,26 @@ final class WhitebooksNicPayloadFactory
             'docnum' => $number,
             'docdate' => $date,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $party
+     * @return array{Addr1: string, Addr2?: string}
+     */
+    private function nicAddressFromPayload(array $party): array
+    {
+        $addr1 = trim((string) ($party['address_addr1'] ?? ''));
+        $addr2 = trim((string) ($party['address_addr2'] ?? ''));
+        if ($addr1 !== '') {
+            $lines = ['Addr1' => $addr1];
+            if ($addr2 !== '') {
+                $lines['Addr2'] = $addr2;
+            }
+
+            return $lines;
+        }
+
+        return $this->nicAddressLines((string) ($party['address'] ?? ''));
     }
 
     /**

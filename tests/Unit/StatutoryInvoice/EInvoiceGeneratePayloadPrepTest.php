@@ -144,6 +144,13 @@ class EInvoiceGeneratePayloadPrepTest extends TestCase
         $this->mapBoxModel(946, 'RBMFS110L1');
         $invoice = $this->invoice1062([], [
             'billing_address' => str_repeat('A', 90).', '.str_repeat('B', 22),
+            'billing_address_structured' => [
+                'line1' => str_repeat('A', 90).',',
+                'line2' => str_repeat('B', 22),
+                'city' => 'Bhadrak',
+                'state' => 'Odisha',
+                'pincode' => '756100',
+            ],
         ]);
 
         $payload = app(EInvoiceIrnPayloadMapper::class)->map($invoice);
@@ -165,6 +172,13 @@ class EInvoiceGeneratePayloadPrepTest extends TestCase
         $this->mapBoxModel(946, 'RBMFS110L1');
         $invoice = $this->invoice1062([], [
             'billing_address' => str_repeat('X', 232),
+            'billing_address_structured' => [
+                'line1' => str_repeat('X', 120),
+                'line2' => str_repeat('X', 100),
+                'city' => 'Bhadrak',
+                'state' => 'Odisha',
+                'pincode' => '756100',
+            ],
         ]);
 
         $payload = app(EInvoiceIrnPayloadMapper::class)->map($invoice);

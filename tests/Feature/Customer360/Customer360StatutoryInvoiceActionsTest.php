@@ -14,6 +14,7 @@ use App\Mail\StatutoryInvoiceMail;
 use App\Models\CommerceOrder;
 use App\Models\EInvoiceRecord;
 use App\Models\Incident;
+use App\Models\InventoryProduct;
 use App\Models\Order;
 use App\Models\StatutoryInvoice;
 use App\Models\SystemSetting;
@@ -144,8 +145,8 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('E-INVOICE', false)
-            ->assertSee('Status: Failed', false)
-            ->assertSee('Statutory data incomplete', false)
+            ->assertSee('Pending — Statutory data incomplete', false)
+            ->assertSee('Billing address exceeds the statutory e-Invoice address limit.', false)
             ->assertDontSee('IRN Generated', false);
     }
 
@@ -315,6 +316,12 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
             'customer_email' => $email,
             'billing_state' => 'Maharashtra',
             'billing_address' => '312 dhamankar plaza, Bhiwandi',
+            'billing_address_structured' => [
+                'line1' => '312 dhamankar plaza',
+                'city' => 'Bhiwandi',
+                'state' => 'Maharashtra',
+                'pincode' => '421302',
+            ],
             'branch_code' => 'MUMBAI',
             'place_of_supply_state' => 'Maharashtra',
             'taxable_value' => 422.88,
@@ -374,7 +381,7 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
     private function issuedHardwareB2bCase(string $orderId, string $email, ?string $billingAddress = null): array
     {
         $incident = $this->openCase($orderId, $email);
-        \App\Models\InventoryProduct::query()->create([
+        InventoryProduct::query()->create([
             'sku' => 'RBMFS110L1',
             'name' => 'Mantra MFS 110 L1',
             'hsn_code' => '84716050',
@@ -403,9 +410,15 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
             'buyer_gstin' => '07AAAAA0000A1Z5',
             'billing_state' => 'Delhi',
             'billing_address' => $billingAddress ?? '1 Test Street, Delhi',
-            'billing_address_structured' => [
-                'line1' => $billingAddress ?? '1 Test Street',
+            'billing_address_structured' => $billingAddress === null ? [
+                'line1' => '1 Test Street',
                 'line2' => 'Connaught Place',
+                'city' => 'New Delhi',
+                'state' => 'Delhi',
+                'pincode' => '110001',
+            ] : [
+                'line1' => str_repeat('X', 120),
+                'line2' => str_repeat('X', 100),
                 'city' => 'New Delhi',
                 'state' => 'Delhi',
                 'pincode' => '110001',

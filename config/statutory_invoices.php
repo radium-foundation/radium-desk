@@ -167,6 +167,11 @@ return [
     'service_sac' => [
         'rd_service' => [
             'sac' => '998313',
+            'is_servc' => 'Y',
+            'uqc' => 'OTH',
+            'legacy_sac_aliases' => [
+                '998314',
+            ],
             'channels' => [
                 'rdservice_in',
                 'rdservice_net',
@@ -183,6 +188,11 @@ return [
         ],
         'amc' => [
             'sac' => '998313',
+            'is_servc' => 'Y',
+            'uqc' => 'OTH',
+            'legacy_sac_aliases' => [
+                '998314',
+            ],
             'channels' => [
                 'rdservice_in',
                 'rdservice_net',
