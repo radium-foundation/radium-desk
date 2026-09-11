@@ -205,4 +205,47 @@ class DashboardPersonalizationServiceTest extends TestCase
         $this->assertContains(DashboardPersonalizationService::QUEUE_HARDWARE, $queues);
         $this->assertNotContains(DashboardPersonalizationService::QUEUE_ATTENTION, $queues);
     }
+
+    public function test_admin_with_hardware_team_defaults_to_ready_queue(): void
+    {
+        $operator = User::factory()->create();
+        $operator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $operator->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+
+        $this->assertSame(
+            DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+            $this->service->defaultQueueFor($operator),
+        );
+
+        $queues = $this->service->availableQueuesFor($operator);
+
+        $this->assertSame(
+            DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+            $queues[0],
+        );
+        $this->assertContains(DashboardPersonalizationService::QUEUE_HARDWARE, $queues);
+    }
+
+    public function test_ready_queue_permission_defaults_hybrid_hardware_operator_to_ready_queue(): void
+    {
+        $operator = User::factory()->create();
+        $operator->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+        $operator->givePermissionTo(RolePermissionSeeder::PERMISSION_READY_QUEUE_VIEW);
+
+        $this->assertSame(
+            DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+            $this->service->defaultQueueFor($operator),
+        );
+    }
+
+    public function test_hardware_team_without_ready_queue_defaults_to_hardware(): void
+    {
+        $operator = User::factory()->create();
+        $operator->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+
+        $this->assertSame(
+            DashboardPersonalizationService::QUEUE_HARDWARE,
+            $this->service->defaultQueueFor($operator),
+        );
+    }
 }

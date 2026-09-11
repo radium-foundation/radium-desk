@@ -62,12 +62,13 @@ class DashboardPersonalizationService
             return self::QUEUE_ACTION_REQUIRED;
         }
 
-        if ($this->operationsRoles->isHardwareTeam($user)) {
-            return self::QUEUE_HARDWARE;
+        if ($this->operationsRoles->usesAdminQueues($user)
+            || $this->operationsRoles->canViewReadyQueue($user)) {
+            return self::QUEUE_ACTION_REQUIRED;
         }
 
-        if ($this->operationsRoles->usesAdminQueues($user)) {
-            return self::QUEUE_ACTION_REQUIRED;
+        if ($this->operationsRoles->isHardwareTeam($user)) {
+            return self::QUEUE_HARDWARE;
         }
 
         return self::QUEUE_MY_WORK;

@@ -87,13 +87,38 @@ class ReadyQueueCapabilityAccessTest extends TestCase
         );
         $this->assertTrue(app(OperationsRoleService::class)->canViewReadyQueue($operator));
 
-        $queues = app(DashboardPersonalizationService::class)->availableQueuesFor($operator);
+        $personalization = app(DashboardPersonalizationService::class);
+        $queues = $personalization->availableQueuesFor($operator);
 
+        $this->assertSame(
+            DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+            $personalization->defaultQueueFor($operator),
+        );
+        $this->assertSame(DashboardPersonalizationService::QUEUE_ACTION_REQUIRED, $queues[0]);
         $this->assertContains(DashboardPersonalizationService::QUEUE_ACTION_REQUIRED, $queues);
         $this->assertContains(DashboardPersonalizationService::QUEUE_HARDWARE, $queues);
         $this->assertNotContains(DashboardPersonalizationService::QUEUE_ATTENTION, $queues);
 
         Carbon::setTestNow();
+    }
+
+    public function test_admin_with_hardware_team_lands_on_ready_queue_dashboard(): void
+    {
+        $operator = User::factory()->create(['email' => 'hybrid-admin@example.com']);
+        $operator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $operator->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+
+        $this->actingAs($operator)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Ready Queue')
+            ->assertSee('data-operations-widget="ready-queue"', false)
+            ->assertDontSee('data-operations-widget="hardware-workspace"', false);
+
+        $resolution = app(DashboardPersonalizationService::class)->resolveQueue($operator, 'action_required');
+
+        $this->assertFalse($resolution['redirect']);
+        $this->assertSame(DashboardPersonalizationService::QUEUE_ACTION_REQUIRED, $resolution['queue']);
     }
 
     public function test_ready_queue_admin_capability_can_retrieve_and_work_rd_service_tasks(): void
