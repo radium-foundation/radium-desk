@@ -389,5 +389,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-238 | 2026-09-11 | Fix live POS customer autocomplete visibility | Diagnose and fix TYPE → SEE MATCH → CLICK → POPULATE in the real POS counter UI. Do not assume P-237 complete. No radiumbox_prod. No sale. |
 | RadiumDesk-P-07-09-239 | 2026-09-11 | Verify POS cart Line amount vs Qty × Price | Read-only trace of Line column for RBMARC11L1 Qty 2 / Price 2300 / Discount 0 showing 8257.64. No sale. |
 | RadiumDesk-P-07-09-240 | 2026-09-11 | POS Line column GST-exclusive presentation | Cart Line shows taxable (qty × price − discount). GST stays in totals. Backend sale math unchanged. No sale. |
+| RadiumDesk-P-07-09-241 | 2026-09-11 | Permanent B2B IRN + QR automation | `docs/desk-irn-automatic-b2b-pipeline-p-07-09-241.md`. INV-076765 skipped `missing_uqc` (RBMARC11L1 catalog NULL). No GENERATE. Catalog PCS for remaining P-187-class hardware. Product UQC field restored. Real-mapper POS lifecycle tests. INV-076765 not submitted. |
 
 Do not renumber or overwrite earlier rows. Append only.

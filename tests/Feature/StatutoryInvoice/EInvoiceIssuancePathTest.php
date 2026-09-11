@@ -222,6 +222,7 @@ class EInvoiceIssuancePathTest extends TestCase
             'sku' => 'MFS110-'.$serial,
             'name' => 'Mantra MFS110',
             'hsn_code' => '84716050',
+            'uqc' => 'PCS',
             'gst_percentage' => 18,
             'unit_price' => 100,
             'is_serialized' => true,

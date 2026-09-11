@@ -18,6 +18,17 @@
         <input type="text" name="hsn_code" class="form-control" value="{{ old('hsn_code', $product?->hsn_code) }}">
     </div>
     <div class="col-md-3">
+        <label class="form-label">e-Invoice UQC</label>
+        <select name="uqc" class="form-select">
+            <option value="">Not set</option>
+            @foreach($uqcCodes as $code)
+                <option value="{{ $code }}" @selected(old('uqc', $product?->uqc) === $code)>{{ $code }}</option>
+            @endforeach
+        </select>
+        @error('uqc')<div class="text-danger small">{{ $message }}</div>@enderror
+        <div class="form-text">Required for B2B IRN. Missing values are not defaulted to PCS/NOS.</div>
+    </div>
+    <div class="col-md-3">
         <label class="form-label">GST %</label>
         <input type="number" step="0.01" min="0" max="100" name="gst_percentage" class="form-control" required value="{{ old('gst_percentage', $product?->gst_percentage ?? 18) }}">
     </div>
