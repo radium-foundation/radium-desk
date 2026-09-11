@@ -8,6 +8,10 @@ use App\Models\InventorySale;
 
 final class PosCustomerLookupService
 {
+    public const BILLING_SOURCE_NONE = 'none';
+
+    public const BILLING_SOURCE_LAST_SALE = 'last_sale_snapshot';
+
     private const MIN_QUERY_LENGTH = 2;
 
     private const SEARCH_LIMIT = 10;
@@ -48,7 +52,21 @@ final class PosCustomerLookupService
     }
 
     /**
-     * @return array{found: bool, id?: int, name?: string, phone?: string, email?: ?string, gstin?: ?string, billing_address?: ?string, billing_city?: ?string, billing_state?: ?string, billing_pincode?: ?string, place_of_supply_state?: ?string}
+     * @return array{
+     *     found: bool,
+     *     id?: int,
+     *     name?: string,
+     *     phone?: string,
+     *     email?: ?string,
+     *     gstin?: ?string,
+     *     billing_address?: ?string,
+     *     billing_city?: ?string,
+     *     billing_state?: ?string,
+     *     billing_pincode?: ?string,
+     *     place_of_supply_state?: ?string,
+     *     billing_source?: string,
+     *     place_of_supply_source?: string
+     * }
      */
     public function resolveByPhone(string $phone): array
     {
@@ -63,7 +81,21 @@ final class PosCustomerLookupService
     }
 
     /**
-     * @return array{found: bool, id?: int, name?: string, phone?: string, email?: ?string, gstin?: ?string, billing_address?: ?string, billing_city?: ?string, billing_state?: ?string, billing_pincode?: ?string, place_of_supply_state?: ?string}
+     * @return array{
+     *     found: bool,
+     *     id?: int,
+     *     name?: string,
+     *     phone?: string,
+     *     email?: ?string,
+     *     gstin?: ?string,
+     *     billing_address?: ?string,
+     *     billing_city?: ?string,
+     *     billing_state?: ?string,
+     *     billing_pincode?: ?string,
+     *     place_of_supply_state?: ?string,
+     *     billing_source?: string,
+     *     place_of_supply_source?: string
+     * }
      */
     public function resolveById(int $customerId): array
     {
@@ -73,7 +105,21 @@ final class PosCustomerLookupService
     }
 
     /**
-     * @return array{found: true, id: int, name: string, phone: string, email: ?string, gstin: ?string, billing_address: ?string, billing_city: ?string, billing_state: ?string, billing_pincode: ?string, place_of_supply_state: ?string}
+     * @return array{
+     *     found: true,
+     *     id: int,
+     *     name: string,
+     *     phone: string,
+     *     email: ?string,
+     *     gstin: ?string,
+     *     billing_address: ?string,
+     *     billing_city: ?string,
+     *     billing_state: ?string,
+     *     billing_pincode: ?string,
+     *     place_of_supply_state: ?string,
+     *     billing_source: string,
+     *     place_of_supply_source: string
+     * }
      */
     private function payloadForCustomer(InventoryCustomer $customer): array
     {
@@ -91,14 +137,37 @@ final class PosCustomerLookupService
             'billing_state' => $snapshot['billing_state'],
             'billing_pincode' => $snapshot['billing_pincode'],
             'place_of_supply_state' => $snapshot['place_of_supply_state'],
+            'billing_source' => $snapshot['billing_source'],
+            'place_of_supply_source' => $snapshot['place_of_supply_source'],
         ];
     }
 
     /**
-     * @return array{billing_address: ?string, billing_city: ?string, billing_state: ?string, billing_pincode: ?string, place_of_supply_state: ?string}
+     * Address and place of supply are never stored on inventory_customers.
+     * A completed sale is historical snapshot only — not customer-master data.
+     *
+     * @return array{
+     *     billing_address: ?string,
+     *     billing_city: ?string,
+     *     billing_state: ?string,
+     *     billing_pincode: ?string,
+     *     place_of_supply_state: ?string,
+     *     billing_source: string,
+     *     place_of_supply_source: string
+     * }
      */
     private function latestSaleSnapshot(InventoryCustomer $customer): array
     {
+        $empty = [
+            'billing_address' => null,
+            'billing_city' => null,
+            'billing_state' => null,
+            'billing_pincode' => null,
+            'place_of_supply_state' => null,
+            'billing_source' => self::BILLING_SOURCE_NONE,
+            'place_of_supply_source' => self::BILLING_SOURCE_NONE,
+        ];
+
         $sale = InventorySale::query()
             ->where('customer_id', $customer->id)
             ->where('status', InventorySaleStatus::Completed)
@@ -106,23 +175,36 @@ final class PosCustomerLookupService
             ->first();
 
         if ($sale === null) {
-            return [
-                'billing_address' => null,
-                'billing_city' => null,
-                'billing_state' => null,
-                'billing_pincode' => null,
-                'place_of_supply_state' => null,
-            ];
+            return $empty;
         }
 
         $structured = is_array($sale->billing_address_structured) ? $sale->billing_address_structured : [];
+        $address = $this->nullableString($sale->billing_address) ?? $this->nullableString($structured['line1'] ?? null);
+        $city = $this->nullableString($structured['city'] ?? null);
+        $state = $this->nullableString($structured['state'] ?? null);
+        $pincode = $this->nullableString($structured['pincode'] ?? null);
+        $place = $this->nullableString($sale->place_of_supply_state);
+        $hasAddress = $address !== null || $city !== null || $state !== null || $pincode !== null;
 
         return [
-            'billing_address' => $sale->billing_address ?: ($structured['line1'] ?? null),
-            'billing_city' => $structured['city'] ?? null,
-            'billing_state' => $structured['state'] ?? null,
-            'billing_pincode' => $structured['pincode'] ?? null,
-            'place_of_supply_state' => $sale->place_of_supply_state,
+            'billing_address' => $address,
+            'billing_city' => $city,
+            'billing_state' => $state,
+            'billing_pincode' => $pincode,
+            'place_of_supply_state' => $place,
+            'billing_source' => $hasAddress ? self::BILLING_SOURCE_LAST_SALE : self::BILLING_SOURCE_NONE,
+            'place_of_supply_source' => $place !== null ? self::BILLING_SOURCE_LAST_SALE : self::BILLING_SOURCE_NONE,
         ];
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
     }
 }

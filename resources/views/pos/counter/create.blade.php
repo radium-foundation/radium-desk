@@ -235,6 +235,7 @@
                 const customerLookupUrl = @json($lookupCustomerUrl);
                 const searchCustomersUrl = @json($searchCustomersUrl);
                 const showCustomerUrlTemplate = @json($showCustomerUrl);
+                const defaultPlaceOfSupplyState = @json($defaultPlaceOfSupplyState);
                 const oldLines = @json(array_values(old('lines', [])));
 
                 const productInput = document.getElementById('pos-product-search');
@@ -595,30 +596,36 @@
                         return;
                     }
                     selectedCustomerId = data.id || null;
-                    nameInput.value = data.name || nameInput.value;
-                    phoneInput.value = data.phone || phoneInput.value;
+                    nameInput.value = data.name || '';
+                    phoneInput.value = data.phone || '';
                     emailInput.value = data.email || '';
                     if (gstinInput) {
                         gstinInput.value = data.gstin || '';
+                    }
+                    if (billingAddressInput) {
+                        billingAddressInput.value = data.billing_address || '';
+                    }
+                    if (billingCity) {
+                        billingCity.value = data.billing_city || '';
+                    }
+                    if (billingState) {
+                        billingState.value = data.billing_state || '';
+                    }
+                    if (billingPincode) {
+                        billingPincode.value = data.billing_pincode || '';
+                    }
+                    if (placeOfSupplyState) {
+                        placeOfSupplyState.value = data.place_of_supply_state || defaultPlaceOfSupplyState || '';
+                    }
+                    if (gstinInput) {
                         syncB2bAddressFields();
                     }
-                    if (billingAddressInput && data.billing_address) {
-                        billingAddressInput.value = data.billing_address;
-                    }
-                    if (billingCity && data.billing_city) {
-                        billingCity.value = data.billing_city;
-                    }
-                    if (billingState && data.billing_state) {
-                        billingState.value = data.billing_state;
-                    }
-                    if (billingPincode && data.billing_pincode) {
-                        billingPincode.value = data.billing_pincode;
-                    }
-                    if (placeOfSupplyState && data.place_of_supply_state) {
-                        placeOfSupplyState.value = data.place_of_supply_state;
-                    }
                     customerResults.classList.add('d-none');
-                    customerStatus.textContent = 'Existing POS customer selected. Fields are snapshotted on this sale only.';
+                    if (data.billing_source === 'last_sale_snapshot') {
+                        customerStatus.textContent = 'Existing POS customer. Name, phone, email, and GSTIN are from the customer master. Address shown is last-sale billing, not a stored customer-master address. Review before completing.';
+                    } else {
+                        customerStatus.textContent = 'Existing POS customer. Name, phone, email, and GSTIN are from the customer master. No stored billing address — leave blank for B2C or enter only known details. Place of supply defaults to the selling branch for B2C.';
+                    }
                 }
 
                 function showCustomerResults(customers) {
