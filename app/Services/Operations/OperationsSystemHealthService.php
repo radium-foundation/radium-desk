@@ -6,6 +6,7 @@ use App\Enums\AutomationExecutionStatus;
 use App\Enums\OperationsHealthStatus;
 use App\Enums\QueueWorkerMode;
 use App\Infrastructure\Queue\QueueDeadLetterCopy;
+use App\Infrastructure\Queue\QueueDeadLetterInventory;
 use App\Models\AutomationExecution;
 use App\Models\InteraktMessage;
 use App\Services\SystemSettingsService;
@@ -140,16 +141,29 @@ class OperationsSystemHealthService
             $queueSnapshot = app(\App\Infrastructure\Queue\QueueMetricsService::class)->capture();
         }
 
-        $prefix = "Queue worker ({$workerMode->value})";
+        $inventory = QueueDeadLetterInventory::load();
+        $actionable = $inventory->actionableCount();
+        $historical = $inventory->historicalCount();
 
-        if ($queueSnapshot->failedJobs > 0) {
+        if ($actionable > 0) {
             return $this->component(
                 'queue_worker',
                 'Queue Worker',
                 OperationsHealthStatus::Failed,
-                QueueDeadLetterCopy::detail($workerMode->value, $queueSnapshot->failedJobs),
+                QueueDeadLetterCopy::actionableDetail($actionable, $historical),
             );
         }
+
+        if ($historical > 0) {
+            return $this->component(
+                'queue_worker',
+                'Queue Worker',
+                OperationsHealthStatus::Healthy,
+                QueueDeadLetterCopy::actionableDetail(0, $historical),
+            );
+        }
+
+        $prefix = 'Desk queue ('.QueueDeadLetterCopy::processorLabel($workerMode).')';
 
         if ($queueSnapshot->pendingJobs > 50) {
             return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Warning, "{$prefix}: {$queueSnapshot->pendingJobs} pending job(s) waiting.");
@@ -159,7 +173,7 @@ class OperationsSystemHealthService
             return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Warning, "{$prefix}: oldest pending job is over 30 minutes old.");
         }
 
-        return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Healthy, "{$prefix} is healthy.");
+        return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Healthy, QueueDeadLetterCopy::healthy($workerMode));
     }
 
     /**

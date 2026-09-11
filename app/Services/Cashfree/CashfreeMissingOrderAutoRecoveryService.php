@@ -69,6 +69,14 @@ class CashfreeMissingOrderAutoRecoveryService
                 continue;
             }
 
+            $fresh = $log->fresh();
+            if ($fresh !== null && $fresh->processing_status === CashfreeWebhookLog::STATUS_PROCESSED) {
+                $recovered++;
+                $this->auditRecovery($log, recovered: true, stillFailed: false, note: 'already_exists');
+
+                continue;
+            }
+
             if ($result->stillFailed > 0 || $result->recoverable > 0) {
                 $stillFailed++;
                 $failedLogIds[] = $log->id;
@@ -165,7 +173,7 @@ class CashfreeMissingOrderAutoRecoveryService
                 context: [
                     'label' => 'Cashfree',
                     'message' => sprintf(
-                        'Auto-recovery failed for %d paid payment(s). Webhook log(s): %s. Run cashfree:reconcile and cashfree:recover-historical.',
+                        'Auto-recovery failed for %d paid payment(s). Webhook log(s): %s. Order is missing on Desk. Do not replay blindly. cashfree:reconcile is diagnostic-only; cashfree:recover-historical --log=ID is the current KVM8 recovery command if the payment is still unpaid on Desk.',
                         $summary->stillFailed,
                         $ids !== '' ? $ids : 'unknown',
                     ),

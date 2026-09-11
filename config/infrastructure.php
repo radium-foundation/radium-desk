@@ -30,6 +30,13 @@ return [
     'queue_worker_mode' => $queueWorkerMode->value,
 
     /*
+     | Optional Telegram/health label for the process that actually drains jobs.
+     | Leave empty to derive from queue_worker_mode (dedicated_cron → Supervisor
+     | queue:work, matching KVM8).
+     */
+    'queue_runtime_label' => trim((string) env('QUEUE_RUNTIME_LABEL', '')),
+
+    /*
     |--------------------------------------------------------------------------
     | Cron Queue Worker (legacy)
     |--------------------------------------------------------------------------

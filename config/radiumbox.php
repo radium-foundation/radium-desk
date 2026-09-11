@@ -21,6 +21,12 @@ return [
         'schedule_limit' => (int) env('RADIUMBOX_RECOVERY_SCHEDULE_LIMIT', 50),
         'max_recovery_attempts' => (int) env('RADIUMBOX_MAX_RECOVERY_ATTEMPTS', 10),
         'schedule_interval_minutes' => (int) env('RADIUMBOX_RECOVERY_INTERVAL_MINUTES', 15),
+        /*
+         * When true, KVM8 spoke timeouts may be retried even after
+         * max_recovery_attempts. Default false — do not bulk-replay stranded
+         * orders without an owner-approved recovery gate.
+         */
+        'retry_transient_after_cap' => filter_var(env('RADIUMBOX_RECOVERY_RETRY_TRANSIENT_AFTER_CAP', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
     'auto_sync' => [

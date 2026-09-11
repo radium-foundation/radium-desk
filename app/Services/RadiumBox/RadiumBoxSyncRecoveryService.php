@@ -155,7 +155,8 @@ class RadiumBoxSyncRecoveryService
             return false;
         }
 
-        if ($this->syncStore->attemptCount($order->id) >= $this->maxRecoveryAttempts()) {
+        if ($this->syncStore->attemptCount($order->id) >= $this->maxRecoveryAttempts()
+            && ! $this->allowsTransientRetryAfterCap($order)) {
             return false;
         }
 
@@ -222,7 +223,17 @@ class RadiumBoxSyncRecoveryService
                 RadiumBoxEnrichmentSyncStatus::Synced->value,
                 RadiumBoxEnrichmentSyncStatus::NotSynced->value,
             ])
-            ->where('radiumbox_sync_attempts', '<', $this->maxRecoveryAttempts())
+            ->where(function (Builder $query): void {
+                $query->where('radiumbox_sync_attempts', '<', $this->maxRecoveryAttempts());
+
+                if ((bool) config('radiumbox.recovery.retry_transient_after_cap', false)) {
+                    $query->orWhere(function (Builder $overCap): void {
+                        $overCap->where('radiumbox_sync_attempts', '>=', $this->maxRecoveryAttempts())
+                            ->where('radiumbox_last_sync_error', 'like', '%127.0.0.1%')
+                            ->where('radiumbox_last_sync_error', 'like', '%cURL error 28%');
+                    });
+                }
+            })
             ->where(function (Builder $query): void {
                 $query->where(
                     'radiumbox_sync_status',
@@ -249,5 +260,19 @@ class RadiumBoxSyncRecoveryService
     private function maxRecoveryAttempts(): int
     {
         return max(1, (int) config('radiumbox.recovery.max_recovery_attempts', 10));
+    }
+
+    private function allowsTransientRetryAfterCap(Order $order): bool
+    {
+        if (! (bool) config('radiumbox.recovery.retry_transient_after_cap', false)) {
+            return false;
+        }
+
+        $error = is_string($order->radiumbox_last_sync_error ?? null)
+            ? $order->radiumbox_last_sync_error
+            : null;
+
+        return RadiumBoxSyncFailureClassifier::isKvm8SpokeError($error)
+            && RadiumBoxSyncFailureClassifier::isTransientInfrastructureError($error);
     }
 }

@@ -72,6 +72,18 @@ class CashfreeWebhookProcessorService
             return $webhookLog->fresh();
         }
 
+        $cfPaymentId = $this->payloadParser->cfPaymentId($payload);
+
+        if ($cfPaymentId !== null) {
+            $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
+
+            if ($existingIncident !== null) {
+                $this->markProcessed($webhookLog, $existingIncident);
+
+                return $webhookLog->fresh(['incident']);
+            }
+        }
+
         try {
             $this->assertSystemUserPreflight($webhookLog);
             $deferredContext = $this->persistSuccessfulPayment($webhookLog, $payload);

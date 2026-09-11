@@ -157,26 +157,41 @@ class QueueMetricsHealthTest extends TestCase
 
         $this->assertSame(PlatformHealthStatus::Critical, $health->status);
         $this->assertSame(
-            'Queue worker (dedicated_cron): 1 failed job(s) in the dead-letter queue.',
+            'Desk queue (Supervisor queue:work): 1 current failed job(s) in the dead-letter queue.',
             $health->detail,
         );
         $this->assertSame(1, $health->metrics['failed_jobs'] ?? null);
 
         $legacy = app(OperationsSystemHealthService::class)->componentFor('queue_worker');
         $this->assertSame(
-            'Queue worker (dedicated_cron): 1 failed job(s) in the dead-letter queue.',
+            'Desk queue (Supervisor queue:work): 1 current failed job(s) in the dead-letter queue.',
             $legacy['detail'] ?? null,
         );
     }
 
-    private function insertFailedJob(string $uuid): void
+    public function test_historical_admin_dead_letter_is_healthy_not_critical(): void
+    {
+        $this->insertFailedJob(
+            'aaaaaaaa-1111-1111-1111-111111111111',
+            'RadiumBoxEnrichmentRetryException: HTTP 526 for https://admin.radiumbox.com/api/search/order',
+        );
+
+        $health = app(QueueHealthProvider::class)->probe();
+
+        $this->assertSame(PlatformHealthStatus::Healthy, $health->status);
+        $this->assertStringContainsString('0 current failed jobs', $health->detail);
+        $this->assertStringContainsString('historical retired-infrastructure', $health->detail);
+        $this->assertStringNotContainsString('dedicated_cron', $health->detail);
+    }
+
+    private function insertFailedJob(string $uuid, string $exception = 'TimeoutExceededException'): void
     {
         DB::table('failed_jobs')->insert([
             'uuid' => $uuid,
             'connection' => 'database',
             'queue' => 'critical',
             'payload' => json_encode(['uuid' => $uuid], JSON_THROW_ON_ERROR),
-            'exception' => 'TimeoutExceededException',
+            'exception' => $exception,
             'failed_at' => now(),
         ]);
     }

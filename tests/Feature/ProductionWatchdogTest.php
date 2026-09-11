@@ -221,6 +221,88 @@ class ProductionWatchdogTest extends TestCase
         $this->assertCount(1, $radiumBoxAlerts);
         $this->assertSame('radiumbox:sync_failures', $radiumBoxAlerts[0]->key);
         $this->assertSame(1, $radiumBoxAlerts[0]->affectedCount);
+        $this->assertStringContainsString('current KVM8 failure(s)', $radiumBoxAlerts[0]->message);
+    }
+
+    public function test_watchdog_does_not_alert_historical_admin_sync_failures(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['radiumbox.enabled' => true]);
+
+        $actor = User::factory()->create();
+
+        Order::query()->create([
+            'order_id' => 'RD-WATCHDOG-RB-526',
+            'customer_name' => 'Test Customer',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $actor->id,
+            'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::Failed,
+            'radiumbox_last_sync_error' => 'RadiumBox API request failed with HTTP 526.',
+            'radiumbox_sync_attempts' => 12,
+        ]);
+
+        Cache::forget('operations:radiumbox-health');
+
+        $alerts = app(ProductionWatchdogService::class)->collectCriticalAlerts();
+
+        $radiumBoxAlerts = array_values(array_filter(
+            $alerts,
+            fn ($alert) => $alert->key === 'radiumbox:sync_failures',
+        ));
+
+        $this->assertSame([], $radiumBoxAlerts);
+    }
+
+    public function test_watchdog_drops_radiumbox_alert_after_order_syncs(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['radiumbox.enabled' => true]);
+
+        $actor = User::factory()->create();
+
+        $order = Order::query()->create([
+            'order_id' => 'RDE-WATCHDOG-KVM8',
+            'customer_name' => 'Test Customer',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $actor->id,
+            'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::Failed,
+            'radiumbox_last_sync_error' => 'cURL error 28: Operation timed out after 45002 milliseconds with 0 bytes received for http://127.0.0.1/api/integrations/v1/rd-orders/RDE-WATCHDOG-KVM8',
+            'radiumbox_sync_attempts' => 4,
+        ]);
+
+        Cache::forget('operations:radiumbox-health');
+
+        $failedAlerts = array_values(array_filter(
+            app(ProductionWatchdogService::class)->collectCriticalAlerts(),
+            fn ($alert) => $alert->key === 'radiumbox:sync_failures',
+        ));
+
+        $this->assertCount(1, $failedAlerts);
+        $this->assertSame(1, $failedAlerts[0]->affectedCount);
+
+        $order->update([
+            'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::Synced,
+            'radiumbox_last_sync_error' => null,
+        ]);
+
+        Cache::forget('operations:radiumbox-health');
+
+        $syncedAlerts = array_values(array_filter(
+            app(ProductionWatchdogService::class)->collectCriticalAlerts(),
+            fn ($alert) => $alert->key === 'radiumbox:sync_failures',
+        ));
+
+        $this->assertSame([], $syncedAlerts);
     }
 
     public function test_watchdog_alerts_on_radiumbox_degraded_success_rate_with_activity(): void
@@ -312,13 +394,35 @@ class ProductionWatchdogTest extends TestCase
         $this->assertCount(1, $alerts);
         $this->assertSame('queue:dead_letter', $alerts[0]->key);
         $this->assertSame(
-            'Queue worker (dedicated_cron): 2 failed job(s) in the dead-letter queue.',
+            'Desk queue (Supervisor queue:work): 2 current failed job(s) in the dead-letter queue.',
             $alerts[0]->message,
         );
         $this->assertSame(2, $alerts[0]->affectedCount);
         $this->assertSame(
             'aaaaaaaa-1111-1111-1111-111111111111,bbbbbbbb-2222-2222-2222-222222222222',
             $alerts[0]->incidentIdentity,
+        );
+    }
+
+    public function test_historical_admin_dead_letter_does_not_create_critical_queue_alert(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['infrastructure.queue_worker_mode' => 'dedicated_cron']);
+        $this->insertFailedJob(
+            'aaaaaaaa-1111-1111-1111-111111111111',
+            'RadiumBoxEnrichmentRetryException: RadiumBox API request failed with HTTP 526. for https://admin.radiumbox.com/api/search/order',
+        );
+
+        $this->assertSame([], $this->queueDeadLetterAlerts());
+        $this->assertSame(
+            [],
+            array_values(array_filter(
+                app(ProductionWatchdogService::class)->collectCriticalAlerts(),
+                fn ($alert) => $alert->key === 'queue:backlog',
+            )),
         );
     }
 
@@ -397,7 +501,7 @@ class ProductionWatchdogTest extends TestCase
         $this->artisan('watchdog:send-critical-alerts')->assertSuccessful();
         $this->assertSame(2, $this->sentQueueAlertCount());
         $this->assertStringContainsString(
-            '3 failed job(s) in the dead-letter queue.',
+            '3 current failed job(s) in the dead-letter queue.',
             (string) IraNotification::query()->orderByDesc('id')->value('message'),
         );
     }
@@ -488,7 +592,7 @@ class ProductionWatchdogTest extends TestCase
             ->count();
     }
 
-    private function insertFailedJob(string $uuid): void
+    private function insertFailedJob(string $uuid, string $exception = 'TimeoutExceededException'): void
     {
         \Illuminate\Support\Facades\DB::table('failed_jobs')->insert([
             'uuid' => $uuid,
@@ -498,7 +602,7 @@ class ProductionWatchdogTest extends TestCase
                 'displayName' => 'App\\Jobs\\RadiumBoxOrderEnrichmentJob',
                 'uuid' => $uuid,
             ], JSON_THROW_ON_ERROR),
-            'exception' => 'TimeoutExceededException',
+            'exception' => $exception,
             'failed_at' => now(),
         ]);
     }

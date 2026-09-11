@@ -34,7 +34,23 @@ class CashfreeHistoricalRecoveryService
                 CashfreeHistoricalRecoveryDisposition::Unsafe => $unsafe++,
             };
 
-            if ($dryRun || $candidate['disposition'] !== CashfreeHistoricalRecoveryDisposition::Recoverable) {
+            if ($dryRun) {
+                continue;
+            }
+
+            if ($candidate['disposition'] === CashfreeHistoricalRecoveryDisposition::AlreadyExists) {
+                if ($singleLogId !== null) {
+                    $log = $candidate['log']->fresh();
+
+                    if ($log !== null && $log->processing_status !== CashfreeWebhookProcessorService::STATUS_PROCESSED) {
+                        $this->webhookProcessorService->process($log);
+                    }
+                }
+
+                continue;
+            }
+
+            if ($candidate['disposition'] !== CashfreeHistoricalRecoveryDisposition::Recoverable) {
                 continue;
             }
 

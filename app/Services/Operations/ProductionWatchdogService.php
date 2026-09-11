@@ -9,15 +9,18 @@ use App\Enums\OperationsHealthStatus;
 use App\Enums\PlatformHealthStatus;
 use App\Enums\QueueWorkerMode;
 use App\Infrastructure\Queue\QueueDeadLetterCopy;
+use App\Infrastructure\Queue\QueueDeadLetterInventory;
 use App\Infrastructure\Queue\QueueMetricsService;
 use App\Models\AutomationExecution;
 use App\Models\BonvoiceWebhookLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
+use App\Models\Order;
 use App\Services\Backup\BackupWatchdogService;
 use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use App\Services\Platform\Health\PlatformHealthSnapshotService;
+use App\Services\RadiumBox\RadiumBoxSyncFailureClassifier;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -187,19 +190,20 @@ class ProductionWatchdogService
             return null;
         }
 
-        $uuids = $this->queueMetrics->failedJobUuids();
-        if ($uuids === []) {
+        $inventory = QueueDeadLetterInventory::load();
+        $actionable = $inventory->actionableUuids();
+        if ($actionable === []) {
             return null;
         }
 
-        $count = count($uuids);
+        $count = count($actionable);
 
         return new ProductionCriticalAlert(
             key: 'queue:dead_letter',
             label: 'Queue',
-            message: QueueDeadLetterCopy::detail(QueueWorkerMode::fromConfig()->value, $count),
+            message: QueueDeadLetterCopy::actionableDetail($count, $inventory->historicalCount()),
             affectedCount: $count,
-            incidentIdentity: implode(',', $uuids),
+            incidentIdentity: implode(',', $actionable),
         );
     }
 
@@ -372,30 +376,32 @@ class ProductionWatchdogService
      */
     private function radiumBoxAlerts(): array
     {
+        if (Schema::hasColumn('orders', 'radiumbox_sync_status')) {
+            $failedOrders = Order::query()
+                ->where('radiumbox_sync_status', \App\Enums\RadiumBoxEnrichmentSyncStatus::Failed)
+                ->orderByDesc('radiumbox_last_sync_at')
+                ->get(['order_id', 'radiumbox_last_sync_error', 'radiumbox_sync_attempts']);
+
+            $maxAttempts = max(1, (int) config('radiumbox.recovery.max_recovery_attempts', 10));
+            $categories = RadiumBoxSyncFailureClassifier::categorize($failedOrders->all(), $maxAttempts);
+
+            if ($categories['current'] !== []) {
+                return [
+                    new ProductionCriticalAlert(
+                        key: 'radiumbox:sync_failures',
+                        label: 'RadiumBox',
+                        message: RadiumBoxSyncFailureClassifier::telegramMessage($categories),
+                        affectedCount: count($categories['current']),
+                        orderIds: array_slice($categories['current'], 0, 5),
+                        incidentIdentity: implode(',', $categories['current']),
+                    ),
+                ];
+            }
+        }
+
         $widget = $this->radiumBoxHealthService->widget();
-        $failedSyncs = (int) ($widget['failed_syncs'] ?? 0);
         $successRate = (float) ($widget['success_rate_24h'] ?? 100);
         $minSuccessRate = (float) config('ira.watchdog.radiumbox_min_success_rate', 80);
-
-        if ($failedSyncs > 0) {
-            $orderIds = array_map(
-                fn (array $order): string => (string) ($order['order_id'] ?? ''),
-                is_array($widget['failed_orders'] ?? null) ? $widget['failed_orders'] : [],
-            );
-
-            return [
-                new ProductionCriticalAlert(
-                    key: 'radiumbox:sync_failures',
-                    label: 'RadiumBox',
-                    message: sprintf(
-                        '%d RadiumBox sync failure(s) require attention.',
-                        $failedSyncs,
-                    ),
-                    affectedCount: $failedSyncs,
-                    orderIds: array_values(array_filter($orderIds)),
-                ),
-            ];
-        }
 
         if (
             (bool) ($widget['enabled'] ?? false)

@@ -7,6 +7,7 @@ use App\Data\Platform\PlatformHealthComponent;
 use App\Enums\PlatformHealthStatus;
 use App\Enums\QueueWorkerMode;
 use App\Infrastructure\Queue\QueueDeadLetterCopy;
+use App\Infrastructure\Queue\QueueDeadLetterInventory;
 use App\Infrastructure\Queue\QueueMetricsService;
 use App\Infrastructure\Queue\QueueMetricsSnapshot;
 use Illuminate\Support\Carbon;
@@ -52,8 +53,9 @@ class QueueHealthProvider implements PlatformHealthProvider
 
         // Always capture live metrics for health — cached snapshots can lag up to 24h
         // when INFRASTRUCTURE_METRICS_ENABLED is off and falsely keep a backlog warning.
+        $inventory = QueueDeadLetterInventory::load();
         $snapshot = $this->queueMetrics->capture();
-        [$status, $detail] = $this->assessSnapshot($workerMode, $snapshot, $checkedAt);
+        [$status, $detail] = $this->assessSnapshot($workerMode, $snapshot, $checkedAt, $inventory);
 
         return new PlatformHealthComponent(
             key: $this->key(),
@@ -65,6 +67,8 @@ class QueueHealthProvider implements PlatformHealthProvider
                 'queue_worker_mode' => $workerMode->value,
                 'pending_jobs' => $snapshot->pendingJobs,
                 'failed_jobs' => $snapshot->failedJobs,
+                'failed_jobs_actionable' => $inventory->actionableCount(),
+                'failed_jobs_historical' => $inventory->historicalCount(),
                 'oldest_pending_job_at' => $snapshot->oldestPendingJobAt?->toIso8601String(),
             ],
         );
@@ -77,13 +81,24 @@ class QueueHealthProvider implements PlatformHealthProvider
         QueueWorkerMode $workerMode,
         QueueMetricsSnapshot $snapshot,
         Carbon $checkedAt,
+        ?QueueDeadLetterInventory $inventory = null,
     ): array {
-        $prefix = "Queue worker ({$workerMode->value})";
+        $inventory ??= QueueDeadLetterInventory::load();
+        $actionable = $inventory->actionableCount();
+        $historical = $inventory->historicalCount();
+        $prefix = 'Desk queue ('.QueueDeadLetterCopy::processorLabel($workerMode).')';
 
-        if ($snapshot->failedJobs > 0) {
+        if ($actionable > 0) {
             return [
                 PlatformHealthStatus::Critical,
-                QueueDeadLetterCopy::detail($workerMode->value, $snapshot->failedJobs),
+                QueueDeadLetterCopy::actionableDetail($actionable, $historical),
+            ];
+        }
+
+        if ($historical > 0) {
+            return [
+                PlatformHealthStatus::Healthy,
+                QueueDeadLetterCopy::actionableDetail(0, $historical),
             ];
         }
 
@@ -106,7 +121,7 @@ class QueueHealthProvider implements PlatformHealthProvider
 
         return [
             PlatformHealthStatus::Healthy,
-            "{$prefix} is healthy.",
+            QueueDeadLetterCopy::healthy($workerMode),
         ];
     }
 }
