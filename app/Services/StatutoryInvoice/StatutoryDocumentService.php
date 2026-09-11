@@ -69,6 +69,27 @@ class StatutoryDocumentService
         return (string) Storage::disk($disk)->get($path);
     }
 
+    public function regenerateForHardwareSerialCorrection(StatutoryInvoice $invoice): StatutoryInvoiceDocument
+    {
+        $invoice->loadMissing(['items', 'eInvoiceRecord']);
+        $document = StatutoryInvoiceDocument::query()->firstOrNew(['invoice_id' => $invoice->id]);
+
+        if ($document->exists) {
+            $path = (string) $document->path;
+            $disk = $document->disk ?: 'local';
+            if ($path !== '' && Storage::disk($disk)->exists($path)) {
+                Storage::disk($disk)->delete($path);
+            }
+
+            $document->forceFill([
+                'status' => StatutoryInvoiceDocumentStatus::Failed,
+                'path' => null,
+            ])->save();
+        }
+
+        return $this->generate($invoice);
+    }
+
     private function hasImmutableGeneratedDocument(StatutoryInvoiceDocument $document): bool
     {
         if (! $document->exists || $document->status !== StatutoryInvoiceDocumentStatus::Generated) {
