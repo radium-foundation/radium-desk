@@ -194,9 +194,6 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
                 'hs.awb as title',
                 'ho.public_code as subtitle',
                 'ho.order_lineage as source_lineage',
-                'ho.source_database',
-                'ho.source_table',
-                'ho.source_pk',
             ])
             ->where('hs.awb', $token)
             ->limit($limit)
@@ -204,6 +201,7 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
 
         $hits = [];
         foreach ($rows as $row) {
+            $provenance = $this->provenanceFor('shipment', (int) $row->entity_id);
             $hits[] = new HistoricalSearchHit(
                 documentType: 'shipment',
                 entityId: (int) $row->entity_id,
@@ -211,9 +209,9 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
                 subtitle: (string) ($row->subtitle ?? ''),
                 occurredOn: null,
                 sourceLineage: (string) ($row->source_lineage ?: 'shipment'),
-                sourceDatabase: $row->source_database !== null ? (string) $row->source_database : null,
-                sourceTable: $row->source_table !== null ? (string) $row->source_table : null,
-                sourcePk: $row->source_pk !== null ? (string) $row->source_pk : null,
+                sourceDatabase: $provenance['source_database'] ?? null,
+                sourceTable: $provenance['source_table'] ?? null,
+                sourcePk: $provenance['source_pk'] ?? null,
             );
         }
 
@@ -271,18 +269,57 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
         $hits = [];
         foreach ($rows as $row) {
             $lineage = (string) $row->source_lineage;
+            $documentType = (string) $row->document_type;
+            $entityId = (int) $row->entity_id;
+            $provenance = $this->provenanceFor($documentType, $entityId);
             $hits[] = new HistoricalSearchHit(
-                documentType: (string) $row->document_type,
-                entityId: (int) $row->entity_id,
+                documentType: $documentType,
+                entityId: $entityId,
                 title: (string) $row->title,
                 subtitle: (string) ($row->subtitle ?? ''),
                 occurredOn: $row->occurred_on !== null ? (string) $row->occurred_on : null,
                 sourceLineage: $lineage,
+                sourceDatabase: $provenance['source_database'] ?? null,
+                sourceTable: $provenance['source_table'] ?? null,
+                sourcePk: $provenance['source_pk'] ?? null,
                 partialIngest: $lineage === 'rd_service',
             );
         }
 
         return $hits;
+    }
+
+    /**
+     * @return array{source_database?: string, source_table?: string, source_pk?: string}
+     */
+    private function provenanceFor(string $documentType, int $entityId): array
+    {
+        $entityType = match ($documentType) {
+            'order_item' => 'order_item',
+            'serial' => 'serial',
+            'shipment' => 'shipment',
+            'invoice' => 'invoice',
+            'customer' => 'customer',
+            default => $documentType,
+        };
+
+        $row = $this->connection()
+            ->table('hist_provenance')
+            ->select(['source_database', 'source_table', 'source_pk'])
+            ->where('entity_type', $entityType)
+            ->where('entity_id', $entityId)
+            ->orderBy('id')
+            ->first();
+
+        if ($row === null) {
+            return [];
+        }
+
+        return [
+            'source_database' => $row->source_database !== null ? (string) $row->source_database : null,
+            'source_table' => $row->source_table !== null ? (string) $row->source_table : null,
+            'source_pk' => $row->source_pk !== null ? (string) $row->source_pk : null,
+        ];
     }
 
     /**
