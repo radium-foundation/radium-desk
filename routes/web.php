@@ -551,7 +551,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('counter', [PosCounterController::class, 'store'])->name('counter.store');
         Route::get('products/search', [PosCounterController::class, 'searchProducts'])->name('products.search');
         Route::get('serials/search', [PosCounterController::class, 'searchSerials'])->name('serials.search');
+        Route::get('serials/match', [PosCounterController::class, 'matchSerial'])->name('serials.match');
+        Route::get('customers/search', [PosCounterController::class, 'searchCustomers'])->name('customers.search');
         Route::get('customers/lookup', [PosCounterController::class, 'lookupCustomer'])->name('customers.lookup');
+        Route::get('customers/{customer}', [PosCounterController::class, 'showCustomer'])->name('customers.show');
         Route::get('sales', [PosSaleController::class, 'index'])->name('sales.index');
         Route::get('sales/{sale}', [PosSaleController::class, 'show'])->name('sales.show');
         Route::get('sales/{sale}/invoice', [PosSaleController::class, 'invoice'])->name('sales.invoice');

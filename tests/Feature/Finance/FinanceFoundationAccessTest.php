@@ -76,4 +76,11 @@ class FinanceFoundationAccessTest extends TestCase
             'purchasing.purchase-orders.index must remain registered; NavigationContextResolver calls route() for purchase.view users.',
         );
     }
+
+    public function test_pos_counter_route_dependencies_are_registered(): void
+    {
+        $this->assertTrue(Route::has('pos.serials.match'));
+        $this->assertTrue(Route::has('pos.customers.search'));
+        $this->assertTrue(Route::has('pos.customers.show'));
+    }
 }
