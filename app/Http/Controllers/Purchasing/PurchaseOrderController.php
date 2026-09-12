@@ -31,19 +31,30 @@ class PurchaseOrderController extends Controller
 
     public function index(Request $request): View
     {
+        $poNumber = $request->string('q')->trim()->toString();
+        $status = $request->string('status')->trim()->toString();
+        $vendorId = $request->filled('vendor_id') && Vendor::query()->whereKey($request->integer('vendor_id'))->exists()
+            ? $request->integer('vendor_id')
+            : null;
+
         $orders = PurchaseOrder::query()
             ->with(['vendor', 'branch'])
-            ->when($request->filled('q'), fn ($q) => $q->where('po_number', 'like', '%'.$request->string('q')->trim().'%'))
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')->toString()))
-            ->when($request->filled('vendor_id'), fn ($q) => $q->where('vendor_id', $request->integer('vendor_id')))
+            ->when($poNumber !== '', fn ($query) => $query->where('po_number', 'like', '%'.$poNumber.'%'))
+            ->when($status !== '', fn ($query) => $query->where('status', $status))
+            ->when($vendorId !== null, fn ($query) => $query->where('vendor_id', $vendorId))
             ->latest('po_date')
             ->paginate(30)
             ->withQueryString();
 
         return view('purchasing.purchase-orders.index', [
             'orders' => $orders,
-            'vendors' => Vendor::query()->where('is_active', true)->orderBy('business_name')->get(),
-            'filters' => $request->only(['q', 'status', 'vendor_id']),
+            'filters' => [
+                'q' => $poNumber !== '' ? $poNumber : null,
+                'status' => $status !== '' ? $status : null,
+                'vendor_id' => $vendorId,
+            ],
+            'selectedVendor' => $vendorId !== null ? Vendor::query()->find($vendorId) : null,
+            'searchVendorsUrl' => route('purchasing.vendors.search'),
         ]);
     }
 

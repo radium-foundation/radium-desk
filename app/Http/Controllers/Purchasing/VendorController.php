@@ -53,7 +53,7 @@ class VendorController extends Controller
 
     public function search(Request $request): JsonResponse
     {
-        abort_unless(PurchasingAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_PURCHASE_CREATE), 403);
+        abort_unless(PurchasingAccess::allows($request->user()), 403);
 
         $q = $request->string('q')->trim()->toString();
         if ($q === '') {
