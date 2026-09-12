@@ -50,6 +50,8 @@ class HistoricalTenurePresenter
             'ended',
             'closed',
             'deactivated',
+            'completed',
+            'complete',
         ], true)
             || str_contains($normalized, 'expir');
     }

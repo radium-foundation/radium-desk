@@ -32,6 +32,14 @@ class HistoricalTenurePresenterTest extends TestCase
         $this->assertNull($result['end_date']);
     }
 
+    public function test_rd_service_completed_status_renders_ended(): void
+    {
+        $result = $this->presenter->present('rd_service', 'Completed', '2025-06-20');
+
+        $this->assertSame('ended', $result['display']);
+        $this->assertNull($result['end_date']);
+    }
+
     public function test_rd_service_active_status_renders_active(): void
     {
         $result = $this->presenter->present('rd_service', 'active', '2024-06-01');
