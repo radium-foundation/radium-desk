@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\CustomerIntakeSearchService;
 use App\Services\UniversalSearchService;
+use App\Support\StatutoryInvoice\StatutoryInvoiceNumber;
 use Illuminate\Support\Collection;
 
 class ServiceCaseGlobalSearchProvider implements GlobalSearchProvider
@@ -28,6 +29,10 @@ class ServiceCaseGlobalSearchProvider implements GlobalSearchProvider
      */
     public function search(User $user, string $query): Collection
     {
+        if (StatutoryInvoiceNumber::looksLike($query)) {
+            return collect();
+        }
+
         return $this->searchService
             ->search($user, $query)
             ->map(fn (Incident $serviceCase): GlobalSearchResult => $this->toResult($serviceCase, $user));

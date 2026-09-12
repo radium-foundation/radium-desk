@@ -2,7 +2,7 @@
 
 namespace App\Services\Notifications;
 
-use App\Mail\NotificationMail;
+use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -17,7 +17,7 @@ class NotificationMailSender
     /**
      * @return array{success: bool, message_id: ?string, error: ?string}
      */
-    public function send(string $recipientEmail, NotificationMail $mail): array
+    public function send(string $recipientEmail, Mailable $mail): array
     {
         try {
             $sentMessage = Mail::to($recipientEmail)->send($mail);

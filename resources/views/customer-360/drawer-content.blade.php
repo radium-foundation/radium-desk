@@ -20,6 +20,10 @@
         'serial' => filled($serial) ? $serial : null,
         'customerName' => filled($customerName) ? $customerName : null,
         'historicalInvoice' => is_array($historicalInvoice ?? null) ? ($historicalInvoice['invoice_number'] ?? null) : null,
+        'statutoryInvoices' => array_values(array_filter(array_map(
+            static fn (mixed $invoice): ?string => is_array($invoice) ? ($invoice['invoice_number'] ?? null) : null,
+            is_array($statutoryInvoices ?? null) ? $statutoryInvoices : [],
+        ))),
         'actions' => $searchPaletteActions,
     ];
 @endphp
@@ -123,6 +127,9 @@
         ])
         @include('customer-360.partials.historical-invoice', [
             'historicalInvoice' => $historicalInvoice ?? null,
+        ])
+        @include('customer-360.partials.statutory-invoice', [
+            'statutoryInvoices' => $statutoryInvoices ?? [],
         ])
         @include('customer-360.partials.communication-section', [
             'communicationSection' => $communicationSection ?? null,

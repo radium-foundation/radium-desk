@@ -1486,11 +1486,100 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         });
     };
 
+    const bindStatutoryInvoiceShareActions = () => {
+        contentHost.querySelectorAll('[data-c360-invoice-share]').forEach((button) => {
+            if (!(button instanceof HTMLButtonElement) || button.dataset.bound === '1') {
+                return;
+            }
+
+            button.dataset.bound = '1';
+            button.addEventListener('click', async () => {
+                const shareUrl = button.dataset.c360InvoiceShare?.trim() ?? '';
+
+                if (shareUrl === '' || button.disabled) {
+                    return;
+                }
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                button.disabled = true;
+
+                try {
+                    const response = await fetch(shareUrl, {
+                        method: 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+                        },
+                    });
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (!response.ok || !payload.success) {
+                        showToast?.(payload.message ?? 'Unable to send the invoice.', 'danger');
+
+                        return;
+                    }
+
+                    showToast?.(payload.message ?? 'Invoice sent.');
+                } catch {
+                    showToast?.('Unable to send the invoice.', 'danger');
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
+    };
+
+    const bindStatutoryInvoiceNativeShare = () => {
+        contentHost.querySelectorAll('[data-c360-invoice-native-share]').forEach((button) => {
+            if (!(button instanceof HTMLButtonElement) || button.dataset.bound === '1') {
+                return;
+            }
+
+            button.dataset.bound = '1';
+            button.addEventListener('click', async () => {
+                const shareUrl = button.dataset.c360InvoiceShareUrl?.trim() ?? '';
+                const title = button.dataset.c360InvoiceShareTitle?.trim() || 'Tax invoice';
+
+                if (shareUrl === '' || button.disabled) {
+                    return;
+                }
+
+                button.disabled = true;
+
+                try {
+                    if (typeof navigator.share === 'function') {
+                        try {
+                            await navigator.share({ title, text: title, url: shareUrl });
+                            showToast?.('Invoice share sheet opened.');
+
+                            return;
+                        } catch (error) {
+                            if (error instanceof DOMException && error.name === 'AbortError') {
+                                return;
+                            }
+                        }
+                    }
+
+                    await copyTextToClipboard(shareUrl);
+                    showToast?.('Invoice link copied.');
+                } catch {
+                    showToast?.('Unable to share the invoice.', 'danger');
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
+    };
+
     const finalizeDrawerContent = () => {
         try {
             bindCockpitInteractions();
             bindDeviceSectionInteractions();
             bindCommercialServiceRestorationActions();
+            bindStatutoryInvoiceShareActions();
+            bindStatutoryInvoiceNativeShare();
             bindWorkbenchActions();
             verifyAiDomIntegrity(contentHost);
             syncTabState();

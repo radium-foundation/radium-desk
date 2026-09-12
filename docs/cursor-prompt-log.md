@@ -15,5 +15,7 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-07-09-288 | 2026-09-12 | Investigation-only: remaining P-283 route-loss audit | C360 invoice, historical-orders, and `customers.*` groups audited. Historical search degradation verified. POS `customers.*` already restored (P-286). No code/deploy change. |
 | RadiumDesk-P-07-09-289 | 2026-09-12 | Restore historical-orders routes | Surgical overlay: `historical-orders.document` + `historical-orders.show` after `search.index`. Fixes `historical_search.provider_failed` RouteNotFoundException. |
 | RadiumDesk-P-07-09-290 | 2026-09-12 | Restore C360 statutory invoice routes | Route-only overlay: four `dashboard.service-cases.customer-360.invoices.*` routes after executive-summary block. C360 UI not enabled. No email/WhatsApp invoked. |
+| RadiumDesk-P-07-09-291 | 2026-09-12 | Investigation-only: C360 statutory invoice UI wiring | Read-only GO for atomic gate: wire `Customer360Service`, drawer partial, JS handlers, tests. Routes already on production (P-290). Wallet Ledger must be preserved. |
+| RadiumDesk-P-07-09-292 | 2026-09-12 | Enable C360 statutory invoice UI (atomic) | Wire presenter into drawer + JS share handlers; preserve Wallet Ledger. Surgical production overlay. No route/email/WhatsApp production invokes. |
 
 Do not renumber or overwrite earlier rows. Append only.

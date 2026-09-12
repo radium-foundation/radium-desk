@@ -62,6 +62,7 @@ use App\Services\Dashboard\DashboardIncidentQueueMembership;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\DashboardBroadcastService;
 use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
+use App\Services\GlobalSearch\StatutoryInvoiceGlobalSearchProvider;
 use App\Services\GlobalSearchService;
 use App\Services\HardwareFulfilment\NullBoxFulfilmentCallbackGateway;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
@@ -270,6 +271,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(GlobalSearchService::class, function ($app): GlobalSearchService {
             return new GlobalSearchService([
                 $app->make(ServiceCaseGlobalSearchProvider::class),
+                $app->make(StatutoryInvoiceGlobalSearchProvider::class),
             ]);
         });
 
