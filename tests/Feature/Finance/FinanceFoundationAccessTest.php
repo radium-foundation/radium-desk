@@ -5,6 +5,7 @@ namespace Tests\Feature\Finance;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class FinanceFoundationAccessTest extends TestCase
@@ -58,5 +59,13 @@ class FinanceFoundationAccessTest extends TestCase
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_DASHBOARD_VIEW));
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_PAYMENTS_VIEW));
         $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_SETTINGS_VIEW));
+    }
+
+    public function test_finance_legacy_cash_named_route_is_registered(): void
+    {
+        $this->assertTrue(
+            Route::has('finance.legacy-cash.index'),
+            'finance.legacy-cash.index must remain registered; the finance workspace nav calls route() unconditionally.',
+        );
     }
 }
