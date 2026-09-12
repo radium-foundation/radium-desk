@@ -68,4 +68,12 @@ class FinanceFoundationAccessTest extends TestCase
             'finance.legacy-cash.index must remain registered; the finance workspace nav calls route() unconditionally.',
         );
     }
+
+    public function test_purchasing_purchase_orders_named_route_is_registered(): void
+    {
+        $this->assertTrue(
+            Route::has('purchasing.purchase-orders.index'),
+            'purchasing.purchase-orders.index must remain registered; NavigationContextResolver calls route() for purchase.view users.',
+        );
+    }
 }
