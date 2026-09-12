@@ -419,5 +419,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-271 | 2026-09-12 | Purchasing production release preparation | Merge/tag/deploy-kvm STOPPED (174 unrelated commits). Safe path: named-file overlay d162225f purchasing file set + hash-verify shared files. Path-scoped migrate only. Full A–R execution sequence prepared. Execution gate requires explicit production-write authorization. |
 | RadiumDesk-P-07-09-272 | 2026-09-12 | Controlled production Purchasing foundation release | Backup 20260912T065630Z. Named-file overlay 59 files from d162225f. Migration index-name fix. Batch [20]. 21 vendors imported. UPI untouched. No PO/receipt. |
 | RadiumDesk-P-07-09-273 | 2026-09-12 | Production Purchasing read-only operational readiness / UAT | 21 vendors verified. Permissions/routes/workflow read-only check. READY FOR FIRST REAL PO. No production writes. |
+| RadiumDesk-P-07-09-274 | 2026-09-12 | Fix production Purchasing PO index HTTP 500 | NavigationContextResolver isMenuHomeTitle missing Purchasing case caused ViewException. Fixed + test. Production overlay. PO/vendors HTTP 200. |
 
 Do not renumber or overwrite earlier rows. Append only.

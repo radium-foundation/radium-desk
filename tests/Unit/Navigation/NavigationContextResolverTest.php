@@ -214,6 +214,21 @@ class NavigationContextResolverTest extends TestCase
         $this->assertTrue($this->sidebarItemIsActive($sidebar, 'finance.dashboard'));
     }
 
+    public function test_purchasing_purchase_orders_index_resolves_dedicated_menu(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $request = $this->requestFor($user, route('purchasing.purchase-orders.index'));
+        $context = $this->resolver->resolve($request, 'Purchase Orders');
+        $sidebar = $this->resolver->sidebar($request, $context);
+
+        $this->assertSame(NavigationMenu::Purchasing, $context->menu);
+        $this->assertSame('purchasing.purchase_orders', $context->activeItemKey);
+        $this->assertTrue($sidebar['purchasing']['visible']);
+        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'purchasing.purchase_orders'));
+    }
+
     /**
      * @param  array<string, array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>}>  $sidebar
      */

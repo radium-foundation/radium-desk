@@ -634,6 +634,7 @@ class NavigationContextResolver
             NavigationMenu::Inventory => in_array($pageTitle, ['Inventory', 'Stock'], true),
             NavigationMenu::Pos => in_array($pageTitle, ['POS', 'POS counter'], true),
             NavigationMenu::Finance => in_array($pageTitle, ['Finance', 'Dashboard'], true),
+            NavigationMenu::Purchasing => $pageTitle === 'Purchase Orders',
             NavigationMenu::Administration => $pageTitle === 'Administration',
             NavigationMenu::Personal => in_array($pageTitle, ['My Workforce', 'My Performance', 'Leave Requests', 'To-Dos'], true),
         };
