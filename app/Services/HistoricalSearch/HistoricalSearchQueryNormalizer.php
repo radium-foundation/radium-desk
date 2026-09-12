@@ -4,6 +4,10 @@ namespace App\Services\HistoricalSearch;
 
 class HistoricalSearchQueryNormalizer
 {
+    public function __construct(
+        private readonly HistoricalCanonicalEmailNormalizer $emailNormalizer,
+    ) {}
+
     /**
      * @return array{
      *     token: string,
@@ -28,7 +32,7 @@ class HistoricalSearchQueryNormalizer
         $looksLikeSerial = false;
 
         if ($looksLikeEmail) {
-            $email = strtolower(trim($compact));
+            $email = $this->emailNormalizer->normalizeForSearch($compact);
         }
 
         $digits = preg_replace('/\D+/', '', $compact) ?? '';

@@ -11,6 +11,8 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
 {
     public function __construct(
         private readonly HistoricalSearchQueryNormalizer $normalizer,
+        private readonly HistoricalSearchQueryClassifier $classifier,
+        private readonly HistoricalCanonicalEmailNormalizer $emailNormalizer,
     ) {}
 
     /**
@@ -25,30 +27,35 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
             return [];
         }
 
+        $strategies = $this->classifier->strategies($token);
         $hits = [];
 
-        $hits = array_merge($hits, $this->searchSearchDocumentsByToken($token, $limit));
+        foreach ($strategies as $strategy) {
+            $hits = array_merge($hits, match ($strategy) {
+                'token' => $this->searchSearchDocumentsByToken($token, $limit),
+                'email' => $parsed['email'] !== null
+                    ? $this->searchSearchDocumentsByEmail($parsed['email'], $limit)
+                    : [],
+                'phone' => $parsed['phone'] !== null
+                    ? $this->searchSearchDocumentsByPhone($parsed['phone'], $limit)
+                    : [],
+                'name' => $parsed['name_prefix'] !== null
+                    ? $this->searchSearchDocumentsByName($parsed['name_prefix'], $limit)
+                    : [],
+                'serial' => $this->searchSerials($token, $limit),
+                'awb' => $this->searchShipmentsByAwb($token, $limit),
+                'product' => $this->searchOrderItemsByProduct($token, $limit),
+                default => [],
+            });
 
-        if ($parsed['email'] !== null) {
-            $hits = array_merge($hits, $this->searchSearchDocumentsByEmail($parsed['email'], $limit));
+            if (count($hits) >= $limit && in_array($strategy, ['token', 'email', 'phone'], true)) {
+                break;
+            }
         }
 
-        if ($parsed['phone'] !== null) {
-            $hits = array_merge($hits, $this->searchSearchDocumentsByPhone($parsed['phone'], $limit));
-        }
+        $deduped = $this->dedupe($hits, $limit);
 
-        if ($parsed['name_prefix'] !== null) {
-            $hits = array_merge($hits, $this->searchSearchDocumentsByName($parsed['name_prefix'], $limit));
-        }
-
-        if ($parsed['looks_like_serial']) {
-            $hits = array_merge($hits, $this->searchSerials($token, $limit));
-        }
-
-        $hits = array_merge($hits, $this->searchShipmentsByAwb($token, $limit));
-        $hits = array_merge($hits, $this->searchOrderItemsByProduct($token, $limit));
-
-        return $this->dedupe($hits, $limit);
+        return $this->hydrateProvenance($deduped);
     }
 
     /**
@@ -70,7 +77,7 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
             ->limit($limit)
             ->get();
 
-        return $this->mapSearchDocumentRows($rows);
+        return $this->mapSearchDocumentRows($rows, false);
     }
 
     /**
@@ -78,6 +85,12 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
      */
     private function searchSearchDocumentsByEmail(string $email, int $limit): array
     {
+        $variants = $this->emailNormalizer->searchVariants($email);
+
+        if ($variants === []) {
+            return [];
+        }
+
         $rows = $this->connection()
             ->table('hist_search_document')
             ->select([
@@ -88,11 +101,11 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
                 'occurred_on',
                 'source_lineage',
             ])
-            ->where('email_norm', $email)
+            ->whereIn('email_norm', $variants)
             ->limit($limit)
             ->get();
 
-        return $this->mapSearchDocumentRows($rows);
+        return $this->mapSearchDocumentRows($rows, false);
     }
 
     /**
@@ -114,7 +127,7 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
             ->limit($limit)
             ->get();
 
-        return $this->mapSearchDocumentRows($rows);
+        return $this->mapSearchDocumentRows($rows, false);
     }
 
     /**
@@ -136,7 +149,7 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
             ->limit($limit)
             ->get();
 
-        return $this->mapSearchDocumentRows($rows);
+        return $this->mapSearchDocumentRows($rows, false);
     }
 
     /**
@@ -201,7 +214,6 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
 
         $hits = [];
         foreach ($rows as $row) {
-            $provenance = $this->provenanceFor('shipment', (int) $row->entity_id);
             $hits[] = new HistoricalSearchHit(
                 documentType: 'shipment',
                 entityId: (int) $row->entity_id,
@@ -209,9 +221,6 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
                 subtitle: (string) ($row->subtitle ?? ''),
                 occurredOn: null,
                 sourceLineage: (string) ($row->source_lineage ?: 'shipment'),
-                sourceDatabase: $provenance['source_database'] ?? null,
-                sourceTable: $provenance['source_table'] ?? null,
-                sourcePk: $provenance['source_pk'] ?? null,
             );
         }
 
@@ -223,7 +232,7 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
      */
     private function searchOrderItemsByProduct(string $token, int $limit): array
     {
-        $rows = $this->connection()
+        $builder = $this->connection()
             ->table('hist_order_item as hoi')
             ->join('hist_order as ho', 'ho.id', '=', 'hoi.hist_order_id')
             ->select([
@@ -235,12 +244,15 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
                 'hoi.source_table',
                 'hoi.source_pk',
             ])
-            ->where(function ($builder) use ($token): void {
-                $builder->where('hoi.product_ref', $token)
-                    ->orWhere('hoi.product_name', $token);
-            })
-            ->limit($limit)
-            ->get();
+            ->limit($limit);
+
+        if (preg_match('/^\d+$/', $token) === 1) {
+            $builder->where('hoi.product_ref', $token);
+        } else {
+            $builder->where('hoi.product_ref', $token);
+        }
+
+        $rows = $builder->get();
 
         $hits = [];
         foreach ($rows as $row) {
@@ -264,62 +276,114 @@ class CanonicalHistoricalSearchRepository implements HistoricalSearchRepository
      * @param  iterable<int, object>  $rows
      * @return list<HistoricalSearchHit>
      */
-    private function mapSearchDocumentRows(iterable $rows): array
+    private function mapSearchDocumentRows(iterable $rows, bool $withProvenance): array
     {
         $hits = [];
         foreach ($rows as $row) {
             $lineage = (string) $row->source_lineage;
-            $documentType = (string) $row->document_type;
-            $entityId = (int) $row->entity_id;
-            $provenance = $this->provenanceFor($documentType, $entityId);
             $hits[] = new HistoricalSearchHit(
-                documentType: $documentType,
-                entityId: $entityId,
+                documentType: (string) $row->document_type,
+                entityId: (int) $row->entity_id,
                 title: (string) $row->title,
                 subtitle: (string) ($row->subtitle ?? ''),
                 occurredOn: $row->occurred_on !== null ? (string) $row->occurred_on : null,
                 sourceLineage: $lineage,
-                sourceDatabase: $provenance['source_database'] ?? null,
-                sourceTable: $provenance['source_table'] ?? null,
-                sourcePk: $provenance['source_pk'] ?? null,
                 partialIngest: $lineage === 'rd_service',
             );
         }
 
-        return $hits;
+        return $withProvenance ? $this->hydrateProvenance($hits) : $hits;
     }
 
     /**
-     * @return array{source_database?: string, source_table?: string, source_pk?: string}
+     * @param  list<HistoricalSearchHit>  $hits
+     * @return list<HistoricalSearchHit>
      */
-    private function provenanceFor(string $documentType, int $entityId): array
+    private function hydrateProvenance(array $hits): array
     {
-        $entityType = match ($documentType) {
-            'order_item' => 'order_item',
-            'serial' => 'serial',
-            'shipment' => 'shipment',
-            'invoice' => 'invoice',
-            'customer' => 'customer',
-            default => $documentType,
-        };
-
-        $row = $this->connection()
-            ->table('hist_provenance')
-            ->select(['source_database', 'source_table', 'source_pk'])
-            ->where('entity_type', $entityType)
-            ->where('entity_id', $entityId)
-            ->orderBy('id')
-            ->first();
-
-        if ($row === null) {
+        if ($hits === []) {
             return [];
         }
 
-        return [
-            'source_database' => $row->source_database !== null ? (string) $row->source_database : null,
-            'source_table' => $row->source_table !== null ? (string) $row->source_table : null,
-            'source_pk' => $row->source_pk !== null ? (string) $row->source_pk : null,
-        ];
+        $byType = [];
+        foreach ($hits as $index => $hit) {
+            if ($hit->sourceDatabase !== null) {
+                continue;
+            }
+
+            $entityType = match ($hit->documentType) {
+                'order_item' => 'order_item',
+                'serial' => 'serial',
+                'shipment' => 'shipment',
+                'invoice' => 'invoice',
+                'customer' => 'customer',
+                default => $hit->documentType,
+            };
+
+            $byType[$entityType][] = $index;
+        }
+
+        if ($byType === []) {
+            return $hits;
+        }
+
+        $lookup = [];
+        foreach ($byType as $entityType => $indexes) {
+            $ids = array_map(fn (int $i): int => $hits[$i]->entityId, $indexes);
+            $rows = $this->connection()
+                ->table('hist_provenance')
+                ->select(['entity_type', 'entity_id', 'source_database', 'source_table', 'source_pk'])
+                ->where('entity_type', $entityType)
+                ->whereIn('entity_id', $ids)
+                ->orderBy('id')
+                ->get();
+
+            foreach ($rows as $row) {
+                $key = $entityType.'#'.$row->entity_id;
+                if (! isset($lookup[$key])) {
+                    $lookup[$key] = [
+                        'source_database' => $row->source_database !== null ? (string) $row->source_database : null,
+                        'source_table' => $row->source_table !== null ? (string) $row->source_table : null,
+                        'source_pk' => $row->source_pk !== null ? (string) $row->source_pk : null,
+                    ];
+                }
+            }
+        }
+
+        $out = [];
+        foreach ($hits as $hit) {
+            if ($hit->sourceDatabase !== null) {
+                $out[] = $hit;
+
+                continue;
+            }
+
+            $entityType = match ($hit->documentType) {
+                'order_item' => 'order_item',
+                'serial' => 'serial',
+                'shipment' => 'shipment',
+                'invoice' => 'invoice',
+                'customer' => 'customer',
+                default => $hit->documentType,
+            };
+
+            $prov = $lookup[$entityType.'#'.$hit->entityId] ?? [];
+
+            $out[] = new HistoricalSearchHit(
+                documentType: $hit->documentType,
+                entityId: $hit->entityId,
+                title: $hit->title,
+                subtitle: $hit->subtitle,
+                occurredOn: $hit->occurredOn,
+                sourceLineage: $hit->sourceLineage,
+                sourceDatabase: $prov['source_database'] ?? null,
+                sourceTable: $prov['source_table'] ?? null,
+                sourcePk: $prov['source_pk'] ?? null,
+                partialIngest: $hit->partialIngest,
+            );
+        }
+
+        return $out;
     }
 
     /**

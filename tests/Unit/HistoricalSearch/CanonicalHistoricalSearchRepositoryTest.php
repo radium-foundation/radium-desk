@@ -3,6 +3,8 @@
 namespace Tests\Unit\HistoricalSearch;
 
 use App\Services\HistoricalSearch\CanonicalHistoricalSearchRepository;
+use App\Services\HistoricalSearch\HistoricalCanonicalEmailNormalizer;
+use App\Services\HistoricalSearch\HistoricalSearchQueryClassifier;
 use App\Services\HistoricalSearch\HistoricalSearchQueryNormalizer;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
@@ -47,7 +49,12 @@ class CanonicalHistoricalSearchRepositoryTest extends TestCase
             'historical_search.timeout_ms' => 100,
         ]);
 
-        $repository = new CanonicalHistoricalSearchRepository(new HistoricalSearchQueryNormalizer());
+        $email = new HistoricalCanonicalEmailNormalizer;
+        $repository = new CanonicalHistoricalSearchRepository(
+            new HistoricalSearchQueryNormalizer($email),
+            new HistoricalSearchQueryClassifier($email),
+            $email,
+        );
         $repository->search('SN-READ-ONLY-1234', 5);
 
         $this->addToAssertionCount(1);

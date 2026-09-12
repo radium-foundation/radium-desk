@@ -29,7 +29,7 @@ class HistoricalGlobalSearchTest extends TestCase
         FakeHistoricalSearchRepository::reset();
         Cache::flush();
 
-        $this->app->instance(HistoricalSearchRepository::class, new FakeHistoricalSearchRepository());
+        $this->app->instance(HistoricalSearchRepository::class, new FakeHistoricalSearchRepository);
 
         config([
             'historical_search.enabled' => true,
@@ -209,6 +209,33 @@ class HistoricalGlobalSearchTest extends TestCase
             ->assertOk()
             ->assertJsonPath('match_count', 0)
             ->assertJsonMissingPath('historical_results');
+    }
+
+    public function test_email_historical_hit_returns_with_provenance_fields(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        FakeHistoricalSearchRepository::$hits = [
+            new HistoricalSearchHit(
+                documentType: 'customer',
+                entityId: 42,
+                title: 'baswaraj744@gmail.com',
+                subtitle: 'Customer',
+                occurredOn: null,
+                sourceLineage: 'commerce_box',
+                sourceDatabase: 'radiumbox',
+                sourceTable: 'customers',
+                sourcePk: '99',
+            ),
+        ];
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'baswaraj744@gmail.com']))
+            ->assertOk()
+            ->assertJsonPath('historical_match_count', 1)
+            ->assertJsonPath('historical_results.0.source_database', 'radiumbox')
+            ->assertJsonPath('historical_results.0.is_authoritative', false);
     }
 
     public function test_desk_and_historical_results_are_both_returned(): void
