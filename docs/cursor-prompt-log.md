@@ -19,5 +19,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-07-09-272 | 2026-09-12 | Controlled production Purchasing foundation release | Next unused after P-07-09-271. Backup 20260912T065630Z. Named-file overlay 59 files from d162225f. Migration index-name fix applied. Path-scoped migrate batch [20]. 21 vendors imported. UPI migrations untouched. No operational PO/receipt. |
 | RadiumDesk-P-07-09-273 | 2026-09-12 | Production Purchasing read-only operational readiness / UAT | Next unused after P-272. Verified 21 vendors, permissions, routes, workflow from code. No production writes. Verdict: READY FOR FIRST REAL PO. |
 | RadiumDesk-P-07-09-274 | 2026-09-12 | Fix production Purchasing PO index HTTP 500 | Next unused after P-273. Root cause: missing NavigationMenu::Purchasing in isMenuHomeTitle match. Overlay NavigationContextResolver.php. Authenticated PO/vendors HTTP 200. No data writes. |
+| RadiumDesk-P-07-09-275 | 2026-09-12 | Finalize PO creation UX and PO numbering before first real PO | Next unused after P-274. FY series PO-07-### (Indian FY). Vendor typeahead search. PO line totals + draft-edit notice. Named-file overlay b61d3cfa. No migration. No PO/GR/invoice/payment/inventory writes. PO count remains 0. |
 
 Do not renumber or overwrite earlier rows. Append only.

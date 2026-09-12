@@ -420,5 +420,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-272 | 2026-09-12 | Controlled production Purchasing foundation release | Backup 20260912T065630Z. Named-file overlay 59 files from d162225f. Migration index-name fix. Batch [20]. 21 vendors imported. UPI untouched. No PO/receipt. |
 | RadiumDesk-P-07-09-273 | 2026-09-12 | Production Purchasing read-only operational readiness / UAT | 21 vendors verified. Permissions/routes/workflow read-only check. READY FOR FIRST REAL PO. No production writes. |
 | RadiumDesk-P-07-09-274 | 2026-09-12 | Fix production Purchasing PO index HTTP 500 | NavigationContextResolver isMenuHomeTitle missing Purchasing case caused ViewException. Fixed + test. Production overlay. PO/vendors HTTP 200. |
+| RadiumDesk-P-07-09-275 | 2026-09-12 | Finalize PO creation UX and PO numbering before first real PO | `PurchasingFinancialYear` + `PO-07-###` numbering (`lockForUpdate`, unique `po_number`, client `po_number` prohibited). Vendor typeahead (`purchasing.vendors.search`). New PO form: ordered qty, line/PO totals, draft-edit notice, read-only PO number help. Overlay b61d3cfa (7 files + routes patch). Tests 34 Purchasing PASS. No migration. No operational PO/GR/invoice/payment/inventory mutation. PO count 0. |
 
 Do not renumber or overwrite earlier rows. Append only.
