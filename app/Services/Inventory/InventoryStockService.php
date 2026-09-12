@@ -110,6 +110,7 @@ class InventoryStockService
         User $actor,
         ?InventoryProductVariant $variant = null,
         ?string $notes = null,
+        ?int $goodsReceiptId = null,
     ): InventoryStockBalance {
         $this->assertProductQuantity($product);
         $this->assertActive($product, $branch, $variant);
@@ -120,16 +121,17 @@ class InventoryStockService
             ]);
         }
 
-        return DB::transaction(function () use ($product, $branch, $qty, $actor, $variant, $notes): InventoryStockBalance {
+        return DB::transaction(function () use ($product, $branch, $qty, $actor, $variant, $notes, $goodsReceiptId): InventoryStockBalance {
             $balance = $this->adjustBalance($product, $variant, $branch, availableDelta: $qty);
             $this->recordMovement(
-                type: InventoryMovementType::StockIn,
+                type: $goodsReceiptId !== null ? InventoryMovementType::PurchaseReceipt : InventoryMovementType::StockIn,
                 product: $product,
                 branch: $branch,
                 qty: $qty,
                 actor: $actor,
                 variant: $variant,
                 notes: $notes,
+                goodsReceiptId: $goodsReceiptId,
             );
 
             return $balance;

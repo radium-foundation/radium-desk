@@ -11,6 +11,7 @@ use App\Models\Vendor;
 use App\Services\Purchasing\PurchaseOrderService;
 use App\Support\Purchasing\PurchasingAccess;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -52,7 +53,38 @@ class PurchaseOrderController extends Controller
         return view('purchasing.purchase-orders.create', [
             'vendors' => Vendor::query()->where('is_active', true)->orderBy('business_name')->get(),
             'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('name')->get(),
-            'products' => InventoryProduct::query()->where('is_active', true)->orderBy('sku')->get(),
+            'searchProductsUrl' => route('purchasing.products.search'),
+        ]);
+    }
+
+    public function searchProducts(Request $request): JsonResponse
+    {
+        abort_unless(PurchasingAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_PURCHASE_CREATE), 403);
+
+        $q = $request->string('q')->trim()->toString();
+        if ($q === '') {
+            return response()->json(['products' => []]);
+        }
+
+        $products = InventoryProduct::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($q) {
+                $query->where('sku', 'like', '%'.$q.'%')
+                    ->orWhere('name', 'like', '%'.$q.'%');
+            })
+            ->orderBy('sku')
+            ->limit(20)
+            ->get(['id', 'sku', 'name', 'is_serialized', 'gst_percentage', 'unit_cost']);
+
+        return response()->json([
+            'products' => $products->map(static fn (InventoryProduct $product): array => [
+                'id' => $product->id,
+                'sku' => $product->sku,
+                'name' => $product->name,
+                'is_serialized' => $product->is_serialized,
+                'gst_percentage' => (float) $product->gst_percentage,
+                'unit_cost' => (float) ($product->unit_cost ?? 0),
+            ])->values(),
         ]);
     }
 
@@ -75,7 +107,18 @@ class PurchaseOrderController extends Controller
             'lines.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $po = $this->purchaseOrders->createDraft($validated, $validated['lines'], $request->user());
+        $lines = array_values(array_filter(
+            $validated['lines'],
+            static fn (array $line): bool => (int) ($line['quantity'] ?? 0) >= 1,
+        ));
+
+        if ($lines === []) {
+            return back()
+                ->withInput()
+                ->withErrors(['lines' => 'Add at least one product line with quantity at least 1.']);
+        }
+
+        $po = $this->purchaseOrders->createDraft($validated, $lines, $request->user());
 
         return redirect()->route('purchasing.purchase-orders.show', $po)->with('status', 'Purchase order created.');
     }

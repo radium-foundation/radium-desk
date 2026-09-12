@@ -157,6 +157,8 @@ class PurchaseOrderService
      */
     private function syncLines(PurchaseOrder $po, array $lines): void
     {
+        $seen = [];
+
         foreach ($lines as $line) {
             $product = InventoryProduct::query()->findOrFail((int) $line['product_id']);
             $variant = filled($line['variant_id'] ?? null)
@@ -168,6 +170,14 @@ class PurchaseOrderService
                     'lines' => "Variant does not belong to product {$product->sku}.",
                 ]);
             }
+
+            $lineKey = $product->id.':'.($variant?->id ?? 0);
+            if (isset($seen[$lineKey])) {
+                throw ValidationException::withMessages([
+                    'lines' => "Duplicate line for {$product->sku}. Combine quantities on a single row.",
+                ]);
+            }
+            $seen[$lineKey] = true;
 
             $qty = (int) ($line['quantity'] ?? $line['quantity_ordered'] ?? 0);
             if ($qty < 1) {

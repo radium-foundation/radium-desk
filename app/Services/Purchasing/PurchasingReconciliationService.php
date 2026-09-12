@@ -97,6 +97,7 @@ class PurchasingReconciliationService
                         $actor,
                         $item->variant,
                         notes: "Goods receipt {$locked->receipt_number}",
+                        goodsReceiptId: $locked->id,
                     );
                 }
 

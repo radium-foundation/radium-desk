@@ -11,5 +11,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-07-09-258 | 2026-09-12 | OPTION B — Old Admin database discovery (read-only) | Next unused after P-07-09-257. Stream-inspected both SQL backups; KVM8 live DB probes; Global Search gap analysis. No restore/import/code/deploy. |
 | RadiumDesk-P-07-09-259 | 2026-09-12 | Correct support phone number in customer-facing email templates | Next unused after P-07-09-258. Shared `support_contact` config + `SupportContactResolver` + master email layout footer. Service case complete and all notification/statutory mails. |
 | RadiumDesk-P-07-09-266 | 2026-09-12 | Purchasing / Vendor / PO / Goods Receipt / Serialized Inventory foundation | Next unused after P-07-09-265. Purchasing workflow foundation on `feat/irn-foundation-phase-a`. Legacy vendor import mechanism + synthetic fixture only. No production import/deploy. |
+| RadiumDesk-P-07-09-267 | 2026-09-12 | Purchasing Foundation — Pre-Production Remediation Gate | Next unused after P-07-09-266. PO searchable product selection; non-serialized receiving `goods_receipt_id` on movements; architecture review. Tests PASS. No deploy/production import. |
 
 Do not renumber or overwrite earlier rows. Append only.

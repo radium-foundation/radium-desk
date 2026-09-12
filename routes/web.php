@@ -457,6 +457,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('vendors/{vendor}/toggle', [PurchasingVendorController::class, 'toggle'])->name('vendors.toggle');
 
         Route::get('purchase-orders', [PurchasingPurchaseOrderController::class, 'index'])->name('purchase-orders.index');
+        Route::get('products/search', [PurchasingPurchaseOrderController::class, 'searchProducts'])->name('products.search');
         Route::get('purchase-orders/create', [PurchasingPurchaseOrderController::class, 'create'])->name('purchase-orders.create');
         Route::post('purchase-orders', [PurchasingPurchaseOrderController::class, 'store'])->name('purchase-orders.store');
         Route::get('purchase-orders/{purchaseOrder}', [PurchasingPurchaseOrderController::class, 'show'])->name('purchase-orders.show');
