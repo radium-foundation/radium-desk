@@ -14,6 +14,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PurchaseOrderController extends Controller
@@ -51,9 +52,9 @@ class PurchaseOrderController extends Controller
         abort_unless(PurchasingAccess::allowsPermission(auth()->user(), RolePermissionSeeder::PERMISSION_PURCHASE_CREATE), 403);
 
         return view('purchasing.purchase-orders.create', [
-            'vendors' => Vendor::query()->where('is_active', true)->orderBy('business_name')->get(),
             'branches' => InventoryBranch::query()->where('is_active', true)->orderBy('name')->get(),
             'searchProductsUrl' => route('purchasing.products.search'),
+            'searchVendorsUrl' => route('purchasing.vendors.search'),
         ]);
     }
 
@@ -93,7 +94,8 @@ class PurchaseOrderController extends Controller
         abort_unless(PurchasingAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_PURCHASE_CREATE), 403);
 
         $validated = $request->validate([
-            'vendor_id' => ['required', 'exists:vendors,id'],
+            'po_number' => ['prohibited'],
+            'vendor_id' => ['required', 'integer', Rule::exists('vendors', 'id')->where('is_active', true)],
             'branch_id' => ['required', 'exists:inventory_branches,id'],
             'po_date' => ['required', 'date'],
             'expected_delivery_date' => ['nullable', 'date'],

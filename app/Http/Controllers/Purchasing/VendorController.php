@@ -7,6 +7,7 @@ use App\Models\Vendor;
 use App\Services\Purchasing\VendorService;
 use App\Support\Purchasing\PurchasingAccess;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -47,6 +48,37 @@ class VendorController extends Controller
         return view('purchasing.vendors.index', [
             'vendors' => $vendors,
             'filters' => $request->only(['q', 'status']),
+        ]);
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        abort_unless(PurchasingAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_PURCHASE_CREATE), 403);
+
+        $q = $request->string('q')->trim()->toString();
+        if ($q === '') {
+            return response()->json(['vendors' => []]);
+        }
+
+        $vendors = Vendor::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($q) {
+                $query->where('business_name', 'like', '%'.$q.'%')
+                    ->orWhere('gstin', 'like', '%'.$q.'%')
+                    ->orWhere('phone', 'like', '%'.$q.'%');
+            })
+            ->orderBy('business_name')
+            ->limit(20)
+            ->get(['id', 'business_name', 'legal_name', 'gstin', 'phone']);
+
+        return response()->json([
+            'vendors' => $vendors->map(static fn (Vendor $vendor): array => [
+                'id' => $vendor->id,
+                'business_name' => $vendor->business_name,
+                'legal_name' => $vendor->legal_name,
+                'gstin' => $vendor->gstin,
+                'phone' => $vendor->phone,
+            ])->values(),
         ]);
     }
 

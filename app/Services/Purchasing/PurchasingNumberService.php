@@ -4,25 +4,34 @@ namespace App\Services\Purchasing;
 
 use App\Models\GoodsReceipt;
 use App\Models\PurchaseOrder;
+use App\Support\Purchasing\PurchasingFinancialYear;
+use Illuminate\Support\Carbon;
 
 class PurchasingNumberService
 {
-    public function allocatePurchaseOrderNumber(): string
+    public function allocatePurchaseOrderNumber(?Carbon $at = null): string
     {
-        $year = now()->format('Y');
-        $prefix = "PO-{$year}-";
+        $fy = PurchasingFinancialYear::containing($at ?? now());
+        $prefix = $fy->purchaseOrderPrefix();
 
-        $latest = PurchaseOrder::query()
+        $latestSequence = PurchaseOrder::query()
             ->where('po_number', 'like', $prefix.'%')
-            ->orderByDesc('id')
-            ->value('po_number');
+            ->lockForUpdate()
+            ->pluck('po_number')
+            ->map(static function (string $poNumber) use ($prefix): int {
+                if (! str_starts_with($poNumber, $prefix)) {
+                    return 0;
+                }
 
-        $sequence = 1;
-        if (is_string($latest) && preg_match('/-(\d+)$/', $latest, $matches) === 1) {
-            $sequence = (int) $matches[1] + 1;
-        }
+                $suffix = substr($poNumber, strlen($prefix));
 
-        return $prefix.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+                return ctype_digit($suffix) ? (int) $suffix : 0;
+            })
+            ->max() ?? 0;
+
+        $sequence = $latestSequence + 1;
+
+        return $prefix.str_pad((string) $sequence, 3, '0', STR_PAD_LEFT);
     }
 
     public function allocateGoodsReceiptNumber(): string

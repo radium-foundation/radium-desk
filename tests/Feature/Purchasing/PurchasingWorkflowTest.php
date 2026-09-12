@@ -2,13 +2,13 @@
 
 namespace Tests\Feature\Purchasing;
 
-use App\Enums\GoodsReceiptStatus;
 use App\Enums\InventorySerialStatus;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\PurchasePaymentStatus;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
+use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Services\Purchasing\GoodsReceiptService;
@@ -118,7 +118,7 @@ class PurchasingWorkflowTest extends TestCase
             'tax_rate' => 18,
         ]], $this->admin);
 
-        $this->assertStringStartsWith('PO-'.now()->format('Y').'-', $po->po_number);
+        $this->assertSame('PO-07-001', $po->po_number);
         $this->assertSame(PurchaseOrderStatus::Draft, $po->status);
 
         $poService->send($po, $this->admin);
@@ -240,7 +240,7 @@ class PurchasingWorkflowTest extends TestCase
         ]);
     }
 
-    private function createSentPo(InventoryProduct $product, int $qty): \App\Models\PurchaseOrder
+    private function createSentPo(InventoryProduct $product, int $qty): PurchaseOrder
     {
         $po = app(PurchaseOrderService::class)->createDraft([
             'vendor_id' => $this->vendor->id,

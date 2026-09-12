@@ -10,6 +10,8 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\User;
 use App\Models\Vendor;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -32,28 +34,40 @@ class PurchaseOrderService
             ]);
         }
 
-        return DB::transaction(function () use ($header, $lines, $actor): PurchaseOrder {
-            $vendor = Vendor::query()->findOrFail((int) $header['vendor_id']);
-            $branch = InventoryBranch::query()->findOrFail((int) $header['branch_id']);
+        $attempts = 0;
 
-            $po = PurchaseOrder::query()->create([
-                'po_number' => $this->numbers->allocatePurchaseOrderNumber(),
-                'vendor_id' => $vendor->id,
-                'branch_id' => $branch->id,
-                'po_date' => $header['po_date'] ?? now()->toDateString(),
-                'expected_delivery_date' => $header['expected_delivery_date'] ?? null,
-                'status' => PurchaseOrderStatus::Draft,
-                'notes' => filled($header['notes'] ?? null) ? trim((string) $header['notes']) : null,
-                'created_by_user_id' => $actor->id,
-                'updated_by_user_id' => $actor->id,
-            ]);
+        while (true) {
+            try {
+                return DB::transaction(function () use ($header, $lines, $actor): PurchaseOrder {
+                    $vendor = Vendor::query()->findOrFail((int) $header['vendor_id']);
+                    $branch = InventoryBranch::query()->findOrFail((int) $header['branch_id']);
+                    $poDate = Carbon::parse($header['po_date'] ?? now()->toDateString());
 
-            $this->syncLines($po, $lines);
-            $this->recalculateTotals($po);
-            $this->audit->log($actor, 'purchase_order.created', $po, null, $po->fresh(['items'])->toArray());
+                    $po = PurchaseOrder::query()->create([
+                        'po_number' => $this->numbers->allocatePurchaseOrderNumber($poDate),
+                        'vendor_id' => $vendor->id,
+                        'branch_id' => $branch->id,
+                        'po_date' => $header['po_date'] ?? now()->toDateString(),
+                        'expected_delivery_date' => $header['expected_delivery_date'] ?? null,
+                        'status' => PurchaseOrderStatus::Draft,
+                        'notes' => filled($header['notes'] ?? null) ? trim((string) $header['notes']) : null,
+                        'created_by_user_id' => $actor->id,
+                        'updated_by_user_id' => $actor->id,
+                    ]);
 
-            return $po->fresh(['items.product', 'vendor', 'branch']);
-        });
+                    $this->syncLines($po, $lines);
+                    $this->recalculateTotals($po);
+                    $this->audit->log($actor, 'purchase_order.created', $po, null, $po->fresh(['items'])->toArray());
+
+                    return $po->fresh(['items.product', 'vendor', 'branch']);
+                });
+            } catch (UniqueConstraintViolationException $exception) {
+                $attempts++;
+                if ($attempts >= 5) {
+                    throw $exception;
+                }
+            }
+        }
     }
 
     /**
