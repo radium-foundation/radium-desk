@@ -1,23 +1,28 @@
 @extends('layouts.app')
 
-@section('title', 'New purchase order')
+@section('title', 'Purchase order')
 
 @section('content')
     <div class="mb-4">
         <p class="text-muted small text-uppercase fw-semibold mb-1">Purchasing</p>
-        <h1 class="h3 mb-1">New purchase order</h1>
+        <h1 class="h3 mb-1">Purchase order</h1>
     </div>
 
     @include('purchasing.partials.workspace-nav', ['active' => 'purchase_orders'])
 
-    <div class="alert alert-info">
-        PO number is assigned automatically when you save (format <code>PO-07-###</code> for FY 2026–27). Please verify all PO lines before saving or sending — draft editing is not currently available.
-    </div>
-
     <form method="POST" action="{{ route('purchasing.purchase-orders.store') }}" class="card border-0 shadow-sm p-4" id="po-create-form">
         @csrf
+
         <div class="row g-3 mb-4">
-            <div class="col-md-4">
+            <div class="col-md-6">
+                <label class="form-label">PO number</label>
+                <input type="text" class="form-control" value="PO-07-### — assigned automatically on save" readonly tabindex="-1">
+                <div class="form-text">System-generated for FY 2026–27. Cannot be edited.</div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6 position-relative">
                 <label class="form-label" for="po-vendor-search">Vendor</label>
                 <input type="hidden" name="vendor_id" id="po-vendor-id" value="{{ old('vendor_id') }}" required>
                 <input type="text" id="po-vendor-search" class="form-control @error('vendor_id') is-invalid @enderror" placeholder="Type vendor name / GSTIN / phone…" autocomplete="off" value="{{ old('vendor_label') }}">
@@ -26,37 +31,33 @@
                     <div class="invalid-feedback d-block">{{ $message }}</div>
                 @enderror
             </div>
-            <div class="col-md-4">
-                <label class="form-label">Receiving branch</label>
+            <div class="col-md-6">
+                <label class="form-label">Branch</label>
                 <select name="branch_id" class="form-select" required>
                     @foreach($branches as $branch)
                         <option value="{{ $branch->id }}" @selected((int) old('branch_id', $branches->first()?->id) === $branch->id)>{{ $branch->name }}</option>
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label class="form-label">PO date</label>
                 <input type="date" name="po_date" class="form-control" value="{{ old('po_date', now()->toDateString()) }}" required>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label class="form-label">Expected delivery</label>
                 <input type="date" name="expected_delivery_date" class="form-control" value="{{ old('expected_delivery_date') }}">
             </div>
-            <div class="col-md-12">
-                <label class="form-label text-muted">PO number</label>
-                <input type="text" class="form-control" value="Assigned automatically on save" readonly tabindex="-1">
-            </div>
-            <div class="col-md-12">
-                <label class="form-label">Notes</label>
-                <textarea name="notes" class="form-control" rows="2">{{ old('notes') }}</textarea>
-            </div>
         </div>
 
-        <h2 class="h5">Products</h2>
-        <div class="mb-3 position-relative" style="max-width: 32rem;">
-            <label class="form-label" for="po-product-search">Search product by SKU or name</label>
-            <input type="text" id="po-product-search" class="form-control" placeholder="Type SKU / product name…" autocomplete="off">
-            <div id="po-product-results" class="list-group position-absolute w-100 shadow-sm" style="z-index: 10; max-height: 16rem; overflow-y: auto;" hidden></div>
+        <hr class="my-4">
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-8 position-relative">
+                <label class="form-label" for="po-product-search">Product</label>
+                <input type="text" id="po-product-search" class="form-control" placeholder="Type SKU / product name…" autocomplete="off">
+                <div id="po-product-results" class="list-group position-absolute w-100 shadow-sm" style="z-index: 10; max-height: 16rem; overflow-y: auto;" hidden></div>
+                <div class="form-text">Search and select a product to add a line. Serial numbers are captured at goods receipt.</div>
+            </div>
         </div>
 
         <div class="table-responsive mb-3">
@@ -87,7 +88,7 @@
                         <td colspan="2" class="fw-semibold" id="po-tax-total">0.00</td>
                     </tr>
                     <tr>
-                        <td colspan="5" class="text-end fw-semibold">PO total</td>
+                        <td colspan="5" class="text-end fw-semibold">Total</td>
                         <td colspan="2" class="fw-semibold" id="po-grand-total">0.00</td>
                     </tr>
                 </tfoot>
@@ -98,7 +99,19 @@
             <div class="text-danger small mb-2">{{ $message }}</div>
         @enderror
 
-        <button class="btn btn-primary" type="submit">Create draft PO</button>
+        <div class="mb-4">
+            <label class="form-label">Notes</label>
+            <textarea name="notes" class="form-control" rows="2">{{ old('notes') }}</textarea>
+        </div>
+
+        <div class="alert alert-warning mb-4">
+            Please verify all PO lines before saving or sending. Draft editing is not currently available.
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-primary" type="submit">Save draft</button>
+            <button class="btn btn-outline-primary" type="button" disabled title="Available after the purchase order is saved">Send PO</button>
+        </div>
     </form>
 @endsection
 
@@ -182,7 +195,7 @@
                         '<input type="hidden" name="lines[' + index + '][product_id]" value="' + product.id + '">' +
                         '<div class="fw-semibold">' + product.sku + '</div>' +
                         '<div class="small text-muted">' + product.name + '</div>' +
-                        (product.is_serialized ? '<span class="badge text-bg-secondary mt-1">Serialized — serials captured at goods receipt</span>' : '') +
+                        (product.is_serialized ? '<span class="badge text-bg-secondary mt-1">Serialized — serials at goods receipt</span>' : '') +
                     '</td>' +
                     '<td><input type="number" name="lines[' + index + '][quantity]" data-field="quantity" class="form-control" min="1" value="1" required></td>' +
                     '<td><input type="number" step="0.01" name="lines[' + index + '][unit_cost]" data-field="unit_cost" class="form-control" min="0" value="' + product.unit_cost + '" required></td>' +
