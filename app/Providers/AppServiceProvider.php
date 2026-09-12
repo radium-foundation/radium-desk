@@ -61,8 +61,12 @@ use App\Services\Dashboard\DashboardClassificationIndex;
 use App\Services\Dashboard\DashboardIncidentQueueMembership;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\DashboardBroadcastService;
+use App\Contracts\HistoricalSearchRepository;
+use App\Services\GlobalSearch\HistoricalGlobalSearchProvider;
 use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearch\StatutoryInvoiceGlobalSearchProvider;
+use App\Services\HistoricalSearch\CanonicalHistoricalSearchRepository;
+use App\Services\HistoricalSearch\HistoricalSearchCircuitBreaker;
 use App\Services\GlobalSearchService;
 use App\Services\HardwareFulfilment\NullBoxFulfilmentCallbackGateway;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
@@ -269,10 +273,14 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(CaseIntelligenceLanguageEnhancer::class, NullCaseIntelligenceLanguageEnhancer::class);
         $this->app->scoped(CaseIntelligenceEngine::class);
 
+        $this->app->singleton(HistoricalSearchCircuitBreaker::class);
+        $this->app->singleton(HistoricalSearchRepository::class, CanonicalHistoricalSearchRepository::class);
+
         $this->app->singleton(GlobalSearchService::class, function ($app): GlobalSearchService {
             return new GlobalSearchService([
                 $app->make(ServiceCaseGlobalSearchProvider::class),
                 $app->make(StatutoryInvoiceGlobalSearchProvider::class),
+                $app->make(HistoricalGlobalSearchProvider::class),
             ]);
         });
 

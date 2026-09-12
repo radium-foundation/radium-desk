@@ -8,6 +8,7 @@ use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearchService;
 use App\Services\HistoricalInvoice\HistoricalCustomer360Resolver;
 use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
+use App\Services\HistoricalSearch\HistoricalSearchCircuitBreaker;
 use App\Support\Finance\FinanceAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,6 +21,7 @@ class SearchController extends Controller
         private readonly CustomerIntakeSearchService $customerIntakeSearchService,
         private readonly HistoricalCustomer360Resolver $historicalCustomer360Resolver,
         private readonly ServiceCaseGlobalSearchProvider $serviceCaseGlobalSearchProvider,
+        private readonly HistoricalSearchCircuitBreaker $historicalSearchCircuitBreaker,
     ) {}
 
     public function search(Request $request): JsonResponse|RedirectResponse
@@ -78,7 +80,10 @@ class SearchController extends Controller
         }
 
         $results = $this->globalSearchService->search($user, $query);
-        $payload = $results->map(fn ($result) => $result->toArray())->values();
+        $deskResults = $results->filter(fn ($result) => $result->type !== 'historical');
+        $historicalResults = $results->filter(fn ($result) => $result->type === 'historical');
+        $payload = $deskResults->map(fn ($result) => $result->toArray())->values();
+        $historicalPayload = $historicalResults->map(fn ($result) => $result->toArray())->values();
 
         if ($payload->isEmpty() && HistoricalInvoiceLookupService::shouldOfferHistoricalLookup($query)) {
             $historicalMatch = $this->historicalCustomer360Resolver->resolve($query, $user);
@@ -100,6 +105,9 @@ class SearchController extends Controller
                 ->where('type', 'service_case')
                 ->pluck('incident_id')
                 ->values(),
+            'historical_match_count' => $historicalPayload->count(),
+            'historical_results' => $historicalPayload,
+            'historical_search' => $this->historicalSearchCircuitBreaker->snapshot(),
         ];
 
         if (

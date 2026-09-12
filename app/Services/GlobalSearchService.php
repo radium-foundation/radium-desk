@@ -6,6 +6,7 @@ use App\Contracts\GlobalSearchProvider;
 use App\Data\GlobalSearchResult;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class GlobalSearchService
 {
@@ -28,7 +29,19 @@ class GlobalSearchService
         }
 
         return collect($this->providers)
-            ->flatMap(fn (GlobalSearchProvider $provider): Collection => $provider->search($user, $query))
+            ->flatMap(function (GlobalSearchProvider $provider) use ($user, $query): Collection {
+                try {
+                    return $provider->search($user, $query);
+                } catch (\Throwable $exception) {
+                    Log::warning('global_search.provider_failed', [
+                        'provider' => $provider->type(),
+                        'exception' => $exception::class,
+                        'message' => $exception->getMessage(),
+                    ]);
+
+                    return collect();
+                }
+            })
             ->values();
     }
 }

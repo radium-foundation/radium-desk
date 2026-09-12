@@ -24,6 +24,7 @@ const SEARCH_FETCH_ERROR = 'Unable to load search results. Please try again.';
 const SEARCH_ROWS_ERROR = 'Unable to load matching service cases. Please try again.';
 const INTAKE_FALLBACK_SELECTOR = '[data-dashboard-search-intake-fallback]';
 const HISTORICAL_FALLBACK_SELECTOR = '[data-dashboard-search-historical-fallback]';
+const HISTORICAL_RESULTS_SELECTOR = '[data-dashboard-search-historical-results]';
 const SEARCH_RESULT_ACTIONS_SELECTOR = '[data-dashboard-search-result-actions]';
 
 const prefillIntakeSearchFields = (form, parsedQuery = {}, query = '') => {
@@ -390,6 +391,81 @@ export const initUniversalSearch = ({
         card?.querySelector(HISTORICAL_FALLBACK_SELECTOR)?.remove();
     };
 
+    const hideHistoricalResults = (card) => {
+        card?.querySelector(HISTORICAL_RESULTS_SELECTOR)?.remove();
+    };
+
+    const buildHistoricalResultItem = (result) => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item px-0 py-2';
+
+        const title = document.createElement('div');
+        title.className = 'fw-semibold';
+        title.textContent = result?.title ?? 'Historical record';
+
+        const subtitle = document.createElement('div');
+        subtitle.className = 'small text-muted';
+        subtitle.textContent = result?.subtitle ?? '';
+
+        const meta = document.createElement('div');
+        meta.className = 'small mt-1';
+
+        const badge = document.createElement('span');
+        badge.className = 'badge text-bg-secondary me-1';
+        badge.textContent = result?.source_lineage_label ?? result?.source_lineage ?? 'historical';
+
+        const note = document.createElement('span');
+        note.className = 'text-muted';
+        note.textContent = 'Historical · read-only · not authoritative';
+
+        meta.append(badge, note);
+        item.append(title, subtitle, meta);
+
+        if (result?.partial_ingest) {
+            const partial = document.createElement('div');
+            partial.className = 'small text-warning-emphasis mt-1';
+            partial.textContent = 'Partial historical ingest — results may be incomplete.';
+            item.append(partial);
+        }
+
+        return item;
+    };
+
+    const showHistoricalResults = (card, historicalResults = [], historicalSearch = null) => {
+        hideHistoricalResults(card);
+
+        const banner = card?.querySelector('[data-dashboard-search-banner]');
+
+        if (!banner || !Array.isArray(historicalResults) || historicalResults.length === 0) {
+            return;
+        }
+
+        const panel = document.createElement('div');
+        panel.className = 'dashboard-search-historical-results border-top px-3 py-2';
+        panel.dataset.dashboardSearchHistoricalResults = '';
+
+        const heading = document.createElement('div');
+        heading.className = 'small fw-semibold mb-2';
+        heading.textContent = `Historical records (${historicalResults.length})`;
+
+        const list = document.createElement('div');
+        list.className = 'list-group list-group-flush';
+        historicalResults.forEach((result) => {
+            list.append(buildHistoricalResultItem(result));
+        });
+
+        panel.append(heading, list);
+
+        if (historicalSearch?.status === 'degraded') {
+            const degraded = document.createElement('div');
+            degraded.className = 'small text-muted mt-2';
+            degraded.textContent = 'Historical search is temporarily degraded. Desk results are unaffected.';
+            panel.append(degraded);
+        }
+
+        banner.append(panel);
+    };
+
     const showHistoricalFallback = (card, historical) => {
         hideHistoricalFallback(card);
 
@@ -602,6 +678,7 @@ export const initUniversalSearch = ({
         setDashboardSearchActive(false);
         hideIntakeFallback(getDashboardCard());
         hideHistoricalFallback(getDashboardCard());
+        hideHistoricalResults(getDashboardCard());
         hideSearchResultActions(getDashboardCard());
         hideSearchBanner(getDashboardCard());
         clearSearchMatchHighlight(getDashboardCard());
@@ -677,11 +754,13 @@ export const initUniversalSearch = ({
             const matchCount = data.match_count ?? 0;
             const intake = data.intake ?? null;
             const historical = data.historical ?? null;
+            const historicalResults = data.historical_results ?? [];
+            const historicalSearch = data.historical_search ?? null;
 
             if (incidentIds.length === 0) {
                 showSearchEmptyResults(card);
 
-                if (historical || intake) {
+                if (historical || intake || historicalResults.length > 0) {
                     showSearchBanner(card, { matchCount: 0, query: trimmedQuery, intake, historical });
                     if (historical) {
                         showHistoricalFallback(card, historical);
@@ -689,8 +768,10 @@ export const initUniversalSearch = ({
                     if (intake) {
                         showIntakeFallback(card, intake, trimmedQuery);
                     }
+                    showHistoricalResults(card, historicalResults, historicalSearch);
                 } else {
                     showSearchBanner(card, { matchCount, query: trimmedQuery });
+                    hideHistoricalResults(card);
                 }
 
                 dashboardIntegration.onRowsUpdated?.();
@@ -702,6 +783,7 @@ export const initUniversalSearch = ({
             hideHistoricalFallback(card);
             hideSearchResultActions(card);
             showSearchBanner(card, { matchCount, query: trimmedQuery });
+            showHistoricalResults(card, historicalResults, historicalSearch);
 
             await applySearchRows(incidentIds, matchCount, trimmedQuery, data.results ?? []);
         } catch (error) {

@@ -84,6 +84,25 @@ return [
             ]) : [],
         ],
 
+        'radium_hist' => [
+            'driver' => env('RADIUM_HIST_DB_DRIVER', 'mariadb'),
+            'host' => env('RADIUM_HIST_DB_HOST', '127.0.0.1'),
+            'port' => env('RADIUM_HIST_DB_PORT', '3306'),
+            'database' => env('RADIUM_HIST_DB_DATABASE', 'radium_hist'),
+            'username' => env('RADIUM_HIST_DB_USERNAME', 'radium_hist_ro'),
+            'password' => env('RADIUM_HIST_DB_PASSWORD', ''),
+            'unix_socket' => env('RADIUM_HIST_DB_SOCKET', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
