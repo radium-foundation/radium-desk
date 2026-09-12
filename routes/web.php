@@ -15,6 +15,7 @@ use App\Http\Controllers\CommercialServiceRestorationController;
 use App\Http\Controllers\CompanyHolidayController;
 use App\Http\Controllers\ConversationWorkspaceController;
 use App\Http\Controllers\Customer360Controller;
+use App\Http\Controllers\Customer360\Customer360InvoiceController;
 use App\Http\Controllers\DashboardActivityController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
@@ -188,6 +189,14 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.customer-360.ai-workbench.audit');
     Route::post('dashboard/service-cases/{incident}/customer-360/executive-summary/translate', [Customer360Controller::class, 'translateExecutiveSummary'])
         ->name('dashboard.service-cases.customer-360.executive-summary.translate');
+    Route::get('dashboard/service-cases/{incident}/invoices/{invoice}/pdf', [Customer360InvoiceController::class, 'pdf'])
+        ->name('dashboard.service-cases.customer-360.invoices.pdf');
+    Route::get('dashboard/service-cases/{incident}/invoices/{invoice}/download', [Customer360InvoiceController::class, 'download'])
+        ->name('dashboard.service-cases.customer-360.invoices.download');
+    Route::post('dashboard/service-cases/{incident}/invoices/{invoice}/email', [Customer360InvoiceController::class, 'email'])
+        ->name('dashboard.service-cases.customer-360.invoices.email');
+    Route::post('dashboard/service-cases/{incident}/invoices/{invoice}/whatsapp', [Customer360InvoiceController::class, 'whatsapp'])
+        ->name('dashboard.service-cases.customer-360.invoices.whatsapp');
     Route::get('dashboard/incoming-email-messages/{incomingEmailMessage}/content', [IncomingEmailContentController::class, 'show'])
         ->name('dashboard.incoming-email-messages.content');
     Route::get('dashboard/incoming-email-messages/{incomingEmailMessage}/reply-context', [IncomingEmailContentController::class, 'replyContext'])

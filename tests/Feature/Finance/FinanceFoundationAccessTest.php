@@ -96,4 +96,12 @@ class FinanceFoundationAccessTest extends TestCase
         $this->assertTrue(Route::has('historical-orders.document'));
         $this->assertTrue(Route::has('historical-orders.show'));
     }
+
+    public function test_customer_360_statutory_invoice_routes_are_registered(): void
+    {
+        $this->assertTrue(Route::has('dashboard.service-cases.customer-360.invoices.pdf'));
+        $this->assertTrue(Route::has('dashboard.service-cases.customer-360.invoices.download'));
+        $this->assertTrue(Route::has('dashboard.service-cases.customer-360.invoices.email'));
+        $this->assertTrue(Route::has('dashboard.service-cases.customer-360.invoices.whatsapp'));
+    }
 }
