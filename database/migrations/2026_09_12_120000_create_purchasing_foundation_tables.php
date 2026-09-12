@@ -108,7 +108,7 @@ return new class extends Migration
             $table->decimal('line_total', 14, 2);
             $table->timestamps();
 
-            $table->index(['purchase_order_id', 'product_id']);
+            $table->index(['purchase_order_id', 'product_id'], 'po_items_po_product_idx');
         });
 
         Schema::create('goods_receipts', function (Blueprint $table) {
@@ -142,7 +142,7 @@ return new class extends Migration
             $table->unsignedInteger('quantity_short')->default(0);
             $table->timestamps();
 
-            $table->index(['goods_receipt_id', 'purchase_order_item_id']);
+            $table->index(['goods_receipt_id', 'purchase_order_item_id'], 'gr_items_receipt_po_item_idx');
         });
 
         Schema::create('goods_receipt_serials', function (Blueprint $table) {
@@ -215,7 +215,7 @@ return new class extends Migration
             $table->timestamp('uploaded_at')->nullable();
             $table->timestamps();
 
-            $table->index(['related_type', 'related_id']);
+            $table->index(['related_type', 'related_id'], 'purch_docs_related_idx');
             $table->index(['document_type']);
         });
 
@@ -231,7 +231,7 @@ return new class extends Migration
             $table->text('user_agent')->nullable();
             $table->timestamp('created_at')->useCurrent();
 
-            $table->index(['auditable_type', 'auditable_id']);
+            $table->index(['auditable_type', 'auditable_id'], 'purch_audit_auditable_idx');
             $table->index(['event']);
         });
 
