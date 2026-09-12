@@ -228,6 +228,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         executiveSummary: false,
         timeline: false,
         ai: false,
+        wallet: false,
     };
 
     const resetSubFetchController = () => {
@@ -726,6 +727,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         lazyTabState.executiveSummary = false;
         lazyTabState.timeline = false;
         lazyTabState.ai = false;
+        lazyTabState.wallet = false;
     };
 
     const loadExecutiveSummary = async () => {
@@ -899,6 +901,163 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
     };
 
+    const bindWalletLedgerInteractions = (root) => {
+        if (!root || root.dataset.walletLedgerBound === 'true') {
+            return;
+        }
+
+        root.dataset.walletLedgerBound = 'true';
+
+        const filterForm = root.querySelector('[data-wallet-ledger-filter-form]');
+
+        filterForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const form = event.currentTarget;
+            const action = form.getAttribute('action') ?? '';
+            const params = new URLSearchParams(new FormData(form));
+
+            try {
+                const response = await fetch(`${action}?${params.toString()}`, {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    signal: subFetchController?.signal,
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+                if (payload.html) {
+                    const parent = root.parentElement;
+                    root.outerHTML = payload.html;
+                    const nextRoot = parent?.querySelector('[data-wallet-ledger-root]');
+                    if (nextRoot) {
+                        bindWalletLedgerInteractions(nextRoot);
+                    }
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    logCustomer360Failure(action, null, 'wallet-ledger-filter', error);
+                }
+            }
+        });
+
+        root.querySelector('[data-wallet-ledger-load-more]')?.addEventListener('click', async (event) => {
+            const button = event.currentTarget;
+            const loadUrl = button.dataset.loadUrl ?? '';
+            const beforeId = button.dataset.nextBeforeId ?? '';
+            const filterForm = root.querySelector('[data-wallet-ledger-filter-form]');
+            const params = new URLSearchParams(new FormData(filterForm ?? undefined));
+            params.set('before_id', beforeId);
+
+            try {
+                const response = await fetch(`${loadUrl}?${params.toString()}`, {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    signal: subFetchController?.signal,
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+                if (!payload.html) {
+                    return;
+                }
+
+                const temp = document.createElement('div');
+                temp.innerHTML = payload.html;
+                const nextRoot = temp.querySelector('[data-wallet-ledger-root]');
+                const currentTable = root.querySelector('tbody');
+                const nextTable = nextRoot?.querySelector('tbody');
+                const nextLoadMore = nextRoot?.querySelector('[data-wallet-ledger-load-more]');
+                const currentLoadMore = root.querySelector('[data-wallet-ledger-load-more]');
+
+                if (currentTable && nextTable) {
+                    nextTable.querySelectorAll('tr').forEach((row) => currentTable.appendChild(row));
+                }
+
+                if (currentLoadMore) {
+                    currentLoadMore.remove();
+                }
+
+                if (nextLoadMore) {
+                    root.appendChild(nextLoadMore);
+                    bindWalletLedgerInteractions(root);
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    logCustomer360Failure(loadUrl, null, 'wallet-ledger-load-more', error);
+                }
+            }
+        });
+    };
+
+    const loadWalletTab = async () => {
+        if (lazyTabState.wallet) {
+            return;
+        }
+
+        const placeholder = contentHost.querySelector('[data-customer-360-wallet-tab]');
+        const loadUrl = placeholder?.dataset.walletTabUrl?.trim() ?? '';
+
+        if (!placeholder || loadUrl === '') {
+            return;
+        }
+
+        lazyTabState.wallet = true;
+        const generation = contentGeneration;
+
+        try {
+            const response = await fetch(loadUrl, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                signal: subFetchController?.signal,
+            });
+
+            if (isStaleCustomer360Content(loadUrl, generation)) {
+                return;
+            }
+
+            if (!response.ok) {
+                logCustomer360Failure(loadUrl, response.status, 'wallet-tab-load');
+                placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load wallet ledger.</p>';
+
+                return;
+            }
+
+            const payload = await response.json();
+
+            if (isStaleCustomer360Content(loadUrl, generation)) {
+                return;
+            }
+
+            if (payload.html) {
+                placeholder.outerHTML = payload.html;
+                const walletRoot = contentHost.querySelector('[data-wallet-ledger-root]');
+                if (walletRoot) {
+                    bindWalletLedgerInteractions(walletRoot);
+                }
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+
+            logCustomer360Failure(loadUrl, null, 'wallet-tab-load', error);
+            placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load wallet ledger.</p>';
+        }
+    };
+
     const hydrateLazySectionsForTab = (tabKey) => {
         if (tabKey === 'overview') {
             loadExecutiveSummary();
@@ -910,6 +1069,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
         if (tabKey === 'ai-assistant') {
             loadAiTab();
+        }
+
+        if (tabKey === 'wallet-ledger') {
+            loadWalletTab();
         }
     };
 

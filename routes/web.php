@@ -162,6 +162,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.customer-360.device');
     Route::get('dashboard/service-cases/{incident}/customer-360/timeline', [Customer360Controller::class, 'timeline'])
         ->name('dashboard.service-cases.customer-360.timeline');
+    Route::get('dashboard/service-cases/{incident}/customer-360/wallet-ledger', [Customer360Controller::class, 'walletLedger'])
+        ->name('dashboard.service-cases.customer-360.wallet-ledger');
     Route::get('dashboard/service-cases/{incident}/email-thread', [Customer360Controller::class, 'emailThread'])
         ->name('dashboard.service-cases.email-thread');
     Route::post('dashboard/service-cases/{incident}/email-thread/read', [Customer360Controller::class, 'markEmailThreadRead'])

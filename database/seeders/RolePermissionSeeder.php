@@ -70,6 +70,8 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_FINANCE_REPORTS_EXPORT = 'finance.reports.export';
 
+    public const PERMISSION_FINANCE_WALLET_VIEW = 'finance.wallet.view';
+
     public const PERMISSION_CASHBOOK_VIEW = 'cashbook.view';
 
     public const PERMISSION_CASHBOOK_CREATE = 'cashbook.create';
@@ -238,6 +240,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_FINANCE_SETTINGS_VIEW,
         self::PERMISSION_FINANCE_INVOICES_VIEW,
         self::PERMISSION_FINANCE_REPORTS_EXPORT,
+        self::PERMISSION_FINANCE_WALLET_VIEW,
     ];
 
     /**

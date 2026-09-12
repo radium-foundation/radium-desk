@@ -16,6 +16,8 @@ use App\Services\IncomingEmail\IncomingEmailConversationService;
 use App\Services\IncomingEmail\IncomingEmailWorkspaceReadState;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
+use App\Services\Wallet\WalletLedgerReadService;
+use App\Support\Finance\WalletLedgerAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -30,6 +32,7 @@ class Customer360Controller extends Controller
         private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
         private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
         private readonly IncomingEmailConversationService $incomingEmailConversationService,
+        private readonly WalletLedgerReadService $walletLedgerReadService,
     ) {}
 
     public function show(Incident $incident, ?Request $request = null): Response
@@ -307,6 +310,46 @@ class Customer360Controller extends Controller
         return response()->json(
             $this->executiveSummaryTranslationService->translatePayloadToHindi($validated),
         );
+    }
+
+    public function walletLedger(Incident $incident, Request $request): Response|JsonResponse
+    {
+        $this->authorize('view', $incident);
+        abort_unless(WalletLedgerAccess::allows($request->user()), 403);
+
+        $validated = $request->validate([
+            'before_id' => ['nullable', 'integer', 'min:1'],
+            'type' => ['nullable', 'string', 'in:all,credit,debit'],
+            'status' => ['nullable', 'string', 'max:32'],
+            'order_code' => ['nullable', 'string', 'max:64'],
+            'desk_refund_reference' => ['nullable', 'string', 'max:64'],
+            'reference' => ['nullable', 'string', 'max:64'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+        ]);
+
+        $loadTab = $request->query('tab') === '1' && ! $request->filled('before_id');
+
+        try {
+            $ledger = $this->walletLedgerReadService->forIncident($incident, $this->authenticatedUser(), $validated);
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        $html = view('customer-360.partials.wallet-tab', [
+            'ledger' => $ledger,
+            'incident' => $incident,
+            'filters' => $validated,
+            'loadMoreUrl' => route('dashboard.service-cases.customer-360.wallet-ledger', $incident),
+        ])->render();
+
+        if ($loadTab || $request->wantsJson()) {
+            return response()->json(['html' => $html]);
+        }
+
+        return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
 
     public function timeline(Incident $incident, Request $request): Response|JsonResponse

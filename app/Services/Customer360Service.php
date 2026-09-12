@@ -58,6 +58,7 @@ use App\Support\Customer360\RdServiceStatusResolver;
 use App\Support\Customer360\ScheduledSupportAppointmentContext;
 use App\Support\DeviceModelFormatter;
 use App\Support\Finance\FinanceAccess;
+use App\Support\Finance\WalletLedgerAccess;
 use App\Support\HardwareFulfilment\HardwareFulfilmentCustomer360Presenter;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use Database\Seeders\RolePermissionSeeder;
@@ -232,6 +233,10 @@ class Customer360Service
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
+            'canViewWalletLedger' => WalletLedgerAccess::allows(auth()->user()),
+            'walletTabUrl' => WalletLedgerAccess::allows(auth()->user())
+                ? route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1'
+                : null,
             'communicationActions' => $this->communicationActionEligibilityService->menuItems($incident, auth()->user()),
             'communicationActionStatuses' => $communicationActionStatuses,
             ...$this->overflowMenuPayload(
@@ -1217,6 +1222,10 @@ class Customer360Service
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
+            'canViewWalletLedger' => WalletLedgerAccess::allows(auth()->user()),
+            'walletTabUrl' => WalletLedgerAccess::allows(auth()->user())
+                ? route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1'
+                : null,
             'communicationActionStatuses' => [],
         ];
     }

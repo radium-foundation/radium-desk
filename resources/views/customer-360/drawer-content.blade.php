@@ -93,6 +93,19 @@
                     <span>IRA AI</span>
                 </button>
             </li>
+            @if(!empty($canViewWalletLedger))
+                <li class="nav-item" role="presentation">
+                    <button type="button"
+                            class="nav-link"
+                            role="tab"
+                            aria-selected="false"
+                            aria-controls="customer-360-tab-wallet-ledger"
+                            data-customer-360-tab="wallet-ledger">
+                        <i class="bi bi-wallet2" aria-hidden="true"></i>
+                        <span>Wallet Ledger</span>
+                    </button>
+                </li>
+            @endif
         </ul>
     </nav>
 
@@ -152,6 +165,17 @@
             'aiTabUrl' => $aiTabUrl ?? null,
         ])
     </div>
+
+    @if(!empty($canViewWalletLedger))
+        <div id="customer-360-tab-wallet-ledger"
+             class="customer-360-tab-pane d-none"
+             role="tabpanel"
+             data-customer-360-tab-pane="wallet-ledger">
+            @include('customer-360.partials.wallet-tab-placeholder', [
+                'walletTabUrl' => $walletTabUrl ?? null,
+            ])
+        </div>
+    @endif
 </div>
 
 @include('customer-360.partials.incoming-email-modal')
