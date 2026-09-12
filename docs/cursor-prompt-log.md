@@ -12,5 +12,7 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-07-09-285 | 2026-09-12 | Investigation-only: `/pos/counter` HTTP 500 | `pos.serials.match` missing; two customer routes also required. Investigation only. |
 | RadiumDesk-P-07-09-286 | 2026-09-12 | Restore POS counter route dependencies | Three-route atomic overlay for counter page. `/pos/counter` 200 in production. |
 | RadiumDesk-P-07-09-287 | 2026-09-12 | Restore POS statutory invoice routes | `pos.sales.statutory.pdf`, `.download`, `.email` restored. Sale show and PDF endpoints verified 200. No production email sent. |
+| RadiumDesk-P-07-09-288 | 2026-09-12 | Investigation-only: remaining P-283 route-loss audit | C360 invoice, historical-orders, and `customers.*` groups audited. Historical search degradation verified. POS `customers.*` already restored (P-286). No code/deploy change. |
+| RadiumDesk-P-07-09-289 | 2026-09-12 | Restore historical-orders routes | Surgical overlay: `historical-orders.document` + `historical-orders.show` after `search.index`. Fixes `historical_search.provider_failed` RouteNotFoundException. |
 
 Do not renumber or overwrite earlier rows. Append only.
