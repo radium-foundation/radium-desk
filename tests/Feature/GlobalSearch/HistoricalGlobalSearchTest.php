@@ -91,6 +91,8 @@ class HistoricalGlobalSearchTest extends TestCase
             ->assertJsonPath('historical_results.0.source_database', 'radium_old_final')
             ->assertJsonPath('historical_results.0.is_authoritative', false)
             ->assertJsonPath('historical_results.0.historical_only', true)
+            ->assertJsonPath('historical_results.0.hist_order_id', 1748306)
+            ->assertJsonPath('historical_results.0.summary_url', route('historical-orders.show', ['histOrder' => 1748306]))
             ->assertJsonPath('match_count', 0);
     }
 

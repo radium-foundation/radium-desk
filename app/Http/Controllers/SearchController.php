@@ -8,6 +8,7 @@ use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearchService;
 use App\Services\HistoricalInvoice\HistoricalCustomer360Resolver;
 use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
+use App\Services\HistoricalSearch\HistoricalOrderSummaryService;
 use App\Services\HistoricalSearch\HistoricalSearchCircuitBreaker;
 use App\Support\Finance\FinanceAccess;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +23,7 @@ class SearchController extends Controller
         private readonly HistoricalCustomer360Resolver $historicalCustomer360Resolver,
         private readonly ServiceCaseGlobalSearchProvider $serviceCaseGlobalSearchProvider,
         private readonly HistoricalSearchCircuitBreaker $historicalSearchCircuitBreaker,
+        private readonly HistoricalOrderSummaryService $historicalOrderSummaryService,
     ) {}
 
     public function search(Request $request): JsonResponse|RedirectResponse
@@ -138,10 +140,27 @@ class SearchController extends Controller
                 user: $user,
             );
 
-            $response['intake'] = $this->customerIntakeSearchService->toSearchPayload(
+            $intakePayload = $this->customerIntakeSearchService->toSearchPayload(
                 $intakeResult,
                 $parsedQuery,
             );
+
+            $legacyOrderId = $intakePayload['legacy_preview']['order_id'] ?? null;
+
+            if (
+                config('historical_search.enabled')
+                && ! $this->historicalSearchCircuitBreaker->isOpen()
+                && is_string($legacyOrderId)
+                && $legacyOrderId !== ''
+            ) {
+                $summary = $this->historicalOrderSummaryService->forPublicCode($legacyOrderId);
+
+                if ($summary !== null) {
+                    $intakePayload['historical_order_summary'] = $summary->toArray();
+                }
+            }
+
+            $response['intake'] = $intakePayload;
         }
 
         return response()->json($response);

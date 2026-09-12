@@ -1539,6 +1539,35 @@ a:focus-visible .stat-card {
     margin-top: 0.375rem;
 }
 
+.historical-order-summary {
+    margin-bottom: 0.75rem;
+}
+
+.historical-order-summary__payment--paid {
+    color: var(--bs-success);
+    font-weight: 700;
+}
+
+.historical-order-summary__payment--neutral {
+    color: var(--dashboard-color-text);
+    font-weight: 600;
+}
+
+.historical-order-summary__tenure--ended {
+    color: var(--bs-danger);
+    font-weight: 700;
+}
+
+.historical-order-summary__tenure--active {
+    color: var(--bs-success);
+    font-weight: 600;
+}
+
+.historical-order-summary__tenure--unknown {
+    color: var(--dashboard-color-muted);
+    font-weight: 600;
+}
+
 .dashboard-cases-table-wrap,
 #dashboard-service-cases-scroll {
     overflow: auto;

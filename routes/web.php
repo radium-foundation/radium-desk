@@ -43,6 +43,7 @@ use App\Http\Controllers\Finance\StatutoryInvoiceController;
 use App\Http\Controllers\Finance\StatutoryInvoiceIssueController;
 use App\Http\Controllers\Finance\VendorPaymentController;
 use App\Http\Controllers\GmailAdminActionsController;
+use App\Http\Controllers\HistoricalOrderController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\IncomingEmailAdminController;
 use App\Http\Controllers\IncomingEmailContentController;
@@ -144,6 +145,11 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/dashboard/realtime/connection-status', RealtimeConnectionStatusController::class)
         ->name('dashboard.realtime.connection-status');
     Route::get('/search', [SearchController::class, 'search'])->name('search.index');
+    Route::get('/historical-orders/document', [HistoricalOrderController::class, 'showByDocument'])
+        ->name('historical-orders.document');
+    Route::get('/historical-orders/{histOrder}', [HistoricalOrderController::class, 'show'])
+        ->whereNumber('histOrder')
+        ->name('historical-orders.show');
     Route::get('dashboard/service-cases/search-rows', [DashboardServiceCaseController::class, 'searchRows'])
         ->name('dashboard.service-cases.search-rows');
     Route::get('dashboard/service-cases/more', [DashboardServiceCaseController::class, 'loadMore'])

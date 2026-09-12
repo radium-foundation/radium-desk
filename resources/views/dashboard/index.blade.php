@@ -127,6 +127,7 @@
             @include('dashboard.partials.legacy-search-confirm-modal', [
                 'enabledSources' => $enabledSources ?? [],
             ])
+            @include('dashboard.partials.historical-order-summary-modal')
         @endif
 
         @include('dashboard.partials.customer-360-drawer-host', [

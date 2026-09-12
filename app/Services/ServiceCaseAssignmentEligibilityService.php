@@ -2,23 +2,23 @@
 
 namespace App\Services;
 
+use App\Data\Assignment\AssignmentRequest;
+use App\Enums\Assignment\AssignmentTrigger;
 use App\Enums\CommercialState;
 use App\Enums\IncidentStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SerialValidationSeverity;
 use App\Enums\SerialValidationStatus;
-use App\Services\Commercial\CommercialStateResolver;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Data\Assignment\AssignmentRequest;
-use App\Enums\Assignment\AssignmentTrigger;
+use App\Services\Commercial\CommercialStateResolver;
 use App\Services\Operations\SupportAppointmentSmartAssignmentService;
-use App\Support\Assignment\Strategies\ReadyQueueAssignmentStrategy;
-use App\Support\Assignment\Strategies\SupportQueueAssignmentStrategy;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SerialValidation\SerialValidationService;
+use App\Support\Assignment\Strategies\ReadyQueueAssignmentStrategy;
+use App\Support\Assignment\Strategies\SupportQueueAssignmentStrategy;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
 
@@ -157,6 +157,11 @@ class ServiceCaseAssignmentEligibilityService
     public function isReadyForReferenceEntry(Order $order, Incident $incident): bool
     {
         if (app(BusinessHoldService::class)->hasActiveHold($incident)) {
+            return false;
+        }
+
+        if ($order->isLegacyImported()
+            && ! app(CustomerVerificationService::class)->isLegacyImportFulfillmentVerified($order)) {
             return false;
         }
 

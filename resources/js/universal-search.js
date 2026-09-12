@@ -9,6 +9,7 @@ import {
     getTableColumnCount,
     syncDashboardTableEmptyPresentation,
 } from './dashboard-empty-state';
+import { buildHistoricalOrderSummaryHtml } from './historical-order-summary';
 import {
     buildLegacyPreviewSummaryHtml,
     initLegacySearchConfirmModal,
@@ -428,6 +429,21 @@ export const initUniversalSearch = ({
             item.append(partial);
         }
 
+        if (result?.summary_url) {
+            const actions = document.createElement('div');
+            actions.className = 'mt-2';
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-sm btn-outline-primary';
+            button.dataset.historicalOrderSummaryOpen = '';
+            button.dataset.summaryUrl = result.summary_url;
+            button.textContent = 'View order summary';
+
+            actions.append(button);
+            item.append(actions);
+        }
+
         return item;
     };
 
@@ -538,9 +554,14 @@ export const initUniversalSearch = ({
         panel.className = 'dashboard-search-intake-fallback border-top px-3 py-2';
         panel.dataset.dashboardSearchIntakeFallback = '';
 
+        const historicalSummaryHtml = intake.historical_order_summary
+            ? buildHistoricalOrderSummaryHtml(intake.historical_order_summary)
+            : '';
+
         const previewHtml = intake.requires_confirmation && intake.legacy_preview
             ? `
                 <div class="dashboard-legacy-preview-card">
+                    ${historicalSummaryHtml}
                     ${buildLegacyPreviewSummaryHtml(intake.legacy_preview)}
                     <div class="dashboard-legacy-preview-card__actions">
                         <button type="button"

@@ -60,24 +60,36 @@ class HistoricalGlobalSearchProvider implements GlobalSearchProvider
             $hit->sourceDatabase,
         );
 
+        $payload = [
+            'document_type' => $hit->documentType,
+            'title' => $hit->title,
+            'subtitle' => $hit->subtitle,
+            'occurred_on' => $hit->occurredOn,
+            'source_lineage' => $hit->sourceLineage,
+            'source_database' => $hit->sourceDatabase,
+            'source_table' => $hit->sourceTable,
+            'source_pk' => $hit->sourcePk,
+            'source_lineage_label' => $provenanceLabel,
+            'is_authoritative' => false,
+            'partial_ingest' => $hit->partialIngest,
+            'historical_only' => true,
+        ];
+
+        if ($hit->documentType === 'order') {
+            $payload['hist_order_id'] = $hit->entityId;
+            $payload['summary_url'] = route('historical-orders.show', ['histOrder' => $hit->entityId]);
+        } else {
+            $payload['summary_url'] = route('historical-orders.document', [
+                'document_type' => $hit->documentType,
+                'entity_id' => $hit->entityId,
+            ]);
+        }
+
         return new GlobalSearchResult(
             type: $this->type(),
             entityId: $hit->entityId,
             url: '#historical-search',
-            payload: [
-                'document_type' => $hit->documentType,
-                'title' => $hit->title,
-                'subtitle' => $hit->subtitle,
-                'occurred_on' => $hit->occurredOn,
-                'source_lineage' => $hit->sourceLineage,
-                'source_database' => $hit->sourceDatabase,
-                'source_table' => $hit->sourceTable,
-                'source_pk' => $hit->sourcePk,
-                'source_lineage_label' => $provenanceLabel,
-                'is_authoritative' => false,
-                'partial_ingest' => $hit->partialIngest,
-                'historical_only' => true,
-            ],
+            payload: $payload,
         );
     }
 }
