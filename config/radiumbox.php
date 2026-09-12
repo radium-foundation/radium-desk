@@ -34,4 +34,10 @@ return [
     | are never cached.
     */
     'background_lookup_cache_seconds' => (int) env('RADIUMBOX_BACKGROUND_LOOKUP_CACHE_SECONDS', 300),
+
+    /*
+    | Desk → radiumbox.com wallet refund credit. Uses the storefront integration
+    | token/base URL from config/order_lookup.php (radiumbox_com spoke).
+    */
+    'wallet_refund_credit_enabled' => filter_var(env('RADIUMBOX_WALLET_REFUND_CREDIT_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 ];

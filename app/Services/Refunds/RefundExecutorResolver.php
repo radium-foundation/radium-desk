@@ -17,6 +17,15 @@ class RefundExecutorResolver
 
     public function for(ApprovedRefundMethod $method): RefundExecutor
     {
+        if ($method === ApprovedRefundMethod::Wallet) {
+            /** @var RefundExecutor $walletExecutor */
+            $walletExecutor = $this->container->make(WalletRefundExecutor::class);
+
+            if ($walletExecutor->supports($method)) {
+                return $walletExecutor;
+            }
+        }
+
         /** @var RefundExecutor $executor */
         $executor = $this->container->make(ManualRefundExecutor::class);
 
