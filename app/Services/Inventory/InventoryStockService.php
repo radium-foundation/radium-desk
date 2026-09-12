@@ -1014,6 +1014,7 @@ class InventoryStockService
         ?string $notes = null,
         ?DateTimeInterface $occurredAt = null,
         ?int $openingImportBatchId = null,
+        ?int $goodsReceiptId = null,
     ): InventoryMovement {
         return InventoryMovement::query()->create([
             'occurred_at' => $occurredAt ?? now(),
@@ -1030,6 +1031,7 @@ class InventoryStockService
             'reservation_id' => $reservation?->id,
             'adjustment_id' => $adjustment?->id,
             'opening_import_batch_id' => $openingImportBatchId,
+            'goods_receipt_id' => $goodsReceiptId,
             'from_status' => $fromStatus,
             'to_status' => $toStatus,
             'notes' => $notes,

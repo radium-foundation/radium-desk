@@ -42,6 +42,11 @@ use App\Http\Controllers\Finance\SettingsController as FinanceSettingsController
 use App\Http\Controllers\Finance\StatutoryInvoiceController;
 use App\Http\Controllers\Finance\StatutoryInvoiceIssueController;
 use App\Http\Controllers\Finance\VendorPaymentController;
+use App\Http\Controllers\Purchasing\GoodsReceiptController as PurchasingGoodsReceiptController;
+use App\Http\Controllers\Purchasing\PurchaseOrderController as PurchasingPurchaseOrderController;
+use App\Http\Controllers\Purchasing\PurchasePaymentController as PurchasingPurchasePaymentController;
+use App\Http\Controllers\Purchasing\SupplierInvoiceController as PurchasingSupplierInvoiceController;
+use App\Http\Controllers\Purchasing\VendorController as PurchasingVendorController;
 use App\Http\Controllers\GmailAdminActionsController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\IncomingEmailAdminController;
@@ -428,7 +433,7 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::put('expense-categories/{expenseCategory}', [ExpenseCategoryController::class, 'update'])->name('expense-categories.update');
             Route::patch('expense-categories/{expenseCategory}/toggle', [ExpenseCategoryController::class, 'toggle'])->name('expense-categories.toggle');
 
-            Route::get('vendor-master', [FinanceSettingsController::class, 'vendorMaster'])->name('vendor-master');
+            Route::get('vendor-master', fn () => redirect()->route('purchasing.vendors.index'))->name('vendor-master');
             Route::get('chart-of-accounts', [FinanceSettingsController::class, 'chartOfAccounts'])->name('chart-of-accounts');
             Route::post('chart-of-accounts', [FinanceSettingsController::class, 'storeAccount'])->name('chart-of-accounts.store');
             Route::patch('chart-of-accounts/{account}/toggle', [FinanceSettingsController::class, 'toggleAccount'])->name('chart-of-accounts.toggle');
@@ -439,6 +444,40 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::get('journals', [FinanceSettingsController::class, 'journals'])->name('journals');
             Route::get('journals/{journal}', [FinanceSettingsController::class, 'showJournal'])->name('journals.show');
         });
+    });
+
+    Route::prefix('purchasing')->name('purchasing.')->group(function () {
+        Route::redirect('/', '/purchasing/purchase-orders');
+        Route::get('vendors', [PurchasingVendorController::class, 'index'])->name('vendors.index');
+        Route::get('vendors/create', [PurchasingVendorController::class, 'create'])->name('vendors.create');
+        Route::post('vendors', [PurchasingVendorController::class, 'store'])->name('vendors.store');
+        Route::get('vendors/{vendor}', [PurchasingVendorController::class, 'show'])->name('vendors.show');
+        Route::get('vendors/{vendor}/edit', [PurchasingVendorController::class, 'edit'])->name('vendors.edit');
+        Route::put('vendors/{vendor}', [PurchasingVendorController::class, 'update'])->name('vendors.update');
+        Route::post('vendors/{vendor}/toggle', [PurchasingVendorController::class, 'toggle'])->name('vendors.toggle');
+
+        Route::get('purchase-orders', [PurchasingPurchaseOrderController::class, 'index'])->name('purchase-orders.index');
+        Route::get('purchase-orders/create', [PurchasingPurchaseOrderController::class, 'create'])->name('purchase-orders.create');
+        Route::post('purchase-orders', [PurchasingPurchaseOrderController::class, 'store'])->name('purchase-orders.store');
+        Route::get('purchase-orders/{purchaseOrder}', [PurchasingPurchaseOrderController::class, 'show'])->name('purchase-orders.show');
+        Route::post('purchase-orders/{purchaseOrder}/send', [PurchasingPurchaseOrderController::class, 'send'])->name('purchase-orders.send');
+        Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchasingPurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
+
+        Route::get('goods-receipts', [PurchasingGoodsReceiptController::class, 'index'])->name('goods-receipts.index');
+        Route::get('purchase-orders/{purchaseOrder}/goods-receipts/create', [PurchasingGoodsReceiptController::class, 'create'])->name('goods-receipts.create');
+        Route::post('purchase-orders/{purchaseOrder}/goods-receipts', [PurchasingGoodsReceiptController::class, 'store'])->name('goods-receipts.store');
+        Route::get('goods-receipts/{goodsReceipt}', [PurchasingGoodsReceiptController::class, 'show'])->name('goods-receipts.show');
+        Route::post('goods-receipts/{goodsReceipt}/complete', [PurchasingGoodsReceiptController::class, 'complete'])->name('goods-receipts.complete');
+
+        Route::get('supplier-invoices', [PurchasingSupplierInvoiceController::class, 'index'])->name('supplier-invoices.index');
+        Route::get('purchase-orders/{purchaseOrder}/supplier-invoices/create', [PurchasingSupplierInvoiceController::class, 'create'])->name('supplier-invoices.create');
+        Route::post('purchase-orders/{purchaseOrder}/supplier-invoices', [PurchasingSupplierInvoiceController::class, 'store'])->name('supplier-invoices.store');
+        Route::get('supplier-invoices/{supplierInvoice}', [PurchasingSupplierInvoiceController::class, 'show'])->name('supplier-invoices.show');
+        Route::get('supplier-invoices/{supplierInvoice}/documents/{document}', [PurchasingSupplierInvoiceController::class, 'downloadDocument'])->name('supplier-invoices.documents.download');
+
+        Route::get('purchase-payments', [PurchasingPurchasePaymentController::class, 'index'])->name('purchase-payments.index');
+        Route::get('supplier-invoices/{supplierInvoice}/payments/create', [PurchasingPurchasePaymentController::class, 'create'])->name('purchase-payments.create');
+        Route::post('supplier-invoices/{supplierInvoice}/payments', [PurchasingPurchasePaymentController::class, 'store'])->name('purchase-payments.store');
     });
 
     Route::prefix('inventory')->name('inventory.')->group(function () {

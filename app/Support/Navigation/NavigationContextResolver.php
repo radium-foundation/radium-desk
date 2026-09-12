@@ -14,6 +14,7 @@ use App\Support\Finance\FinanceAccess;
 use App\Support\IncomingEmail\IncomingEmailAccess;
 use App\Support\Inventory\InventoryAccess;
 use App\Support\Inventory\PosAccess;
+use App\Support\Purchasing\PurchasingAccess;
 use App\Support\Workforce\AttendanceManagementAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\Request;
@@ -197,6 +198,18 @@ class NavigationContextResolver
             ]
             : [];
 
+        $purchasingItems = PurchasingAccess::allows($user)
+            ? [
+                $this->sidebarItem(
+                    'purchasing.purchase_orders',
+                    'Purchasing',
+                    'bi-bag-check',
+                    route('purchasing.purchase-orders.index'),
+                    $context,
+                ),
+            ]
+            : [];
+
         $administrationItems = ($isAdminTeam && $this->canAccessAdministration($user))
             ? [
                 $this->sidebarItem(
@@ -269,6 +282,12 @@ class NavigationContextResolver
                 'home_url' => route(NavigationMenu::Finance->homeRoute()),
                 'visible' => $financeItems !== [],
                 'items' => $financeItems,
+            ],
+            'purchasing' => [
+                'label' => NavigationMenu::Purchasing->label(),
+                'home_url' => route(NavigationMenu::Purchasing->homeRoute()),
+                'visible' => $purchasingItems !== [],
+                'items' => $purchasingItems,
             ],
             'administration' => [
                 'label' => NavigationMenu::Administration->label(),
@@ -383,6 +402,26 @@ class NavigationContextResolver
 
         if ($request->routeIs('finance.*')) {
             return [NavigationMenu::Finance, 'finance.dashboard', null];
+        }
+
+        if ($request->routeIs('purchasing.vendors.*')) {
+            return [NavigationMenu::Purchasing, 'purchasing.purchase_orders', null];
+        }
+
+        if ($request->routeIs('purchasing.purchase-orders.*')) {
+            return [NavigationMenu::Purchasing, 'purchasing.purchase_orders', null];
+        }
+
+        if ($request->routeIs('purchasing.goods-receipts.*')) {
+            return [NavigationMenu::Purchasing, 'purchasing.purchase_orders', null];
+        }
+
+        if ($request->routeIs('purchasing.supplier-invoices.*', 'purchasing.purchase-payments.*')) {
+            return [NavigationMenu::Purchasing, 'purchasing.purchase_orders', null];
+        }
+
+        if ($request->routeIs('purchasing.*')) {
+            return [NavigationMenu::Purchasing, 'purchasing.purchase_orders', null];
         }
 
         if ($request->routeIs('leave-requests.*')) {

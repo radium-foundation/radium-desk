@@ -127,6 +127,20 @@ class RolePermissionSeeder extends Seeder
     /** Operate stock and POS at every branch without a per-branch assignment. */
     public const PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES = 'inventory.branches.operate-all';
 
+    public const PERMISSION_PURCHASE_VIEW = 'purchase.view';
+
+    public const PERMISSION_PURCHASE_CREATE = 'purchase.create';
+
+    public const PERMISSION_PURCHASE_EDIT = 'purchase.edit';
+
+    public const PERMISSION_PURCHASE_RECEIVE = 'purchase.receive';
+
+    public const PERMISSION_PURCHASE_INVOICE = 'purchase.invoice';
+
+    public const PERMISSION_PURCHASE_PAYMENT = 'purchase.payment';
+
+    public const PERMISSION_PURCHASE_VENDOR_MANAGE = 'purchase.vendor.manage';
+
     public const PERMISSION_TODOS_VIEW = 'todos.view';
 
     public const PERMISSION_TODOS_CREATE = 'todos.create';
@@ -176,6 +190,21 @@ class RolePermissionSeeder extends Seeder
      *
      * @var list<string>
      */
+    /**
+     * Purchasing workflow permissions for admin-team roles.
+     *
+     * @var list<string>
+     */
+    private const PURCHASING_ADMIN_PERMISSIONS = [
+        self::PERMISSION_PURCHASE_VIEW,
+        self::PERMISSION_PURCHASE_CREATE,
+        self::PERMISSION_PURCHASE_EDIT,
+        self::PERMISSION_PURCHASE_RECEIVE,
+        self::PERMISSION_PURCHASE_INVOICE,
+        self::PERMISSION_PURCHASE_PAYMENT,
+        self::PERMISSION_PURCHASE_VENDOR_MANAGE,
+    ];
+
     private const INVENTORY_HARDWARE_PERMISSIONS = [
         self::PERMISSION_INVENTORY_VIEW,
         self::PERMISSION_INVENTORY_STOCK_IN,
@@ -422,6 +451,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
+            ...self::PURCHASING_ADMIN_PERMISSIONS,
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -472,6 +502,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
+            ...self::PURCHASING_ADMIN_PERMISSIONS,
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -532,6 +563,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_BACKUPS_VIEW,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
+            ...self::PURCHASING_ADMIN_PERMISSIONS,
         ],
     ];
 
@@ -547,6 +579,7 @@ class RolePermissionSeeder extends Seeder
             ->merge(self::TODO_BASELINE_PERMISSIONS)
             ->merge(self::TODO_ADMIN_PERMISSIONS)
             ->merge([self::PERMISSION_POS_PAYMENTS_VERIFY])
+            ->merge(self::PURCHASING_ADMIN_PERMISSIONS)
             ->unique()
             ->values();
 

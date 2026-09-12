@@ -19,6 +19,9 @@ class InventorySerial extends Model
         'condition',
         'unit_cost',
         'batch_code',
+        'vendor_id',
+        'purchase_order_id',
+        'goods_receipt_id',
         'reserved_reservation_id',
     ];
 

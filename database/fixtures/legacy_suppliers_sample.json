@@ -1,0 +1,44 @@
+[
+    {
+        "legacy_supplier_id": 9001,
+        "company_name": "Fixture Supplier Alpha Pvt Ltd",
+        "name": "Alpha Contact",
+        "mobile": "9000000001",
+        "email": "alpha.fixture@example.test",
+        "address": "100 Sample Industrial Area",
+        "state": "Delhi",
+        "city": "New Delhi",
+        "pincode": "110001",
+        "gstno": "07AAAAA0000A1Z5",
+        "pancard": "AAAAA0000A",
+        "status": 1
+    },
+    {
+        "legacy_supplier_id": 9002,
+        "company_name": "Fixture Supplier Beta Traders",
+        "name": "Beta Contact",
+        "mobile": "9000000002",
+        "email": "beta.fixture@example.test",
+        "address": "200 Sample Wholesale Market",
+        "state": "Karnataka",
+        "city": "Bengaluru",
+        "pincode": "560001",
+        "gstno": "29BBBBB0000B1Z5",
+        "pancard": "BBBBB0000B",
+        "status": 1
+    },
+    {
+        "legacy_supplier_id": 9003,
+        "company_name": "Fixture Supplier Gamma Distributors",
+        "name": "Gamma Contact",
+        "mobile": "9000000003",
+        "email": "gamma.fixture@example.test",
+        "address": "300 Sample Logistics Park",
+        "state": "Maharashtra",
+        "city": "Mumbai",
+        "pincode": "400001",
+        "gstno": "27CCCCC0000C1Z5",
+        "pancard": "CCCCC0000C",
+        "status": 1
+    }
+]

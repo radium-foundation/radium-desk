@@ -11,6 +11,7 @@ enum NavigationMenu: string
     case Inventory = 'inventory';
     case Pos = 'pos';
     case Finance = 'finance';
+    case Purchasing = 'purchasing';
     case Administration = 'administration';
     case Personal = 'personal';
 
@@ -24,6 +25,7 @@ enum NavigationMenu: string
             self::Inventory => 'Inventory',
             self::Pos => 'POS',
             self::Finance => 'Finance',
+            self::Purchasing => 'Purchasing',
             self::Administration => 'Administration',
             self::Personal => 'Personal',
         };
@@ -39,6 +41,7 @@ enum NavigationMenu: string
             self::Inventory => 'inventory.stock.index',
             self::Pos => 'pos.counter.create',
             self::Finance => 'finance.dashboard',
+            self::Purchasing => 'purchasing.purchase-orders.index',
             self::Administration => 'admin.administration.index',
             self::Personal => 'my-workforce.index',
         };
