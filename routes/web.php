@@ -74,6 +74,7 @@ use App\Http\Controllers\OrderSerialController;
 use App\Http\Controllers\OrderTransactionController;
 use App\Http\Controllers\PlatformDashboardController;
 use App\Http\Controllers\Pos\CounterController as PosCounterController;
+use App\Http\Controllers\Pos\PosSaleStatutoryInvoiceController;
 use App\Http\Controllers\Pos\SaleController as PosSaleController;
 use App\Http\Controllers\Pos\UpiIntentController as PosUpiIntentController;
 use App\Http\Controllers\Pos\UpiPaymentVerificationController as PosUpiPaymentVerificationController;
@@ -558,6 +559,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('sales', [PosSaleController::class, 'index'])->name('sales.index');
         Route::get('sales/{sale}', [PosSaleController::class, 'show'])->name('sales.show');
         Route::get('sales/{sale}/invoice', [PosSaleController::class, 'invoice'])->name('sales.invoice');
+        Route::get('sales/{sale}/statutory/pdf', [PosSaleStatutoryInvoiceController::class, 'pdf'])->name('sales.statutory.pdf');
+        Route::get('sales/{sale}/statutory/download', [PosSaleStatutoryInvoiceController::class, 'download'])->name('sales.statutory.download');
+        Route::post('sales/{sale}/statutory/email', [PosSaleStatutoryInvoiceController::class, 'email'])->name('sales.statutory.email');
         Route::post('sales/{sale}/cancel', [PosSaleController::class, 'cancel'])->name('sales.cancel');
         Route::post('sales/{sale}/return', [PosSaleController::class, 'returnSale'])->name('sales.return');
         Route::get('upi/intents', [PosUpiIntentController::class, 'index'])->name('upi.intents.index');

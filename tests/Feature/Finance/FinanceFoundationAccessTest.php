@@ -83,4 +83,11 @@ class FinanceFoundationAccessTest extends TestCase
         $this->assertTrue(Route::has('pos.customers.search'));
         $this->assertTrue(Route::has('pos.customers.show'));
     }
+
+    public function test_pos_sale_statutory_invoice_routes_are_registered(): void
+    {
+        $this->assertTrue(Route::has('pos.sales.statutory.pdf'));
+        $this->assertTrue(Route::has('pos.sales.statutory.download'));
+        $this->assertTrue(Route::has('pos.sales.statutory.email'));
+    }
 }
