@@ -230,6 +230,13 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/radiumbox-recovery.log'));
 
+        // Stagger +3 off recover-sync — paid hardware missing commerce handoff.
+        $schedule->command('radiumbox:reconcile-handoff')
+            ->cron(sprintf('3-59/%d * * * *', max(1, (int) config('radiumbox.handoff_reconciliation.schedule_interval_minutes', 15))))
+            ->when(fn (): bool => (bool) config('radiumbox.handoff_reconciliation.enabled', true))
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
+            ->appendOutputTo(storage_path('logs/radiumbox-reconcile-handoff.log'));
+
         // Stagger +5 off recover-sync — same 15-minute cadence (:05,:20,:35,:50).
         $schedule->command('missing-serial:process')
             ->cron(sprintf('5-59/%d * * * *', max(1, (int) config('missing_serial.schedule_interval_minutes', 15))))

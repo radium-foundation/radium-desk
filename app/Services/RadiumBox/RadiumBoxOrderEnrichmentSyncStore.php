@@ -157,6 +157,72 @@ class RadiumBoxOrderEnrichmentSyncStore
     /**
      * @param  array<string, mixed>  $metadata
      */
+    public function markEnrichmentComplete(int $orderId, Order $order, array $metadata = []): void
+    {
+        $guard = app(RadiumBoxFulfilmentSyncGuard::class);
+
+        if ($guard->shouldMarkFullySynced($order)) {
+            $this->markSynced($orderId, $metadata);
+
+            return;
+        }
+
+        $this->markHandoffPending($orderId, array_merge($metadata, [
+            'enrichment_complete' => true,
+            'fulfilment_sync_blocked' => true,
+        ]));
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    public function markHandoffPending(int $orderId, array $metadata = []): void
+    {
+        $this->persist($orderId, [
+            'status' => RadiumBoxEnrichmentSyncStatus::HandoffPending->value,
+            'metadata' => array_merge($this->metadata($orderId) ?? [], $metadata),
+            'updated_at' => now()->toIso8601String(),
+            'last_sync_error' => null,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    public function markHandoffFailed(int $orderId, ?string $errorMessage = null, array $metadata = []): void
+    {
+        $this->persist($orderId, [
+            'status' => RadiumBoxEnrichmentSyncStatus::HandoffFailed->value,
+            'metadata' => array_merge($this->metadata($orderId) ?? [], $metadata, array_filter([
+                'last_error' => $errorMessage,
+            ])),
+            'updated_at' => now()->toIso8601String(),
+            'last_sync_error' => $errorMessage,
+        ]);
+
+        $this->snapshotInvalidator->markCaseOrOrderChanged();
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    public function markReconciliationRequired(int $orderId, ?string $errorMessage = null, array $metadata = []): void
+    {
+        $this->persist($orderId, [
+            'status' => RadiumBoxEnrichmentSyncStatus::ReconciliationRequired->value,
+            'metadata' => array_merge($this->metadata($orderId) ?? [], $metadata, array_filter([
+                'last_error' => $errorMessage,
+            ])),
+            'updated_at' => now()->toIso8601String(),
+            'last_sync_error' => $errorMessage,
+        ]);
+
+        $this->snapshotInvalidator->markCaseOrOrderChanged();
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
     public function markFailed(int $orderId, ?string $errorMessage = null, array $metadata = []): void
     {
         $this->persist($orderId, [

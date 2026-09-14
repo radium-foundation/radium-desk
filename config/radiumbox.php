@@ -34,4 +34,17 @@ return [
     | are never cached.
     */
     'background_lookup_cache_seconds' => (int) env('RADIUMBOX_BACKGROUND_LOOKUP_CACHE_SECONDS', 300),
+
+    'payment_confirm' => [
+        'enabled' => filter_var(env('RADIUMBOX_PAYMENT_CONFIRM_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'connect_timeout_seconds' => (int) env('RADIUMBOX_PAYMENT_CONFIRM_CONNECT_TIMEOUT_SECONDS', 3),
+        'timeout_seconds' => (int) env('RADIUMBOX_PAYMENT_CONFIRM_TIMEOUT_SECONDS', 15),
+    ],
+
+    'handoff_reconciliation' => [
+        'enabled' => filter_var(env('RADIUMBOX_HANDOFF_RECONCILIATION_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'sla_minutes' => (int) env('RADIUMBOX_HANDOFF_RECONCILIATION_SLA_MINUTES', 15),
+        'schedule_limit' => (int) env('RADIUMBOX_HANDOFF_RECONCILIATION_LIMIT', 25),
+        'schedule_interval_minutes' => (int) env('RADIUMBOX_HANDOFF_RECONCILIATION_INTERVAL_MINUTES', 15),
+    ],
 ];
