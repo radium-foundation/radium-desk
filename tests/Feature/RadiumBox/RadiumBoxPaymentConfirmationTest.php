@@ -154,6 +154,34 @@ class RadiumBoxPaymentConfirmationTest extends TestCase
         );
     }
 
+    public function test_confirm_uses_business_order_id_when_desk_gateway_order_id_is_numeric(): void
+    {
+        Http::fake([
+            'https://radiumbox.test/api/integrations/v1/cashfree/confirm-payment' => Http::response([
+                'status' => 'paid',
+                'first_paid' => true,
+                'gateway_order_id' => 'RBP94',
+                'business_order_id' => 'RBP94',
+                'payment_status' => 'Paid',
+                'handoff' => [
+                    'id' => 94,
+                    'status' => 'pending',
+                    'idempotency_key' => 'statutory:radiumbox_com:commerce_order:RBP94',
+                ],
+            ], 200),
+        ]);
+
+        $order = $this->createPaidHardwareOrder('RBP94');
+        $order->forceFill(['gateway_order_id' => '6893492675'])->saveQuietly();
+
+        app(RadiumBoxPaymentConfirmationService::class)->confirmForOrder($order);
+
+        Http::assertSent(function ($request): bool {
+            return ($request['gateway_order_id'] ?? null) === 'RBP94'
+                && ($request['payment_id'] ?? null) === 'pay_94';
+        });
+    }
+
     public function test_targeted_reconcile_recovers_business_order_id(): void
     {
         Http::fake([

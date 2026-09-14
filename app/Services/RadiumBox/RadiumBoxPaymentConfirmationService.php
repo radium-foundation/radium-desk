@@ -84,7 +84,10 @@ class RadiumBoxPaymentConfirmationService
             );
         }
 
-        $gatewayOrderId = trim((string) ($order->gateway_order_id ?: $order->order_id));
+        // Box Cashfree sessions use the business order code (RBP*/RDE*) as cf_order_id.
+        // Desk webhooks store Cashfree's numeric gateway_order_id separately; sending that
+        // to Box confirm-payment breaks resolvePayable() and caused RBP94 not_found.
+        $gatewayOrderId = trim((string) $order->order_id);
         $paymentId = trim((string) ($order->cashfree_payment_id ?? ''));
         $paymentId = $paymentId !== '' ? $paymentId : null;
 
