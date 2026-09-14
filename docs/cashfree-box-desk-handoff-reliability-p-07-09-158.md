@@ -38,12 +38,15 @@ Cashfree **server-side verified** payment status via Box `CaseFree::fetchOrder()
 Do **not** manually edit payment rows. After deploy:
 
 ```bash
-# Desk (dry-run first)
-php artisan radiumbox:reconcile-handoff --dry-run --limit=1
+# Desk targeted recovery (preferred for one order)
+php artisan radiumbox:reconcile-handoff --order-id=RBP94
 
-# Targeted confirm via existing idempotent Box API (Desk listener/reconcile uses this)
-# Expect: Box order 318703 Paid, one handoff, one commerce order for RBP94
+# Or batch reconcile (dry-run first)
+php artisan radiumbox:reconcile-handoff --dry-run --limit=1
+php artisan radiumbox:reconcile-handoff --limit=25
 ```
+
+When Cashfree payment links onto a pre-existing Desk order, `OrderPaid` now fires after commit so the Box confirm listener runs immediately; batch reconcile remains the safety net.
 
 Verify Cashfree payment `6470331477`, Box order `318703`, handoff idempotency `statutory:radiumbox_com:commerce_order:RBP94`.
 

@@ -47,6 +47,33 @@ class RadiumBoxPaymentConfirmationService
         return ! $this->hasCommerceFor($order);
     }
 
+    public function confirmForBusinessOrderId(string $businessOrderId, bool $dryRun = false): RadiumBoxPaymentConfirmationResult
+    {
+        $normalized = strtoupper(trim($businessOrderId));
+        if ($normalized === '') {
+            return new RadiumBoxPaymentConfirmationResult(
+                ok: false,
+                status: 'rejected',
+                errorMessage: 'Business order id is required.',
+            );
+        }
+
+        $order = Order::query()
+            ->whereRaw('UPPER(order_id) = ?', [$normalized])
+            ->first();
+
+        if ($order === null) {
+            return new RadiumBoxPaymentConfirmationResult(
+                ok: false,
+                status: 'not_found',
+                gatewayOrderId: $normalized,
+                errorMessage: 'Desk order not found for business order id.',
+            );
+        }
+
+        return $this->confirmForOrder($order, $dryRun);
+    }
+
     public function confirmForOrder(Order $order, bool $dryRun = false): RadiumBoxPaymentConfirmationResult
     {
         if (! $this->requiresBoxPaymentConfirmation($order)) {

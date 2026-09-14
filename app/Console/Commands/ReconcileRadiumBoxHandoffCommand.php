@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 
 #[Signature('radiumbox:reconcile-handoff
     {--limit= : Maximum orders to recover in this run}
+    {--order-id= : Recover one business order id such as RBP94}
     {--dry-run : Report candidates without calling Box}')]
 #[Description('Recover paid radiumbox.com hardware orders missing Desk commerce handoff')]
 class ReconcileRadiumBoxHandoffCommand extends Command
@@ -27,9 +28,32 @@ class ReconcileRadiumBoxHandoffCommand extends Command
             return self::SUCCESS;
         }
 
+        $orderId = $this->option('order-id');
+        $orderId = is_string($orderId) ? trim($orderId) : '';
         $limit = $this->option('limit');
         $limit = is_numeric($limit) ? (int) $limit : null;
         $dryRun = (bool) $this->option('dry-run');
+
+        if ($orderId !== '') {
+            if ($dryRun) {
+                $this->info("Dry run: would attempt Box recovery for {$orderId}.");
+
+                return self::SUCCESS;
+            }
+
+            $result = $this->confirmation->confirmForBusinessOrderId($orderId);
+            $this->info(sprintf(
+                'Targeted handoff recovery for %s: ok=%s status=%s',
+                $orderId,
+                $result->ok ? 'yes' : 'no',
+                $result->status,
+            ));
+            if ($result->errorMessage) {
+                $this->line($result->errorMessage);
+            }
+
+            return $result->ok ? self::SUCCESS : self::FAILURE;
+        }
 
         $result = $this->confirmation->reconcile($limit, $dryRun);
 

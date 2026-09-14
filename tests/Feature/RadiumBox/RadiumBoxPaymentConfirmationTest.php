@@ -154,6 +154,57 @@ class RadiumBoxPaymentConfirmationTest extends TestCase
         );
     }
 
+    public function test_targeted_reconcile_recovers_business_order_id(): void
+    {
+        Http::fake([
+            'https://radiumbox.test/api/integrations/v1/cashfree/confirm-payment' => Http::response([
+                'status' => 'paid',
+                'first_paid' => true,
+                'gateway_order_id' => 'RBP94',
+                'business_order_id' => 'RBP94',
+                'payment_status' => 'Paid',
+                'handoff' => [
+                    'id' => 94,
+                    'status' => 'pending',
+                    'idempotency_key' => 'statutory:radiumbox_com:commerce_order:RBP94',
+                ],
+            ], 200),
+        ]);
+
+        $order = $this->createPaidHardwareOrder('RBP94');
+
+        $exitCode = Artisan::call('radiumbox:reconcile-handoff', [
+            '--order-id' => 'RBP94',
+        ]);
+
+        $this->assertSame(0, $exitCode);
+        Http::assertSentCount(1);
+        $this->assertSame(
+            RadiumBoxEnrichmentSyncStatus::HandoffPending,
+            $order->fresh()->radiumbox_sync_status,
+        );
+    }
+
+    public function test_cashfree_not_paid_marks_reconciliation_required(): void
+    {
+        Http::fake([
+            'https://radiumbox.test/api/integrations/v1/cashfree/confirm-payment' => Http::response([
+                'status' => 'not_paid',
+                'message' => 'Cashfree order is not paid yet.',
+            ], 503),
+        ]);
+
+        $order = $this->createPaidHardwareOrder('RBP99');
+        $result = app(RadiumBoxPaymentConfirmationService::class)->confirmForOrder($order);
+
+        $this->assertFalse($result->ok);
+        $this->assertTrue($result->retriable);
+        $this->assertSame(
+            RadiumBoxEnrichmentSyncStatus::ReconciliationRequired,
+            $order->fresh()->radiumbox_sync_status,
+        );
+    }
+
     private function createPaidHardwareOrder(string $orderId): Order
     {
         $user = User::factory()->create();
