@@ -1,8 +1,8 @@
 # Hub / Spoke Payment, Order, and Recovery Architecture
 
 **Canonical status:** Source-of-truth for Cursor agents working on Radium Desk payment, order, and spoke coordination.  
-**Companion (RadiumBox spoke contract):** `radiumbox.com` repository → [`docs/architecture/desk-payment-recovery-contract.md`](https://github.com/radium-foundation/radiumbox.com/blob/main/docs/architecture/desk-payment-recovery-contract.md) (path in sibling repo; verify branch/HEAD before use).  
-**Prompt:** `RadiumDesk-P-07-09-162`  
+**Companion (RadiumBox spoke contract):** sibling repo `radiumbox.com` → `docs/architecture/desk-payment-recovery-contract.md` (verify branch/HEAD before use).  
+**Prompt:** `RadiumDesk-P-07-09-162` (initial); policy supersession `RadiumDesk-P-07-09-163`.  
 **Classification key:** **VERIFIED** = evidenced in this repository’s code or committed docs. **INFERRED** = consistent but not re-executed here. **UNKNOWN** = not established; do not assume.
 
 ---
@@ -47,7 +47,43 @@ Do **not** assume spokes share repositories, databases, credentials, infrastruct
 
 ---
 
-## 3. RBP94 forensic lesson (repository-evidenced facts)
+## 3. RBP product / hardware policy (OWNER-VERIFIED)
+
+### CURRENT / OWNER-VERIFIED
+
+**All `RBP*` orders represent RadiumBox product orders and are therefore hardware/product orders in Radium Desk.**
+
+Owner decision recorded in `RadiumDesk-P-07-09-163`. This is intentional policy, not an incidental side effect of the payment-recovery endpoint alone.
+
+### SUPERSEDED (historical — do not apply)
+
+The following ledger entries remain preserved for history but are **no longer current policy**:
+
+| Prompt | Former policy | Status |
+|--------|---------------|--------|
+| `RadiumDesk-P-07-09-154` | “Hardware prefixes stay RDE/RIN only (no auto-hardware for RBP…)” | **SUPERSEDED** |
+| `RadiumDesk-P-07-09-156` | “`RBP` cannot become hardware… Hardware remains RDE/RIN`” | **SUPERSEDED** |
+
+### Scope of this policy (broader than recovery API)
+
+Classifying `RBP*` as hardware/product affects Desk behaviour beyond `POST …/confirm-payment` recovery, including where implemented on the handoff-reliability branch:
+
+- `BusinessOrderId` — `RBP` parsed as `owner=radiumbox.com`, `hardware=true`
+- `HardwareFulfilmentEligibility` — RadiumBox hardware source detection includes `RBP`
+- `config/operations.php` — default hardware order prefixes include `RBP`
+- `SpokeOrderClient` — RadiumBox lookup eligibility includes `RBP`
+- RadiumBox payment confirmation / handoff reconciliation — eligible for `RBP*` when Cashfree-verified at Desk
+
+This policy does **not**:
+
+- authorize generic Hub recovery for rdservice.in, rdservice.net, radiumsign.com, RDServiceOnline.in, or other spokes;
+- make RadiumBox the only Desk spoke;
+- replace normal RadiumBox payment-success return or Cashfree webhook paths;
+- redesign Cashfree merchant webhook routing.
+
+---
+
+## 4. RBP94 forensic lesson (repository-evidenced facts)
 
 **VERIFIED** from investigation prompts `RadiumDesk-P-07-09-157` and `docs/cashfree-box-desk-handoff-reliability-p-07-09-158.md`:
 
@@ -75,11 +111,11 @@ Do **not** assume spokes share repositories, databases, credentials, infrastruct
 
 ---
 
-## 4. Current RadiumBox recovery contract (Phase 1 — VERIFIED in this repo)
+## 5. Current RadiumBox recovery contract (Phase 1 — VERIFIED in this repo)
 
 Scope: **radiumbox.com hardware** orders classified by `BusinessOrderId` as owner `radiumbox.com` with `hardware=true` (includes `RBP*`, `RDE*`). **VERIFIED** — `app/Support/BusinessOrderId.php`, `RadiumBoxPaymentConfirmationService::requiresBoxPaymentConfirmation()`.
 
-### 4.1 Triggers
+### 5.1 Triggers
 
 | Path | Mechanism | **Status** |
 |------|-----------|------------|
@@ -89,7 +125,7 @@ Scope: **radiumbox.com hardware** orders classified by `BusinessOrderId` as owne
 
 Config gates: `radiumbox.payment_confirm.enabled`, `radiumbox.handoff_reconciliation.enabled`. **VERIFIED** — `config/radiumbox.php`.
 
-### 4.2 Desk → Box request
+### 5.2 Desk → Box request
 
 | Field | Semantics |
 |-------|-----------|
@@ -103,19 +139,19 @@ Config gates: `radiumbox.payment_confirm.enabled`, `radiumbox.handoff_reconcilia
 
 Implementation: `app/Services/RadiumBox/RadiumBoxPaymentConfirmationClient.php`.
 
-### 4.3 Box-side confirmation (sibling repo)
+### 5.3 Box-side confirmation (sibling repo)
 
 Desk calls Box; Box runs **`PaidOrderFulfillmentService::confirmByFetching()`** — Cashfree server verify, amount/currency check, mark Paid, enqueue handoff. **VERIFIED** — companion doc and Box controller.
 
 Response statuses used by Desk: `paid`, `already_paid`, `dry_run` (success); `not_found`, `not_paid` (retriable), `amount_mismatch`, connection errors. **VERIFIED** — client + tests `tests/Feature/RadiumBox/RadiumBoxPaymentConfirmationTest.php`.
 
-### 4.4 Idempotency and replay
+### 5.4 Idempotency and replay
 
 - Safe to retry Desk → Box confirm; Box returns `already_paid` when already Paid. **VERIFIED**
 - Box handoff idempotency key pattern: `statutory:radiumbox_com:commerce_order:{source_id}`. **VERIFIED** — reliability doc
 - Desk ingest idempotency: `Idempotency-Key` header on `POST /api/v1/channel-orders`. **VERIFIED** — channel ingest routes
 
-### 4.5 Desk sync state (false-green prevention)
+### 5.5 Desk sync state (false-green prevention)
 
 Desk `orders.radiumbox_sync_status` distinguishes enrichment vs handoff completion. **VERIFIED** — `RadiumBoxEnrichmentSyncStatus`, `RadiumBoxFulfilmentSyncGuard`.
 
@@ -123,15 +159,31 @@ Hardware must not reach `SYNCED` without a matching `commerce_orders` row. **VER
 
 Column width: `RECONCILIATION_REQUIRED` requires ≥32 chars — migration `2026_09_14_150000_widen_radiumbox_sync_status_on_orders.php`. **VERIFIED**
 
-### 4.6 Handoff → commerce progression
+### 5.6 Handoff → commerce progression
 
 After Box marks Paid, existing Box **`DeskOutboxService`** enqueues **`desk_order_handoffs`**. Delivery to Desk uses existing HMAC ingest (not redesigned here). **VERIFIED** — Box docs `docs/cashfree-desk-confirm-payment-p-10-09-07.md`, Desk `POST /api/v1/channel-orders`.
 
 Isolated delivery on Box: `desk:deliver-handoff {id}` (operational command; separate from Desk recovery trigger). **VERIFIED** — Box ledger entries P-07-09-09+.
 
+### 5.7 Operational note: confirm timeout vs Box Cashfree fetch latency
+
+**Classification:** operational retry/reconciliation concern — not a payment-architecture redesign.
+
+Desk `radiumbox.payment_confirm.timeout_seconds` defaults to **15 seconds** (`config/radiumbox.php`). **VERIFIED**
+
+Box recovery calls `PaidOrderFulfillmentService::confirmByFetching()`, which performs a live Cashfree fetch inside Box. That fetch can exceed Desk’s HTTP client timeout in some environments. **INFERRED** — architecture-gate review; not re-measured in this documentation prompt.
+
+When Desk times out while Box is still verifying:
+
+- Desk may mark `radiumbox_sync_status=RECONCILIATION_REQUIRED` and retry via `radiumbox:reconcile-handoff`;
+- Box must not be treated as unpaid based on Desk timeout alone;
+- do not manually mark Box Paid or insert handoffs.
+
+Adjusting timeout values is an operational/deploy decision outside this architecture document.
+
 ---
 
-## 5. Current vs future
+## 6. Current vs future
 
 ### CURRENT / VERIFIED (Phase 1)
 
@@ -154,7 +206,7 @@ Each additional spoke requires **separate verification** and an explicit integra
 
 ---
 
-## 6. Non-goals / architecture boundaries
+## 7. Non-goals / architecture boundaries
 
 - Do **not** create direct cross-spoke database coupling.
 - Do **not** assume every spoke uses the same payment/order implementation.
@@ -167,7 +219,7 @@ Each additional spoke requires **separate verification** and an explicit integra
 
 ---
 
-## 7. Future Cursor agent preflight
+## 8. Future Cursor agent preflight
 
 Any agent touching payment, order, or integration functionality **must**:
 
@@ -189,7 +241,7 @@ Do **not** silently choose a new architecture.
 
 ---
 
-## 8. Production safety checklist (Desk)
+## 9. Production safety checklist (Desk)
 
 | Item | Documented value | Class |
 |------|------------------|-------|
@@ -204,7 +256,7 @@ Do **not** silently choose a new architecture.
 
 ---
 
-## 9. Recovery principle (preferred architecture)
+## 10. Recovery principle (preferred architecture)
 
 ```
 Verified payment success at Hub (where applicable)
@@ -221,7 +273,7 @@ This is a **recovery mechanism**, not permission to redesign the normal payment 
 
 ---
 
-## 10. Architecture map
+## 11. Architecture map
 
 | Layer | RadiumBox (Phase 1) | Other spokes |
 |-------|---------------------|--------------|
@@ -233,7 +285,7 @@ This is a **recovery mechanism**, not permission to redesign the normal payment 
 
 ---
 
-## 11. References (verified in this repository)
+## 12. References (verified in this repository)
 
 | Topic | Location |
 |-------|----------|
@@ -254,8 +306,9 @@ This is a **recovery mechanism**, not permission to redesign the normal payment 
 
 ---
 
-## 12. Revision history
+## 13. Revision history
 
 | Prompt | Date | Change |
 |--------|------|--------|
 | `RadiumDesk-P-07-09-162` | 2026-09-14 | Initial canonical Hub/Spoke payment/order/recovery source-of-truth |
+| `RadiumDesk-P-07-09-163` | 2026-09-14 | Owner-verified RBP product/hardware policy; supersede P-07-09-154/156; operational timeout note; fix cross-repo links |
