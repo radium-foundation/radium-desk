@@ -252,7 +252,7 @@ Do **not** silently choose a new architecture.
 | Deploy mechanism | KVM rsync / named-file overlay (`tools/commands/deploy-kvm.sh` requires `main` + release gate) | **VERIFIED** |
 | Public vhost | `desk.radiumbox.com` | **INFERRED** — docs |
 | DNS/Cloudflare | **UNKNOWN** in this doc — verify before changes |
-| Rollback | File backups under `/var/backups/radium-desk/` (overlay pattern) | **INFERRED** — recovery session docs |
+| Rollback | Named-file pre-change copies under `/var/backups/radium-desk/overlays/<id>/`; encrypted DB in `runs/` | **VERIFIED** — `docs/backup-runbook.md`, `RadiumDesk-P-07-09-164` |
 
 ---
 

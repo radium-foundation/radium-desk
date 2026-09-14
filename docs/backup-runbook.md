@@ -55,15 +55,40 @@ Default: `/var/backups/radium-desk` (`BACKUP_STAGING_ROOT`).
 
 ```
 /var/backups/radium-desk/
-  work/                         # transient local work
-  runs/
-    20260818T141800Z/
-      manifest.json
-      database.sql.gz.gpg       # or .age
-      secrets.tar.gz.gpg        # or .age
+  work/                         # transient local work (root-only)
+  runs/                         # encrypted DB/secrets backups (root-only)
+  overlays/                     # named-file deploy pre-change backups (deployment user)
+    p-07-09-164-20260914T165400Z/
+      config/radiumbox.php
+      bootstrap/app.php
+  config-backups/               # root-only .env snapshots
+  20260818T141800Z/             # legacy: older deploy dirs at staging root (root-owned)
 ```
 
-Permissions: `700` directories, `600` artifacts.
+Permissions:
+
+| Path | Owner | Mode | Who writes | Purpose |
+|------|-------|------|------------|---------|
+| Staging root | `root:root` | `710` + ACL `user:ravi:--x` | `root` (cron/sudo) | Traverse only for `ravi`; no direct create at root |
+| `work/`, `runs/`, `config-backups/` | `root:root` | `700`–`750` | `root` (backup scripts) | Encrypted scheduled backups and transient work |
+| `overlays/` | `ravi:ravi` | `750` | `ravi` (deploy user) | Named-file deploy pre-change file copies |
+| `overlays/<backup-id>/` artifacts | `ravi:ravi` | `644` typical | `ravi` | Rollback source for overlay deploys |
+
+**Deploy overlay backups (VERIFIED `RadiumDesk-P-07-09-164`):** before a named-file KVM overlay, copy only the files about to change into:
+
+`/var/backups/radium-desk/overlays/<prompt-or-label>-<UTC-timestamp>/`
+
+Preserve relative paths where helpful (e.g. `config/radiumbox.php`). Rollback = copy artifacts back from that directory. This is separate from encrypted `runs/` backups and from the legacy in-app path `storage/app/private/overlays/` (still present on production; prefer `/var/backups/radium-desk/overlays/` for new deploys).
+
+**One-time production setup (already applied 2026-09-14):**
+
+```bash
+sudo install -d -o ravi -g ravi -m 750 /var/backups/radium-desk/overlays
+```
+
+Do **not** chmod/chown the staging root, `runs/`, or `work/` for deploy convenience.
+
+Encrypted `runs/` artifacts: `700` directories, `600` artifacts.
 
 ---
 
