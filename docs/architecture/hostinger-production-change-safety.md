@@ -2,8 +2,8 @@
 
 **Canonical status:** Source-of-truth for Cursor agents evaluating Hostinger VPS snapshots as an **additional** production recovery layer across RadiumWebsites.  
 **Companion:** [`hub-spoke-payment-order-recovery.md`](./hub-spoke-payment-order-recovery.md) (Hub/Spoke boundaries), [`../backup-runbook.md`](../backup-runbook.md) (Desk DB backup architecture).  
-**Prompt:** `RadiumDesk-P-07-09-164`  
-**Audit date:** 2026-09-14  
+**Prompts:** `RadiumDesk-P-07-09-164` (Hostinger API/snapshot capability), `RadiumDesk-P-07-09-165` (production backup system audit)  
+**Audit dates:** 2026-09-14  
 **Classification key:** **VERIFIED** = evidenced in official Hostinger documentation or committed Radium repository docs. **INFERRED** = consistent but not independently re-executed in this audit. **UNKNOWN** = not established; do not assume.
 
 ---
@@ -421,14 +421,179 @@ Agents implementing production-safety automation **must** read this document and
 |-----|----------------|---------------|
 | Hostinger Connector not wired in Cloud Agent environment | **UNKNOWN** (access) | Owner: install/configure Connector or provide read-only API token scope |
 | Numeric `virtualMachineId` for KVM8 | **UNKNOWN** | One-time read via API/hPanel; store in secure registry (not public repo) |
-| Live snapshot/backup state | **UNKNOWN** | Read-only API audit when access available |
+| Hostinger VPS **automated** backup enabled/schedule on KVM8 | **UNKNOWN** | Read-only hPanel or Hostinger API `GET .../backups` when access available |
+| `cloud-inventory.json` absent on KVM8 | **VERIFIED** gap | Run `backup-cloud-inventory.sh` on schedule or fix ops process |
+| Cron calls `backup-run.sh` not `backup-schedule.sh` | **VERIFIED** drift | Owner: align cron with runbook or accept stale `last-run-status.json` / watchdog blind spot |
+| Only `radium_desk` in automated DB backup | **VERIFIED** gap | Owner: per-project DB backup policy for `radiumbox_prod`, `rdservice_in_prod`, etc. |
 | `rdservice.in` / `radiumsign.com` production host mapping | **UNKNOWN** | Per-project infrastructure audit |
-| Automated snapshot tooling | Not authorized | Separate implementation prompt after owner approves §7 policy |
+| Automated snapshot tooling | Not authorized | Separate implementation prompt after owner approves §7–§8 policy |
 | VPS snapshot restore on multi-tenant KVM | Architectural | Owner decision: accept whole-VPS blast radius or split hosts |
 
 ---
 
-## 11. Source links
+## 11. Production backup system audit (`RadiumDesk-P-07-09-165`)
+
+Read-only audit of existing backup layers before designing a pre-major-change Hostinger snapshot gate. **No backup configuration, scripts, cron, or storage was modified.**
+
+### 11.1 Audit method
+
+| Source | Used for |
+|--------|----------|
+| `docs/backup-runbook.md`, `bin/backup-run.sh`, `bin/backup-schedule.sh` | Documented design |
+| Read-only SSH to KVM8 `187.127.129.16` (Sep 14 2026) | Live cron, manifests, logs, `/var/backups/*` |
+| Hostinger API / hPanel | VPS automated backup state — **not available** in this environment |
+
+### 11.2 Hostinger VPS automated backup
+
+| Question | Status | Finding |
+|----------|--------|---------|
+| Daily VPS backup enabled? | **UNKNOWN** | No Hostinger API/Connector/hPanel access in this audit. **Do not assume** enabled because operators believe it is. |
+| Which VPS? | **INFERRED** | KVM8 `srv1910783.hstgr.cloud` / `187.127.129.16` is the primary production KVM — if enabled, would apply to this VPS only. |
+| Schedule / latest success / failures / retention | **UNKNOWN** | Requires `GET /api/vps/v1/virtual-machines/{id}/backups` or hPanel → Snapshots & Backups. |
+| Storage separate from VPS? | **DOCUMENTED — VERIFIED** | Hostinger docs: backups stored separately from live server. **Actual state for Radium account: UNKNOWN.** |
+| Restore scope | **DOCUMENTED — VERIFIED** | Whole-VPS overwrite only; async; irreversible; VPS locked during restore. Not selective per app/DB. |
+| Restore readiness | **UNKNOWN** | No restore drill performed; no verified backup list for KVM8. |
+
+**DOCUMENTED capability:** list backups, restore by `backupId`, up to four retained points (2 daily + 2 weekly when daily add-on enabled).  
+**ACTUAL ACCOUNT STATE:** **UNKNOWN**
+
+### 11.3 Radium Desk database backup (KVM8 — VERIFIED live)
+
+| Attribute | Verified value |
+|-----------|----------------|
+| **Database** | `radium_desk` only |
+| **Script** | `bin/backup-run.sh` (via cron; **not** `backup-schedule.sh`) |
+| **Schedule** | **Twice daily:** `0 2` and `0 14` **IST** (user crontab on KVM8) |
+| **Command flow** | `mysqldump` → gzip → **GPG AES-256 symmetric** → `manifest.json` + encrypted secrets bundle (`.env` + `storage/app/google/*.json`) |
+| **Local staging** | `/var/backups/radium-desk/runs/<backup_id>/` |
+| **Latest successful run** | `20260914T083001Z` — `created_at` **2026-09-14T08:30:01Z** (~14:00 IST); `phase` **cloud_uploaded** |
+| **Encrypted DB size** | ~455 MB (`database.sql.gz.gpg`) |
+| **Recent failure history** | **None found** in `storage/logs/backup-run.log` (no `backup-run.sh: ERROR` lines in tail grep) |
+| **Warnings (non-fatal)** | Repeated `mysqldump` deprecation / `--databases` option warnings — backups still complete |
+| **Cloud upload** | **Enabled** (`cloud_upload_enabled: true` in last status file; manifest `upload.status: completed`) |
+| **Cloud destination** | Hostinger Shared Cloud — separate host from KVM8 (**VERIFIED** upload success in manifest; host identity redacted in this doc) |
+| **Retention (local)** | 72 run directories under `runs/` in last 7 days (**VERIFIED** count); no automatic local prune documented in `backup-run.sh` |
+| **Retention (cloud)** | GFS policy in `bin/backup-prune-cloud.sh` — **manual/dry-run default**; prune **not** scheduled (**VERIFIED** from runbook) |
+| **Restore documentation** | `docs/backup-runbook.md` § “How to restore (manual)” — operator-driven; no automated restore CLI |
+| **Restore drill** | **INFERRED** once proven on operator Mac per runbook; not re-run in this audit |
+
+**Configuration drift (VERIFIED — requires owner decision):**
+
+| Issue | Evidence |
+|-------|----------|
+| Cron uses `backup-run.sh` directly | Live crontab matches `backup-run.sh`, not runbook-recommended `backup-schedule.sh` with `BACKUP_SCHEDULE_SKIP_LOCK` |
+| `last-run-status.json` stale | Last modified **2026-09-12**; shows `backup_id` `20260912T131418Z` while newer runs exist through `20260914T083001Z` |
+| `cloud-inventory.json` missing | File absent on KVM8; Desk Cloud inventory table will be empty |
+| `backup-schedule.sh` / `backup-cloud-inventory.sh` present but not wired into cron | Scripts exist on server; watchdog/Telegram path may not reflect current runs |
+
+**Verdict for Desk DB pipeline:** **VERIFIED healthy execution** (schedule, encryption, local staging, cloud upload). **VERIFIED monitoring/inventory gap** (status file, cloud inventory, cron wrapper mismatch).
+
+### 11.4 Hostinger Cloud storage (Desk DB path)
+
+```
+radium_desk (MariaDB on KVM8)
+  → bin/backup-run.sh (cron 02:00 + 14:00 IST)
+  → /var/backups/radium-desk/runs/<backup_id>/  (encrypted artifacts + manifest)
+  → SSH/rsync → Hostinger Shared Cloud (separate account/host from KVM8)
+  → YYYY/MM/DD/<backup_id>/ + upload-complete.json
+```
+
+| Check | Status |
+|-------|--------|
+| Storage independent from KVM8? | **VERIFIED** — upload targets separate Hostinger Shared Cloud host (not `187.127.129.16`) |
+| Recent backup on Cloud? | **VERIFIED** — `20260914T083001Z` directory present on Cloud (Sep 14 2026) |
+| Encryption before upload? | **VERIFIED** — only `.gpg` artifacts uploaded |
+| Credentials in git/docs? | **VERIFIED absent** — `/root/.radium-backup.env` on KVM (not readable to audit user; keys not printed) |
+| Logs expose secrets? | **VERIFIED** — log lines redact paths in `backup-schedule.sh` sanitizer; live log shows host/path in `backup-run.sh` upload lines (operational exposure — existing behaviour) |
+
+### 11.5 Cross-project / multi-tenant scope (KVM8)
+
+**VERIFIED databases on KVM8** (Sep 14 2026): `radium_desk`, `radiumbox_prod`, `rdservice_in_prod`, `rdserviceonline`, `rdservice_net`, `rdservice_net_prod`, `radiumsign_prod`, plus beta schemas.
+
+| Project | App path | DB | Automated DB backup? | Other recovery artifacts |
+|---------|----------|-----|----------------------|---------------------------|
+| **Radium Desk** | `/var/www/radium-desk` | `radium_desk` | **YES** — twice daily encrypted + Cloud | — |
+| **RadiumBox** | `/var/www/radiumbox.com` | `radiumbox_prod` | **NO** | Manual SQL dumps Sep 4–5 in `/var/backups/radiumbox-prod/`; named-file overlays |
+| **RDServiceOnline** | `/var/www/rdserviceonline` | `rdserviceonline` | **NO** | **UNKNOWN** |
+| **rdservice.in** | **UNKNOWN** path on KVM | `rdservice_in_prod` | **NO** | Prompt-specific dir `/var/backups/rdservice-in/p-07-09-287/` (Sep 12) |
+| **rdservice.net** | **INFERRED** `/var/www/rdservice.net` | `rdservice_net` / `rdservice_net_prod` | **NO** | **UNKNOWN** |
+| **radiumsign.com** | **UNKNOWN** | `radiumsign_prod` | **NO** | **UNKNOWN** |
+| **media.radiumbox.com** | Hostinger shared (not KVM8) | **UNKNOWN** | **NO** | **UNKNOWN** |
+
+**Blast-radius concerns:**
+
+- Hostinger **VPS backup/snapshot** on KVM8 restores **entire server** — all projects and databases (**DOCUMENTED**).
+- Desk **DB backup** covers **only** `radium_desk` — does **not** protect `radiumbox_prod` or other schemas (**VERIFIED**).
+- RadiumBox relies on **ad-hoc** SQL dumps and deployment overlays, not the Desk backup pipeline (**VERIFIED**).
+
+### 11.6 Restore readiness (read-only assessment)
+
+| Scenario | Recovery source | Mechanism | Scope | Readiness | Limitations |
+|----------|-----------------|-----------|-------|-----------|-------------|
+| **A. App deploy failure** | Git + overlay files | Redeploy tag / restore `*.pre-*` backups | Single app | **VERIFIED** (pattern exists for Box) | Desk: no remote git rollback on KVM |
+| **B. DB corruption (Desk)** | Encrypted Desk backup | Manual decrypt + import per runbook | `radium_desk` only | **INFERRED** — runbook + past drill cited | Staging rehearsal required per backup ID |
+| **C. Accidental destructive DB change (Desk)** | Same as B | Point-in-time ≤ last backup (≤ ~12h) | `radium_desk` only | **INFERRED** | Data after backup timestamp lost |
+| **C. Accidental destructive DB change (Box/other)** | Ad-hoc SQL dumps / VPS backup | Manual import or whole-VPS restore | Per DB or whole VPS | **UNKNOWN / weak** | No automated Box DB backup; dumps may be stale |
+| **D. VPS/system config failure** | Hostinger VPS backup or snapshot | hPanel/API whole-VPS restore | **All KVM8 tenants** | **UNKNOWN** — backup state unverified | Coarse; owner approval mandatory |
+| **E. Complete KVM8 failure** | Hostinger VPS backup + Desk Cloud DB copies | Provider restore + DB import | Whole platform | **PARTIAL** — Desk DB on Cloud **VERIFIED**; VPS backup **UNKNOWN** | Not geographic DR (same provider) |
+
+**No restore was performed in this audit.**
+
+### 11.7 Recovery layer comparison (for future snapshot gate)
+
+| Layer | Protects | Does not protect | Retention | Recovery scope | Speed | Blast radius |
+|-------|----------|------------------|-----------|----------------|-------|--------------|
+| **Git** | Application source | DB data, server config, secrets not in repo | Unlimited (history) | Code/config in repo | Fast redeploy | Single app |
+| **Deployment overlay** | Named files pre-change | DB, system config, untracked files | Until manually removed | Single app paths | Minutes | Single app |
+| **Desk DB backup** | `radium_desk` data + selected secrets | Other DBs, code, OLS, OS | Local: many runs; Cloud: GFS if pruned | Single schema | Hours (manual) | Desk only |
+| **Hostinger VPS daily backup** | Whole VPS disk (if enabled) | Nothing off-VPS; not granular | Up to 4 points (**DOCUMENTED**) | **Entire KVM8** | Hours | **All co-hosted projects** |
+| **Pre-change snapshot (PROPOSED)** | Whole VPS at instant before change | Off-VPS; not granular; **1 slot, 24h** | 1 day | **Entire KVM8** | Hours | **All co-hosted projects** |
+
+**Intended future model for MAJOR changes (PROPOSAL — NOT IMPLEMENTED):**
+
+```
+Git + deployment overlay + DB backup (project-appropriate)
++ Hostinger VPS backup health check (when verifiable)
++ NEW pre-change VPS snapshot
+```
+
+### 11.8 Future snapshot gate — required checks (PROPOSAL)
+
+Before any automated pre-major-change snapshot, verify:
+
+| # | Check | Source |
+|---|-------|--------|
+| 1 | Correct **project** and repo/HEAD SHA | Git + prompt ledger |
+| 2 | Correct **production VPS** (`virtualMachineId`, IP, hostname) | Secure registry + API |
+| 3 | Correct **environment** (production vs staging) | Deploy mapping |
+| 4 | **Deployment overlay** backup completed for touched files | Deploy prompt / server paths |
+| 5 | **DB backup health** for affected database(s) | Recent manifest + `phase: cloud_uploaded` |
+| 6 | **Hostinger VPS backup health** (if major change) | API `GET .../backups` or hPanel — **currently UNKNOWN** |
+| 7 | **Snapshot capability** and API permission | Hostinger API auth test (read-only) |
+| 8 | **Snapshot slot** — existing snapshot noted; overwrite acknowledged | `GET .../snapshot` |
+| 9 | **Snapshot action completion** | Poll `GET .../actions/{id}` |
+| 10 | **Snapshot metadata** recorded (`id`, `createdAt`, `expiresAt`) | Gate output artifact |
+| 11 | **Cross-project blast radius** acknowledged | All KVM8 co-tenants listed; owner sign-off for whole-VPS ops |
+
+**Restore policy (PROPOSAL):** Snapshot restore remains **owner-approved only** — never automatic.
+
+**Recommended risk threshold for snapshot:** §7 **CRITICAL** tier — system-level, multi-app, or irreversible infra changes only.
+
+### 11.9 Audit verdict
+
+| Component | Verdict |
+|-----------|---------|
+| Desk `radium_desk` backup execution | **VERIFIED healthy** (twice daily, encrypted, Cloud upload succeeding) |
+| Desk backup monitoring / inventory | **VERIFIED gap** — cron/wrapper drift, stale status, missing cloud inventory |
+| Other production databases on KVM8 | **VERIFIED not covered** by automated backup |
+| Hostinger VPS automated backup | **UNKNOWN** |
+| Pre-snapshot gate design | **READY TO DESIGN** at policy level, **blocked on VPS backup verification** and multi-DB policy |
+
+**STOP — BACKUP CONFIGURATION REQUIRES OWNER/IMPLEMENTATION DECISION** for: (1) cron vs `backup-schedule.sh` / watchdog alignment, (2) `cloud-inventory.json` ops schedule, (3) automated backup scope for non-Desk databases on KVM8, (4) confirmation of Hostinger VPS daily backup on KVM8 via hPanel/API.
+
+---
+
+## 12. Source links
 
 | Resource | URL |
 |----------|-----|
@@ -443,15 +608,16 @@ Agents implementing production-safety automation **must** read this document and
 
 ---
 
-## 12. Audit metadata
+## 13. Audit metadata
 
 | Field | Value |
 |-------|-------|
-| Audit date | 2026-09-14 |
+| Audit dates | 2026-09-14 |
 | Auditor | Cursor Cloud Agent (read-only) |
 | Repository | `radium-foundation/radium-desk` |
 | Branch | `cursor/hostinger-production-safety-audit-786d` |
-| Prompt ID | `RadiumDesk-P-07-09-164` |
+| Prompt IDs | `RadiumDesk-P-07-09-164`, `RadiumDesk-P-07-09-165` |
 | Production changes | **None** |
 | Snapshot/backup/restore executed | **None** |
-| Hostinger account API calls | **None** |
+| Hostinger VPS backup API/hPanel verification | **None** (state **UNKNOWN**) |
+| KVM8 read-only SSH verification | **Yes** — cron, manifests, logs, `/var/backups/*` (Desk pipeline) |

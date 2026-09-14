@@ -316,6 +316,8 @@ GNU `flock` holds the lock in the **flock parent process** for the lifetime of t
 
 Replace bare `backup-run.sh` cron entries with the production-safe wrapper lines above.
 
+**Production state (verified 2026-09-14, `RadiumDesk-P-07-09-165`):** KVM8 user crontab still invokes `backup-run.sh` directly at 02:00 and 14:00 IST (not `backup-schedule.sh`). Backups succeed and Cloud upload is active, but `last-run-status.json` and Telegram watchdog paths may be stale. See [`docs/architecture/hostinger-production-change-safety.md`](architecture/hostinger-production-change-safety.md) §11.3.
+
 ### Manual invocation (when ops approves)
 
 ```bash
