@@ -314,5 +314,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-07-09-158 | 2026-09-14 | Permanent Cashfree → Box Paid → Desk handoff reliability | Box authenticated confirm-payment API + Desk OrderPaid listener + handoff reconciliation scheduler + false-green sync guard + RBP hardware alignment. Report: `docs/cashfree-box-desk-handoff-reliability-p-07-09-158.md`. **Not deployed.** |
 | RadiumDesk-P-07-09-159 | 2026-09-14 | RBP94 recovery hardening on handoff-reliability branch | Dispatch `OrderPaid` after link-payment-to-existing-order; add `--order-id` to `radiumbox:reconcile-handoff`; targeted recovery + not-paid retry tests. Companion `radiumbox.com-P-10-09-08`. **Not deployed until gate completes.** |
 | RadiumDesk-P-07-09-160 | 2026-09-14 | Fix Box confirm gateway id for link-payment orders | Send business order id (`RBP94`) to Box confirm-payment instead of Desk Cashfree numeric `gateway_order_id` (`6893492675`). Production recovery was `not_found` until this fix. |
+| RadiumDesk-P-07-09-161 | 2026-09-14 | Widen `radiumbox_sync_status` for reconciliation states | Migration widens column to 32 chars so `RECONCILIATION_REQUIRED` persists. Deploy overlay must include matching `HardwareRinIngestContract.php` or channel ingest 500s. |
 
 Do not renumber or overwrite earlier rows. Append only.
