@@ -358,6 +358,14 @@ class CashfreeWebhookProcessorService
 
             $this->markProcessed($webhookLog, $incident);
 
+            $linkedOrderId = $linkedOrder->id;
+            DB::afterCommit(function () use ($linkedOrderId): void {
+                $freshOrder = Order::query()->find($linkedOrderId);
+                if ($freshOrder !== null) {
+                    OrderPaid::dispatch($freshOrder);
+                }
+            });
+
             return null;
         });
     }
