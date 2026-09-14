@@ -297,6 +297,8 @@ This is a **recovery mechanism**, not permission to redesign the normal payment 
 | Business order routing | `app/Support/BusinessOrderId.php` |
 | Spoke lookup config | `config/order_lookup.php` |
 | Cashfree webhook | `app/Services/Cashfree/CashfreeWebhookProcessorService.php` |
+| Cashfree webhook operational memory | `docs/architecture/cashfree-webhook-operational-memory.md` |
+| Cashfree webhook forensics (2026-09-14) | `docs/cashfree-webhook-forensics-p-07-09-164.md` |
 | Channel ingest | `routes/api.php` → `POST /api/v1/channel-orders` |
 | Central finance / hub vision | `docs/rd-central-finance-invoice-architecture.md` |
 | RDService.net integration | `docs/rdservice-desk-order-api-integration.md` |
@@ -312,3 +314,4 @@ This is a **recovery mechanism**, not permission to redesign the normal payment 
 |--------|------|--------|
 | `RadiumDesk-P-07-09-162` | 2026-09-14 | Initial canonical Hub/Spoke payment/order/recovery source-of-truth |
 | `RadiumDesk-P-07-09-163` | 2026-09-14 | Owner-verified RBP product/hardware policy; supersede P-07-09-154/156; operational timeout note; fix cross-repo links |
+| `RadiumDesk-P-07-09-164` | 2026-09-14 | Cashfree webhook forensics + permanent operational memory (`cashfree-webhook-operational-memory.md`) |
