@@ -227,6 +227,7 @@ Any agent touching payment, order, or integration functionality **must**:
 2. Read `docs/cursor-prompt-ledger.md` and use the next unused prompt ID for the task.
 3. Verify repository path, branch, HEAD SHA, worktree cleanliness, and remote.
 4. Before production: establish Project → Repo/HEAD → Branch → Production path → Server → Deploy mechanism → vhost → DB → DNS/Cloudflare → Integrations → Backup → Rollback. If any critical boundary is **UNKNOWN**: **STOP → INVESTIGATE → REPORT**.
+5. For Hostinger VPS snapshot / whole-server recovery decisions, read [`hostinger-production-change-safety.md`](./hostinger-production-change-safety.md) (`RadiumDesk-P-07-09-164`). Snapshots are Layer 4 only — never replace Git, deployment overlays, or DB backups.
 5. Preserve project isolation and documented Hub/Spoke roles.
 6. Preserve established payment source-of-truth and successful flows.
 7. Verify identifiers and cross-project contracts before changing them.
