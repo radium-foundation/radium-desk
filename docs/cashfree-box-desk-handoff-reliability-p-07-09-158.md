@@ -11,7 +11,7 @@ Cashfree **server-side verified** payment status via Box `CaseFree::fetchOrder()
 ## Flow
 
 1. Cashfree payment succeeds (webhook may arrive at Desk and/or Box).
-2. Desk `OrderPaid` listener calls Box `POST /api/integrations/v1/cashfree/confirm-payment` for radiumbox.com hardware (`RBP*`, `RDE*`).
+2. Desk `OrderPaid` listener calls Box `POST /api/integrations/v1/cashfree/confirm-payment` for radiumbox.com hardware (`RBP*`, `RDE*`), passing the **business order id** as `gateway_order_id` (Box uses that as Cashfree `cf_order_id`; Desk’s numeric `gateway_order_id` from webhooks must not be sent).
 3. Box verifies with Cashfree, marks order Paid idempotently, enqueues `desk_order_handoffs`.
 4. Box outbox delivers to Desk `POST /api/v1/channel-orders` (existing HMAC + idempotency).
 5. Desk ingest creates commerce order once; duplicates return 200 duplicate.
