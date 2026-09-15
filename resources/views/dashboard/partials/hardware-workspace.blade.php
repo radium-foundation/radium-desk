@@ -1,9 +1,12 @@
 @php
+    use App\Enums\HardwareDashboardQueue;
+
     $rows = $hardwareWorkspace['rows'] ?? collect();
     $incidentIds = $hardwareWorkspace['incidentIds'] ?? [];
     $operableFulfilmentIds = $hardwareWorkspace['operableFulfilmentIds'] ?? [];
     $canOperateHardware = (bool) ($hardwareWorkspace['canOperateHardware'] ?? false);
     $search = $hardwareWorkspace['search'] ?? '';
+    $isShippedScope = ($hardwareWorkspace['queue'] ?? '') === HardwareDashboardQueue::Completed->value;
 @endphp
 
 <div id="dashboard-hardware-workspace" data-hardware-workspace data-hardware-queue="{{ $hardwareWorkspace['queue'] ?? '' }}">
@@ -34,6 +37,7 @@
                     </th>
                     <th>Order</th>
                     <th>Customer</th>
+                    <th class="d-none d-lg-table-cell dashboard-hardware-datetime-header">Date</th>
                     <th class="d-none d-md-table-cell">Product</th>
                     <th class="case-serial-cell">Serial</th>
                     <th>Status</th>
@@ -52,12 +56,15 @@
                         'incidentId' => $incidentId !== null ? (int) $incidentId : null,
                         'operableFulfilmentIds' => $operableFulfilmentIds,
                         'canOperateHardware' => $canOperateHardware,
+                        'isShippedScope' => $isShippedScope,
                     ])
                 @empty
                     <tr>
-                        <td colspan="7" class="dashboard-cases-empty">
+                        <td colspan="8" class="dashboard-cases-empty">
                             @if($search !== '')
                                 No hardware orders match this search.
+                            @elseif($isShippedScope)
+                                No shipped hardware orders in this view.
                             @else
                                 No hardware orders in this queue.
                             @endif

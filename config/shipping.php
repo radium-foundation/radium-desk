@@ -51,7 +51,8 @@ return [
     'http_enabled' => filter_var(env('SHIPROCKET_HTTP_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
     'tracking' => [
-        'sync_enabled' => filter_var(env('SHIPROCKET_TRACKING_SYNC_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        // Default false: production must set SHIPROCKET_TRACKING_SYNC_ENABLED=true at deploy gate.
+        'sync_enabled' => filter_var(env('SHIPROCKET_TRACKING_SYNC_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'min_interval_seconds' => max(60, (int) env('SHIPROCKET_TRACKING_MIN_INTERVAL_SECONDS', 300)),
     ],
 

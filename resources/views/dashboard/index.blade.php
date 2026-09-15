@@ -134,6 +134,7 @@
             'customer360TimelinePollIntervalMs' => $customer360TimelinePollIntervalMs ?? 30000,
             'customer360DeviceSyncPollIntervalMs' => $customer360DeviceSyncPollIntervalMs ?? 10000,
         ])
+        @include('dashboard.partials.historical-order-summary-modal')
         @include('dashboard.partials.serial-number-modal')
     </div>
 @endsection

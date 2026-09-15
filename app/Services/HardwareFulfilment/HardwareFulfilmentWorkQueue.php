@@ -104,7 +104,9 @@ final class HardwareFulfilmentWorkQueue
      */
     public function workspaceTotal(Carbon $fromIst, Carbon $toIst): int
     {
-        return $this->allRows($fromIst, $toIst, '', '')->count();
+        return $this->allRows($fromIst, $toIst, '', '')
+            ->reject(static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isShippedWorkspaceItem())
+            ->count();
     }
 
     /**

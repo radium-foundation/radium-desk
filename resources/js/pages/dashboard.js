@@ -24,6 +24,7 @@ import { initDashboardActivityRefresh } from '../dashboard-activity-refresh';
 import { initDashboardTeamActivity } from '../dashboard-team-activity';
 import { buildSmartToastActions } from '../customer-360-cockpit';
 import { getDashboardConfig } from '../dashboard-config';
+import { initHistoricalOrderSummary } from '../historical-order-summary';
 import { initUniversalSearch } from '../universal-search';
 import { initCustomerIntake, initLegacyVerificationModal, guardServiceReferenceAssignment } from '../customer-intake';
 import { setOrderWorkspaceLegacyVerificationModal } from '../order-workspace';
@@ -410,6 +411,8 @@ export const bootDashboard = () => {
     document.addEventListener('hardware-dashboard:updated', (event) => {
         applyHardwareLivePayload(event.detail);
     });
+
+    initHistoricalOrderSummary();
 
     initDashboardLoadMore({
         pageRoot,

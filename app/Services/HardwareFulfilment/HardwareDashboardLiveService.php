@@ -83,6 +83,7 @@ final class HardwareDashboardLiveService
                     'incidentId' => $incidentId !== null ? (int) $incidentId : null,
                     'operableFulfilmentIds' => $operable,
                     'canOperateHardware' => HardwareFulfilmentAccess::allows($user),
+                    'isShippedScope' => $row->isShippedWorkspaceItem(),
                 ])->render(),
             ];
         }
