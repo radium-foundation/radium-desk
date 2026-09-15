@@ -56,6 +56,21 @@ class HardwareFulfilmentProductLinesTest extends TestCase
         $this->assertSame(2, $catalog['lines'][1]['qty']);
     }
 
+    public function test_combined_precision_listing_is_shown_from_commerce_description_not_inventory_sku(): void
+    {
+        $listing = 'Precision Biometrics PB 510 / PB1000 L1 F';
+        $order = $this->supportOrder('RBP980062', $listing);
+        $commerce = $this->commerce($order, 'RBP980062');
+        $this->physicalItem($commerce, 1, $listing, 1, 1003);
+
+        $catalog = HardwareFulfilmentProductLines::resolve($commerce->fresh('items'), $order);
+
+        $this->assertFalse($catalog['missing']);
+        $this->assertSame($listing.' · 1 Q', $catalog['compact']);
+        $this->assertSame($listing, $catalog['product']);
+        $this->assertSame('1', $catalog['quantity']);
+    }
+
     private function supportOrder(string $orderId, ?string $productName): Order
     {
         $creator = User::factory()->create(['is_active' => true]);
@@ -86,14 +101,14 @@ class HardwareFulfilmentProductLinesTest extends TestCase
         ]);
     }
 
-    private function physicalItem(CommerceOrder $commerce, int $lineNo, string $description, int $qty): void
+    private function physicalItem(CommerceOrder $commerce, int $lineNo, string $description, int $qty, ?int $modelId = null): void
     {
         CommerceOrderItem::query()->create([
             'commerce_order_id' => $commerce->id,
             'line_no' => $lineNo,
             'sku' => 'SKU-'.$lineNo,
             'catalog_sku' => 'CAT-'.$lineNo,
-            'model_id' => 900 + $lineNo,
+            'model_id' => $modelId ?? (900 + $lineNo),
             'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
             'requires_shipping' => true,
             'description' => $description,

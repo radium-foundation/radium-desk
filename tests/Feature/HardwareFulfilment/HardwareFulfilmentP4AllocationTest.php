@@ -249,6 +249,45 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
         app(HardwareSkuMapService::class)->requireProduct(StatutoryInvoiceChannel::RadiumBoxCom, 951);
     }
 
+    public function test_requirements_do_not_count_stock_on_an_unmapped_similar_sku(): void
+    {
+        $listing = 'Precision Biometrics PB 510 / PB1000 L1 F';
+        $fulfilment = $this->readyFulfilment('RBP900462', 'DELHI-RETAIL', 1, map: false);
+        $item = $fulfilment->commerceOrder?->items->first();
+        $this->assertNotNull($item);
+        $item->forceFill([
+            'model_id' => 1003,
+            'sku' => '1003',
+            'description' => $listing,
+        ])->save();
+
+        $similar = InventoryProduct::query()->create([
+            'sku' => 'RBPB1000L1',
+            'name' => 'PB 1000 L1',
+            'hsn_code' => '84716090',
+            'gst_percentage' => 18,
+            'unit_price' => 3727.97,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        $branch = InventoryBranch::query()->where('code', 'DELHI-RETAIL')->firstOrFail();
+        app(InventoryStockService::class)->stockInSerialized($similar, $branch, ['LNTESTPB1000'], $this->actor);
+
+        $lines = $this->allocation->requirements($fulfilment->fresh(['commerceOrder.items', 'serials']));
+
+        $this->assertCount(1, $lines);
+        $this->assertSame(1003, $lines[0]['model_id']);
+        $this->assertSame($listing, $lines[0]['description']);
+        $this->assertFalse($lines[0]['map_ready']);
+        $this->assertNull($lines[0]['inventory_product_id']);
+        $this->assertSame(0, $lines[0]['available_qty']);
+        $this->assertSame(0, $lines[0]['available_by_branch']['DELHI-RETAIL'] ?? 0);
+        $this->assertSame(
+            1,
+            InventorySerial::query()->where('product_id', $similar->id)->where('status', InventorySerialStatus::Available)->count(),
+        );
+    }
+
     public function test_owner_map_resolves_box_model_to_desk_product(): void
     {
         $this->mapModel(951);
