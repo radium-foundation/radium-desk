@@ -12,6 +12,8 @@ The displayed name **Precision Biometrics PB 510 / PB1000 L1 F** is the commerce
 
 This is **legitimate missing mapping**, not a dashboard presentation bug and not a stock-availability bug. Desk cannot safely infer PB 510 vs PB 1000 from that combined listing. Production `RBP62` rows were **not** rewritten.
 
+**Follow-on:** P-07-09-291 production SELECT names live `model_id` **1402** and proposes (does not insert) `radiumbox_com` / 1402 → `RBPB1000L1`. See `docs/desk-rbp62-production-mapping-p-07-09-291.md`.
+
 ## Prompt ID
 
 Next unused ledger ID after `RadiumDesk-P-07-09-289`.
@@ -110,7 +112,7 @@ The combined storefront name cannot choose 1003 vs 1004. P4 forbids name inferen
 | Stale fulfilment snapshot | Name comes from commerce description, not a SKU snapshot. |
 | Classifier bug | **No.** Missing map is fail-closed by design (P-07-09-153). |
 | Dashboard presentation bug | **No.** Name and status come from different fields on purpose. |
-| Legitimate missing mapping | **Yes** for this listing class vs P0-M1 maps. Live RBP62 `model_id` still needs a production SELECT to name the exact row. |
+| Legitimate missing mapping | **Yes** for this listing class vs P0-M1 maps. Live `model_id` was unknown in this ticket; P-07-09-291 SELECT names it **1402**. |
 
 ## Required production data change (not performed)
 
