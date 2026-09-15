@@ -122,6 +122,41 @@ class DashboardHardwareSsrPerformanceTest extends TestCase
         $this->assertSame(3, preg_match_all('/\sdata-hardware-select(\s|>)/', $hardwareHtml));
     }
 
+    public function test_ready_queue_keeps_live_updates_and_c360_contract(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $ready = $this->actingAs($admin)->get(route('dashboard'))->assertOk()->getContent();
+        $hardware = $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'hardware']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-live-updates-enabled="1"', $ready);
+        $this->assertStringContainsString('data-live-updates-enabled="0"', $hardware);
+        $this->assertStringContainsString('data-customer-360-url="', $ready);
+        $this->assertStringContainsString('data-customer-360-url="', $hardware);
+        $this->assertStringContainsString('data-open-customer-360-incident-id="', $ready);
+        $this->assertStringContainsString('hw_queue', $hardware);
+
+        $dated = $this->actingAs($admin)
+            ->get(route('dashboard', [
+                'queue' => 'hardware',
+                'from' => '2026-09-07',
+                'to' => '2026-09-15',
+            ]))
+            ->assertOk()
+            ->getContent();
+        $this->assertStringContainsString('data-hardware-workspace', $dated);
+        $this->assertStringContainsString('data-live-updates-enabled="0"', $dated);
+
+        $this->actingAs($admin)
+            ->getJson(route('dashboard.live', ['queue' => 'action_required']))
+            ->assertOk()
+            ->assertJsonStructure(['kpi_strip_html', 'service_case_filter_counts']);
+    }
+
     /**
      * @return array{status: int, ms: float, bytes: int, queries: int, log: list<array{query: string, time: float}>}
      */
