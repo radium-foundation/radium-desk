@@ -30,6 +30,7 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->withoutVite();
     }
 
     public function test_hardware_chip_matches_rendered_rows_and_excludes_pre_cutoff_hold_incidents(): void
