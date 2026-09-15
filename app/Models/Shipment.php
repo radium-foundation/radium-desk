@@ -38,6 +38,9 @@ class Shipment extends Model
         'manifest_url',
         'manifest_generated_at',
         'last_reconciled_at',
+        'provider_track_status',
+        'provider_track_normalized',
+        'provider_tracked_at',
     ];
 
     protected function casts(): array
@@ -52,6 +55,7 @@ class Shipment extends Model
             'label_fetched_at' => 'datetime',
             'manifest_generated_at' => 'datetime',
             'last_reconciled_at' => 'datetime',
+            'provider_tracked_at' => 'datetime',
         ];
     }
 

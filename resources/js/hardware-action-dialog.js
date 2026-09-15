@@ -425,6 +425,12 @@ const handleSuccess = (payload) => {
         showToast(payload.status);
     }
 
+    if (payload.hardware_live) {
+        document.dispatchEvent(new CustomEvent('hardware-dashboard:updated', {
+            detail: payload.hardware_live,
+        }));
+    }
+
     const next = payload.next_action;
     const dialogUrl = payload.action_dialog_url;
     if (payload.mutating && dialogUrl && next && next !== 'Ready' && next !== 'View' && next !== 'Completed') {

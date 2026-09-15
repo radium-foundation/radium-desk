@@ -746,6 +746,7 @@ describe('dashboard refresh architecture phase 1', () => {
     const startFastPolling = vi.fn();
     const startHeartbeatPolling = vi.fn();
     const stopPolling = vi.fn();
+    const channelListen = vi.fn();
     let destroyHandle = null;
 
     beforeEach(() => {
@@ -762,6 +763,7 @@ describe('dashboard refresh architecture phase 1', () => {
         startFastPolling.mockClear();
         startHeartbeatPolling.mockClear();
         stopPolling.mockClear();
+        channelListen.mockClear();
 
         document.body.innerHTML = `
             <meta name="csrf-token" content="test-token">
@@ -778,7 +780,7 @@ describe('dashboard refresh architecture phase 1', () => {
         vi.doMock('laravel-echo', () => ({
             default: vi.fn().mockImplementation(() => ({
                 private: vi.fn(() => ({
-                    listen: vi.fn(),
+                    listen: channelListen,
                 })),
                 connector: {
                     pusher: {
@@ -827,6 +829,19 @@ describe('dashboard refresh architecture phase 1', () => {
         expect(startHeartbeatPolling).toHaveBeenCalledWith(document.getElementById('dashboard-page'));
         expect(startFastPolling).not.toHaveBeenCalled();
         expect(stopPolling).toHaveBeenCalled();
+    });
+
+    it('subscribes to hardware fulfilment events when service-case live updates are disabled', async () => {
+        const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
+
+        destroyHandle = initLiveDashboardReverb({
+            pageRoot: document.getElementById('dashboard-page'),
+            dashboardLiveUpdates: false,
+        });
+
+        expect(channelListen).toHaveBeenCalledWith('.HardwareFulfilmentsUpdated', expect.any(Function));
+        expect(channelListen).not.toHaveBeenCalledWith('.ServiceCaseCreated', expect.any(Function));
+        expect(channelListen).not.toHaveBeenCalledWith('.DashboardKpisUpdated', expect.any(Function));
     });
 
     it('does not full-refresh on Ably reconnect', async () => {

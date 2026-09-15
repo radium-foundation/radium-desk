@@ -65,6 +65,10 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public ?string $nextManifestMode = null;
 
+    public ?string $nextTrackMode = null;
+
+    public string $trackStatus = 'in_transit';
+
     public ?string $recommendedCourierId = null;
 
     /**
@@ -389,22 +393,52 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public function trackByAwb(string $awb): ShiprocketTrackResult
     {
         $this->tracks++;
+        $mode = $this->nextTrackMode ?? 'ok';
+        $this->nextTrackMode = null;
+
+        if ($mode === 'timeout') {
+            throw new ShiprocketRetryableException('Fake provider track timeout.');
+        }
+
+        if ($mode === 'empty') {
+            return new ShiprocketTrackResult(
+                provider: $this->provider(),
+                status: '',
+                awb: $awb,
+            );
+        }
+
         $this->assertSuccessMode();
         $row = $this->awbRowByAwb($awb);
+        $status = match ($mode) {
+            'pickup_queue' => '12',
+            'out_for_pickup' => '19',
+            'picked_up' => '42',
+            'unknown' => 'some_unmapped_status',
+            default => $this->trackStatus,
+        };
+
+        $activity = match ($mode) {
+            'out_for_pickup' => 'Out for Pickup',
+            'picked_up' => 'PICKED UP',
+            'unknown' => 'Unknown scan',
+            default => 'Picked up',
+        };
 
         return new ShiprocketTrackResult(
             provider: $this->provider(),
-            status: 'in_transit',
+            status: $status,
             activities: [
                 [
                     'awb' => $awb,
-                    'activity' => 'Picked up',
+                    'current_status' => $activity,
+                    'activity' => $activity,
                     'location' => 'Delhi',
                 ],
             ],
             awb: $awb,
-            courierId: $row['courier_id'] ?? '12',
-            courierName: $row['courier_name'] ?? 'Fake Courier',
+            courierId: is_array($row) ? ($row['courier_id'] ?? '12') : '12',
+            courierName: is_array($row) ? ($row['courier_name'] ?? 'Fake Courier') : 'Fake Courier',
         );
     }
 

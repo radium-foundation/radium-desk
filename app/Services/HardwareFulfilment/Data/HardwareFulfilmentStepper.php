@@ -94,7 +94,14 @@ final class HardwareFulfilmentStepper
             'Generate Manifest' => 'Pickup has been requested.',
             'Upload Package Photo' => 'Evidence can be added after shipment or pickup. It does not block shipping.',
             'Ready' => 'Operational steps are complete.',
-            'View' => $row->blocker ?: 'Hardware cannot start yet.',
+            'View' => $row->blocker ?: (in_array($row->stage, [
+                HardwareFulfilmentOperationalStage::OutForPickup,
+                HardwareFulfilmentOperationalStage::PickedUp,
+                HardwareFulfilmentOperationalStage::InTransit,
+                HardwareFulfilmentOperationalStage::Delivered,
+            ], true)
+                ? 'Courier tracking has progressed past Ready for Pickup.'
+                : 'Hardware cannot start yet.'),
             default => $row->blocker ?: '',
         };
     }

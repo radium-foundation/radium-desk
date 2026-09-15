@@ -42,6 +42,7 @@ import {
     resolveReadyQueueCountDeltaFromListAction,
 } from './ready-queue-count-delta';
 import { setRealtimeTransportConnected } from './realtime-transport-status';
+import { handleHardwareFulfilmentsUpdated } from './hardware-dashboard-live';
 
 const SERVICE_CASE_EVENTS = [
     'ServiceCaseCreated',
@@ -820,6 +821,10 @@ export const initLiveDashboardReverb = ({
     const dashboardChannel = instrumentChannelForActivity(echo.private(`dashboard.${userId}`));
     const notificationsChannel = instrumentChannelForActivity(echo.private(`notifications.${userId}`));
 
+    dashboardChannel.listen('.HardwareFulfilmentsUpdated', (payload) => {
+        handleHardwareFulfilmentsUpdated(pageRoot, payload);
+    });
+
     if (dashboardLiveUpdates) {
         SERVICE_CASE_EVENTS.forEach((eventName) => {
             dashboardChannel.listen(`.${eventName}`, (payload) => {
@@ -1068,6 +1073,7 @@ export {
     handleNotificationCreated,
     handleReferenceNumbersUpdated,
     handleServiceCaseEvent,
+    handleHardwareFulfilmentsUpdated,
     normalizeIncidentIds,
     resolveListAction,
 };

@@ -20,6 +20,7 @@
          data-live-url="{{ route('dashboard.live') }}"
          data-live-counts-url="{{ route('dashboard.live.counts') }}"
          data-live-rows-url="{{ route('dashboard.live.rows') }}"
+         data-live-hardware-url="{{ route('dashboard.live.hardware') }}"
          data-live-queue="{{ $operationQueue }}"
          data-live-workspace="{{ $operationsWorkspace ?? $operationQueue }}"
          data-live-scope="{{ $dashboardLiveScope ?? 'operations_scope' }}"
@@ -133,6 +134,7 @@
             'customer360TimelinePollIntervalMs' => $customer360TimelinePollIntervalMs ?? 30000,
             'customer360DeviceSyncPollIntervalMs' => $customer360DeviceSyncPollIntervalMs ?? 10000,
         ])
+        @include('dashboard.partials.historical-order-summary-modal')
         @include('dashboard.partials.serial-number-modal')
     </div>
 @endsection

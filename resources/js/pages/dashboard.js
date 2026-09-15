@@ -10,6 +10,7 @@ import { initDashboardKpiActions } from '../dashboard-kpi';
 import { initViewOnlyMetricRefresh } from '../dashboard-live-counts';
 import { initOperationsWorkspaceSoftSwitch } from '../dashboard-operations-workspace';
 import { initHardwareDashboardSelection } from '../hardware-dashboard-selection';
+import { applyHardwareLivePayload } from '../hardware-dashboard-live';
 import { initServiceCasePaginationState } from '../dashboard-service-case-state';
 import { createServiceCaseRowReplacer } from '../service-case-row';
 import { initTooltips } from '../tooltips';
@@ -23,6 +24,7 @@ import { initDashboardActivityRefresh } from '../dashboard-activity-refresh';
 import { initDashboardTeamActivity } from '../dashboard-team-activity';
 import { buildSmartToastActions } from '../customer-360-cockpit';
 import { getDashboardConfig } from '../dashboard-config';
+import { initHistoricalOrderSummary } from '../historical-order-summary';
 import { initUniversalSearch } from '../universal-search';
 import { initCustomerIntake, initLegacyVerificationModal, guardServiceReferenceAssignment } from '../customer-intake';
 import { setOrderWorkspaceLegacyVerificationModal } from '../order-workspace';
@@ -406,6 +408,11 @@ export const bootDashboard = () => {
         clearQuickFilter: () => dashboardQuickFilter?.clearFilter?.(),
     });
     initHardwareDashboardSelection(pageRoot);
+    document.addEventListener('hardware-dashboard:updated', (event) => {
+        applyHardwareLivePayload(event.detail);
+    });
+
+    initHistoricalOrderSummary();
 
     initDashboardLoadMore({
         pageRoot,
