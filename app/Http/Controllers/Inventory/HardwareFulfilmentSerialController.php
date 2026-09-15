@@ -35,6 +35,7 @@ use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentStepper;
 use App\Services\HardwareFulfilment\HardwareAwaitingFulfilmentQueue;
 use App\Services\HardwareFulfilment\HardwareDashboardLiveService;
+use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
 use App\Services\HardwareFulfilment\HardwareFulfilmentCountryCorrectionService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
@@ -78,6 +79,7 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentIsolatedWorkflowService $isolated,
         private readonly DashboardBroadcastService $dashboardBroadcast,
         private readonly HardwareDashboardLiveService $hardwareLive,
+        private readonly HardwareDashboardWorkspace $hardwareWorkspace,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -689,9 +691,22 @@ class HardwareFulfilmentSerialController extends Controller
         $row = $this->operationalClassifier->fromFulfilment($fulfilment, $ready);
         $incidentId = $this->incidentIdFor($fulfilment);
         $user = $request->user();
-        $hardwareLive = $user !== null
-            ? $this->hardwareLive->livePayload($user, [(int) $fulfilment->id], '')
-            : null;
+        $hardwareLive = null;
+        if ($user !== null) {
+            $scope = $this->hardwareWorkspace->resolveScope($request);
+            $filter = $this->hardwareWorkspace->resolveFilter($request, $scope);
+            $search = trim((string) $request->query('q', $request->input('q', '')));
+            $range = $this->hardwareWorkspace->range($request);
+            $hardwareLive = $this->hardwareLive->livePayload(
+                $user,
+                [(int) $fulfilment->id],
+                $scope,
+                $filter,
+                $search,
+                $range['from'],
+                $range['to'],
+            );
+        }
 
         return response()->json([
             'ok' => true,

@@ -105,12 +105,16 @@ class LiveProductionOverlayRegressionTest extends TestCase
     public function hardware_live_service_uses_workspace_scope_enum_not_string_queue(): void
     {
         $source = file_get_contents(base_path('app/Services/HardwareFulfilment/HardwareDashboardLiveService.php'));
+        $serialController = file_get_contents(base_path('app/Http/Controllers/Inventory/HardwareFulfilmentSerialController.php'));
 
         $this->assertIsString($source);
+        $this->assertIsString($serialController);
         $this->assertStringContainsString('HardwareWorkspaceScope $scope', $source);
         $this->assertStringContainsString('HardwareWorkspaceFilter $filter', $source);
         $this->assertStringContainsString('scope_counts', $source);
         $this->assertStringContainsString('filter_counts', $source);
+        $this->assertStringContainsString('resolveScope($request)', $serialController);
+        $this->assertStringNotContainsString("livePayload(\$user, [(int) \$fulfilment->id], '')", $serialController);
     }
 
     #[Test]

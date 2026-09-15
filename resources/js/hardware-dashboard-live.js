@@ -97,7 +97,11 @@ export const applyHardwareLivePayload = (payload) => {
         }
 
         if (existing) {
-            existing.replaceWith(next);
+            if (rowMatchesActiveView(row)) {
+                existing.replaceWith(next);
+            } else {
+                existing.remove();
+            }
         } else if (rowMatchesActiveView(row)) {
             body.prepend(next);
         }

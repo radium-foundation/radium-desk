@@ -54,20 +54,39 @@ describe('hardware dashboard live', () => {
             rows: [{
                 fulfilment_id: 11,
                 scope: 'active',
-                filter: 'pickup',
-                queue: 'pickup',
-                html: '<tr data-hardware-fulfilment-id="11" data-hardware-queue="pickup"><td class="dashboard-hardware-status">In Transit</td><td>View</td></tr>',
+                filter: 'ready',
+                queue: 'ready',
+                html: '<tr data-hardware-fulfilment-id="11" data-hardware-queue="ready"><td class="dashboard-hardware-status">Ready for Shipment</td><td>Create Shipment</td></tr>',
             }],
         });
 
-        expect(document.querySelector('[data-hardware-fulfilment-id="11"]')?.dataset.hardwareQueue).toBe('pickup');
-        expect(document.querySelector('[data-hardware-fulfilment-id="11"] .dashboard-hardware-status')?.textContent).toBe('In Transit');
+        expect(document.querySelector('[data-hardware-fulfilment-id="11"]')?.dataset.hardwareQueue).toBe('ready');
+        expect(document.querySelector('[data-hardware-fulfilment-id="11"] .dashboard-hardware-status')?.textContent).toBe('Ready for Shipment');
         expect(document.querySelector('[data-hardware-fulfilment-id="12"]')?.textContent).toContain('Stay');
         expect(document.querySelector('[data-hardware-scope-count="active"]')?.textContent).toBe('(2)');
         expect(document.querySelector('[data-hardware-filter-count="ready"]')?.textContent).toBe('(1)');
         expect(document.querySelector('[data-hardware-filter-count="pickup"]')?.textContent).toBe('(2)');
         expect(document.querySelector('[data-dashboard-case-filter-count="hardware"]')?.textContent).toBe('(2)');
         expect(reload).not.toHaveBeenCalled();
+    });
+
+    it('removes an existing row that no longer matches the active filter', () => {
+        applyHardwareLivePayload({
+            scope_counts: { active: 1 },
+            filter_counts: { ready: 1, pickup: 1 },
+            hardware_count: 1,
+            remove_fulfilment_ids: [],
+            rows: [{
+                fulfilment_id: 11,
+                scope: 'active',
+                filter: 'pickup',
+                queue: 'pickup',
+                html: '<tr data-hardware-fulfilment-id="11" data-hardware-queue="pickup"><td>Pickup</td></tr>',
+            }],
+        });
+
+        expect(document.querySelector('[data-hardware-fulfilment-id="11"]')).toBeNull();
+        expect(document.querySelector('[data-hardware-fulfilment-id="12"]')).not.toBeNull();
     });
 
     it('removes a row that left the active hardware filter', () => {

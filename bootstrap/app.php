@@ -254,7 +254,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $schedule->command('shipping:sync-shiprocket-tracking --limit=25')
             ->cron('2-59/5 * * * *')
-            ->when(fn (): bool => (bool) config('shipping.tracking.sync_enabled', true)
+            ->when(fn (): bool => (bool) config('shipping.tracking.sync_enabled', false)
                 && (bool) config('shipping.enabled')
                 && (string) config('shipping.provider') === 'shiprocket'
                 && (bool) config('shipping.http_enabled'))
