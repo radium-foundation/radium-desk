@@ -314,6 +314,8 @@ class HardwareShipmentEligibility
             pickupRequestedAt: $shipment?->pickup_requested_at?->timezone((string) config('app.timezone'))->format('Y-m-d H:i'),
             volumetricWeight: $this->formatVolumetric($parcel),
             actualWeight: $parcel !== null ? number_format($parcel['weight'], 2, '.', '').' kg' : null,
+            providerTrackStatus: filled($shipment?->provider_track_status) ? (string) $shipment->provider_track_status : null,
+            providerTrackNormalized: filled($shipment?->provider_track_normalized) ? (string) $shipment->provider_track_normalized : null,
         );
     }
 

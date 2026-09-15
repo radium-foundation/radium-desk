@@ -252,6 +252,15 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/cashfree-auto-recover.log'));
 
+        $schedule->command('shipping:sync-shiprocket-tracking --limit=25')
+            ->cron('2-59/5 * * * *')
+            ->when(fn (): bool => (bool) config('shipping.tracking.sync_enabled', true)
+                && (bool) config('shipping.enabled')
+                && (string) config('shipping.provider') === 'shiprocket'
+                && (bool) config('shipping.http_enabled'))
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_five_minutes', 5)))
+            ->appendOutputTo(storage_path('logs/shiprocket-tracking-sync.log'));
+
         // Legacy backfill remains available for manual/admin use.
         // $schedule->command('radiumbox:backfill-orders --limit=50')
         //     ->hourly()

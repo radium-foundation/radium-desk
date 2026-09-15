@@ -38,15 +38,16 @@ enum HardwareDashboardQueue: string
             return self::Exceptions;
         }
 
-        if ($stage === HardwareFulfilmentOperationalStage::Completed) {
-            return $packagePhotoRecorded ? self::Completed : self::Ready;
-        }
-
         if (in_array($stage, [
             HardwareFulfilmentOperationalStage::PickupManifestPending,
             HardwareFulfilmentOperationalStage::ReadyForPickup,
+            HardwareFulfilmentOperationalStage::InTransit,
         ], true)) {
             return self::Pickup;
+        }
+
+        if ($stage === HardwareFulfilmentOperationalStage::Completed) {
+            return $packagePhotoRecorded ? self::Completed : self::Ready;
         }
 
         return self::Ready;

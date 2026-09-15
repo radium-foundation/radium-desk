@@ -6,6 +6,7 @@ use App\Enums\HardwareAwaitingFulfilmentReason;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
+use App\Enums\ShiprocketTrackNormalized;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
@@ -317,6 +318,16 @@ final class HardwareFulfilmentOperationalClassifier
 
         if (! filled($ready->awb)) {
             return [HardwareFulfilmentOperationalStage::AwbPending, 'Assign AWB', 'hardware-awb', 'AWB Pending'];
+        }
+
+        $track = ShiprocketTrackNormalized::tryFrom((string) ($ready->providerTrackNormalized ?? ''));
+        if (filled($ready->awb) && $track?->overridesReadyForPickup()) {
+            return [
+                HardwareFulfilmentOperationalStage::InTransit,
+                'View',
+                null,
+                $track->dashboardStatusLabel(),
+            ];
         }
 
         if ($ready->labelUrl === null) {
