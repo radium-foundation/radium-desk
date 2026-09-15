@@ -21,6 +21,11 @@ use Illuminate\Support\Collection;
  */
 final class HardwareFulfilmentWorkQueue
 {
+    /**
+     * @var array<string, Collection<int, HardwareFulfilmentOperationalRow>>
+     */
+    private array $allRowsCache = [];
+
     public function __construct(
         private readonly HardwareAwaitingFulfilmentQueue $awaiting,
         private readonly HardwareShipmentEligibility $eligibility,
@@ -104,7 +109,9 @@ final class HardwareFulfilmentWorkQueue
      */
     public function workspaceTotal(Carbon $fromIst, Carbon $toIst): int
     {
-        return $this->allRows($fromIst, $toIst, '', '')->count();
+        return HardwareFulfilment::query()->count()
+            + $this->awaiting->workCandidateCount($fromIst, $toIst)
+            + $this->windowedRinOrderCount($fromIst, $toIst);
     }
 
     /**
@@ -153,8 +160,28 @@ final class HardwareFulfilmentWorkQueue
      */
     private function allRows(Carbon $fromIst, Carbon $toIst, string $orderSearch, string $payment): Collection
     {
+        $cacheKey = $fromIst->toIso8601String().'|'.$toIst->toIso8601String().'|'.$orderSearch.'|'.$payment;
+
+        return $this->allRowsCache[$cacheKey] ??= $this->buildAllRows($fromIst, $toIst, $orderSearch, $payment);
+    }
+
+    /**
+     * @return Collection<int, HardwareFulfilmentOperationalRow>
+     */
+    private function buildAllRows(Carbon $fromIst, Carbon $toIst, string $orderSearch, string $payment): Collection
+    {
         $fulfilments = HardwareFulfilment::query()
-            ->with(['commerceOrder.items', 'supportOrder', 'serials.inventorySerial', 'fulfilmentBranch', 'shipment', 'packageEvidences'])
+            ->with([
+                'commerceOrder.items',
+                'commerceOrder.statutoryInvoice',
+                'statutoryInvoice',
+                'supportOrder',
+                'serials.inventorySerial.branch',
+                'serials.inventorySerial.product.packaging',
+                'fulfilmentBranch',
+                'shipment',
+                'packageEvidences',
+            ])
             ->orderByDesc('id')
             ->get()
             ->map(function (HardwareFulfilment $fulfilment) {
@@ -208,17 +235,35 @@ final class HardwareFulfilmentWorkQueue
     {
         $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
         $toBound = HardwareFulfilmentEligibility::createdAtSqlBound($toIst);
-        $sourceIds = HardwareFulfilment::query()->pluck('source_id')->filter()->all();
 
         return Order::query()
             ->where('order_id', 'like', 'RIN%')
             ->where('created_at', '>=', $fromBound)
             ->where('created_at', '<=', $toBound)
-            ->when($sourceIds !== [], static function ($query) use ($sourceIds): void {
-                $query->whereNotIn('order_id', $sourceIds);
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('hardware_fulfilments')
+                    ->whereColumn('hardware_fulfilments.source_id', 'orders.order_id');
             })
             ->orderByDesc('id')
             ->get();
+    }
+
+    private function windowedRinOrderCount(Carbon $fromIst, Carbon $toIst): int
+    {
+        $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
+        $toBound = HardwareFulfilmentEligibility::createdAtSqlBound($toIst);
+
+        return Order::query()
+            ->where('order_id', 'like', 'RIN%')
+            ->where('created_at', '>=', $fromBound)
+            ->where('created_at', '<=', $toBound)
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('hardware_fulfilments')
+                    ->whereColumn('hardware_fulfilments.source_id', 'orders.order_id');
+            })
+            ->count();
     }
 
     /**
