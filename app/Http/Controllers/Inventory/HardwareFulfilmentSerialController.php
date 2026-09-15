@@ -30,9 +30,12 @@ use App\Models\Incident;
 use App\Models\InventoryBranch;
 use App\Models\Order;
 use App\Models\Shipment;
+use App\Services\DashboardBroadcastService;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentStepper;
 use App\Services\HardwareFulfilment\HardwareAwaitingFulfilmentQueue;
+use App\Services\HardwareFulfilment\HardwareDashboardLiveService;
+use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
 use App\Services\HardwareFulfilment\HardwareFulfilmentCountryCorrectionService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
@@ -74,6 +77,9 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentOperationalClassifier $operationalClassifier,
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly HardwareFulfilmentIsolatedWorkflowService $isolated,
+        private readonly DashboardBroadcastService $dashboardBroadcast,
+        private readonly HardwareDashboardLiveService $hardwareLive,
+        private readonly HardwareDashboardWorkspace $hardwareWorkspace,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -665,6 +671,8 @@ class HardwareFulfilmentSerialController extends Controller
 
     private function mutationResponse(Request $request, HardwareFulfilment $fulfilment, string $status): RedirectResponse|JsonResponse
     {
+        $this->dashboardBroadcast->hardwareFulfilmentUpdated($fulfilment, $request->user());
+
         if (! $request->wantsJson()) {
             return redirect()
                 ->route('inventory.hardware-fulfilments.show', $fulfilment)
@@ -682,6 +690,23 @@ class HardwareFulfilmentSerialController extends Controller
         $ready = $this->shipmentEligibility->inspect($fulfilment);
         $row = $this->operationalClassifier->fromFulfilment($fulfilment, $ready);
         $incidentId = $this->incidentIdFor($fulfilment);
+        $user = $request->user();
+        $hardwareLive = null;
+        if ($user !== null) {
+            $scope = $this->hardwareWorkspace->resolveScope($request);
+            $filter = $this->hardwareWorkspace->resolveFilter($request, $scope);
+            $search = trim((string) $request->query('q', $request->input('q', '')));
+            $range = $this->hardwareWorkspace->range($request);
+            $hardwareLive = $this->hardwareLive->livePayload(
+                $user,
+                [(int) $fulfilment->id],
+                $scope,
+                $filter,
+                $search,
+                $range['from'],
+                $range['to'],
+            );
+        }
 
         return response()->json([
             'ok' => true,
@@ -695,6 +720,7 @@ class HardwareFulfilmentSerialController extends Controller
                 ? route('inventory.hardware-fulfilments.action-dialog', $fulfilment)
                 : null,
             'manifest_url' => $ready->manifestUrl,
+            'hardware_live' => $hardwareLive,
         ]);
     }
 

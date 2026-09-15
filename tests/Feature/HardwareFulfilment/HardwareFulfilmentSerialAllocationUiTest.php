@@ -6,6 +6,7 @@ use App\Enums\HardwareFulfilmentState;
 use App\Enums\InventorySerialStatus;
 use App\Enums\OutboxEventStatus;
 use App\Enums\StatutoryInvoiceChannel;
+use App\Events\Dashboard\HardwareFulfilmentsUpdated;
 use App\Models\ChannelSkuMap;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentSerial;
@@ -23,6 +24,7 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\Inventory\InventoryStockService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -315,6 +317,50 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ->first();
         $this->assertTrue($callback === null || $callback->status === OutboxEventStatus::Pending);
         $this->assertTrue($callback === null || (int) $callback->attempts === 0);
+    }
+
+    public function test_successful_json_allocation_publishes_hardware_ably_event(): void
+    {
+        Event::fake([HardwareFulfilmentsUpdated::class]);
+        $viewer = User::factory()->create(['is_active' => true]);
+        $viewer->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $fulfilment = $this->readyFulfilment('RDE900830');
+        $this->stockAt('DELHI-RETAIL', ['SN-UI-830']);
+
+        $this->actingAs($this->operator)
+            ->postJson(route('inventory.hardware-fulfilments.serials.store', $fulfilment), [
+                'serials' => [$this->itemId($fulfilment) => ['SN-UI-830']],
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('hardware_live.rows.0.fulfilment_id', (int) $fulfilment->id);
+
+        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
+        Event::assertDispatched(HardwareFulfilmentsUpdated::class, function (HardwareFulfilmentsUpdated $event) use ($viewer, $fulfilment): bool {
+            return $event->recipient->is($viewer)
+                && $event->broadcastWith()['fulfilment_ids'] === [(int) $fulfilment->id];
+        });
+    }
+
+    public function test_failed_allocation_does_not_publish_hardware_ably_event(): void
+    {
+        Event::fake([HardwareFulfilmentsUpdated::class]);
+        User::factory()->create(['is_active' => true])->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $fulfilment = $this->readyFulfilment('RDE900831');
+        $this->stockAt('DELHI-RETAIL', ['SN-UI-831']);
+
+        $this->actingAs($this->operator)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.serials.store', $fulfilment), [
+                'serials' => [$this->itemId($fulfilment) => []],
+            ])
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors();
+
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->fresh()->state);
+        Event::assertNotDispatched(HardwareFulfilmentsUpdated::class);
     }
 
     public function test_quantity_must_match_exactly(): void

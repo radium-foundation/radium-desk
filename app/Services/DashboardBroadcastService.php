@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Events\Dashboard\DashboardBroadcastEvent;
 use App\Events\Dashboard\DashboardKpisUpdated;
+use App\Events\Dashboard\HardwareFulfilmentsUpdated;
 use App\Events\Dashboard\HybridIncidentsUpdated;
 use App\Events\Dashboard\NotificationCreated;
 use App\Events\Dashboard\ReferenceNumbersUpdated;
@@ -12,6 +14,7 @@ use App\Events\Dashboard\ServiceCasesAssigned;
 use App\Events\Dashboard\ServiceCasesClosed;
 use App\Events\Dashboard\ServiceCasesResolved;
 use App\Events\Dashboard\SlaStatusChanged;
+use App\Models\HardwareFulfilment;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Dashboard\DashboardLiveRowVisibilityService;
@@ -412,6 +415,47 @@ class DashboardBroadcastService
         });
     }
 
+    public function hardwareFulfilmentUpdated(HardwareFulfilment $fulfilment, ?User $actor = null): void
+    {
+        $this->runAfterDatabaseCommit(function () use ($fulfilment): void {
+            $fresh = HardwareFulfilment::query()->find($fulfilment->id);
+            if ($fresh === null) {
+                return;
+            }
+
+            $updatedAt = optional($fresh->updated_at)?->toIso8601String() ?? now()->toIso8601String();
+            $payload = [[
+                'fulfilment_id' => (int) $fresh->id,
+                'source_id' => (string) $fresh->source_id,
+                'incident_id' => $this->latestIncidentIdForSupportOrder($fresh->support_order_id),
+                'queue' => 'hardware',
+                'status' => (string) ($fresh->state?->value ?? ''),
+                'next_action' => '',
+                'updated_at' => $updatedAt,
+            ]];
+
+            // Include the actor: Hardware live-updates are off for service-case merge,
+            // and the operator may have the Dashboard open in another tab/window.
+            foreach ($this->recipientsExcept(null) as $recipient) {
+                broadcast(new HardwareFulfilmentsUpdated(
+                    recipient: $recipient,
+                    fulfilments: $payload,
+                ));
+            }
+        });
+    }
+
+    private function latestIncidentIdForSupportOrder(mixed $supportOrderId): ?int
+    {
+        if ($supportOrderId === null) {
+            return null;
+        }
+
+        $id = Incident::query()->where('order_id', $supportOrderId)->max('id');
+
+        return $id !== null ? (int) $id : null;
+    }
+
     public function kpisUpdated(?User $actor = null): void
     {
         if ($this->coalesceKpiRefresh) {
@@ -546,7 +590,7 @@ class DashboardBroadcastService
     }
 
     /**
-     * @param  class-string<\App\Events\Dashboard\DashboardBroadcastEvent>  $eventClass
+     * @param  class-string<DashboardBroadcastEvent>  $eventClass
      */
     private function broadcastRowUpdate(
         Incident $incident,

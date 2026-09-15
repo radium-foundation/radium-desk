@@ -14,6 +14,7 @@ use App\Models\StatutoryInvoice;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentCourierQuote;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
 use App\Services\Shipping\NullShiprocketGateway;
+use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Validation\ValidationException;
 
@@ -314,6 +315,8 @@ class HardwareShipmentEligibility
             pickupRequestedAt: $shipment?->pickup_requested_at?->timezone((string) config('app.timezone'))->format('Y-m-d H:i'),
             volumetricWeight: $this->formatVolumetric($parcel),
             actualWeight: $parcel !== null ? number_format($parcel['weight'], 2, '.', '').' kg' : null,
+            providerTrackStatus: filled($shipment?->provider_track_status) ? (string) $shipment->provider_track_status : null,
+            providerTrackNormalized: filled($shipment?->provider_track_normalized) ? (string) $shipment->provider_track_normalized : null,
         );
     }
 
@@ -745,9 +748,9 @@ class HardwareShipmentEligibility
 
         foreach ($order->items as $item) {
             if (HardwareFulfilmentEligibility::isPhysicalCommerceItem($item)) {
-                return trim((string) $item->description) !== ''
-                    ? trim((string) $item->description)
-                    : (string) ($item->sku ?: $item->catalog_sku);
+                $label = HardwareConfigurableVariantDisplay::label($item);
+
+                return $label !== '' ? $label : null;
             }
         }
 
