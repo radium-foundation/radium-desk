@@ -83,41 +83,57 @@ describe('initCustomer360Cockpit', () => {
     };
 
     it('copies with Command+C and does not start an outbound call', () => {
-        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response());
         const { api, callClick } = setupCockpitWithCallLink();
+        const fetchCalls = [];
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = (...args) => {
+            fetchCalls.push(args);
+            return originalFetch?.(...args);
+        };
 
-        const event = new KeyboardEvent('keydown', {
-            key: 'c',
-            metaKey: true,
-            bubbles: true,
-            cancelable: true,
-        });
-        document.dispatchEvent(event);
+        try {
+            const event = new KeyboardEvent('keydown', {
+                key: 'c',
+                metaKey: true,
+                bubbles: true,
+                cancelable: true,
+            });
+            document.dispatchEvent(event);
 
-        expect(event.defaultPrevented).toBe(false);
-        expect(callClick).not.toHaveBeenCalled();
-        expect(fetchSpy).not.toHaveBeenCalled();
-
-        api?.destroy();
+            expect(event.defaultPrevented).toBe(false);
+            expect(callClick).not.toHaveBeenCalled();
+            expect(fetchCalls).toEqual([]);
+        } finally {
+            globalThis.fetch = originalFetch;
+            api?.destroy();
+        }
     });
 
     it('copies with Ctrl+C and does not start an outbound call', () => {
-        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response());
         const { api, callClick } = setupCockpitWithCallLink();
+        const fetchCalls = [];
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = (...args) => {
+            fetchCalls.push(args);
+            return originalFetch?.(...args);
+        };
 
-        const event = new KeyboardEvent('keydown', {
-            key: 'c',
-            ctrlKey: true,
-            bubbles: true,
-            cancelable: true,
-        });
-        document.dispatchEvent(event);
+        try {
+            const event = new KeyboardEvent('keydown', {
+                key: 'c',
+                ctrlKey: true,
+                bubbles: true,
+                cancelable: true,
+            });
+            document.dispatchEvent(event);
 
-        expect(event.defaultPrevented).toBe(false);
-        expect(callClick).not.toHaveBeenCalled();
-        expect(fetchSpy).not.toHaveBeenCalled();
-
-        api?.destroy();
+            expect(event.defaultPrevented).toBe(false);
+            expect(callClick).not.toHaveBeenCalled();
+            expect(fetchCalls).toEqual([]);
+        } finally {
+            globalThis.fetch = originalFetch;
+            api?.destroy();
+        }
     });
 
     it('does not intercept copy while text is selected in a typing target', () => {
