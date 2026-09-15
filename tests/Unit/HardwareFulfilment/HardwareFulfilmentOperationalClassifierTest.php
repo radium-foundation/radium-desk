@@ -132,6 +132,56 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertNotSame('Record Packing', $row->nextAction);
     }
 
+    public function test_verified_in_transit_overrides_stale_ready_for_pickup(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971040', HardwareFulfilmentState::AwbAssigned);
+        $ready = $this->readiness([
+            'alreadyCreated' => true,
+            'invoice' => 'INV-1',
+            'serials' => ['10532319'],
+            'awb' => 'AWB1',
+            'labelUrl' => '/label.pdf',
+            'pickupStatus' => 'Requested',
+            'manifestStatus' => 'Available',
+            'readyForPickup' => true,
+            'packageBeforeLabelRecorded' => true,
+            'packageLabelAppliedRecorded' => true,
+            'providerTrackStatus' => 'in_transit',
+            'providerTrackNormalized' => 'in_transit',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame(HardwareFulfilmentOperationalStage::InTransit, $row->stage);
+        $this->assertSame('In Transit', $row->operatorStatus());
+        $this->assertSame('View', $row->nextAction);
+        $this->assertSame(HardwareDashboardQueue::Pickup, $row->dashboardQueue());
+        $this->assertNotSame('Ready for Pickup', $row->operatorStatus());
+    }
+
+    public function test_unmapped_provider_status_does_not_override_ready_for_pickup(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971041', HardwareFulfilmentState::AwbAssigned);
+        $ready = $this->readiness([
+            'alreadyCreated' => true,
+            'invoice' => 'INV-1',
+            'serials' => ['10532319'],
+            'awb' => 'AWB1',
+            'labelUrl' => '/label.pdf',
+            'pickupStatus' => 'Requested',
+            'manifestStatus' => 'Available',
+            'readyForPickup' => true,
+            'packageBeforeLabelRecorded' => true,
+            'packageLabelAppliedRecorded' => true,
+            'providerTrackStatus' => 'some_unmapped_status',
+            'providerTrackNormalized' => 'unknown',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame(HardwareFulfilmentOperationalStage::ReadyForPickup, $row->stage);
+        $this->assertSame('Ready for Pickup', $row->operatorStatus());
+        $this->assertSame(HardwareDashboardQueue::Pickup, $row->dashboardQueue());
+    }
+
     public function test_shipped_without_package_photo_stays_open_for_evidence(): void
     {
         $fulfilment = $this->fulfilment('RDE971004', HardwareFulfilmentState::Shipped);
@@ -627,6 +677,9 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
             packageLabelAppliedRecorded: $overrides['packageLabelAppliedRecorded'] ?? false,
             canAttachMeasuredParcel: (bool) ($overrides['canAttachMeasuredParcel'] ?? false),
             providerRejection: $overrides['providerRejection'] ?? null,
+            readyForPickup: (bool) ($overrides['readyForPickup'] ?? false),
+            providerTrackStatus: $overrides['providerTrackStatus'] ?? null,
+            providerTrackNormalized: $overrides['providerTrackNormalized'] ?? null,
         );
     }
 
