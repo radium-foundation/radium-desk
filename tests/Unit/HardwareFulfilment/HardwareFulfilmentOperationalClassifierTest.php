@@ -528,6 +528,64 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertSame('Product mapping required', $row->operatorStatus());
     }
 
+    public function test_combined_precision_listing_with_unmapped_model_stays_mapping_required_even_when_similar_sku_has_stock(): void
+    {
+        $listing = 'Precision Biometrics PB 510 / PB1000 L1 F';
+        $fulfilment = $this->fulfilment(
+            'RBP971062',
+            HardwareFulfilmentState::ReadyForFulfilment,
+            eligible: true,
+            modelId: 1003,
+            description: $listing,
+        );
+        InventoryProduct::query()->create([
+            'sku' => 'RBPB1000L1',
+            'name' => 'PB 1000 L1',
+            'hsn_code' => '84716090',
+            'gst_percentage' => 18,
+            'unit_price' => 3727.97,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        $this->assertSame(0, ChannelSkuMap::query()->where('model_id', 1003)->count());
+
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'serials' => [],
+            'invoice' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment(
+            $fulfilment->fresh(['commerceOrder.items', 'supportOrder']),
+            $ready,
+        );
+
+        $this->assertSame($listing.' · 1 Q', $row->productDisplay());
+        $this->assertFalse($row->productMissing);
+        $this->assertSame('Product mapping required', $row->operatorStatus());
+        $this->assertSame('View', $row->nextAction);
+        $this->assertNotSame('Allocate Serial', $row->nextAction);
+        $this->assertFalse($row->mutatingAction);
+        $this->assertStringContainsString('Owner-approved channel SKU map is missing', (string) $row->blocker);
+    }
+
+    public function test_awaiting_unmapped_physical_line_is_product_mapping_required_not_review(): void
+    {
+        $listing = 'Precision Biometrics PB 510 / PB1000 L1 F';
+        $support = $this->order('RBP971063', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+            'product_name' => $listing,
+        ]);
+        $commerce = $this->paidHardwareCommerce($support, 'RBP971063', 1003, $listing);
+
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromAwaiting($support, $commerce);
+
+        $this->assertSame($listing.' · 1 Q', $row->productDisplay());
+        $this->assertSame('Product mapping required', $row->operatorStatus());
+        $this->assertSame('View', $row->nextAction);
+        $this->assertFalse($row->mutatingAction);
+    }
+
     public function test_ready_with_sku_map_still_allocates_serial(): void
     {
         $fulfilment = $this->fulfilment('RDE971043', HardwareFulfilmentState::ReadyForFulfilment, eligible: true);
@@ -558,7 +616,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertTrue($row->mutatingAction);
     }
 
-    private function paidHardwareCommerce(Order $support, string $sourceId, int $modelId): CommerceOrder
+    private function paidHardwareCommerce(Order $support, string $sourceId, int $modelId, string $description = ''): CommerceOrder
     {
         $commerce = CommerceOrder::query()->create([
             'order_no' => 'CO-'.$sourceId,
@@ -583,7 +641,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
             'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
             'requires_shipping' => true,
             'model_id' => $modelId,
-            'description' => 'Hardware '.$modelId,
+            'description' => $description !== '' ? $description : 'Hardware '.$modelId,
             'qty' => 1,
             'unit_price' => 1000,
             'gst_percentage' => 18,
@@ -654,8 +712,13 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         return $order->fresh();
     }
 
-    private function fulfilment(string $sourceId, HardwareFulfilmentState $state, bool $eligible = false): HardwareFulfilment
-    {
+    private function fulfilment(
+        string $sourceId,
+        HardwareFulfilmentState $state,
+        bool $eligible = false,
+        int $modelId = 951,
+        string $description = 'MSO1300',
+    ): HardwareFulfilment {
         $order = $this->order($sourceId, [
             'cashfree_payment_id' => 'paid',
             'created_at' => '2026-09-07 10:00:00',
@@ -680,11 +743,11 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
             CommerceOrderItem::query()->create([
                 'commerce_order_id' => $commerce->id,
                 'line_no' => 1,
-                'sku' => '951',
+                'sku' => (string) $modelId,
                 'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
                 'requires_shipping' => true,
-                'model_id' => 951,
-                'description' => 'MSO1300',
+                'model_id' => $modelId,
+                'description' => $description,
                 'qty' => 1,
                 'unit_price' => 3049,
                 'gst_percentage' => 18,
