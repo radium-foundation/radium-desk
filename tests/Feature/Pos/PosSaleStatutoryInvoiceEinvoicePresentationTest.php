@@ -37,6 +37,7 @@ class PosSaleStatutoryInvoiceEinvoicePresentationTest extends TestCase
 
         Storage::fake('local');
         Http::fake();
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
         $this->seed(FinanceMasterDataSeeder::class);
         $this->configureLocationSellerIdentity();
