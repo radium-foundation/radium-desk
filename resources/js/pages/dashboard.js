@@ -10,6 +10,7 @@ import { initDashboardKpiActions } from '../dashboard-kpi';
 import { initViewOnlyMetricRefresh } from '../dashboard-live-counts';
 import { initOperationsWorkspaceSoftSwitch } from '../dashboard-operations-workspace';
 import { initHardwareDashboardSelection } from '../hardware-dashboard-selection';
+import { applyHardwareLivePayload } from '../hardware-dashboard-live';
 import { initServiceCasePaginationState } from '../dashboard-service-case-state';
 import { createServiceCaseRowReplacer } from '../service-case-row';
 import { initTooltips } from '../tooltips';
@@ -406,6 +407,9 @@ export const bootDashboard = () => {
         clearQuickFilter: () => dashboardQuickFilter?.clearFilter?.(),
     });
     initHardwareDashboardSelection(pageRoot);
+    document.addEventListener('hardware-dashboard:updated', (event) => {
+        applyHardwareLivePayload(event.detail);
+    });
 
     initDashboardLoadMore({
         pageRoot,

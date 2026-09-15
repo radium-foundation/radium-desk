@@ -7,6 +7,7 @@ use App\Services\Dashboard\DashboardLiveRowVisibilityService;
 use App\Services\Dashboard\OperationsWorkspaceResolver;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
+use App\Services\HardwareFulfilment\HardwareDashboardLiveService;
 use App\Services\Operations\OperationsRoleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,34 @@ class DashboardLiveController extends Controller
         private readonly DashboardPersonalizationService $dashboardPersonalization,
         private readonly OperationsWorkspaceResolver $operationsWorkspace,
         private readonly DashboardLiveRowVisibilityService $liveRowVisibility,
+        private readonly HardwareDashboardLiveService $hardwareLive,
     ) {}
+
+    public function hardware(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user->can('incidents.view')) {
+            return response()->json([
+                'rows' => [],
+                'remove_fulfilment_ids' => [],
+                'counts' => [],
+                'hardware_count' => 0,
+            ]);
+        }
+
+        $ids = collect($request->query('ids', $request->input('ids', [])))
+            ->filter(fn ($id): bool => is_numeric($id))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->take(self::LIVE_ROWS_MAX_IDS)
+            ->all();
+
+        $hwQueue = trim((string) $request->query('hw_queue', $request->input('hw_queue', '')));
+
+        return response()->json($this->hardwareLive->livePayload($user, $ids, $hwQueue));
+    }
 
     public function rows(Request $request): JsonResponse
     {
@@ -226,4 +254,3 @@ class DashboardLiveController extends Controller
         ]);
     }
 }
-
