@@ -32,28 +32,37 @@ class EInvoiceProductionBindingTest extends TestCase
 
     public function test_defaults_remain_null_gateway_worker_off_and_hardware_only(): void
     {
+        $this->app->forgetInstance(EInvoiceGateway::class);
         $this->assertFalse((bool) config('statutory_invoices.worker_may_mint'));
         $this->assertFalse((bool) config('statutory_invoices.auto_issue_on_pos_complete'));
         $this->assertSame('none', config('statutory_invoices.einvoice.provider'));
         $this->assertSame('hardware_only', config('statutory_invoices.einvoice.issuance_policy'));
         $this->assertSame(EInvoiceIssuancePolicyMode::HardwareOnly, app(EInvoiceIssuancePolicy::class)->mode());
-        $this->assertInstanceOf(NullEInvoiceGateway::class, app(EInvoiceGateway::class));
+        $gateway = app(EInvoiceGateway::class);
+        $this->assertInstanceOf(NullEInvoiceGateway::class, $gateway);
+        $this->assertSame('none', $gateway->provider());
         Http::assertNothingSent();
     }
 
     public function test_whitebooks_gateway_binds_when_provider_is_whitebooks(): void
     {
         config(['statutory_invoices.einvoice.provider' => 'whitebooks']);
+        $this->app->forgetInstance(EInvoiceGateway::class);
 
-        $this->assertInstanceOf(WhitebooksEInvoiceGateway::class, app(EInvoiceGateway::class));
+        $gateway = app(EInvoiceGateway::class);
+        $this->assertInstanceOf(WhitebooksEInvoiceGateway::class, $gateway);
+        $this->assertSame('whitebooks', $gateway->provider());
         Http::assertNothingSent();
     }
 
     public function test_non_whitebooks_provider_stays_on_null_gateway(): void
     {
         config(['statutory_invoices.einvoice.provider' => 'nic']);
+        $this->app->forgetInstance(EInvoiceGateway::class);
 
-        $this->assertInstanceOf(NullEInvoiceGateway::class, app(EInvoiceGateway::class));
+        $gateway = app(EInvoiceGateway::class);
+        $this->assertInstanceOf(NullEInvoiceGateway::class, $gateway);
+        $this->assertSame('none', $gateway->provider());
         Http::assertNothingSent();
     }
 

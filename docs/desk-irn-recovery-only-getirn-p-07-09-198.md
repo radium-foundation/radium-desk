@@ -31,3 +31,13 @@ One inline P-194 Get-IRN (auth 1 + Get-IRN 1). GENERATE 0. Cancel 0. DB writes 0
 | e_invoice_records | 1 row, status `submitted`, IRN/updated_at unchanged |
 
 Provider `none`. Null gateway. Worker false. Auto-issue false.
+
+## Skipped `provider_disabled` recovery (P-07-09-286)
+
+If `e_invoice_records.status=skipped` and `response_payload.skip_reason=provider_disabled`, the worker never called IRP. After restoring the WhiteBooks bind:
+
+1. Confirm runtime `EInvoiceGateway` is `WhitebooksEInvoiceGateway` and `provider()` is `whitebooks`.
+2. `desk:einvoice-backfill --from=<issued date> --invoice={id} --recover` — Get-IRN only.
+3. If an IRN exists: reconcile locally; do not GENERATE.
+4. If Get-IRN is `irn_not_found` and the invoice is still eligible/ready: one `--recover --generate`.
+5. Ambiguous/timeout: STOP. No second GENERATE. No payment/journal edits.

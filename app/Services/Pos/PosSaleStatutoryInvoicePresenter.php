@@ -3,6 +3,7 @@
 namespace App\Services\Pos;
 
 use App\Enums\EInvoiceRecordStatus;
+use App\Models\EInvoiceRecord;
 use App\Models\InventorySale;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
@@ -116,11 +117,15 @@ final class PosSaleStatutoryInvoicePresenter
             return $this->blockedPresentation([$providerReason]);
         }
 
-        $status = $record?->status;
-        if ($status === EInvoiceRecordStatus::Failed
-            || $status === EInvoiceRecordStatus::PermanentFailure
-            || $status === EInvoiceRecordStatus::Ambiguous
-            || $status === EInvoiceRecordStatus::IrnNotFound) {
+        $status = $this->storedStatus($record);
+        $skipReason = $this->storedSkipReason($record);
+
+        if (in_array($status, [
+            EInvoiceRecordStatus::Failed->value,
+            EInvoiceRecordStatus::PermanentFailure->value,
+            EInvoiceRecordStatus::Ambiguous->value,
+            EInvoiceRecordStatus::IrnNotFound->value,
+        ], true)) {
             return [
                 'status_label' => 'e-Invoice not generated',
                 'tone' => 'danger',
@@ -132,7 +137,7 @@ final class PosSaleStatutoryInvoicePresenter
             ];
         }
 
-        if ($status === EInvoiceRecordStatus::TemporaryFailure) {
+        if ($status === EInvoiceRecordStatus::TemporaryFailure->value) {
             return [
                 'status_label' => 'e-Invoice pending',
                 'tone' => 'warning',
@@ -141,6 +146,30 @@ final class PosSaleStatutoryInvoicePresenter
                 'ack_date' => null,
                 'why' => 'The e-invoice provider was temporarily unavailable. The worker will retry without creating a duplicate GENERATE.',
                 'next_action' => 'Refresh this page shortly.',
+            ];
+        }
+
+        if ($this->isProviderDisabledSkip($status, $skipReason)) {
+            return [
+                'status_label' => 'e-Invoice not submitted',
+                'tone' => 'warning',
+                'irn' => null,
+                'ack_no' => null,
+                'ack_date' => null,
+                'why' => 'This B2B invoice was not sent for IRN because the e-invoice provider is disabled. It is not queued.',
+                'next_action' => 'Re-enable the e-invoice provider, then recover with Get-IRN first. Do not generate a second IRN.',
+            ];
+        }
+
+        if ($status === EInvoiceRecordStatus::Skipped->value) {
+            return [
+                'status_label' => 'e-Invoice not submitted',
+                'tone' => 'warning',
+                'irn' => null,
+                'ack_no' => null,
+                'ack_date' => null,
+                'why' => 'This B2B invoice was skipped and is not queued for IRN.',
+                'next_action' => 'Review the skip reason, then recover with Get-IRN first if the invoice is still eligible.',
             ];
         }
 
@@ -176,6 +205,41 @@ final class PosSaleStatutoryInvoicePresenter
             'why' => $presentation['why'],
             'next_action' => $presentation['next_action'],
         ];
+    }
+
+    private function isProviderDisabledSkip(?string $status, ?string $skipReason): bool
+    {
+        if ($status !== EInvoiceRecordStatus::Skipped->value) {
+            return false;
+        }
+
+        return in_array($skipReason, [
+            'provider_disabled',
+            'worker_may_mint_off',
+            'provider_http_disabled',
+        ], true);
+    }
+
+    private function storedStatus(?EInvoiceRecord $record): ?string
+    {
+        $status = $record?->status;
+        if ($status instanceof EInvoiceRecordStatus) {
+            return $status->value;
+        }
+
+        return is_string($status) && $status !== '' ? $status : null;
+    }
+
+    private function storedSkipReason(?EInvoiceRecord $record): ?string
+    {
+        $payloadReason = $record?->response_payload['skip_reason'] ?? null;
+        if (is_string($payloadReason) && $payloadReason !== '') {
+            return $payloadReason;
+        }
+
+        $column = $record?->getAttribute('skip_reason');
+
+        return is_string($column) && $column !== '' ? $column : null;
     }
 
     private function nullableTrim(mixed $value): ?string

@@ -118,3 +118,13 @@ E-invoice enablement subset 119 passed. Broader statutory 355/361; 3 failures ar
 3. Duplicate WhiteBooks GENERATE envelope still **UNKNOWN**.
 4. Five current submittable hardware rows remain skipped by design (no bulk requeue).
 5. Visual QR screenshot in a browser: **NO — Not performed** (PDF contains the signed-qr drawing operators; same renderer as P-204).
+
+## Overlay safety (P-07-09-286)
+
+Verified WhiteBooks production binding source: `feat/irn-foundation-phase-a` `AppServiceProvider` closure — bind `WhitebooksEInvoiceGateway` when `config('statutory_invoices.einvoice.provider') === 'whitebooks'`, else `NullEInvoiceGateway`. Method: `shouldBindWhitebooksEInvoiceGateway()`.
+
+**Do not overlay the IRN-branch `AppServiceProvider.php` wholesale onto production.** That file lacks main's `ConfirmRadiumBoxPaymentOnOrderPaid` (RBP94) and carries historical-search binds. Overlaying `origin/main`'s Null-only bind over the IRN WhiteBooks bind is what disabled GENERATE for INV-076792 (`provider_disabled`) while `.env` still said `STATUTORY_EINVOICE_PROVIDER=whitebooks`.
+
+Production restore: surgical hunks on the **live/main** `AppServiceProvider.php` only (import + bind closure + helper). Named-file overlay, not `deskd`.
+
+`provider_disabled` / skipped invoices are not a stuck queue. Outbox `claim()` treats Skipped as done. Recover with `desk:einvoice-backfill --invoice={id} --recover` (Get-IRN only). GENERATE only after Get-IRN confirms absence (`--recover --generate`). Do not retry the completed outbox. Do not SQL-insert an IRN.
