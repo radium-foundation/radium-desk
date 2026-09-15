@@ -13,7 +13,7 @@ class SyncShiprocketTrackingCommand extends Command
 {
     public function handle(HardwareShiprocketTrackingService $tracking): int
     {
-        if (! (bool) config('shipping.tracking.sync_enabled', true)) {
+        if (! (bool) config('shipping.tracking.sync_enabled', false)) {
             $this->line('Shiprocket tracking sync disabled.');
 
             return self::SUCCESS;
