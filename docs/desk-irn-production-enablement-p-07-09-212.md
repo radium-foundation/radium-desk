@@ -127,4 +127,18 @@ Verified WhiteBooks production binding source: `feat/irn-foundation-phase-a` `Ap
 
 Production restore: surgical hunks on the **live/main** `AppServiceProvider.php` only (import + bind closure + helper). Named-file overlay, not `deskd`.
 
+P-07-09-286 overlay (KVM8 `/var/www/radium-desk`):
+
+| File | SHA-256 after overlay |
+|---|---|
+| `app/Providers/AppServiceProvider.php` | `e8cb7b881736fcd1b10d4478ba2e7ca590a4fe10309da8909a653183cc49608e` |
+| `app/Services/Pos/PosSaleStatutoryInvoicePresenter.php` | `4f47e8e9102d34cb023073a2dcab1b6269c96e837b7e7d197dacaa63ec7d60a3` |
+
+Backup: `/var/backups/radium-desk/overlays/p-07-09-286-20260915T080547Z`  
+Runtime after overlay: `WhitebooksEInvoiceGateway` / `provider()=whitebooks`. RBP94 `ConfirmRadiumBoxPaymentOnOrderPaid` retained. Queue worker restarted only.
+
+INV-076792 / 2280: Get-IRN `irn_not_found`, then one GENERATE `success`. IRN stored; PDF finalized with IRN/QR. Payment/sale/journal unchanged.
+
 `provider_disabled` / skipped invoices are not a stuck queue. Outbox `claim()` treats Skipped as done. Recover with `desk:einvoice-backfill --invoice={id} --recover` (Get-IRN only). GENERATE only after Get-IRN confirms absence (`--recover --generate`). Do not retry the completed outbox. Do not SQL-insert an IRN.
+
+Remaining risk: overlaying unmodified `origin/main` `AppServiceProvider.php` will bind `NullEInvoiceGateway` again. Do not land this bind on main until WhiteBooks classes exist there.
