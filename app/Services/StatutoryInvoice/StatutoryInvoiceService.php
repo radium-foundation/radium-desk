@@ -11,13 +11,19 @@ use App\Enums\StatutoryInvoiceStatus;
 use App\Models\CommerceOrder;
 use App\Models\EInvoiceRecord;
 use App\Models\FinanceJournal;
+use App\Models\InventoryProduct;
 use App\Models\InventorySale;
 use App\Models\Order;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
+use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
+use App\Support\Finance\GstStateCodes;
+use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
+use App\Support\StatutoryInvoice\InvoiceRoundOff;
+use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -39,6 +45,11 @@ class StatutoryInvoiceService
         private readonly StatutoryLocationSeries $locations,
         private readonly GstSplitService $gstSplit,
         private readonly ServiceSacResolver $serviceSac,
+        private readonly HardwareCommerceStatutoryInvoiceGuard $hardwareCommerceInvoice,
+        private readonly EInvoiceUqcMapper $uqc,
+        private readonly ServiceStatutoryClassification $serviceStatutory,
+        private readonly PlaceOfSupplyResolver $placeOfSupply,
+        private readonly EInvoiceInputReadiness $inputReadiness,
     ) {}
 
     public function findBySource(
@@ -65,6 +76,8 @@ class StatutoryInvoiceService
         }
 
         $request = $this->applyServiceGstSplit($request);
+        $request = $this->applyPlaceOfSupplySnapshot($request);
+        $this->assertB2bInputReadinessForMint($request);
 
         try {
             return DB::transaction(function () use ($request, $actor): StatutoryInvoice {
@@ -74,6 +87,8 @@ class StatutoryInvoiceService
                 }
 
                 $request = $this->applyServiceGstSplit($request);
+                $request = $this->applyPlaceOfSupplySnapshot($request);
+                $this->assertB2bInputReadinessForMint($request);
 
                 $allocation = $this->numbering->allocate(
                     $request->idempotencyKey(),
@@ -114,14 +129,17 @@ class StatutoryInvoiceService
                     'buyer_phone' => $request->buyerPhone,
                     'buyer_gstin' => $request->buyerGstin,
                     'billing_address' => $request->billingAddress,
+                    'billing_address_structured' => $request->billingAddressStructured,
                     'place_of_supply_state' => $request->placeOfSupplyState,
+                    'place_of_supply_state_code' => $request->placeOfSupplyStateCode,
+                    'place_of_supply_source' => $request->placeOfSupplySource,
                     'taxable_value' => $totals['taxable_value'],
                     'discount' => $request->discount,
                     'tax_total' => $totals['tax_total'],
                     'cgst' => $totals['cgst'],
                     'sgst' => $totals['sgst'],
                     'igst' => $totals['igst'],
-                    'rounding' => 0,
+                    'rounding' => $totals['rounding'],
                     'invoice_value' => $totals['invoice_value'],
                     'payment_method' => $request->paymentMethod,
                     'payment_reference' => $request->paymentReference,
@@ -137,6 +155,7 @@ class StatutoryInvoiceService
                         'sku' => $line->sku,
                         'description' => $line->description,
                         'hsn_sac' => $line->hsnSac,
+                        'uqc' => $line->uqc,
                         'qty' => $line->qty,
                         'unit_price' => $line->unitPrice,
                         'discount' => $line->discount,
@@ -212,6 +231,15 @@ class StatutoryInvoiceService
                 discount: $discount,
                 sku: $line->variant?->sku ?? $line->product?->sku,
                 hsnSac: $line->product?->hsn_code,
+                uqc: $this->resolveLineUqc(
+                    StatutoryInvoiceChannel::DeskPos->value,
+                    $line->variant?->sku ?? $line->product?->sku,
+                    $line->catalogLabel(),
+                    $line->product?->hsn_code,
+                    null,
+                    $line->uqc,
+                    $line->product?->uqc,
+                ),
             );
         }
 
@@ -243,6 +271,7 @@ class StatutoryInvoiceService
             financialYearToken: $sale->completed_at !== null
                 ? StatutoryFinancialYear::containing($sale->completed_at)->token()
                 : null,
+            billingAddressStructured: StatutoryBillingStructured::fromStored($sale->billing_address_structured),
         ), $actor);
 
         $this->generateDocumentSafely($invoice);
@@ -253,8 +282,6 @@ class StatutoryInvoiceService
 
     public function issueFromCommerceOrder(CommerceOrder $order, ?User $actor = null): StatutoryInvoice
     {
-        $this->eligibility->assertOrderCanMint($order);
-
         $existing = $this->findBySource(
             $order->channel,
             StatutoryInvoiceSourceType::CommerceOrder,
@@ -268,14 +295,24 @@ class StatutoryInvoiceService
             return $existing->load(['items', 'allocation', 'document']);
         }
 
+        if ($this->hardwareCommerceInvoice->requiresHardwareSerialPath($order)) {
+            return $this->hardwareCommerceInvoice->issue($order, $actor);
+        }
+
+        $this->eligibility->assertOrderCanMint($order);
+
         $order->loadMissing('items');
+        $catalogUqc = $this->catalogUqcByProductId($order->items->pluck('product_id')->all());
         $lines = [];
         $resolvedHsns = [];
         foreach ($order->items as $line) {
             $hsnSac = $this->serviceSac->forCommerceItem($order, $line);
             $resolvedHsns[] = $hsnSac;
+            $productUqc = $line->product_id !== null
+                ? ($catalogUqc[$line->product_id] ?? null)
+                : null;
             $lines[] = new StatutoryInvoiceLineDraft(
-                description: (string) $line->description,
+                description: HardwareConfigurableVariantDisplay::invoiceDescription($line),
                 qty: (int) $line->qty,
                 unitPrice: (float) $line->unit_price,
                 gstPercentage: (float) $line->gst_percentage,
@@ -285,6 +322,16 @@ class StatutoryInvoiceService
                 discount: (float) ($line->discount ?? 0),
                 sku: $line->sku,
                 hsnSac: $hsnSac,
+                uqc: $this->resolveLineUqc(
+                    $order->channel->value,
+                    $line->sku,
+                    $line->description,
+                    $hsnSac,
+                    $line->amcid !== null ? (int) $line->amcid : null,
+                    $line->uqc,
+                    $productUqc,
+                    $line->shipping_line_kind,
+                ),
             );
         }
 
@@ -314,6 +361,7 @@ class StatutoryInvoiceService
             financialYearToken: $this->eligibility->commercialDate($order) !== null
                 ? StatutoryFinancialYear::containing($this->eligibility->commercialDate($order))->token()
                 : null,
+            billingAddressStructured: StatutoryBillingStructured::fromStored($order->billing_address_structured),
         ), $actor);
 
         $this->linkCommerceOrder($order, $invoice);
@@ -400,6 +448,26 @@ class StatutoryInvoiceService
         return $deskId !== null ? (int) $deskId : null;
     }
 
+    /**
+     * @param  list<mixed>  $productIds
+     * @return array<int, string|null>
+     */
+    private function catalogUqcByProductId(array $productIds): array
+    {
+        $ids = [];
+        foreach ($productIds as $id) {
+            $int = (int) $id;
+            if ($int > 0) {
+                $ids[$int] = $int;
+            }
+        }
+        if ($ids === []) {
+            return [];
+        }
+
+        return InventoryProduct::query()->whereIn('id', array_values($ids))->pluck('uqc', 'id')->all();
+    }
+
     private function linkCommerceOrder(CommerceOrder $order, StatutoryInvoice $invoice): void
     {
         if ($order->statutory_invoice_id === null) {
@@ -425,36 +493,44 @@ class StatutoryInvoiceService
 
     public function queueEinvoiceIfEligible(StatutoryInvoice $invoice): void
     {
-        $decision = $this->einvoiceEligibility->evaluate($invoice);
-        if (! $decision->eligible) {
-            EInvoiceRecord::query()->updateOrCreate(
-                ['invoice_id' => $invoice->id],
-                [
-                    'provider' => (string) config('statutory_invoices.einvoice.provider', 'none'),
-                    'irn' => null,
-                    'status' => EInvoiceRecordStatus::Skipped->value,
-                    'response_payload' => ['skip_reason' => $decision->reason],
-                ],
-            );
-
+        $existing = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
+        if (EInvoiceIrnGuard::recordHasIssuedIrn($existing) || EInvoiceIrnGuard::mustNotResubmit($existing)) {
+            return;
+        }
+        if (EInvoiceIrnGuard::mustRecoverInsteadOfGenerate($existing)) {
+            return;
+        }
+        if ($existing !== null && $existing->status === EInvoiceRecordStatus::Skipped->value) {
             return;
         }
 
+        $decision = $this->einvoiceEligibility->evaluate($invoice);
+        $attributes = EInvoiceIrnGuard::attributesWithoutClearingIssuedIrn([
+            'provider' => (string) config('statutory_invoices.einvoice.provider', 'none'),
+            'status' => $decision->eligible
+                ? EInvoiceRecordStatus::Queued->value
+                : EInvoiceRecordStatus::Skipped->value,
+            'response_payload' => $decision->eligible
+                ? ['queue_reason' => $decision->reason]
+                : ['skip_reason' => $decision->reason],
+        ]);
+
         EInvoiceRecord::query()->updateOrCreate(
             ['invoice_id' => $invoice->id],
-            [
-                'provider' => (string) config('statutory_invoices.einvoice.provider', 'none'),
-                'irn' => null,
-                'status' => EInvoiceRecordStatus::Queued->value,
-                'response_payload' => ['queue_reason' => $decision->reason],
-            ],
+            $attributes,
         );
-        $this->einvoiceOutbox->write($invoice);
+
+        if ($decision->eligible) {
+            $this->einvoiceOutbox->write($invoice);
+        }
     }
 
     private function applyServiceGstSplit(StatutoryInvoiceMintRequest $request): StatutoryInvoiceMintRequest
     {
-        if ($request->sourceType !== StatutoryInvoiceSourceType::CommerceOrder) {
+        if (! in_array($request->sourceType, [
+            StatutoryInvoiceSourceType::CommerceOrder,
+            StatutoryInvoiceSourceType::InventorySale,
+        ], true)) {
             return $request;
         }
 
@@ -554,10 +630,14 @@ class StatutoryInvoiceService
             }
         }
 
+        $unrounded = round($lineTotal - $request->discount, 2);
+        $roundOff = InvoiceRoundOff::nearestRupee($unrounded);
+
         return [
             'taxable_value' => round($taxable, 2),
             'tax_total' => round($tax, 2),
-            'invoice_value' => round($lineTotal - $request->discount, 2),
+            'rounding' => $roundOff['rounding'],
+            'invoice_value' => $roundOff['rounded'],
             'cgst' => $hasCgst ? round($cgst, 2) : null,
             'sgst' => $hasSgst ? round($sgst, 2) : null,
             'igst' => $hasIgst ? round($igst, 2) : null,
@@ -593,6 +673,112 @@ class StatutoryInvoiceService
                 'invoice_number' => 'The internal POS receipt number cannot be used as the statutory invoice number.',
             ]);
         }
+    }
+
+    private function applyPlaceOfSupplySnapshot(StatutoryInvoiceMintRequest $request): StatutoryInvoiceMintRequest
+    {
+        $pos = $this->placeOfSupply->resolveForMint($request);
+        if (! $pos->isResolvable()) {
+            return $request;
+        }
+
+        return $request->withPlaceOfSupplySnapshot($pos->state, $pos->stateCode, $pos->source);
+    }
+
+    private function assertB2bInputReadinessForMint(StatutoryInvoiceMintRequest $request): void
+    {
+        $buyerGstin = BuyerGstin::normalize($request->buyerGstin);
+        if ($buyerGstin === null || ! BuyerGstin::isValid($buyerGstin)) {
+            return;
+        }
+
+        $blocked = [];
+        $pos = $this->placeOfSupply->resolveForMint($request);
+        if (! $pos->isResolvable()) {
+            $blocked[] = 'place_of_supply_unresolved';
+        }
+
+        $structured = StatutoryBillingStructured::fromStored($request->billingAddressStructured);
+        $billingStateCode = $structured !== null
+            ? GstStateCodes::codeForName((string) ($structured['state'] ?? ''))
+            : null;
+        $gstinStateCode = BuyerGstin::stateCode($buyerGstin);
+        if ($gstinStateCode !== null
+            && $billingStateCode !== null
+            && $gstinStateCode !== $billingStateCode) {
+            $blocked[] = 'buyer_pin_gstin_state_mismatch';
+        }
+
+        foreach ($request->lines as $line) {
+            $profile = $this->serviceStatutory->profileForCommerceLine(
+                $request->channel->value,
+                $line->sku,
+                $line->description,
+                $line->hsnSac,
+            );
+            if ($profile === null) {
+                continue;
+            }
+            $resolvedUqc = $this->resolveLineUqc(
+                $request->channel->value,
+                $line->sku,
+                $line->description,
+                $line->hsnSac,
+                null,
+                $line->uqc,
+                $profile->uqc,
+            );
+            $uqc = $this->uqc->resolve($resolvedUqc);
+            if ($uqc['gap'] !== null) {
+                $blocked[] = $uqc['gap'];
+            }
+        }
+
+        $blocked = array_values(array_unique($blocked));
+        if ($blocked === []) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'einvoice_readiness' => 'Statutory invoice input is not IRN-ready: '.implode(', ', $blocked),
+        ]);
+    }
+
+    private function resolveLineUqc(
+        ?string $channel,
+        ?string $sku,
+        ?string $description,
+        ?string $hsnSac,
+        ?int $amcId,
+        ?string $lineUqc,
+        ?string $catalogUqc,
+        ?string $shippingLineKind = null,
+    ): ?string {
+        $profile = $this->serviceStatutory->profileForCommerceLine(
+            $channel,
+            $sku,
+            $description,
+            $hsnSac,
+            $amcId,
+            $shippingLineKind,
+        );
+        if ($profile !== null) {
+            return $this->uqc->snapshot($lineUqc, $profile->uqc);
+        }
+
+        return $this->uqc->snapshot($lineUqc, $catalogUqc ?? $this->catalogUqcForSku($sku));
+    }
+
+    private function catalogUqcForSku(?string $sku): ?string
+    {
+        $sku = is_string($sku) ? trim($sku) : '';
+        if ($sku === '') {
+            return null;
+        }
+
+        $uqc = InventoryProduct::query()->where('sku', $sku)->value('uqc');
+
+        return is_string($uqc) && trim($uqc) !== '' ? $uqc : null;
     }
 
     private function assertNoFinanceJournal(StatutoryInvoice $invoice): void

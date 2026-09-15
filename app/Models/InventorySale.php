@@ -19,6 +19,7 @@ class InventorySale extends Model
         'customer_id',
         'buyer_gstin',
         'billing_address',
+        'billing_address_structured',
         'place_of_supply_state',
         'support_order_id',
         'status',
@@ -43,6 +44,7 @@ class InventorySale extends Model
         return [
             'status' => InventorySaleStatus::class,
             'finance_handoff_status' => InventoryFinanceHandoffStatus::class,
+            'billing_address_structured' => 'array',
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
             'tax' => 'decimal:2',

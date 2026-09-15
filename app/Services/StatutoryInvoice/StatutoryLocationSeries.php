@@ -117,7 +117,7 @@ final class StatutoryLocationSeries
     }
 
     /**
-     * @return array<string, array{gst_state_code: string, branch_codes: list<string>, gstin: string, address: string, state: string}>
+     * @return array<string, array{gst_state_code: string, branch_codes: list<string>, gstin: string, address: string, state: string, pin: string, loc: string}>
      */
     public function locations(): array
     {
@@ -145,6 +145,8 @@ final class StatutoryLocationSeries
                 'gstin' => trim((string) ($config['gstin'] ?? '')),
                 'address' => trim((string) ($config['address'] ?? '')),
                 'state' => trim((string) ($config['state'] ?? '')),
+                'pin' => trim((string) ($config['pin'] ?? '')),
+                'loc' => trim((string) ($config['loc'] ?? '')),
             ];
         }
 
@@ -152,7 +154,7 @@ final class StatutoryLocationSeries
     }
 
     /**
-     * @return array{gst_state_code: string, branch_codes: list<string>, gstin: string, address: string, state: string}
+     * @return array{gst_state_code: string, branch_codes: list<string>, gstin: string, address: string, state: string, pin: string, loc: string}
      */
     private function location(string $location): array
     {

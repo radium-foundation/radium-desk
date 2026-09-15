@@ -4,7 +4,6 @@ namespace Tests\Feature\StatutoryInvoice;
 
 use App\Enums\CommerceOrderStatus;
 use App\Enums\EInvoiceRecordStatus;
-use App\Enums\OutboxEventStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentStatus;
 use App\Enums\StatutoryInvoiceSourceType;
@@ -173,7 +172,7 @@ class RdServiceNetPhase1CleanTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_manual_b2b_issue_queues_irn_outbox_without_http(): void
+    public function test_manual_b2b_issue_skips_phase_a_service_irn_without_http(): void
     {
         $this->signedPost($this->netPayload('RA3507107', [
             'customer' => [
@@ -186,16 +185,13 @@ class RdServiceNetPhase1CleanTest extends TestCase
         $order = CommerceOrder::query()->where('source_id', 'RA3507107')->firstOrFail();
 
         $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
-        $work = OutboxEvent::query()
-            ->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)
-            ->where('idempotency_key', EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice))
-            ->first();
+        $record = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
 
         $this->assertSame('07AAAAA0000A1Z5', $invoice->buyer_gstin);
         $this->assertSame('INV-07671', $invoice->invoice_number);
-        $this->assertNotNull($work);
-        $this->assertSame(OutboxEventStatus::Pending, $work->status);
-        $this->assertSame(EInvoiceRecordStatus::Queued->value, EInvoiceRecord::query()->value('status'));
+        $this->assertSame(EInvoiceRecordStatus::Skipped->value, $record?->status);
+        $this->assertSame('issuance_policy_service_excluded', $record?->response_payload['skip_reason'] ?? null);
+        $this->assertSame(0, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
         $this->assertSame(0, EInvoiceRecord::query()->whereNotNull('irn')->count());
         Http::assertNothingSent();
     }

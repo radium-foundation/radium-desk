@@ -26,6 +26,8 @@ final class StatutoryInvoiceMintRequest
         public readonly ?string $buyerGstin = null,
         public readonly ?string $billingAddress = null,
         public readonly ?string $placeOfSupplyState = null,
+        public readonly ?string $placeOfSupplyStateCode = null,
+        public readonly ?string $placeOfSupplySource = null,
         public readonly float $discount = 0,
         public readonly ?string $paymentMethod = null,
         public readonly ?string $paymentReference = null,
@@ -34,11 +36,47 @@ final class StatutoryInvoiceMintRequest
         public readonly ?string $financialYearToken = null,
         public readonly ?string $customerState = null,
         public readonly bool $inclusiveHardwareGst = false,
+        public readonly ?array $billingAddressStructured = null,
     ) {}
 
     /**
      * @param  list<StatutoryInvoiceLineDraft>  $lines
      */
+    public function withPlaceOfSupplySnapshot(
+        ?string $state,
+        ?string $stateCode,
+        ?string $source,
+    ): self {
+        return new self(
+            channel: $this->channel,
+            sourceType: $this->sourceType,
+            sourceId: $this->sourceId,
+            lines: $this->lines,
+            sourceOrderId: $this->sourceOrderId,
+            inventorySaleId: $this->inventorySaleId,
+            supportOrderId: $this->supportOrderId,
+            branchId: $this->branchId,
+            sellerGstin: $this->sellerGstin,
+            sellerName: $this->sellerName,
+            buyerName: $this->buyerName,
+            buyerPhone: $this->buyerPhone,
+            buyerGstin: $this->buyerGstin,
+            billingAddress: $this->billingAddress,
+            placeOfSupplyState: $state ?? $this->placeOfSupplyState,
+            placeOfSupplyStateCode: $stateCode,
+            placeOfSupplySource: $source,
+            discount: $this->discount,
+            paymentMethod: $this->paymentMethod,
+            paymentReference: $this->paymentReference,
+            internalReceiptNumber: $this->internalReceiptNumber,
+            numberingLocation: $this->numberingLocation,
+            financialYearToken: $this->financialYearToken,
+            customerState: $this->customerState,
+            inclusiveHardwareGst: $this->inclusiveHardwareGst,
+            billingAddressStructured: $this->billingAddressStructured,
+        );
+    }
+
     public function withLines(array $lines): self
     {
         return new self(
@@ -57,6 +95,8 @@ final class StatutoryInvoiceMintRequest
             buyerGstin: $this->buyerGstin,
             billingAddress: $this->billingAddress,
             placeOfSupplyState: $this->placeOfSupplyState,
+            placeOfSupplyStateCode: $this->placeOfSupplyStateCode,
+            placeOfSupplySource: $this->placeOfSupplySource,
             discount: $this->discount,
             paymentMethod: $this->paymentMethod,
             paymentReference: $this->paymentReference,
@@ -65,6 +105,7 @@ final class StatutoryInvoiceMintRequest
             financialYearToken: $this->financialYearToken,
             customerState: $this->customerState,
             inclusiveHardwareGst: $this->inclusiveHardwareGst,
+            billingAddressStructured: $this->billingAddressStructured,
         );
     }
 

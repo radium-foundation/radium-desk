@@ -13,6 +13,7 @@ class StatutoryInvoiceItem extends Model
         'sku',
         'description',
         'hsn_sac',
+        'uqc',
         'qty',
         'unit_price',
         'discount',

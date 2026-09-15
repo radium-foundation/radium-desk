@@ -58,6 +58,9 @@ return [
                     '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
                 ),
                 'state' => $statutoryEnv('STATUTORY_INVOICE_DELHI_STATE', 'Delhi'),
+                // Owner-verified registered office (P-05-09-13), same source as address.
+                'pin' => $statutoryEnv('STATUTORY_INVOICE_DELHI_PIN', '110019'),
+                'loc' => $statutoryEnv('STATUTORY_INVOICE_DELHI_LOC', 'New Delhi'),
             ],
             'mumbai' => [
                 'gst_state_code' => '27',
@@ -68,6 +71,8 @@ return [
                     'G40, Harmony Mall, Link Road, Goregaon, Mumbai 400104',
                 ),
                 'state' => $statutoryEnv('STATUTORY_INVOICE_MUMBAI_STATE', 'Maharashtra'),
+                'pin' => $statutoryEnv('STATUTORY_INVOICE_MUMBAI_PIN', '400104'),
+                'loc' => $statutoryEnv('STATUTORY_INVOICE_MUMBAI_LOC', 'Mumbai'),
             ],
         ],
     ],
@@ -80,8 +85,9 @@ return [
     'post_finance_journals' => false,
 
     /*
-    | Guard: do not invent invoice-on-payment vs invoice-on-dispatch.
-    | POS complete never auto-mints a statutory invoice.
+    | Guard: POS complete must not mint a statutory invoice.
+    | true currently aborts checkout (StatutoryInvoiceAccountingPolicy).
+    | Automatic IRN is mint-then-worker, not this flag. Keep false.
     */
     'auto_issue_on_pos_complete' => false,
 
@@ -91,6 +97,11 @@ return [
     | fields are never used as the issuer.
     */
     'legal_name' => env('STATUTORY_INVOICE_LEGAL_NAME'),
+
+    // Printed on statutory PDFs only. Matches the published contact already
+    // used on current commerce/POS invoices. Not a GSP credential.
+    'contact_email' => $statutoryEnv('STATUTORY_INVOICE_CONTACT_EMAIL', 'mail@radiumbox.com'),
+    'contact_phone' => $statutoryEnv('STATUTORY_INVOICE_CONTACT_PHONE', '+91-84343 84343'),
 
     'seller_address' => env('STATUTORY_INVOICE_SELLER_ADDRESS'),
 
@@ -103,12 +114,45 @@ return [
     'invoice_scope_starts_at' => env('STATUTORY_INVOICE_SCOPE_STARTS_AT', '2026-09-01 00:00:00'),
 
     /*
-    | Worker must not mint or call an IRP. Left hardcoded false.
+    | Worker GENERATE. Default false. Production may set
+    | STATUTORY_EINVOICE_WORKER_MAY_MINT=true after WhiteBooks bind.
+    | Does not requeue skipped records. Does not mint on POS complete.
     */
-    'worker_may_mint' => false,
+    'worker_may_mint' => filter_var(env('STATUTORY_EINVOICE_WORKER_MAY_MINT', false), FILTER_VALIDATE_BOOLEAN),
 
     'einvoice' => [
         'provider' => env('STATUTORY_EINVOICE_PROVIDER', 'none'),
+        /*
+        | Automatic GENERATE rollout. Default hardware_only (Phase A).
+        | Production Phase B: STATUTORY_EINVOICE_ISSUANCE_POLICY=all_eligible_b2b.
+        | Invalid values fail closed to hardware_only. Changing this key does
+        | not requeue previously skipped invoices.
+        */
+        'issuance_policy' => env('STATUTORY_EINVOICE_ISSUANCE_POLICY', 'hardware_only'),
+        /*
+        | Direct WhiteBooks Production API. Default base is the verified host.
+        | Leave secrets empty. Do not copy media.radiumbox.com or Admin secrets.
+        | One WhiteBooks client pair + per-issuer GST portal username/password.
+        | IP must be STATUTORY_EINVOICE_GSP_IP_ADDRESS (Desk outbound IPv4).
+        | Empty or non-IPv4 fails closed. Do not discover or default an address.
+        */
+        'gsp_base_url' => env('STATUTORY_EINVOICE_GSP_BASE_URL', 'https://api.whitebooks.in'),
+        'gsp_environment' => env('STATUTORY_EINVOICE_GSP_ENVIRONMENT'),
+        'gsp_client_id' => env('STATUTORY_EINVOICE_GSP_CLIENT_ID'),
+        'gsp_client_secret' => env('STATUTORY_EINVOICE_GSP_CLIENT_SECRET'),
+        'gsp_email' => env('STATUTORY_EINVOICE_GSP_EMAIL'),
+        'gsp_ip_address' => env('STATUTORY_EINVOICE_GSP_IP_ADDRESS'),
+        'timeout_seconds' => (int) env('STATUTORY_EINVOICE_GSP_TIMEOUT_SECONDS', 30),
+        'issuers' => [
+            'delhi' => [
+                'gst_username' => env('STATUTORY_EINVOICE_DELHI_GST_USERNAME'),
+                'gst_password' => env('STATUTORY_EINVOICE_DELHI_GST_PASSWORD'),
+            ],
+            'mumbai' => [
+                'gst_username' => env('STATUTORY_EINVOICE_MUMBAI_GST_USERNAME'),
+                'gst_password' => env('STATUTORY_EINVOICE_MUMBAI_GST_PASSWORD'),
+            ],
+        ],
     ],
 
     /*
@@ -123,6 +167,11 @@ return [
     'service_sac' => [
         'rd_service' => [
             'sac' => '998313',
+            'is_servc' => 'Y',
+            'uqc' => 'OTH',
+            'legacy_sac_aliases' => [
+                '998314',
+            ],
             'channels' => [
                 'rdservice_in',
                 'rdservice_net',
@@ -139,6 +188,11 @@ return [
         ],
         'amc' => [
             'sac' => '998313',
+            'is_servc' => 'Y',
+            'uqc' => 'OTH',
+            'legacy_sac_aliases' => [
+                '998314',
+            ],
             'channels' => [
                 'rdservice_in',
                 'rdservice_net',

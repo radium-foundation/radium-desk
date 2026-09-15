@@ -220,6 +220,10 @@ class StatutorySellerIdentityTest extends TestCase
             statutory: [
                 'buyer_gstin' => $buyerGstin,
                 'place_of_supply_state' => $placeOfSupply,
+                'billing_address' => '1 Test Street, '.$placeOfSupply,
+                'billing_city' => $placeOfSupply === 'Delhi' ? 'New Delhi' : 'Mumbai',
+                'billing_state' => $placeOfSupply,
+                'billing_pincode' => $placeOfSupply === 'Delhi' ? '110001' : '400001',
             ],
         );
 

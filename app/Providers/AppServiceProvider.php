@@ -23,9 +23,9 @@ use App\Listeners\Finance\PostOrderPaidJournal;
 use App\Listeners\Finance\PostPosSaleJournal;
 use App\Listeners\Finance\PostRefundCompletedJournal;
 use App\Listeners\HardwareFulfilment\CorrelateHardwareCashfreePayment;
-use App\Listeners\RadiumBox\ConfirmRadiumBoxPaymentOnOrderPaid;
 use App\Listeners\LogScheduledTaskTiming;
 use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
+use App\Listeners\RadiumBox\ConfirmRadiumBoxPaymentOnOrderPaid;
 use App\Models\DeviceModel;
 use App\Models\IraMemory;
 use App\Models\Order;
@@ -91,6 +91,7 @@ use App\Services\SettingService;
 use App\Services\Shipping\HttpShiprocketGateway;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\StatutoryInvoice\NullEInvoiceGateway;
+use App\Services\StatutoryInvoice\Whitebooks\WhitebooksEInvoiceGateway;
 use App\Services\SupportContactConfiguration;
 use App\Services\SupportContactResolver;
 use App\Services\SystemSettingsAdminCollection;
@@ -312,7 +313,13 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->bind(EInvoiceGateway::class, NullEInvoiceGateway::class);
+        $this->app->bind(EInvoiceGateway::class, function ($app) {
+            if ($this->shouldBindWhitebooksEInvoiceGateway()) {
+                return $app->make(WhitebooksEInvoiceGateway::class);
+            }
+
+            return $app->make(NullEInvoiceGateway::class);
+        });
         $this->app->bind(ShiprocketGateway::class, function ($app) {
             if ($this->shouldBindHttpShiprocket()) {
                 return $app->make(HttpShiprocketGateway::class);
@@ -472,6 +479,11 @@ class AppServiceProvider extends ServiceProvider
                 //
             }
         });
+    }
+
+    private function shouldBindWhitebooksEInvoiceGateway(): bool
+    {
+        return (string) config('statutory_invoices.einvoice.provider', 'none') === 'whitebooks';
     }
 
     private function shouldBindHttpShiprocket(): bool
