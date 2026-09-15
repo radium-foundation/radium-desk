@@ -515,6 +515,12 @@ export const initCustomer360Cockpit = ({
             return;
         }
 
+        // Cmd/Ctrl/Alt combos (including Command+C / Ctrl+C) must keep native
+        // browser copy and must not fire C360 letter shortcuts such as Call.
+        if (event.metaKey || event.ctrlKey || event.altKey) {
+            return;
+        }
+
         if (shortcutHelpOpen && event.key === 'Escape') {
             event.preventDefault();
             closeShortcutHelp();
