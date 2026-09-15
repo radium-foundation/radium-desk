@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Inventory;
 use App\Http\Controllers\Controller;
 use App\Models\DeviceModel;
 use App\Models\InventoryProduct;
+use App\Services\StatutoryInvoice\EInvoiceUqcMapper;
 use App\Support\Inventory\InventoryAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ProductController extends Controller
@@ -87,6 +89,7 @@ class ProductController extends Controller
     {
         return [
             'deviceModels' => DeviceModel::query()->orderBy('display_order')->orderBy('name')->get(),
+            'uqcCodes' => EInvoiceUqcMapper::codes(),
         ];
     }
 
@@ -100,10 +103,14 @@ class ProductController extends Controller
             $unique .= ','.$ignoreId;
         }
 
+        $uqc = is_string($request->input('uqc')) ? strtoupper(trim($request->input('uqc'))) : '';
+        $request->merge(['uqc' => $uqc === '' ? null : $uqc]);
+
         $data = $request->validate([
             'sku' => ['required', 'string', 'max:64', $unique],
             'name' => ['required', 'string', 'max:160'],
             'hsn_code' => ['nullable', 'string', 'max:16'],
+            'uqc' => ['nullable', 'string', Rule::in(EInvoiceUqcMapper::codes())],
             'gst_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'unit_price' => ['required', 'numeric', 'min:0'],
             'device_model_id' => ['nullable', 'exists:device_models,id'],
@@ -113,6 +120,9 @@ class ProductController extends Controller
         ]);
 
         $data['sku'] = strtoupper($data['sku']);
+        $data['uqc'] = isset($data['uqc']) && is_string($data['uqc']) && $data['uqc'] !== ''
+            ? $data['uqc']
+            : null;
         $data['is_serialized'] = $request->boolean('is_serialized');
         $data['tracks_batch'] = $request->boolean('tracks_batch');
         $data['is_active'] = $request->boolean('is_active');
