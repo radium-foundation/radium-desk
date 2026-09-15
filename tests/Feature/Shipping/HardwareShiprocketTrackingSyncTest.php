@@ -128,6 +128,35 @@ class HardwareShiprocketTrackingSyncTest extends TestCase
         Event::assertDispatched(HardwareFulfilmentsUpdated::class);
     }
 
+    public function test_verified_out_for_pickup_status_is_normalized_and_broadcast(): void
+    {
+        Event::fake([HardwareFulfilmentsUpdated::class]);
+        $shipment = $this->awbShipment();
+        $this->fake->nextTrackMode = 'out_for_pickup';
+
+        $result = app(HardwareShiprocketTrackingService::class)->syncShipmentId((int) $shipment->id);
+
+        $this->assertSame('changed', $result);
+        $fresh = $shipment->fresh();
+        $this->assertSame('19', $fresh->provider_track_status);
+        $this->assertSame('out_for_pickup', $fresh->provider_track_normalized);
+        Event::assertDispatched(HardwareFulfilmentsUpdated::class);
+        $this->assertSame(1, $this->fake->tracks);
+    }
+
+    public function test_tracking_command_is_disabled_by_default(): void
+    {
+        config(['shipping.tracking.sync_enabled' => false]);
+        $this->awbShipment();
+
+        $this->artisan('shipping:sync-shiprocket-tracking')
+            ->expectsOutput('Shiprocket tracking sync disabled.')
+            ->assertSuccessful();
+
+        $this->assertSame(0, $this->fake->tracks);
+        $this->assertDatabaseMissing('shipment_events', ['activity' => 'track_synced']);
+    }
+
     public function test_null_gateway_scans_nothing(): void
     {
         $this->app->forgetInstance(ShiprocketGateway::class);

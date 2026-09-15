@@ -340,7 +340,7 @@ final class HardwareFulfilmentOperationalClassifier
         $track = ShiprocketTrackNormalized::tryFrom((string) ($ready->providerTrackNormalized ?? ''));
         if (filled($ready->awb) && $track?->overridesReadyForPickup()) {
             return [
-                HardwareFulfilmentOperationalStage::InTransit,
+                $track->operationalStage(),
                 'View',
                 null,
                 $track->dashboardStatusLabel(),

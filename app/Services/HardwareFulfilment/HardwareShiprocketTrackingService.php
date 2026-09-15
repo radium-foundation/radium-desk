@@ -117,7 +117,7 @@ final class HardwareShiprocketTrackingService
                 return 'skipped';
             }
 
-            $normalized = $this->normalizer->normalize($raw);
+            $normalized = $this->normalizer->normalizeTrack($raw, $track->activities);
             $previousRaw = (string) ($shipment->provider_track_status ?? '');
             $previousNormalized = (string) ($shipment->provider_track_normalized ?? '');
 

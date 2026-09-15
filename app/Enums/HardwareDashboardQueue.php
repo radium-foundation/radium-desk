@@ -41,7 +41,10 @@ enum HardwareDashboardQueue: string
         if (in_array($stage, [
             HardwareFulfilmentOperationalStage::PickupManifestPending,
             HardwareFulfilmentOperationalStage::ReadyForPickup,
+            HardwareFulfilmentOperationalStage::OutForPickup,
+            HardwareFulfilmentOperationalStage::PickedUp,
             HardwareFulfilmentOperationalStage::InTransit,
+            HardwareFulfilmentOperationalStage::Delivered,
         ], true)) {
             return self::Pickup;
         }

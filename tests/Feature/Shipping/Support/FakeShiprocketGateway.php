@@ -412,8 +412,17 @@ final class FakeShiprocketGateway implements ShiprocketGateway
         $row = $this->awbRowByAwb($awb);
         $status = match ($mode) {
             'pickup_queue' => '12',
+            'out_for_pickup' => '19',
+            'picked_up' => '42',
             'unknown' => 'some_unmapped_status',
             default => $this->trackStatus,
+        };
+
+        $activity = match ($mode) {
+            'out_for_pickup' => 'Out for Pickup',
+            'picked_up' => 'PICKED UP',
+            'unknown' => 'Unknown scan',
+            default => 'Picked up',
         };
 
         return new ShiprocketTrackResult(
@@ -422,7 +431,8 @@ final class FakeShiprocketGateway implements ShiprocketGateway
             activities: [
                 [
                     'awb' => $awb,
-                    'activity' => 'Picked up',
+                    'current_status' => $activity,
+                    'activity' => $activity,
                     'location' => 'Delhi',
                 ],
             ],

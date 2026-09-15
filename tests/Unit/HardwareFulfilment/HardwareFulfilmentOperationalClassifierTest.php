@@ -7,6 +7,7 @@ use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
+use App\Enums\HardwareWorkspaceFilter;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
@@ -180,6 +181,82 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertSame(HardwareFulfilmentOperationalStage::ReadyForPickup, $row->stage);
         $this->assertSame('Ready for Pickup', $row->operatorStatus());
         $this->assertSame(HardwareDashboardQueue::Pickup, $row->dashboardQueue());
+    }
+
+    public function test_verified_out_for_pickup_overrides_stale_ready_for_pickup(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971044', HardwareFulfilmentState::AwbAssigned);
+        $ready = $this->readiness([
+            'alreadyCreated' => true,
+            'invoice' => 'INV-1',
+            'serials' => ['10532319'],
+            'awb' => 'AWB1',
+            'labelUrl' => '/label.pdf',
+            'pickupStatus' => 'Requested',
+            'manifestStatus' => 'Available',
+            'readyForPickup' => true,
+            'packageBeforeLabelRecorded' => true,
+            'packageLabelAppliedRecorded' => true,
+            'providerTrackStatus' => '19',
+            'providerTrackNormalized' => 'out_for_pickup',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame(HardwareFulfilmentOperationalStage::OutForPickup, $row->stage);
+        $this->assertSame('Out for Pickup', $row->operatorStatus());
+        $this->assertSame('View', $row->nextAction);
+        $this->assertFalse($row->mutatingAction);
+        $this->assertSame(HardwareDashboardQueue::Pickup, $row->dashboardQueue());
+        $this->assertSame(HardwareOperationsSection::InProgress, $row->section);
+        $this->assertNotSame('Ready for Pickup', $row->operatorStatus());
+        $this->assertTrue($row->matchesWorkspaceFilter(HardwareWorkspaceFilter::Pickup));
+        $this->assertFalse($row->matchesWorkspaceFilter(HardwareWorkspaceFilter::Ready));
+    }
+
+    public function test_verified_picked_up_and_delivered_override_ready_for_pickup(): void
+    {
+        $classifier = app(HardwareFulfilmentOperationalClassifier::class);
+        $picked = $classifier->fromFulfilment(
+            $this->fulfilment('RDE971045', HardwareFulfilmentState::AwbAssigned),
+            $this->readiness([
+                'alreadyCreated' => true,
+                'invoice' => 'INV-1',
+                'serials' => ['10532319'],
+                'awb' => 'AWB1',
+                'labelUrl' => '/label.pdf',
+                'pickupStatus' => 'Requested',
+                'manifestStatus' => 'Available',
+                'readyForPickup' => true,
+                'packageBeforeLabelRecorded' => true,
+                'packageLabelAppliedRecorded' => true,
+                'providerTrackStatus' => '42',
+                'providerTrackNormalized' => 'picked_up',
+            ]),
+        );
+        $delivered = $classifier->fromFulfilment(
+            $this->fulfilment('RDE971046', HardwareFulfilmentState::AwbAssigned),
+            $this->readiness([
+                'alreadyCreated' => true,
+                'invoice' => 'INV-1',
+                'serials' => ['10532319'],
+                'awb' => 'AWB1',
+                'labelUrl' => '/label.pdf',
+                'pickupStatus' => 'Requested',
+                'manifestStatus' => 'Available',
+                'readyForPickup' => true,
+                'packageBeforeLabelRecorded' => true,
+                'packageLabelAppliedRecorded' => true,
+                'providerTrackStatus' => 'delivered',
+                'providerTrackNormalized' => 'delivered',
+            ]),
+        );
+
+        $this->assertSame(HardwareFulfilmentOperationalStage::PickedUp, $picked->stage);
+        $this->assertSame('Picked Up', $picked->operatorStatus());
+        $this->assertSame(HardwareDashboardQueue::Pickup, $picked->dashboardQueue());
+        $this->assertSame(HardwareFulfilmentOperationalStage::Delivered, $delivered->stage);
+        $this->assertSame('Delivered', $delivered->operatorStatus());
+        $this->assertSame(HardwareDashboardQueue::Pickup, $delivered->dashboardQueue());
     }
 
     public function test_shipped_without_package_photo_stays_open_for_evidence(): void

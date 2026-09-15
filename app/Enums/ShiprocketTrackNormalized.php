@@ -10,14 +10,20 @@ namespace App\Enums;
 enum ShiprocketTrackNormalized: string
 {
     case PickupQueued = 'pickup_queued';
+    case OutForPickup = 'out_for_pickup';
+    case PickedUp = 'picked_up';
     case InTransit = 'in_transit';
+    case Delivered = 'delivered';
     case Unknown = 'unknown';
 
     public function dashboardStatusLabel(): string
     {
         return match ($this) {
             self::PickupQueued => 'Pickup queued',
+            self::OutForPickup => 'Out for Pickup',
+            self::PickedUp => 'Picked Up',
             self::InTransit => 'In Transit',
+            self::Delivered => 'Delivered',
             self::Unknown => 'Unknown',
         };
     }
@@ -27,6 +33,22 @@ enum ShiprocketTrackNormalized: string
      */
     public function overridesReadyForPickup(): bool
     {
-        return $this === self::InTransit;
+        return in_array($this, [
+            self::OutForPickup,
+            self::PickedUp,
+            self::InTransit,
+            self::Delivered,
+        ], true);
+    }
+
+    public function operationalStage(): HardwareFulfilmentOperationalStage
+    {
+        return match ($this) {
+            self::OutForPickup => HardwareFulfilmentOperationalStage::OutForPickup,
+            self::PickedUp => HardwareFulfilmentOperationalStage::PickedUp,
+            self::Delivered => HardwareFulfilmentOperationalStage::Delivered,
+            self::InTransit => HardwareFulfilmentOperationalStage::InTransit,
+            default => HardwareFulfilmentOperationalStage::InTransit,
+        };
     }
 }
