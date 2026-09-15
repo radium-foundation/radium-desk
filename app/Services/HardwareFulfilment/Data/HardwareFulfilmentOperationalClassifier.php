@@ -6,11 +6,14 @@ use App\Enums\HardwareAwaitingFulfilmentReason;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
+use App\Enums\ShiprocketTrackNormalized;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareSkuMapService;
+use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Support\HardwareFulfilment\HardwareFulfilmentActivityTimestamps;
 
 final class HardwareFulfilmentOperationalClassifier
 {
@@ -29,6 +32,7 @@ final class HardwareFulfilmentOperationalClassifier
         return new HardwareFulfilmentOperationalRow(
             sourceId: (string) $order->order_id,
             orderDateIst: $created?->format('Y-m-d H:i') ?? '—',
+            lastActionDateIst: HardwareFulfilmentActivityTimestamps::lastActionIstForOrder($order),
             customer: trim((string) ($order->customer_name ?? '')) ?: '—',
             product: $catalog['compact'],
             sku: '—',
@@ -55,6 +59,7 @@ final class HardwareFulfilmentOperationalClassifier
             productLines: $catalog['lines'],
             productMissing: $catalog['missing'],
             productStatusLabel: $catalog['missing'] ? $this->missingProductLabel($reason) : null,
+            isB2bCustomer: $this->isB2bCommerce($commerce),
         );
     }
 
@@ -68,6 +73,7 @@ final class HardwareFulfilmentOperationalClassifier
         return new HardwareFulfilmentOperationalRow(
             sourceId: (string) $order->order_id,
             orderDateIst: $created?->format('Y-m-d H:i') ?? '—',
+            lastActionDateIst: HardwareFulfilmentActivityTimestamps::lastActionIstForOrder($order),
             customer: trim((string) ($order->customer_name ?? '')) ?: '—',
             product: $catalog['compact'],
             sku: '—',
@@ -94,6 +100,7 @@ final class HardwareFulfilmentOperationalClassifier
             productLines: $catalog['lines'],
             productMissing: $catalog['missing'],
             productStatusLabel: $catalog['missing'] ? $reason->label() : null,
+            isB2bCustomer: $this->isB2bCommerce($commerce),
         );
     }
 
@@ -161,6 +168,7 @@ final class HardwareFulfilmentOperationalClassifier
         return new HardwareFulfilmentOperationalRow(
             sourceId: $sourceId,
             orderDateIst: $ist?->format('Y-m-d H:i') ?? '—',
+            lastActionDateIst: HardwareFulfilmentActivityTimestamps::lastActionIstForFulfilment($fulfilment),
             customer: $ready->customer ?: '—',
             product: $catalog['compact'],
             sku: trim((string) ($item?->sku ?: $item?->catalog_sku ?: '')) ?: '—',
@@ -193,7 +201,17 @@ final class HardwareFulfilmentOperationalClassifier
             productStatusLabel: $catalog['missing']
                 ? ($mappingMissing ? HardwareAwaitingFulfilmentReason::ProductMappingRequired->label() : 'Product data missing')
                 : null,
+            isB2bCustomer: $this->isB2bCommerce($order),
         );
+    }
+
+    private function isB2bCommerce(?CommerceOrder $commerce): bool
+    {
+        if ($commerce === null) {
+            return false;
+        }
+
+        return BuyerGstin::isValid($commerce->buyer_gstin);
     }
 
     /**
@@ -317,6 +335,16 @@ final class HardwareFulfilmentOperationalClassifier
 
         if (! filled($ready->awb)) {
             return [HardwareFulfilmentOperationalStage::AwbPending, 'Assign AWB', 'hardware-awb', 'AWB Pending'];
+        }
+
+        $track = ShiprocketTrackNormalized::tryFrom((string) ($ready->providerTrackNormalized ?? ''));
+        if (filled($ready->awb) && $track?->overridesReadyForPickup()) {
+            return [
+                HardwareFulfilmentOperationalStage::InTransit,
+                'View',
+                null,
+                $track->dashboardStatusLabel(),
+            ];
         }
 
         if ($ready->labelUrl === null) {

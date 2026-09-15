@@ -7,6 +7,7 @@ use App\Services\Shipping\Data\ShiprocketCreateOrderRequest;
 use App\Services\Shipping\HttpShiprocketGateway;
 use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
+use App\Services\Shipping\ShiprocketRetryableException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -152,6 +153,37 @@ class HttpShiprocketGatewayTest extends TestCase
 
         $this->assertTrue($result->retryable);
         $this->assertFalse($result->found);
+    }
+
+    public function test_track_by_awb_is_get_only_and_reads_shipment_status(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/track/awb/AWB1' => Http::response([
+                'tracking_data' => [
+                    'shipment_status' => 'in_transit',
+                    'shipment_track' => [['activity' => 'Picked up']],
+                ],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->trackByAwb('AWB1');
+
+        $this->assertSame('in_transit', $result->status);
+        Http::assertSent(function ($request): bool {
+            return $request->method() === 'GET'
+                && str_ends_with($request->url(), '/courier/track/awb/AWB1');
+        });
+    }
+
+    public function test_track_timeout_is_retryable(): void
+    {
+        Http::fake(function () {
+            throw new ConnectionException('cURL error 28: timeout');
+        });
+
+        $this->expectException(ShiprocketRetryableException::class);
+        (new HttpShiprocketGateway)->trackByAwb('AWB1');
     }
 
     public function test_create_validation_error_includes_safe_field_errors(): void

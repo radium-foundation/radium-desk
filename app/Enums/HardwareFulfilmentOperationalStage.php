@@ -13,6 +13,7 @@ enum HardwareFulfilmentOperationalStage: string
     case LabelPackingPending = 'label_packing_pending';
     case PickupManifestPending = 'pickup_manifest_pending';
     case ReadyForPickup = 'ready_for_pickup';
+    case InTransit = 'in_transit';
     case Completed = 'completed';
     case BlockedReview = 'blocked_review';
 
@@ -28,6 +29,7 @@ enum HardwareFulfilmentOperationalStage: string
             self::LabelPackingPending => 'Label Pending',
             self::PickupManifestPending => 'Pickup',
             self::ReadyForPickup => 'Ready for Pickup',
+            self::InTransit => 'In Transit',
             self::Completed => 'Completed',
             self::BlockedReview => 'Blocked',
         };

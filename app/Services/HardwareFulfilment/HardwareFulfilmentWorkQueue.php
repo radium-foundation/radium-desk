@@ -2,9 +2,10 @@
 
 namespace App\Services\HardwareFulfilment;
 
-use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareOperationsSection;
+use App\Enums\HardwareWorkspaceFilter;
+use App\Enums\HardwareWorkspaceScope;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
@@ -104,16 +105,29 @@ final class HardwareFulfilmentWorkQueue
      */
     public function workspaceTotal(Carbon $fromIst, Carbon $toIst): int
     {
-        return $this->allRows($fromIst, $toIst, '', '')->count();
+        return $this->allRows($fromIst, $toIst, '', '')
+            ->reject(static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isShippedWorkspaceItem())
+            ->count();
     }
 
     /**
      * Presentation queue for the Hardware dashboard. Read-only. No provider calls.
      *
-     * @return array{rows: Collection<int, HardwareFulfilmentOperationalRow>, counts: array<string, int>, total: int, unfiltered_total: int}
+     * @return array{
+     *     rows: Collection<int, HardwareFulfilmentOperationalRow>,
+     *     scope_counts: array<string, int>,
+     *     filter_counts: array<string, int>,
+     *     total: int,
+     *     unfiltered_total: int
+     * }
      */
-    public function dashboard(Carbon $fromIst, Carbon $toIst, string $search = '', string $queue = ''): array
-    {
+    public function dashboard(
+        Carbon $fromIst,
+        Carbon $toIst,
+        string $search = '',
+        HardwareWorkspaceScope $scope = HardwareWorkspaceScope::Active,
+        HardwareWorkspaceFilter $filter = HardwareWorkspaceFilter::All,
+    ): array {
         $rows = $this->allRows($fromIst, $toIst, '', '');
         $unfilteredTotal = $rows->count();
         if ($search !== '') {
@@ -126,24 +140,37 @@ final class HardwareFulfilmentWorkQueue
             })->values();
         }
 
-        $counts = [];
-        foreach (HardwareDashboardQueue::cases() as $dashboardQueue) {
-            $counts[$dashboardQueue->value] = 0;
-        }
-        foreach ($rows as $row) {
-            $counts[$row->dashboardQueue()->value]++;
+        $activeRows = $rows->reject(
+            static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isShippedWorkspaceItem(),
+        )->values();
+        $shippedRows = $rows->filter(
+            static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isShippedWorkspaceItem(),
+        )->values();
+
+        $scopeCounts = [
+            HardwareWorkspaceScope::Active->value => $activeRows->count(),
+            HardwareWorkspaceScope::Shipped->value => $shippedRows->count(),
+        ];
+
+        $filterCounts = [];
+        foreach (HardwareWorkspaceFilter::cases() as $workspaceFilter) {
+            $filterCounts[$workspaceFilter->value] = $activeRows
+                ->filter(static fn (HardwareFulfilmentOperationalRow $row): bool => $row->matchesWorkspaceFilter($workspaceFilter))
+                ->count();
         }
 
-        if ($queue !== '') {
-            $rows = $rows->filter(
-                static fn (HardwareFulfilmentOperationalRow $row): bool => $row->dashboardQueue()->value === $queue
+        $scopedRows = $scope === HardwareWorkspaceScope::Shipped ? $shippedRows : $activeRows;
+        if ($scope === HardwareWorkspaceScope::Active && $filter !== HardwareWorkspaceFilter::All) {
+            $scopedRows = $scopedRows->filter(
+                static fn (HardwareFulfilmentOperationalRow $row): bool => $row->matchesWorkspaceFilter($filter),
             )->values();
         }
 
         return [
-            'rows' => $rows,
-            'counts' => $counts,
-            'total' => $rows->count(),
+            'rows' => $scopedRows,
+            'scope_counts' => $scopeCounts,
+            'filter_counts' => $filterCounts,
+            'total' => $scopedRows->count(),
             'unfiltered_total' => $unfilteredTotal,
         ];
     }

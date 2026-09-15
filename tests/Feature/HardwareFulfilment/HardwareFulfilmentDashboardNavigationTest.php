@@ -75,7 +75,11 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         );
 
         $exceptions = $this->actingAs($admin)
-            ->get(route('dashboard', ['workspace' => 'hardware', 'hw_queue' => 'exceptions']))
+            ->get(route('dashboard', [
+                'workspace' => 'hardware',
+                'hw_scope' => 'active',
+                'hw_filter' => 'exceptions',
+            ]))
             ->assertOk()
             ->assertDontSee('RDE902040')
             ->getContent();
@@ -240,7 +244,11 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->assertDontSee('Create All');
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['workspace' => 'hardware', 'hw_queue' => 'exceptions']))
+            ->get(route('dashboard', [
+                'workspace' => 'hardware',
+                'hw_scope' => 'active',
+                'hw_filter' => 'exceptions',
+            ]))
             ->assertOk()
             ->assertSee('RIN902010')
             ->assertSee('Blocked')

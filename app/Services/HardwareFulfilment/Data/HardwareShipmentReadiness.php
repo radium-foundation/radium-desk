@@ -73,6 +73,8 @@ final class HardwareShipmentReadiness
         public readonly bool $canAttachMeasuredParcel = false,
         public readonly ?string $volumetricWeight = null,
         public readonly ?string $actualWeight = null,
+        public readonly ?string $providerTrackStatus = null,
+        public readonly ?string $providerTrackNormalized = null,
     ) {}
 
     public function packagePhotoRecorded(): bool
