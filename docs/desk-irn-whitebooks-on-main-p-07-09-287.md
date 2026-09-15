@@ -44,6 +44,8 @@ Verified WhiteBooks production binding: bind `WhitebooksEInvoiceGateway` when `c
 
 After this lands on `main` (P-07-09-288 fast-forward), a normal named-file overlay of `AppServiceProvider.php` from `main` keeps WhiteBooks when `.env` has `STATUTORY_EINVOICE_PROVIDER=whitebooks` and keeps `ConfirmRadiumBoxPaymentOnOrderPaid`. Production must not receive an unmodified Null-only `AppServiceProvider`.
 
+P-07-09-288 applied that overlay. Live `AppServiceProvider.php` now matches main `28dd6921…` (no longer the P-07-09-286 unique hash `e8cb7b88…`). INV-076792 must not be regenerated.
+
 Follow-up wiring on the same branch (still P-07-09-287): `HardwareConfigurableVariantDisplay`, after-commit `HardwareStatutoryInvoiceIssuer` / `ServiceStatutoryInvoiceIssuer` callers, and catalog UQC on the inventory product form. These are required by the IRN `StatutoryInvoiceService` contract already ported; they do not change Cashfree/RBP94 payment confirmation.
 
 P-07-09-286 production overlay (already live; do not repeat GENERATE):
