@@ -42,6 +42,7 @@ import {
     resolveReadyQueueCountDeltaFromListAction,
 } from './ready-queue-count-delta';
 import { setRealtimeTransportConnected } from './realtime-transport-status';
+import { handleHardwareFulfilmentsUpdated } from './hardware-dashboard-live';
 
 const SERVICE_CASE_EVENTS = [
     'ServiceCaseCreated',
@@ -835,6 +836,12 @@ export const initLiveDashboardReverb = ({
 
         dashboardChannel.listen('.DashboardKpisUpdated', (payload) => {
             handleKpisUpdated(payload);
+        });
+    }
+
+    if (pageRoot.querySelector('[data-hardware-workspace]')) {
+        dashboardChannel.listen('.HardwareFulfilmentsUpdated', (payload) => {
+            handleHardwareFulfilmentsUpdated(pageRoot, payload);
         });
     }
 

@@ -579,7 +579,13 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
         $from = HardwareFulfilmentEligibility::cutoffInstant();
         $to = Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
         $queue = app(HardwareFulfilmentWorkQueue::class);
-        $dashboard = $queue->dashboard($from, $to);
+        $dashboard = $queue->dashboard(
+            $from,
+            $to,
+            '',
+            \App\Enums\HardwareWorkspaceScope::Active,
+            \App\Enums\HardwareWorkspaceFilter::All,
+        );
 
         $this->assertSame($dashboard['unfiltered_total'], $queue->workspaceTotal($from, $to));
         $this->assertSame($dashboard['rows']->count(), $dashboard['unfiltered_total']);

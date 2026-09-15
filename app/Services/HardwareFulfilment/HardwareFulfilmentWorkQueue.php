@@ -2,9 +2,11 @@
 
 namespace App\Services\HardwareFulfilment;
 
-use App\Enums\HardwareDashboardQueue;
 use App\Enums\HardwareFulfilmentOperationalStage;
+use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
+use App\Enums\HardwareWorkspaceFilter;
+use App\Enums\HardwareWorkspaceScope;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
@@ -25,6 +27,8 @@ final class HardwareFulfilmentWorkQueue
      * @var array<string, Collection<int, HardwareFulfilmentOperationalRow>>
      */
     private array $allRowsCache = [];
+
+    public int $lastInspectedFulfilmentCount = 0;
 
     public function __construct(
         private readonly HardwareAwaitingFulfilmentQueue $awaiting,
@@ -107,9 +111,19 @@ final class HardwareFulfilmentWorkQueue
      * Unfiltered Hardware workspace size for the dashboard chip.
      * Same dataset as the default rendered/selectable work queue (no search, no sub-queue).
      */
+    /**
+     * Unfiltered Hardware workspace size for the dashboard chip.
+     * Active = fulfilments not in shipped/synced plus awaiting/RIN support rows.
+     * Does not inspect shipment eligibility.
+     */
     public function workspaceTotal(Carbon $fromIst, Carbon $toIst): int
     {
-        return HardwareFulfilment::query()->count()
+        return HardwareFulfilment::query()
+            ->whereNotIn('state', [
+                HardwareFulfilmentState::Shipped->value,
+                HardwareFulfilmentState::Synced->value,
+            ])
+            ->count()
             + $this->awaiting->workCandidateCount($fromIst, $toIst)
             + $this->windowedRinOrderCount($fromIst, $toIst);
     }
@@ -117,12 +131,35 @@ final class HardwareFulfilmentWorkQueue
     /**
      * Presentation queue for the Hardware dashboard. Read-only. No provider calls.
      *
-     * @return array{rows: Collection<int, HardwareFulfilmentOperationalRow>, counts: array<string, int>, total: int, unfiltered_total: int}
+     * @return array{
+     *     rows: Collection<int, HardwareFulfilmentOperationalRow>,
+     *     scope_counts: array<string, int>,
+     *     filter_counts: array<string, int>,
+     *     total: int,
+     *     unfiltered_total: int
+     * }
      */
-    public function dashboard(Carbon $fromIst, Carbon $toIst, string $search = '', string $queue = ''): array
-    {
-        $rows = $this->allRows($fromIst, $toIst, '', '');
-        $unfilteredTotal = $rows->count();
+    public function dashboard(
+        Carbon $fromIst,
+        Carbon $toIst,
+        string $search = '',
+        HardwareWorkspaceScope $scope = HardwareWorkspaceScope::Active,
+        HardwareWorkspaceFilter $filter = HardwareWorkspaceFilter::NeedsAction,
+    ): array {
+        $this->lastInspectedFulfilmentCount = 0;
+
+        $loadAll = in_array($filter, [
+            HardwareWorkspaceFilter::All,
+            HardwareWorkspaceFilter::Ready,
+            HardwareWorkspaceFilter::Exceptions,
+            HardwareWorkspaceFilter::Pickup,
+            HardwareWorkspaceFilter::Scheduled,
+        ], true);
+
+        $rows = $loadAll
+            ? $this->allRows($fromIst, $toIst, '', '')
+            : $this->selectiveRows($fromIst, $toIst, $filter);
+
         if ($search !== '') {
             $needle = strtoupper($search);
             $rows = $rows->filter(function (HardwareFulfilmentOperationalRow $row) use ($needle): bool {
@@ -133,26 +170,151 @@ final class HardwareFulfilmentWorkQueue
             })->values();
         }
 
-        $counts = [];
-        foreach (HardwareDashboardQueue::cases() as $dashboardQueue) {
-            $counts[$dashboardQueue->value] = 0;
-        }
-        foreach ($rows as $row) {
-            $counts[$row->dashboardQueue()->value]++;
+        $activeRows = $rows->reject(
+            static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isShippedWorkspaceItem(),
+        )->values();
+        $shippedRows = $rows->filter(
+            static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isShippedWorkspaceItem(),
+        )->values();
+
+        $scopeCounts = $loadAll
+            ? [
+                HardwareWorkspaceScope::Active->value => $activeRows->count(),
+                HardwareWorkspaceScope::Shipped->value => $shippedRows->count(),
+            ]
+            : [
+                HardwareWorkspaceScope::Active->value => $this->workspaceTotal($fromIst, $toIst),
+                HardwareWorkspaceScope::Shipped->value => HardwareFulfilment::query()
+                    ->whereIn('state', [
+                        HardwareFulfilmentState::Shipped->value,
+                        HardwareFulfilmentState::Synced->value,
+                    ])
+                    ->count(),
+            ];
+
+        $filterCounts = [];
+        foreach (HardwareWorkspaceFilter::cases() as $workspaceFilter) {
+            $filterCounts[$workspaceFilter->value] = $rows
+                ->filter(static fn (HardwareFulfilmentOperationalRow $row): bool => $row->matchesWorkspaceFilter($workspaceFilter))
+                ->count();
         }
 
-        if ($queue !== '') {
-            $rows = $rows->filter(
-                static fn (HardwareFulfilmentOperationalRow $row): bool => $row->dashboardQueue()->value === $queue
+        if ($scope === HardwareWorkspaceScope::Shipped) {
+            $scopedRows = $rows->filter(
+                static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isCompletedPresentation(),
+            )->values();
+        } elseif ($search !== '' || $filter === HardwareWorkspaceFilter::All) {
+            $scopedRows = $activeRows;
+        } else {
+            $scopedRows = $rows->filter(
+                static fn (HardwareFulfilmentOperationalRow $row): bool => $row->matchesWorkspaceFilter($filter),
             )->values();
         }
 
+        $page = max(1, (int) request()->integer('hw_page', request()->integer('page', 1)));
+        $perPage = 40;
+        $total = $scopedRows->count();
+        $paged = $scopedRows->slice(($page - 1) * $perPage, $perPage)->values();
+
         return [
-            'rows' => $rows,
-            'counts' => $counts,
-            'total' => $rows->count(),
-            'unfiltered_total' => $unfilteredTotal,
+            'rows' => $paged,
+            'scope_counts' => $scopeCounts,
+            'filter_counts' => $filterCounts,
+            'total' => $paged->count(),
+            'unfiltered_total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
         ];
+    }
+
+    /**
+     * Inspect non-ingested fulfilments plus awaiting/RIN. Skips the ingested
+     * majority that is not part of Needs Action / Shipping / Completed.
+     *
+     * @return Collection<int, HardwareFulfilmentOperationalRow>
+     */
+    private function selectiveRows(Carbon $fromIst, Carbon $toIst, HardwareWorkspaceFilter $filter): Collection // $filter reserved for verified SQL narrowing
+    {
+        $ids = HardwareFulfilment::query()
+            ->where('state', '!=', HardwareFulfilmentState::Ingested->value)
+            ->orderByDesc('id')
+            ->pluck('id')
+            ->all();
+
+        $fulfilments = $this->inspectFulfilmentsById($ids);
+
+        $awaitingOrders = $this->awaiting->workCandidateOrders($fromIst, $toIst);
+        $rinOrders = $this->windowedRinOrders($fromIst, $toIst);
+        $commerceByOrder = $this->commerceOrdersForSupport($awaitingOrders->concat($rinOrders));
+
+        $awaiting = $awaitingOrders->map(
+            fn (Order $order): HardwareFulfilmentOperationalRow => $this->classifier->fromAwaiting(
+                $order,
+                $commerceByOrder[(int) $order->id] ?? $commerceByOrder[(string) $order->order_id] ?? null,
+            )
+        );
+
+        $rin = $rinOrders->map(
+            fn (Order $order): HardwareFulfilmentOperationalRow => $this->classifier->fromRin(
+                $order,
+                $commerceByOrder[(int) $order->id] ?? $commerceByOrder[(string) $order->order_id] ?? null,
+            )
+        );
+
+        return $fulfilments->concat($awaiting)->concat($rin)
+            ->sortByDesc(static fn (HardwareFulfilmentOperationalRow $row): string => $row->orderDateIst)
+            ->values();
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return Collection<int, HardwareFulfilmentOperationalRow>
+     */
+    private function inspectFulfilmentsById(array $ids): Collection
+    {
+        $this->lastInspectedFulfilmentCount += count($ids);
+        if ($ids === []) {
+            return collect();
+        }
+
+        return HardwareFulfilment::query()
+            ->with([
+                'commerceOrder.items',
+                'commerceOrder.statutoryInvoice',
+                'statutoryInvoice',
+                'supportOrder',
+                'serials.inventorySerial.branch',
+                'serials.inventorySerial.product.packaging',
+                'fulfilmentBranch',
+                'shipment',
+                'packageEvidences',
+            ])
+            ->whereIn('id', $ids)
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (HardwareFulfilment $fulfilment) {
+                return $this->classifier->fromFulfilment(
+                    $fulfilment,
+                    $this->eligibility->inspect($fulfilment),
+                );
+            });
+    }
+
+    private function windowedRinOrderCount(Carbon $fromIst, Carbon $toIst): int
+    {
+        $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
+        $toBound = HardwareFulfilmentEligibility::createdAtSqlBound($toIst);
+
+        return Order::query()
+            ->where('order_id', 'like', 'RIN%')
+            ->where('created_at', '>=', $fromBound)
+            ->where('created_at', '<=', $toBound)
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('hardware_fulfilments')
+                    ->whereColumn('hardware_fulfilments.source_id', 'orders.order_id');
+            })
+            ->count();
     }
 
     /**
@@ -170,6 +332,8 @@ final class HardwareFulfilmentWorkQueue
      */
     private function buildAllRows(Carbon $fromIst, Carbon $toIst, string $orderSearch, string $payment): Collection
     {
+        $this->lastInspectedFulfilmentCount = HardwareFulfilment::query()->count();
+
         $fulfilments = HardwareFulfilment::query()
             ->with([
                 'commerceOrder.items',
@@ -247,23 +411,6 @@ final class HardwareFulfilmentWorkQueue
             })
             ->orderByDesc('id')
             ->get();
-    }
-
-    private function windowedRinOrderCount(Carbon $fromIst, Carbon $toIst): int
-    {
-        $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
-        $toBound = HardwareFulfilmentEligibility::createdAtSqlBound($toIst);
-
-        return Order::query()
-            ->where('order_id', 'like', 'RIN%')
-            ->where('created_at', '>=', $fromBound)
-            ->where('created_at', '<=', $toBound)
-            ->whereNotExists(function ($query): void {
-                $query->selectRaw('1')
-                    ->from('hardware_fulfilments')
-                    ->whereColumn('hardware_fulfilments.source_id', 'orders.order_id');
-            })
-            ->count();
     }
 
     /**

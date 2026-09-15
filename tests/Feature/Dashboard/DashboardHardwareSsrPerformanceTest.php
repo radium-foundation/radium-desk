@@ -111,15 +111,17 @@ class DashboardHardwareSsrPerformanceTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertMatchesRegularExpression(
-            '/data-dashboard-case-filter-count="hardware">\(3\)/',
-            $readyHtml,
-        );
-        $this->assertMatchesRegularExpression(
-            '/data-dashboard-case-filter-count="hardware">\(3\)/',
-            $hardwareHtml,
-        );
-        $this->assertSame(3, preg_match_all('/\sdata-hardware-select(\s|>)/', $hardwareHtml));
+        $this->assertStringContainsString('data-dashboard-case-filter-count="hardware">(3)', $readyHtml);
+        $this->assertStringContainsString('data-hardware-scope-count="active">(3)', $hardwareHtml);
+        $this->assertSame(0, preg_match_all('/\sdata-hardware-select(\s|>)/', $hardwareHtml));
+        $this->assertStringContainsString('Needs Action', $hardwareHtml);
+        $this->assertStringContainsString('data-hardware-filter="needs_action"', $hardwareHtml);
+
+        $allHtml = $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'all']))
+            ->assertOk()
+            ->getContent();
+        $this->assertSame(3, preg_match_all('/\sdata-hardware-select(\s|>)/', $allHtml));
     }
 
     public function test_ready_queue_keeps_live_updates_and_c360_contract(): void
@@ -138,7 +140,8 @@ class DashboardHardwareSsrPerformanceTest extends TestCase
         $this->assertStringContainsString('data-customer-360-url="', $ready);
         $this->assertStringContainsString('data-customer-360-url="', $hardware);
         $this->assertStringContainsString('data-open-customer-360-incident-id="', $ready);
-        $this->assertStringContainsString('hw_queue', $hardware);
+        $this->assertStringContainsString('hw_filter', $hardware);
+        $this->assertStringContainsString('data-live-hardware-url="', $hardware);
 
         $dated = $this->actingAs($admin)
             ->get(route('dashboard', [
