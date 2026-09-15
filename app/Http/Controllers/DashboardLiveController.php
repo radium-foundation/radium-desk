@@ -8,6 +8,7 @@ use App\Services\Dashboard\OperationsWorkspaceResolver;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use App\Services\HardwareFulfilment\HardwareDashboardLiveService;
+use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
 use App\Services\Operations\OperationsRoleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class DashboardLiveController extends Controller
         private readonly OperationsWorkspaceResolver $operationsWorkspace,
         private readonly DashboardLiveRowVisibilityService $liveRowVisibility,
         private readonly HardwareDashboardLiveService $hardwareLive,
+        private readonly HardwareDashboardWorkspace $hardwareWorkspace,
     ) {}
 
     public function hardware(Request $request): JsonResponse
@@ -32,7 +34,8 @@ class DashboardLiveController extends Controller
             return response()->json([
                 'rows' => [],
                 'remove_fulfilment_ids' => [],
-                'counts' => [],
+                'scope_counts' => [],
+                'filter_counts' => [],
                 'hardware_count' => 0,
             ]);
         }
@@ -45,9 +48,20 @@ class DashboardLiveController extends Controller
             ->take(self::LIVE_ROWS_MAX_IDS)
             ->all();
 
-        $hwQueue = trim((string) $request->query('hw_queue', $request->input('hw_queue', '')));
+        $scope = $this->hardwareWorkspace->resolveScope($request);
+        $filter = $this->hardwareWorkspace->resolveFilter($request, $scope);
+        $search = trim((string) $request->query('q', $request->input('q', '')));
+        $range = $this->hardwareWorkspace->range($request);
 
-        return response()->json($this->hardwareLive->livePayload($user, $ids, $hwQueue));
+        return response()->json($this->hardwareLive->livePayload(
+            $user,
+            $ids,
+            $scope,
+            $filter,
+            $search,
+            $range['from'],
+            $range['to'],
+        ));
     }
 
     public function rows(Request $request): JsonResponse

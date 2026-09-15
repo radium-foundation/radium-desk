@@ -4,6 +4,8 @@ namespace Tests\Feature\Dashboard;
 
 use App\Enums\CommerceOrderStatus;
 use App\Enums\HardwareFulfilmentState;
+use App\Enums\HardwareWorkspaceFilter;
+use App\Enums\HardwareWorkspaceScope;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Events\Dashboard\HardwareFulfilmentsUpdated;
 use App\Models\CommerceOrder;
@@ -53,7 +55,7 @@ class HardwareFulfilmentDashboardRealtimeTest extends TestCase
         });
     }
 
-    public function test_live_hardware_endpoint_returns_row_counts_and_queue(): void
+    public function test_live_hardware_endpoint_returns_row_scope_counts_and_filter_counts(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -62,18 +64,23 @@ class HardwareFulfilmentDashboardRealtimeTest extends TestCase
         $response = $this->actingAs($admin)
             ->getJson(route('dashboard.live.hardware', [
                 'ids' => [$fulfilment->id],
+                'hw_scope' => HardwareWorkspaceScope::Active->value,
+                'hw_filter' => HardwareWorkspaceFilter::Ready->value,
             ]))
             ->assertOk()
             ->assertJsonPath('rows.0.fulfilment_id', (int) $fulfilment->id)
             ->assertJsonPath('rows.0.source_id', 'RDE902910')
-            ->assertJsonPath('rows.0.queue', 'ready');
+            ->assertJsonPath('rows.0.scope', HardwareWorkspaceScope::Active->value)
+            ->assertJsonPath('rows.0.filter', HardwareWorkspaceFilter::Ready->value)
+            ->assertJsonPath('rows.0.queue', HardwareWorkspaceFilter::Ready->value);
 
         $this->assertNotEmpty($response->json('rows.0.html'));
-        $this->assertArrayHasKey('ready', $response->json('counts'));
+        $this->assertArrayHasKey(HardwareWorkspaceScope::Active->value, $response->json('scope_counts'));
+        $this->assertArrayHasKey(HardwareWorkspaceFilter::Ready->value, $response->json('filter_counts'));
         $this->assertGreaterThanOrEqual(1, (int) $response->json('hardware_count'));
     }
 
-    public function test_live_hardware_endpoint_removes_row_when_filtered_queue_does_not_match(): void
+    public function test_live_hardware_endpoint_accepts_legacy_hw_queue_as_filter_compatibility(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -82,11 +89,51 @@ class HardwareFulfilmentDashboardRealtimeTest extends TestCase
         $this->actingAs($admin)
             ->getJson(route('dashboard.live.hardware', [
                 'ids' => [$fulfilment->id],
-                'hw_queue' => 'pickup',
+                'hw_queue' => HardwareWorkspaceFilter::Ready->value,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('rows.0.fulfilment_id', (int) $fulfilment->id)
+            ->assertJsonPath('rows.0.filter', HardwareWorkspaceFilter::Ready->value);
+    }
+
+    public function test_live_hardware_endpoint_removes_row_when_active_filter_does_not_match(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $fulfilment = $this->fulfilment();
+
+        $this->actingAs($admin)
+            ->getJson(route('dashboard.live.hardware', [
+                'ids' => [$fulfilment->id],
+                'hw_scope' => HardwareWorkspaceScope::Active->value,
+                'hw_filter' => HardwareWorkspaceFilter::Pickup->value,
             ]))
             ->assertOk()
             ->assertJsonPath('rows', [])
             ->assertJsonPath('remove_fulfilment_ids.0', (int) $fulfilment->id);
+    }
+
+    public function test_live_hardware_endpoint_exposes_all_scope_and_filter_count_keys(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->fulfilment();
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('dashboard.live.hardware', [
+                'ids' => [999999],
+                'hw_scope' => HardwareWorkspaceScope::Active->value,
+                'hw_filter' => HardwareWorkspaceFilter::All->value,
+            ]))
+            ->assertOk();
+
+        foreach (HardwareWorkspaceScope::cases() as $scope) {
+            $this->assertArrayHasKey($scope->value, $response->json('scope_counts'));
+        }
+
+        foreach (HardwareWorkspaceFilter::cases() as $filter) {
+            $this->assertArrayHasKey($filter->value, $response->json('filter_counts'));
+        }
     }
 
     private function fulfilment(): HardwareFulfilment

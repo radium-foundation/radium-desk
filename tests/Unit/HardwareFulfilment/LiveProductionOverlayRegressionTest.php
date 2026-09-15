@@ -79,4 +79,53 @@ class LiveProductionOverlayRegressionTest extends TestCase
 
         $this->assertFalse($enabled);
     }
+
+    #[Test]
+    public function hardware_navigation_uses_live_scope_and_filter_model(): void
+    {
+        $nav = file_get_contents(base_path('resources/views/dashboard/partials/hardware-workspace-nav.blade.php'));
+        $cases = file_get_contents(base_path('resources/views/dashboard/partials/recent-service-cases.blade.php'));
+        $liveJs = file_get_contents(base_path('resources/js/hardware-dashboard-live.js'));
+
+        $this->assertIsString($nav);
+        $this->assertIsString($cases);
+        $this->assertIsString($liveJs);
+        $this->assertStringContainsString('data-hardware-scope-count', $nav);
+        $this->assertStringContainsString('data-hardware-filter-count', $nav);
+        $this->assertStringContainsString('hw_scope', $nav);
+        $this->assertStringContainsString('hw_filter', $nav);
+        $this->assertStringContainsString('hardware-workspace-nav', $cases);
+        $this->assertStringContainsString('name="hw_scope"', $cases);
+        $this->assertStringContainsString('data-hardware-scope-count', $liveJs);
+        $this->assertStringContainsString('data-hardware-filter-count', $liveJs);
+        $this->assertStringNotContainsString('href*="hw_queue=', $liveJs);
+    }
+
+    #[Test]
+    public function hardware_live_service_uses_workspace_scope_enum_not_string_queue(): void
+    {
+        $source = file_get_contents(base_path('app/Services/HardwareFulfilment/HardwareDashboardLiveService.php'));
+
+        $this->assertIsString($source);
+        $this->assertStringContainsString('HardwareWorkspaceScope $scope', $source);
+        $this->assertStringContainsString('HardwareWorkspaceFilter $filter', $source);
+        $this->assertStringContainsString('scope_counts', $source);
+        $this->assertStringContainsString('filter_counts', $source);
+    }
+
+    #[Test]
+    public function dashboard_live_hardware_route_is_preserved(): void
+    {
+        $routes = file_get_contents(base_path('routes/web.php'));
+
+        $this->assertIsString($routes);
+        $this->assertStringContainsString("Route::get('/dashboard/live/hardware'", $routes);
+        $this->assertStringContainsString("->name('dashboard.live.hardware')", $routes);
+    }
+
+    #[Test]
+    public function hardware_configurable_variant_display_class_exists(): void
+    {
+        $this->assertFileExists(base_path('app/Support/HardwareFulfilment/HardwareConfigurableVariantDisplay.php'));
+    }
 }

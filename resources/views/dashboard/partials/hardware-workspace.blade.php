@@ -1,15 +1,18 @@
 @php
-    use App\Enums\HardwareDashboardQueue;
+    use App\Enums\HardwareWorkspaceScope;
 
     $rows = $hardwareWorkspace['rows'] ?? collect();
     $incidentIds = $hardwareWorkspace['incidentIds'] ?? [];
     $operableFulfilmentIds = $hardwareWorkspace['operableFulfilmentIds'] ?? [];
     $canOperateHardware = (bool) ($hardwareWorkspace['canOperateHardware'] ?? false);
     $search = $hardwareWorkspace['search'] ?? '';
-    $isShippedScope = ($hardwareWorkspace['queue'] ?? '') === HardwareDashboardQueue::Completed->value;
+    $isShippedScope = ($hardwareWorkspace['scope'] ?? HardwareWorkspaceScope::Active->value) === HardwareWorkspaceScope::Shipped->value;
 @endphp
 
-<div id="dashboard-hardware-workspace" data-hardware-workspace data-hardware-queue="{{ $hardwareWorkspace['queue'] ?? '' }}">
+<div id="dashboard-hardware-workspace"
+     data-hardware-workspace
+     data-hardware-scope="{{ $hardwareWorkspace['scope'] ?? HardwareWorkspaceScope::Active->value }}"
+     data-hardware-filter="{{ $hardwareWorkspace['filter'] ?? 'all' }}">
     <div class="dashboard-hardware-selection d-none" data-hardware-selection-bar hidden>
         <span class="dashboard-hardware-selection__count" data-hardware-selection-count>0 selected</span>
         <button type="button"

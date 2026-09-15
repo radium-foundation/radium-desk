@@ -9,16 +9,16 @@ describe('hardware dashboard live', () => {
     beforeEach(() => {
         document.body.innerHTML = `
             <div id="dashboard-page" data-live-hardware-url="/dashboard/live/hardware"></div>
-            <nav class="dashboard-operation-queues">
-                <a href="/dashboard?workspace=hardware&hw_queue=ready">
-                    <span class="dashboard-case-filter-chip__count">(2)</span>
-                </a>
-                <a href="/dashboard?workspace=hardware&hw_queue=pickup">
-                    <span class="dashboard-case-filter-chip__count">(1)</span>
-                </a>
+            <nav class="dashboard-hardware-nav">
+                <span data-hardware-scope-count="active">(2)</span>
+                <span data-hardware-scope-count="shipped">(0)</span>
+                <span data-hardware-filter-count="ready">(2)</span>
+                <span data-hardware-filter-count="pickup">(1)</span>
                 <span data-dashboard-case-filter-count="hardware">(3)</span>
             </nav>
-            <div id="dashboard-hardware-workspace" data-hardware-queue="ready">
+            <div id="dashboard-hardware-workspace"
+                 data-hardware-scope="active"
+                 data-hardware-filter="ready">
                 <table>
                     <tbody id="dashboard-hardware-body">
                         <tr data-hardware-fulfilment-id="11" data-hardware-queue="ready">
@@ -39,7 +39,7 @@ describe('hardware dashboard live', () => {
         vi.restoreAllMocks();
     });
 
-    it('patches the affected row, counts, and queue membership without reloading', () => {
+    it('patches the affected row, scope/filter counts, and view membership without reloading', () => {
         const reload = vi.fn();
         Object.defineProperty(window, 'location', {
             configurable: true,
@@ -47,11 +47,14 @@ describe('hardware dashboard live', () => {
         });
 
         applyHardwareLivePayload({
-            counts: { ready: 1, pickup: 2, exceptions: 0, completed: 0 },
-            hardware_count: 3,
+            scope_counts: { active: 2, shipped: 1 },
+            filter_counts: { all: 2, ready: 1, exceptions: 0, pickup: 2, scheduled: 0 },
+            hardware_count: 2,
             remove_fulfilment_ids: [],
             rows: [{
                 fulfilment_id: 11,
+                scope: 'active',
+                filter: 'pickup',
                 queue: 'pickup',
                 html: '<tr data-hardware-fulfilment-id="11" data-hardware-queue="pickup"><td class="dashboard-hardware-status">In Transit</td><td>View</td></tr>',
             }],
@@ -60,15 +63,17 @@ describe('hardware dashboard live', () => {
         expect(document.querySelector('[data-hardware-fulfilment-id="11"]')?.dataset.hardwareQueue).toBe('pickup');
         expect(document.querySelector('[data-hardware-fulfilment-id="11"] .dashboard-hardware-status')?.textContent).toBe('In Transit');
         expect(document.querySelector('[data-hardware-fulfilment-id="12"]')?.textContent).toContain('Stay');
-        expect(document.querySelector('[href*="hw_queue=ready"] .dashboard-case-filter-chip__count')?.textContent).toBe('(1)');
-        expect(document.querySelector('[href*="hw_queue=pickup"] .dashboard-case-filter-chip__count')?.textContent).toBe('(2)');
-        expect(document.querySelector('[data-dashboard-case-filter-count="hardware"]')?.textContent).toBe('(3)');
+        expect(document.querySelector('[data-hardware-scope-count="active"]')?.textContent).toBe('(2)');
+        expect(document.querySelector('[data-hardware-filter-count="ready"]')?.textContent).toBe('(1)');
+        expect(document.querySelector('[data-hardware-filter-count="pickup"]')?.textContent).toBe('(2)');
+        expect(document.querySelector('[data-dashboard-case-filter-count="hardware"]')?.textContent).toBe('(2)');
         expect(reload).not.toHaveBeenCalled();
     });
 
-    it('removes a row that left the active hardware queue', () => {
+    it('removes a row that left the active hardware filter', () => {
         applyHardwareLivePayload({
-            counts: { ready: 1 },
+            scope_counts: { active: 1 },
+            filter_counts: { ready: 1 },
             hardware_count: 1,
             remove_fulfilment_ids: [11],
             rows: [],
@@ -78,7 +83,7 @@ describe('hardware dashboard live', () => {
         expect(document.querySelector('[data-hardware-fulfilment-id="12"]')).not.toBeNull();
     });
 
-    it('refetches live rows from HardwareFulfilmentsUpdated without a full page reload', async () => {
+    it('refetches live rows with hw_scope and hw_filter without a full page reload', async () => {
         const reload = vi.fn();
         Object.defineProperty(window, 'location', {
             configurable: true,
@@ -87,7 +92,8 @@ describe('hardware dashboard live', () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({
-                counts: { ready: 0, pickup: 1 },
+                scope_counts: { active: 1 },
+                filter_counts: { ready: 0, pickup: 1 },
                 hardware_count: 1,
                 remove_fulfilment_ids: [11],
                 rows: [],
@@ -100,16 +106,19 @@ describe('hardware dashboard live', () => {
         );
 
         expect(fetch).toHaveBeenCalledWith(
-            '/dashboard/live/hardware?ids%5B%5D=11&hw_queue=ready',
+            '/dashboard/live/hardware?ids%5B%5D=11&hw_scope=active&hw_filter=ready',
             expect.objectContaining({ credentials: 'same-origin' }),
         );
         expect(document.querySelector('[data-hardware-fulfilment-id="11"]')).toBeNull();
         expect(reload).not.toHaveBeenCalled();
     });
 
-    it('updates hardware chip counts independently', () => {
-        applyHardwareFilterCounts({ ready: 4 }, 9);
-        expect(document.querySelector('[href*="hw_queue=ready"] .dashboard-case-filter-chip__count')?.textContent).toBe('(4)');
+    it('updates scope and filter chip counts independently', () => {
+        applyHardwareFilterCounts({ active: 4, shipped: 2 }, { ready: 3, pickup: 1 }, 9);
+        expect(document.querySelector('[data-hardware-scope-count="active"]')?.textContent).toBe('(4)');
+        expect(document.querySelector('[data-hardware-scope-count="shipped"]')?.textContent).toBe('(2)');
+        expect(document.querySelector('[data-hardware-filter-count="ready"]')?.textContent).toBe('(3)');
+        expect(document.querySelector('[data-hardware-filter-count="pickup"]')?.textContent).toBe('(1)');
         expect(document.querySelector('[data-dashboard-case-filter-count="hardware"]')?.textContent).toBe('(9)');
     });
 });

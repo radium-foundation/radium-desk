@@ -1,14 +1,21 @@
 const hardwareWorkspace = () => document.getElementById('dashboard-hardware-workspace');
 
-const currentHardwareQueue = () => hardwareWorkspace()?.dataset.hardwareQueue ?? '';
+const currentHardwareScope = () => hardwareWorkspace()?.dataset.hardwareScope ?? 'active';
+
+const currentHardwareFilter = () => hardwareWorkspace()?.dataset.hardwareFilter ?? 'all';
 
 const formatCount = (value) => `(${Number(value) || 0})`;
 
-export const applyHardwareFilterCounts = (counts = {}, hardwareCount = null) => {
-    Object.entries(counts).forEach(([queue, count]) => {
-        const chip = document.querySelector(
-            `.dashboard-operation-queues [href*="hw_queue=${queue}"] .dashboard-case-filter-chip__count`,
-        );
+export const applyHardwareFilterCounts = (scopeCounts = {}, filterCounts = {}, hardwareCount = null) => {
+    Object.entries(scopeCounts).forEach(([scope, count]) => {
+        const chip = document.querySelector(`[data-hardware-scope-count="${scope}"]`);
+        if (chip) {
+            chip.textContent = formatCount(count);
+        }
+    });
+
+    Object.entries(filterCounts).forEach(([filter, count]) => {
+        const chip = document.querySelector(`[data-hardware-filter-count="${filter}"]`);
         if (chip) {
             chip.textContent = formatCount(count);
         }
@@ -30,13 +37,38 @@ const rowByFulfilmentId = (fulfilmentId) => document.querySelector(
     `#dashboard-hardware-body tr[data-hardware-fulfilment-id="${fulfilmentId}"]`,
 );
 
+const rowMatchesActiveView = (row) => {
+    const scope = currentHardwareScope();
+    const filter = currentHardwareFilter();
+    const rowScope = row?.scope ?? (row?.queue === 'completed' ? 'shipped' : 'active');
+    const rowFilter = row?.filter ?? row?.queue ?? 'all';
+
+    if (scope === 'shipped') {
+        return rowScope === 'shipped' || row?.queue === 'completed';
+    }
+
+    if (rowScope === 'shipped' || row?.queue === 'completed') {
+        return false;
+    }
+
+    if (filter === 'all') {
+        return true;
+    }
+
+    return rowFilter === filter;
+};
+
 export const applyHardwareLivePayload = (payload) => {
     if (!payload) {
         return;
     }
 
     const body = document.getElementById('dashboard-hardware-body');
-    applyHardwareFilterCounts(payload.counts ?? {}, payload.hardware_count ?? null);
+    applyHardwareFilterCounts(
+        payload.scope_counts ?? {},
+        payload.filter_counts ?? {},
+        payload.hardware_count ?? null,
+    );
 
     (payload.remove_fulfilment_ids ?? []).forEach((id) => {
         rowByFulfilmentId(id)?.remove();
@@ -66,7 +98,7 @@ export const applyHardwareLivePayload = (payload) => {
 
         if (existing) {
             existing.replaceWith(next);
-        } else if ((currentHardwareQueue() === '' || row.queue === currentHardwareQueue())) {
+        } else if (rowMatchesActiveView(row)) {
             body.prepend(next);
         }
     });
@@ -80,9 +112,16 @@ export const fetchHardwareLiveRows = async (pageRoot, fulfilmentIds) => {
 
     const params = new URLSearchParams();
     fulfilmentIds.forEach((id) => params.append('ids[]', String(id)));
-    const hwQueue = currentHardwareQueue();
-    if (hwQueue) {
-        params.set('hw_queue', hwQueue);
+    params.set('hw_scope', currentHardwareScope());
+    const filter = currentHardwareFilter();
+    if (filter && filter !== 'all') {
+        params.set('hw_filter', filter);
+    }
+
+    const searchInput = document.getElementById('hardware-quick-filter-input');
+    const searchValue = searchInput?.value?.trim();
+    if (searchValue) {
+        params.set('q', searchValue);
     }
 
     const response = await fetch(`${url}?${params.toString()}`, {

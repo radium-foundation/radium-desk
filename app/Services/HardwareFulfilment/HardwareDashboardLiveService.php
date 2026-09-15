@@ -2,10 +2,13 @@
 
 namespace App\Services\HardwareFulfilment;
 
+use App\Enums\HardwareWorkspaceFilter;
+use App\Enums\HardwareWorkspaceScope;
 use App\Models\HardwareFulfilment;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
+use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalRow;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
 use App\Support\HardwareFulfilment\HardwareFulfilmentNavigation;
 use Illuminate\Support\Carbon;
@@ -21,21 +24,37 @@ final class HardwareDashboardLiveService
     /**
      * @param  list<int>  $fulfilmentIds
      * @return array{
-     *     rows: list<array{fulfilment_id: int, source_id: string, incident_id: int|null, queue: string, status: string, next_action: string, html: string}>,
+     *     rows: list<array{
+     *         fulfilment_id: int,
+     *         source_id: string,
+     *         incident_id: int|null,
+     *         queue: string,
+     *         scope: string,
+     *         filter: string,
+     *         status: string,
+     *         next_action: string,
+     *         html: string
+     *     }>,
      *     remove_fulfilment_ids: list<int>,
-     *     counts: array<string, int>,
+     *     scope_counts: array<string, int>,
+     *     filter_counts: array<string, int>,
      *     hardware_count: int
      * }
      */
-    public function livePayload(User $user, array $fulfilmentIds, string $hwQueue = ''): array
-    {
-        $range = [
-            'from' => HardwareFulfilmentEligibility::cutoffInstant(),
-            'to' => Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE),
-        ];
-        $dashboard = $this->workQueue->dashboard($range['from'], $range['to'], '', '');
-        $counts = $dashboard['counts'];
-        $hardwareCount = $dashboard['unfiltered_total'];
+    public function livePayload(
+        User $user,
+        array $fulfilmentIds,
+        HardwareWorkspaceScope $scope,
+        HardwareWorkspaceFilter $filter,
+        string $search = '',
+        ?Carbon $from = null,
+        ?Carbon $to = null,
+    ): array {
+        $from ??= HardwareFulfilmentEligibility::cutoffInstant();
+        $to ??= Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
+
+        $dashboard = $this->workQueue->dashboard($from, $to, $search, $scope, $filter);
+        $hardwareCount = $this->workQueue->workspaceTotal($from, $to);
 
         $wanted = array_values(array_unique(array_filter(
             array_map(static fn ($id): int => (int) $id, $fulfilmentIds),
@@ -59,9 +78,8 @@ final class HardwareDashboardLiveService
             }
 
             $row = $this->classifier->fromFulfilment($fulfilment, $this->eligibility->inspect($fulfilment));
-            $queue = $row->dashboardQueue()->value;
 
-            if ($hwQueue !== '' && $queue !== $hwQueue) {
+            if (! $this->rowMatchesView($row, $scope, $filter)) {
                 $remove[] = $id;
 
                 continue;
@@ -75,7 +93,11 @@ final class HardwareDashboardLiveService
                 'fulfilment_id' => $id,
                 'source_id' => $row->sourceId,
                 'incident_id' => $incidentId !== null ? (int) $incidentId : null,
-                'queue' => $queue,
+                'queue' => $row->dashboardQueue()->value,
+                'scope' => $row->isShippedWorkspaceItem()
+                    ? HardwareWorkspaceScope::Shipped->value
+                    : HardwareWorkspaceScope::Active->value,
+                'filter' => $this->rowFilterValue($row),
                 'status' => $row->operatorStatus(),
                 'next_action' => $row->nextAction,
                 'html' => view('dashboard.partials.hardware-workspace-row', [
@@ -83,7 +105,7 @@ final class HardwareDashboardLiveService
                     'incidentId' => $incidentId !== null ? (int) $incidentId : null,
                     'operableFulfilmentIds' => $operable,
                     'canOperateHardware' => HardwareFulfilmentAccess::allows($user),
-                    'isShippedScope' => $row->isShippedWorkspaceItem(),
+                    'isShippedScope' => $scope === HardwareWorkspaceScope::Shipped,
                 ])->render(),
             ];
         }
@@ -91,9 +113,49 @@ final class HardwareDashboardLiveService
         return [
             'rows' => $rows,
             'remove_fulfilment_ids' => $remove,
-            'counts' => $counts,
+            'scope_counts' => $dashboard['scope_counts'],
+            'filter_counts' => $dashboard['filter_counts'],
             'hardware_count' => $hardwareCount,
         ];
+    }
+
+    private function rowMatchesView(
+        HardwareFulfilmentOperationalRow $row,
+        HardwareWorkspaceScope $scope,
+        HardwareWorkspaceFilter $filter,
+    ): bool {
+        if ($scope === HardwareWorkspaceScope::Shipped) {
+            return $row->isShippedWorkspaceItem();
+        }
+
+        if ($row->isShippedWorkspaceItem()) {
+            return false;
+        }
+
+        if ($filter === HardwareWorkspaceFilter::All) {
+            return true;
+        }
+
+        return $row->matchesWorkspaceFilter($filter);
+    }
+
+    private function rowFilterValue(HardwareFulfilmentOperationalRow $row): string
+    {
+        if ($row->isShippedWorkspaceItem()) {
+            return HardwareWorkspaceFilter::All->value;
+        }
+
+        foreach (HardwareWorkspaceFilter::cases() as $workspaceFilter) {
+            if ($workspaceFilter === HardwareWorkspaceFilter::All) {
+                continue;
+            }
+
+            if ($row->matchesWorkspaceFilter($workspaceFilter)) {
+                return $workspaceFilter->value;
+            }
+        }
+
+        return HardwareWorkspaceFilter::All->value;
     }
 
     /**
