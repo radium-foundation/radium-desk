@@ -240,6 +240,21 @@ class HardwareFulfilmentWorkflowService
      */
     public function allocatedSerialNumbers(HardwareFulfilment $fulfilment): array
     {
+        if ($fulfilment->relationLoaded('serials')) {
+            return $fulfilment->serials
+                ->filter(static function ($row): bool {
+                    return $row->status === HardwareFulfilmentSerialStatus::Allocated
+                        && filled($row->serial_number);
+                })
+                ->sortBy([
+                    ['line_no', 'asc'],
+                    ['position', 'asc'],
+                ])
+                ->pluck('serial_number')
+                ->values()
+                ->all();
+        }
+
         return $fulfilment->serials()
             ->where('status', HardwareFulfilmentSerialStatus::Allocated->value)
             ->whereNotNull('serial_number')
