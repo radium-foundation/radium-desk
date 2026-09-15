@@ -111,6 +111,12 @@ final class HardwareDashboardWorkspace
         }
 
         $legacyQueue = trim((string) $request->query('hw_queue', ''));
+        $rawFilter = trim((string) $request->query('hw_filter', ''));
+        $filter = HardwareWorkspaceFilter::tryFrom($rawFilter);
+        if ($filter !== null) {
+            return $filter;
+        }
+
         if ($legacyQueue !== '' && $legacyQueue !== 'completed') {
             $legacyFilter = HardwareWorkspaceFilter::tryFrom($legacyQueue);
             if ($legacyFilter !== null) {
@@ -118,9 +124,7 @@ final class HardwareDashboardWorkspace
             }
         }
 
-        $filter = HardwareWorkspaceFilter::tryFrom(trim((string) $request->query('hw_filter', '')));
-
-        return $filter ?? HardwareWorkspaceFilter::NeedsAction;
+        return HardwareWorkspaceFilter::NeedsAction;
     }
 
     /**

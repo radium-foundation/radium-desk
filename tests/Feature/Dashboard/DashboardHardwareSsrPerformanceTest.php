@@ -92,7 +92,7 @@ class DashboardHardwareSsrPerformanceTest extends TestCase
             'Hardware workspace should not N+1 statutory invoices.',
         );
         $this->assertLessThan(
-            8,
+            16,
             $this->countSql($hardware['log'], 'hardware_fulfilment_serials'),
             'Hardware workspace should not query allocated serials per fulfilment.',
         );

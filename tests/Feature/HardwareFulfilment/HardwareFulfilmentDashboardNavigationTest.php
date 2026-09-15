@@ -15,9 +15,11 @@ use App\Models\InventoryUserBranch;
 use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\User;
+use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -31,6 +33,36 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->withoutVite();
+    }
+
+    public function test_default_workspace_hardware_resolves_needs_action(): void
+    {
+        $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
+        $workspace = app(HardwareDashboardWorkspace::class);
+        $request = Request::create('/dashboard', 'GET', ['workspace' => 'hardware']);
+        $scope = $workspace->resolveScope($request);
+        $filter = $workspace->resolveFilter($request, $scope);
+        $this->assertSame('active', $scope->value);
+        $this->assertSame('needs_action', $filter->value);
+    }
+
+    public function test_default_hardware_workspace_hides_awaiting_handoff_from_needs_action(): void
+    {
+        $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
+        $visible = $this->hardwareCase('RDE902040');
+        $visible->order?->forceFill([
+            'cashfree_payment_id' => 'cf_RDE902040',
+            'created_at' => '2026-09-07 10:00:00',
+        ])->save();
+
+        $html = $this->actingAs($admin)
+            ->get('/dashboard?workspace=hardware')
+            ->assertOk()
+            ->assertDontSee('RDE902040')
+            ->getContent();
+
+        $this->assertStringContainsString('data-hardware-filter="needs_action"', $html);
+        $this->assertSame(0, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
     }
 
     public function test_hardware_chip_matches_rendered_rows_and_excludes_pre_cutoff_hold_incidents(): void
@@ -55,12 +87,13 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         ])->save();
 
         $html = $this->actingAs($admin)
-            ->get(route('dashboard', ['workspace' => 'hardware']))
+            ->get(route('dashboard', ['workspace' => 'hardware', 'hw_filter' => 'needs_action']))
             ->assertOk()
             ->assertDontSee('RDE902040')
             ->assertDontSee('RDE255714')
             ->assertDontSee('RDE313554')
             ->getContent();
+        $this->assertStringContainsString('data-hardware-filter="needs_action"', $html);
 
         $this->assertSame(0, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
         $this->assertStringContainsString('data-hardware-scope-count="active">(1)', $html);
@@ -71,7 +104,7 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->assertStringContainsString('Package Photo Pending', $html);
 
         $all = $this->actingAs($admin)
-            ->get(route('dashboard', ['workspace' => 'hardware', 'hw_filter' => 'all']))
+            ->get('/dashboard?workspace=hardware&hw_filter=all')
             ->assertOk()
             ->assertSee('RDE902040')
             ->getContent();
@@ -82,7 +115,7 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         );
 
         $exceptions = $this->actingAs($admin)
-            ->get(route('dashboard', ['workspace' => 'hardware', 'hw_queue' => 'exceptions']))
+            ->get('/dashboard?workspace=hardware&hw_queue=exceptions')
             ->assertOk()
             ->assertDontSee('RDE902040')
             ->getContent();
