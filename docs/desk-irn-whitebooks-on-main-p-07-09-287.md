@@ -42,7 +42,7 @@ Verified WhiteBooks production binding: bind `WhitebooksEInvoiceGateway` when `c
 
 **Do not overlay the IRN-branch `AppServiceProvider.php` wholesale onto production.** That file lacks `ConfirmRadiumBoxPaymentOnOrderPaid` (RBP94).
 
-After this lands on `main`, a normal deploy of `AppServiceProvider.php` from `main` keeps WhiteBooks when `.env` has `STATUTORY_EINVOICE_PROVIDER=whitebooks`.
+After this lands on `main` (P-07-09-288 fast-forward), a normal named-file overlay of `AppServiceProvider.php` from `main` keeps WhiteBooks when `.env` has `STATUTORY_EINVOICE_PROVIDER=whitebooks` and keeps `ConfirmRadiumBoxPaymentOnOrderPaid`. Production must not receive an unmodified Null-only `AppServiceProvider`.
 
 Follow-up wiring on the same branch (still P-07-09-287): `HardwareConfigurableVariantDisplay`, after-commit `HardwareStatutoryInvoiceIssuer` / `ServiceStatutoryInvoiceIssuer` callers, and catalog UQC on the inventory product form. These are required by the IRN `StatutoryInvoiceService` contract already ported; they do not change Cashfree/RBP94 payment confirmation.
 

@@ -32,6 +32,7 @@ class PosSaleStatutoryInvoiceActionsTest extends TestCase
 
         Storage::fake('local');
         Mail::fake();
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
         $this->seed(FinanceMasterDataSeeder::class);
         config([
