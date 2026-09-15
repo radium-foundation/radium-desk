@@ -92,28 +92,25 @@ final class HardwareAwaitingFulfilmentQueue
         $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
         $toBound = HardwareFulfilmentEligibility::createdAtSqlBound($toIst);
 
-        $review = $this->rdeWithoutFulfilment()
-            ->cashfreeVerified()
-            ->whereNotIn('order_id', $blockedIds)
-            ->where(function (Builder $inner): void {
-                $inner->whereNull('serial_number')->orWhere('serial_number', '');
-            })
-            ->where(function (Builder $inner): void {
-                $inner->whereNull('transaction_id')->orWhere('transaction_id', '');
-            })
-            ->where('created_at', '>=', $fromBound)
-            ->where('created_at', '<=', $toBound)
+        $review = $this->reviewCandidateQuery($fromBound, $toBound, $blockedIds)
             ->orderByDesc('id')
             ->get();
 
-        $blocked = $this->rdeWithoutFulfilment()
-            ->whereIn('order_id', $blockedIds)
-            ->where('created_at', '>=', $fromBound)
-            ->where('created_at', '<=', $toBound)
+        $blocked = $this->blockedCandidateQuery($fromBound, $toBound, $blockedIds)
             ->orderByDesc('id')
             ->get();
 
         return $review->concat($blocked);
+    }
+
+    public function workCandidateCount(Carbon $fromIst, Carbon $toIst): int
+    {
+        $blockedIds = $this->ownerBlockedSourceIds();
+        $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
+        $toBound = HardwareFulfilmentEligibility::createdAtSqlBound($toIst);
+
+        return $this->reviewCandidateQuery($fromBound, $toBound, $blockedIds)->count()
+            + $this->blockedCandidateQuery($fromBound, $toBound, $blockedIds)->count();
     }
 
     /**
@@ -175,24 +172,52 @@ final class HardwareAwaitingFulfilmentQueue
 
     private function rdeWithoutFulfilment(): Builder
     {
-        $sourceIds = HardwareFulfilment::query()->pluck('source_id')->filter()->all();
-        $supportIds = HardwareFulfilment::query()
-            ->whereNotNull('support_order_id')
-            ->pluck('support_order_id')
-            ->all();
-
         return Order::query()
             ->where(function (Builder $query): void {
                 foreach (HardwareFulfilmentEligibility::HARDWARE_SOURCE_PREFIXES as $prefix) {
                     $query->orWhere('order_id', 'like', $prefix.'%');
                 }
             })
-            ->when($sourceIds !== [], static function (Builder $query) use ($sourceIds): void {
-                $query->whereNotIn('order_id', $sourceIds);
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('hardware_fulfilments')
+                    ->whereColumn('hardware_fulfilments.source_id', 'orders.order_id');
             })
-            ->when($supportIds !== [], static function (Builder $query) use ($supportIds): void {
-                $query->whereNotIn('id', $supportIds);
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('hardware_fulfilments')
+                    ->whereNotNull('hardware_fulfilments.support_order_id')
+                    ->whereColumn('hardware_fulfilments.support_order_id', 'orders.id');
             });
+    }
+
+    /**
+     * @param  list<string>  $blockedIds
+     */
+    private function reviewCandidateQuery(string $fromBound, string $toBound, array $blockedIds): Builder
+    {
+        return $this->rdeWithoutFulfilment()
+            ->cashfreeVerified()
+            ->whereNotIn('order_id', $blockedIds)
+            ->where(function (Builder $inner): void {
+                $inner->whereNull('serial_number')->orWhere('serial_number', '');
+            })
+            ->where(function (Builder $inner): void {
+                $inner->whereNull('transaction_id')->orWhere('transaction_id', '');
+            })
+            ->where('created_at', '>=', $fromBound)
+            ->where('created_at', '<=', $toBound);
+    }
+
+    /**
+     * @param  list<string>  $blockedIds
+     */
+    private function blockedCandidateQuery(string $fromBound, string $toBound, array $blockedIds): Builder
+    {
+        return $this->rdeWithoutFulfilment()
+            ->whereIn('order_id', $blockedIds)
+            ->where('created_at', '>=', $fromBound)
+            ->where('created_at', '<=', $toBound);
     }
 
     private function applyFilter(Builder $query, string $filter): void

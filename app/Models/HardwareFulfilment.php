@@ -133,4 +133,9 @@ class HardwareFulfilment extends Model
     {
         return $this->belongsTo(Order::class, 'support_order_id');
     }
+
+    public function statutoryInvoice(): BelongsTo
+    {
+        return $this->belongsTo(StatutoryInvoice::class, 'statutory_invoice_id');
+    }
 }
