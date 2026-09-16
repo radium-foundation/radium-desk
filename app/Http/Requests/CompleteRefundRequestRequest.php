@@ -4,7 +4,6 @@ namespace App\Http\Requests;
 
 use App\Enums\ApprovedRefundMethod;
 use App\Models\RefundRequest;
-use App\Services\RadiumBox\RadiumBoxWalletRefundClient;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CompleteRefundRequestRequest extends FormRequest
@@ -44,7 +43,7 @@ class CompleteRefundRequestRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator): void {
-            if ($this->allowsAutomatedWalletCredit()) {
+            if ($this->isWalletApproved()) {
                 return;
             }
 
@@ -60,18 +59,11 @@ class CompleteRefundRequestRequest extends FormRequest
         });
     }
 
-    private function allowsAutomatedWalletCredit(): bool
+    private function isWalletApproved(): bool
     {
         $refund = $this->route('refund');
 
-        if (! $refund instanceof RefundRequest) {
-            return false;
-        }
-
-        if ($refund->approved_refund_method !== ApprovedRefundMethod::Wallet) {
-            return false;
-        }
-
-        return app(RadiumBoxWalletRefundClient::class)->isConfigured();
+        return $refund instanceof RefundRequest
+            && $refund->approved_refund_method === ApprovedRefundMethod::Wallet;
     }
 }
