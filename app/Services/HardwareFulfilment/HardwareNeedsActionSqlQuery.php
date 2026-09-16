@@ -329,6 +329,7 @@ final class HardwareNeedsActionSqlQuery
                     HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied->value,
                 ]);
         });
+        $this->whereShipmentTrackNotIn($query, ShiprocketTrackNormalized::suppressesPackagePhotoNeedsActionValues());
     }
 
     private function activeFulfilmentQuery(string $search): Builder

@@ -9,6 +9,7 @@ use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareWorkspaceFilter;
 use App\Enums\HardwareWorkspaceScope;
 use App\Enums\ShipmentStatus;
+use App\Enums\ShiprocketTrackNormalized;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
@@ -336,6 +337,158 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
     }
 
+    public function test_package_photo_pending_needs_action_excludes_advanced_provider_tracking(): void
+    {
+        $this->seedCatalog();
+
+        $preShipping = $this->fulfilment(
+            'RDE988000',
+            HardwareFulfilmentState::AwbAssigned,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB988000',
+            label: true,
+            pickup: true,
+            manifest: true,
+        );
+        $mapping = $this->fulfilment('RDE988001', HardwareFulfilmentState::ReadyForFulfilment, mapped: false);
+        $awaitingSerial = $this->fulfilment('RDE988002', HardwareFulfilmentState::ReadyForFulfilment);
+        $awbPending = $this->fulfilment('RDE988003', HardwareFulfilmentState::ShipmentCreated, serial: true, invoice: true, bound: true);
+        $outForPickup = $this->packagePhotoFulfilmentWithTrack('RDE988004', ShiprocketTrackNormalized::OutForPickup);
+        $pickedUp = $this->packagePhotoFulfilmentWithTrack('RDE988005', ShiprocketTrackNormalized::PickedUp);
+        $inTransit = $this->packagePhotoFulfilmentWithTrack('RDE988006', ShiprocketTrackNormalized::InTransit);
+        $delivered = $this->packagePhotoFulfilmentWithTrack('RDE988007', ShiprocketTrackNormalized::Delivered);
+        $unknownTrack = $this->packagePhotoFulfilmentWithTrack('RDE988008', ShiprocketTrackNormalized::Unknown);
+        $nullTrack = $this->fulfilment(
+            'RDE988009',
+            HardwareFulfilmentState::AwbAssigned,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB988009',
+            label: true,
+            pickup: true,
+            manifest: true,
+        );
+        $shippingControl = $this->fulfilment(
+            'RDE988010',
+            HardwareFulfilmentState::AwbAssigned,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB988010',
+            label: true,
+            pickup: true,
+            manifest: true,
+            evidence: true,
+            track: ShiprocketTrackNormalized::PickedUp->value,
+        );
+        $completed = $this->fulfilment(
+            'RDE988011',
+            HardwareFulfilmentState::Shipped,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB988011',
+            label: true,
+            pickup: true,
+            manifest: true,
+            evidence: true,
+            track: ShiprocketTrackNormalized::Delivered->value,
+        );
+
+        $from = HardwareFulfilmentEligibility::cutoffInstant();
+        $to = Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
+        $sql = app(HardwareNeedsActionSqlQuery::class);
+        $counts = $sql->filterCounts($from, $to, '');
+        $needsActionIds = $sql->page(
+            HardwareWorkspaceScope::Active,
+            HardwareWorkspaceFilter::NeedsAction,
+            $from,
+            $to,
+            '',
+            1,
+            50,
+        )['fulfilment_ids'];
+
+        $this->assertContains($preShipping->id, $needsActionIds);
+        $this->assertContains($unknownTrack->id, $needsActionIds);
+        $this->assertContains($nullTrack->id, $needsActionIds);
+        $this->assertNotContains($outForPickup->id, $needsActionIds);
+        $this->assertNotContains($pickedUp->id, $needsActionIds);
+        $this->assertNotContains($inTransit->id, $needsActionIds);
+        $this->assertNotContains($delivered->id, $needsActionIds);
+        $this->assertNotContains($shippingControl->id, $needsActionIds);
+        $this->assertNotContains($completed->id, $needsActionIds);
+
+        $this->assertSame(3, $counts['package_photo_pending']);
+        $this->assertSame(6, $counts['needs_action']);
+        $this->assertSame(1, $counts['mapping_required']);
+        $this->assertSame(1, $counts['awaiting_serial']);
+        $this->assertSame(1, $counts['awb_pending']);
+        $this->assertSame(1, $counts['completed']);
+        $this->assertGreaterThanOrEqual(1, $counts['picked_up']);
+        $this->assertGreaterThanOrEqual(1, $counts['shipping']);
+
+        $mappingPage = $sql->page(
+            HardwareWorkspaceScope::Active,
+            HardwareWorkspaceFilter::MappingRequired,
+            $from,
+            $to,
+            '',
+            1,
+            50,
+        )['fulfilment_ids'];
+        $this->assertContains($mapping->id, $mappingPage);
+
+        $serialPage = $sql->page(
+            HardwareWorkspaceScope::Active,
+            HardwareWorkspaceFilter::AwaitingSerial,
+            $from,
+            $to,
+            '',
+            1,
+            50,
+        )['fulfilment_ids'];
+        $this->assertContains($awaitingSerial->id, $serialPage);
+
+        $awbPage = $sql->page(
+            HardwareWorkspaceScope::Active,
+            HardwareWorkspaceFilter::AwbPending,
+            $from,
+            $to,
+            '',
+            1,
+            50,
+        )['fulfilment_ids'];
+        $this->assertContains($awbPending->id, $awbPage);
+
+        $pickedUpPage = $sql->page(
+            HardwareWorkspaceScope::Active,
+            HardwareWorkspaceFilter::PickedUp,
+            $from,
+            $to,
+            '',
+            1,
+            50,
+        )['fulfilment_ids'];
+        $this->assertContains($pickedUp->id, $pickedUpPage);
+        $this->assertContains($shippingControl->id, $pickedUpPage);
+        $this->assertNotContains($preShipping->id, $pickedUpPage);
+
+        $completedPage = $sql->page(
+            HardwareWorkspaceScope::Shipped,
+            HardwareWorkspaceFilter::Completed,
+            $from,
+            $to,
+            '',
+            1,
+            50,
+        )['fulfilment_ids'];
+        $this->assertContains($completed->id, $completedPage);
+    }
+
     public function test_shipping_subfilters_use_provider_track_sql_without_inspecting_delivered(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
@@ -482,6 +635,22 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
     private function inspectedCount(string $html): int
     {
         return (int) (preg_match('/data-hardware-inspected-count="(\d+)"/', $html, $match) ? $match[1] : -1);
+    }
+
+    private function packagePhotoFulfilmentWithTrack(string $sourceId, ShiprocketTrackNormalized $track): HardwareFulfilment
+    {
+        return $this->fulfilment(
+            $sourceId,
+            HardwareFulfilmentState::AwbAssigned,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB-'.$sourceId,
+            label: true,
+            pickup: true,
+            manifest: true,
+            track: $track->value,
+        );
     }
 
     private function fulfilment(

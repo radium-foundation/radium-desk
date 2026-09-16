@@ -41,6 +41,24 @@ enum ShiprocketTrackNormalized: string
         ], true);
     }
 
+    /**
+     * Normalized provider-track values that suppress package-photo Needs Action.
+     * Mirrors {@see overridesReadyForPickup()} for SQL queue alignment.
+     *
+     * @return list<string>
+     */
+    public static function suppressesPackagePhotoNeedsActionValues(): array
+    {
+        $values = [];
+        foreach (self::cases() as $case) {
+            if ($case->overridesReadyForPickup()) {
+                $values[] = $case->value;
+            }
+        }
+
+        return $values;
+    }
+
     public function operationalStage(): HardwareFulfilmentOperationalStage
     {
         return match ($this) {
