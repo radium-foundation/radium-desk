@@ -426,6 +426,30 @@ class HardwareFulfilmentCourierWorkflowTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_courier_options_can_be_refetched_on_bound_shipment_until_awb(): void
+    {
+        $fulfilment = $this->selectTestCourier($this->invoicedFulfilment('RDE930023', 'DELHI-RETAIL'), $this->admin);
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.shipment.store', $fulfilment));
+
+        $this->actingAs($this->admin)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.courier-options.store', $fulfilment->fresh()))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHas('status', 'Courier options updated from Shiprocket.');
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.awb.store', $fulfilment->fresh()))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHas('status', 'AWB assigned.');
+
+        $this->actingAs($this->admin)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.courier-options.store', $fulfilment->fresh()))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors('shipping');
+    }
+
     public function test_permissions_remain_on_operate_and_strangers_are_forbidden(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE930019', 'DELHI-RETAIL');

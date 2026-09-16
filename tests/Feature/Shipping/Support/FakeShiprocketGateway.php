@@ -97,6 +97,13 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public ?string $nextPickupMode = null;
 
+    public ?string $lastAssignCourierId = null;
+
+    /**
+     * @var list<string|null>
+     */
+    public array $assignCourierIds = [];
+
     /**
      * @var array<string, array{external_order_id: string, external_shipment_id: string}>
      */
@@ -247,6 +254,7 @@ final class FakeShiprocketGateway implements ShiprocketGateway
                 retryable: true,
             ),
             'timeout' => throw new ShiprocketRetryableException('Fake provider courier-options timeout.'),
+            'auth_failed' => throw new ShiprocketNonRetryableException('Shiprocket authentication failed.'),
             default => throw new RuntimeException('Unknown fake Shiprocket courier-list mode: '.$mode),
         };
     }
@@ -254,6 +262,8 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public function assignAwb(string $externalShipmentId, ?string $courierId = null): ShiprocketAwbResult
     {
         $this->awbs++;
+        $this->lastAssignCourierId = $courierId;
+        $this->assignCourierIds[] = $courierId;
         $mode = $this->nextAssignMode ?? $this->mode;
         $this->nextAssignMode = null;
 
@@ -265,6 +275,12 @@ final class FakeShiprocketGateway implements ShiprocketGateway
                 error: 'Fake provider rejected AWB assignment.',
                 retryable: false,
             ),
+            'courier_not_serviceable' => new ShiprocketAwbResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'HTTP 400 — Given courier not serviceable.',
+                retryable: false,
+            ),
             'retryable' => new ShiprocketAwbResult(
                 provider: $this->provider(),
                 status: 'failed',
@@ -273,6 +289,7 @@ final class FakeShiprocketGateway implements ShiprocketGateway
             ),
             'timeout' => throw new ShiprocketRetryableException('Fake provider timeout.'),
             'timeout_accepted' => $this->timeoutAfterAwbAccept($externalShipmentId, $courierId),
+            'auth_failed' => throw new ShiprocketNonRetryableException('Shiprocket authentication failed.'),
             default => throw new RuntimeException('Unknown fake Shiprocket mode: '.$mode),
         };
     }

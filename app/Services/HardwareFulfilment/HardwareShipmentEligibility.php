@@ -49,6 +49,32 @@ class HardwareShipmentEligibility
 
         $this->workflow->assertCanCreateShipment($fulfilment);
 
+        return $this->quoteInputs($fulfilment);
+    }
+
+    /**
+     * Pickup, destination, and parcel used for Shiprocket serviceability.
+     * Does not require INVOICE_ISSUED, so a bound SHIPMENT_CREATED row can
+     * re-quote immediately before AWB assignment.
+     *
+     * @return array{
+     *     invoice: StatutoryInvoice,
+     *     serials: list<string>,
+     *     branch: InventoryBranch,
+     *     pickup: string,
+     *     shipping: array<string, string>,
+     *     parcel: array{weight: float, length: float, breadth: float, height: float},
+     *     parcel_source: string
+     * }
+     */
+    public function quoteInputs(HardwareFulfilment $fulfilment): array
+    {
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
+            throw ValidationException::withMessages([
+                'fulfilment' => 'Frozen pending hardware orders cannot be shipped.',
+            ]);
+        }
+
         $order = $fulfilment->commerceOrder;
         if ($order === null) {
             throw ValidationException::withMessages([
@@ -199,7 +225,7 @@ class HardwareShipmentEligibility
 
         $collection = $this->collectionModes->forFulfilment($fulfilment);
         $fingerprint = null;
-        if ($localReady && $pickup !== null && $pickupPostcode !== null && $shipping !== null && $parcel !== null) {
+        if (($localReady || $alreadyCreated) && $pickup !== null && $pickupPostcode !== null && $shipping !== null && $parcel !== null) {
             $fingerprint = HardwareShipmentCourierQuote::fingerprint(
                 [
                     'pickup' => $pickup,
@@ -220,7 +246,11 @@ class HardwareShipmentEligibility
         $courierOptions = $optionsFresh ? HardwareShipmentCourierQuote::options($fulfilment) : [];
         $recommendationReturned = $optionsFresh
             && HardwareShipmentCourierQuote::recommendationReturned($fulfilment);
-        $canFetchCourierOptions = $localReady && ! $needsReconcile;
+        $canRefreshBoundCourier = $alreadyCreated
+            && ! filled($shipment?->awb)
+            && $fulfilment->state === HardwareFulfilmentState::ShipmentCreated
+            && $this->providerReady();
+        $canFetchCourierOptions = ($localReady && ! $needsReconcile) || $canRefreshBoundCourier;
         $canCreate = $needsReconcile
             ? $localReady
             : ($localReady && $validSelection);

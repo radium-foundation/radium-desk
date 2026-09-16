@@ -173,6 +173,13 @@ final class HttpShiprocketGateway implements ShiprocketGateway
                 error: $exception->getMessage(),
                 retryable: true,
             );
+        } catch (ShiprocketNonRetryableException $exception) {
+            return new ShiprocketAwbResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $exception->getMessage(),
+                retryable: false,
+            );
         }
 
         $data = $this->firstArray($response['json']['response']['data'] ?? $response['json']['data'] ?? $response['json']);
