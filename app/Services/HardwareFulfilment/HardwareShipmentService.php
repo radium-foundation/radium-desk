@@ -174,74 +174,103 @@ class HardwareShipmentService
     {
         $this->assertNotFrozen($fulfilment);
 
-        try {
-            return DB::transaction(function () use ($fulfilment, $actor): Shipment {
-                $locked = HardwareFulfilment::query()
-                    ->whereKey($fulfilment->id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
+        $existing = $this->existingShipment($fulfilment);
+        if ($existing !== null && filled($existing->awb)) {
+            $this->syncFulfilment($fulfilment, $existing);
 
-                $shipment = $this->existingShipment($locked);
-                if ($shipment === null || ! $shipment->isBound()) {
-                    throw ValidationException::withMessages([
-                        'shipping' => 'AWB assignment requires a created provider shipment.',
-                    ]);
-                }
+            return $existing;
+        }
 
-                if (filled($shipment->awb)) {
-                    $this->syncFulfilment($locked, $shipment);
+        $courier = $this->couriers->resolveCourierForAwb($fulfilment, $actor);
 
-                    return $shipment;
-                }
+        $outcome = DB::transaction(function () use ($fulfilment, $actor, $courier): array {
+            $locked = HardwareFulfilment::query()
+                ->whereKey($fulfilment->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-                if ($locked->state !== HardwareFulfilmentState::ShipmentCreated) {
-                    throw ValidationException::withMessages([
-                        'state' => 'AWB assignment requires SHIPMENT_CREATED.',
-                    ]);
-                }
+            $shipment = $this->existingShipment($locked);
+            if ($shipment === null || ! $shipment->isBound()) {
+                throw ValidationException::withMessages([
+                    'shipping' => 'AWB assignment requires a created provider shipment.',
+                ]);
+            }
 
-                $this->assertProviderCallable();
+            if (filled($shipment->awb)) {
+                $this->syncFulfilment($locked, $shipment);
 
-                try {
-                    $result = $this->gateway->assignAwb(
-                        (string) $shipment->external_shipment_id,
-                        $this->couriers->selectedCourierId($locked) ?? $shipment->courier_id,
-                    );
-                } catch (ShiprocketRetryableException $exception) {
-                    $shipment->forceFill([
-                        'failure_class' => 'retryable',
-                        'last_error' => $exception->getMessage(),
-                    ])->save();
+                return ['shipment' => $shipment];
+            }
 
-                    throw $exception;
-                }
+            if ($locked->state !== HardwareFulfilmentState::ShipmentCreated) {
+                throw ValidationException::withMessages([
+                    'state' => 'AWB assignment requires SHIPMENT_CREATED.',
+                ]);
+            }
 
-                if ($result->retryable) {
-                    throw new ShiprocketRetryableException($result->error ?? 'Shiprocket AWB assignment is retryable.');
-                }
+            $this->assertProviderCallable();
 
-                if ($result->status !== 'assigned' || ! filled($result->awb)) {
-                    throw new ShiprocketNonRetryableException($result->error ?? 'Shiprocket rejected AWB assignment.');
-                }
+            try {
+                $result = $this->gateway->assignAwb(
+                    (string) $shipment->external_shipment_id,
+                    $courier['courier_id'],
+                );
+            } catch (ShiprocketRetryableException $exception) {
+                $shipment->forceFill([
+                    'failure_class' => 'retryable',
+                    'last_error' => $exception->getMessage(),
+                ])->save();
 
-                $this->bindAwb($locked, $shipment, $result->awb, $result->courierId, $result->courierName, $actor);
+                return ['retryable' => $exception->getMessage()];
+            } catch (ShiprocketNonRetryableException $exception) {
+                $shipment->forceFill([
+                    'failure_class' => 'provider_rejected',
+                    'last_error' => $exception->getMessage(),
+                ])->save();
 
-                return $shipment->fresh() ?? $shipment;
-            });
-        } catch (ShiprocketRetryableException $exception) {
+                return ['rejected' => $exception->getMessage()];
+            }
+
+            if ($result->retryable) {
+                $message = $result->error ?? 'Shiprocket AWB assignment is retryable.';
+                $shipment->forceFill([
+                    'failure_class' => 'retryable',
+                    'last_error' => $message,
+                ])->save();
+
+                return ['retryable' => $message];
+            }
+
+            if ($result->status !== 'assigned' || ! filled($result->awb)) {
+                $message = $result->error ?? 'Shiprocket rejected AWB assignment.';
+                $shipment->forceFill([
+                    'failure_class' => 'provider_rejected',
+                    'last_error' => $message,
+                ])->save();
+
+                return ['rejected' => $message];
+            }
+
+            $this->bindAwb($locked, $shipment, $result->awb, $result->courierId, $result->courierName, $actor);
+
+            return ['shipment' => $shipment->fresh() ?? $shipment];
+        });
+
+        if (isset($outcome['shipment'])) {
+            return $outcome['shipment'];
+        }
+
+        if (isset($outcome['retryable'])) {
             throw ValidationException::withMessages([
-                'shipping' => $exception->getMessage().' Reconcile before assigning another AWB.',
-            ]);
-        } catch (ShiprocketNonRetryableException $exception) {
-            throw ValidationException::withMessages([
-                'shipping' => $exception->getMessage(),
+                'shipping' => $outcome['retryable'].' Reconcile before assigning another AWB.',
             ]);
         }
+
+        throw ValidationException::withMessages([
+            'shipping' => $outcome['rejected'] ?? 'Shiprocket rejected AWB assignment.',
+        ]);
     }
 
-    /**
-     * @param  array<string, mixed>  $ready
-     */
     /**
      * @param  array<string, mixed>  $ready
      * @param  array{courier_id: string, courier_name: string|null}|null  $courier

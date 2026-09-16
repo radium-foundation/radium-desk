@@ -455,6 +455,26 @@ class HttpShiprocketGatewayTest extends TestCase
         $this->assertSame('12', $result->courierId);
     }
 
+    public function test_assign_awb_http_400_courier_not_serviceable_is_rejected_not_retryable(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/assign/awb' => Http::response([
+                'message' => 'Given courier not serviceable.',
+            ], 400),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->assignAwb('1585251560', '15084');
+
+        $this->assertSame('rejected', $result->status);
+        $this->assertFalse($result->retryable);
+        $this->assertStringContainsString('HTTP 400', (string) $result->error);
+        $this->assertStringContainsString('Given courier not serviceable', (string) $result->error);
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), '/courier/assign/awb')
+            && $request['shipment_id'] === '1585251560'
+            && $request['courier_id'] === '15084');
+    }
+
     public function test_authentication_failure_does_not_create_an_order(): void
     {
         Http::fake([
