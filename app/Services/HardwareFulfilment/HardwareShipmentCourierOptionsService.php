@@ -25,6 +25,7 @@ class HardwareShipmentCourierOptionsService
         private readonly HardwarePickupResolver $pickups,
         private readonly ShiprocketGateway $gateway,
         private readonly HardwareShipmentCollectionModeResolver $collectionModes,
+        private readonly HardwareShipmentCourierSelector $selector,
     ) {}
 
     /**
@@ -205,8 +206,8 @@ class HardwareShipmentCourierOptionsService
     /**
      * Re-quote serviceability for a bound shipment immediately before AWB.
      * Keeps the stored courier when it is still returned. If it is not,
-     * uses Shiprocket's current recommended id when that id is in the list.
-     * Does not pick the first listed courier and does not retry AWB.
+     * uses configured preferred IDs then Shiprocket's current recommended id
+     * when that id is in the list. Does not invent courier IDs.
      *
      * @return array{courier_id: string, courier_name: string|null}
      */
@@ -300,7 +301,7 @@ class HardwareShipmentCourierOptionsService
 
                 $storedId = $this->selectedCourierId($locked)
                     ?? (trim((string) $shipment->courier_id) === '' ? null : trim((string) $shipment->courier_id));
-                $stored = $this->optionById($options, $storedId);
+                $stored = $this->selector->optionById($options, $storedId);
 
                 if ($stored !== null) {
                     $this->persistSelection($locked, $shipment, $stored, $actor, keepActor: true);
@@ -311,13 +312,18 @@ class HardwareShipmentCourierOptionsService
                     ];
                 }
 
-                $recommended = $this->optionById($options, $result->recommendedCourierId);
-                if ($recommended !== null) {
-                    $this->persistSelection($locked, $shipment, $recommended, $actor, keepActor: false);
+                $chosen = $this->selector->choose(
+                    $options,
+                    recommendedId: $result->recommendedCourierId,
+                    anchor: null,
+                    allowUnrankedEligible: false,
+                );
+                if ($chosen !== null) {
+                    $this->persistSelection($locked, $shipment, $chosen, $actor, keepActor: false);
 
                     return [
-                        'courier_id' => (string) $recommended['courier_id'],
-                        'courier_name' => $recommended['courier_name'] ?? null,
+                        'courier_id' => (string) $chosen['courier_id'],
+                        'courier_name' => $chosen['courier_name'] ?? null,
                     ];
                 }
 
@@ -355,8 +361,9 @@ class HardwareShipmentCourierOptionsService
 
     /**
      * After a definitive "courier not serviceable" AWB rejection, re-quote with
-     * order_id and select Shiprocket's current recommended courier only when it
-     * differs from the rejected id and is present in the fresh serviceable list.
+     * order_id and select one alternate from the fresh eligible list. Never reuse
+     * the rejected id, even when Shiprocket still recommends it. One recovery
+     * attempt only; no courier cycling.
      *
      * @return array{courier_id: string, courier_name: string|null}
      */
@@ -455,25 +462,26 @@ class HardwareShipmentCourierOptionsService
                     'courier_options_expires_at' => now()->addSeconds(HardwareShipmentCourierQuote::ttlSeconds()),
                 ])->save();
 
-                $recommended = $this->optionById($options, $result->recommendedCourierId);
-                if ($recommended === null) {
+                $anchor = $this->selector->optionById($options, $rejectedId)
+                    ?? $this->selector->optionById($options, $this->selectedCourierId($locked));
+                $chosen = $this->selector->choose(
+                    $options,
+                    rejectedIds: [$rejectedId],
+                    recommendedId: $result->recommendedCourierId,
+                    anchor: $anchor,
+                    allowUnrankedEligible: true,
+                );
+                if ($chosen === null) {
                     return [
-                        'error' => 'Shiprocket returned no alternate recommended courier after rejecting courier '.$rejectedId.'.',
+                        'error' => 'Shiprocket returned no currently serviceable alternate courier after rejecting courier '.$rejectedId.'. Select a courier from a fresh Get Courier Options result, then Assign AWB.',
                     ];
                 }
 
-                $recommendedId = (string) $recommended['courier_id'];
-                if ($recommendedId === $rejectedId) {
-                    return [
-                        'error' => 'Shiprocket still recommends courier '.$rejectedId.' after rejecting it for AWB assignment.',
-                    ];
-                }
-
-                $this->persistSelection($locked, $shipment, $recommended, $actor, keepActor: false);
+                $this->persistSelection($locked, $shipment, $chosen, $actor, keepActor: false);
 
                 return [
-                    'courier_id' => $recommendedId,
-                    'courier_name' => $recommended['courier_name'] ?? null,
+                    'courier_id' => (string) $chosen['courier_id'],
+                    'courier_name' => $chosen['courier_name'] ?? null,
                 ];
             });
         } catch (ShiprocketRetryableException $exception) {
@@ -500,26 +508,6 @@ class HardwareShipmentCourierOptionsService
             'courier_id' => (string) $resolved['courier_id'],
             'courier_name' => $resolved['courier_name'] ?? null,
         ];
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $options
-     * @return array<string, mixed>|null
-     */
-    private function optionById(array $options, ?string $courierId): ?array
-    {
-        $id = trim((string) $courierId);
-        if ($id === '') {
-            return null;
-        }
-
-        foreach ($options as $option) {
-            if (($option['courier_id'] ?? null) === $id) {
-                return $option;
-            }
-        }
-
-        return null;
     }
 
     /**

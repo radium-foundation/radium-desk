@@ -15,9 +15,11 @@ use App\Services\Shipping\Data\ShiprocketPickupResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\Shipping\Data\ShiprocketTokenResult;
 use App\Services\Shipping\Data\ShiprocketTrackResult;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -28,6 +30,14 @@ use Throwable;
  */
 final class HttpShiprocketGateway implements ShiprocketGateway
 {
+    private const TOKEN_CACHE_PREFIX = 'shipping:shiprocket:token:';
+
+    private const AUTH_LOCK_PREFIX = 'shipping:shiprocket:auth-lock:';
+
+    private const AUTH_LOCK_SECONDS = 20;
+
+    private const AUTH_LOCK_WAIT_SECONDS = 5;
+
     private ?string $token = null;
 
     public function provider(): string
@@ -39,23 +49,22 @@ final class HttpShiprocketGateway implements ShiprocketGateway
     {
         $this->assertConfigured();
 
+        $cached = $this->readCachedToken();
+        if ($cached !== null) {
+            $this->token = $cached['token'];
+
+            return new ShiprocketTokenResult(
+                token: $cached['token'],
+                ttlSeconds: $cached['ttl_seconds'],
+            );
+        }
+
         try {
-            $response = $this->send('post', '/auth/login', [
-                'email' => config('shipping.api_email'),
-                'password' => config('shipping.api_password'),
-            ], authenticated: false);
+            return $this->authenticateSerialized();
         } catch (ShiprocketNonRetryableException) {
+            $this->forgetCachedToken();
             throw new ShiprocketNonRetryableException('Shiprocket authentication failed.');
         }
-
-        $token = trim((string) ($response['json']['token'] ?? ''));
-        if ($token === '') {
-            throw new ShiprocketNonRetryableException('Shiprocket authentication failed.');
-        }
-
-        $this->token = $token;
-
-        return new ShiprocketTokenResult(token: $token, ttlSeconds: 86400);
     }
 
     public function createOrder(ShiprocketCreateOrderRequest $request): ShiprocketCreateOrderResult
@@ -435,6 +444,7 @@ final class HttpShiprocketGateway implements ShiprocketGateway
         }
 
         if ($status === 401 && $this->token !== null) {
+            $this->forgetCachedToken();
             $this->token = null;
             throw new ShiprocketRetryableException('Shiprocket token was rejected. Retry after a fresh login.');
         }
@@ -459,6 +469,189 @@ final class HttpShiprocketGateway implements ShiprocketGateway
         }
 
         return $this->acquireToken()->token;
+    }
+
+    private function authenticateSerialized(): ShiprocketTokenResult
+    {
+        try {
+            return Cache::lock($this->authLockKey(), self::AUTH_LOCK_SECONDS)
+                ->block(self::AUTH_LOCK_WAIT_SECONDS, function (): ShiprocketTokenResult {
+                    $cached = $this->readCachedToken();
+                    if ($cached !== null) {
+                        $this->token = $cached['token'];
+
+                        return new ShiprocketTokenResult(
+                            token: $cached['token'],
+                            ttlSeconds: $cached['ttl_seconds'],
+                        );
+                    }
+
+                    return $this->loginAndCache();
+                });
+        } catch (LockTimeoutException) {
+            $cached = $this->readCachedToken();
+            if ($cached !== null) {
+                $this->token = $cached['token'];
+
+                return new ShiprocketTokenResult(
+                    token: $cached['token'],
+                    ttlSeconds: $cached['ttl_seconds'],
+                );
+            }
+
+            return $this->loginAndCache();
+        } catch (ShiprocketNonRetryableException|ShiprocketRetryableException|ShiprocketDisabledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return $this->loginAndCache();
+        }
+    }
+
+    private function loginAndCache(): ShiprocketTokenResult
+    {
+        $attempts = 1 + max(0, min(2, (int) config('shipping.auth_connect_retries', 1)));
+        $last = null;
+
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            try {
+                return $this->performLoginAndCache();
+            } catch (ShiprocketRetryableException $exception) {
+                $last = $exception;
+                if ($attempt === $attempts || ! $this->isConnectivityFailure($exception)) {
+                    throw $exception;
+                }
+            }
+        }
+
+        throw $last ?? new ShiprocketRetryableException('Shiprocket authentication failed.');
+    }
+
+    private function performLoginAndCache(): ShiprocketTokenResult
+    {
+        $response = $this->send('post', '/auth/login', [
+            'email' => config('shipping.api_email'),
+            'password' => config('shipping.api_password'),
+        ], authenticated: false);
+
+        $token = trim((string) ($response['json']['token'] ?? ''));
+        if ($token === '') {
+            throw new ShiprocketNonRetryableException('Shiprocket authentication failed.');
+        }
+
+        $ttl = $this->tokenTtlSeconds($response['json']);
+        $this->token = $token;
+        $this->storeCachedToken($token, $ttl);
+
+        return new ShiprocketTokenResult(token: $token, ttlSeconds: $ttl);
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     */
+    private function tokenTtlSeconds(array $json): int
+    {
+        foreach (['expires_in', 'expires_in_seconds', 'ttl', 'ttl_seconds'] as $key) {
+            $value = $json[$key] ?? null;
+            if (is_numeric($value) && (int) $value > 0) {
+                return (int) $value;
+            }
+        }
+
+        return max(1, (int) config('shipping.token_ttl_seconds', 86400));
+    }
+
+    /**
+     * @return array{token: string, ttl_seconds: int}|null
+     */
+    private function readCachedToken(): ?array
+    {
+        try {
+            $payload = Cache::get($this->tokenCacheKey());
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (! is_array($payload)) {
+            return null;
+        }
+
+        $token = trim((string) ($payload['token'] ?? ''));
+        if ($token === '') {
+            return null;
+        }
+
+        $ttl = (int) ($payload['ttl_seconds'] ?? 0);
+        $cachedAt = (int) ($payload['cached_at'] ?? 0);
+        $margin = max(0, (int) config('shipping.token_expiry_margin_seconds', 120));
+
+        if ($cachedAt > 0 && $ttl > 0 && (now()->getTimestamp() - $cachedAt) >= max(1, $ttl - $margin)) {
+            return null;
+        }
+
+        return [
+            'token' => $token,
+            'ttl_seconds' => $ttl > 0 ? $ttl : max(1, (int) config('shipping.token_ttl_seconds', 86400)),
+        ];
+    }
+
+    private function storeCachedToken(string $token, int $ttlSeconds): void
+    {
+        $margin = max(0, (int) config('shipping.token_expiry_margin_seconds', 120));
+        $cacheSeconds = $ttlSeconds - $margin;
+        if ($cacheSeconds < 1) {
+            return;
+        }
+
+        try {
+            Cache::put($this->tokenCacheKey(), [
+                'token' => $token,
+                'ttl_seconds' => $ttlSeconds,
+                'cached_at' => now()->getTimestamp(),
+            ], $cacheSeconds);
+        } catch (Throwable) {
+            // In-process token still authenticates this request.
+        }
+    }
+
+    private function forgetCachedToken(): void
+    {
+        try {
+            Cache::forget($this->tokenCacheKey());
+        } catch (Throwable) {
+            // Best-effort invalidation.
+        }
+    }
+
+    private function tokenCacheKey(): string
+    {
+        return self::TOKEN_CACHE_PREFIX.$this->credentialFingerprint();
+    }
+
+    private function authLockKey(): string
+    {
+        return self::AUTH_LOCK_PREFIX.$this->credentialFingerprint();
+    }
+
+    private function credentialFingerprint(): string
+    {
+        $email = trim((string) config('shipping.api_email'));
+        $password = (string) config('shipping.api_password');
+
+        return hash('sha256', $email."\0".$password);
+    }
+
+    private function isConnectivityFailure(Throwable $exception): bool
+    {
+        if ($exception instanceof ConnectionException) {
+            return true;
+        }
+
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'could not connect')
+            || str_contains($message, 'timed out')
+            || str_contains($message, 'resolving timed out')
+            || str_contains($message, 'connection timed out');
     }
 
     private function client(): PendingRequest

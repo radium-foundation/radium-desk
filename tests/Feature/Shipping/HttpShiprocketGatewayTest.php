@@ -2,12 +2,15 @@
 
 namespace Tests\Feature\Shipping;
 
+use App\Contracts\Shipping\ShiprocketGateway;
 use App\Services\Shipping\Data\ShiprocketCourierOptionsRequest;
 use App\Services\Shipping\Data\ShiprocketCreateOrderRequest;
 use App\Services\Shipping\HttpShiprocketGateway;
+use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -27,7 +30,12 @@ class HttpShiprocketGatewayTest extends TestCase
             'shipping.api_password' => 'secret',
             'shipping.timeout_seconds' => 2,
             'shipping.connect_timeout_seconds' => 1,
+            'shipping.token_ttl_seconds' => 86400,
+            'shipping.token_expiry_margin_seconds' => 120,
+            'shipping.auth_connect_retries' => 1,
         ]);
+
+        Cache::flush();
     }
 
     public function test_create_order_uses_adhoc_payload_and_login(): void
@@ -616,6 +624,292 @@ class HttpShiprocketGatewayTest extends TestCase
             Http::assertNothingSent();
             $this->assertArrayHasKey('shipping', $exception->errors());
         }
+    }
+
+    public function test_first_auth_is_cached_with_returned_ttl(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response([
+                'token' => 'tok-1',
+                'expires_in' => 43200,
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->acquireToken();
+
+        $this->assertSame('tok-1', $result->token);
+        $this->assertSame(43200, $result->ttlSeconds);
+
+        $cached = Cache::get($this->tokenCacheKey());
+        $this->assertIsArray($cached);
+        $this->assertSame('tok-1', $cached['token']);
+        $this->assertSame(43200, $cached['ttl_seconds']);
+        $this->assertSame(now()->getTimestamp(), $cached['cached_at']);
+        $this->assertSame(1, $this->loginRequestCount());
+    }
+
+    public function test_second_request_reuses_cached_token_without_login(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc' => Http::response([
+                'order_id' => 88,
+                'shipment_id' => 99,
+            ], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/assign/awb' => Http::response([
+                'response' => [
+                    'data' => [
+                        'awb_code' => 'AWB-99',
+                        'courier_company_id' => 12,
+                        'courier_name' => 'Delhivery',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $created = (new HttpShiprocketGateway)->createOrder($this->request());
+        $assigned = (new HttpShiprocketGateway)->assignAwb((string) $created->externalShipmentId, '12');
+
+        $this->assertSame('created', $created->status);
+        $this->assertSame('assigned', $assigned->status);
+        $this->assertSame('AWB-99', $assigned->awb);
+        $this->assertSame(1, $this->loginRequestCount());
+    }
+
+    public function test_near_expiry_cached_token_is_ignored_and_auth_runs_again(): void
+    {
+        Cache::put($this->tokenCacheKey(), [
+            'token' => 'tok-stale',
+            'ttl_seconds' => 86400,
+            'cached_at' => now()->subSeconds(86400 - 30)->getTimestamp(),
+        ], 3600);
+
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-fresh'], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->acquireToken();
+
+        $this->assertSame('tok-fresh', $result->token);
+        $this->assertSame(1, $this->loginRequestCount());
+        $this->assertSame('tok-fresh', Cache::get($this->tokenCacheKey())['token'] ?? null);
+    }
+
+    public function test_auth_failure_does_not_cache_a_token(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['message' => 'Invalid credentials'], 401),
+        ]);
+
+        try {
+            (new HttpShiprocketGateway)->acquireToken();
+            $this->fail('Authentication failure must fail closed.');
+        } catch (ShiprocketNonRetryableException $exception) {
+            $this->assertSame('Shiprocket authentication failed.', $exception->getMessage());
+        }
+
+        $this->assertNull(Cache::get($this->tokenCacheKey()));
+        $this->assertSame(1, $this->loginRequestCount());
+    }
+
+    public function test_empty_login_token_is_not_cached(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => ''], 200),
+        ]);
+
+        try {
+            (new HttpShiprocketGateway)->acquireToken();
+            $this->fail('Empty token must fail closed.');
+        } catch (ShiprocketNonRetryableException $exception) {
+            $this->assertSame('Shiprocket authentication failed.', $exception->getMessage());
+        }
+
+        $this->assertNull(Cache::get($this->tokenCacheKey()));
+    }
+
+    public function test_downstream_401_invalidates_cached_token_and_next_request_logs_in(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::sequence()
+                ->push(['token' => 'tok-1'], 200)
+                ->push(['token' => 'tok-2'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/assign/awb' => Http::sequence()
+                ->push(['message' => 'Unauthenticated'], 401)
+                ->push([
+                    'response' => [
+                        'data' => [
+                            'awb_code' => 'AWB-2',
+                            'courier_company_id' => 12,
+                            'courier_name' => 'Delhivery',
+                        ],
+                    ],
+                ], 200),
+        ]);
+
+        $first = (new HttpShiprocketGateway)->assignAwb('99', '12');
+        $this->assertSame('failed', $first->status);
+        $this->assertTrue($first->retryable);
+        $this->assertNull(Cache::get($this->tokenCacheKey()));
+
+        $second = (new HttpShiprocketGateway)->assignAwb('99', '12');
+        $this->assertSame('assigned', $second->status);
+        $this->assertSame('AWB-2', $second->awb);
+        $this->assertSame(2, $this->loginRequestCount());
+        $this->assertSame('tok-2', Cache::get($this->tokenCacheKey())['token'] ?? null);
+    }
+
+    public function test_awb_http_400_does_not_invalidate_cache_or_retry_assignment(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/assign/awb' => Http::response([
+                'message' => 'Given courier not serviceable.',
+            ], 400),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->assignAwb('99', '15084');
+
+        $this->assertSame('rejected', $result->status);
+        $this->assertFalse($result->retryable);
+        $this->assertStringContainsString('HTTP 400', (string) $result->error);
+        $this->assertStringContainsString('Given courier not serviceable.', (string) $result->error);
+        $this->assertSame('tok-1', Cache::get($this->tokenCacheKey())['token'] ?? null);
+        $this->assertSame(1, $this->loginRequestCount());
+        $this->assertSame(1, collect(Http::recorded())->filter(
+            fn (array $pair): bool => str_ends_with($pair[0]->url(), '/courier/assign/awb')
+        )->count());
+    }
+
+    public function test_two_gateways_authenticate_once_under_shared_cache(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-shared'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/serviceability*' => Http::response([
+                'data' => [
+                    'recommended_courier_company_id' => 12,
+                    'available_courier_companies' => [
+                        ['courier_company_id' => 12, 'courier_name' => 'Delhivery', 'freight_charge' => 80],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $request = new ShiprocketCourierOptionsRequest(
+            pickupPostcode: '110019',
+            deliveryPostcode: '452001',
+            weight: 0.4,
+            cod: 0,
+        );
+        $first = (new HttpShiprocketGateway)->listCourierOptions($request);
+        $second = (new HttpShiprocketGateway)->listCourierOptions($request);
+
+        $this->assertSame('listed', $first->status);
+        $this->assertSame('listed', $second->status);
+        $this->assertSame('12', $first->recommendedCourierId);
+        $this->assertSame(1, $this->loginRequestCount());
+    }
+
+    public function test_null_cache_store_still_authenticates(): void
+    {
+        config(['cache.default' => 'null']);
+
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc' => Http::response([
+                'order_id' => 88,
+                'shipment_id' => 99,
+            ], 200),
+        ]);
+
+        $first = (new HttpShiprocketGateway)->createOrder($this->request());
+        $second = (new HttpShiprocketGateway)->createOrder($this->request());
+
+        $this->assertSame('created', $first->status);
+        $this->assertSame('created', $second->status);
+        $this->assertSame(2, $this->loginRequestCount());
+    }
+
+    public function test_auth_dns_timeout_retries_once_then_succeeds(): void
+    {
+        $logins = 0;
+        Http::fake(function ($request) use (&$logins) {
+            if (str_ends_with($request->url(), '/auth/login')) {
+                $logins++;
+                if ($logins === 1) {
+                    throw new ConnectionException(
+                        'cURL error 28: Resolving timed out after 5001 milliseconds for https://apiv2.shiprocket.in/v1/external/auth/login',
+                    );
+                }
+
+                return Http::response(['token' => 'tok-recovered'], 200);
+            }
+
+            return Http::response(['order_id' => 88, 'shipment_id' => 99], 200);
+        });
+
+        $result = (new HttpShiprocketGateway)->createOrder($this->request());
+
+        $this->assertSame('created', $result->status);
+        $this->assertSame(2, $logins);
+        $this->assertSame(1, collect(Http::recorded())->filter(
+            fn (array $pair): bool => str_ends_with($pair[0]->url(), '/orders/create/adhoc')
+        )->count());
+    }
+
+    public function test_auth_dns_timeout_is_retryable_and_does_not_assign_awb(): void
+    {
+        $logins = 0;
+        $awbs = 0;
+        Http::fake(function ($request) use (&$logins, &$awbs) {
+            if (str_ends_with($request->url(), '/auth/login')) {
+                $logins++;
+                throw new ConnectionException(
+                    'cURL error 28: Resolving timed out after 5001 milliseconds for https://apiv2.shiprocket.in/v1/external/auth/login',
+                );
+            }
+            if (str_contains($request->url(), '/courier/assign/awb')) {
+                $awbs++;
+            }
+
+            return Http::response(['awb_code' => 'SHOULD-NOT-ASSIGN'], 200);
+        });
+
+        $result = (new HttpShiprocketGateway)->assignAwb('1586581189', '15084');
+
+        $this->assertSame('failed', $result->status);
+        $this->assertTrue($result->retryable);
+        $this->assertNull($result->awb);
+        $this->assertStringContainsString('timed out', strtolower((string) $result->error));
+        $this->assertSame(2, $logins);
+        $this->assertSame(0, $awbs);
+    }
+
+    public function test_null_gateway_still_disables_shipping(): void
+    {
+        $this->assertInstanceOf(NullShiprocketGateway::class, app(ShiprocketGateway::class));
+
+        try {
+            (new NullShiprocketGateway)->acquireToken();
+            $this->fail('Null gateway must stay disabled.');
+        } catch (ShiprocketDisabledException $exception) {
+            $this->assertSame(NullShiprocketGateway::MESSAGE, $exception->getMessage());
+        }
+    }
+
+    private function tokenCacheKey(): string
+    {
+        $email = trim((string) config('shipping.api_email'));
+        $password = (string) config('shipping.api_password');
+
+        return 'shipping:shiprocket:token:'.hash('sha256', $email."\0".$password);
+    }
+
+    private function loginRequestCount(): int
+    {
+        return collect(Http::recorded())->filter(
+            fn (array $pair): bool => str_ends_with($pair[0]->url(), '/auth/login')
+        )->count();
     }
 
     private function request(): ShiprocketCreateOrderRequest

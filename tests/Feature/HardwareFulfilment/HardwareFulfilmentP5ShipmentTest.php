@@ -75,6 +75,7 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
             'shipping.pickup_postcodes.delhi' => '110001',
             'shipping.pickup_postcodes.mumbai' => '400001',
             'shipping.channel_id' => '',
+            'shipping.preferred_courier_ids' => [],
             'statutory_invoices.series_code' => '',
             'statutory_invoices.number_format' => '',
             'statutory_invoices.post_finance_journals' => false,
@@ -378,10 +379,13 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame(1, Shipment::query()->count());
     }
 
-    public function test_awb_http_400_courier_not_serviceable_does_not_retry_when_no_alternate_recommendation(): void
+    public function test_awb_http_400_courier_not_serviceable_does_not_retry_when_no_eligible_alternate(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE900612', 'DELHI-RETAIL');
         $created = $this->shipments->createShipment($fulfilment);
+        $this->fake->courierOptions = [
+            ['courier_id' => '12', 'courier_name' => 'Fake Surface', 'mode' => '0'],
+        ];
         $this->fake->recommendedCourierId = '12';
         $this->fake->assignModeQueue = ['courier_not_serviceable'];
 
@@ -395,7 +399,7 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
             );
             $this->assertTrue(
                 str_contains(implode(' ', $errors), 'Given courier not serviceable')
-                || str_contains(implode(' ', $errors), 'still recommends courier 12'),
+                || str_contains(implode(' ', $errors), 'no currently serviceable alternate courier'),
             );
         }
 
@@ -407,6 +411,101 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame(1, Shipment::query()->count());
         $this->assertSame(HardwareFulfilmentState::ShipmentCreated, $fulfilment->fresh()->state);
         $this->assertSame($created->external_shipment_id, $shipment?->external_shipment_id);
+    }
+
+    public function test_awb_recovers_when_recommended_courier_was_already_rejected(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900630', 'DELHI-RETAIL');
+        $created = $this->shipments->createShipment($fulfilment);
+        $fulfilment->forceFill([
+            'selected_courier_id' => '15084',
+            'selected_courier_name' => 'Delhivery_Surface',
+        ])->save();
+        $fulfilment->shipment?->forceFill([
+            'courier_id' => '15084',
+            'courier_name' => 'Delhivery_Surface',
+        ])->save();
+
+        $this->fake->courierOptions = [
+            ['courier_id' => '15084', 'courier_name' => 'Delhivery_Surface', 'mode' => '0', 'provider_recommended' => true],
+            ['courier_id' => '10', 'courier_name' => 'Delhivery Air', 'mode' => '1'],
+            ['courier_id' => '15106', 'courier_name' => 'Blue Dart Advantage Surface', 'mode' => '0'],
+            ['courier_id' => '48', 'courier_name' => 'Ekart Logistics Air', 'mode' => '1'],
+        ];
+        $this->fake->recommendedCourierId = '15084';
+        $this->fake->assignModeQueue = ['courier_not_serviceable', 'accepted'];
+
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh(['shipment']));
+
+        $this->assertNotNull($assigned->awb);
+        $this->assertSame(['15084', '15106'], $this->fake->assignCourierIds);
+        $this->assertSame('15106', $assigned->courier_id);
+        $this->assertSame('15106', $fulfilment->fresh()->selected_courier_id);
+        $this->assertSame(2, $this->fake->awbs);
+        $this->assertSame(1, Shipment::query()->count());
+        $this->assertSame($created->external_shipment_id, $assigned->external_shipment_id);
+        $this->assertSame(HardwareFulfilmentState::AwbAssigned, $fulfilment->fresh()->state);
+    }
+
+    public function test_awb_recovery_prefers_matching_mode_over_recommended_air(): void
+    {
+        config(['shipping.preferred_courier_ids' => ['15084']]);
+        $fulfilment = $this->invoicedFulfilment('RDE900631', 'DELHI-RETAIL');
+        $created = $this->shipments->createShipment($fulfilment);
+        $fulfilment->forceFill([
+            'selected_courier_id' => '15084',
+            'selected_courier_name' => 'Delhivery_Surface',
+        ])->save();
+        $fulfilment->shipment?->forceFill([
+            'courier_id' => '15084',
+            'courier_name' => 'Delhivery_Surface',
+        ])->save();
+
+        $this->fake->courierOptions = [
+            ['courier_id' => '48', 'courier_name' => 'Ekart Logistics Air', 'mode' => '1', 'provider_recommended' => true],
+            ['courier_id' => '15084', 'courier_name' => 'Delhivery_Surface', 'mode' => '0'],
+            ['courier_id' => '15106', 'courier_name' => 'Blue Dart Advantage Surface', 'mode' => '0'],
+        ];
+        $this->fake->recommendedCourierId = '48';
+        $this->fake->assignModeQueue = ['courier_not_serviceable', 'accepted'];
+
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh(['shipment']));
+
+        $this->assertNotNull($assigned->awb);
+        $this->assertSame(['15084', '15106'], $this->fake->assignCourierIds);
+        $this->assertNotSame('48', $assigned->courier_id);
+        $this->assertSame('15106', $assigned->courier_id);
+        $this->assertSame(1, Shipment::query()->count());
+        $this->assertSame($created->external_shipment_id, $assigned->external_shipment_id);
+    }
+
+    public function test_awb_uses_preferred_courier_when_stored_is_not_serviceable(): void
+    {
+        config(['shipping.preferred_courier_ids' => ['15084']]);
+        $fulfilment = $this->invoicedFulfilment('RDE900632', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $fulfilment->forceFill([
+            'selected_courier_id' => '51',
+            'selected_courier_name' => 'Xpressbees Surface',
+        ])->save();
+        $fulfilment->shipment?->forceFill([
+            'courier_id' => '51',
+            'courier_name' => 'Xpressbees Surface',
+        ])->save();
+
+        $this->fake->courierOptions = [
+            ['courier_id' => '48', 'courier_name' => 'Ekart Logistics Air', 'mode' => '1'],
+            ['courier_id' => '15084', 'courier_name' => 'Delhivery_Surface', 'mode' => '0'],
+            ['courier_id' => '15106', 'courier_name' => 'Blue Dart Advantage Surface', 'mode' => '0'],
+        ];
+        $this->fake->recommendedCourierId = '48';
+
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh(['shipment']));
+
+        $this->assertSame(['15084'], $this->fake->assignCourierIds);
+        $this->assertSame('15084', $assigned->courier_id);
+        $this->assertSame(1, $this->fake->awbs);
+        $this->assertSame(1, Shipment::query()->count());
     }
 
     public function test_awb_recovers_with_alternate_recommended_courier_after_courier_not_serviceable(): void
@@ -506,10 +605,10 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame($courierListsBeforeAssign + 1, $this->fake->courierLists);
     }
 
-    public function test_awb_does_not_retry_when_alternate_recommendation_not_in_serviceable_list(): void
+    public function test_awb_recovers_with_eligible_alternate_when_recommendation_is_missing(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE900620', 'DELHI-RETAIL');
-        $this->shipments->createShipment($fulfilment);
+        $created = $this->shipments->createShipment($fulfilment);
         $fulfilment->forceFill([
             'selected_courier_id' => '15084',
             'selected_courier_name' => 'Delhivery_Surface',
@@ -520,24 +619,19 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         ])->save();
 
         $this->fake->courierOptions = [
-            ['courier_id' => '15106', 'courier_name' => 'Blue Dart Advantage Surface'],
-            ['courier_id' => '15084', 'courier_name' => 'Delhivery_Surface'],
+            ['courier_id' => '15106', 'courier_name' => 'Blue Dart Advantage Surface', 'mode' => '0'],
+            ['courier_id' => '15084', 'courier_name' => 'Delhivery_Surface', 'mode' => '0'],
         ];
         $this->fake->recommendedCourierId = '369';
-        $this->fake->assignModeQueue = ['courier_not_serviceable'];
-        $courierListsBeforeAssign = $this->fake->courierLists;
+        $this->fake->assignModeQueue = ['courier_not_serviceable', 'accepted'];
 
-        try {
-            $this->shipments->assignAwb($fulfilment->fresh(['shipment']));
-            $this->fail('Missing alternate recommendation must fail closed.');
-        } catch (ValidationException $exception) {
-            $this->assertStringContainsString('no alternate recommended courier', implode(' ', $exception->errors()['courier_id'] ?? []));
-        }
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh(['shipment']));
 
-        $this->assertSame(1, $this->fake->awbs);
-        $this->assertSame($courierListsBeforeAssign + 2, $this->fake->courierLists);
-        $this->assertSame('15084', $fulfilment->fresh()->selected_courier_id);
-        $this->assertNull($fulfilment->fresh()->shipment?->awb);
+        $this->assertNotNull($assigned->awb);
+        $this->assertSame(['15084', '15106'], $this->fake->assignCourierIds);
+        $this->assertSame('15106', $assigned->courier_id);
+        $this->assertSame(1, Shipment::query()->count());
+        $this->assertSame($created->external_shipment_id, $assigned->external_shipment_id);
     }
 
     public function test_awb_fails_closed_when_no_current_courier_is_serviceable(): void

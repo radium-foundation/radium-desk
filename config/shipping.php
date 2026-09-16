@@ -41,7 +41,36 @@ return [
 
     'timeout_seconds' => max(1, (int) env('SHIPROCKET_TIMEOUT_SECONDS', 15)),
 
+    /*
+    | Connect timeout stays 5s. Production DNS failures fail at the resolver
+    | (cURL 28 after exactly this budget). Healthy apiv2 namelookup is ~8ms.
+    | Raising the default would only delay the same outage; it is not a DNS fix.
+    */
     'connect_timeout_seconds' => max(1, (int) env('SHIPROCKET_CONNECT_TIMEOUT_SECONDS', 5)),
+
+    /*
+    | Shared auth-token cache. Login tokens last 86400s at Shiprocket; a margin
+    | is subtracted so an about-to-expire token is not reused. Cache miss/failure
+    | falls back to a normal login. This reduces auth chatter; it does not fix DNS.
+    */
+    'token_ttl_seconds' => max(1, (int) env('SHIPROCKET_TOKEN_TTL_SECONDS', 86400)),
+
+    'token_expiry_margin_seconds' => max(0, (int) env('SHIPROCKET_TOKEN_EXPIRY_MARGIN_SECONDS', 120)),
+
+    /*
+    | Extra login attempts after a connectivity/DNS timeout only. 0 = no retry.
+    | Bounded to 2 extra attempts. Never retries AWB assignment.
+    */
+    'auth_connect_retries' => max(0, min(2, (int) env('SHIPROCKET_AUTH_CONNECT_RETRIES', 1))),
+
+    /*
+    | Ordered Desk courier preference. Empty means no configured preference.
+    | Values come from env only. Do not invent IDs in application code.
+    */
+    'preferred_courier_ids' => array_values(array_unique(array_filter(array_map(
+        static fn (string $id): string => trim($id),
+        explode(',', (string) env('SHIPROCKET_PREFERRED_COURIER_IDS', '')),
+    ), static fn (string $id): bool => $id !== ''))),
 
     /*
     | Default false. The HTTP client exists but stays unbound unless this is
