@@ -378,28 +378,166 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame(1, Shipment::query()->count());
     }
 
-    public function test_awb_http_400_courier_not_serviceable_does_not_retry_or_recreate(): void
+    public function test_awb_http_400_courier_not_serviceable_does_not_retry_when_no_alternate_recommendation(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE900612', 'DELHI-RETAIL');
         $created = $this->shipments->createShipment($fulfilment);
-        $this->fake->nextAssignMode = 'courier_not_serviceable';
+        $this->fake->recommendedCourierId = '12';
+        $this->fake->assignModeQueue = ['courier_not_serviceable'];
 
         try {
             $this->shipments->assignAwb($fulfilment->fresh());
             $this->fail('Non-serviceable courier must fail closed.');
         } catch (ValidationException $exception) {
-            $this->assertStringContainsString('Given courier not serviceable', implode(' ', $exception->errors()['shipping'] ?? []));
+            $errors = array_merge(
+                $exception->errors()['shipping'] ?? [],
+                $exception->errors()['courier_id'] ?? [],
+            );
+            $this->assertTrue(
+                str_contains(implode(' ', $errors), 'Given courier not serviceable')
+                || str_contains(implode(' ', $errors), 'still recommends courier 12'),
+            );
         }
 
         $shipment = $created->fresh();
         $this->assertNull($shipment?->awb);
         $this->assertSame('provider_rejected', $shipment?->failure_class);
-        $this->assertStringContainsString('Given courier not serviceable', (string) $shipment?->last_error);
         $this->assertSame(1, $this->fake->awbs);
         $this->assertSame(1, $this->fake->creates);
         $this->assertSame(1, Shipment::query()->count());
         $this->assertSame(HardwareFulfilmentState::ShipmentCreated, $fulfilment->fresh()->state);
         $this->assertSame($created->external_shipment_id, $shipment?->external_shipment_id);
+    }
+
+    public function test_awb_recovers_with_alternate_recommended_courier_after_courier_not_serviceable(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900616', 'DELHI-RETAIL');
+        $created = $this->shipments->createShipment($fulfilment);
+        $fulfilment->forceFill([
+            'selected_courier_id' => '15084',
+            'selected_courier_name' => 'Delhivery_Surface',
+        ])->save();
+        $fulfilment->shipment?->forceFill([
+            'courier_id' => '15084',
+            'courier_name' => 'Delhivery_Surface',
+        ])->save();
+
+        $this->fake->courierOptions = [
+            ['courier_id' => '369', 'courier_name' => 'Shree Maruti 500 g Surface'],
+            ['courier_id' => '15106', 'courier_name' => 'Blue Dart Advantage Surface'],
+            ['courier_id' => '15084', 'courier_name' => 'Delhivery_Surface'],
+        ];
+        $this->fake->recommendedCourierId = '369';
+        $this->fake->assignModeQueue = ['courier_not_serviceable', 'accepted'];
+
+        $courierListsBeforeAssign = $this->fake->courierLists;
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh(['shipment']));
+
+        $this->assertNotNull($assigned->awb);
+        $this->assertSame(['15084', '369'], $this->fake->assignCourierIds);
+        $this->assertSame('369', $this->fake->lastAssignCourierId);
+        $this->assertSame(2, $this->fake->awbs);
+        $this->assertSame($courierListsBeforeAssign + 2, $this->fake->courierLists);
+        $this->assertSame('369', $fulfilment->fresh()->selected_courier_id);
+        $this->assertSame('Shree Maruti 500 g Surface', $fulfilment->fresh()->selected_courier_name);
+        $this->assertSame('369', $assigned->courier_id);
+        $this->assertSame(1, Shipment::query()->count());
+        $this->assertSame($created->external_shipment_id, $assigned->external_shipment_id);
+        $this->assertSame(HardwareFulfilmentState::AwbAssigned, $fulfilment->fresh()->state);
+        $this->assertSame('awb_recovery', $fulfilment->fresh()->courier_options_snapshot['quoted_for'] ?? null);
+    }
+
+    public function test_awb_does_not_retry_after_generic_http_400_rejection(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900617', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $this->fake->recommendedCourierId = '44';
+        $this->fake->assignModeQueue = ['rejected'];
+        $courierListsBeforeAssign = $this->fake->courierLists;
+
+        try {
+            $this->shipments->assignAwb($fulfilment->fresh());
+            $this->fail('Generic AWB rejection must fail closed.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('rejected AWB assignment', implode(' ', $exception->errors()['shipping'] ?? []));
+            $this->assertStringNotContainsString('not serviceable', strtolower(implode(' ', $exception->errors()['shipping'] ?? [])));
+        }
+
+        $this->assertSame(1, $this->fake->awbs);
+        $this->assertSame($courierListsBeforeAssign + 1, $this->fake->courierLists);
+        $this->assertSame('12', $fulfilment->fresh()->selected_courier_id);
+    }
+
+    public function test_awb_does_not_retry_after_timeout_on_first_assign(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900618', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $this->fake->recommendedCourierId = '44';
+        $this->fake->assignModeQueue = ['timeout'];
+        $courierListsBeforeAssign = $this->fake->courierLists;
+
+        try {
+            $this->shipments->assignAwb($fulfilment->fresh());
+            $this->fail('Timeout must fail closed.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('Reconcile', implode(' ', $exception->errors()['shipping'] ?? []));
+        }
+
+        $this->assertSame(1, $this->fake->awbs);
+        $this->assertSame($courierListsBeforeAssign + 1, $this->fake->courierLists);
+    }
+
+    public function test_awb_does_not_retry_after_auth_failure_on_first_assign(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900619', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $this->fake->recommendedCourierId = '44';
+        $this->fake->assignModeQueue = ['auth_failed'];
+        $courierListsBeforeAssign = $this->fake->courierLists;
+
+        try {
+            $this->shipments->assignAwb($fulfilment->fresh());
+            $this->fail('Authentication failure must fail closed.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('authentication failed', strtolower(implode(' ', $exception->errors()['shipping'] ?? [])));
+        }
+
+        $this->assertSame(1, $this->fake->awbs);
+        $this->assertSame($courierListsBeforeAssign + 1, $this->fake->courierLists);
+    }
+
+    public function test_awb_does_not_retry_when_alternate_recommendation_not_in_serviceable_list(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900620', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $fulfilment->forceFill([
+            'selected_courier_id' => '15084',
+            'selected_courier_name' => 'Delhivery_Surface',
+        ])->save();
+        $fulfilment->shipment?->forceFill([
+            'courier_id' => '15084',
+            'courier_name' => 'Delhivery_Surface',
+        ])->save();
+
+        $this->fake->courierOptions = [
+            ['courier_id' => '15106', 'courier_name' => 'Blue Dart Advantage Surface'],
+            ['courier_id' => '15084', 'courier_name' => 'Delhivery_Surface'],
+        ];
+        $this->fake->recommendedCourierId = '369';
+        $this->fake->assignModeQueue = ['courier_not_serviceable'];
+        $courierListsBeforeAssign = $this->fake->courierLists;
+
+        try {
+            $this->shipments->assignAwb($fulfilment->fresh(['shipment']));
+            $this->fail('Missing alternate recommendation must fail closed.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('no alternate recommended courier', implode(' ', $exception->errors()['courier_id'] ?? []));
+        }
+
+        $this->assertSame(1, $this->fake->awbs);
+        $this->assertSame($courierListsBeforeAssign + 2, $this->fake->courierLists);
+        $this->assertSame('15084', $fulfilment->fresh()->selected_courier_id);
+        $this->assertNull($fulfilment->fresh()->shipment?->awb);
     }
 
     public function test_awb_fails_closed_when_no_current_courier_is_serviceable(): void

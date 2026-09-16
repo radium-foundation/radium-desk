@@ -2,6 +2,8 @@
 
 namespace App\Services\Shipping\Data;
 
+use App\Services\Shipping\ShiprocketAwbAssignmentRejection;
+
 final class ShiprocketAwbResult
 {
     public function __construct(
@@ -13,4 +15,9 @@ final class ShiprocketAwbResult
         public readonly ?string $error = null,
         public readonly bool $retryable = false,
     ) {}
+
+    public function isCourierNotServiceableRejection(): bool
+    {
+        return ShiprocketAwbAssignmentRejection::isDefinitiveNoAwbAssignment($this);
+    }
 }

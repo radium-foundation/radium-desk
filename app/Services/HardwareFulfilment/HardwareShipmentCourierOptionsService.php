@@ -354,6 +354,155 @@ class HardwareShipmentCourierOptionsService
     }
 
     /**
+     * After a definitive "courier not serviceable" AWB rejection, re-quote with
+     * order_id and select Shiprocket's current recommended courier only when it
+     * differs from the rejected id and is present in the fresh serviceable list.
+     *
+     * @return array{courier_id: string, courier_name: string|null}
+     */
+    public function resolveAlternateCourierAfterRejection(
+        HardwareFulfilment $fulfilment,
+        string $rejectedCourierId,
+        ?User $actor = null,
+    ): array {
+        $rejectedId = trim($rejectedCourierId);
+        if ($rejectedId === '') {
+            throw ValidationException::withMessages([
+                'courier_id' => 'Cannot recover from AWB rejection without a rejected courier id.',
+            ]);
+        }
+
+        $this->assertNotFrozen($fulfilment);
+        $this->assertProviderCallable();
+
+        try {
+            $resolved = DB::transaction(function () use ($fulfilment, $rejectedId, $actor): array {
+                $locked = HardwareFulfilment::query()
+                    ->whereKey($fulfilment->id)
+                    ->lockForUpdate()
+                    ->with(['commerceOrder.items', 'serials.inventorySerial.product.packaging', 'shipment'])
+                    ->firstOrFail();
+
+                $this->assertNotFrozen($locked);
+
+                $shipment = $locked->shipment_id !== null
+                    ? $locked->shipment
+                    : $locked->shipment()->lockForUpdate()->first();
+
+                if ($shipment === null || ! $shipment->isBound()) {
+                    throw ValidationException::withMessages([
+                        'shipping' => 'AWB assignment requires a created provider shipment.',
+                    ]);
+                }
+
+                if (filled($shipment->awb)) {
+                    throw ValidationException::withMessages([
+                        'shipping' => 'AWB is already assigned. Alternate courier recovery is not allowed.',
+                    ]);
+                }
+
+                $ready = $this->eligibility->quoteInputs($locked);
+                $pickupPostcode = $this->pickups->requirePostcodeForBranch($ready['branch']);
+                $providerOrderId = $this->providerOrderId($locked);
+                $collection = $this->collectionModes->forFulfilment($locked);
+                $fingerprint = HardwareShipmentCourierQuote::fingerprint(
+                    $ready,
+                    $pickupPostcode,
+                    $collection->serviceabilityCod(),
+                    $providerOrderId,
+                );
+
+                $result = $this->gateway->listCourierOptions(new ShiprocketCourierOptionsRequest(
+                    pickupPostcode: $pickupPostcode,
+                    deliveryPostcode: $ready['shipping']['pincode'],
+                    weight: $ready['parcel']['weight'],
+                    cod: $collection->serviceabilityCod(),
+                    providerOrderId: $providerOrderId,
+                ));
+
+                if ($result->retryable) {
+                    throw new ShiprocketRetryableException(
+                        $result->error ?? 'Shiprocket courier options are retryable.',
+                    );
+                }
+
+                if ($result->status !== 'listed') {
+                    throw ValidationException::withMessages([
+                        'shipping' => $result->error ?? 'Shiprocket returned no courier options.',
+                    ]);
+                }
+
+                $options = array_map(
+                    static fn (ShiprocketCourierOption $option): array => $option->toArray(),
+                    $result->options,
+                );
+
+                $locked->forceFill([
+                    'courier_options_snapshot' => [
+                        'options' => $options,
+                        'recommended_courier_id' => $result->recommendedCourierId,
+                        'recommendation_returned' => $result->recommendationReturned,
+                        'pickup_postcode' => $pickupPostcode,
+                        'delivery_postcode' => $ready['shipping']['pincode'],
+                        'weight' => $ready['parcel']['weight'],
+                        'cod' => $collection->serviceabilityCod(),
+                        'collection_mode' => $collection->value,
+                        'provider_order_id' => $providerOrderId,
+                        'quoted_for' => 'awb_recovery',
+                    ],
+                    'courier_options_fingerprint' => $fingerprint,
+                    'courier_options_fetched_at' => now(),
+                    'courier_options_expires_at' => now()->addSeconds(HardwareShipmentCourierQuote::ttlSeconds()),
+                ])->save();
+
+                $recommended = $this->optionById($options, $result->recommendedCourierId);
+                if ($recommended === null) {
+                    return [
+                        'error' => 'Shiprocket returned no alternate recommended courier after rejecting courier '.$rejectedId.'.',
+                    ];
+                }
+
+                $recommendedId = (string) $recommended['courier_id'];
+                if ($recommendedId === $rejectedId) {
+                    return [
+                        'error' => 'Shiprocket still recommends courier '.$rejectedId.' after rejecting it for AWB assignment.',
+                    ];
+                }
+
+                $this->persistSelection($locked, $shipment, $recommended, $actor, keepActor: false);
+
+                return [
+                    'courier_id' => $recommendedId,
+                    'courier_name' => $recommended['courier_name'] ?? null,
+                ];
+            });
+        } catch (ShiprocketRetryableException $exception) {
+            throw ValidationException::withMessages([
+                'shipping' => $exception->getMessage().' Retry Assign AWB after Shiprocket is reachable. This is not a courier-serviceability rejection.',
+            ]);
+        } catch (ShiprocketNonRetryableException $exception) {
+            throw ValidationException::withMessages([
+                'shipping' => $exception->getMessage(),
+            ]);
+        } catch (ShiprocketDisabledException $exception) {
+            throw ValidationException::withMessages([
+                'shipping' => $exception->getMessage(),
+            ]);
+        }
+
+        if (isset($resolved['error'])) {
+            throw ValidationException::withMessages([
+                'courier_id' => $resolved['error'],
+            ]);
+        }
+
+        return [
+            'courier_id' => (string) $resolved['courier_id'],
+            'courier_name' => $resolved['courier_name'] ?? null,
+        ];
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $options
      * @return array<string, mixed>|null
      */

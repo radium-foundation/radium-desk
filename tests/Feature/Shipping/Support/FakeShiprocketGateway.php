@@ -95,6 +95,11 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public ?string $nextAssignMode = null;
 
+    /**
+     * @var list<string>
+     */
+    public array $assignModeQueue = [];
+
     public ?string $nextPickupMode = null;
 
     public ?string $lastAssignCourierId = null;
@@ -264,7 +269,9 @@ final class FakeShiprocketGateway implements ShiprocketGateway
         $this->awbs++;
         $this->lastAssignCourierId = $courierId;
         $this->assignCourierIds[] = $courierId;
-        $mode = $this->nextAssignMode ?? $this->mode;
+        $mode = $this->assignModeQueue !== []
+            ? array_shift($this->assignModeQueue)
+            : ($this->nextAssignMode ?? $this->mode);
         $this->nextAssignMode = null;
 
         return match ($mode) {
