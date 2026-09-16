@@ -198,25 +198,6 @@ final class HardwareFulfilmentWorkQueue
             ];
         }
 
-        if ($filter->isShipping() && $filter !== HardwareWorkspaceFilter::Shipping) {
-            $candidateIds = $this->needsActionSql->shippingCandidateIds($search);
-            $rows = $this->inspectFulfilmentsById($candidateIds)
-                ->filter(static fn (HardwareFulfilmentOperationalRow $row): bool => $row->matchesWorkspaceFilter($filter))
-                ->values();
-            $total = $rows->count();
-            $rows = $rows->slice(($page - 1) * $perPage, $perPage)->values();
-
-            return [
-                'rows' => $rows,
-                'scope_counts' => $scopeCounts,
-                'filter_counts' => $filterCounts,
-                'total' => $rows->count(),
-                'unfiltered_total' => $total,
-                'page' => $page,
-                'per_page' => $perPage,
-            ];
-        }
-
         $pageSet = $this->needsActionSql->page($scope, $filter, $fromIst, $toIst, $search, $page, $perPage);
         $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
 

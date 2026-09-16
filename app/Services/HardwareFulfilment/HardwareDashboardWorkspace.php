@@ -77,6 +77,10 @@ final class HardwareDashboardWorkspace
      */
     public function overlayFilterCounts(array $counts): array
     {
+        if ($counts === []) {
+            return $counts;
+        }
+
         $counts['hardware'] = $this->chipCount();
 
         return $counts;

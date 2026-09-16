@@ -336,6 +336,75 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
     }
 
+    public function test_shipping_subfilters_use_provider_track_sql_without_inspecting_delivered(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->seedCatalog();
+
+        $this->fulfilment(
+            'RDE987001',
+            HardwareFulfilmentState::AwbAssigned,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB987001',
+            label: true,
+            pickup: true,
+            manifest: true,
+            evidence: true,
+            track: 'out_for_pickup',
+        );
+        $this->fulfilment(
+            'RDE987002',
+            HardwareFulfilmentState::AwbAssigned,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB987002',
+            label: true,
+            pickup: true,
+            manifest: true,
+            evidence: true,
+            track: 'delivered',
+        );
+        $this->fulfilment(
+            'RDE987003',
+            HardwareFulfilmentState::AwbAssigned,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB987003',
+            label: true,
+            pickup: true,
+            manifest: true,
+            evidence: true,
+            track: 'in_transit',
+        );
+
+        $html = $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'out_for_pickup']))
+            ->assertOk()
+            ->assertSee('RDE987001')
+            ->assertDontSee('RDE987002')
+            ->assertDontSee('RDE987003')
+            ->assertDontSee('Out for Delivery')
+            ->getContent();
+
+        $this->assertMatchesRegularExpression('/data-hardware-filter-count="out_for_pickup">\(1\)/', $html);
+        $this->assertMatchesRegularExpression('/data-hardware-filter-count="in_transit">\(1\)/', $html);
+        $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
+        $this->assertSame(1, $this->inspectedCount($html));
+
+        $from = HardwareFulfilmentEligibility::cutoffInstant();
+        $to = Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
+        $counts = app(HardwareNeedsActionSqlQuery::class)->filterCounts($from, $to);
+        $this->assertSame(1, $counts['out_for_pickup']);
+        $this->assertSame(1, $counts['in_transit']);
+        $this->assertSame(0, $counts['picked_up']);
+        $this->assertSame(2, $counts['shipping']);
+    }
+
     public function test_default_hardware_ssr_does_not_materialize_ingested_majority(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
@@ -427,6 +496,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         bool $pickup = false,
         bool $manifest = false,
         bool $evidence = false,
+        ?string $track = null,
     ): HardwareFulfilment {
         $creator = User::factory()->create(['is_active' => true]);
         $order = Order::query()->create([
@@ -524,6 +594,8 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
                 'label_url' => $label ? '/labels/'.$sourceId.'.pdf' : null,
                 'pickup_requested_at' => $pickup ? now() : null,
                 'manifest_id' => $manifest ? 'man-'.$sourceId : null,
+                'provider_track_normalized' => $track,
+                'provider_track_status' => $track,
                 'idempotency_key' => 'ship:'.$sourceId,
                 'correlation_id' => (string) Str::uuid(),
             ]);

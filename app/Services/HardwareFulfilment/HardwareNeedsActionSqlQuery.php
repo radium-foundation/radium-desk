@@ -7,11 +7,13 @@ use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareWorkspaceFilter;
 use App\Enums\HardwareWorkspaceScope;
+use App\Enums\ShiprocketTrackNormalized;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * SQL equivalents of verified Needs Action classifier rules.
@@ -19,6 +21,8 @@ use Illuminate\Support\Facades\DB;
  */
 final class HardwareNeedsActionSqlQuery
 {
+    private ?bool $hasProviderTrackColumn = null;
+
     /**
      * @return array<string, int>
      */
@@ -30,6 +34,10 @@ final class HardwareNeedsActionSqlQuery
         $photo = $this->fulfilmentCount($this->packagePhotoPendingQuery($search));
         $shipping = $this->fulfilmentCount($this->shippingQuery($search));
         $completed = $this->fulfilmentCount($this->completedQuery($search));
+        $outForPickup = $this->fulfilmentCount($this->outForPickupQuery($search));
+        $pickedUp = $this->fulfilmentCount($this->pickedUpQuery($search));
+        $inTransit = $this->fulfilmentCount($this->inTransitQuery($search));
+        $readyForPickup = $this->fulfilmentCount($this->readyForPickupQuery($search));
 
         $needsAction = $mapping + $awaitingSerial + $awbPending + $photo;
 
@@ -44,6 +52,10 @@ final class HardwareNeedsActionSqlQuery
         $counts[HardwareWorkspaceFilter::PackagePhotoPending->value] = $photo;
         $counts[HardwareWorkspaceFilter::NeedsAction->value] = $needsAction;
         $counts[HardwareWorkspaceFilter::Shipping->value] = $shipping;
+        $counts[HardwareWorkspaceFilter::OutForPickup->value] = $outForPickup;
+        $counts[HardwareWorkspaceFilter::PickedUp->value] = $pickedUp;
+        $counts[HardwareWorkspaceFilter::InTransit->value] = $inTransit;
+        $counts[HardwareWorkspaceFilter::ReadyForPickup->value] = $readyForPickup;
         $counts[HardwareWorkspaceFilter::Completed->value] = $completed;
         $counts[HardwareWorkspaceFilter::Delivered->value] = $completed;
 
@@ -74,7 +86,15 @@ final class HardwareNeedsActionSqlQuery
         }
 
         if ($filter->isShipping()) {
-            return $this->fulfilmentPage($this->shippingQuery($search), $page, $perPage);
+            $shippingQuery = match ($filter) {
+                HardwareWorkspaceFilter::OutForPickup => $this->outForPickupQuery($search),
+                HardwareWorkspaceFilter::PickedUp => $this->pickedUpQuery($search),
+                HardwareWorkspaceFilter::InTransit => $this->inTransitQuery($search),
+                HardwareWorkspaceFilter::ReadyForPickup => $this->readyForPickupQuery($search),
+                default => $this->shippingQuery($search),
+            };
+
+            return $this->fulfilmentPage($shippingQuery, $page, $perPage);
         }
 
         $hfQuery = match ($filter) {
@@ -211,6 +231,45 @@ final class HardwareNeedsActionSqlQuery
                 $this->constrainPackagePhotoPending($photo);
             });
         });
+        $this->whereShipmentTrackNotIn($query, [ShiprocketTrackNormalized::Delivered->value]);
+
+        return $query;
+    }
+
+    private function outForPickupQuery(string $search): Builder
+    {
+        $query = $this->shippingQuery($search);
+        $this->whereShipmentTrackIn($query, [ShiprocketTrackNormalized::OutForPickup->value]);
+
+        return $query;
+    }
+
+    private function pickedUpQuery(string $search): Builder
+    {
+        $query = $this->shippingQuery($search);
+        $this->whereShipmentTrackIn($query, [ShiprocketTrackNormalized::PickedUp->value]);
+
+        return $query;
+    }
+
+    private function inTransitQuery(string $search): Builder
+    {
+        $query = $this->shippingQuery($search);
+        $this->whereShipmentTrackIn($query, [ShiprocketTrackNormalized::InTransit->value]);
+
+        return $query;
+    }
+
+    private function readyForPickupQuery(string $search): Builder
+    {
+        $query = $this->shippingQuery($search);
+        $query->whereNotNull('hardware_fulfilments.ready_for_pickup_at');
+        $this->whereShipmentTrackNotIn($query, [
+            ShiprocketTrackNormalized::OutForPickup->value,
+            ShiprocketTrackNormalized::PickedUp->value,
+            ShiprocketTrackNormalized::InTransit->value,
+            ShiprocketTrackNormalized::Delivered->value,
+        ]);
 
         return $query;
     }
@@ -375,6 +434,56 @@ final class HardwareNeedsActionSqlQuery
                 ->whereNotNull('shipments.awb')
                 ->where('shipments.awb', '!=', '');
         });
+    }
+
+    /**
+     * @param  list<string>  $values
+     */
+    private function whereShipmentTrackIn(Builder $query, array $values): void
+    {
+        if (! $this->shipmentsHaveProviderTrack()) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
+        $query->whereExists(function ($sub) use ($values): void {
+            $this->constrainBoundShipment($sub);
+            $sub->whereIn('shipments.provider_track_normalized', $values);
+        });
+    }
+
+    /**
+     * @param  list<string>  $values
+     */
+    private function whereShipmentTrackNotIn(Builder $query, array $values): void
+    {
+        if (! $this->shipmentsHaveProviderTrack()) {
+            return;
+        }
+
+        $query->whereExists(function ($sub) use ($values): void {
+            $this->constrainBoundShipment($sub);
+            $sub->where(function ($track) use ($values): void {
+                $track->whereNull('shipments.provider_track_normalized')
+                    ->orWhereNotIn('shipments.provider_track_normalized', $values);
+            });
+        });
+    }
+
+    private function constrainBoundShipment($sub): void
+    {
+        $sub->selectRaw('1')
+            ->from('shipments')
+            ->where(function ($join): void {
+                $join->whereColumn('shipments.id', 'hardware_fulfilments.shipment_id')
+                    ->orWhereColumn('shipments.hardware_fulfilment_id', 'hardware_fulfilments.id');
+            });
+    }
+
+    private function shipmentsHaveProviderTrack(): bool
+    {
+        return $this->hasProviderTrackColumn ??= Schema::hasColumn('shipments', 'provider_track_normalized');
     }
 
     private function whereMissingSkuMap(Builder $query): void

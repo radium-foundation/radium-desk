@@ -22,7 +22,47 @@ class DashboardLiveController extends Controller
         private readonly DashboardPersonalizationService $dashboardPersonalization,
         private readonly OperationsWorkspaceResolver $operationsWorkspace,
         private readonly DashboardLiveRowVisibilityService $liveRowVisibility,
+        private readonly HardwareDashboardLiveService $hardwareLive,
+        private readonly HardwareDashboardWorkspace $hardwareWorkspace,
     ) {}
+
+    public function hardware(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user->can('incidents.view')) {
+            return response()->json([
+                'rows' => [],
+                'remove_fulfilment_ids' => [],
+                'scope_counts' => [],
+                'filter_counts' => [],
+                'hardware_count' => 0,
+            ]);
+        }
+
+        $ids = collect($request->query('ids', $request->input('ids', [])))
+            ->filter(fn ($id): bool => is_numeric($id))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->take(self::LIVE_ROWS_MAX_IDS)
+            ->all();
+
+        $scope = $this->hardwareWorkspace->resolveScope($request);
+        $filter = $this->hardwareWorkspace->resolveFilter($request, $scope);
+        $search = trim((string) $request->query('q', $request->input('q', '')));
+        $range = $this->hardwareWorkspace->range($request);
+
+        return response()->json($this->hardwareLive->livePayload(
+            $user,
+            $ids,
+            $scope,
+            $filter,
+            $search,
+            $range['from'],
+            $range['to'],
+        ));
+    }
 
     public function rows(Request $request): JsonResponse
     {
@@ -96,44 +136,6 @@ class DashboardLiveController extends Controller
             'metric' => 'pending_refunds',
             'count' => $this->dashboardService->pendingRefundsCount(),
         ]);
-    }
-
-    public function hardware(Request $request): JsonResponse
-    {
-        $user = $request->user();
-
-        if (! $user->can('incidents.view')) {
-            return response()->json([
-                'rows' => [],
-                'remove_fulfilment_ids' => [],
-                'scope_counts' => [],
-                'filter_counts' => [],
-                'hardware_count' => 0,
-            ]);
-        }
-
-        $fulfilmentIds = collect($request->query('ids', $request->input('ids', [])))
-            ->filter(fn ($id): bool => is_numeric($id))
-            ->map(fn ($id): int => (int) $id)
-            ->unique()
-            ->values()
-            ->take(self::LIVE_ROWS_MAX_IDS)
-            ->all();
-
-        $workspace = app(HardwareDashboardWorkspace::class);
-        $scope = $workspace->resolveScope($request);
-        $filter = $workspace->resolveFilter($request, $scope);
-        $range = $workspace->range($request);
-
-        return response()->json(app(HardwareDashboardLiveService::class)->livePayload(
-            $user,
-            $fulfilmentIds,
-            $scope,
-            $filter,
-            trim((string) $request->query('q', '')),
-            $range['from'],
-            $range['to'],
-        ));
     }
 
     public function refresh(Request $request): JsonResponse
