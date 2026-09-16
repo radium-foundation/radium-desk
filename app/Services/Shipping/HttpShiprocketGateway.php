@@ -259,9 +259,24 @@ final class HttpShiprocketGateway implements ShiprocketGateway
 
     public function generateLabel(string $externalShipmentId): ShiprocketDocumentResult
     {
+        return $this->generateLabelBatch([$externalShipmentId]);
+    }
+
+    public function generateLabelBatch(array $externalShipmentIds): ShiprocketDocumentResult
+    {
+        $shipmentIds = $this->providerNumericIds($externalShipmentIds);
+        if ($shipmentIds === []) {
+            return new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'At least one provider shipment id is required for label generation.',
+                retryable: false,
+            );
+        }
+
         try {
             $response = $this->send('post', '/courier/generate/label', [
-                'shipment_id' => [$this->providerNumericId($externalShipmentId)],
+                'shipment_id' => $shipmentIds,
             ]);
         } catch (ShiprocketRetryableException $exception) {
             return new ShiprocketDocumentResult(
@@ -298,9 +313,24 @@ final class HttpShiprocketGateway implements ShiprocketGateway
 
     public function generateManifest(string $externalShipmentId): ShiprocketDocumentResult
     {
+        return $this->generateManifestBatch([$externalShipmentId]);
+    }
+
+    public function generateManifestBatch(array $externalShipmentIds): ShiprocketDocumentResult
+    {
+        $shipmentIds = $this->providerNumericIds($externalShipmentIds);
+        if ($shipmentIds === []) {
+            return new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'At least one provider shipment id is required for manifest generation.',
+                retryable: false,
+            );
+        }
+
         try {
             $response = $this->send('post', '/manifests/generate', [
-                'shipment_id' => [$this->providerNumericId($externalShipmentId)],
+                'shipment_id' => $shipmentIds,
             ]);
         } catch (ShiprocketRetryableException $exception) {
             return new ShiprocketDocumentResult(
@@ -900,6 +930,18 @@ final class HttpShiprocketGateway implements ShiprocketGateway
         $text = preg_replace('/\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9._-]{10,}\b/', '[redacted]', $text) ?? $text;
 
         return trim($text);
+    }
+
+    /**
+     * @param  list<string>  $ids
+     * @return list<int|string>
+     */
+    private function providerNumericIds(array $ids): array
+    {
+        return array_values(array_map(
+            fn (string $id): int|string => $this->providerNumericId($id),
+            $ids,
+        ));
     }
 
     private function providerNumericId(string $id): int|string

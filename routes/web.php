@@ -47,6 +47,7 @@ use App\Http\Controllers\IncomingEmailAdminController;
 use App\Http\Controllers\IncomingEmailContentController;
 use App\Http\Controllers\Inventory\AdjustmentController as InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\BranchController as InventoryBranchController;
+use App\Http\Controllers\Inventory\HardwareFulfilmentBulkDocumentsController as InventoryHardwareFulfilmentBulkDocumentsController;
 use App\Http\Controllers\Inventory\HardwareFulfilmentSerialController as InventoryHardwareFulfilmentSerialController;
 use App\Http\Controllers\Inventory\MovementController as InventoryMovementController;
 use App\Http\Controllers\Inventory\OpeningImportController as InventoryOpeningImportController;
@@ -448,6 +449,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('serials/{serial}', [InventorySerialController::class, 'show'])->name('serials.show');
 
         Route::get('hardware-fulfilments', [InventoryHardwareFulfilmentSerialController::class, 'index'])->name('hardware-fulfilments.index');
+        Route::post('hardware-fulfilments/bulk/labels', [InventoryHardwareFulfilmentBulkDocumentsController::class, 'storeLabels'])->name('hardware-fulfilments.bulk.labels');
+        Route::post('hardware-fulfilments/bulk/manifest', [InventoryHardwareFulfilmentBulkDocumentsController::class, 'storeManifest'])->name('hardware-fulfilments.bulk.manifest');
         Route::get('hardware-fulfilments/awaiting/{order}/action-dialog', [InventoryHardwareFulfilmentSerialController::class, 'awaitingActionDialog'])->name('hardware-fulfilments.awaiting.action-dialog');
         Route::post('hardware-fulfilments/awaiting/{order}/open', [InventoryHardwareFulfilmentSerialController::class, 'storeOpen'])->name('hardware-fulfilments.awaiting.open');
         Route::get('hardware-fulfilments/{fulfilment}', [InventoryHardwareFulfilmentSerialController::class, 'show'])->name('hardware-fulfilments.show');

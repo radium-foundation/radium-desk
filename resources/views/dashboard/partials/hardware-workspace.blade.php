@@ -4,11 +4,38 @@
     $operableFulfilmentIds = $hardwareWorkspace['operableFulfilmentIds'] ?? [];
     $canOperateHardware = (bool) ($hardwareWorkspace['canOperateHardware'] ?? false);
     $search = $hardwareWorkspace['search'] ?? '';
+    $queue = $hardwareWorkspace['queue'] ?? '';
+    // Label work lives in Ready (LabelPackingPending) and Pickup (re-download). Manifest work lives in Pickup only.
+    $showBulkLabels = $canOperateHardware && in_array($queue, ['ready', 'pickup'], true);
+    $showBulkManifest = $canOperateHardware && $queue === 'pickup';
 @endphp
 
-<div id="dashboard-hardware-workspace" data-hardware-workspace>
+<div id="dashboard-hardware-workspace"
+     data-hardware-workspace
+     @if($showBulkLabels)
+         data-hardware-bulk-labels-url="{{ route('inventory.hardware-fulfilments.bulk.labels') }}"
+     @endif
+     @if($showBulkManifest)
+         data-hardware-bulk-manifest-url="{{ route('inventory.hardware-fulfilments.bulk.manifest') }}"
+     @endif>
     <div class="dashboard-hardware-selection d-none" data-hardware-selection-bar hidden>
         <span class="dashboard-hardware-selection__count" data-hardware-selection-count>0 selected</span>
+        @if($showBulkLabels)
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary dashboard-btn-compact"
+                    data-hardware-bulk-labels
+                    disabled>
+                Download Labels
+            </button>
+        @endif
+        @if($showBulkManifest)
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary dashboard-btn-compact"
+                    data-hardware-bulk-manifest
+                    disabled>
+                Download Manifest
+            </button>
+        @endif
         <button type="button"
                 class="btn btn-sm btn-outline-primary dashboard-btn-compact"
                 data-hardware-open-selected
@@ -71,11 +98,15 @@
                         @if($row->fulfilmentId) data-hardware-fulfilment-id="{{ $row->fulfilmentId }}" @endif
                         data-hardware-next-action="{{ $row->nextAction }}">
                         <td class="dashboard-select-cell">
-                            <input type="checkbox"
-                                   class="form-check-input"
-                                   data-hardware-select
-                                   value="{{ $row->sourceId }}"
-                                   aria-label="Select {{ $row->sourceId }}">
+                            @if($row->fulfilmentId)
+                                <input type="checkbox"
+                                       class="form-check-input"
+                                       data-hardware-select
+                                       value="{{ $row->fulfilmentId }}"
+                                       aria-label="Select {{ $row->sourceId }}">
+                            @else
+                                <span class="text-muted" aria-hidden="true">—</span>
+                            @endif
                         </td>
                         <td class="case-order-cell">
                             <div class="fw-semibold">{{ $row->sourceId }}</div>

@@ -36,7 +36,17 @@ interface ShiprocketGateway
 
     public function generateLabel(string $externalShipmentId): ShiprocketDocumentResult;
 
+    /**
+     * @param  list<string>  $externalShipmentIds
+     */
+    public function generateLabelBatch(array $externalShipmentIds): ShiprocketDocumentResult;
+
     public function generateManifest(string $externalShipmentId): ShiprocketDocumentResult;
+
+    /**
+     * @param  list<string>  $externalShipmentIds
+     */
+    public function generateManifestBatch(array $externalShipmentIds): ShiprocketDocumentResult;
 
     public function printInvoice(string $externalShipmentId): ShiprocketDocumentResult;
 

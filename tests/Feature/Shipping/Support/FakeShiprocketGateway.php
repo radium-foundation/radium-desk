@@ -43,7 +43,13 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public int $labels = 0;
 
+    /** @var list<string> */
+    public array $lastLabelBatchShipmentIds = [];
+
     public int $manifests = 0;
+
+    /** @var list<string> */
+    public array $lastManifestBatchShipmentIds = [];
 
     public int $invoices = 0;
 
@@ -341,15 +347,22 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public function generateLabel(string $externalShipmentId): ShiprocketDocumentResult
     {
+        return $this->generateLabelBatch([$externalShipmentId]);
+    }
+
+    public function generateLabelBatch(array $externalShipmentIds): ShiprocketDocumentResult
+    {
         $this->labels++;
+        $this->lastLabelBatchShipmentIds = array_values($externalShipmentIds);
         $mode = $this->nextLabelMode ?? $this->mode;
         $this->nextLabelMode = null;
+        $batchKey = implode(',', $externalShipmentIds);
 
         return match ($mode) {
             'accepted' => new ShiprocketDocumentResult(
                 provider: $this->provider(),
                 status: 'generated',
-                url: 'https://fake.local/labels/'.$externalShipmentId,
+                url: 'https://fake.local/labels/'.$batchKey,
             ),
             'rejected' => new ShiprocketDocumentResult(
                 provider: $this->provider(),
@@ -370,16 +383,23 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public function generateManifest(string $externalShipmentId): ShiprocketDocumentResult
     {
+        return $this->generateManifestBatch([$externalShipmentId]);
+    }
+
+    public function generateManifestBatch(array $externalShipmentIds): ShiprocketDocumentResult
+    {
         $this->manifests++;
+        $this->lastManifestBatchShipmentIds = array_values($externalShipmentIds);
         $mode = $this->nextManifestMode ?? $this->mode;
         $this->nextManifestMode = null;
+        $batchKey = implode(',', $externalShipmentIds);
 
         return match ($mode) {
             'accepted' => new ShiprocketDocumentResult(
                 provider: $this->provider(),
                 status: 'generated',
-                url: 'https://fake.local/manifests/'.$externalShipmentId,
-                documentId: 'MF-'.$externalShipmentId,
+                url: 'https://fake.local/manifests/'.$batchKey,
+                documentId: 'MF-'.$batchKey,
             ),
             'rejected' => new ShiprocketDocumentResult(
                 provider: $this->provider(),

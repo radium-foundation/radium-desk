@@ -1,5 +1,41 @@
 const selectedLabel = (count) => (count === 1 ? '1 selected' : `${count} selected`);
 
+const selectedFulfilmentIds = (workspace) => {
+    const boxes = Array.from(workspace.querySelectorAll('[data-hardware-select]:checked'))
+        .filter((input) => !input.closest('.dashboard-case-row--filtered-out'));
+
+    return boxes
+        .map((input) => parseInt(input.value, 10))
+        .filter((id) => Number.isInteger(id) && id > 0);
+};
+
+const submitBulkDocument = (workspace, url, ids) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = url;
+    form.style.display = 'none';
+
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    if (token) {
+        const csrf = document.createElement('input');
+        csrf.type = 'hidden';
+        csrf.name = '_token';
+        csrf.value = token;
+        form.appendChild(csrf);
+    }
+
+    ids.forEach((id) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'fulfilment_ids[]';
+        input.value = String(id);
+        form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+};
+
 export const initHardwareDashboardSelection = (root = document) => {
     const workspace = root.querySelector('[data-hardware-workspace]');
     if (!workspace) {
@@ -11,6 +47,10 @@ export const initHardwareDashboardSelection = (root = document) => {
     const openSelected = workspace.querySelector('[data-hardware-open-selected]');
     const clearSelected = workspace.querySelector('[data-hardware-clear-selected]');
     const selectAll = workspace.querySelector('[data-hardware-select-all]');
+    const bulkLabels = workspace.querySelector('[data-hardware-bulk-labels]');
+    const bulkManifest = workspace.querySelector('[data-hardware-bulk-manifest]');
+    const bulkLabelsUrl = workspace.dataset.hardwareBulkLabelsUrl || '';
+    const bulkManifestUrl = workspace.dataset.hardwareBulkManifestUrl || '';
 
     const visibleBoxes = () => Array.from(workspace.querySelectorAll('[data-hardware-select]'))
         .filter((input) => !input.closest('.dashboard-case-row--filtered-out'));
@@ -36,6 +76,12 @@ export const initHardwareDashboardSelection = (root = document) => {
         if (openSelected) {
             openSelected.disabled = checked.length === 0;
         }
+        if (bulkLabels) {
+            bulkLabels.disabled = checked.length === 0;
+        }
+        if (bulkManifest) {
+            bulkManifest.disabled = checked.length === 0;
+        }
     };
 
     workspace.addEventListener('change', (event) => {
@@ -47,6 +93,22 @@ export const initHardwareDashboardSelection = (root = document) => {
         if (event.target.matches('[data-hardware-select], [data-hardware-select-all]')) {
             update();
         }
+    });
+
+    bulkLabels?.addEventListener('click', () => {
+        const ids = selectedFulfilmentIds(workspace);
+        if (ids.length === 0 || bulkLabelsUrl === '') {
+            return;
+        }
+        submitBulkDocument(workspace, bulkLabelsUrl, ids);
+    });
+
+    bulkManifest?.addEventListener('click', () => {
+        const ids = selectedFulfilmentIds(workspace);
+        if (ids.length === 0 || bulkManifestUrl === '') {
+            return;
+        }
+        submitBulkDocument(workspace, bulkManifestUrl, ids);
     });
 
     openSelected?.addEventListener('click', () => {
