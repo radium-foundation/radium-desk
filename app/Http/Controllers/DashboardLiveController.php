@@ -7,6 +7,8 @@ use App\Services\Dashboard\DashboardLiveRowVisibilityService;
 use App\Services\Dashboard\OperationsWorkspaceResolver;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
+use App\Services\HardwareFulfilment\HardwareDashboardLiveService;
+use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
 use App\Services\Operations\OperationsRoleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -94,6 +96,44 @@ class DashboardLiveController extends Controller
             'metric' => 'pending_refunds',
             'count' => $this->dashboardService->pendingRefundsCount(),
         ]);
+    }
+
+    public function hardware(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user->can('incidents.view')) {
+            return response()->json([
+                'rows' => [],
+                'remove_fulfilment_ids' => [],
+                'scope_counts' => [],
+                'filter_counts' => [],
+                'hardware_count' => 0,
+            ]);
+        }
+
+        $fulfilmentIds = collect($request->query('ids', $request->input('ids', [])))
+            ->filter(fn ($id): bool => is_numeric($id))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->take(self::LIVE_ROWS_MAX_IDS)
+            ->all();
+
+        $workspace = app(HardwareDashboardWorkspace::class);
+        $scope = $workspace->resolveScope($request);
+        $filter = $workspace->resolveFilter($request, $scope);
+        $range = $workspace->range($request);
+
+        return response()->json(app(HardwareDashboardLiveService::class)->livePayload(
+            $user,
+            $fulfilmentIds,
+            $scope,
+            $filter,
+            trim((string) $request->query('q', '')),
+            $range['from'],
+            $range['to'],
+        ));
     }
 
     public function refresh(Request $request): JsonResponse
@@ -226,4 +266,3 @@ class DashboardLiveController extends Controller
         ]);
     }
 }
-

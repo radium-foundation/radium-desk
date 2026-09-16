@@ -14,6 +14,11 @@ use Illuminate\Validation\ValidationException;
  */
 class HardwareSkuMapService
 {
+    /**
+     * @var array<string, InventoryProduct>
+     */
+    private array $resolvedProducts = [];
+
     public function requireProduct(StatutoryInvoiceChannel|string $channel, ?int $modelId): InventoryProduct
     {
         $channelValue = $channel instanceof StatutoryInvoiceChannel ? $channel->value : $channel;
@@ -22,6 +27,11 @@ class HardwareSkuMapService
             throw ValidationException::withMessages([
                 'sku_map' => 'Hardware serial allocation requires a model_id so the Owner SKU map can resolve a Desk product. Name or SKU text is not used.',
             ]);
+        }
+
+        $cacheKey = $channelValue.'|'.$modelId;
+        if (isset($this->resolvedProducts[$cacheKey])) {
+            return $this->resolvedProducts[$cacheKey];
         }
 
         $map = ChannelSkuMap::query()
@@ -56,7 +66,7 @@ class HardwareSkuMapService
             ]);
         }
 
-        return $product;
+        return $this->resolvedProducts[$cacheKey] = $product;
     }
 
     public function requireProductForItem(StatutoryInvoiceChannel|string $channel, CommerceOrderItem $item): InventoryProduct
