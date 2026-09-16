@@ -49,7 +49,26 @@ Production SELECT (read-only) from this gate:
 
 ## Implementation
 
-Before AWB, re-quote serviceability **with** `order_id`. Keep the stored courier if it is still listed. If not, use Shiprocket’s **recommended** id only when that id is in the current list (never the first row, never hard-coded 15084→15106). Persist. Assign once. On HTTP 400, persist `failure_class=provider_rejected` + `last_error`, do not retry, do not create another shipment. Auth/timeout remain distinct. Fetch/select remain allowed on a bound shipment until an AWB exists.
+Before AWB, re-quote serviceability **with** `order_id`. Keep the stored courier if it is still listed. If not, use Shiprocket’s **recommended** id only when that id is in the current list (never the first row, never hard-coded 15084→15106). Persist. Assign once.
+
+### Provider HTTP 400 “Given courier not serviceable” semantics (VERIFIED)
+
+- `HttpShiprocketGateway::interpret()` throws on HTTP 4xx; `assignAwb` never reads `awb_code` from error responses.
+- `assignAwb` returns `ShiprocketAwbResult` with `status=rejected`, `awb=null`, `retryable=false`.
+- Production RDP21 remained `awb=null` after this rejection.
+- Listed in serviceability does **not** guarantee AWB acceptance.
+
+### Alternate-courier recovery (local only; not deployed in Gate A)
+
+After one definitive `Given courier not serviceable` rejection with no AWB:
+
+1. Fresh serviceability quote with `order_id`.
+2. Select current **recommended** courier only if it differs from the rejected id and is in the fresh list.
+3. Persist selection on fulfilment + shipment.
+4. Exactly **one** alternate `POST /courier/assign/awb` attempt.
+5. No second shipment. No retry of the rejected courier. No retry on generic HTTP 400, auth, timeout, or ambiguous responses.
+
+Portal HTTP request remains **UNKNOWN**. Portal success does not prove Desk reproduces portal parameters.
 
 ## Tests vs baseline
 

@@ -9,9 +9,11 @@ use App\Models\HardwareFulfilment;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
 use App\Models\User;
+use App\Services\Shipping\Data\ShiprocketAwbResult;
 use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\Shipping\NullShiprocketGateway;
+use App\Services\Shipping\ShiprocketAwbAssignmentRejection;
 use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
 use App\Services\Shipping\ShiprocketRetryableException;
@@ -182,8 +184,39 @@ class HardwareShipmentService
         }
 
         $courier = $this->couriers->resolveCourierForAwb($fulfilment, $actor);
+        $outcome = $this->attemptAwbAssignment($fulfilment, $courier, $actor);
 
-        $outcome = DB::transaction(function () use ($fulfilment, $actor, $courier): array {
+        if ($this->shouldRecoverWithAlternateCourier($outcome, $courier['courier_id'])) {
+            $alternate = $this->couriers->resolveAlternateCourierAfterRejection(
+                $fulfilment->fresh(),
+                $courier['courier_id'],
+                $actor,
+            );
+            $outcome = $this->attemptAwbAssignment($fulfilment->fresh(), $alternate, $actor);
+        }
+
+        if (isset($outcome['shipment'])) {
+            return $outcome['shipment'];
+        }
+
+        if (isset($outcome['retryable'])) {
+            throw ValidationException::withMessages([
+                'shipping' => $outcome['retryable'].' Reconcile before assigning another AWB.',
+            ]);
+        }
+
+        throw ValidationException::withMessages([
+            'shipping' => $outcome['rejected'] ?? 'Shiprocket rejected AWB assignment.',
+        ]);
+    }
+
+    /**
+     * @param  array{courier_id: string, courier_name: string|null}  $courier
+     * @return array{shipment?: Shipment, retryable?: string, rejected?: string, result?: ShiprocketAwbResult}
+     */
+    private function attemptAwbAssignment(HardwareFulfilment $fulfilment, array $courier, ?User $actor): array
+    {
+        return DB::transaction(function () use ($fulfilment, $actor, $courier): array {
             $locked = HardwareFulfilment::query()
                 ->whereKey($fulfilment->id)
                 ->lockForUpdate()
@@ -238,7 +271,7 @@ class HardwareShipmentService
                     'last_error' => $message,
                 ])->save();
 
-                return ['retryable' => $message];
+                return ['retryable' => $message, 'result' => $result];
             }
 
             if ($result->status !== 'assigned' || ! filled($result->awb)) {
@@ -248,27 +281,30 @@ class HardwareShipmentService
                     'last_error' => $message,
                 ])->save();
 
-                return ['rejected' => $message];
+                return ['rejected' => $message, 'result' => $result];
             }
 
             $this->bindAwb($locked, $shipment, $result->awb, $result->courierId, $result->courierName, $actor);
 
             return ['shipment' => $shipment->fresh() ?? $shipment];
         });
+    }
 
-        if (isset($outcome['shipment'])) {
-            return $outcome['shipment'];
+    /**
+     * @param  array{shipment?: Shipment, retryable?: string, rejected?: string, result?: ShiprocketAwbResult}  $outcome
+     */
+    private function shouldRecoverWithAlternateCourier(array $outcome, string $attemptedCourierId): bool
+    {
+        if (! isset($outcome['rejected'])) {
+            return false;
         }
 
-        if (isset($outcome['retryable'])) {
-            throw ValidationException::withMessages([
-                'shipping' => $outcome['retryable'].' Reconcile before assigning another AWB.',
-            ]);
+        $result = $outcome['result'] ?? null;
+        if ($result instanceof ShiprocketAwbResult) {
+            return $result->isCourierNotServiceableRejection();
         }
 
-        throw ValidationException::withMessages([
-            'shipping' => $outcome['rejected'] ?? 'Shiprocket rejected AWB assignment.',
-        ]);
+        return ShiprocketAwbAssignmentRejection::isCourierNotServiceable($outcome['rejected']);
     }
 
     /**
