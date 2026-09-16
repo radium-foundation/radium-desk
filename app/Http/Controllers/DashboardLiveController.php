@@ -266,4 +266,3 @@ class DashboardLiveController extends Controller
         ]);
     }
 }
-

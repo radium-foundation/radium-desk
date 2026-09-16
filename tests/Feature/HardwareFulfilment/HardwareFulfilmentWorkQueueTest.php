@@ -9,6 +9,8 @@ use App\Enums\HardwareFulfilmentPackageEvidenceKind;
 use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
+use App\Enums\HardwareWorkspaceFilter;
+use App\Enums\HardwareWorkspaceScope;
 use App\Enums\ShipmentStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
@@ -583,8 +585,8 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
             $from,
             $to,
             '',
-            \App\Enums\HardwareWorkspaceScope::Active,
-            \App\Enums\HardwareWorkspaceFilter::All,
+            HardwareWorkspaceScope::Active,
+            HardwareWorkspaceFilter::All,
         );
 
         $this->assertSame($dashboard['unfiltered_total'], $queue->workspaceTotal($from, $to));
