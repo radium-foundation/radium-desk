@@ -1,6 +1,9 @@
 <form method="POST"
       action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}"
       data-hardware-action-form
+      data-package-photo-upload
+      data-package-photo-max-dimension="{{ (int) config('hardware_fulfilment.package_photo.client_max_dimension_px', 1600) }}"
+      data-package-photo-target-kb="{{ (int) config('hardware_fulfilment.package_photo.client_target_kb', 140) }}"
       id="hardware-action-photo-form"
       enctype="multipart/form-data">
     @csrf

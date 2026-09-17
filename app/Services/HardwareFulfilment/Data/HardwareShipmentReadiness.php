@@ -86,4 +86,24 @@ final class HardwareShipmentReadiness
     {
         return $this->packageBeforeLabelId ?? $this->packageLabelAppliedId;
     }
+
+    /**
+     * Label/pickup/manifest are complete but package-photo evidence is still missing.
+     */
+    public function packagePhotoEvidenceDue(): bool
+    {
+        if ($this->packagePhotoRecorded()) {
+            return false;
+        }
+
+        if (! filled($this->awb) || $this->labelUrl === null || $this->labelUrl === '') {
+            return false;
+        }
+
+        if ($this->pickupStatus === 'Not requested') {
+            return false;
+        }
+
+        return $this->manifestStatus !== 'Not generated';
+    }
 }

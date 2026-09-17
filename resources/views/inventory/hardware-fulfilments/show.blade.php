@@ -512,7 +512,14 @@
                 @if($shipment->canUploadPackageBeforeLabel)
                     <details class="mt-2">
                         <summary class="small text-muted">Replace</summary>
-                        <form method="POST" action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}" id="hardware-package-before-form" class="mt-2" enctype="multipart/form-data">
+                        <form method="POST"
+                              action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}"
+                              id="hardware-package-before-form"
+                              class="mt-2"
+                              data-package-photo-upload
+                              data-package-photo-max-dimension="{{ (int) config('hardware_fulfilment.package_photo.client_max_dimension_px', 1600) }}"
+                              data-package-photo-target-kb="{{ (int) config('hardware_fulfilment.package_photo.client_target_kb', 140) }}"
+                              enctype="multipart/form-data">
                             @csrf
                             <input type="hidden" name="kind" value="package_before_label">
                             <input class="form-control" type="file" id="hardware-package-before-photo" name="photo" accept="image/jpeg,image/png,image/webp" required>
@@ -523,7 +530,13 @@
             @else
                 <p class="mb-2">Package photo pending</p>
                 @if($shipment->canUploadPackageBeforeLabel)
-                    <form method="POST" action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}" id="hardware-package-before-form" enctype="multipart/form-data">
+                    <form method="POST"
+                          action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}"
+                          id="hardware-package-before-form"
+                          data-package-photo-upload
+                          data-package-photo-max-dimension="{{ (int) config('hardware_fulfilment.package_photo.client_max_dimension_px', 1600) }}"
+                          data-package-photo-target-kb="{{ (int) config('hardware_fulfilment.package_photo.client_target_kb', 140) }}"
+                          enctype="multipart/form-data">
                         @csrf
                         <input type="hidden" name="kind" value="package_before_label">
                         <label class="form-label" for="hardware-package-before-photo">Upload Package Photo</label>

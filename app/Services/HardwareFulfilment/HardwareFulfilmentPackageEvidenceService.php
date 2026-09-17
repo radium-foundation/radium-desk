@@ -8,23 +8,29 @@ use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentEvent;
 use App\Models\HardwareFulfilmentPackageEvidence;
 use App\Models\User;
+use App\Services\HardwareFulfilment\Data\PackagePhotoAttachResult;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class HardwareFulfilmentPackageEvidenceService
 {
+    public function __construct(
+        private readonly PackagePhotoOptimizer $optimizer,
+    ) {}
+
     public function attach(
         HardwareFulfilment $fulfilment,
         HardwareFulfilmentPackageEvidenceKind $kind,
         UploadedFile $file,
         ?User $actor = null,
-    ): HardwareFulfilmentPackageEvidence {
+    ): PackagePhotoAttachResult {
         $this->assertNotFrozen($fulfilment);
         $this->assertKindAllowed($fulfilment, $kind);
 
-        return DB::transaction(function () use ($fulfilment, $kind, $file, $actor): HardwareFulfilmentPackageEvidence {
+        return DB::transaction(function () use ($fulfilment, $kind, $file, $actor): PackagePhotoAttachResult {
             $locked = HardwareFulfilment::query()
                 ->whereKey($fulfilment->id)
                 ->lockForUpdate()
@@ -39,9 +45,11 @@ class HardwareFulfilmentPackageEvidenceService
                 ->lockForUpdate()
                 ->first();
 
+            $optimized = $this->optimizer->optimize($file);
             $directory = 'private/hardware-fulfilment-evidence/'.$locked->id;
-            $stored = $file->store($directory, 'local');
-            if (! is_string($stored) || $stored === '') {
+            $stored = $directory.'/'.Str::uuid()->toString().'.'.$optimized->extension;
+            $storedOk = Storage::disk('local')->put($stored, $optimized->contents);
+            if ($storedOk !== true) {
                 throw ValidationException::withMessages([
                     'photo' => 'The package photo could not be stored.',
                 ]);
@@ -60,8 +68,8 @@ class HardwareFulfilmentPackageEvidenceService
                 'disk' => 'local',
                 'path' => $stored,
                 'original_filename' => $file->getClientOriginalName(),
-                'mime_type' => $file->getClientMimeType(),
-                'size_bytes' => $file->getSize() ?: null,
+                'mime_type' => $optimized->mimeType,
+                'size_bytes' => $optimized->sizeBytes,
                 'uploaded_by_user_id' => $actor?->id,
                 'uploaded_at' => now(),
             ])->save();
@@ -76,11 +84,15 @@ class HardwareFulfilmentPackageEvidenceService
                     'reason' => 'hardware_package_evidence_recorded',
                     'kind' => $kind->value,
                     'result' => $existing === null ? 'created' : 'replaced',
+                    'optimized' => $optimized->wasOptimized,
+                    'size_kb' => $optimized->sizeKb(),
                 ],
                 'created_at' => now(),
             ]);
 
-            return $evidence->fresh() ?? $evidence;
+            $fresh = $evidence->fresh() ?? $evidence;
+
+            return new PackagePhotoAttachResult($fresh, $optimized);
         });
     }
 

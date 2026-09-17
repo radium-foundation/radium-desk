@@ -337,6 +337,22 @@ final class HardwareFulfilmentOperationalClassifier
             return [HardwareFulfilmentOperationalStage::AwbPending, 'Assign AWB', 'hardware-awb', 'AWB Pending'];
         }
 
+        if ($ready->packagePhotoEvidenceDue()) {
+            $track = ShiprocketTrackNormalized::tryFrom((string) ($ready->providerTrackNormalized ?? ''));
+            $stage = $track?->overridesReadyForPickup()
+                ? $track->operationalStage()
+                : ($ready->readyForPickup
+                    ? HardwareFulfilmentOperationalStage::ReadyForPickup
+                    : HardwareFulfilmentOperationalStage::PickupManifestPending);
+
+            return [
+                $stage,
+                'Upload Package Photo',
+                'hardware-package-evidence',
+                'Package photo pending',
+            ];
+        }
+
         $track = ShiprocketTrackNormalized::tryFrom((string) ($ready->providerTrackNormalized ?? ''));
         if (filled($ready->awb) && $track?->overridesReadyForPickup()) {
             return [

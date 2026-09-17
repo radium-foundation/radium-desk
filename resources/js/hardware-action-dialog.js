@@ -1,4 +1,5 @@
 import * as bootstrap from 'bootstrap';
+import { applyCompressedPhotoInput } from './package-photo-upload';
 import { csrfToken, workspaceFetch, workspaceFetchHeaders } from './workspace/http';
 
 export const SERIAL_ALLOCATE_MESSAGES = {
@@ -471,6 +472,11 @@ const submitForm = async (form) => {
     }
 
     try {
+        const photoInput = form.querySelector('input[type="file"][name="photo"]');
+        if (photoInput?.files?.[0]) {
+            await applyCompressedPhotoInput(photoInput);
+        }
+
         const body = new FormData(form);
         const response = await workspaceFetch(form.action, {
             method: 'POST',

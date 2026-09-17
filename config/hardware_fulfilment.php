@@ -43,6 +43,22 @@ return [
     | sku_maps are Owner-approved (channel, model_id) → Desk inventory SKU rows
     | applied by desk:seed-rdservice-in-hardware-sku-maps. Do not invent extras.
     */
+    /*
+    | Package-photo evidence uploads. Server optimization is authoritative.
+    | Client-side compression may run first when the browser supports it.
+    */
+    'package_photo' => [
+        'max_output_kb' => max(1, (int) env('HARDWARE_PACKAGE_PHOTO_MAX_KB', 150)),
+        'max_input_kb' => max(1, (int) env('HARDWARE_PACKAGE_PHOTO_MAX_INPUT_KB', 8192)),
+        'max_dimension_px' => max(640, (int) env('HARDWARE_PACKAGE_PHOTO_MAX_DIMENSION_PX', 2048)),
+        'max_input_dimension_px' => max(640, (int) env('HARDWARE_PACKAGE_PHOTO_MAX_INPUT_DIMENSION_PX', 4096)),
+        'max_megapixels' => max(1, (int) env('HARDWARE_PACKAGE_PHOTO_MAX_MEGAPIXELS', 12)),
+        'jpeg_quality_start' => max(40, min(95, (int) env('HARDWARE_PACKAGE_PHOTO_JPEG_QUALITY_START', 85))),
+        'jpeg_quality_floor' => max(35, min(90, (int) env('HARDWARE_PACKAGE_PHOTO_JPEG_QUALITY_FLOOR', 55))),
+        'client_max_dimension_px' => max(640, (int) env('HARDWARE_PACKAGE_PHOTO_CLIENT_MAX_DIMENSION_PX', 1600)),
+        'client_target_kb' => max(1, (int) env('HARDWARE_PACKAGE_PHOTO_CLIENT_TARGET_KB', 140)),
+    ],
+
     'rdservice_in' => [
         'forbidden_model_ids' => [1027],
         'sku_maps' => [

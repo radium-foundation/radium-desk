@@ -322,7 +322,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
                 'photo' => UploadedFile::fake()->image('package.jpg', 200, 200),
             ])
             ->assertRedirect()
-            ->assertSessionHas('status', 'Package photo recorded.');
+            ->assertSessionHas('status', 'Package photo uploaded.');
 
         $fresh = $fulfilment->fresh();
         $this->assertNotNull($fresh->ready_for_pickup_at);

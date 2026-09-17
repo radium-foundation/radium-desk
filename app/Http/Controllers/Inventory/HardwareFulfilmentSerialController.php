@@ -628,14 +628,14 @@ class HardwareFulfilmentSerialController extends Controller
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
         $kind = HardwareFulfilmentPackageEvidenceKind::from($request->validated('kind'));
-        $this->packageEvidence->attach(
+        $attach = $this->packageEvidence->attach(
             $fulfilment,
             $kind,
             $request->file('photo'),
             $request->user(),
         );
 
-        return $this->mutationResponse($request, $fulfilment, $kind->label().' recorded.');
+        return $this->mutationResponse($request, $fulfilment, $attach->statusMessage($kind));
     }
 
     public function showPackageEvidence(
