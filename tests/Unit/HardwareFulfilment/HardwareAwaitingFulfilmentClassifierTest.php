@@ -2,7 +2,13 @@
 
 namespace Tests\Unit\HardwareFulfilment;
 
+use App\Enums\CommerceOrderStatus;
 use App\Enums\HardwareAwaitingFulfilmentReason;
+use App\Enums\StatutoryInvoiceChannel;
+use App\Models\ChannelSkuMap;
+use App\Models\CommerceOrder;
+use App\Models\CommerceOrderItem;
+use App\Models\InventoryProduct;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwareAwaitingFulfilmentClassifier;
@@ -98,6 +104,121 @@ class HardwareAwaitingFulfilmentClassifierTest extends TestCase
                 'created_at' => '2026-09-07 10:00:00',
                 'product_name' => '',
             ])),
+        );
+    }
+
+    public function test_unmapped_physical_model_is_product_mapping_required_even_when_similar_inventory_sku_exists(): void
+    {
+        $listing = 'Precision Biometrics PB 510 / PB1000 L1 F';
+        $order = $this->order('RBP960062', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+            'product_name' => $listing,
+        ]);
+        $commerce = CommerceOrder::query()->create([
+            'order_no' => 'CO-RBP960062',
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => 'commerce_order',
+            'source_id' => 'RBP960062',
+            'idempotency_key' => 'statutory:radiumbox_com:commerce_order:RBP960062',
+            'payload_hash' => hash('sha256', 'RBP960062'),
+            'status' => CommerceOrderStatus::Validated,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'received_at' => now(),
+            'ordered_at' => '2026-09-07 10:00:00',
+            'paid_at' => '2026-09-07 10:05:00',
+            'support_order_id' => $order->id,
+        ]);
+        CommerceOrderItem::query()->create([
+            'commerce_order_id' => $commerce->id,
+            'line_no' => 1,
+            'sku' => '1003',
+            'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
+            'requires_shipping' => true,
+            'model_id' => 1003,
+            'description' => $listing,
+            'qty' => 1,
+            'unit_price' => 3727.97,
+            'gst_percentage' => 18,
+            'taxable_value' => 3159.30,
+            'tax_total' => 568.67,
+            'line_total' => 3727.97,
+        ]);
+        InventoryProduct::query()->create([
+            'sku' => 'RBPB1000L1',
+            'name' => 'PB 1000 L1',
+            'hsn_code' => '84716090',
+            'gst_percentage' => 18,
+            'unit_price' => 3727.97,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+
+        $this->assertSame(
+            HardwareAwaitingFulfilmentReason::ProductMappingRequired,
+            HardwareAwaitingFulfilmentClassifier::reason($order, $commerce->fresh('items')),
+        );
+    }
+
+    public function test_mapped_physical_model_is_review_candidate(): void
+    {
+        $order = $this->order('RDE960008', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+        ]);
+        $commerce = CommerceOrder::query()->create([
+            'order_no' => 'CO-RDE960008',
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => 'commerce_order',
+            'source_id' => 'RDE960008',
+            'idempotency_key' => 'statutory:radiumbox_com:commerce_order:RDE960008',
+            'payload_hash' => hash('sha256', 'RDE960008'),
+            'status' => CommerceOrderStatus::Validated,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'received_at' => now(),
+            'ordered_at' => '2026-09-07 10:00:00',
+            'paid_at' => '2026-09-07 10:05:00',
+            'support_order_id' => $order->id,
+        ]);
+        CommerceOrderItem::query()->create([
+            'commerce_order_id' => $commerce->id,
+            'line_no' => 1,
+            'sku' => '946',
+            'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
+            'requires_shipping' => true,
+            'model_id' => 946,
+            'description' => 'Mantra MFS110 L1',
+            'qty' => 1,
+            'unit_price' => 2549,
+            'gst_percentage' => 18,
+            'taxable_value' => 2160.17,
+            'tax_total' => 388.83,
+            'line_total' => 2549,
+        ]);
+        $product = InventoryProduct::query()->create([
+            'sku' => 'RBMFS110L1',
+            'name' => 'MFS110 L1',
+            'hsn_code' => '84716050',
+            'gst_percentage' => 18,
+            'unit_price' => 2549,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 946,
+            'inventory_product_id' => $product->id,
+            'catalog_sku' => 'RBMFS110L1',
+            'channel_sku' => '946',
+        ]);
+
+        $this->assertSame(
+            HardwareAwaitingFulfilmentReason::ReviewCandidate,
+            HardwareAwaitingFulfilmentClassifier::reason($order, $commerce->fresh('items')),
         );
     }
 
