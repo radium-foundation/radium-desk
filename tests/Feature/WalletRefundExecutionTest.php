@@ -109,6 +109,37 @@ class WalletRefundExecutionTest extends TestCase
         $this->assertSame('RD91002', $refund->execution_reference_no);
     }
 
+    public function test_production_shaped_numeric_wallet_reference_completes_refund(): void
+    {
+        Http::fake([
+            'https://rdservice.in.test/api/integrations/v1/wallet-refunds' => Http::response([
+                'status' => 200,
+                'message' => 'Wallet credit already exists',
+                'data' => [
+                    'wallet_transaction_id' => 2563,
+                    'wallet_reference' => 2563,
+                    'source_system' => 'radium_desk',
+                    'desk_refund_reference' => 'REF-2026-000305',
+                    'credit' => '497.00',
+                    'currency' => 'INR',
+                    'balance' => '497.00',
+                ],
+            ], 200),
+        ]);
+
+        [$ops, $refund] = $this->pendingWalletRefundFixture('RD4328', '497.00', 'REF-2026-000305');
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [])
+            ->assertRedirect(route('refunds.show', $refund))
+            ->assertSessionHas('status', 'refund-completed');
+
+        $refund->refresh();
+        $this->assertContains($refund->status, [RefundStatus::Completed, RefundStatus::Closed]);
+        $this->assertSame('2563', $refund->execution_reference_no);
+        $this->assertSame('2563', $refund->execution_transaction_id);
+    }
+
     public function test_wallet_integration_unavailable_does_not_fall_back_to_manual(): void
     {
         config(['rdservice_in.wallet_refund_credit_enabled' => false]);
