@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.75 — 2026-09-17 — Hardware Dashboard P-302 mainline
+
+- Restore Hardware Dashboard P-07-09-302 into mainline: Needs Action default filter, shipping sub-filters (Ready for Pickup, Out for Pickup), received/last-activity timeline, workspace navigation, and live hardware endpoint.
+- Add a fail-closed deployment contract so `desk deploy` stops before rsync if protected Hardware Dashboard files or markers are missing.
+- Shiprocket tracking columns migration is included for repository parity; production schema was already applied in batch 23.
+
 ## 4.0.74 — 2026-09-17 — Independent operational reference series
 
 - Refunds: new operational references `REF-67315+` (historical `REF-YYYY-*` preserved).
