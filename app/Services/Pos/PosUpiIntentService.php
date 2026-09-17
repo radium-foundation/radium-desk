@@ -11,6 +11,7 @@ use App\Models\PosPaymentIntent;
 use App\Models\User;
 use App\Services\Inventory\InventoryStockService;
 use App\Services\Inventory\PosSaleService;
+use App\Support\Inventory\PosSaleLineNormalizer;
 use App\Support\Pos\PosUpiUriBuilder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -80,6 +81,8 @@ class PosUpiIntentService
         $saleIdempotencyKey = $saleIdempotencyKey !== null && trim($saleIdempotencyKey) !== ''
             ? trim($saleIdempotencyKey)
             : 'upi-intent:'.(string) Str::uuid();
+
+        $lines = PosSaleLineNormalizer::normalize($lines);
 
         $existing = PosPaymentIntent::query()
             ->where('sale_idempotency_key', $saleIdempotencyKey)

@@ -19,6 +19,7 @@ use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\PosStatutoryInvoiceIssuer;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
 use App\Support\Inventory\InventorySerialNumber;
+use App\Support\Inventory\PosSaleLineNormalizer;
 use App\Support\StatutoryInvoice\InvoiceRoundOff;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -65,6 +66,8 @@ class PosSaleService
     ): InventorySale {
         $this->statutoryAccounting->assertMustNotAutoIssueOnPosComplete();
         $this->lastStatutoryIssueWarning = null;
+
+        $lines = PosSaleLineNormalizer::normalize($lines);
 
         if ($lines === []) {
             throw ValidationException::withMessages([
@@ -460,6 +463,8 @@ class PosSaleService
      */
     public function quoteTotals(array $lines, float $headerDiscount = 0): array
     {
+        $lines = PosSaleLineNormalizer::normalize($lines);
+
         if ($lines === []) {
             throw ValidationException::withMessages([
                 'lines' => 'Add at least one product line.',
