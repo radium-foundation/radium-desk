@@ -184,7 +184,7 @@
             @endif
 
             @if($refund->executed_at)
-                <div class="card border-0 shadow-sm">
+                <div class="card border-0 shadow-sm @if(! $refund->revoked_at) mb-0 @else mb-3 @endif">
                     <div class="card-header bg-white py-3">
                         <h2 class="h6 mb-0">Execution History</h2>
                     </div>
@@ -208,6 +208,30 @@
                     </div>
                 </div>
             @endif
+
+            @if($refund->revoked_at)
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white py-3">
+                        <h2 class="h6 mb-0">Revocation History</h2>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4 text-muted">Revoked By</dt>
+                            <dd class="col-sm-8">{{ $refund->revoker?->name ?? '—' }}</dd>
+                            <dt class="col-sm-4 text-muted">Revoked Date</dt>
+                            <dd class="col-sm-8">{{ display_app_datetime_24($refund->revoked_at) }}</dd>
+                            <dt class="col-sm-4 text-muted">Customer Outcome</dt>
+                            <dd class="col-sm-8">{{ $refund->revoke_customer_outcome?->label() ?? '—' }}</dd>
+                            <dt class="col-sm-4 text-muted">Revoke Reason</dt>
+                            <dd class="col-sm-8">{!! nl2br(e($refund->revoke_reason ?: '—')) !!}</dd>
+                            <dt class="col-sm-4 text-muted">Wallet Reversal Ref</dt>
+                            <dd class="col-sm-8">{{ $refund->revoke_wallet_reversal_reference ?: '—' }}</dd>
+                            <dt class="col-sm-4 text-muted">Wallet Reversal Txn</dt>
+                            <dd class="col-sm-8">{{ $refund->revoke_wallet_reversal_transaction_id ?: '—' }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            @endif
         </div>
 
         <div class="col-lg-5">
@@ -220,6 +244,12 @@
             @can('execute', $refund)
                 @if($refund->status === \App\Enums\RefundStatus::PendingExecution)
                     @include('refunds.partials.execute-panel')
+                @endif
+            @endcan
+
+            @can('revoke', $refund)
+                @if($canRevokeRefund ?? false)
+                    @include('refunds.partials.revoke-panel', ['refund' => $refund])
                 @endif
             @endcan
 

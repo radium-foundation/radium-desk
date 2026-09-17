@@ -8,6 +8,7 @@ enum RefundStatus: string
     case PendingExecution = 'pending_execution';
     case Completed = 'completed';
     case Closed = 'closed';
+    case Revoked = 'revoked';
     case Rejected = 'rejected';
     /** @deprecated Legacy terminal-ish status; prefer Completed/Closed. Kept for backward-compatible rows. */
     case Approved = 'approved';
@@ -19,6 +20,7 @@ enum RefundStatus: string
             self::PendingExecution => 'Pending Execution',
             self::Completed => 'Completed',
             self::Closed => 'Closed',
+            self::Revoked => 'Revoked',
             self::Rejected => 'Rejected',
             self::Approved => 'Approved',
         };
@@ -39,6 +41,16 @@ enum RefundStatus: string
         return in_array($this, [self::Completed, self::Closed, self::Approved], true);
     }
 
+    public function isRevoked(): bool
+    {
+        return $this === self::Revoked;
+    }
+
+    public function isEligibleForRevoke(): bool
+    {
+        return $this->isTerminalSuccess();
+    }
+
     public function countsTowardAlreadyRefunded(): bool
     {
         return in_array($this, [
@@ -47,6 +59,16 @@ enum RefundStatus: string
             self::Completed,
             self::Closed,
             self::Approved,
+        ], true);
+    }
+
+    public function blocksCommercialUnlessRestored(): bool
+    {
+        return in_array($this, [
+            self::Completed,
+            self::Closed,
+            self::Approved,
+            self::Revoked,
         ], true);
     }
 
@@ -69,6 +91,7 @@ enum RefundStatus: string
             self::PendingExecution,
             self::Completed,
             self::Closed,
+            self::Revoked,
             self::Rejected,
             self::Approved,
         ];

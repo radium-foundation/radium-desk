@@ -77,7 +77,51 @@ class CommercialServiceRestorationService
             ]);
         }
 
-        return DB::transaction(function () use ($order, $refund, $actor, $data, $reference): CommercialServiceRestoration {
+        return $this->createRestoration(
+            order: $order,
+            refund: $refund,
+            actor: $actor,
+            walletReversalReference: $reference,
+            financeNote: filled($data['finance_note'] ?? null) ? trim((string) $data['finance_note']) : null,
+            systemInitiated: false,
+        );
+    }
+
+    public function restoreAfterRevoke(
+        Order $order,
+        RefundRequest $refund,
+        User $actor,
+        string $walletReversalReference,
+        string $revokeReason,
+    ): CommercialServiceRestoration {
+        $this->assertEligibleRefund($order, $refund, allowRevoked: true);
+
+        $reference = trim($walletReversalReference);
+        if ($reference === '') {
+            throw ValidationException::withMessages([
+                'wallet_reversal_reference' => 'Wallet reversal reference is required.',
+            ]);
+        }
+
+        return $this->createRestoration(
+            order: $order,
+            refund: $refund,
+            actor: $actor,
+            walletReversalReference: $reference,
+            financeNote: 'Automatic restoration after refund revoke: '.$revokeReason,
+            systemInitiated: true,
+        );
+    }
+
+    private function createRestoration(
+        Order $order,
+        RefundRequest $refund,
+        User $actor,
+        string $walletReversalReference,
+        ?string $financeNote,
+        bool $systemInitiated,
+    ): CommercialServiceRestoration {
+        return DB::transaction(function () use ($order, $refund, $actor, $walletReversalReference, $financeNote, $systemInitiated): CommercialServiceRestoration {
             CommercialServiceRestoration::query()
                 ->where('order_id', $order->id)
                 ->where('refund_request_id', $refund->id)
@@ -86,6 +130,10 @@ class CommercialServiceRestorationService
 
             $existing = $this->activeFor($order, $refund);
             if ($existing instanceof CommercialServiceRestoration) {
+                if ($systemInitiated) {
+                    return $existing;
+                }
+
                 throw ValidationException::withMessages([
                     'refund_request_id' => 'An active commercial service restoration already exists for this refund.',
                 ]);
@@ -97,8 +145,8 @@ class CommercialServiceRestorationService
                 'refund_request_id' => $refund->id,
                 'finance_verified' => true,
                 'wallet_reversed_externally' => true,
-                'wallet_reversal_reference' => $reference,
-                'finance_note' => filled($data['finance_note'] ?? null) ? trim((string) $data['finance_note']) : null,
+                'wallet_reversal_reference' => $walletReversalReference,
+                'finance_note' => $financeNote,
                 'verified_by_user_id' => $actor->id,
                 'verified_at' => $now,
                 'recorded_by_user_id' => $actor->id,
@@ -107,7 +155,7 @@ class CommercialServiceRestorationService
 
             $this->auditLogService->log(
                 userId: $actor->id,
-                event: 'commercial.service_restored',
+                event: $systemInitiated ? 'commercial.service_restored_after_refund_revoke' : 'commercial.service_restored',
                 auditable: $restoration,
                 oldValues: null,
                 newValues: [
@@ -119,6 +167,7 @@ class CommercialServiceRestorationService
                     'finance_note' => $restoration->finance_note,
                     'finance_verified' => true,
                     'wallet_reversed_externally' => true,
+                    'system_initiated' => $systemInitiated,
                     'recorded_at' => $restoration->recorded_at?->toIso8601String(),
                 ],
             );
@@ -204,7 +253,7 @@ class CommercialServiceRestorationService
         }
     }
 
-    private function assertEligibleRefund(Order $order, RefundRequest $refund): void
+    private function assertEligibleRefund(Order $order, RefundRequest $refund, bool $allowRevoked = false): void
     {
         if ((int) $refund->order_id !== (int) $order->id) {
             throw ValidationException::withMessages([
@@ -213,7 +262,10 @@ class CommercialServiceRestorationService
         }
 
         $status = $refund->status;
-        if (! $status instanceof RefundStatus || ! $status->isTerminalSuccess()) {
+        $eligible = $status instanceof RefundStatus
+            && ($status->isTerminalSuccess() || ($allowRevoked && $status->isRevoked()));
+
+        if (! $eligible) {
             throw ValidationException::withMessages([
                 'refund_request_id' => 'Only a completed wallet refund can be restored for commercial service.',
             ]);

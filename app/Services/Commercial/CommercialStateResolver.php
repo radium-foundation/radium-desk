@@ -120,6 +120,7 @@ class CommercialStateResolver
             RefundStatus::Completed,
             RefundStatus::Closed,
             RefundStatus::Approved,
+            RefundStatus::Revoked,
         ]);
 
         if ($completedRefund instanceof RefundRequest) {

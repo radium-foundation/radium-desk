@@ -6,6 +6,7 @@ use App\Enums\ApprovedRefundMethod;
 use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\RefundDeductionProfile;
 use App\Enums\RefundDifferenceReason;
+use App\Enums\RefundRevokeCustomerOutcome;
 use App\Enums\RefundStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -44,6 +45,12 @@ class RefundRequest extends Model
         'executed_by',
         'executed_at',
         'closed_at',
+        'revoked_at',
+        'revoked_by',
+        'revoke_reason',
+        'revoke_customer_outcome',
+        'revoke_wallet_reversal_reference',
+        'revoke_wallet_reversal_transaction_id',
         'communication_channels',
         'deduction_snapshot',
         'requested_by',
@@ -75,6 +82,8 @@ class RefundRequest extends Model
             'reviewed_at' => 'datetime',
             'executed_at' => 'datetime',
             'closed_at' => 'datetime',
+            'revoked_at' => 'datetime',
+            'revoke_customer_outcome' => RefundRevokeCustomerOutcome::class,
         ];
     }
 
@@ -101,6 +110,11 @@ class RefundRequest extends Model
     public function executor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'executed_by');
+    }
+
+    public function revoker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'revoked_by');
     }
 
     public function remarks(): MorphMany

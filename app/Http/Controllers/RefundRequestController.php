@@ -10,6 +10,7 @@ use App\Enums\RefundStatus;
 use App\Http\Requests\ApproveRefundRequestRequest;
 use App\Http\Requests\CompleteRefundRequestRequest;
 use App\Http\Requests\RejectRefundRequestRequest;
+use App\Http\Requests\RevokeRefundRequestRequest;
 use App\Http\Requests\StoreRefundRequestRequest;
 use App\Models\Incident;
 use App\Models\Order;
@@ -19,6 +20,7 @@ use App\Services\RefundCalculationService;
 use App\Services\RefundProfileRegistry;
 use App\Services\RefundRequestService;
 use App\Services\Refunds\RefundListingQuery;
+use App\Services\Refunds\RefundRevokeService;
 use App\Services\RemarkTimelineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -33,6 +35,7 @@ class RefundRequestController extends Controller
         private readonly RefundCalculationService $calculationService,
         private readonly RefundProfileRegistry $profileRegistry,
         private readonly RefundListingQuery $refundListingQuery,
+        private readonly RefundRevokeService $refundRevokeService,
     ) {
         $this->authorizeResource(RefundRequest::class, 'refund', [
             'except' => ['edit', 'update'],
@@ -120,6 +123,8 @@ class RefundRequestController extends Controller
             'approvedMethods' => ApprovedRefundMethod::cases(),
             'differenceReasons' => RefundDifferenceReason::cases(),
             'deductionProfiles' => RefundDeductionProfile::cases(),
+            'canRevokeRefund' => $this->refundRevokeService->canRevoke($refund),
+            'revokeOutcomes' => \App\Enums\RefundRevokeCustomerOutcome::cases(),
         ]);
     }
 
@@ -235,5 +240,21 @@ class RefundRequestController extends Controller
         return redirect()
             ->route('refunds.show', $refund)
             ->with('status', 'refund-completed');
+    }
+
+    public function revoke(RevokeRefundRequestRequest $request, RefundRequest $refund): RedirectResponse
+    {
+        $this->authorize('revoke', $refund);
+
+        $this->refundRevokeService->revoke(
+            refund: $refund,
+            actor: $request->user(),
+            data: $request->validated(),
+            request: $request,
+        );
+
+        return redirect()
+            ->route('refunds.show', $refund)
+            ->with('status', 'refund-revoked');
     }
 }

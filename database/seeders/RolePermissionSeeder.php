@@ -89,6 +89,9 @@ class RolePermissionSeeder extends Seeder
     /** Record Finance-verified external wallet reverse → restore commercial service. */
     public const PERMISSION_COMMERCIAL_SERVICE_RESTORE = 'commercial.service.restore';
 
+    /** Revoke a completed wallet refund (reverse wallet + restore service). */
+    public const PERMISSION_REFUNDS_REVOKE = 'refunds.revoke';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -424,6 +427,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
+            self::PERMISSION_REFUNDS_REVOKE,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
         ],
         self::ROLE_OPERATIONS_ADMIN => [
@@ -474,6 +478,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
+            self::PERMISSION_REFUNDS_REVOKE,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
         ],
         self::ROLE_SUPERADMIN => [
@@ -533,6 +538,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
+            self::PERMISSION_REFUNDS_REVOKE,
             self::PERMISSION_BACKUPS_VIEW,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
         ],

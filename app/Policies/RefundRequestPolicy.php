@@ -32,6 +32,11 @@ class RefundRequestPolicy
         return $user->can('refunds.execute');
     }
 
+    public function revoke(User $user, RefundRequest $refundRequest): bool
+    {
+        return $user->can('refunds.revoke');
+    }
+
     public function delete(User $user, RefundRequest $refundRequest): bool
     {
         return $user->can('refunds.delete');

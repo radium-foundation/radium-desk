@@ -40,4 +40,10 @@ return [
     | token/base URL from config/order_lookup.php (radiumbox_com spoke).
     */
     'wallet_refund_credit_enabled' => filter_var(env('RADIUMBOX_WALLET_REFUND_CREDIT_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+
+    /*
+    | Desk → radiumbox.com wallet refund reversal. Requires radiumbox.com to
+    | deploy a matching integration endpoint first. Default off.
+    */
+    'wallet_refund_reversal_enabled' => filter_var(env('RADIUMBOX_WALLET_REFUND_REVERSAL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 ];
