@@ -126,7 +126,11 @@ class ServicePosUiTest extends TestCase
         $rd = ServiceItem::query()->where('code', 'DEV-RD-1Y')->firstOrFail();
         $amc = ServiceItem::query()->where('code', 'DEV-AMC-1Y')->firstOrFail();
 
-        $this->actingAs($this->admin)->get(route('service-pos.counter.create'))->assertOk()->assertSee('Service counter');
+        $this->actingAs($this->admin)->get(route('service-pos.counter.create'))
+            ->assertOk()
+            ->assertSee('Service counter')
+            ->assertSee('Search by name, phone, or email', false)
+            ->assertSee('pos-customer-lookup-root', false);
 
         $this->actingAs($this->admin)->post(route('service-pos.quotes.store'), $this->quotePayload([
             ['service_item_id' => $rd->id, 'qty' => 1],

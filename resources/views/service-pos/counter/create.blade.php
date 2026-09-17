@@ -58,26 +58,30 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="mb-2"><label class="form-label">Name</label><input name="customer_name" class="form-control" required value="{{ old('customer_name') }}"></div>
-                            <div class="mb-2"><label class="form-label">Phone</label><input name="customer_phone" class="form-control" required value="{{ old('customer_phone') }}"></div>
-                            <div class="mb-2"><label class="form-label">Email</label><input name="customer_email" type="email" class="form-control" value="{{ old('customer_email') }}"></div>
-                            <div class="mb-2"><label class="form-label">GSTIN</label><input name="buyer_gstin" class="form-control" value="{{ old('buyer_gstin') }}"></div>
-                            <div class="mb-2"><label class="form-label">Billing state</label>
-                                <select name="billing_state" class="form-select" required>
+                            <div class="mb-2"><label class="form-label" for="svc-customer-name">Name</label><input name="customer_name" id="svc-customer-name" class="form-control" required value="{{ old('customer_name') }}" autocomplete="off"></div>
+                            <div class="mb-2"><label class="form-label" for="svc-customer-phone">Phone</label><input name="customer_phone" id="svc-customer-phone" class="form-control" required value="{{ old('customer_phone') }}" autocomplete="off"></div>
+                            <div class="mb-2"><label class="form-label" for="svc-customer-email">Email</label><input name="customer_email" id="svc-customer-email" type="email" class="form-control" value="{{ old('customer_email') }}" autocomplete="off"></div>
+                            <div class="mb-2"><label class="form-label" for="svc-buyer-gstin">GSTIN</label><input name="buyer_gstin" id="svc-buyer-gstin" class="form-control" value="{{ old('buyer_gstin') }}"></div>
+                            <p class="small text-muted">Search by name, phone, or email to select an existing customer.</p>
+                            <div id="svc-customer-results" class="list-group mb-2 d-none pos-customer-lookup-results"></div>
+                            <p class="small text-muted mb-2" id="svc-customer-status"></p>
+                            <div id="pos-customer-lookup-root" class="d-none" data-config='@json($customerLookupConfig)'></div>
+                            <div class="mb-2"><label class="form-label" for="svc-billing-state">Billing state</label>
+                                <select name="billing_state" id="svc-billing-state" class="form-select" required>
                                     @foreach($placeOfSupplyStates as $state)
                                         <option value="{{ $state }}" @selected(old('billing_state') === $state)>{{ $state }}</option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="mb-2"><label class="form-label">Place of supply</label>
-                                <select name="place_of_supply_state" class="form-select">
+                            <div class="mb-2"><label class="form-label" for="svc-place-of-supply">Place of supply</label>
+                                <select name="place_of_supply_state" id="svc-place-of-supply" class="form-select">
                                     <option value="">Same as billing</option>
                                     @foreach($placeOfSupplyStates as $state)
                                         <option value="{{ $state }}">{{ $state }}</option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="mb-2"><label class="form-label">Billing address</label><textarea name="billing_address" class="form-control" rows="2">{{ old('billing_address') }}</textarea></div>
+                            <div class="mb-2"><label class="form-label" for="svc-billing-address">Billing address</label><textarea name="billing_address" id="svc-billing-address" class="form-control" rows="2">{{ old('billing_address') }}</textarea></div>
                         </div>
                     </div>
                     <div class="card border-0 shadow-sm">
@@ -94,7 +98,19 @@
     @endif
 @endsection
 
+@push('styles')
+    <style>
+        .pos-customer-lookup-results {
+            position: relative;
+            z-index: 20;
+            max-height: 16rem;
+            overflow-y: auto;
+        }
+    </style>
+@endpush
+
 @push('scripts')
+@vite('resources/js/pages/pos-customer-lookup-bootstrap.js')
 <script>
 (() => {
     const searchUrl = @json($searchItemsUrl);

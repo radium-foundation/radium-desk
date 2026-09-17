@@ -6,7 +6,6 @@ use App\Enums\InventorySerialStatus;
 use App\Http\Controllers\Controller;
 use App\Models\FinancePaymentMethod;
 use App\Models\InventoryBranch;
-use App\Models\InventoryCustomer;
 use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
 use App\Models\InventoryStockBalance;
@@ -57,7 +56,21 @@ class CounterController extends Controller
             'idempotencyKey' => old('idempotency_key', (string) Str::uuid()),
             'searchProductsUrl' => route('pos.products.search'),
             'searchSerialsUrl' => route('pos.serials.search'),
-            'lookupCustomerUrl' => route('pos.customers.lookup'),
+            'customerLookupConfig' => $this->customerLookupConfig(
+                resultsId: 'pos-customer-results',
+                statusId: 'pos-customer-status',
+                fieldIds: [
+                    'phone' => 'customer_phone',
+                    'name' => 'customer_name',
+                    'email' => 'customer_email',
+                    'gstin' => 'buyer_gstin',
+                    'billing_address' => 'billing_address',
+                    'place_of_supply_state' => 'place_of_supply_state',
+                ],
+                searchInputIds: ['customer_phone', 'customer_name', 'customer_email'],
+                selectedMessage: 'Existing POS customer selected. Sale snapshot fields stay on this sale.',
+                noResultsMessage: 'No matching POS customers. A new customer will be created on complete.',
+            ),
             'upiReceivingAccounts' => $this->upiIntents->enabledReceivingAccounts(),
             'canVerifyUpi' => PosAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_POS_PAYMENTS_VERIFY),
             'placeOfSupplyStates' => IndianStates::names(),
@@ -267,30 +280,30 @@ class CounterController extends Controller
         ]);
     }
 
-    public function lookupCustomer(Request $request): JsonResponse
-    {
-        abort_unless(
-            PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_SELL),
-            403,
-        );
-
-        $phone = preg_replace('/\s+/', '', $request->string('phone')->trim()->toString()) ?? '';
-        if ($phone === '') {
-            return response()->json(['found' => false]);
-        }
-
-        $customer = InventoryCustomer::query()->where('phone', $phone)->first();
-        if ($customer === null) {
-            return response()->json(['found' => false]);
-        }
-
-        return response()->json([
-            'found' => true,
-            'name' => $customer->name,
-            'phone' => $customer->phone,
-            'email' => $customer->email,
-            'gstin' => $customer->gstin,
-        ]);
+    /**
+     * @param  array<string, string>  $fieldIds
+     * @param  list<string>  $searchInputIds
+     * @return array<string, mixed>
+     */
+    private function customerLookupConfig(
+        string $resultsId,
+        string $statusId,
+        array $fieldIds,
+        array $searchInputIds,
+        string $selectedMessage,
+        string $noResultsMessage,
+    ): array {
+        return [
+            'searchUrl' => route('pos.customers.search'),
+            'showUrlTemplate' => route('pos.customers.show', ['customer' => '__ID__']),
+            'lookupUrl' => route('pos.customers.lookup'),
+            'resultsId' => $resultsId,
+            'statusId' => $statusId,
+            'fieldIds' => $fieldIds,
+            'searchInputIds' => $searchInputIds,
+            'selectedMessage' => $selectedMessage,
+            'noResultsMessage' => $noResultsMessage,
+        ];
     }
 
     /**

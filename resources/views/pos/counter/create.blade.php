@@ -108,7 +108,7 @@
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label" for="customer_name">Name</label>
-                                    <input type="text" name="customer_name" id="customer_name" class="form-control" required value="{{ old('customer_name') }}">
+                                    <input type="text" name="customer_name" id="customer_name" class="form-control" required value="{{ old('customer_name') }}" autocomplete="off">
                                     @error('customer_name')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="mb-2">
@@ -135,8 +135,10 @@
                                     </select>
                                     @error('place_of_supply_state')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
-                                <p class="small text-muted mb-0 mt-2">These values are stored on the sale for Finance Hub. Completing the sale does not issue a GST invoice.</p>
+                                <p class="small text-muted mb-0 mt-2">Search by name, phone, or email. These values are stored on the sale for Finance Hub. Completing the sale does not issue a GST invoice.</p>
+                                <div id="pos-customer-results" class="list-group mt-2 d-none pos-customer-lookup-results"></div>
                                 <p class="small text-muted mb-0 mt-2" id="pos-customer-status"></p>
+                                <div id="pos-customer-lookup-root" class="d-none" data-config='@json($customerLookupConfig)'></div>
                             </div>
                         </div>
 
@@ -204,14 +206,27 @@
     @endif
 @endsection
 
+@push('styles')
+    @if($operatingBranch)
+        <style>
+            .pos-customer-lookup-results {
+                position: relative;
+                z-index: 20;
+                max-height: 16rem;
+                overflow-y: auto;
+            }
+        </style>
+    @endif
+@endpush
+
 @push('scripts')
     @if($operatingBranch)
+        @vite('resources/js/pages/pos-customer-lookup-bootstrap.js')
         <script>
             (function () {
                 const branchId = @json($operatingBranch->id);
                 const productSearchUrl = @json($searchProductsUrl);
                 const serialSearchUrl = @json($searchSerialsUrl);
-                const customerLookupUrl = @json($lookupCustomerUrl);
                 const oldLines = @json(array_values(old('lines', [])));
 
                 const productInput = document.getElementById('pos-product-search');
@@ -224,11 +239,6 @@
                 const cartEmpty = document.getElementById('pos-cart-empty');
                 const cartFields = document.getElementById('pos-cart-fields');
                 const headerDiscount = document.getElementById('discount');
-                const phoneInput = document.getElementById('customer_phone');
-                const nameInput = document.getElementById('customer_name');
-                const emailInput = document.getElementById('customer_email');
-                const gstinInput = document.getElementById('buyer_gstin');
-                const customerStatus = document.getElementById('pos-customer-status');
                 const form = document.getElementById('pos-counter-form');
                 const completeButton = document.getElementById('pos-complete');
                 const paymentMethod = document.getElementById('payment_method');
@@ -250,7 +260,6 @@
                 let pendingProduct = null;
                 let searchTimer = null;
                 let serialTimer = null;
-                let phoneTimer = null;
                 let submitting = false;
 
                 function money(value) {
@@ -510,39 +519,6 @@
                 });
 
                 headerDiscount.addEventListener('input', renderTotals);
-
-                phoneInput.addEventListener('input', function () {
-                    clearTimeout(phoneTimer);
-                    const phone = phoneInput.value.replace(/\s+/g, '');
-                    if (phone.length < 8) {
-                        customerStatus.textContent = '';
-                        return;
-                    }
-                    phoneTimer = setTimeout(function () {
-                        fetch(customerLookupUrl + '?phone=' + encodeURIComponent(phone), { headers: { 'Accept': 'application/json' } })
-                            .then(function (response) {
-                                if (!response.ok) {
-                                    throw new Error('customer-lookup-failed');
-                                }
-                                return response.json();
-                            })
-                            .then(function (data) {
-                                if (data.found) {
-                                    nameInput.value = data.name || nameInput.value;
-                                    emailInput.value = data.email || emailInput.value;
-                                    if (gstinInput && data.gstin && !gstinInput.value) {
-                                        gstinInput.value = data.gstin;
-                                    }
-                                    customerStatus.textContent = 'Existing POS customer loaded. Sale snapshot fields stay on this sale.';
-                                } else {
-                                    customerStatus.textContent = 'New customer will be created on complete.';
-                                }
-                            })
-                            .catch(function () {
-                                customerStatus.textContent = 'Could not look up this phone. You can still complete the sale.';
-                            });
-                    }, 250);
-                });
 
                 if (completeButton) {
                     completeButton.addEventListener('click', function (event) {

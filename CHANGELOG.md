@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.70 — 2026-09-17 — POS customer search restore
+
+- Restore `inventory_customers` autocomplete for Product POS and Service POS counters (name, phone, email).
+- Reintroduce `PosCustomerLookupService` and dedicated lookup API endpoints removed during prior route regressions.
+- Service POS sellers can search customers without hardware POS view permission.
+
 ## 4.0.69 — 2026-09-17 — Production stability hotfix
 
 - Restore overlay-dependent controllers and services required by existing routes: HistoricalOrder, LegacyCash, Purchasing, and hardware bulk documents.

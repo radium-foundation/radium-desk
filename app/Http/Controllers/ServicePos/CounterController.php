@@ -43,7 +43,25 @@ class CounterController extends Controller
             'categories' => ServiceCategory::query()->where('is_active', true)->orderBy('sort_order')->get(),
             'idempotencyKey' => old('idempotency_key', (string) Str::uuid()),
             'searchItemsUrl' => route('service-pos.items.search'),
-            'lookupCustomerUrl' => route('pos.customers.lookup'),
+            'customerLookupConfig' => [
+                'searchUrl' => route('pos.customers.search'),
+                'showUrlTemplate' => route('pos.customers.show', ['customer' => '__ID__']),
+                'lookupUrl' => route('pos.customers.lookup'),
+                'resultsId' => 'svc-customer-results',
+                'statusId' => 'svc-customer-status',
+                'fieldIds' => [
+                    'phone' => 'svc-customer-phone',
+                    'name' => 'svc-customer-name',
+                    'email' => 'svc-customer-email',
+                    'gstin' => 'svc-buyer-gstin',
+                    'billing_address' => 'svc-billing-address',
+                    'billing_state' => 'svc-billing-state',
+                    'place_of_supply_state' => 'svc-place-of-supply',
+                ],
+                'searchInputIds' => ['svc-customer-phone', 'svc-customer-name', 'svc-customer-email'],
+                'selectedMessage' => 'Existing customer selected.',
+                'noResultsMessage' => 'No matching customers found. A new customer will be created when you save the proforma.',
+            ],
             'placeOfSupplyStates' => IndianStates::names(),
         ]);
     }
