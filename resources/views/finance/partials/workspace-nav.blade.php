@@ -19,6 +19,11 @@
             'url' => route('finance.payments.index'),
             'visible' => FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_PAYMENTS_VIEW),
         ],
+        'receivables' => [
+            'label' => 'Receivables',
+            'url' => route('finance.receivables.index'),
+            'visible' => FinanceAccess::allowsReceivables($user),
+        ],
         'expenses' => [
             'label' => 'Expenses',
             'url' => route('finance.expenses.index'),

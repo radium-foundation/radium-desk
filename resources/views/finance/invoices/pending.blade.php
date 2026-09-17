@@ -74,6 +74,46 @@
         </div>
     </div>
 
+    <div class="card mb-4">
+        <div class="card-body">
+            <h2 class="h6">Service orders</h2>
+            <p class="small text-muted">Desk service commercial orders without a statutory invoice. No inventory impact.</p>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Customer</th>
+                            <th>Branch</th>
+                            <th>Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($serviceOrders as $serviceOrder)
+                            <tr>
+                                <td><a href="{{ route('service-pos.orders.show', $serviceOrder) }}">{{ $serviceOrder->order_number }}</a></td>
+                                <td>{{ $serviceOrder->buyer_name }}</td>
+                                <td>{{ $serviceOrder->branch?->code }}</td>
+                                <td>₹{{ number_format((float) $serviceOrder->total, 2) }}</td>
+                                <td class="text-end">
+                                    @if($canIssue)
+                                        <form method="POST" action="{{ route('finance.invoices.service-orders.issue', $serviceOrder) }}">
+                                            @csrf
+                                            <button class="btn btn-sm btn-primary">Issue tax invoice</button>
+                                        </form>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="text-muted">No open service orders waiting for invoice.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-body">
             <h2 class="h6">Channel orders</h2>

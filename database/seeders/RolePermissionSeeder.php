@@ -72,6 +72,16 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_FINANCE_WALLET_VIEW = 'finance.wallet.view';
 
+    public const PERMISSION_FINANCE_RECEIVABLES_VIEW = 'finance.receivables.view';
+
+    public const PERMISSION_FINANCE_PAYMENTS_RECORD = 'finance.payments.record';
+
+    public const PERMISSION_SERVICES_VIEW = 'services.view';
+
+    public const PERMISSION_SERVICES_MANAGE = 'services.manage';
+
+    public const PERMISSION_SERVICE_POS_SELL = 'service-pos.sell';
+
     public const PERMISSION_CASHBOOK_VIEW = 'cashbook.view';
 
     public const PERMISSION_CASHBOOK_CREATE = 'cashbook.create';
@@ -174,6 +184,9 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES,
         self::PERMISSION_HARDWARE_FULFILMENT_OPERATE,
         self::PERMISSION_HARDWARE_FULFILMENT_CORRECT_COUNTRY,
+        self::PERMISSION_SERVICES_VIEW,
+        self::PERMISSION_SERVICES_MANAGE,
+        self::PERMISSION_SERVICE_POS_SELL,
     ];
 
     /**
@@ -244,6 +257,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_FINANCE_INVOICES_VIEW,
         self::PERMISSION_FINANCE_REPORTS_EXPORT,
         self::PERMISSION_FINANCE_WALLET_VIEW,
+        self::PERMISSION_FINANCE_RECEIVABLES_VIEW,
     ];
 
     /**
@@ -420,6 +434,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_FINANCE_VIEW,
             self::PERMISSION_FINANCE_INVOICES_ISSUE,
+            self::PERMISSION_FINANCE_PAYMENTS_RECORD,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
@@ -472,6 +487,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
             self::PERMISSION_FINANCE_VIEW,
+            self::PERMISSION_FINANCE_INVOICES_ISSUE,
+            self::PERMISSION_FINANCE_PAYMENTS_RECORD,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_EMAIL_REPLY,
@@ -530,6 +547,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_WORKFORCE_PAYROLL_REOPEN,
             self::PERMISSION_FINANCE_VIEW,
             self::PERMISSION_FINANCE_INVOICES_ISSUE,
+            self::PERMISSION_FINANCE_PAYMENTS_RECORD,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
@@ -555,7 +573,14 @@ class RolePermissionSeeder extends Seeder
             ->merge(self::FINANCE_MODULE_VIEW_PERMISSIONS)
             ->merge(self::TODO_BASELINE_PERMISSIONS)
             ->merge(self::TODO_ADMIN_PERMISSIONS)
-            ->merge([self::PERMISSION_POS_PAYMENTS_VERIFY])
+            ->merge([
+                self::PERMISSION_POS_PAYMENTS_VERIFY,
+                self::PERMISSION_SERVICES_VIEW,
+                self::PERMISSION_SERVICES_MANAGE,
+                self::PERMISSION_SERVICE_POS_SELL,
+                self::PERMISSION_FINANCE_RECEIVABLES_VIEW,
+                self::PERMISSION_FINANCE_PAYMENTS_RECORD,
+            ])
             ->unique()
             ->values();
 

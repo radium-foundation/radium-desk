@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Enums\InventorySaleStatus;
+use App\Enums\ServiceOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CommerceOrder;
 use App\Models\InventorySale;
+use App\Models\ServiceOrder;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Services\StatutoryInvoice\StatutoryMintEligibility;
 use App\Support\Finance\FinanceAccess;
@@ -54,9 +56,18 @@ class StatutoryInvoiceIssueController extends Controller
                 'eligibility' => $this->eligibility->evaluateOrder($order),
             ]);
 
+        $serviceOrders = ServiceOrder::query()
+            ->with(['customer', 'branch', 'lines'])
+            ->where('status', ServiceOrderStatus::Open)
+            ->whereNull('statutory_invoice_id')
+            ->latest('id')
+            ->limit(50)
+            ->get();
+
         return view('finance.invoices.pending', [
             'sales' => $sales,
             'orders' => $orders,
+            'serviceOrders' => $serviceOrders,
             'canIssue' => FinanceAccess::allowsInvoiceIssue(request()->user()),
         ]);
     }
@@ -108,5 +119,24 @@ class StatutoryInvoiceIssueController extends Controller
         return redirect()
             ->route('finance.invoices.commerce-orders.show', $order)
             ->with('status', 'Issued statutory invoice '.$invoice->invoice_number.'.');
+    }
+
+    public function issueServiceOrder(Request $request, ServiceOrder $serviceOrder): RedirectResponse
+    {
+        abort_unless(
+            FinanceAccess::allowsInvoiceIssue($request->user())
+                && $request->user()?->can(RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE),
+            403,
+        );
+
+        try {
+            $invoice = $this->invoices->issueFromServiceOrder($serviceOrder, $request->user());
+        } catch (ValidationException $exception) {
+            return back()->withErrors($exception->errors());
+        }
+
+        return redirect()
+            ->route('finance.invoices.show', $invoice)
+            ->with('status', 'Issued statutory service invoice '.$invoice->invoice_number.'.');
     }
 }

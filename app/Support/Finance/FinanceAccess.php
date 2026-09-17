@@ -50,4 +50,14 @@ final class FinanceAccess
         return $user->can(RolePermissionSeeder::PERMISSION_FINANCE_REPORTS_EXPORT)
             || $user->can(RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE);
     }
+
+    public static function allowsReceivables(?User $user): bool
+    {
+        return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_RECEIVABLES_VIEW);
+    }
+
+    public static function allowsPaymentRecord(?User $user): bool
+    {
+        return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_PAYMENTS_RECORD);
+    }
 }
