@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.71 — 2026-09-17 — Statutory GST PDF branding asset fix
+
+- Restore `public/brand/stamp-bgr.png` and add raster `public/brand/logo.png` so statutory PDF generation does not depend on Imagick SVG rasterization under the web PHP user.
+- Point invoice branding config at `brand/logo.png` instead of `brand/logo.svg`.
+
 ## 4.0.70 — 2026-09-17 — POS customer search restore
 
 - Restore `inventory_customers` autocomplete for Product POS and Service POS counters (name, phone, email).

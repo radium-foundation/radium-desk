@@ -613,7 +613,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $binary = (new SimplePdfRenderer)->render($this->payload());
         $text = $this->text($binary);
 
-        $this->assertFileExists(public_path('brand/logo.svg'));
+        $this->assertFileExists(public_path(config('branding.logo')));
         $this->assertStringContainsString('/Logo Do', $binary);
         $this->assertStringContainsString('DCTDecode', $binary);
         $this->assertStringContainsString('TAX INVOICE', $text);
@@ -633,13 +633,13 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
 
     public function test_missing_logo_asset_fails_clearly_without_legacy_fallback(): void
     {
-        $logoPath = public_path('brand/logo.svg');
+        $logoPath = public_path((string) config('branding.logo'));
         $backup = $logoPath.'.p224-backup';
         $this->assertTrue(rename($logoPath, $backup));
 
         try {
             $this->expectException(StatutoryInvoicePdfAssetException::class);
-            $this->expectExceptionMessage('brand/logo.svg');
+            $this->expectExceptionMessage((string) config('branding.logo'));
 
             (new SimplePdfRenderer)->render($this->payload());
         } finally {

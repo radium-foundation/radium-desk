@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'logo' => 'brand/logo.svg',
+    'logo' => 'brand/logo.png',
     'icon' => 'brand/icon.svg',
     'favicon' => 'brand/favicon.ico',
 ];
