@@ -4,6 +4,7 @@ namespace App\Services\StatutoryInvoice;
 
 use App\Enums\CommerceOrderStatus;
 use App\Enums\EInvoiceRecordStatus;
+use App\Enums\ServiceOrderStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceSourceType;
@@ -13,6 +14,7 @@ use App\Models\EInvoiceRecord;
 use App\Models\FinanceJournal;
 use App\Models\InventorySale;
 use App\Models\Order;
+use App\Models\ServiceOrder;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
@@ -343,6 +345,125 @@ class StatutoryInvoiceService
         return $this->issueFromCommerceOrder($commerce->fresh(['items']) ?? $commerce, $actor);
     }
 
+    public function issueFromServiceOrder(ServiceOrder $order, ?User $actor = null): StatutoryInvoice
+    {
+        if ($order->statutory_invoice_id !== null) {
+            $existing = StatutoryInvoice::query()->find($order->statutory_invoice_id);
+            if ($existing === null) {
+                throw ValidationException::withMessages([
+                    'service_order' => 'The service order already links a statutory invoice that could not be loaded.',
+                ]);
+            }
+
+            $this->generateDocumentSafely($existing);
+            $this->queueEinvoiceIfEligible($existing);
+
+            return $existing->load(['items', 'allocation', 'document']);
+        }
+
+        $existing = $this->findBySource(
+            StatutoryInvoiceChannel::DeskService,
+            StatutoryInvoiceSourceType::ServiceOrder,
+            $order->order_number,
+        );
+        if ($existing !== null) {
+            $this->linkServiceOrder($order->fresh() ?? $order, $existing);
+            $this->generateDocumentSafely($existing);
+            $this->queueEinvoiceIfEligible($existing);
+
+            return $existing->load(['items', 'allocation', 'document']);
+        }
+
+        return DB::transaction(function () use ($order, $actor): StatutoryInvoice {
+            $order = ServiceOrder::query()->lockForUpdate()->findOrFail($order->id);
+
+            if ($order->status === ServiceOrderStatus::Cancelled) {
+                throw ValidationException::withMessages([
+                    'service_order' => 'Cancelled service orders cannot be invoiced.',
+                ]);
+            }
+
+            if ($order->statutory_invoice_id !== null) {
+                $existing = StatutoryInvoice::query()->findOrFail($order->statutory_invoice_id);
+
+                return $existing->load(['items', 'allocation', 'document']);
+            }
+
+            $again = $this->findBySource(
+                StatutoryInvoiceChannel::DeskService,
+                StatutoryInvoiceSourceType::ServiceOrder,
+                $order->order_number,
+            );
+            if ($again !== null) {
+                $this->linkServiceOrder($order, $again);
+
+                return $again->load(['items', 'allocation', 'document']);
+            }
+
+            $order->loadMissing(['lines', 'customer', 'branch']);
+            if ($order->lines->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'service_order' => 'Service order has no lines.',
+                ]);
+            }
+
+            $lines = [];
+            $resolvedSacs = [];
+            foreach ($order->lines as $line) {
+                $resolvedSacs[] = $line->sac_code;
+                $lines[] = new StatutoryInvoiceLineDraft(
+                    description: (string) $line->description,
+                    qty: (int) $line->qty,
+                    unitPrice: (float) $line->unit_price_ex_gst,
+                    gstPercentage: (float) $line->gst_rate,
+                    taxTotal: (float) $line->tax_total,
+                    lineTotal: (float) $line->line_total,
+                    taxableValue: (float) $line->taxable_value,
+                    discount: (float) $line->discount,
+                    sku: null,
+                    hsnSac: $line->sac_code,
+                );
+            }
+
+            $headerDiscount = round((float) $order->discount - $order->lines->sum(fn ($line) => (float) $line->discount), 2);
+            if ($headerDiscount < 0) {
+                $headerDiscount = 0.0;
+            }
+
+            $invoice = $this->mint(new StatutoryInvoiceMintRequest(
+                channel: StatutoryInvoiceChannel::DeskService,
+                sourceType: StatutoryInvoiceSourceType::ServiceOrder,
+                sourceId: $order->order_number,
+                lines: $lines,
+                sourceOrderId: $order->order_number,
+                branchId: $order->branch_id,
+                sellerGstin: null,
+                sellerName: null,
+                buyerName: $order->buyer_name,
+                buyerPhone: $order->buyer_phone,
+                buyerGstin: BuyerGstin::normalize($order->buyer_gstin),
+                billingAddress: $order->billing_address,
+                placeOfSupplyState: $order->place_of_supply_state,
+                discount: $headerDiscount,
+                paymentMethod: null,
+                paymentReference: null,
+                numberingLocation: $this->issuer->requireForCommerceOrder(
+                    $order->branch?->code,
+                    $order->buyer_gstin,
+                    $order->billing_state,
+                    $resolvedSacs,
+                ),
+                financialYearToken: StatutoryFinancialYear::containing(now())->token(),
+            ), $actor);
+
+            $this->linkServiceOrder($order, $invoice);
+            $this->generateDocumentSafely($invoice);
+            $this->queueEinvoiceIfEligible($invoice);
+
+            return $invoice->load(['items', 'allocation', 'document']);
+        }, self::ATTEMPTS);
+    }
+
     public function cancel(StatutoryInvoice $invoice, User $actor, string $reason): StatutoryInvoice
     {
         if ($invoice->status === StatutoryInvoiceStatus::Cancelled) {
@@ -414,6 +535,15 @@ class StatutoryInvoiceService
         $order->save();
     }
 
+    private function linkServiceOrder(ServiceOrder $order, StatutoryInvoice $invoice): void
+    {
+        $order->forceFill([
+            'statutory_invoice_id' => $invoice->id,
+            'status' => ServiceOrderStatus::Invoiced,
+            'invoiced_at' => $order->invoiced_at ?? now(),
+        ])->save();
+    }
+
     private function generateDocumentSafely(StatutoryInvoice $invoice): void
     {
         try {
@@ -454,7 +584,10 @@ class StatutoryInvoiceService
 
     private function applyServiceGstSplit(StatutoryInvoiceMintRequest $request): StatutoryInvoiceMintRequest
     {
-        if ($request->sourceType !== StatutoryInvoiceSourceType::CommerceOrder) {
+        if (! in_array($request->sourceType, [
+            StatutoryInvoiceSourceType::CommerceOrder,
+            StatutoryInvoiceSourceType::ServiceOrder,
+        ], true)) {
             return $request;
         }
 
