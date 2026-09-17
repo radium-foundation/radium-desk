@@ -82,6 +82,7 @@ class HardwareFulfilmentStepperTest extends TestCase
         return new HardwareFulfilmentOperationalRow(
             sourceId: 'RDE1',
             orderDateIst: '2026-09-07 10:00',
+            lastActionDateIst: '2026-09-07 10:00',
             customer: 'Buyer',
             product: 'MFS',
             sku: 'SKU',

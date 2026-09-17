@@ -20,6 +20,7 @@
          data-live-url="{{ route('dashboard.live') }}"
          data-live-counts-url="{{ route('dashboard.live.counts') }}"
          data-live-rows-url="{{ route('dashboard.live.rows') }}"
+         data-live-hardware-url="{{ route('dashboard.live.hardware') }}"
          data-live-queue="{{ $operationQueue }}"
          data-live-workspace="{{ $operationsWorkspace ?? $operationQueue }}"
          data-live-scope="{{ $dashboardLiveScope ?? 'operations_scope' }}"

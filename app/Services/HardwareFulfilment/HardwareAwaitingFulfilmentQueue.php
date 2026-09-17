@@ -116,6 +116,31 @@ final class HardwareAwaitingFulfilmentQueue
         return $review->concat($blocked);
     }
 
+    public function workCandidateCount(Carbon $fromIst, Carbon $toIst): int
+    {
+        $blockedIds = $this->ownerBlockedSourceIds();
+        $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
+        $toBound = HardwareFulfilmentEligibility::createdAtSqlBound($toIst);
+
+        return $this->rdeWithoutFulfilment()
+            ->cashfreeVerified()
+            ->whereNotIn('order_id', $blockedIds)
+            ->where(function (Builder $inner): void {
+                $inner->whereNull('serial_number')->orWhere('serial_number', '');
+            })
+            ->where(function (Builder $inner): void {
+                $inner->whereNull('transaction_id')->orWhere('transaction_id', '');
+            })
+            ->where('created_at', '>=', $fromBound)
+            ->where('created_at', '<=', $toBound)
+            ->count()
+            + $this->rdeWithoutFulfilment()
+                ->whereIn('order_id', $blockedIds)
+                ->where('created_at', '>=', $fromBound)
+                ->where('created_at', '<=', $toBound)
+                ->count();
+    }
+
     /**
      * @return array{unpaid: int, desk_completed: int, rin: int}
      */
