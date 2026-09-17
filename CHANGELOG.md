@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.73 — 2026-09-17 — Product POS B2B billing address propagation
+
+- Product POS counter accepts and persists structured billing city, state, and PIN for B2B sales.
+- Customer lookup restores city/state/PIN from the latest completed sale snapshot (`billing_address_structured`).
+- Place of supply continues to backfill billing state when GSTIN is present and billing state is blank.
+- Regression tests lock B2B address validation, customer lookup propagation, and serialized cart merge.
+
 ## 4.0.72 — 2026-09-17 — POS serialized cart merge
 
 - Multiple serial selections for the same product/variant accumulate on one cart line with quantity equal to unique serial count.

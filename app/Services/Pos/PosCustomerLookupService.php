@@ -49,7 +49,7 @@ final class PosCustomerLookupService
     }
 
     /**
-     * @return array{found: bool, id?: int, name?: string, phone?: string, email?: ?string, gstin?: ?string, billing_address?: ?string, billing_state?: ?string, place_of_supply_state?: ?string}
+     * @return array{found: bool, id?: int, name?: string, phone?: string, email?: ?string, gstin?: ?string, billing_address?: ?string, billing_city?: ?string, billing_state?: ?string, billing_pincode?: ?string, place_of_supply_state?: ?string}
      */
     public function resolveByPhone(string $phone): array
     {
@@ -64,7 +64,7 @@ final class PosCustomerLookupService
     }
 
     /**
-     * @return array{found: bool, id?: int, name?: string, phone?: string, email?: ?string, gstin?: ?string, billing_address?: ?string, billing_state?: ?string, place_of_supply_state?: ?string}
+     * @return array{found: bool, id?: int, name?: string, phone?: string, email?: ?string, gstin?: ?string, billing_address?: ?string, billing_city?: ?string, billing_state?: ?string, billing_pincode?: ?string, place_of_supply_state?: ?string}
      */
     public function resolveById(int $customerId): array
     {
@@ -74,7 +74,7 @@ final class PosCustomerLookupService
     }
 
     /**
-     * @return array{found: true, id: int, name: string, phone: string, email: ?string, gstin: ?string, billing_address: ?string, billing_state: ?string, place_of_supply_state: ?string}
+     * @return array{found: true, id: int, name: string, phone: string, email: ?string, gstin: ?string, billing_address: ?string, billing_city: ?string, billing_state: ?string, billing_pincode: ?string, place_of_supply_state: ?string}
      */
     private function payloadForCustomer(InventoryCustomer $customer): array
     {
@@ -88,13 +88,15 @@ final class PosCustomerLookupService
             'email' => $customer->email,
             'gstin' => $customer->gstin,
             'billing_address' => $snapshot['billing_address'],
+            'billing_city' => $snapshot['billing_city'],
             'billing_state' => $snapshot['billing_state'],
+            'billing_pincode' => $snapshot['billing_pincode'],
             'place_of_supply_state' => $snapshot['place_of_supply_state'],
         ];
     }
 
     /**
-     * @return array{billing_address: ?string, billing_state: ?string, place_of_supply_state: ?string}
+     * @return array{billing_address: ?string, billing_city: ?string, billing_state: ?string, billing_pincode: ?string, place_of_supply_state: ?string}
      */
     private function latestSaleSnapshot(InventoryCustomer $customer): array
     {
@@ -107,7 +109,9 @@ final class PosCustomerLookupService
         if ($sale === null) {
             return [
                 'billing_address' => null,
+                'billing_city' => null,
                 'billing_state' => null,
+                'billing_pincode' => null,
                 'place_of_supply_state' => null,
             ];
         }
@@ -116,7 +120,9 @@ final class PosCustomerLookupService
 
         return [
             'billing_address' => $sale->billing_address ?: ($structured['line1'] ?? null),
+            'billing_city' => $structured['city'] ?? null,
             'billing_state' => $structured['state'] ?? null,
+            'billing_pincode' => $structured['pincode'] ?? null,
             'place_of_supply_state' => $sale->place_of_supply_state,
         ];
     }

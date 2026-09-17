@@ -65,6 +65,9 @@ class CounterController extends Controller
                     'email' => 'customer_email',
                     'gstin' => 'buyer_gstin',
                     'billing_address' => 'billing_address',
+                    'billing_city' => 'billing_city',
+                    'billing_state' => 'billing_state',
+                    'billing_pincode' => 'billing_pincode',
                     'place_of_supply_state' => 'place_of_supply_state',
                 ],
                 searchInputIds: ['customer_phone', 'customer_name', 'customer_email'],
@@ -102,6 +105,9 @@ class CounterController extends Controller
                 }
             }],
             'billing_address' => ['nullable', 'string', 'max:1000'],
+            'billing_city' => ['nullable', 'string', 'max:120'],
+            'billing_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
+            'billing_pincode' => ['nullable', 'string', 'max:6'],
             'place_of_supply_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'exists:inventory_products,id'],
@@ -136,11 +142,20 @@ class CounterController extends Controller
             'email' => $data['customer_email'] ?? null,
             'gstin' => BuyerGstin::normalize($data['buyer_gstin'] ?? null),
         ];
+        $buyerGstin = BuyerGstin::normalize($data['buyer_gstin'] ?? null);
+        $billingState = $data['billing_state'] ?? null;
+        if ($billingState === null && $buyerGstin !== null) {
+            $billingState = $data['place_of_supply_state'] ?? null;
+        }
+
         $statutory = [
-            'buyer_gstin' => BuyerGstin::normalize($data['buyer_gstin'] ?? null),
+            'buyer_gstin' => $buyerGstin,
             'billing_address' => isset($data['billing_address']) && is_string($data['billing_address'])
                 ? trim($data['billing_address'])
                 : null,
+            'billing_city' => $data['billing_city'] ?? null,
+            'billing_state' => $billingState,
+            'billing_pincode' => $data['billing_pincode'] ?? null,
             'place_of_supply_state' => $data['place_of_supply_state'] ?? null,
         ];
 

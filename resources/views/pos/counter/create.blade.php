@@ -125,6 +125,26 @@
                                     <textarea name="billing_address" id="billing_address" class="form-control" rows="2" maxlength="1000">{{ old('billing_address') }}</textarea>
                                     @error('billing_address')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
+                                <div class="mb-2">
+                                    <label class="form-label" for="billing_city">Billing city</label>
+                                    <input type="text" name="billing_city" id="billing_city" class="form-control" value="{{ old('billing_city') }}" maxlength="120" autocomplete="off">
+                                    @error('billing_city')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label" for="billing_state">Billing state</label>
+                                    <select name="billing_state" id="billing_state" class="form-select">
+                                        <option value="">Select billing state (required for B2B)</option>
+                                        @foreach($placeOfSupplyStates as $state)
+                                            <option value="{{ $state }}" @selected(old('billing_state') === $state)>{{ $state }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('billing_state')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label" for="billing_pincode">Billing PIN</label>
+                                    <input type="text" name="billing_pincode" id="billing_pincode" class="form-control" value="{{ old('billing_pincode') }}" maxlength="6" inputmode="numeric" autocomplete="off">
+                                    @error('billing_pincode')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
                                 <div>
                                     <label class="form-label" for="place_of_supply_state">Place of supply</label>
                                     <select name="place_of_supply_state" id="place_of_supply_state" class="form-select">
@@ -255,6 +275,32 @@
                 }
                 paymentMethod.addEventListener('change', syncPaymentMethod);
                 syncPaymentMethod();
+
+                const buyerGstin = document.getElementById('buyer_gstin');
+                const billingState = document.getElementById('billing_state');
+                const placeOfSupply = document.getElementById('place_of_supply_state');
+
+                function syncBillingStateFromPlaceOfSupply() {
+                    if (!buyerGstin || !billingState || !placeOfSupply) {
+                        return;
+                    }
+                    if ((buyerGstin.value || '').trim() === '') {
+                        return;
+                    }
+                    if ((billingState.value || '').trim() !== '') {
+                        return;
+                    }
+                    if ((placeOfSupply.value || '').trim() !== '') {
+                        billingState.value = placeOfSupply.value;
+                    }
+                }
+
+                if (placeOfSupply) {
+                    placeOfSupply.addEventListener('change', syncBillingStateFromPlaceOfSupply);
+                }
+                if (buyerGstin) {
+                    buyerGstin.addEventListener('input', syncBillingStateFromPlaceOfSupply);
+                }
 
                 let cart = [];
                 let pendingProduct = null;

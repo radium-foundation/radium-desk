@@ -128,7 +128,9 @@ class PosCustomerLookupTest extends TestCase
             ->assertJsonPath('found', true)
             ->assertJsonPath('id', $customer->id)
             ->assertJsonPath('billing_address', '12 Connaught Place')
+            ->assertJsonPath('billing_city', 'New Delhi')
             ->assertJsonPath('billing_state', 'Delhi')
+            ->assertJsonPath('billing_pincode', '110001')
             ->assertJsonPath('place_of_supply_state', 'Delhi');
     }
 

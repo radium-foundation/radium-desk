@@ -14,10 +14,12 @@ use App\Services\Inventory\PosSaleService;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\DisablesRequestForgeryProtection;
 use Tests\TestCase;
 
 class PosSerializedCartMergeTest extends TestCase
 {
+    use DisablesRequestForgeryProtection;
     use RefreshDatabase;
 
     private User $seller;
@@ -73,6 +75,7 @@ class PosSerializedCartMergeTest extends TestCase
         );
         $stock->stockInQuantity($this->quantityProduct, $this->branch, 5, $this->seller);
 
+        $this->disableRequestForgeryProtection();
         config(['statutory_invoices.auto_issue_on_pos_complete' => false]);
     }
 
