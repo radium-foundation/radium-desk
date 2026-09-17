@@ -49,6 +49,7 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         Http::fake();
         Http::preventStrayRequests();
+        $this->withoutVite();
         config([
             'shipping.enabled' => false,
             'shipping.provider' => 'none',
@@ -561,6 +562,27 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
         $this->assertSame(1, HardwareFulfilment::query()->count());
         $this->assertSame(1, Shipment::query()->count());
         Http::assertNothingSent();
+    }
+
+    public function test_workspace_total_matches_unfiltered_dashboard_row_count(): void
+    {
+        $this->deskOrder('RDE970601', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+        ]);
+        $this->fulfilment('RDE970602', HardwareFulfilmentState::ReadyForFulfilment);
+        $this->deskOrder('RIN970603', [
+            'cashfree_payment_id' => 'paid',
+            'created_at' => '2026-09-07 10:00:00',
+        ]);
+
+        $from = HardwareFulfilmentEligibility::cutoffInstant();
+        $to = Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
+        $queue = app(HardwareFulfilmentWorkQueue::class);
+        $dashboard = $queue->dashboard($from, $to);
+
+        $this->assertSame($dashboard['unfiltered_total'], $queue->workspaceTotal($from, $to));
+        $this->assertSame($dashboard['rows']->count(), $dashboard['unfiltered_total']);
     }
 
     public function test_unauthorized_user_cannot_open_work_queue(): void

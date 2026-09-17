@@ -574,6 +574,16 @@ class HardwareShipmentEligibility
             return null;
         }
 
+        if ($fulfilment->statutory_invoice_id === $invoiceId && $fulfilment->relationLoaded('statutoryInvoice')) {
+            return $fulfilment->statutoryInvoice;
+        }
+
+        if ($order !== null
+            && $order->statutory_invoice_id === $invoiceId
+            && $order->relationLoaded('statutoryInvoice')) {
+            return $order->statutoryInvoice;
+        }
+
         return StatutoryInvoice::query()->find($invoiceId);
     }
 
@@ -623,7 +633,7 @@ class HardwareShipmentEligibility
 
     private function existingShipment(HardwareFulfilment $fulfilment): ?Shipment
     {
-        if ($fulfilment->relationLoaded('shipment') && $fulfilment->shipment !== null) {
+        if ($fulfilment->relationLoaded('shipment')) {
             return $fulfilment->shipment;
         }
 
