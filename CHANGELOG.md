@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.72 — 2026-09-17 — POS serialized cart merge
+
+- Multiple serial selections for the same product/variant accumulate on one cart line with quantity equal to unique serial count.
+- Server-side `PosSaleLineNormalizer` enforces the same invariant on sale completion and UPI intent creation.
+- Regression tests lock same-model merge, duplicate-serial protection, and separate lines for different products.
+
 ## 4.0.71 — 2026-09-17 — Statutory GST PDF branding asset fix
 
 - Restore `public/brand/stamp-bgr.png` and add raster `public/brand/logo.png` so statutory PDF generation does not depend on Imagick SVG rasterization under the web PHP user.
