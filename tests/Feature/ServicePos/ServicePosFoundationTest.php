@@ -158,6 +158,8 @@ class ServicePosFoundationTest extends TestCase
 
         $this->assertSame(1, ServiceOrder::query()->count());
         $this->assertSame($quote->id, $order->quote_id);
+        $this->assertSame('SVC-671', $order->order_number);
+        $this->assertDoesNotMatchRegularExpression('/^SVC-0+\d+$/', $order->order_number);
         $this->assertSame(ServiceQuoteStatus::Converted, $quote->fresh()->status);
         $this->assertCount(3, $order->lines);
     }

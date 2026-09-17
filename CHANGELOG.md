@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.74 — 2026-09-17 — Independent operational reference series
+
+- Refunds: new operational references `REF-67315+` (historical `REF-YYYY-*` preserved).
+- Service orders: new operational references `SVC-671+` (legacy `SVC-000xxx` preserved).
+- Product POS: new operational references `POS-6720+` (legacy `POS-000xxx` preserved).
+- Dedicated `reference_sequences` counters with transactional allocation; statutory `INV-*` numbering unchanged.
+- Regression tests lock generators, coexistence parsing, and concurrency safety.
+
 ## 4.0.73 — 2026-09-17 — Product POS B2B billing address propagation
 
 - Product POS counter accepts and persists structured billing city, state, and PIN for B2B sales.

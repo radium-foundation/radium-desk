@@ -67,6 +67,8 @@ class PosSaleServiceTest extends TestCase
 
         $serial = InventorySerial::query()->where('serial_number', 'POS-1001')->firstOrFail();
         $this->assertSame(InventorySaleStatus::Completed, $sale->status);
+        $this->assertSame('POS-6720', $sale->sale_no);
+        $this->assertDoesNotMatchRegularExpression('/^POS-0+\d+$/', $sale->sale_no);
         $this->assertNotNull($sale->invoice_number);
         $this->assertSame(InventorySerialStatus::Sold, $serial->status);
         $this->assertSame(0, (int) $product->balances()->where('branch_id', $this->branch->id)->value('available_qty'));

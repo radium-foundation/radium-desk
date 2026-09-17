@@ -39,7 +39,9 @@ class RefundRequestService
      */
     public function create(User $user, array $data, Request $request): RefundRequest
     {
-        $refund = DB::transaction(function () use ($user, $data): RefundRequest {
+        $referenceNo = $this->referenceService->generate();
+
+        $refund = DB::transaction(function () use ($user, $data, $referenceNo): RefundRequest {
             $order = Order::query()->lockForUpdate()->findOrFail($data['order_id']);
 
             if (! empty($data['incident_id'])) {
@@ -79,7 +81,7 @@ class RefundRequestService
             return RefundRequest::query()->create([
                 'order_id' => $order->id,
                 'incident_id' => $data['incident_id'] ?? null,
-                'reference_no' => $this->referenceService->generate(),
+                'reference_no' => $referenceNo,
                 'amount' => $calculation->refundAmount,
                 'refund_amount' => $calculation->refundAmount,
                 'reason' => $data['reason'],

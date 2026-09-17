@@ -2,28 +2,36 @@
 
 namespace App\Services;
 
-use App\Models\RefundRequest;
-use Illuminate\Support\Facades\DB;
+use App\Models\ReferenceSequence;
+use App\Support\OperationalReference\OperationalReferenceParser;
 
+/**
+ * Allocates independent refund operational references (REF-67315+).
+ *
+ * Historical year-based references (REF-YYYY-NNNNNN) remain untouched in the
+ * database and do not advance this counter. Statutory invoice numbering (INV-*)
+ * is handled separately.
+ */
 class RefundReferenceService
 {
+    public function __construct(
+        private readonly OperationalReferenceSequenceService $sequences,
+    ) {}
+
     public function generate(): string
     {
-        return DB::transaction(function (): string {
-            $year = now()->format('Y');
-            $prefix = "REF-{$year}-";
+        return $this->sequences->allocate(
+            ReferenceSequence::REFUND_OPERATIONAL,
+            OperationalReferenceParser::REFUND_FLOOR,
+            'REF-',
+        );
+    }
 
-            $latestReference = RefundRequest::withTrashed()
-                ->where('reference_no', 'like', $prefix.'%')
-                ->lockForUpdate()
-                ->orderByDesc('reference_no')
-                ->value('reference_no');
-
-            $sequence = $latestReference
-                ? ((int) substr($latestReference, -6)) + 1
-                : 1;
-
-            return $prefix.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT);
-        });
+    public function peekNext(): int
+    {
+        return $this->sequences->peekNext(
+            ReferenceSequence::REFUND_OPERATIONAL,
+            OperationalReferenceParser::REFUND_FLOOR,
+        );
     }
 }

@@ -12,12 +12,16 @@ use App\Models\ServiceOrder;
 use App\Models\ServiceQuote;
 use App\Models\ServiceQuoteLine;
 use App\Models\User;
+use App\Services\ServiceOrderReferenceService;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ServiceQuoteService
 {
+    public function __construct(
+        private readonly ServiceOrderReferenceService $serviceOrderReferences,
+    ) {}
     /**
      * @param  list<array{
      *     service_item_id?: int|null,
@@ -194,7 +198,7 @@ class ServiceQuoteService
             }
 
             $order->update([
-                'order_number' => sprintf('SVC-%06d', $order->id),
+                'order_number' => $this->serviceOrderReferences->allocate(),
             ]);
 
             $quote->update([

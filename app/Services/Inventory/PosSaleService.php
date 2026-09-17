@@ -15,6 +15,7 @@ use App\Models\InventoryReservation;
 use App\Models\InventorySale;
 use App\Models\User;
 use App\Services\Finance\PosSaleJournalService;
+use App\Services\ProductPosReferenceService;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\PosStatutoryInvoiceIssuer;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
@@ -37,6 +38,7 @@ class PosSaleService
         private readonly StatutoryInvoiceAccountingPolicy $statutoryAccounting,
         private readonly PosStatutorySnapshot $statutorySnapshot,
         private readonly PosStatutoryInvoiceIssuer $posInvoices,
+        private readonly ProductPosReferenceService $productPosReferences,
     ) {}
 
     /**
@@ -310,7 +312,7 @@ class PosSaleService
                 // StatutoryInvoiceService when numbering is configured. Never auto-issue here.
 
                 $sale->update([
-                    'sale_no' => sprintf('POS-%06d', $sale->id),
+                    'sale_no' => $this->productPosReferences->allocate(),
                     'invoice_number' => $invoiceNumber,
                     'subtotal' => $subtotal,
                     'discount' => $discount,

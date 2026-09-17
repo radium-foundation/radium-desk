@@ -84,11 +84,11 @@ class RefundRequestTest extends TestCase
         $this->actingAs($agent)->delete(route('refunds.destroy', $refund))->assertForbidden();
     }
 
-    public function test_refund_reference_numbers_increment_per_year(): void
+    public function test_refund_reference_numbers_use_operational_series(): void
     {
         RefundRequest::query()->create([
             'order_id' => $this->createOrder(User::factory()->create())->id,
-            'reference_no' => 'REF-'.now()->format('Y').'-000007',
+            'reference_no' => 'REF-2026-000007',
             'amount' => 100,
             'reason' => 'Test refund reason for reference generation.',
             'status' => RefundStatus::Pending,
@@ -97,7 +97,7 @@ class RefundRequestTest extends TestCase
 
         $next = app(RefundReferenceService::class)->generate();
 
-        $this->assertSame('REF-'.now()->format('Y').'-000008', $next);
+        $this->assertSame('REF-67315', $next);
     }
 
     public function test_user_can_create_refund_with_auto_generated_reference(): void
@@ -120,7 +120,8 @@ class RefundRequestTest extends TestCase
         $refund = RefundRequest::query()->first();
 
         $this->assertNotNull($refund);
-        $this->assertMatchesRegularExpression('/^REF-\d{4}-\d{6}$/', $refund->reference_no);
+        $this->assertMatchesRegularExpression('/^REF-\d+$/', $refund->reference_no);
+        $this->assertDoesNotMatchRegularExpression('/^REF-\d{4}-\d{6}$/', $refund->reference_no);
         $this->assertSame(RefundStatus::Pending, $refund->status);
         $this->assertSame($incident->id, $refund->incident_id);
         $this->assertSame('Customer requested full cancellation after payment.', $refund->requester_remarks);
