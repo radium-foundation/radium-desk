@@ -145,6 +145,11 @@ ensure_local_build_manifest() {
     exit 1
 }
 
+verify_hardware_dashboard_contract() {
+    print_warning "Verifying Hardware Dashboard P-302 deployment contract..."
+    "$SCRIPT_DIR/verify-hardware-dashboard-contract.sh"
+}
+
 build_frontend_assets() {
     print_warning "Building frontend assets (npm run build)..."
     (cd "$PROJECT_ROOT" && npm run build)
@@ -277,6 +282,7 @@ main() {
     ensure_clean_working_tree
     ensure_release_branch
     validate_release_metadata
+    verify_hardware_dashboard_contract
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
         ensure_local_build_manifest

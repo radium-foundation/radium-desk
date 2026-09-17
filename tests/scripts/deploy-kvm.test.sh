@@ -43,6 +43,11 @@ grep -q '/root/.radium-backup.env' "$SCRIPT" && fail "must not reference backup 
 
 pass "deploy-kvm safety guards present"
 
+grep -q 'verify_hardware_dashboard_contract' "$SCRIPT" \
+    || fail "must verify Hardware Dashboard P-302 contract before deploy"
+grep -q 'verify-hardware-dashboard-contract.sh' "$SCRIPT" \
+    || fail "must invoke verify-hardware-dashboard-contract.sh"
+
 grep -q '\-\-exclude.*bootstrap/cache/' "$SCRIPT" \
     || fail "must exclude bootstrap/cache from rsync"
 

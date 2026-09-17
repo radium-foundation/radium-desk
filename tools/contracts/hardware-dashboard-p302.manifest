@@ -1,0 +1,22 @@
+# Source-controlled P-07-09-302 Hardware Dashboard regression contract.
+# deploy-kvm.sh refuses to rsync when any listed path is missing from the
+# local release tree. Marker checks live in verify-hardware-dashboard-contract.sh.
+#
+# Integrated: RadiumDesk-P-17-09-18 (mainline + deployment guard).
+
+app/Enums/HardwareWorkspaceFilter.php
+app/Enums/HardwareWorkspaceScope.php
+app/Enums/HardwareFulfilmentOperationalStage.php
+app/Enums/ShiprocketTrackNormalized.php
+app/Http/Controllers/DashboardLiveController.php
+app/Providers/AppServiceProvider.php
+app/Services/HardwareFulfilment/HardwareDashboardLiveService.php
+app/Services/HardwareFulfilment/HardwareDashboardWorkspace.php
+app/Services/HardwareFulfilment/HardwareFulfilmentWorkQueue.php
+app/Services/HardwareFulfilment/HardwareNeedsActionSqlQuery.php
+app/Services/HardwareFulfilment/Data/HardwareFulfilmentOperationalRow.php
+app/Support/HardwareFulfilment/HardwareFulfilmentActivityTimestamps.php
+resources/views/dashboard/partials/hardware-workspace-nav.blade.php
+resources/views/dashboard/partials/hardware-workspace-row.blade.php
+resources/views/dashboard/partials/hardware-workspace.blade.php
+tests/Feature/Dashboard/HardwareDashboardNeedsActionQueueTest.php

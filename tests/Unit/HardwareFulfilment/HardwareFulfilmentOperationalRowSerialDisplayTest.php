@@ -60,15 +60,40 @@ class HardwareFulfilmentOperationalRowSerialDisplayTest extends TestCase
         $this->assertSame('10532347 +1', $row->serialDisplay());
     }
 
+    public function test_compact_timeline_renders_received_and_last_activity_datetimes(): void
+    {
+        $sameDay = $this->row(['10532347'], 1, lastActionDateIst: '2026-09-08 14:30');
+
+        $this->assertSame('08 Sep 10:00 AM L 02:30 PM', $sameDay->compactTimelineDisplay());
+        $this->assertStringContainsString('Order:', $sameDay->compactTimelineTitle());
+        $this->assertStringContainsString('Last action:', $sameDay->compactTimelineTitle());
+
+        $crossDay = $this->row(
+            ['10532347'],
+            1,
+            serialStatus: '10532347',
+            sourceId: 'RDE318517',
+            lastActionDateIst: '2026-09-09 09:15',
+        );
+
+        $this->assertSame('08 Sep 10:00 AM L 09 Sep 09:15 AM', $crossDay->compactTimelineDisplay());
+    }
+
     /**
      * @param  list<string>  $serials
      */
-    private function row(array $serials, ?int $expected, string $serialStatus = 'Not allocated'): HardwareFulfilmentOperationalRow
-    {
+    private function row(
+        array $serials,
+        ?int $expected,
+        string $serialStatus = 'Not allocated',
+        string $sourceId = 'RDE318516',
+        string $orderDateIst = '2026-09-08 10:00',
+        string $lastActionDateIst = '2026-09-08 10:00',
+    ): HardwareFulfilmentOperationalRow {
         return new HardwareFulfilmentOperationalRow(
-            sourceId: 'RDE318516',
-            orderDateIst: '2026-09-08 10:00',
-            lastActionDateIst: '2026-09-08 10:00',
+            sourceId: $sourceId,
+            orderDateIst: $orderDateIst,
+            lastActionDateIst: $lastActionDateIst,
             customer: 'Buyer',
             product: 'MFS',
             sku: 'SKU',
