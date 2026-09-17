@@ -12,7 +12,6 @@ use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\ServiceItem;
 use App\Models\ServiceOrder;
-use App\Models\ServiceQuote;
 use App\Models\User;
 use App\Services\Inventory\InventoryStockService;
 use App\Services\Inventory\PosSaleService;
@@ -23,6 +22,7 @@ use App\Services\ServicePos\ServiceQuoteService;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\ServiceCatalogSeeder;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -112,7 +112,7 @@ class OperationalReferenceIntegrationTest extends TestCase
             'is_serialized' => false,
             'is_active' => true,
         ]);
-        $stock->stockIn($product, $branch, 5, $actor);
+        $stock->stockInQuantity($product, $branch, 5, $actor);
 
         $sale = $sales->completeSale(
             branch: $branch,
@@ -156,7 +156,7 @@ class OperationalReferenceIntegrationTest extends TestCase
             'is_serialized' => false,
             'is_active' => true,
         ]);
-        app(InventoryStockService::class)->stockIn($product, $branch, 1, $actor);
+        app(InventoryStockService::class)->stockInQuantity($product, $branch, 1, $actor);
 
         app(PosSaleService::class)->completeSale(
             branch: $branch,
@@ -215,7 +215,7 @@ class OperationalReferenceIntegrationTest extends TestCase
 
         RefundRequest::query()->create($payload);
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
         RefundRequest::query()->create($payload);
     }
 

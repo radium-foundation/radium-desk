@@ -1,8 +1,8 @@
 <?php
 
 use App\Models\InventorySale;
-use App\Models\RefundRequest;
 use App\Models\ReferenceSequence;
+use App\Models\RefundRequest;
 use App\Models\ServiceOrder;
 use App\Support\OperationalReference\OperationalReferenceParser;
 use Illuminate\Database\Migrations\Migration;
