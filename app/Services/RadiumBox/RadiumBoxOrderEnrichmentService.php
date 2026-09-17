@@ -197,7 +197,7 @@ class RadiumBoxOrderEnrichmentService
                 );
             }
 
-            $this->syncStore->markSynced($order->id, $result['metadata']);
+            $this->syncStore->markEnrichmentComplete($order->id, $order, $result['metadata']);
             $this->runPostSyncLifecycleIfNeeded($order->fresh(), $result);
             $newStatus = RadiumBoxEnrichmentSyncStatus::Synced;
 
@@ -337,7 +337,7 @@ class RadiumBoxOrderEnrichmentService
                 );
             }
 
-            $this->syncStore->markSynced($order->id, $result['metadata']);
+            $this->syncStore->markEnrichmentComplete($order->id, $order, $result['metadata']);
             $this->runPostSyncLifecycleIfNeeded($order->fresh(), $result);
 
             $this->recordEnrichmentOutcome(
@@ -600,7 +600,7 @@ class RadiumBoxOrderEnrichmentService
             amcApplied: false,
         );
 
-        $this->syncStore->markSynced($order->id, $metadata);
+        $this->syncStore->markEnrichmentComplete($order->id, $order, $metadata);
         $this->runPostSyncLifecycleIfNeeded($order->fresh(), [
             'outcome' => [
                 'applied' => false,
@@ -655,7 +655,7 @@ class RadiumBoxOrderEnrichmentService
                 amcApplied: false,
             );
 
-            $this->syncStore->markSynced($order->id, ['lookup_result' => 'already_enriched']);
+            $this->syncStore->markEnrichmentComplete($order->id, $order, ['lookup_result' => 'already_enriched']);
             $this->runPostSyncLifecycleIfNeeded($order->fresh(), [
                 'outcome' => [
                     'applied' => false,

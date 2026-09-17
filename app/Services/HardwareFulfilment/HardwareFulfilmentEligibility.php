@@ -19,6 +19,9 @@ final class HardwareFulfilmentEligibility
 
     public const SOURCE_PREFIX = 'RDE';
 
+    /** @var list<string> */
+    public const HARDWARE_SOURCE_PREFIXES = ['RDE', 'RBP'];
+
     public const RIN_SOURCE_PREFIX = 'RIN';
 
     public const CUTOFF_IST = '2026-09-05 00:00:00';
@@ -83,7 +86,7 @@ final class HardwareFulfilmentEligibility
             return false;
         }
 
-        if (! str_starts_with(strtoupper($request->sourceId), self::SOURCE_PREFIX)) {
+        if (! self::isRadiumBoxHardwareSourceId($request->sourceId)) {
             return false;
         }
 
@@ -141,15 +144,25 @@ final class HardwareFulfilmentEligibility
 
     public static function looksLikeHardwareSourceId(string $sourceId): bool
     {
+        return self::isRadiumBoxHardwareSourceId($sourceId)
+            || self::looksLikeRinSourceId($sourceId);
+    }
+
+    public static function isRadiumBoxHardwareSourceId(string $sourceId): bool
+    {
         $parsed = BusinessOrderId::parse($sourceId);
-        if ($parsed !== null) {
+        if ($parsed !== null && $parsed['owner'] === 'radiumbox.com') {
             return $parsed['hardware'] === true;
         }
 
         $normalized = strtoupper(trim($sourceId));
+        foreach (self::HARDWARE_SOURCE_PREFIXES as $prefix) {
+            if ($prefix !== '' && str_starts_with($normalized, $prefix)) {
+                return true;
+            }
+        }
 
-        return str_starts_with($normalized, self::SOURCE_PREFIX)
-            || self::looksLikeRinSourceId($normalized);
+        return false;
     }
 
     public static function isFrozenSourceId(string $sourceId): bool
@@ -293,6 +306,23 @@ final class HardwareFulfilmentEligibility
         }
 
         return false;
+    }
+
+    /**
+     * Commerce hardware orders cannot take the Finance Hub service mint path.
+     * A fulfilment row, or a hardware source id with physical lines, requires
+     * completed serial allocation before the statutory invoice.
+     */
+    public static function requiresSerialAllocatedInvoice(CommerceOrder $order): bool
+    {
+        $order->loadMissing(['items', 'hardwareFulfilment']);
+
+        if ($order->hardwareFulfilment !== null) {
+            return true;
+        }
+
+        return self::looksLikeHardwareSourceId((string) $order->source_id)
+            && self::hasHardwareLines($order);
     }
 
     /**

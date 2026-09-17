@@ -16,9 +16,10 @@ use App\Models\InventorySale;
 use App\Models\User;
 use App\Services\Finance\PosSaleJournalService;
 use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Services\StatutoryInvoice\PosStatutoryInvoiceIssuer;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
-use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventorySerialNumber;
+use App\Support\StatutoryInvoice\InvoiceRoundOff;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -27,10 +28,14 @@ class PosSaleService
 {
     private const COMPLETION_ATTEMPTS = 5;
 
+    private ?string $lastStatutoryIssueWarning = null;
+
     public function __construct(
         private readonly InventoryStockService $stock,
         private readonly PosSaleJournalService $journals,
         private readonly StatutoryInvoiceAccountingPolicy $statutoryAccounting,
+        private readonly PosStatutorySnapshot $statutorySnapshot,
+        private readonly PosStatutoryInvoiceIssuer $posInvoices,
     ) {}
 
     /**
@@ -59,6 +64,7 @@ class PosSaleService
         array $statutory = [],
     ): InventorySale {
         $this->statutoryAccounting->assertMustNotAutoIssueOnPosComplete();
+        $this->lastStatutoryIssueWarning = null;
 
         if ($lines === []) {
             throw ValidationException::withMessages([
@@ -83,7 +89,7 @@ class PosSaleService
             : null;
 
         try {
-            return DB::transaction(function () use (
+            $sale = DB::transaction(function () use (
                 $branch,
                 $customer,
                 $lines,
@@ -128,7 +134,11 @@ class PosSaleService
 
                 $inventoryCustomer = $this->findOrCreateCustomer($customer);
 
-                $snapshot = $this->statutorySnapshot($inventoryCustomer, $statutory);
+                $snapshot = $this->statutorySnapshot->capture(
+                    $inventoryCustomer->gstin,
+                    $statutory,
+                    $lockedBranch->code,
+                );
 
                 $sale = InventorySale::query()->create([
                     'sale_no' => 'POS-TMP-'.strtoupper(bin2hex(random_bytes(6))),
@@ -137,6 +147,7 @@ class PosSaleService
                     'customer_id' => $inventoryCustomer->id,
                     'buyer_gstin' => $snapshot['buyer_gstin'],
                     'billing_address' => $snapshot['billing_address'],
+                    'billing_address_structured' => $snapshot['billing_address_structured'],
                     'place_of_supply_state' => $snapshot['place_of_supply_state'],
                     'status' => InventorySaleStatus::Completed,
                     'subtotal' => 0,
@@ -278,12 +289,14 @@ class PosSaleService
                 }
 
                 $discount = round($headerDiscount + $lineDiscountTotal, 2);
-                $total = round($subtotal - $discount + $tax, 2);
-                if ($total < 0) {
+                $unrounded = round($subtotal - $discount + $tax, 2);
+                if ($unrounded < 0) {
                     throw ValidationException::withMessages([
                         'discount' => 'Discount cannot exceed sale total.',
                     ]);
                 }
+                $roundOff = InvoiceRoundOff::nearestRupee($unrounded);
+                $total = $roundOff['rounded'];
 
                 $invoiceYear = (int) now()->format('Y');
                 $next = $lockedBranch->invoice_sequence + 1;
@@ -319,12 +332,24 @@ class PosSaleService
                     ->where('idempotency_key', $idempotencyKey)
                     ->first();
                 if ($existing !== null) {
-                    return $existing->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $existing;
+                    $existing = $existing->fresh(['lines.product', 'serials.serial', 'customer', 'branch']) ?? $existing;
+                    $this->lastStatutoryIssueWarning = $this->posInvoices->issueAfterSaleCommit($existing, $actor);
+
+                    return $existing;
                 }
             }
 
             throw $exception;
         }
+
+        $this->lastStatutoryIssueWarning = $this->posInvoices->issueAfterSaleCommit($sale, $actor);
+
+        return $sale;
+    }
+
+    public function lastStatutoryIssueWarning(): ?string
+    {
+        return $this->lastStatutoryIssueWarning;
     }
 
     public function cancelSale(InventorySale $sale, User $actor, string $reason): InventorySale
@@ -431,7 +456,7 @@ class PosSaleService
      *     unit_price?: float|string|null,
      *     discount?: float|string|null
      * }>  $lines
-     * @return array{subtotal: float, discount: float, tax: float, total: float}
+     * @return array{subtotal: float, discount: float, tax: float, rounding: float, total: float}
      */
     public function quoteTotals(array $lines, float $headerDiscount = 0): array
     {
@@ -507,65 +532,21 @@ class PosSaleService
         }
 
         $discount = round($headerDiscount + $lineDiscountTotal, 2);
-        $total = round($subtotal - $discount + $tax, 2);
-        if ($total < 0) {
+        $unrounded = round($subtotal - $discount + $tax, 2);
+        if ($unrounded < 0) {
             throw ValidationException::withMessages([
                 'discount' => 'Discount cannot exceed sale total.',
             ]);
         }
+        $roundOff = InvoiceRoundOff::nearestRupee($unrounded);
 
         return [
             'subtotal' => round($subtotal, 2),
             'discount' => $discount,
             'tax' => round($tax, 2),
-            'total' => $total,
+            'rounding' => $roundOff['rounding'],
+            'total' => $roundOff['rounded'],
         ];
-    }
-
-    /**
-     * Optional Finance Hub snapshot only. Does not mint a GST invoice.
-     *
-     * Customer GSTIN is copied onto the sale at complete time. Later customer
-     * edits are not re-read by Finance Hub.
-     *
-     * @param  array<string, mixed>  $statutory
-     * @return array{buyer_gstin: ?string, billing_address: ?string, place_of_supply_state: ?string}
-     */
-    private function statutorySnapshot(InventoryCustomer $customer, array $statutory): array
-    {
-        $buyerGstin = BuyerGstin::normalize(
-            $this->nullableString($statutory['buyer_gstin'] ?? null)
-                ?? $this->nullableString($customer->gstin)
-        );
-        if ($buyerGstin !== null && ! BuyerGstin::isValid($buyerGstin)) {
-            throw ValidationException::withMessages([
-                'buyer_gstin' => 'Enter a valid 15-character GSTIN or leave it blank for B2C.',
-            ]);
-        }
-
-        $place = $this->nullableString($statutory['place_of_supply_state'] ?? null);
-        if ($place !== null && ! IndianStates::contains($place)) {
-            throw ValidationException::withMessages([
-                'place_of_supply_state' => 'Select a valid Indian place of supply state.',
-            ]);
-        }
-
-        return [
-            'buyer_gstin' => $buyerGstin,
-            'billing_address' => $this->nullableString($statutory['billing_address'] ?? null),
-            'place_of_supply_state' => $place,
-        ];
-    }
-
-    private function nullableString(mixed $value): ?string
-    {
-        if (! is_string($value)) {
-            return null;
-        }
-
-        $value = trim($value);
-
-        return $value === '' ? null : $value;
     }
 
     /**
@@ -585,11 +566,7 @@ class PosSaleService
         $existing = InventoryCustomer::query()->where('phone', $phone)->first();
         if ($existing !== null) {
             $locked = InventoryCustomer::query()->lockForUpdate()->find($existing->id) ?? $existing;
-            $locked->fill([
-                'name' => $name,
-                'email' => $customer['email'] ?? $locked->email,
-                'gstin' => $customer['gstin'] ?? $locked->gstin,
-            ])->save();
+            $locked->fill($this->customerIdentityUpdates($customer, $locked))->save();
 
             return $locked;
         }
@@ -599,21 +576,37 @@ class PosSaleService
                 'name' => $name,
                 'phone' => $phone,
                 'email' => $customer['email'] ?? null,
-                'gstin' => $customer['gstin'] ?? null,
+                'gstin' => BuyerGstin::normalize(isset($customer['gstin']) && is_string($customer['gstin']) ? $customer['gstin'] : null),
             ]);
         } catch (UniqueConstraintViolationException $exception) {
             $locked = InventoryCustomer::query()->where('phone', $phone)->lockForUpdate()->first();
             if ($locked !== null) {
-                $locked->fill([
-                    'name' => $name,
-                    'email' => $customer['email'] ?? $locked->email,
-                    'gstin' => $customer['gstin'] ?? $locked->gstin,
-                ])->save();
+                $locked->fill($this->customerIdentityUpdates($customer, $locked))->save();
 
                 return $locked;
             }
 
             throw $exception;
         }
+    }
+
+    /**
+     * POS may snapshot a B2C sale without GSTIN. That must not wipe a master GSTIN.
+     *
+     * @param  array{name?: string, phone?: string, email?: string|null, gstin?: string|null}  $customer
+     * @return array<string, mixed>
+     */
+    private function customerIdentityUpdates(array $customer, InventoryCustomer $existing): array
+    {
+        $updates = [
+            'name' => trim((string) ($customer['name'] ?? $existing->name)),
+            'email' => array_key_exists('email', $customer) ? ($customer['email'] ?? $existing->email) : $existing->email,
+        ];
+        $gstin = BuyerGstin::normalize(isset($customer['gstin']) && is_string($customer['gstin']) ? $customer['gstin'] : null);
+        if ($gstin !== null) {
+            $updates['gstin'] = $gstin;
+        }
+
+        return $updates;
     }
 }

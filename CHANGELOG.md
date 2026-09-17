@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.68 — 2026-09-17 — Service POS and Finance receivables
+
+- Service Master (`/services/*`) for synthetic dev catalog management: categories, SAC, GST, pricing, and active/inactive items.
+- Separate Service POS counter (`/service-pos/*`) for internal proforma quotes, service order conversion, and statutory invoice issuance via `DeskService` channel — isolated from hardware `/pos/counter`.
+- Finance Hub receivables and customer payment allocation for service invoices (unpaid / partial / paid); finance journals remain disabled.
+- Includes wallet refund revoke, rdservice.in wallet parse fix, and merged main-line handoff/WhiteBooks changes required for a complete production route set.
+- Synthetic `ServiceCatalogSeeder` only; no Old Admin catalog import.
+
 ## 4.0.67 — 2026-09-04 — POS UPI intent and bank verification
 
 - UPI on the POS counter creates a persisted unpaid payment intent and a local `upi://pay` QR. The QR is an instruction only and is never treated as payment confirmation.

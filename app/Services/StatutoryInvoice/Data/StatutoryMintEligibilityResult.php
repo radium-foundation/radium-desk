@@ -2,6 +2,7 @@
 
 namespace App\Services\StatutoryInvoice\Data;
 
+use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
 use App\Services\StatutoryInvoice\StatutoryMintEligibility;
 
 final class StatutoryMintEligibilityResult
@@ -27,6 +28,10 @@ final class StatutoryMintEligibilityResult
 
         if ($this->missingPlaceOfSupply()) {
             return 'Place of supply missing';
+        }
+
+        if (in_array(HardwareCommerceStatutoryInvoiceGuard::SERIALS_REQUIRED, $this->errors, true)) {
+            return 'Serial allocation required';
         }
 
         return 'Missing statutory data';

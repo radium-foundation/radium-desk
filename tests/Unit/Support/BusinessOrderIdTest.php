@@ -41,11 +41,11 @@ class BusinessOrderIdTest extends TestCase
         $this->assertSame('radiumsign.com', BusinessOrderId::owner('RSP1'));
     }
 
-    public function test_hardware_is_not_inferred_from_new_product_prefixes(): void
+    public function test_radiumbox_hardware_prefixes_include_rbp(): void
     {
         $this->assertTrue(BusinessOrderId::isHardwareByPrefix('RDE1'));
         $this->assertTrue(BusinessOrderId::isHardwareByPrefix('RIN1'));
-        $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RBP1'));
+        $this->assertTrue(BusinessOrderId::isHardwareByPrefix('RBP1'));
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RDP1'));
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RNP1'));
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RSP1'));

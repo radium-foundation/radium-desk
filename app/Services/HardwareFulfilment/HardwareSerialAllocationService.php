@@ -38,6 +38,7 @@ class HardwareSerialAllocationService
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly HardwareSkuMapService $skuMap,
         private readonly InventoryStockService $stock,
+        private readonly HardwareStatutoryInvoiceIssuer $invoices,
     ) {}
 
     /**
@@ -176,7 +177,7 @@ class HardwareSerialAllocationService
     ): HardwareFulfilment {
         $this->assertNotFrozen($fulfilment);
 
-        return DB::transaction(function () use ($fulfilment, $serialsByItemId, $actor, $claimedBranchCode): HardwareFulfilment {
+        $allocated = DB::transaction(function () use ($fulfilment, $serialsByItemId, $actor, $claimedBranchCode): HardwareFulfilment {
             $locked = HardwareFulfilment::query()
                 ->whereKey($fulfilment->id)
                 ->lockForUpdate()
@@ -276,6 +277,10 @@ class HardwareSerialAllocationService
                 ],
             );
         });
+
+        $this->invoices->issueAfterSerialsAllocated($allocated, $actor);
+
+        return $allocated->fresh(['commerceOrder.items', 'serials']) ?? $allocated;
     }
 
     /**

@@ -4,7 +4,10 @@ namespace App\Services\StatutoryInvoice;
 
 use App\Enums\EInvoiceRecordStatus;
 use App\Enums\StatutoryInvoiceDocumentStatus;
+use App\Enums\StatutoryInvoiceSourceType;
+use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
+use App\Models\InventorySale;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceDocument;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
@@ -28,6 +31,51 @@ class StatutoryDocumentService
             return $document;
         }
 
+        return $this->writeGeneratedDocument($invoice, $document);
+    }
+
+    /**
+     * Rewrite the statutory PDF only after a newly issued IRN. Does not
+     * bulk-regenerate historical invoices.
+     */
+    public function finalizeAfterIrn(StatutoryInvoice $invoice): ?StatutoryInvoiceDocument
+    {
+        $invoice->loadMissing(['items', 'eInvoiceRecord']);
+        if ($this->issuedIrn($invoice) === null) {
+            return $invoice->document;
+        }
+
+        $document = StatutoryInvoiceDocument::query()->firstOrNew(['invoice_id' => $invoice->id]);
+
+        return $this->writeGeneratedDocument($invoice, $document);
+    }
+
+    /**
+     * Presentation-only rewrite from stored invoice/IRN/serials. Does not mint,
+     * recompute tax, or change invoice identity.
+     */
+    public function regeneratePresentation(StatutoryInvoice $invoice): StatutoryInvoiceDocument
+    {
+        $invoice->loadMissing(['items', 'eInvoiceRecord']);
+        $document = StatutoryInvoiceDocument::query()->firstOrNew(['invoice_id' => $invoice->id]);
+
+        return $this->writeGeneratedDocument($invoice, $document);
+    }
+
+    /**
+     * Production serial-correction callers still invoke this name. Same
+     * presentation rewrite as regeneratePresentation(); does not change
+     * invoice identity, tax, or serial allocation.
+     */
+    public function regenerateForHardwareSerialCorrection(StatutoryInvoice $invoice): StatutoryInvoiceDocument
+    {
+        return $this->regeneratePresentation($invoice);
+    }
+
+    private function writeGeneratedDocument(
+        StatutoryInvoice $invoice,
+        StatutoryInvoiceDocument $document,
+    ): StatutoryInvoiceDocument {
         $document->attempts = (int) $document->attempts + 1;
 
         try {
@@ -97,6 +145,7 @@ class StatutoryDocumentService
                 'igst' => $this->formatTaxComponent($line->igst),
                 'taxTotal' => $this->formatMoney($line->tax_total),
                 'lineTotal' => $this->formatMoney($line->line_total),
+                'uqc' => $this->nullableString($line->getAttribute('uqc')),
             ];
         }
 
@@ -104,7 +153,8 @@ class StatutoryDocumentService
         $fulfilment = HardwareFulfilment::query()
             ->where('statutory_invoice_id', $invoice->id)
             ->first();
-        $serials = $this->serialsForInvoice($fulfilment);
+        $serials = $this->serialsForInvoice($invoice, $fulfilment);
+        $commerce = $this->commercePresentation($invoice);
 
         return new StatutoryInvoicePdfPayload(
             invoiceNumber: (string) $invoice->invoice_number,
@@ -131,7 +181,57 @@ class StatutoryDocumentService
             irn: $this->issuedIrn($invoice),
             ackNo: $this->issuedAckNo($invoice),
             ackDate: $this->issuedAckDate($invoice),
+            shippingAddress: $commerce['shipping'],
+            paymentMethod: $this->paymentMethodFor($invoice),
+            paymentStatus: $this->paymentMethodFor($invoice) !== null ? 'Paid' : null,
+            signedQr: $this->issuedSignedQr($invoice),
+            sellerEmail: $this->nullableString(config('statutory_invoices.contact_email')),
+            sellerPhone: $this->nullableString(config('statutory_invoices.contact_phone')),
+            buyerPhone: $this->nullableString($invoice->buyer_phone),
+            buyerEmail: $commerce['email'],
+            discount: $this->optionalMoney($invoice->discount),
+            rounding: $this->optionalMoney($invoice->rounding),
+            paymentReference: $this->nullableString($invoice->payment_reference),
+            orderId: $this->nullableString($invoice->source_order_id) ?? $this->nullableString($invoice->source_id),
         );
+    }
+
+    /**
+     * @return array{shipping: ?string, email: ?string}
+     */
+    private function commercePresentation(StatutoryInvoice $invoice): array
+    {
+        if ((string) $invoice->source_type !== StatutoryInvoiceSourceType::CommerceOrder->value) {
+            return ['shipping' => null, 'email' => null];
+        }
+
+        $order = CommerceOrder::query()
+            ->where('channel', $invoice->channel)
+            ->where('source_id', $invoice->source_id)
+            ->first(['shipping_address', 'customer_email']);
+
+        return [
+            'shipping' => $this->nullableString($order?->shipping_address),
+            'email' => $this->nullableString($order?->customer_email),
+        ];
+    }
+
+    private function paymentMethodFor(StatutoryInvoice $invoice): ?string
+    {
+        $method = trim((string) ($invoice->payment_method ?? ''));
+
+        return $method !== '' ? $method : null;
+    }
+
+    private function issuedSignedQr(StatutoryInvoice $invoice): ?string
+    {
+        if ($this->issuedIrn($invoice) === null) {
+            return null;
+        }
+
+        $qr = trim((string) ($invoice->eInvoiceRecord?->signed_qr ?? ''));
+
+        return $qr !== '' ? $qr : null;
     }
 
     private function issuedIrn(StatutoryInvoice $invoice): ?string
@@ -172,20 +272,39 @@ class StatutoryDocumentService
     }
 
     /**
+     * Presentation-only serial list. Does not rewrite stored invoice lines.
+     *
      * @return list<string>
      */
-    private function serialsForInvoice(?HardwareFulfilment $fulfilment): array
+    private function serialsForInvoice(StatutoryInvoice $invoice, ?HardwareFulfilment $fulfilment): array
     {
-        if ($fulfilment === null) {
+        if ($fulfilment !== null) {
+            $locked = $fulfilment->metadata['invoice_serials'] ?? null;
+            if (is_array($locked) && $locked !== []) {
+                return array_values(array_map(static fn (mixed $serial): string => (string) $serial, $locked));
+            }
+
+            return $this->hardwareWorkflow->allocatedSerialNumbers($fulfilment);
+        }
+
+        if ($invoice->inventory_sale_id === null) {
             return [];
         }
 
-        $locked = $fulfilment->metadata['invoice_serials'] ?? null;
-        if (is_array($locked) && $locked !== []) {
-            return array_values(array_map(static fn (mixed $serial): string => (string) $serial, $locked));
+        $sale = InventorySale::query()->with(['serials.serial'])->find($invoice->inventory_sale_id);
+        if ($sale === null) {
+            return [];
         }
 
-        return $this->hardwareWorkflow->allocatedSerialNumbers($fulfilment);
+        $out = [];
+        foreach ($sale->serials as $assignment) {
+            $value = trim((string) ($assignment->serial?->serial_number ?? ''));
+            if ($value !== '') {
+                $out[] = $value;
+            }
+        }
+
+        return $out;
     }
 
     private function headerGstRate(StatutoryInvoice $invoice): string
@@ -220,6 +339,31 @@ class StatutoryDocumentService
         }
 
         return number_format((float) $value, 2, '.', '').'%';
+    }
+
+    private function optionalMoney(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $amount = (float) $value;
+        if (abs($amount) < 0.005) {
+            return null;
+        }
+
+        return $this->formatMoney($value);
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if (! is_string($value) && ! is_numeric($value)) {
+            return null;
+        }
+
+        $trimmed = trim((string) $value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     private function formatMoney(mixed $value): string

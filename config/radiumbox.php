@@ -46,4 +46,17 @@ return [
     | deploy a matching integration endpoint first. Default off.
     */
     'wallet_refund_reversal_enabled' => filter_var(env('RADIUMBOX_WALLET_REFUND_REVERSAL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+
+    'payment_confirm' => [
+        'enabled' => filter_var(env('RADIUMBOX_PAYMENT_CONFIRM_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'connect_timeout_seconds' => (int) env('RADIUMBOX_PAYMENT_CONFIRM_CONNECT_TIMEOUT_SECONDS', 3),
+        'timeout_seconds' => (int) env('RADIUMBOX_PAYMENT_CONFIRM_TIMEOUT_SECONDS', 15),
+    ],
+
+    'handoff_reconciliation' => [
+        'enabled' => filter_var(env('RADIUMBOX_HANDOFF_RECONCILIATION_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'sla_minutes' => (int) env('RADIUMBOX_HANDOFF_RECONCILIATION_SLA_MINUTES', 15),
+        'schedule_limit' => (int) env('RADIUMBOX_HANDOFF_RECONCILIATION_LIMIT', 25),
+        'schedule_interval_minutes' => (int) env('RADIUMBOX_HANDOFF_RECONCILIATION_INTERVAL_MINUTES', 15),
+    ],
 ];

@@ -57,7 +57,11 @@ final class HardwareAwaitingFulfilmentQueue
         $without = $this->rdeWithoutFulfilment();
 
         return new HardwareAwaitingFulfilmentSummary(
-            rdeTotal: Order::query()->where('order_id', 'like', HardwareFulfilmentEligibility::SOURCE_PREFIX.'%')->count(),
+            rdeTotal: Order::query()->where(function (Builder $query): void {
+                foreach (HardwareFulfilmentEligibility::HARDWARE_SOURCE_PREFIXES as $prefix) {
+                    $query->orWhere('order_id', 'like', $prefix.'%');
+                }
+            })->count(),
             withFulfilment: HardwareFulfilment::query()->count(),
             withoutFulfilment: (clone $without)->count(),
             reviewCandidates: $this->countFilter(self::FILTER_REVIEW),
@@ -178,7 +182,11 @@ final class HardwareAwaitingFulfilmentQueue
             ->all();
 
         return Order::query()
-            ->where('order_id', 'like', HardwareFulfilmentEligibility::SOURCE_PREFIX.'%')
+            ->where(function (Builder $query): void {
+                foreach (HardwareFulfilmentEligibility::HARDWARE_SOURCE_PREFIXES as $prefix) {
+                    $query->orWhere('order_id', 'like', $prefix.'%');
+                }
+            })
             ->when($sourceIds !== [], static function (Builder $query) use ($sourceIds): void {
                 $query->whereNotIn('order_id', $sourceIds);
             })

@@ -21,6 +21,8 @@
     </div>
     @include('pos.partials.workspace-nav', ['active' => 'sales'])
 
+    @include('pos.sales.partials.statutory-invoice', ['statutoryPresentation' => $statutoryPresentation ?? null])
+
     <div class="row g-3 mb-3">
         <div class="col-md-6">
             <div class="card border-0 shadow-sm h-100">

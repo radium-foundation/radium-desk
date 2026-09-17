@@ -64,13 +64,16 @@ class PosFinanceHubIssueTest extends TestCase
         ]);
     }
 
-    public function test_pos_complete_does_not_mint_a_statutory_invoice(): void
+    public function test_pos_complete_mints_a_statutory_invoice_after_serials_are_assigned(): void
     {
         $sale = $this->completeEligibleSale();
 
         $this->assertMatchesRegularExpression('/^INV-DELHI-RETAIL-\d{4}-\d{5}$/', (string) $sale->invoice_number);
-        $this->assertNull($sale->statutory_invoice_id);
-        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertNotNull($sale->fresh()->statutory_invoice_id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $invoice = StatutoryInvoice::query()->firstOrFail();
+        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertNotSame($sale->invoice_number, $invoice->invoice_number);
     }
 
     public function test_finance_hub_issues_a_distinct_statutory_number_from_a_pos_sale(): void
@@ -87,6 +90,15 @@ class PosFinanceHubIssueTest extends TestCase
         $this->assertSame((string) $sale->id, $invoice->source_id);
         $this->assertSame($sale->id, $sale->fresh()->statutory_invoice_id);
         $this->assertSame($sale->invoice_number, $sale->fresh()->invoice_number);
+        $this->assertSame(18.0, (float) $invoice->tax_total);
+        $this->assertSame(9.0, (float) $invoice->cgst);
+        $this->assertSame(9.0, (float) $invoice->sgst);
+        $this->assertSame(0.0, (float) $invoice->igst);
+        $line = $invoice->items->first();
+        $this->assertNotNull($line);
+        $this->assertSame(9.0, (float) $line->cgst);
+        $this->assertSame(9.0, (float) $line->sgst);
+        $this->assertSame(0.0, (float) $line->igst);
     }
 
     public function test_pos_statutory_issue_is_idempotent(): void
@@ -140,6 +152,23 @@ class PosFinanceHubIssueTest extends TestCase
         $this->assertSame(1, $invoice->allocation?->seq_int);
     }
 
+    public function test_pos_inter_state_sale_persists_igst_from_stored_exclusive_tax(): void
+    {
+        $sale = $this->completeEligibleSale(placeOfSupply: 'Kerala');
+
+        $invoice = $this->invoices->issueFromPosSale($sale, $this->actor);
+
+        $this->assertSame(18.0, (float) $invoice->tax_total);
+        $this->assertSame(0.0, (float) $invoice->cgst);
+        $this->assertSame(0.0, (float) $invoice->sgst);
+        $this->assertSame(18.0, (float) $invoice->igst);
+        $this->assertSame('Kerala', $invoice->place_of_supply_state);
+        $line = $invoice->items->first();
+        $this->assertSame(0.0, (float) $line->cgst);
+        $this->assertSame(0.0, (float) $line->sgst);
+        $this->assertSame(18.0, (float) $line->igst);
+    }
+
     public function test_issue_fails_closed_when_the_branch_is_not_delhi_or_mumbai(): void
     {
         $this->branch->update(['code' => 'HQ']);
@@ -149,42 +178,27 @@ class PosFinanceHubIssueTest extends TestCase
         $this->invoices->issueFromPosSale($sale, $this->actor);
     }
 
-    public function test_admin_can_issue_from_the_finance_pending_queue(): void
+    public function test_admin_can_open_the_invoice_minted_on_pos_complete(): void
     {
         $sale = $this->completeEligibleSale();
-
-        $this->actingAs($this->actor)
-            ->get(route('finance.invoices.pending'))
-            ->assertOk()
-            ->assertSee($sale->sale_no)
-            ->assertSee('Receipt '.$sale->invoice_number);
+        $invoice = StatutoryInvoice::query()->firstOrFail();
+        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame($sale->id, (int) $sale->fresh()->statutory_invoice_id);
 
         $this->actingAs($this->actor)
             ->post(route('finance.invoices.sales.issue', $sale))
             ->assertRedirect();
 
-        $invoice = StatutoryInvoice::query()->firstOrFail();
-        $this->assertSame('INV-07671', $invoice->invoice_number);
-
-        $this->actingAs($this->actor)
-            ->get(route('finance.invoices.show', $invoice))
-            ->assertOk()
-            ->assertSee('INV-07671')
-            ->assertSee($sale->invoice_number);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame($invoice->id, StatutoryInvoice::query()->value('id'));
 
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.pdf', $invoice))
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
-
-        $this->actingAs($this->actor)
-            ->get(route('finance.invoices.index'))
-            ->assertOk()
-            ->assertSee('INV-07671')
-            ->assertDontSee($sale->invoice_number, false);
     }
 
-    private function completeEligibleSale(): InventorySale
+    private function completeEligibleSale(string $placeOfSupply = 'Delhi'): InventorySale
     {
         $product = InventoryProduct::query()->create([
             'sku' => 'MFS110-HUB',
@@ -208,7 +222,7 @@ class PosFinanceHubIssueTest extends TestCase
             paymentMethod: 'Cash',
             actor: $this->actor,
             statutory: [
-                'place_of_supply_state' => 'Delhi',
+                'place_of_supply_state' => $placeOfSupply,
             ],
         );
     }

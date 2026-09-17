@@ -18,6 +18,7 @@ use App\Services\StatutoryInvoice\StatutoryDocumentService;
 use App\Services\StatutoryInvoice\StatutoryFinancialYear;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Services\StatutoryInvoice\StatutoryMintEligibility;
+use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -234,10 +235,7 @@ class HardwareFulfilmentInvoiceService
                 continue;
             }
 
-            $description = (string) $item->description;
-            if ($item->rdserviceid !== null) {
-                $description .= ' (bundled RD #'.$item->rdserviceid.')';
-            }
+            $description = HardwareConfigurableVariantDisplay::invoiceDescription($item, annotateBundledRd: true);
 
             $gst = $this->gst->reconcile($item);
 

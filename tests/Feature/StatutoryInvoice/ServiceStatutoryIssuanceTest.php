@@ -5,6 +5,8 @@ namespace Tests\Feature\StatutoryInvoice;
 use App\Data\Automation\PlannedAutomationAction;
 use App\Enums\AutomationPolicyActionType;
 use App\Enums\CommerceOrderStatus;
+use App\Enums\EInvoiceIssuancePolicyMode;
+use App\Enums\EInvoiceRecordStatus;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\StatutoryInvoiceChannel;
@@ -13,11 +15,13 @@ use App\Enums\StatutorySupplyKind;
 use App\Enums\WaitingReason;
 use App\Events\Finance\OrderPaid;
 use App\Models\CommerceOrder;
+use App\Models\EInvoiceRecord;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\InvoiceSequence;
 use App\Models\InvoiceSequenceAllocation;
 use App\Models\Order;
+use App\Models\OutboxEvent;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\Automation\CustomerWaitingLifecycleService;
@@ -26,6 +30,9 @@ use App\Services\OrderTransactionService;
 use App\Services\ServiceCaseStatusService;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
+use App\Services\StatutoryInvoice\EInvoiceEligibility;
+use App\Services\StatutoryInvoice\EInvoiceIssuancePolicy;
+use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
 use App\Services\StatutoryInvoice\StatutoryBillingIssuer;
 use App\Services\StatutoryInvoice\StatutoryFinancialYear;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
@@ -313,15 +320,108 @@ class ServiceStatutoryIssuanceTest extends TestCase
         $this->assertSame($order->id, (int) StatutoryInvoice::query()->value('support_order_id'));
     }
 
-    public function test_generic_case_closure_does_not_issue(): void
+    public function test_generic_case_closure_issues_after_successful_commit(): void
     {
         [$order, $incident] = $this->deskOrderWithCommerce('RD-GENERIC-CLOSE', billingState: 'Delhi');
 
         app(ServiceCaseStatusService::class)->updateStatus($incident, IncidentStatus::Closed, $this->actor);
 
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
-        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertNull($order->fresh()->transaction_id);
+        $this->assertSame('statutory:rdservice_in:commerce_order:RD-GENERIC-CLOSE', StatutoryInvoice::query()->value('idempotency_key'));
+    }
+
+    public function test_case_closed_after_reference_does_not_duplicate_invoice(): void
+    {
+        [$order, $incident] = $this->deskOrderWithCommerce('RD-CLOSE-AFTER-REF', billingState: 'Delhi');
+
+        app(OrderTransactionService::class)->assignTransactionId($order, 'TXN-CLOSE-AFTER', $this->actor, broadcast: false);
+        app(ServiceCaseStatusService::class)->updateStatus($incident->fresh(), IncidentStatus::Closed, $this->actor);
+
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame('TXN-CLOSE-AFTER', $order->fresh()->transaction_id);
+    }
+
+    public function test_reference_entered_after_closure_does_not_duplicate_invoice(): void
+    {
+        [$order, $incident] = $this->deskOrderWithCommerce('RD-REF-AFTER-CLOSE', billingState: 'Maharashtra');
+
+        app(ServiceCaseStatusService::class)->updateStatus($incident, IncidentStatus::Closed, $this->actor);
+        app(OrderTransactionService::class)->assignTransactionId($order->fresh(), 'TXN-REF-AFTER', $this->actor, broadcast: false);
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        $this->assertSame('TXN-REF-AFTER', $order->fresh()->transaction_id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(1, InvoiceSequenceAllocation::query()->count());
+    }
+
+    public function test_concurrent_reference_and_closure_issue_one_invoice(): void
+    {
+        [$order, $incident] = $this->deskOrderWithCommerce('RD-REF-CLOSE-RACE', billingState: 'Delhi');
+
+        app(OrderTransactionService::class)->assignTransactionId($order, 'TXN-RACE-REF', $this->actor, broadcast: false);
+        app(ServiceCaseStatusService::class)->updateStatus($incident->fresh(), IncidentStatus::Closed, $this->actor);
+        app(OrderTransactionService::class)->assignTransactionId($order->fresh(), 'TXN-RACE-REF', $this->actor, broadcast: false);
+
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(1, InvoiceSequenceAllocation::query()->count());
+    }
+
+    public function test_eligible_service_invoice_enters_irn_outbox_once_in_phase_b(): void
+    {
+        config(['statutory_invoices.einvoice.issuance_policy' => EInvoiceIssuancePolicyMode::AllEligibleB2b->value]);
+        $this->app->forgetInstance(EInvoiceIssuancePolicy::class);
+        $this->app->forgetInstance(EInvoiceEligibility::class);
+        $this->app->forgetInstance(StatutoryInvoiceService::class);
+        $this->invoices = app(StatutoryInvoiceService::class);
+
+        [$order] = $this->deskOrderWithCommerce('RD-SVC-IRN', billingState: 'Delhi', buyerGstin: '07AAAAA0000A1Z5');
+        app(OrderTransactionService::class)->assignTransactionId($order, 'TXN-SVC-IRN', $this->actor, broadcast: false);
+        $this->invoices->issueFromSupportOrder($order->fresh(), $this->actor);
+
+        $invoice = StatutoryInvoice::query()->firstOrFail();
+        $this->assertSame(EInvoiceRecordStatus::Queued->value, EInvoiceRecord::query()->where('invoice_id', $invoice->id)->value('status'));
+        $this->assertSame(1, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+    }
+
+    public function test_b2c_service_invoice_does_not_enter_irn_outbox(): void
+    {
+        [$order] = $this->deskOrderWithCommerce('RD-SVC-B2C', billingState: 'Delhi');
+        app(OrderTransactionService::class)->assignTransactionId($order, 'TXN-SVC-B2C', $this->actor, broadcast: false);
+
+        $invoice = StatutoryInvoice::query()->firstOrFail();
+        $this->assertNull($invoice->buyer_gstin);
+        $this->assertSame(
+            'b2c_not_eligible',
+            EInvoiceRecord::query()->where('invoice_id', $invoice->id)->value('response_payload')['skip_reason'] ?? null,
+        );
+        $this->assertSame(0, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
+    }
+
+    public function test_incomplete_service_commerce_fails_closed_on_closure_without_losing_the_case(): void
+    {
+        $order = $this->deskOrder('RD-INCOMPLETE-CLOSE');
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Internal,
+            'title' => 'Incomplete statutory close',
+            'description' => 'Incomplete statutory close.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $this->actor->id,
+            'updated_by' => $this->actor->id,
+        ]);
+        $commerce = $this->rd3512358ShapedOrder();
+        $commerce->forceFill(['source_id' => 'RD-INCOMPLETE-CLOSE', 'source_order_id' => 'RD-INCOMPLETE-CLOSE'])->save();
+
+        Log::spy();
+        app(ServiceCaseStatusService::class)->updateStatus($incident, IncidentStatus::Closed, $this->actor);
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        $this->assertSame(0, StatutoryInvoice::query()->count());
     }
 
     public function test_payment_success_does_not_issue(): void

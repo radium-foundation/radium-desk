@@ -25,6 +25,7 @@ use App\Services\Interakt\InteraktWebhookOutboxWriter;
 use App\Services\Interakt\InteraktWebhookProcessorService;
 use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
 use App\Services\StatutoryInvoice\EInvoiceProcessor;
+use App\Services\StatutoryInvoice\EInvoiceRecoveryRequiredException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -330,6 +331,16 @@ class OutboxProcessorService
         if ($exception instanceof HardwareFulfilmentCallbackNonRetryableException) {
             $event->update([
                 'status' => OutboxEventStatus::Failed,
+                'last_error' => $message,
+            ]);
+
+            return;
+        }
+
+        if ($exception instanceof EInvoiceRecoveryRequiredException) {
+            $event->update([
+                'status' => OutboxEventStatus::Pending,
+                'available_at' => $this->nextAvailableAt(max(1, $attempts)),
                 'last_error' => $message,
             ]);
 
