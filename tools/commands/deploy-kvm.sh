@@ -152,14 +152,31 @@ build_frontend_assets() {
 }
 
 write_local_release_snapshot() {
+    local local_php
+
     print_warning "Writing local release snapshot (release:snapshot)..."
-    if ! command -v php >/dev/null 2>&1; then
+    if command -v php >/dev/null 2>&1; then
+        local_php="php"
+    elif [[ -x "/Users/ravi/Library/Application Support/Herd/bin/php" ]]; then
+        local_php="/Users/ravi/Library/Application Support/Herd/bin/php"
+    else
         print_error "Local PHP is required to run release:snapshot before deploy."
         exit 1
     fi
 
-    (cd "$PROJECT_ROOT" && php artisan release:snapshot)
+    # Herd's auto_prepend_file breaks CLI when the extension path is missing; -n avoids that.
+    (cd "$PROJECT_ROOT" && "$local_php" -n artisan release:snapshot)
     print_success "Local release snapshot written"
+}
+
+ensure_remote_deploy_ownership() {
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        return 0
+    fi
+
+    print_warning "Ensuring ${SSH_USER} can write to ${REMOTE_PROJECT} before rsync..."
+    ssh_exec "sudo chown -R ${SSH_USER}:${SSH_USER} '$REMOTE_PROJECT'"
+    print_success "Remote deploy ownership prepared"
 }
 
 confirm_deploy() {
@@ -246,7 +263,8 @@ run_remote_post_sync() {
     print_warning "Clearing and rebuilding Laravel caches..."
     php_exec optimize:clear
     php_exec optimize
-    print_success "Laravel caches rebuilt"
+    php_exec route:cache
+    print_success "Laravel caches rebuilt (including route cache)"
 
     kvm_restart_supervisor_worker
 }
@@ -277,6 +295,7 @@ main() {
     confirm_deploy
     build_frontend_assets
     write_local_release_snapshot
+    ensure_remote_deploy_ownership
     rsync_application_to_kvm
     sync_kvm_public_build "$PROJECT_ROOT"
     fix_remote_ownership

@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.69 — 2026-09-17 — Production stability hotfix
+
+- Restore overlay-dependent controllers and services required by existing routes: HistoricalOrder, LegacyCash, Purchasing, and hardware bulk documents.
+- Add Purchasing models, enums, and views so restored Purchasing routes are runnable from a clean checkout.
+- Fix KVM deploy preflight: ensure deploy-user ownership before rsync and rebuild route cache after deploy.
+- No Service POS financial or payment behavior changes.
+
 ## 4.0.68 — 2026-09-17 — Service POS and Finance receivables
 
 - Service Master (`/services/*`) for synthetic dev catalog management: categories, SAC, GST, pricing, and active/inactive items.
