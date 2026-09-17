@@ -17,5 +17,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-07-09-290 | 2026-09-12 | Restore C360 statutory invoice routes | Route-only overlay: four `dashboard.service-cases.customer-360.invoices.*` routes after executive-summary block. C360 UI not enabled. No email/WhatsApp invoked. |
 | RadiumDesk-P-07-09-291 | 2026-09-12 | Investigation-only: C360 statutory invoice UI wiring | Read-only GO for atomic gate: wire `Customer360Service`, drawer partial, JS handlers, tests. Routes already on production (P-290). Wallet Ledger must be preserved. |
 | RadiumDesk-P-07-09-292 | 2026-09-12 | Enable C360 statutory invoice UI (atomic) | Wire presenter into drawer + JS share handlers; preserve Wallet Ledger. Surgical production overlay. No route/email/WhatsApp production invokes. |
+| RadiumDesk-P-17-09-01 | 2026-09-17 | Desk parse fix: rdservice.in numeric wallet_reference | `RdServiceInWalletRefundClient` accepts JSON numeric `data.wallet_reference`; unit + feature regression. Branch `feat/rdservice-in-wallet-refund-parse-fix`. Not deployed. REF-2026-000305 not replayed. |
 
 Do not renumber or overwrite earlier rows. Append only.
