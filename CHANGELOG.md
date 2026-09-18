@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.88 — 2026-09-18 — RB* service duration and invalid-GSTIN statutory support
+
+- Represent RadiumBox RB* express `duration_price` as a separate statutory line with ₹18 GST on the ₹100 add-on when `duration_price > 0`.
+- Expose `duration`, `duration_price`, `base_taxable_value`, and corrected aggregate `taxable_value` through commerce lookup mapping for statutory snapshots.
+- Sanitize invalid buyer GSTIN values to B2C statutory mint; normalize legacy billing state `Dadra and Nagar Haveli` to `Dadra and Nagar Haveli and Daman and Diu`.
+- Companion to deployed RadiumBox.com `service_commerce` duration fields. No production backfill in this release.
+- Rollback target: v4.0.87 / `4aadf66a`.
+
 ## 4.0.87 — 2026-09-18 — RB* service GST 1-paisa reconciliation
 
 - Allow exactly one paisa of exclusive GST drift on RadiumBox RB* service statutory invoices when authoritative publish-minus-selling tax differs from `round(taxable × rate, 2)`.
