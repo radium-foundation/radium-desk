@@ -229,10 +229,16 @@ class StatutoryMintEligibility
 
     private function exclusivePaisaToleranceForCommerceOrder(CommerceOrder $order): int
     {
-        return $order->channel === StatutoryInvoiceChannel::RadiumBoxCom
-            && BusinessOrderId::isRadiumBoxService($order->source_id)
-            ? 1
-            : 0;
+        if ($order->channel === StatutoryInvoiceChannel::RadiumBoxCom
+            && BusinessOrderId::isRadiumBoxService($order->source_id)) {
+            return 1;
+        }
+
+        if ($order->channel === StatutoryInvoiceChannel::RdServiceNet) {
+            return 1;
+        }
+
+        return 0;
     }
 
     /**

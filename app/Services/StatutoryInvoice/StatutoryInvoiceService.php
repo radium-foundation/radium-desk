@@ -737,6 +737,10 @@ class StatutoryInvoiceService
             return 1;
         }
 
+        if ($request->channel === StatutoryInvoiceChannel::RdServiceNet) {
+            return 1;
+        }
+
         return 0;
     }
 

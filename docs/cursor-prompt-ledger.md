@@ -389,4 +389,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-18-09-33 | 2026-09-18 | Statutory PDF logo + optional add-on line suppression (pre-commit) | Use authoritative `public/brand/logo.png` in `SimplePdfRenderer`; suppress unselected zero-value duration/callback add-on lines via `StatutoryInvoiceCommerceLinePresentation`; service lines use stored descriptions (variant no longer replaces text as `regular`). **Not deployed.** No RB222 production repair. |
 | RadiumDesk-P-18-09-34 | 2026-09-18 | RB* service statutory regression gate, commit, and push | Final regression review for P-18-09-32/33; goods-HSN SAC guard; explicit `branding.cin`; focused + statutory suites green vs baseline (no new protected regressions). Committed and pushed to `origin/main`. **Not deployed.** No RB222 production repair. |
 
+| RadiumDesk-P-18-09-52 | 2026-09-18 | rdservice.net channel contract alignment (tests + GST tolerance + callback suppression) | Companion RDServiceNet-P-18-09-02. `RdServiceNetPayloadContractAlignmentTest.php`; 1-paisa GST tolerance for `rdservice_net`; suppress `Call Back - Not Required` at mint. No production mint/ingest/secrets/deploy. |
+
 Do not renumber or overwrite earlier rows. Append only.

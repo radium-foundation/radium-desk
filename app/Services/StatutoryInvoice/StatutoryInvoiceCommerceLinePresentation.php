@@ -64,6 +64,10 @@ final class StatutoryInvoiceCommerceLinePresentation
             return true;
         }
 
+        if (str_contains($description, 'call back') && str_contains($description, 'not required')) {
+            return true;
+        }
+
         return false;
     }
 }
