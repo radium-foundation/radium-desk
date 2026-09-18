@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.77 — 2026-09-18 — Shiprocket AWB courier reliability
+
+- Re-quote Shiprocket serviceability with `order_id` immediately before AWB assignment instead of reusing a stale stored courier.
+- Keep the operator-selected courier when it is still listed; otherwise select from the fresh quote using configured preferred IDs, matching provider mode, then Shiprocket’s recommended courier.
+- Recover from a definitive HTTP 400 `Given courier not serviceable` with one alternate eligible courier attempt — never reuse the rejected id, never create a duplicate shipment, and never overwrite an existing AWB.
+- Cache Shiprocket login tokens across AWB requests with one bounded login retry on DNS/connect timeout; do not retry AWB after timeout or generic provider rejection.
+- Regression tests lock pre-AWB re-quote, alternate recovery, idempotency, and rejection-class distinction.
+
 ## 4.0.76 — 2026-09-18 — Service Ready Queue permanent capability fix
 
 - Restore Service Ready Queue visibility for hybrid `hardware_team` operators via `dashboard.ready_queue.view` or the settings-driven `ReadyQueueAdmin` capability, without requiring a manual admin role assignment.
