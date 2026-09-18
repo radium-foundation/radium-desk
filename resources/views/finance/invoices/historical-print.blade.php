@@ -365,7 +365,7 @@
         $orderCode = $text($reprint['ordercode'] ?? null);
         $rdOrderId = $text($reprint['rdorderid'] ?? null);
         $ordersId = $reprint['orders_id'] ?? null;
-        $logoUrl = asset('brand/logo.svg');
+        $logoUrl = asset((string) config('branding.logo', 'brand/logo.png'));
     @endphp
 
     <div class="sheet">

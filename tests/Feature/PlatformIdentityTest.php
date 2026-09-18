@@ -121,7 +121,7 @@ class PlatformIdentityTest extends TestCase
         $response = $this->get(route('login'));
 
         $response->assertOk();
-        $response->assertSee('brand/logo.svg', false);
+        $response->assertSee('brand/logo.png', false);
         $response->assertSee('Internal Operations Portal', false);
         $response->assertDontSee('<h1 class="h4 fw-bold text-primary mb-1">', false);
     }

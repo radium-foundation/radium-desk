@@ -395,4 +395,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-18-09-54 | 2026-09-18 | Paired rehearsal infrastructure feasibility (read-only) | Confirms no Desk staging platform; local disposable rehearsal only; owner must provision isolated Desk before KVM paired rehearsal. Companion RDServiceNet-P-18-09-04. |
 
+| RadiumDesk-P-18-09-60 | 2026-09-18 | Owner `radium-logo.svg` branding replacement | Replace distorted `public/brand/logo.svg` + regenerate `logo.png` from owner SVG for statutory PDF/UI; align historical print + tests. Branding-only. **Not deployed.** |
+
 Do not renumber or overwrite earlier rows. Append only.

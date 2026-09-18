@@ -61,7 +61,7 @@ class HistoricalInvoiceReprintTest extends TestCase
             ->assertSee('MFS110', false)
             ->assertSee('Phil Technologies (P) Limited', false)
             ->assertSee('Nareshkumar', false)
-            ->assertSee('brand/logo.svg', false)
+            ->assertSee('brand/logo.png', false)
             ->assertSee('size: A4', false)
             ->assertSee('481.00', false)
             ->assertDontSee('CGST', false)
@@ -244,7 +244,7 @@ class HistoricalInvoiceReprintTest extends TestCase
             ->assertOk()
             ->assertSee('INV6745886', false)
             ->assertSee('Historical reprint', false)
-            ->assertSee('brand/logo.svg', false)
+            ->assertSee('brand/logo.png', false)
             ->assertSee('Not a new tax invoice', false)
             ->assertDontSee('admin.radiumbox.com', false);
 
