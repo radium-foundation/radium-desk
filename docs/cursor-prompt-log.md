@@ -55,5 +55,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-42 | 2026-09-18 | RB* Phase 1 batch backfill (51 YES orders) | Owner-authorized historical statutory invoice backfill for remaining 51 YES RB* service orders per P-18-09-40 manifest. RB2 pilot preserved. |
 | RadiumDesk-P-18-09-43 | 2026-09-18 | RB* 1-paisa GST skip investigation (5 orders) | Read-only investigation of RB6/RB9/RB126/RB141/RB212 GST mismatch vs rdservice.in/RadiumBox/Desk contracts. No mutations. |
 | RadiumDesk-P-18-09-44 | 2026-09-18 | RB* service publish-minus-selling GST 1-paisa reconciliation | Gate exclusivePaisaTolerance=1 on radiumbox_com RB* service statutory mint only. Tests; no production repair/deploy. |
+| RadiumDesk-P-18-09-45 | 2026-09-18 | Release/deploy v4.0.87 RB* service GST 1-paisa reconciliation | Tag/deploy `5fab6a38` GST tolerance to KVM8 production. Post-deploy protected regression only. No five-order repair. Rollback: v4.0.86 / `98cfb26a`. |
 
 Do not renumber or overwrite earlier rows. Append only.

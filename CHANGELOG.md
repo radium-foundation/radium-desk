@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.87 — 2026-09-18 — RB* service GST 1-paisa reconciliation
+
+- Allow exactly one paisa of exclusive GST drift on RadiumBox RB* service statutory invoices when authoritative publish-minus-selling tax differs from `round(taxable × rate, 2)`.
+- Gate tolerance only on `radiumbox_com` RB* service mint and eligibility checks; preserve authoritative source tax without upward recalculation.
+- rdservice.in RD* service, hardware inclusive GST, and global service tolerance remain unchanged.
+- Rollback target: v4.0.86 / `98cfb26a`.
+
 ## 4.0.86 — 2026-09-18 — Purchasing permission constants hotfix
 
 - Restore seven `PERMISSION_PURCHASE_*` class constants and admin-team role assignments in `RolePermissionSeeder` so authenticated Purchasing routes no longer fatal on `PurchasingAccess`.
