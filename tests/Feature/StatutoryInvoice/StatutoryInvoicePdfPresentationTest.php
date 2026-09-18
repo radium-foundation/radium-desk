@@ -658,6 +658,84 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertLessThan(64, $darkest);
     }
 
+    public function test_configured_logo_png_preserves_rounded_icon_border_ring(): void
+    {
+        if (! extension_loaded('imagick') || ! class_exists(\Imagick::class)) {
+            $this->markTestSkipped('Imagick unavailable for logo border verification.');
+        }
+
+        $logoPath = public_path((string) config('branding.logo'));
+        $image = new \Imagick($logoPath);
+        $image->setImageBackgroundColor(new \ImagickPixel('white'));
+        $image = $image->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+        $width = $image->getImageWidth();
+        $height = $image->getImageHeight();
+        $iconWidth = (int) floor($width * 0.42);
+
+        $ringDark = 0;
+        for ($y = 0; $y < $height; $y++) {
+            for ($x = 0; $x < $iconWidth; $x++) {
+                $color = $image->getImagePixelColor($x, $y)->getColor();
+                $red = (int) ($color['r'] ?? 255);
+                $green = (int) ($color['g'] ?? 255);
+                $blue = (int) ($color['b'] ?? 255);
+                $luminance = ($red + $green + $blue) / 3;
+                $edgeDistance = min($x, $y, $iconWidth - 1 - $x, $height - 1 - $y);
+                if ($edgeDistance >= 6 && $edgeDistance <= 32 && $luminance < 80) {
+                    $ringDark++;
+                }
+            }
+        }
+        $image->destroy();
+
+        $this->assertSame(480, $width);
+        $this->assertSame(179, $height);
+        $this->assertGreaterThanOrEqual(1200, $ringDark, 'Expected the rounded Ra icon border to rasterize as a dark ring.');
+    }
+
+    public function test_pdf_embedded_logo_preserves_rounded_icon_border_ring(): void
+    {
+        if (! extension_loaded('imagick') || ! class_exists(\Imagick::class)) {
+            $this->markTestSkipped('Imagick unavailable for embedded logo border verification.');
+        }
+
+        $binary = (new SimplePdfRenderer)->render($this->payload());
+        if (! preg_match('/(\d+) 0 obj\n<<[^>]*\/Subtype \/Image[^>]*\/Width (\d+)[^>]*\/Height (\d+)[^>]*\/Filter \/DCTDecode/s', $binary, $matches, PREG_OFFSET_CAPTURE)) {
+            $this->fail('Expected embedded Logo JPEG object in statutory PDF.');
+        }
+
+        $objectOffset = (int) $matches[0][1];
+        $streamStart = strpos($binary, 'stream', $objectOffset);
+        $this->assertNotFalse($streamStart);
+        $jpegStart = $streamStart + strlen("stream\n");
+        $streamEnd = strpos($binary, "\nendstream", $jpegStart);
+        $this->assertNotFalse($streamEnd);
+        $jpeg = substr($binary, $jpegStart, $streamEnd - $jpegStart);
+
+        $image = new \Imagick;
+        $image->readImageBlob($jpeg);
+        $image->setImageBackgroundColor(new \ImagickPixel('white'));
+        $image = $image->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+        $width = $image->getImageWidth();
+        $height = $image->getImageHeight();
+        $iconWidth = (int) floor($width * 0.42);
+
+        $ringDark = 0;
+        for ($y = 0; $y < $height; $y++) {
+            for ($x = 0; $x < $iconWidth; $x++) {
+                $color = $image->getImagePixelColor($x, $y)->getColor();
+                $luminance = (((int) ($color['r'] ?? 255)) + ((int) ($color['g'] ?? 255)) + ((int) ($color['b'] ?? 255))) / 3;
+                $edgeDistance = min($x, $y, $iconWidth - 1 - $x, $height - 1 - $y);
+                if ($edgeDistance >= 6 && $edgeDistance <= 32 && $luminance < 80) {
+                    $ringDark++;
+                }
+            }
+        }
+        $image->destroy();
+
+        $this->assertGreaterThanOrEqual(1200, $ringDark, 'Expected the rounded Ra icon border to survive JPEG embedding.');
+    }
+
     public function test_pdf_embeds_authoritative_stamp_and_signatory_block(): void
     {
         $binary = (new SimplePdfRenderer)->render($this->payload());
