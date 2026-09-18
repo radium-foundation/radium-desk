@@ -46,6 +46,8 @@
             </button>
         </x-c360.modal-footer>
     </form>
+@elseif($ready->canAttachMeasuredParcel)
+    @include('inventory.hardware-fulfilments.fragments.action-measure-parcel')
 @elseif($row->nextAction === 'Get Courier Options' && $ready->canFetchCourierOptions)
     <form method="POST"
           action="{{ route('inventory.hardware-fulfilments.courier-options.store', $fulfilment) }}"

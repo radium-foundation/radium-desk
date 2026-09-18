@@ -21,6 +21,7 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
             ['RBBIOC600C', 1749],
             ['RBMFSTYPEC', 1409],
             ['RBMFSUSBCB', 1410],
+            ['RBWM112MZ', 340],
         ] as [$sku, $modelId]) {
             $product = InventoryProduct::query()->create([
                 'sku' => $sku,
@@ -46,7 +47,28 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
         $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--dry-run' => true])
             ->assertSuccessful();
 
-        $this->assertSame(0, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410])->count());
+        $this->assertSame(0, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 340])->count());
+    }
+
+    public function test_wm112_maps_to_rbwm112mz_not_keyboard_mouse_combo(): void
+    {
+        InventoryProduct::query()->create([
+            'sku' => 'RBDKM3322W',
+            'name' => 'Dell Wireless Keyboard Mouse KM3322W',
+            'hsn_code' => '84716040',
+            'gst_percentage' => 18,
+            'unit_price' => 1500,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+
+        $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
+            ->assertSuccessful();
+
+        $map = ChannelSkuMap::query()->where('model_id', 340)->with('product')->firstOrFail();
+        $this->assertSame('RBWM112MZ', $map->product->sku);
+        $this->assertNotSame('RBDKM3322W', $map->product->sku);
+        $this->assertSame('PDLWM112MZ', $map->catalog_sku);
     }
 
     public function test_apply_creates_maps_idempotently(): void
@@ -54,12 +76,12 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
         $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
             ->assertSuccessful();
 
-        $this->assertSame(4, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410])->count());
+        $this->assertSame(5, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 340])->count());
 
         $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
             ->assertSuccessful();
 
-        $this->assertSame(4, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410])->count());
+        $this->assertSame(5, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 340])->count());
     }
 
     public function test_conflicting_existing_map_fails_closed(): void

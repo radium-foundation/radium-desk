@@ -439,12 +439,37 @@ class HardwareFulfilmentParcelSnapshotService
      */
     private function allocatedProductIds(HardwareFulfilment $fulfilment): array
     {
-        $fulfilment->loadMissing('serials.inventorySerial');
+        $fulfilment->loadMissing(['serials.inventorySerial', 'commerceOrder.items']);
         $ids = [];
         foreach ($fulfilment->serials as $row) {
             $productId = $row->inventorySerial?->product_id;
             if ($productId) {
                 $ids[(int) $productId] = true;
+            }
+        }
+
+        if ($ids !== []) {
+            return $ids;
+        }
+
+        $order = $fulfilment->commerceOrder;
+        if ($order === null) {
+            return [];
+        }
+
+        $commitment = app(HardwarePhysicalStockCommitment::class);
+        if (! $commitment->isStockCommitted($fulfilment, $order)) {
+            return [];
+        }
+
+        foreach ($order->items as $item) {
+            if (! HardwareFulfilmentEligibility::isPhysicalCommerceItem($item)) {
+                continue;
+            }
+
+            $product = $commitment->mappedProduct($order, $item);
+            if ($product !== null) {
+                $ids[(int) $product->id] = true;
             }
         }
 

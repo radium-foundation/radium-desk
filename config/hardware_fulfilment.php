@@ -50,6 +50,13 @@ return [
                 'desk_sku' => 'RBMFSUSBCB',
                 'notes' => 'Mantra MFS110 USB replacement cable',
             ],
+            [
+                'model_id' => 340,
+                'channel_sku' => '340',
+                'catalog_sku' => 'PDLWM112MZ',
+                'desk_sku' => 'RBWM112MZ',
+                'notes' => 'Dell WM112 Wireless Optical Mouse (Black)',
+            ],
         ],
     ],
 
