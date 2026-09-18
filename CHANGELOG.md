@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.83 — 2026-09-18 — RDE318338 historical duplicate fulfilment cancellation
+
+- Add owner-controlled historical duplicate fulfilment cancellation for verified Desk duplicates opened after historical Admin completion (`desk:cancel-historical-duplicate-fulfilment`).
+- Cancel duplicate Desk statutory invoices through the existing `StatutoryInvoiceService::cancel()` workflow; release allocated serials back to inventory; preserve Shiprocket shipment/provider error evidence without provider cancellation.
+- Exclude cancelled historical duplicates from Needs Action, Ready Queue, and active shipment/AWB workflows.
+- Regression lock and tests for RDE318338 / fulfilment 932 safety contract. Rollback target: v4.0.82 / `5186f4a6`.
+
 ## 4.0.82 — 2026-09-18 — RBP222 pickup-state reconciliation
 
 - Reconcile local pickup state when Shiprocket tracking shows pickup already advanced (e.g. Out for Pickup / status 19) without calling `/courier/generate/pickup`.
