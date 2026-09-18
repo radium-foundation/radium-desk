@@ -46,5 +46,8 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-33 | 2026-09-18 | Statutory PDF black logo + optional add-on line suppression | `brand/logo.png` authoritative PDF logo; suppress unselected zero-value duration/callback lines; service invoice descriptions from commerce text. Not deployed. |
 | RadiumDesk-P-18-09-34 | 2026-09-18 | RB* service statutory regression gate + commit/push | Final review; goods-HSN SAC guard; `branding.cin`; no new protected regressions vs baseline. Committed/pushed. Not deployed. No RB222 repair. |
 | RadiumDesk-P-18-09-35 | 2026-09-18 | Production deploy v4.0.85 RB* service statutory invoicing | Owner-authorized KVM deploy after radiumbox.com `service_commerce` overlay. Read-only RB222 integration verification; no RB222 repair/mint/snapshot. Rollback: v4.0.84 / `c6d55ab6`. |
+| RadiumDesk-P-18-09-36 | 2026-09-18 | Fix purchasing permission constants | Restore seven `PERMISSION_PURCHASE_*` constants and admin-team assignments on `fix/purchasing-permission-constants` @ `d794d429`. Merged in P-18-09-38. |
+| RadiumDesk-P-18-09-37 | 2026-09-18 | v4.0.86 pre-merge protected regression gate | Pre-merge validation of `d794d429` vs `487a5088`. PASS; no new hotfix regressions. |
+| RadiumDesk-P-18-09-38 | 2026-09-18 | Merge/release/deploy v4.0.86 purchasing permission hotfix | Merge to `main`, tag `v4.0.86`, KVM deploy, production verification. No production seeder. Rollback: v4.0.85 / `487a5088`. |
 
 Do not renumber or overwrite earlier rows. Append only.

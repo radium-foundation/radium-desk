@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.86 — 2026-09-18 — Purchasing permission constants hotfix
+
+- Restore seven `PERMISSION_PURCHASE_*` class constants and admin-team role assignments in `RolePermissionSeeder` so authenticated Purchasing routes no longer fatal on `PurchasingAccess`.
+- Add `PurchasingPermissionAccessTest` regression coverage for constants, seeder registration, and authorization gates.
+- No production database seeder run required for the fatal-error fix.
+- Rollback target: v4.0.85 / `487a5088`.
+
 ## 4.0.85 — 2026-09-18 — RB* service statutory invoicing integration
 
 - Route RB* service orders to `radiumbox_com` for statutory commerce snapshots via RadiumBox `service_commerce` lookup.
