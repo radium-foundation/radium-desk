@@ -85,16 +85,34 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
         $typeC = $this->item(1409, null, null, null, 'Biometric Replacement Cable');
         $usb = $this->item(1410, null, null, null, 'Biometric Replacement Cable');
 
-        $this->assertSame('Mantra MFS110 Type-C Cable', HardwareConfigurableVariantDisplay::label($typeC));
-        $this->assertSame('Mantra MFS110 USB Cable', HardwareConfigurableVariantDisplay::label($usb));
+        $this->assertSame('Mantra MFS110 Type-C', HardwareConfigurableVariantDisplay::label($typeC));
+        $this->assertSame('Mantra MFS110 USB', HardwareConfigurableVariantDisplay::label($usb));
     }
 
-    public function test_replacement_cable_designation_is_idempotent(): void
+    public function test_operator_label_appends_cable_designation_for_replacement_cables(): void
+    {
+        $typeC = $this->item(1409, null, null, null, 'Biometric Replacement Cable');
+        $usb = $this->item(1410, null, null, null, 'Biometric Replacement Cable');
+
+        $this->assertSame('Mantra MFS110 Type-C Cable', HardwareConfigurableVariantDisplay::operatorLabel($typeC));
+        $this->assertSame('Mantra MFS110 USB Cable', HardwareConfigurableVariantDisplay::operatorLabel($usb));
+    }
+
+    public function test_replacement_cable_invoice_description_remains_without_cable_suffix(): void
+    {
+        $typeC = $this->item(1409, null, null, null, 'Biometric Replacement Cable');
+        $usb = $this->item(1410, null, null, null, 'Biometric Replacement Cable');
+
+        $this->assertSame('Mantra MFS110 Type-C', HardwareConfigurableVariantDisplay::invoiceDescription($typeC));
+        $this->assertSame('Mantra MFS110 USB', HardwareConfigurableVariantDisplay::invoiceDescription($usb));
+    }
+
+    public function test_replacement_cable_operator_designation_is_idempotent(): void
     {
         $item = $this->item(1409, null, null, null, 'Biometric Replacement Cable');
         $item->variant = 'Mantra MFS110 Type-C Cable';
 
-        $this->assertSame('Mantra MFS110 Type-C Cable', HardwareConfigurableVariantDisplay::label($item));
+        $this->assertSame('Mantra MFS110 Type-C Cable', HardwareConfigurableVariantDisplay::operatorLabel($item));
     }
 
     public function test_wm112_mouse_label_is_unchanged_without_cable_suffix(): void
@@ -118,7 +136,8 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
         $item = $this->item(1410, null, null, null, 'Biometric Replacement Cable');
         $item->variant = 'Mantra MFS110 USB';
 
-        $this->assertSame('Mantra MFS110 USB Cable', HardwareConfigurableVariantDisplay::label($item));
+        $this->assertSame('Mantra MFS110 USB', HardwareConfigurableVariantDisplay::label($item));
+        $this->assertSame('Mantra MFS110 USB Cable', HardwareConfigurableVariantDisplay::operatorLabel($item));
     }
 
     public function test_verified_token_and_camera_model_ids(): void

@@ -79,7 +79,7 @@ final class HardwareFulfilmentProductLines
                 continue;
             }
 
-            $label = HardwareConfigurableVariantDisplay::label($item);
+            $label = HardwareConfigurableVariantDisplay::operatorLabel($item);
             if ($label === '' || $label === 'Exact variant unavailable') {
                 continue;
             }

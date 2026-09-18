@@ -120,25 +120,24 @@ final class HardwareConfigurableVariantDisplay
 
     public static function label(CommerceOrderItem $item): string
     {
-        $modelId = $item->model_id !== null ? (int) $item->model_id : 0;
-
         $canonical = self::forItem($item);
         if ($canonical !== null) {
-            return self::withReplacementCableDesignation($modelId, $canonical);
+            return $canonical;
         }
 
+        $modelId = $item->model_id !== null ? (int) $item->model_id : 0;
         $static = self::STATIC_VARIANT_LABELS[$modelId] ?? null;
         if ($static !== null) {
-            return self::withReplacementCableDesignation($modelId, $static);
+            return $static;
         }
 
         $variant = trim((string) ($item->variant ?? ''));
         if ($variant !== '') {
-            return self::withReplacementCableDesignation($modelId, $variant);
+            return $variant;
         }
 
         if (isset(self::MANTRA_MFS_MODELS[$modelId])) {
-            return self::withReplacementCableDesignation($modelId, self::fallbackLabel($item));
+            return self::fallbackLabel($item);
         }
 
         $fallback = self::fallbackLabel($item);
@@ -146,7 +145,18 @@ final class HardwareConfigurableVariantDisplay
             return 'Exact variant unavailable';
         }
 
-        return self::withReplacementCableDesignation($modelId, $fallback);
+        return $fallback;
+    }
+
+    /**
+     * Operator-facing fulfilment label (Ready Queue, hardware workspace).
+     * Appends an explicit Cable designation for verified replacement-cable model_ids.
+     */
+    public static function operatorLabel(CommerceOrderItem $item): string
+    {
+        $modelId = $item->model_id !== null ? (int) $item->model_id : 0;
+
+        return self::withReplacementCableDesignation($modelId, self::label($item));
     }
 
     public static function invoiceDescription(CommerceOrderItem $item, bool $annotateBundledRd = false): string

@@ -263,7 +263,7 @@
                         <p class="text-muted small mb-2">This order maps to quantity-tracked Desk products. Confirm branch stock deduction — no serial numbers are required.</p>
                         <ul class="small mb-3">
                             @foreach($requirements as $line)
-                                <li>{{ \App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay::label($fulfilment->commerceOrder->items->firstWhere('id', $line['commerce_order_item_id']) ?? new \App\Models\CommerceOrderItem(['description' => $line['description'], 'model_id' => $line['model_id']])) }} · {{ $line['qty'] }} Q · {{ $line['inventory_sku'] ?? '—' }}</li>
+                                <li>{{ \App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay::operatorLabel($fulfilment->commerceOrder->items->firstWhere('id', $line['commerce_order_item_id']) ?? new \App\Models\CommerceOrderItem(['description' => $line['description'], 'model_id' => $line['model_id']])) }} · {{ $line['qty'] }} Q · {{ $line['inventory_sku'] ?? '—' }}</li>
                             @endforeach
                         </ul>
                         <button type="submit" class="btn btn-primary" data-confirm="Allocate quantity stock for this fulfilment?">Allocate Stock</button>
