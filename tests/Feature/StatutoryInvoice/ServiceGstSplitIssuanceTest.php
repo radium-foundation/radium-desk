@@ -188,6 +188,31 @@ class ServiceGstSplitIssuanceTest extends TestCase
         $this->assertSame(0, InvoiceSequenceAllocation::query()->count());
     }
 
+    public function test_rdservice_in_one_paisa_exclusive_mismatch_still_fails_closed(): void
+    {
+        $order = $this->commerceOrder(
+            'RD-GST-1P',
+            billingState: 'Uttar Pradesh',
+            placeOfSupply: 'Uttar Pradesh',
+            taxableValue: 505.94,
+            taxTotal: 91.06,
+            orderValue: 597.0,
+        );
+
+        try {
+            $this->invoices->issueFromCommerceOrder($order, $this->actor);
+            $this->fail('Expected rdservice.in one-paisa exclusive mismatch to fail closed.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                GstSplitService::TAX_MISMATCH,
+                implode(' ', $this->flattenErrors($exception)),
+            );
+        }
+
+        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame(0, InvoiceSequenceAllocation::query()->count());
+    }
+
     public function test_tax_mismatch_fails_closed_without_allocation(): void
     {
         $order = $this->commerceOrder(

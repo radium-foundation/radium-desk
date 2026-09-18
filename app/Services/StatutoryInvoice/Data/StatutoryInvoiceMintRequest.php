@@ -36,6 +36,11 @@ final class StatutoryInvoiceMintRequest
         public readonly ?string $financialYearToken = null,
         public readonly ?string $customerState = null,
         public readonly bool $inclusiveHardwareGst = false,
+        /**
+         * RadiumBox RB* service orders carry publish-minus-selling GST that may
+         * differ from round(taxable × rate, 2) by exactly one paisa.
+         */
+        public readonly bool $radiumboxServicePublishSellingGst = false,
         public readonly ?array $billingAddressStructured = null,
     ) {}
 
@@ -73,6 +78,7 @@ final class StatutoryInvoiceMintRequest
             financialYearToken: $this->financialYearToken,
             customerState: $this->customerState,
             inclusiveHardwareGst: $this->inclusiveHardwareGst,
+            radiumboxServicePublishSellingGst: $this->radiumboxServicePublishSellingGst,
             billingAddressStructured: $this->billingAddressStructured,
         );
     }
@@ -105,6 +111,7 @@ final class StatutoryInvoiceMintRequest
             financialYearToken: $this->financialYearToken,
             customerState: $this->customerState,
             inclusiveHardwareGst: $this->inclusiveHardwareGst,
+            radiumboxServicePublishSellingGst: $this->radiumboxServicePublishSellingGst,
             billingAddressStructured: $this->billingAddressStructured,
         );
     }

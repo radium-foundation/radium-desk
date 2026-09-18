@@ -4,10 +4,12 @@ namespace App\Services\StatutoryInvoice;
 
 use App\Enums\CommerceOrderStatus;
 use App\Enums\InventorySaleStatus;
+use App\Enums\StatutoryInvoiceChannel;
 use App\Models\CommerceOrder;
 use App\Models\InventorySale;
 use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
 use App\Services\StatutoryInvoice\Data\StatutoryMintEligibilityResult;
+use App\Support\BusinessOrderId;
 use App\Support\Finance\GstStateCodes;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -215,6 +217,7 @@ class StatutoryMintEligibility
                     (float) $line->gst_percentage,
                     (float) $line->taxable_value,
                     (float) $line->tax_total,
+                    $this->exclusivePaisaToleranceForCommerceOrder($order),
                 );
             } catch (ValidationException $exception) {
                 $errors = array_merge($errors, $this->flattenErrors($exception));
@@ -222,6 +225,14 @@ class StatutoryMintEligibility
         }
 
         return $errors;
+    }
+
+    private function exclusivePaisaToleranceForCommerceOrder(CommerceOrder $order): int
+    {
+        return $order->channel === StatutoryInvoiceChannel::RadiumBoxCom
+            && BusinessOrderId::isRadiumBoxService($order->source_id)
+            ? 1
+            : 0;
     }
 
     /**

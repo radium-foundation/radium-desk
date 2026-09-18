@@ -49,5 +49,11 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-36 | 2026-09-18 | Fix purchasing permission constants | Restore seven `PERMISSION_PURCHASE_*` constants and admin-team assignments on `fix/purchasing-permission-constants` @ `d794d429`. Merged in P-18-09-38. |
 | RadiumDesk-P-18-09-37 | 2026-09-18 | v4.0.86 pre-merge protected regression gate | Pre-merge validation of `d794d429` vs `487a5088`. PASS; no new hotfix regressions. |
 | RadiumDesk-P-18-09-38 | 2026-09-18 | Merge/release/deploy v4.0.86 purchasing permission hotfix | Merge to `main`, tag `v4.0.86`, KVM deploy, production verification. No production seeder. Rollback: v4.0.85 / `487a5088`. |
+| RadiumDesk-P-18-09-39 | 2026-09-18 | Cross-project service invoice audit (RB* + rdservice.net RN) | Read-only audit across Radium Desk, RadiumBox.com, rdservice.net. No invoice/DB/deploy mutations. Report only. |
+| RadiumDesk-P-18-09-40 | 2026-09-18 | RB* historical invoice repair eligibility audit | Per-order read-only eligibility manifest for 87 missing-invoice Desk RB* service orders. No invoice/DB/deploy mutations. |
+| RadiumDesk-P-18-09-41 | 2026-09-18 | RB2 historical invoice backfill pilot | Owner-authorized single-order production repair via ensureForSupportOrder + issueFromSupportOrder. RB2 only. |
+| RadiumDesk-P-18-09-42 | 2026-09-18 | RB* Phase 1 batch backfill (51 YES orders) | Owner-authorized historical statutory invoice backfill for remaining 51 YES RB* service orders per P-18-09-40 manifest. RB2 pilot preserved. |
+| RadiumDesk-P-18-09-43 | 2026-09-18 | RB* 1-paisa GST skip investigation (5 orders) | Read-only investigation of RB6/RB9/RB126/RB141/RB212 GST mismatch vs rdservice.in/RadiumBox/Desk contracts. No mutations. |
+| RadiumDesk-P-18-09-44 | 2026-09-18 | RB* service publish-minus-selling GST 1-paisa reconciliation | Gate exclusivePaisaTolerance=1 on radiumbox_com RB* service statutory mint only. Tests; no production repair/deploy. |
 
 Do not renumber or overwrite earlier rows. Append only.

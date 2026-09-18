@@ -224,6 +224,72 @@ class RadiumBoxServiceStatutoryIssuanceTest extends TestCase
         $this->assertStringNotContainsString('Not Required', $pdf);
     }
 
+    public function test_rb_service_one_paisa_publish_selling_tax_difference_issues_with_source_tax_preserved(): void
+    {
+        Http::fake([
+            'radiumbox.test/api/integrations/v1/rd-orders/RB6' => Http::response($this->rb6LookupPayload()),
+        ]);
+
+        $order = $this->deskOrder('RB6');
+        $invoice = $this->invoices->issueFromSupportOrder($order, $this->actor);
+
+        $this->assertSame('INV-671', $invoice->invoice_number);
+        $this->assertSame(505.94, (float) $invoice->items[0]->taxable_value);
+        $this->assertSame(91.06, (float) $invoice->items[0]->tax_total);
+        $this->assertSame(597.0, (float) $invoice->items[0]->line_total);
+        $this->assertSame(91.06, (float) $invoice->igst);
+        $this->assertSame(0.0, (float) $invoice->cgst);
+        $this->assertSame(0.0, (float) $invoice->sgst);
+        $this->assertSame(597.0, (float) $invoice->invoice_value);
+    }
+
+    public function test_rb_service_more_than_one_paisa_tax_mismatch_fails_closed(): void
+    {
+        $commerce = CommerceOrder::query()->create([
+            'order_no' => 'CO-RB6-BAD',
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => 'RB6',
+            'source_order_id' => 'RB6',
+            'idempotency_key' => 'statutory:radiumbox_com:commerce_order:RB6',
+            'payload_hash' => hash('sha256', 'rb6-bad-tax'),
+            'status' => CommerceOrderStatus::InvoicePending,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'place_of_supply_state' => 'Uttar Pradesh',
+            'billing_state' => 'Uttar Pradesh',
+            'taxable_value' => 505.94,
+            'tax_total' => 91.04,
+            'order_value' => 596.98,
+            'ordered_at' => now(),
+            'received_at' => now(),
+        ]);
+        $commerce->items()->create([
+            'line_no' => 1,
+            'description' => 'RB service line',
+            'hsn_sac' => '998313',
+            'qty' => 1,
+            'unit_price' => 505.94,
+            'gst_percentage' => 18,
+            'taxable_value' => 505.94,
+            'tax_total' => 91.04,
+            'line_total' => 596.98,
+        ]);
+
+        try {
+            $this->invoices->issueFromCommerceOrder($commerce->fresh(['items']), $this->actor);
+            $this->fail('Expected RB* service tax mismatch beyond one paisa to fail closed.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                'GST amount does not match taxable value × rate.',
+                implode(' ', array_merge(...array_values($exception->errors()))),
+            );
+        }
+
+        $this->assertSame(0, StatutoryInvoice::query()->count());
+    }
+
     public function test_repeated_rb_statutory_issuance_is_idempotent(): void
     {
         Http::fake([
@@ -283,6 +349,64 @@ class RadiumBoxServiceStatutoryIssuanceTest extends TestCase
         ]);
 
         $this->assertTrue(app(HardwareCommerceStatutoryInvoiceGuard::class)->requiresHardwareSerialPath($order->fresh(['items'])));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rb6LookupPayload(float $taxTotal = 91.06): array
+    {
+        return [
+            'status' => 200,
+            'message' => 'OK',
+            'data' => [
+                'correlation' => [
+                    'rdorderid' => 'RB6',
+                    'customer_order_id' => 'RB6',
+                    'cashfree_order_id' => 'RB6',
+                    'orders_id' => null,
+                ],
+                'snapshot' => [
+                    'rdorderid' => 'RB6',
+                    'customer_name' => 'Customer',
+                    'email' => 'customer@example.com',
+                    'phone' => '9000000006',
+                    'serial_number' => '1234567',
+                    'product' => 'Mantra MIS100',
+                    'rd_service' => '1 Year Unlimited',
+                    'order_date' => '2026-09-10 10:00:00',
+                ],
+                'rd_order' => [
+                    'rdorderid' => 'RB6',
+                    'product_name' => 'Mantra MIS100',
+                    'rd_service_name' => '1 Year Unlimited',
+                    'serial_no' => '1234567',
+                    'paid_amount' => '597',
+                ],
+                'service_commerce' => [
+                    'rdorderid' => 'RB6',
+                    'billing_state' => 'Uttar Pradesh',
+                    'place_of_supply_state' => 'Uttar Pradesh',
+                    'district' => 'Lucknow',
+                    'billing_address' => 'Lucknow, Uttar Pradesh, 226001',
+                    'billing_address_structured' => [
+                        'line1' => 'Lucknow',
+                        'city' => 'Lucknow',
+                        'state' => 'Uttar Pradesh',
+                        'pincode' => '226001',
+                    ],
+                    'gst_no' => null,
+                    'taxable_value' => 505.94,
+                    'tax_total' => $taxTotal,
+                    'line_total' => 597.0,
+                    'gst_percentage' => 18.0,
+                    'catalog_hsn_sac' => '998314',
+                    'service_description' => 'Information Technology (IT) Consulting & Support Services (SAC - 998313) - (Sr. No. 1234567) - 1 Year Unlimited',
+                    'ordered_at' => '2026-09-10 10:00:00',
+                ],
+                'lines' => [],
+            ],
+        ];
     }
 
     /**

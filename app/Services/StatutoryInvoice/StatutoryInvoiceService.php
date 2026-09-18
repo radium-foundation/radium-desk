@@ -375,6 +375,7 @@ class StatutoryInvoiceService
             financialYearToken: $this->eligibility->commercialDate($order) !== null
                 ? StatutoryFinancialYear::containing($this->eligibility->commercialDate($order))->token()
                 : null,
+            radiumboxServicePublishSellingGst: $this->usesRadiumboxServicePublishSellingGst($order),
             billingAddressStructured: StatutoryBillingStructured::fromStored($order->billing_address_structured),
         ), $actor);
 
@@ -712,12 +713,31 @@ class StatutoryInvoiceService
                 $line->gstPercentage,
                 $line->taxableValue,
                 $line->taxTotal,
-                $request->inclusiveHardwareGst ? 1 : 0,
+                $this->exclusivePaisaToleranceForMint($request),
             );
             $lines[] = $line->withTaxComponents($split->cgst, $split->sgst, $split->igst);
         }
 
         return $request->withLines($lines);
+    }
+
+    /**
+     * RadiumBox RB* service commerce only. Hardware (RBP/RDE) and rdservice.in
+     * RD* service orders keep the default fail-closed exclusive tolerance.
+     */
+    private function usesRadiumboxServicePublishSellingGst(CommerceOrder $order): bool
+    {
+        return $order->channel === StatutoryInvoiceChannel::RadiumBoxCom
+            && BusinessOrderId::isRadiumBoxService($order->source_id);
+    }
+
+    private function exclusivePaisaToleranceForMint(StatutoryInvoiceMintRequest $request): int
+    {
+        if ($request->inclusiveHardwareGst || $request->radiumboxServicePublishSellingGst) {
+            return 1;
+        }
+
+        return 0;
     }
 
     private function financialYear(StatutoryInvoiceMintRequest $request): ?StatutoryFinancialYear
