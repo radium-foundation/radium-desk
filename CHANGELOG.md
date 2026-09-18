@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.80 — 2026-09-18 — Multi-SKU quantity-stock measured parcel + WM112 mapping
+
+- Fix parcel snapshot product resolution for quantity-stock hardware fulfilments so multi-SKU non-serialized orders (e.g. RBP103 dual replacement cables) reach **Enter Package Dimensions** in the Hardware action modal instead of a dead-end Start Shipment blocker with Open Fulfilment navigation.
+- Preserve genuine parcel validation: measured outer-carton dimensions remain required when quantity > 1 or multiple SKUs are present; catalog attach rules unchanged for serialized single-SKU qty 1.
+- Add verified WM112 (`model_id` 340 / Box `PDLWM112MZ`) to `desk:seed-radiumbox-hardware-sku-maps` configuration targeting Desk SKU `RBWM112MZ` (non-serialized; not `RBDKM3322W`).
+- Preserve v4.0.79 operator-label vs invoice-description isolation, Hardware Dashboard P-302, Service Ready Queue, and serialized fulfilment contracts.
+
 ## 4.0.79 — 2026-09-18 — Hardware Ready Queue replacement-cable operator label
 
 - Append an explicit `Cable` designation to verified replacement-cable model_ids (1409, 1410, 1419–1422) on the Hardware Ready Queue and hardware fulfilment workspace via `operatorLabel()`.
