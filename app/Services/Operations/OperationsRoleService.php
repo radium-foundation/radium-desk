@@ -2,7 +2,9 @@
 
 namespace App\Services\Operations;
 
+use App\Enums\Assignment\AssignmentCapability;
 use App\Models\User;
+use App\Support\Assignment\Capabilities\UserCapabilityService;
 use Database\Seeders\RolePermissionSeeder;
 
 class OperationsRoleService
@@ -53,6 +55,16 @@ class OperationsRoleService
             RolePermissionSeeder::ROLE_ADMIN,
             RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
         ]);
+    }
+
+    public function canViewReadyQueue(User $user): bool
+    {
+        if ($user->can(RolePermissionSeeder::PERMISSION_READY_QUEUE_VIEW)) {
+            return true;
+        }
+
+        return app(UserCapabilityService::class)
+            ->userHasCapability($user, AssignmentCapability::ReadyQueueAdmin);
     }
 
     public function usesSupportQueues(User $user): bool

@@ -47,6 +47,10 @@ grep -q 'verify_hardware_dashboard_contract' "$SCRIPT" \
     || fail "must verify Hardware Dashboard P-302 contract before deploy"
 grep -q 'verify-hardware-dashboard-contract.sh' "$SCRIPT" \
     || fail "must invoke verify-hardware-dashboard-contract.sh"
+grep -q 'verify_ready_queue_contract' "$SCRIPT" \
+    || fail "must verify Service Ready Queue contract before deploy"
+grep -q 'verify-ready-queue-contract.sh' "$SCRIPT" \
+    || fail "must invoke verify-ready-queue-contract.sh"
 
 grep -q '\-\-exclude.*bootstrap/cache/' "$SCRIPT" \
     || fail "must exclude bootstrap/cache from rsync"

@@ -150,6 +150,11 @@ verify_hardware_dashboard_contract() {
     "$SCRIPT_DIR/verify-hardware-dashboard-contract.sh"
 }
 
+verify_ready_queue_contract() {
+    print_warning "Verifying Service Ready Queue deployment contract..."
+    "$SCRIPT_DIR/verify-ready-queue-contract.sh"
+}
+
 build_frontend_assets() {
     print_warning "Building frontend assets (npm run build)..."
     (cd "$PROJECT_ROOT" && npm run build)
@@ -283,6 +288,7 @@ main() {
     ensure_release_branch
     validate_release_metadata
     verify_hardware_dashboard_contract
+    verify_ready_queue_contract
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
         ensure_local_build_manifest

@@ -1,0 +1,11 @@
+# Source-controlled Service Ready Queue regression contract.
+# deploy-kvm.sh refuses to rsync when any listed path is missing from the
+# local release tree. Marker checks live in verify-ready-queue-contract.sh.
+#
+# Integrated: RadiumDesk-P-18-09-02 (mainline + deployment guard).
+
+app/Services/DashboardPersonalizationService.php
+app/Services/Operations/OperationsRoleService.php
+database/seeders/RolePermissionSeeder.php
+config/operations.php
+tests/Feature/ReadyQueueCapabilityAccessTest.php
