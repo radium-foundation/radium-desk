@@ -148,6 +148,20 @@ class RolePermissionSeeder extends Seeder
     /** Operate stock and POS at every branch without a per-branch assignment. */
     public const PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES = 'inventory.branches.operate-all';
 
+    public const PERMISSION_PURCHASE_VIEW = 'purchase.view';
+
+    public const PERMISSION_PURCHASE_CREATE = 'purchase.create';
+
+    public const PERMISSION_PURCHASE_EDIT = 'purchase.edit';
+
+    public const PERMISSION_PURCHASE_RECEIVE = 'purchase.receive';
+
+    public const PERMISSION_PURCHASE_INVOICE = 'purchase.invoice';
+
+    public const PERMISSION_PURCHASE_PAYMENT = 'purchase.payment';
+
+    public const PERMISSION_PURCHASE_VENDOR_MANAGE = 'purchase.vendor.manage';
+
     public const PERMISSION_TODOS_VIEW = 'todos.view';
 
     public const PERMISSION_TODOS_CREATE = 'todos.create';
@@ -208,6 +222,21 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_POS_VIEW,
         self::PERMISSION_POS_SELL,
         self::PERMISSION_HARDWARE_FULFILMENT_OPERATE,
+    ];
+
+    /**
+     * Purchasing workflow permissions for admin-team roles.
+     *
+     * @var list<string>
+     */
+    private const PURCHASING_ADMIN_PERMISSIONS = [
+        self::PERMISSION_PURCHASE_VIEW,
+        self::PERMISSION_PURCHASE_CREATE,
+        self::PERMISSION_PURCHASE_EDIT,
+        self::PERMISSION_PURCHASE_RECEIVE,
+        self::PERMISSION_PURCHASE_INVOICE,
+        self::PERMISSION_PURCHASE_PAYMENT,
+        self::PERMISSION_PURCHASE_VENDOR_MANAGE,
     ];
 
     /**
@@ -452,6 +481,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_REVOKE,
             self::PERMISSION_HARDWARE_FULFILMENT_CANCEL_HISTORICAL_DUPLICATE,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
+            ...self::PURCHASING_ADMIN_PERMISSIONS,
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -506,6 +536,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_REFUNDS_REVOKE,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
+            ...self::PURCHASING_ADMIN_PERMISSIONS,
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -569,6 +600,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_REVOKE,
             self::PERMISSION_BACKUPS_VIEW,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
+            ...self::PURCHASING_ADMIN_PERMISSIONS,
         ],
     ];
 
@@ -591,6 +623,7 @@ class RolePermissionSeeder extends Seeder
                 self::PERMISSION_FINANCE_RECEIVABLES_VIEW,
                 self::PERMISSION_FINANCE_PAYMENTS_RECORD,
             ])
+            ->merge(self::PURCHASING_ADMIN_PERMISSIONS)
             ->unique()
             ->values();
 
