@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.84 — 2026-09-18 — Ready for Pickup top-level hardware dashboard tab
+
+- Add Ready for Pickup as a top-level peer tab beside Needs Action on the hardware dashboard.
+- Reuse existing `readyForPickupQuery()` and workspace filter logic; no shipment/provider workflow changes.
+- Preserve Shipping lifecycle sub-navigation and legacy Ready for Pickup URLs.
+- Rollback target: v4.0.83 / `0a7ce286`.
+
 ## 4.0.83 — 2026-09-18 — RDE318338 historical duplicate fulfilment cancellation
 
 - Add owner-controlled historical duplicate fulfilment cancellation for verified Desk duplicates opened after historical Admin completion (`desk:cancel-historical-duplicate-fulfilment`).

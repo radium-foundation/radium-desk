@@ -41,4 +41,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-27 | 2026-09-18 | Read-only: hardware shipment automation + Ready for Pickup design | Map current state machine, operator action count, courier recommendation behavior, bulk label/manifest gaps, idempotency, and phased automation design. **No code/DB/deploy/commit.** |
 | RadiumDesk-P-18-09-28 | 2026-09-18 | Phase 1: Ready for Pickup top-level hardware dashboard tab | Add Ready for Pickup as peer tab to Needs Action; reuse `readyForPickupQuery()`; preserve Shipping lifecycle sub-nav. UI/navigation only. **No deploy.** |
 
+| RadiumDesk-P-18-09-29 | 2026-09-18 | Release/deploy v4.0.84 Ready for Pickup top-level tab | Deploy Phase 1 UI/navigation (`df1a8338`) to KVM8 production; post-deploy smoke for hardware dashboard nav, Ready for Pickup queue, RDE318338 exclusion, presentation-only selection. Rollback: v4.0.83 / `0a7ce286`.
+
 Do not renumber or overwrite earlier rows. Append only.
