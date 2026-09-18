@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.81 — 2026-09-18 — RBP222 serialized invoice state-transition fix
+
+- Transition hardware fulfilments to `invoice_issued` immediately after durable statutory invoice mint/link, before PDF asset generation.
+- Log statutory PDF and e-invoice queue failures without leaving a linked invoice stuck in `serials_allocated` (RBP222 / fulfilment 948 class).
+- Preserve idempotent invoice retry: existing correlation IDs and invoice numbers are reused; duplicate mint is not attempted on retry.
+- Regression tests lock PDF failure recovery, Start Shipment **Get Courier Options** modal workflow, Needs Action exclusion, and successful PDF path unchanged.
+- Preserve v4.0.80 multi-SKU measured parcel, WM112 mapping, operator cable labels, Hardware Dashboard P-302, and Service Ready Queue contracts.
+
 ## 4.0.80 — 2026-09-18 — Multi-SKU quantity-stock measured parcel + WM112 mapping
 
 - Fix parcel snapshot product resolution for quantity-stock hardware fulfilments so multi-SKU non-serialized orders (e.g. RBP103 dual replacement cables) reach **Enter Package Dimensions** in the Hardware action modal instead of a dead-end Start Shipment blocker with Open Fulfilment navigation.
