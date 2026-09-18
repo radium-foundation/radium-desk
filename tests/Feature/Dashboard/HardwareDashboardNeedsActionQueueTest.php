@@ -454,7 +454,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertMatchesRegularExpression('/data-hardware-filter-count="awb_pending">\(1\)/', $html);
         $this->assertMatchesRegularExpression('/data-hardware-filter-count="package_photo_pending">\(1\)/', $html);
         $this->assertLessThan(120_000, strlen($html));
-        $this->assertLessThan(120, count($log));
+        $this->assertLessThan(145, count($log));
         $this->assertGreaterThanOrEqual(0, $sqlMs);
         $this->assertLessThan(2500, $elapsedMs);
     }

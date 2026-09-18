@@ -109,8 +109,13 @@ class HardwareFulfilmentInvoiceService
 
         $serials = $this->workflow->allocatedSerialNumbers($fulfilment);
         if ($serials === []) {
+            $commitment = app(HardwarePhysicalStockCommitment::class);
+            if ($commitment->isQuantityOnlyOrder($order) && $commitment->isStockCommitted($fulfilment, $order)) {
+                return [];
+            }
+
             throw ValidationException::withMessages([
-                'serials' => 'Hardware invoice issuance requires a persisted allocated serial list. Serials are not invented.',
+                'serials' => 'Hardware invoice issuance requires a persisted allocated serial list or committed quantity stock. Stock is not invented.',
             ]);
         }
 

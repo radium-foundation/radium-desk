@@ -17,6 +17,43 @@ return [
     'sku_map' => [],
 
     /*
+    | Owner-approved radiumbox.com Box model_id → Desk inventory SKU rows.
+    | Applied by desk:seed-radiumbox-hardware-sku-maps. Do not invent extras.
+    */
+    'radiumbox_com' => [
+        'sku_maps' => [
+            [
+                'model_id' => 347,
+                'channel_sku' => '347',
+                'catalog_sku' => 'PFEHYP2003',
+                'desk_sku' => 'RBHYP2003T',
+                'notes' => 'Feitian ePass HYP2003 Auto USB Token',
+            ],
+            [
+                'model_id' => 1749,
+                'channel_sku' => '1749',
+                'catalog_sku' => 'RBBIOC600C',
+                'desk_sku' => 'RBBIOC600C',
+                'notes' => 'BioEnable C600 Face Camera',
+            ],
+            [
+                'model_id' => 1409,
+                'channel_sku' => '1409',
+                'catalog_sku' => 'PMTMFSCCBL',
+                'desk_sku' => 'RBMFSTYPEC',
+                'notes' => 'Mantra MFS110 Type-C replacement cable',
+            ],
+            [
+                'model_id' => 1410,
+                'channel_sku' => '1410',
+                'catalog_sku' => 'PMTMFSUCBL',
+                'desk_sku' => 'RBMFSUSBCB',
+                'notes' => 'Mantra MFS110 USB replacement cable',
+            ],
+        ],
+    ],
+
+    /*
     | Desk → radiumbox.com fulfilment callback. Default off. Empty URL/secret
     | means the worker must not call HTTP. Do not copy Admin/Box secrets.
     */

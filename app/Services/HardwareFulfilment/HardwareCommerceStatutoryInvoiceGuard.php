@@ -52,6 +52,11 @@ final class HardwareCommerceStatutoryInvoiceGuard
             return [self::SERIALS_REQUIRED];
         }
 
+        $commitment = app(HardwarePhysicalStockCommitment::class);
+        if ($commitment->isQuantityOnlyOrder($order) && $commitment->isStockCommitted($fulfilment, $order)) {
+            return [];
+        }
+
         $serials = $this->workflow->allocatedSerialNumbers($fulfilment);
         $normalized = [];
         foreach ($serials as $serial) {

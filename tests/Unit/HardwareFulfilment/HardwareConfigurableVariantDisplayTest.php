@@ -31,7 +31,7 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
         $this->assertSame('Mantra MFS 110 1R 1W U', HardwareConfigurableVariantDisplay::forItem($item));
         $this->assertSame('Mantra MFS 110 1R 1W U', HardwareConfigurableVariantDisplay::label($item));
         $this->assertSame(
-            'Mantra MFS 110 1R 1W U',
+            'Mantra MFS 110 1R 1W U (bundled RD #1119)',
             HardwareConfigurableVariantDisplay::invoiceDescription($item, annotateBundledRd: true),
         );
     }
@@ -78,6 +78,43 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
 
         $this->assertNull(HardwareConfigurableVariantDisplay::forItem($item));
         $this->assertSame('MSO1300', HardwareConfigurableVariantDisplay::label($item));
+    }
+
+    public function test_replacement_cable_model_ids_use_verified_static_labels(): void
+    {
+        $typeC = $this->item(1409, null, null, null, 'Biometric Replacement Cable');
+        $usb = $this->item(1410, null, null, null, 'Biometric Replacement Cable');
+
+        $this->assertSame('Mantra MFS110 Type-C', HardwareConfigurableVariantDisplay::label($typeC));
+        $this->assertSame('Mantra MFS110 USB', HardwareConfigurableVariantDisplay::label($usb));
+    }
+
+    public function test_generic_replacement_cable_without_model_id_is_ambiguous(): void
+    {
+        $item = $this->item(0, null, null, null, 'Biometric Replacement Cable');
+        $item->model_id = null;
+
+        $this->assertSame('Exact variant unavailable', HardwareConfigurableVariantDisplay::label($item));
+    }
+
+    public function test_handoff_variant_field_is_preferred_over_generic_description(): void
+    {
+        $item = $this->item(9999, null, null, null, 'Biometric Replacement Cable');
+        $item->variant = 'Mantra MFS110 USB';
+
+        $this->assertSame('Mantra MFS110 USB', HardwareConfigurableVariantDisplay::label($item));
+    }
+
+    public function test_verified_token_and_camera_model_ids(): void
+    {
+        $this->assertSame(
+            'Feitian ePass HYP2003 Auto USB Token',
+            HardwareConfigurableVariantDisplay::label($this->item(347, null, null, null, 'USB Token')),
+        );
+        $this->assertSame(
+            'BioEnable C600 Face Camera · C600',
+            HardwareConfigurableVariantDisplay::label($this->item(1749, null, null, null, 'BioEnable C600')),
+        );
     }
 
     private function item(

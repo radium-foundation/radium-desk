@@ -256,6 +256,20 @@
         </div>
 
         @if($canAllocate)
+            @if($quantityOnlyAllocate ?? false)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.serials.store', $fulfilment) }}" id="hardware-quantity-allocate-form">
+                    @csrf
+                    <div class="hf-alloc-card mb-3">
+                        <p class="text-muted small mb-2">This order maps to quantity-tracked Desk products. Confirm branch stock deduction — no serial numbers are required.</p>
+                        <ul class="small mb-3">
+                            @foreach($requirements as $line)
+                                <li>{{ \App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay::label($fulfilment->commerceOrder->items->firstWhere('id', $line['commerce_order_item_id']) ?? new \App\Models\CommerceOrderItem(['description' => $line['description'], 'model_id' => $line['model_id']])) }} · {{ $line['qty'] }} Q · {{ $line['inventory_sku'] ?? '—' }}</li>
+                            @endforeach
+                        </ul>
+                        <button type="submit" class="btn btn-primary" data-confirm="Allocate quantity stock for this fulfilment?">Allocate Stock</button>
+                    </div>
+                </form>
+            @else
             <form method="POST" action="{{ route('inventory.hardware-fulfilments.serials.store', $fulfilment) }}" id="hardware-serial-allocate-form">
                 @csrf
                 @foreach($requirements as $line)
@@ -281,6 +295,7 @@
                 <p class="text-danger small d-none" id="hardware-serial-client-error"></p>
                 <button type="submit" class="btn btn-primary" id="hardware-serial-submit" disabled>Allocate Serial</button>
             </form>
+            @endif
         @endif
 
         <div class="hf-alloc-card mb-3" id="hardware-shipment">

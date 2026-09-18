@@ -75,6 +75,7 @@ final class HardwareShipmentReadiness
         public readonly ?string $actualWeight = null,
         public readonly ?string $providerTrackStatus = null,
         public readonly ?string $providerTrackNormalized = null,
+        public readonly bool $stockCommitted = false,
     ) {}
 
     public function packagePhotoRecorded(): bool

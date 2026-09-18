@@ -14,14 +14,62 @@ use Illuminate\Validation\ValidationException;
  */
 class HardwareSkuMapService
 {
+    /**
+     * @var array<string, InventoryProduct>
+     */
+    private array $resolvedProducts = [];
+
     public function requireProduct(StatutoryInvoiceChannel|string $channel, ?int $modelId): InventoryProduct
+    {
+        return $this->requireMappedProduct($channel, $modelId);
+    }
+
+    public function requireSerializedProductForItem(StatutoryInvoiceChannel|string $channel, CommerceOrderItem $item): InventoryProduct
+    {
+        $product = $this->requireMappedProduct(
+            $channel,
+            $item->model_id !== null ? (int) $item->model_id : null,
+        );
+
+        if (! $product->is_serialized) {
+            throw ValidationException::withMessages([
+                'sku_map' => sprintf(
+                    'Mapped Desk product %s is quantity-tracked. Use stock allocation instead of serial allocation.',
+                    $product->sku,
+                ),
+            ]);
+        }
+
+        return $product;
+    }
+
+    public function requireProductForItem(StatutoryInvoiceChannel|string $channel, CommerceOrderItem $item): InventoryProduct
+    {
+        return $this->requireSerializedProductForItem($channel, $item);
+    }
+
+    public function findProduct(StatutoryInvoiceChannel|string $channel, ?int $modelId): ?InventoryProduct
+    {
+        try {
+            return $this->requireMappedProduct($channel, $modelId);
+        } catch (ValidationException) {
+            return null;
+        }
+    }
+
+    private function requireMappedProduct(StatutoryInvoiceChannel|string $channel, ?int $modelId): InventoryProduct
     {
         $channelValue = $channel instanceof StatutoryInvoiceChannel ? $channel->value : $channel;
 
         if ($modelId === null || $modelId < 1) {
             throw ValidationException::withMessages([
-                'sku_map' => 'Hardware serial allocation requires a model_id so the Owner SKU map can resolve a Desk product. Name or SKU text is not used.',
+                'sku_map' => 'Hardware fulfilment requires a model_id so the Owner SKU map can resolve a Desk product. Name or SKU text is not used.',
             ]);
+        }
+
+        $cacheKey = $channelValue.'|'.$modelId;
+        if (isset($this->resolvedProducts[$cacheKey])) {
+            return $this->resolvedProducts[$cacheKey];
         }
 
         $map = ChannelSkuMap::query()
@@ -47,29 +95,6 @@ class HardwareSkuMapService
             ]);
         }
 
-        if (! $product->is_serialized) {
-            throw ValidationException::withMessages([
-                'sku_map' => sprintf(
-                    'Mapped Desk product %s is not serialized. P4 does not infer non-serialized hardware and P3 requires allocated serials.',
-                    $product->sku,
-                ),
-            ]);
-        }
-
-        return $product;
-    }
-
-    public function requireProductForItem(StatutoryInvoiceChannel|string $channel, CommerceOrderItem $item): InventoryProduct
-    {
-        return $this->requireProduct($channel, $item->model_id !== null ? (int) $item->model_id : null);
-    }
-
-    public function findProduct(StatutoryInvoiceChannel|string $channel, ?int $modelId): ?InventoryProduct
-    {
-        try {
-            return $this->requireProduct($channel, $modelId);
-        } catch (ValidationException) {
-            return null;
-        }
+        return $this->resolvedProducts[$cacheKey] = $product;
     }
 }

@@ -41,6 +41,7 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentParcelSnapshotService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
+use App\Services\HardwareFulfilment\HardwarePhysicalStockCommitment;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentCourierOptionsService;
 use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
@@ -348,6 +349,8 @@ class HardwareFulfilmentSerialController extends Controller
             'requirements' => $requirements,
             'allocated' => $fulfilment->serials,
             'canAllocate' => $canAllocate,
+            'quantityOnlyAllocate' => $fulfilment->commerceOrder !== null
+                && app(HardwarePhysicalStockCommitment::class)->isQuantityOnlyOrder($fulfilment->commerceOrder),
             'derivedBranch' => $fulfilment->fulfilmentBranch,
             'shipment' => $shipment,
             'opsRow' => $opsRow,
@@ -384,19 +387,21 @@ class HardwareFulfilmentSerialController extends Controller
         $requirements = [];
         $canAllocate = false;
         $allocateUnavailableReason = null;
-        if ($row->nextAction === 'Allocate Serial') {
+        if (in_array($row->nextAction, ['Allocate Serial', 'Allocate Stock'], true)) {
             try {
                 $requirements = $this->allocation->requirements($fulfilment);
                 $canAllocate = $fulfilment->state === HardwareFulfilmentState::ReadyForFulfilment
                     && ! HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)
                     && collect($requirements)->every(fn (array $line): bool => $line['map_ready']);
                 if (! $canAllocate) {
-                    $allocateUnavailableReason = $this->allocateUnavailableReason($fulfilment, $requirements);
+                    $allocateUnavailableReason = $this->allocateUnavailableReason($fulfilment, $requirements, $row->nextAction);
                 }
             } catch (ValidationException $exception) {
                 $canAllocate = false;
                 $allocateUnavailableReason = collect($exception->errors())->flatten()->first()
-                    ?: 'Serial allocation is not available for this order yet.';
+                    ?: ($row->nextAction === 'Allocate Stock'
+                        ? 'Stock allocation is not available for this order yet.'
+                        : 'Serial allocation is not available for this order yet.');
             }
         }
 
@@ -407,6 +412,8 @@ class HardwareFulfilmentSerialController extends Controller
             'requirements' => $requirements,
             'canAllocate' => $canAllocate,
             'allocateUnavailableReason' => $allocateUnavailableReason,
+            'quantityOnlyAllocate' => $fulfilment->commerceOrder !== null
+                && app(HardwarePhysicalStockCommitment::class)->isQuantityOnlyOrder($fulfilment->commerceOrder),
             'searchUrl' => route('inventory.hardware-fulfilments.serials.search', $fulfilment),
             'showUrl' => route('inventory.hardware-fulfilments.show', $fulfilment),
             'incidentId' => $this->incidentIdFor($fulfilment),
@@ -498,9 +505,23 @@ class HardwareFulfilmentSerialController extends Controller
     {
         $this->assertCanOperateFulfilment($request, $fulfilment);
 
+        $order = $fulfilment->commerceOrder;
+        if ($order !== null && app(HardwarePhysicalStockCommitment::class)->isQuantityOnlyOrder($order)) {
+            $this->allocation->allocateQuantityStock($fulfilment, $request->user());
+
+            return $this->mutationResponse($request, $fulfilment, 'Quantity stock allocated.');
+        }
+
+        $serials = $request->validated('serials') ?? [];
+        if ($serials === []) {
+            throw ValidationException::withMessages([
+                'serials' => 'Serialized hardware requires explicit serial selection.',
+            ]);
+        }
+
         $this->allocation->allocate(
             $fulfilment,
-            $request->validated('serials'),
+            $serials,
             $request->user(),
         );
 
@@ -714,14 +735,19 @@ class HardwareFulfilmentSerialController extends Controller
     /**
      * @param  list<array<string, mixed>>  $requirements
      */
-    private function allocateUnavailableReason(HardwareFulfilment $fulfilment, array $requirements): string
-    {
+    private function allocateUnavailableReason(
+        HardwareFulfilment $fulfilment,
+        array $requirements,
+        string $nextAction = 'Allocate Serial',
+    ): string {
         if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             return 'Frozen pending hardware orders cannot receive serial allocation.';
         }
 
         if ($fulfilment->state !== HardwareFulfilmentState::ReadyForFulfilment) {
-            return 'Serial allocation requires READY_FOR_FULFILMENT. Payment success is not enough.';
+            return $nextAction === 'Allocate Stock'
+                ? 'Stock allocation requires READY_FOR_FULFILMENT. Payment success is not enough.'
+                : 'Serial allocation requires READY_FOR_FULFILMENT. Payment success is not enough.';
         }
 
         if ($requirements === []) {
@@ -732,7 +758,9 @@ class HardwareFulfilmentSerialController extends Controller
             return 'Owner SKU map is missing for a product on this order. Allocation is blocked.';
         }
 
-        return 'Serial allocation is not available for this order yet.';
+        return $nextAction === 'Allocate Stock'
+            ? 'Stock allocation is not available for this order yet.'
+            : 'Serial allocation is not available for this order yet.';
     }
 
     private function assertCanDownloadFulfilmentDocuments(Request $request, HardwareFulfilment $fulfilment): void

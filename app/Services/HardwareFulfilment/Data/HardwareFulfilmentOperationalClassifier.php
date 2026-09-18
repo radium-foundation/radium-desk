@@ -11,6 +11,7 @@ use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
+use App\Services\HardwareFulfilment\HardwarePhysicalStockCommitment;
 use App\Services\HardwareFulfilment\HardwareSkuMapService;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Support\HardwareFulfilment\HardwareFulfilmentActivityTimestamps;
@@ -132,7 +133,6 @@ final class HardwareFulfilmentOperationalClassifier
             : null;
         $mappingMissing = ! $ownerBlocked
             && $fulfilment->state !== HardwareFulfilmentState::Ingested
-            && $ready->serials === []
             && $this->missingSkuMap($fulfilment, $order);
         $unrecoverableProviderError = $this->providerRejectionIsUnrecoverable($ready, $ownerBlocked);
 
@@ -310,13 +310,23 @@ final class HardwareFulfilmentOperationalClassifier
             return [HardwareFulfilmentOperationalStage::Completed, 'Ready', null, 'Completed'];
         }
 
-        if ($ready->serials === []) {
+        if (! $this->allocationReady($ready)) {
             if ($mappingMissing) {
                 return [
                     HardwareFulfilmentOperationalStage::BlockedReview,
                     'View',
                     null,
                     HardwareAwaitingFulfilmentReason::ProductMappingRequired->label(),
+                ];
+            }
+
+            $order = $fulfilment->commerceOrder;
+            if ($order !== null && app(HardwarePhysicalStockCommitment::class)->isQuantityOnlyOrder($order)) {
+                return [
+                    HardwareFulfilmentOperationalStage::AwaitingSerial,
+                    'Allocate Stock',
+                    'hardware-quantity-allocate-form',
+                    'Awaiting Stock',
                 ];
             }
 
@@ -437,6 +447,20 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         return true;
+    }
+
+    private function allocationReady(HardwareShipmentReadiness $ready): bool
+    {
+        return $ready->serials !== [] || $ready->stockCommitted;
+    }
+
+    private function stockCommitted(HardwareFulfilment $fulfilment, ?CommerceOrder $order): bool
+    {
+        if ($order === null) {
+            return false;
+        }
+
+        return app(HardwarePhysicalStockCommitment::class)->isStockCommitted($fulfilment, $order);
     }
 
     private function missingSkuMap(HardwareFulfilment $fulfilment, ?CommerceOrder $order): bool

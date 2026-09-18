@@ -127,9 +127,11 @@ class HardwareShipmentEligibility
         }
 
         $serials = $order === null ? [] : $this->allocatedSerials($fulfilment);
-        if ($serials === [] && ! $alreadyCreated) {
+        $stockCommitted = $order !== null
+            && app(HardwarePhysicalStockCommitment::class)->isStockCommitted($fulfilment, $order);
+        if (! $stockCommitted && ! $alreadyCreated) {
             $blockers[] = 'Serial allocation required';
-        } elseif ($order !== null && $serials !== [] && count($serials) !== $this->requiredPhysicalQty($order) && ! $alreadyCreated) {
+        } elseif ($order !== null && $serials !== [] && count($serials) !== $this->requiredPhysicalQty($order) && ! $alreadyCreated && ! $stockCommitted) {
             $blockers[] = 'Serial allocation required';
         }
 
@@ -215,7 +217,7 @@ class HardwareShipmentEligibility
             && $fulfilment->state->value === 'invoice_issued';
 
         if (! $localReady && ! $alreadyCreated && $fulfilment->state?->value !== 'invoice_issued') {
-            if ($serials === []) {
+            if (! $stockCommitted && $serials === []) {
                 $blockers = $this->prependUnique($blockers, 'Serial allocation required');
             }
             if ($invoice === null || ! filled($invoice->invoice_number)) {
@@ -346,6 +348,7 @@ class HardwareShipmentEligibility
             actualWeight: $parcel !== null ? number_format($parcel['weight'], 2, '.', '').' kg' : null,
             providerTrackStatus: filled($shipment?->provider_track_status) ? (string) $shipment->provider_track_status : null,
             providerTrackNormalized: filled($shipment?->provider_track_normalized) ? (string) $shipment->provider_track_normalized : null,
+            stockCommitted: $stockCommitted,
         );
     }
 
@@ -395,8 +398,13 @@ class HardwareShipmentEligibility
         ));
 
         if ($serials === []) {
+            $commitment = app(HardwarePhysicalStockCommitment::class);
+            if ($commitment->isQuantityOnlyOrder($order) && $commitment->isStockCommitted($fulfilment, $order)) {
+                return [];
+            }
+
             throw ValidationException::withMessages([
-                'serials' => 'Hardware shipment requires persisted allocated serials.',
+                'serials' => 'Hardware shipment requires persisted allocated serials or committed quantity stock.',
             ]);
         }
 

@@ -6,6 +6,7 @@ use App\Models\CommerceOrder;
 use App\Models\CommerceOrderItem;
 use App\Models\Order;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
+use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
 
 /**
  * Presentation catalog from existing order/product relations.
@@ -78,11 +79,8 @@ final class HardwareFulfilmentProductLines
                 continue;
             }
 
-            $label = trim((string) $item->description);
-            if ($label === '') {
-                $label = trim((string) ($item->sku ?: $item->catalog_sku ?: ''));
-            }
-            if ($label === '') {
+            $label = HardwareConfigurableVariantDisplay::label($item);
+            if ($label === '' || $label === 'Exact variant unavailable') {
                 continue;
             }
 

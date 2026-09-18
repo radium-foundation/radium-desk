@@ -13,6 +13,7 @@ use App\Models\HardwareFulfilmentSerial;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
+use App\Models\InventoryStockBalance;
 use App\Models\User;
 use App\Services\Inventory\InventoryStockService;
 use App\Support\Inventory\InventoryBranchScope;
@@ -37,6 +38,7 @@ class HardwareSerialAllocationService
     public function __construct(
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly HardwareSkuMapService $skuMap,
+        private readonly HardwarePhysicalStockCommitment $stockCommitment,
         private readonly InventoryStockService $stock,
         private readonly HardwareStatutoryInvoiceIssuer $invoices,
     ) {}
@@ -79,17 +81,31 @@ class HardwareSerialAllocationService
                 $byBranch[$code] = 0;
             }
             if ($product !== null) {
-                $counts = InventorySerial::query()
-                    ->selectRaw('inventory_branches.code as branch_code, count(*) as available_qty')
-                    ->join('inventory_branches', 'inventory_branches.id', '=', 'inventory_serials.branch_id')
-                    ->where('inventory_serials.product_id', $product->id)
-                    ->where('inventory_serials.status', InventorySerialStatus::Available)
-                    ->whereIn('inventory_branches.code', self::STOCK_BRANCH_CODES)
-                    ->where('inventory_branches.is_active', true)
-                    ->groupBy('inventory_branches.code')
-                    ->pluck('available_qty', 'branch_code');
-                foreach ($counts as $code => $qty) {
-                    $byBranch[(string) $code] = (int) $qty;
+                if ($product->is_serialized) {
+                    $counts = InventorySerial::query()
+                        ->selectRaw('inventory_branches.code as branch_code, count(*) as available_qty')
+                        ->join('inventory_branches', 'inventory_branches.id', '=', 'inventory_serials.branch_id')
+                        ->where('inventory_serials.product_id', $product->id)
+                        ->where('inventory_serials.status', InventorySerialStatus::Available)
+                        ->whereIn('inventory_branches.code', self::STOCK_BRANCH_CODES)
+                        ->where('inventory_branches.is_active', true)
+                        ->groupBy('inventory_branches.code')
+                        ->pluck('available_qty', 'branch_code');
+                    foreach ($counts as $code => $qty) {
+                        $byBranch[(string) $code] = (int) $qty;
+                    }
+                } else {
+                    $balances = InventoryStockBalance::query()
+                        ->selectRaw('inventory_branches.code as branch_code, inventory_stock_balances.available_qty as available_qty')
+                        ->join('inventory_branches', 'inventory_branches.id', '=', 'inventory_stock_balances.branch_id')
+                        ->where('inventory_stock_balances.product_id', $product->id)
+                        ->whereNull('inventory_stock_balances.variant_id')
+                        ->whereIn('inventory_branches.code', self::STOCK_BRANCH_CODES)
+                        ->where('inventory_branches.is_active', true)
+                        ->get();
+                    foreach ($balances as $balance) {
+                        $byBranch[(string) $balance->branch_code] = (int) $balance->available_qty;
+                    }
                 }
             }
 
@@ -97,6 +113,9 @@ class HardwareSerialAllocationService
                 ? ($byBranch[$lockedBranch->code] ?? 0)
                 : array_sum($byBranch);
             $allocated = $allocatedByItem->get((int) $item->id, collect());
+            $allocatedQty = $product !== null && ! $product->is_serialized
+                ? $this->stockCommitment->quantityCommittedQty($fulfilment, (int) $item->id)
+                : $allocated->count();
 
             $lines[] = [
                 'commerce_order_item_id' => (int) $item->id,
@@ -110,9 +129,10 @@ class HardwareSerialAllocationService
                 'inventory_product_id' => $product?->id,
                 'inventory_sku' => $product?->sku,
                 'map_ready' => $product !== null,
+                'requires_serial' => $product !== null && $product->is_serialized,
                 'available_qty' => $available,
                 'available_by_branch' => $byBranch,
-                'allocated_qty' => $allocated->count(),
+                'allocated_qty' => $allocatedQty,
                 'allocated_serials' => $allocated
                     ->pluck('serial_number')
                     ->filter()
@@ -302,6 +322,186 @@ class HardwareSerialAllocationService
         }
 
         return $this->allocate($fulfilment, [(int) $items[0]->id => $serialNumbers], $actor, $claimedBranchCode);
+    }
+
+    public function allocateQuantityStock(
+        HardwareFulfilment $fulfilment,
+        User $actor,
+        ?string $branchCode = null,
+    ): HardwareFulfilment {
+        $this->assertNotFrozen($fulfilment);
+
+        $allocated = DB::transaction(function () use ($fulfilment, $actor, $branchCode): HardwareFulfilment {
+            $locked = HardwareFulfilment::query()
+                ->whereKey($fulfilment->id)
+                ->lockForUpdate()
+                ->with(['commerceOrder.items', 'serials'])
+                ->firstOrFail();
+
+            $this->assertNotFrozen($locked);
+            $order = $this->requireOrder($locked);
+
+            if ($locked->state === HardwareFulfilmentState::SerialsAllocated
+                && $this->stockCommitment->isStockCommitted($locked, $order)) {
+                return $locked;
+            }
+
+            if (! $this->stockCommitment->isQuantityOnlyOrder($order)) {
+                throw ValidationException::withMessages([
+                    'stock' => 'Quantity stock allocation applies only when every physical line maps to a non-serialized Desk product.',
+                ]);
+            }
+
+            if ($this->allocationIsImmutable($locked)) {
+                throw ValidationException::withMessages([
+                    'stock' => 'Allocated stock is immutable after invoice issuance.',
+                ]);
+            }
+
+            $this->workflow->assertCanAllocateSerials($locked);
+            $this->assertNoPricedServiceCompanion($order);
+
+            $branch = $this->resolveQuantityBranch($locked, $order, $actor, $branchCode);
+            $quantitiesByItemId = [];
+
+            foreach ($this->physicalItems($order) as $item) {
+                $product = $this->skuMap->requireProduct($order->channel, (int) $item->model_id);
+                if ($product->is_serialized) {
+                    throw ValidationException::withMessages([
+                        'stock' => 'Quantity stock allocation cannot include serialized products.',
+                    ]);
+                }
+
+                $qty = (int) $item->qty;
+                $available = (int) InventoryStockBalance::query()
+                    ->where('product_id', $product->id)
+                    ->whereNull('variant_id')
+                    ->where('branch_id', $branch->id)
+                    ->value('available_qty');
+
+                if ($available < $qty) {
+                    throw ValidationException::withMessages([
+                        'stock' => sprintf(
+                            'Insufficient quantity stock for %s at %s (%d required, %d available).',
+                            $product->sku,
+                            $branch->code,
+                            $qty,
+                            $available,
+                        ),
+                    ]);
+                }
+
+                $this->stock->deductQuantity($product, $branch, $qty);
+                $this->stock->recordMovement(
+                    type: InventoryMovementType::Sale,
+                    product: $product,
+                    branch: $branch,
+                    qty: -$qty,
+                    actor: $actor,
+                    notes: 'hardware_fulfilment:'.$locked->id,
+                );
+                $quantitiesByItemId[(int) $item->id] = $qty;
+            }
+
+            $locked->forceFill([
+                'fulfilment_branch_id' => $branch->id,
+                'metadata' => $this->stockCommitment->mergeQuantityCommitMetadata($locked, $quantitiesByItemId),
+            ])->save();
+
+            return $this->workflow->transition(
+                $locked->fresh() ?? $locked,
+                HardwareFulfilmentState::SerialsAllocated,
+                actorType: 'user',
+                actorId: $actor->id,
+                payload: [
+                    'reason' => 'hardware_quantity_stock_allocated',
+                    'quantity_stock' => $quantitiesByItemId,
+                ],
+            );
+        });
+
+        $this->invoices->issueAfterSerialsAllocated($allocated, $actor);
+
+        return $allocated->fresh(['commerceOrder.items', 'serials']) ?? $allocated;
+    }
+
+    /**
+     * @param  list<CommerceOrderItem>  $items
+     */
+    private function resolveQuantityBranch(
+        HardwareFulfilment $fulfilment,
+        CommerceOrder $order,
+        User $actor,
+        ?string $branchCode,
+    ): InventoryBranch {
+        $stored = $this->storedStockBranch($fulfilment);
+        $claimed = $this->normalizeClaimedBranchCode($branchCode);
+
+        if ($stored !== null) {
+            InventoryBranchScope::assertCanOperate($actor, $stored);
+
+            return $stored;
+        }
+
+        if ($claimed !== null) {
+            $branch = $this->requireSupportedStockBranchByCode($claimed);
+            InventoryBranchScope::assertCanOperate($actor, $branch);
+            $this->assertQuantityAvailableAtBranch($order, $branch);
+
+            return $branch;
+        }
+
+        $candidates = [];
+        foreach (self::STOCK_BRANCH_CODES as $code) {
+            try {
+                $branch = $this->requireSupportedStockBranchByCode($code);
+                InventoryBranchScope::assertCanOperate($actor, $branch);
+                $this->assertQuantityAvailableAtBranch($order, $branch);
+                $candidates[] = $branch;
+            } catch (ValidationException) {
+                continue;
+            }
+        }
+
+        if (count($candidates) === 1) {
+            return $candidates[0];
+        }
+
+        if ($candidates === []) {
+            throw ValidationException::withMessages([
+                'stock' => 'No branch has sufficient quantity stock for this fulfilment.',
+            ]);
+        }
+
+        throw ValidationException::withMessages([
+            'stock' => 'Quantity stock is available at multiple branches. Specify the fulfilment branch.',
+        ]);
+    }
+
+    private function assertQuantityAvailableAtBranch(CommerceOrder $order, InventoryBranch $branch): void
+    {
+        foreach ($this->physicalItems($order) as $item) {
+            $product = $this->skuMap->requireProduct($order->channel, (int) $item->model_id);
+            if ($product->is_serialized) {
+                continue;
+            }
+
+            $available = (int) InventoryStockBalance::query()
+                ->where('product_id', $product->id)
+                ->whereNull('variant_id')
+                ->where('branch_id', $branch->id)
+                ->value('available_qty');
+
+            if ($available < (int) $item->qty) {
+                throw ValidationException::withMessages([
+                    'stock' => sprintf(
+                        'Insufficient quantity stock for %s at %s.',
+                        $product->sku,
+                        $branch->code,
+                    ),
+                ]);
+            }
+        }
     }
 
     private function idempotentAllocated(HardwareFulfilment $fulfilment, array $serialsByItemId): HardwareFulfilment

@@ -3,6 +3,7 @@
     $subtitles = [
         'Ready for Fulfilment' => 'Mark this ingested order ready so serials can be allocated.',
         'Allocate Serial' => 'Assign the verified physical device to this order.',
+        'Allocate Stock' => 'Confirm quantity stock deduction for non-serialized hardware.',
         'Issue Invoice' => 'Issue the hardware GST invoice for this one order.',
         'Enter Package Dimensions' => 'Measure the complete packed shipment, then save before courier options.',
         'Get Courier Options' => 'Prepare shipment details, then fetch returned courier options.',
@@ -18,6 +19,7 @@
     $icons = [
         'Ready for Fulfilment' => '✅',
         'Allocate Serial' => '🔢',
+        'Allocate Stock' => '📦',
         'Issue Invoice' => '🧾',
         'Enter Package Dimensions' => '📦',
         'Get Courier Options' => '🚚',
@@ -124,6 +126,17 @@
                     ])
                 @elseif($action === 'Allocate Serial')
                     @include('inventory.hardware-fulfilments.fragments.action-allocate-serial')
+                @elseif($action === 'Allocate Stock')
+                    @include('inventory.hardware-fulfilments.fragments.action-confirm', [
+                        'formAction' => route('inventory.hardware-fulfilments.serials.store', $fulfilment),
+                        'formId' => 'hardware-action-quantity-allocate-form',
+                        'summary' => [
+                            'Product' => $productSummary !== '' ? $productSummary : $row->productDisplay(),
+                            'Quantity' => $row->quantity !== '—' && $row->quantity !== '' ? $row->quantity : '—',
+                            'Allocation' => 'Quantity stock (no serial numbers)',
+                        ],
+                        'submitLabel' => 'Allocate Stock',
+                    ])
                 @elseif($action === 'Issue Invoice')
                     @include('inventory.hardware-fulfilments.fragments.action-issue-invoice')
                 @elseif($action === 'Enter Package Dimensions')

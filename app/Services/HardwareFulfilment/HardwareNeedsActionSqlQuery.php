@@ -519,8 +519,7 @@ final class HardwareNeedsActionSqlQuery
                                     ->join('inventory_products', 'inventory_products.id', '=', 'channel_sku_maps.inventory_product_id')
                                     ->whereColumn('channel_sku_maps.channel', 'hardware_fulfilments.channel')
                                     ->whereColumn('channel_sku_maps.model_id', 'coi.model_id')
-                                    ->where('inventory_products.is_active', true)
-                                    ->where('inventory_products.is_serialized', true);
+                                    ->where('inventory_products.is_active', true);
                             });
                     });
             });
@@ -571,8 +570,7 @@ final class HardwareNeedsActionSqlQuery
                                             ->join('inventory_products', 'inventory_products.id', '=', 'channel_sku_maps.inventory_product_id')
                                             ->whereColumn('channel_sku_maps.channel', 'commerce_orders.channel')
                                             ->whereColumn('channel_sku_maps.model_id', 'coi.model_id')
-                                            ->where('inventory_products.is_active', true)
-                                            ->where('inventory_products.is_serialized', true);
+                                            ->where('inventory_products.is_active', true);
                                     });
                             });
                     });

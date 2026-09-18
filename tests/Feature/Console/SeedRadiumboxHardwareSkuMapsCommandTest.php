@@ -1,0 +1,87 @@
+<?php
+
+namespace Tests\Feature\Console;
+
+use App\Enums\StatutoryInvoiceChannel;
+use App\Models\ChannelSkuMap;
+use App\Models\InventoryProduct;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        foreach ([
+            ['RBHYP2003T', 347],
+            ['RBBIOC600C', 1749],
+            ['RBMFSTYPEC', 1409],
+            ['RBMFSUSBCB', 1410],
+        ] as [$sku, $modelId]) {
+            $product = InventoryProduct::query()->create([
+                'sku' => $sku,
+                'name' => $sku,
+                'hsn_code' => '85444299',
+                'gst_percentage' => 18,
+                'unit_price' => 100,
+                'is_serialized' => in_array($sku, ['RBHYP2003T', 'RBBIOC600C'], true),
+                'is_active' => true,
+            ]);
+            ChannelSkuMap::query()->create([
+                'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+                'model_id' => 9990 + $modelId,
+                'inventory_product_id' => $product->id,
+                'catalog_sku' => 'EXISTING-'.$modelId,
+                'channel_sku' => '9990',
+            ]);
+        }
+    }
+
+    public function test_dry_run_previews_verified_maps_without_writing(): void
+    {
+        $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--dry-run' => true])
+            ->assertSuccessful();
+
+        $this->assertSame(0, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410])->count());
+    }
+
+    public function test_apply_creates_maps_idempotently(): void
+    {
+        $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
+            ->assertSuccessful();
+
+        $this->assertSame(4, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410])->count());
+
+        $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
+            ->assertSuccessful();
+
+        $this->assertSame(4, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410])->count());
+    }
+
+    public function test_conflicting_existing_map_fails_closed(): void
+    {
+        $other = InventoryProduct::query()->create([
+            'sku' => 'OTHER-SKU',
+            'name' => 'Other',
+            'hsn_code' => '85444299',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 1409,
+            'inventory_product_id' => $other->id,
+            'catalog_sku' => 'CONFLICT',
+            'channel_sku' => '1409',
+        ]);
+
+        $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
+            ->assertFailed();
+    }
+}

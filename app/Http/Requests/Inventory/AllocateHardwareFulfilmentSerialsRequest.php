@@ -18,7 +18,7 @@ class AllocateHardwareFulfilmentSerialsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'serials' => ['required', 'array'],
+            'serials' => ['nullable', 'array'],
             'serials.*' => ['array'],
             'serials.*.*' => ['string', 'max:80'],
             'claimed_branch' => ['prohibited'],
