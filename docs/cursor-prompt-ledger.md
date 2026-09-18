@@ -391,4 +391,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-18-09-52 | 2026-09-18 | rdservice.net channel contract alignment (tests + GST tolerance + callback suppression) | Companion RDServiceNet-P-18-09-02. `RdServiceNetPayloadContractAlignmentTest.php`; 1-paisa GST tolerance for `rdservice_net`; suppress `Call Back - Not Required` at mint. No production mint/ingest/secrets/deploy. |
 
+| RadiumDesk-P-18-09-53 | 2026-09-18 | Step 1 isolated E2E rehearsal (local pair) | Local Desk serve + SQLite; B2C/B2B ingest/mint/idempotency PASS; PDF bytes FAIL (local Imagick). No production deploy. Companion RDServiceNet-P-18-09-03. |
+
 Do not renumber or overwrite earlier rows. Append only.
