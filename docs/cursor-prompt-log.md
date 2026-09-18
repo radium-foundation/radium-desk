@@ -45,5 +45,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-32 | 2026-09-18 | Implement RB* service statutory commerce snapshot + routing | Desk snapshot service, RB*→radiumbox_com routing, SAC config, focused regression tests; radiumbox.com `service_commerce` lookup API. Not deployed. No RB222 production repair. |
 | RadiumDesk-P-18-09-33 | 2026-09-18 | Statutory PDF black logo + optional add-on line suppression | `brand/logo.png` authoritative PDF logo; suppress unselected zero-value duration/callback lines; service invoice descriptions from commerce text. Not deployed. |
 | RadiumDesk-P-18-09-34 | 2026-09-18 | RB* service statutory regression gate + commit/push | Final review; goods-HSN SAC guard; `branding.cin`; no new protected regressions vs baseline. Committed/pushed. Not deployed. No RB222 repair. |
+| RadiumDesk-P-18-09-35 | 2026-09-18 | Production deploy v4.0.85 RB* service statutory invoicing | Owner-authorized KVM deploy after radiumbox.com `service_commerce` overlay. Read-only RB222 integration verification; no RB222 repair/mint/snapshot. Rollback: v4.0.84 / `c6d55ab6`. |
 
 Do not renumber or overwrite earlier rows. Append only.
