@@ -393,4 +393,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-18-09-53 | 2026-09-18 | Step 1 isolated E2E rehearsal (local pair) | Local Desk serve + SQLite; B2C/B2B ingest/mint/idempotency PASS; PDF bytes FAIL (local Imagick). No production deploy. Companion RDServiceNet-P-18-09-03. |
 
+| RadiumDesk-P-18-09-54 | 2026-09-18 | Paired rehearsal infrastructure feasibility (read-only) | Confirms no Desk staging platform; local disposable rehearsal only; owner must provision isolated Desk before KVM paired rehearsal. Companion RDServiceNet-P-18-09-04. |
+
 Do not renumber or overwrite earlier rows. Append only.
