@@ -27,5 +27,8 @@ final readonly class RadiumBoxServiceCommerceLookup
         public ?float $lineTotal,
         public ?float $gstPercentage,
         public ?string $orderedAt,
+        public ?string $durationType = null,
+        public ?float $durationPrice = null,
+        public ?float $baseTaxableValue = null,
     ) {}
 }

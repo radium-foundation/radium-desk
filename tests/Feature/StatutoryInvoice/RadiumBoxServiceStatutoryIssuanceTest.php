@@ -224,6 +224,79 @@ class RadiumBoxServiceStatutoryIssuanceTest extends TestCase
         $this->assertStringNotContainsString('Not Required', $pdf);
     }
 
+    public function test_rb_express_duration_snapshot_creates_two_commerce_lines_and_invoices_total(): void
+    {
+        Http::fake([
+            'radiumbox.test/api/integrations/v1/rd-orders/RB115' => Http::response($this->rb115DurationLookupPayload()),
+        ]);
+
+        $order = $this->deskOrder('RB115');
+        $commerce = $this->snapshots->ensureForSupportOrder($order);
+
+        $this->assertSame(607.63, (float) $commerce->taxable_value);
+        $this->assertSame(109.37, (float) $commerce->tax_total);
+        $this->assertSame(717.0, (float) $commerce->order_value);
+        $this->assertNull($commerce->buyer_gstin);
+        $this->assertCount(2, $commerce->items);
+        $this->assertNull($commerce->items[0]->variant);
+        $this->assertSame('express', $commerce->items[1]->variant);
+        $this->assertSame(100.0, (float) $commerce->items[1]->taxable_value);
+        $this->assertSame(18.0, (float) $commerce->items[1]->tax_total);
+
+        $invoice = $this->invoices->issueFromSupportOrder($order, $this->actor);
+
+        $this->assertSame(717.0, (float) $invoice->invoice_value);
+        $this->assertCount(2, $invoice->items);
+        $this->assertStringContainsString('priority assistance', (string) $invoice->items[1]->description);
+    }
+
+    public function test_invalid_source_gstin_is_stored_as_null_for_b2c_rb_service(): void
+    {
+        Http::fake([
+            'radiumbox.test/api/integrations/v1/rd-orders/RB94' => Http::response($this->rb94InvalidGstLookupPayload()),
+        ]);
+
+        $order = Order::query()->create([
+            'order_id' => 'RB94',
+            'serial_number' => '1234567',
+            'product_name' => 'Mantra MIS100',
+            'gst_number' => 'na',
+            'payment_amount' => 597,
+            'cashfree_payment_id' => '6450000094',
+            'status' => 'active',
+            'created_by' => $this->actor->id,
+            'updated_by' => $this->actor->id,
+        ]);
+
+        $commerce = $this->snapshots->ensureForSupportOrder($order);
+
+        $this->assertNull($commerce->buyer_gstin);
+        $this->assertSame('Uttar Pradesh', $commerce->billing_state);
+    }
+
+    public function test_legacy_dadra_billing_state_maps_to_merged_ut(): void
+    {
+        Http::fake([
+            'radiumbox.test/api/integrations/v1/rd-orders/RB143' => Http::response($this->rb143LegacyStateLookupPayload()),
+        ]);
+
+        $order = Order::query()->create([
+            'order_id' => 'RB143',
+            'serial_number' => '1234567',
+            'product_name' => 'Mantra MIS100',
+            'payment_amount' => 597,
+            'cashfree_payment_id' => '6450000143',
+            'status' => 'active',
+            'created_by' => $this->actor->id,
+            'updated_by' => $this->actor->id,
+        ]);
+
+        $commerce = $this->snapshots->ensureForSupportOrder($order);
+
+        $this->assertSame('Dadra and Nagar Haveli and Daman and Diu', $commerce->billing_state);
+        $this->assertSame('Dadra and Nagar Haveli and Daman and Diu', $commerce->place_of_supply_state);
+    }
+
     public function test_rb_service_one_paisa_publish_selling_tax_difference_issues_with_source_tax_preserved(): void
     {
         Http::fake([
@@ -349,6 +422,149 @@ class RadiumBoxServiceStatutoryIssuanceTest extends TestCase
         ]);
 
         $this->assertTrue(app(HardwareCommerceStatutoryInvoiceGuard::class)->requiresHardwareSerialPath($order->fresh(['items'])));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rb115DurationLookupPayload(): array
+    {
+        return [
+            'status' => 200,
+            'message' => 'OK',
+            'data' => [
+                'correlation' => ['rdorderid' => 'RB115'],
+                'snapshot' => [
+                    'customer_name' => 'Buyer',
+                    'email' => 'buyer@example.com',
+                    'phone' => '9000000115',
+                    'serial_number' => '1234567',
+                    'product' => 'Mantra MIS100',
+                    'rd_service' => '1 Year Unlimited',
+                    'order_date' => '2026-09-12 10:00:00',
+                ],
+                'rd_order' => [
+                    'rdorderid' => 'RB115',
+                    'paid_amount' => '717',
+                    'gst_no' => null,
+                ],
+                'service_commerce' => [
+                    'rdorderid' => 'RB115',
+                    'billing_state' => 'Bihar',
+                    'place_of_supply_state' => 'Bihar',
+                    'billing_address' => 'Patna, Bihar, 800001',
+                    'billing_address_structured' => [
+                        'line1' => 'Patna',
+                        'city' => 'Patna',
+                        'state' => 'Bihar',
+                        'pincode' => '800001',
+                    ],
+                    'gst_no' => null,
+                    'amount' => 507.63,
+                    'base_taxable_value' => 507.63,
+                    'duration' => 'express',
+                    'duration_price' => 100.0,
+                    'taxable_value' => 607.63,
+                    'tax_total' => 109.37,
+                    'line_total' => 717.0,
+                    'gst_percentage' => 18.0,
+                    'catalog_hsn_sac' => '998314',
+                    'service_description' => 'Information Technology (IT) Consulting & Support Services (SAC - 998313) - (Sr. No. 1234567) - 1 Year Unlimited',
+                    'ordered_at' => '2026-09-12 10:00:00',
+                ],
+                'lines' => [],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rb94InvalidGstLookupPayload(): array
+    {
+        return [
+            'status' => 200,
+            'message' => 'OK',
+            'data' => [
+                'correlation' => ['rdorderid' => 'RB94'],
+                'snapshot' => [
+                    'customer_name' => 'Buyer',
+                    'email' => 'buyer@example.com',
+                    'phone' => '9000000094',
+                    'serial_number' => '1234567',
+                    'product' => 'Mantra MIS100',
+                    'rd_service' => '1 Year Unlimited',
+                    'order_date' => '2026-09-12 10:00:00',
+                ],
+                'rd_order' => ['rdorderid' => 'RB94', 'paid_amount' => '597', 'gst_no' => 'na'],
+                'service_commerce' => [
+                    'rdorderid' => 'RB94',
+                    'billing_state' => 'Uttar Pradesh',
+                    'place_of_supply_state' => 'Uttar Pradesh',
+                    'billing_address' => 'Lucknow, Uttar Pradesh, 226001',
+                    'billing_address_structured' => [
+                        'line1' => 'Lucknow',
+                        'city' => 'Lucknow',
+                        'state' => 'Uttar Pradesh',
+                        'pincode' => '226001',
+                    ],
+                    'gst_no' => 'na',
+                    'taxable_value' => 505.94,
+                    'tax_total' => 91.06,
+                    'line_total' => 597.0,
+                    'gst_percentage' => 18.0,
+                    'catalog_hsn_sac' => '998314',
+                    'service_description' => 'Information Technology (IT) Consulting & Support Services (SAC - 998313) - (Sr. No. 1234567) - 1 Year Unlimited',
+                    'ordered_at' => '2026-09-12 10:00:00',
+                ],
+                'lines' => [],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rb143LegacyStateLookupPayload(): array
+    {
+        return [
+            'status' => 200,
+            'message' => 'OK',
+            'data' => [
+                'correlation' => ['rdorderid' => 'RB143'],
+                'snapshot' => [
+                    'customer_name' => 'Buyer',
+                    'email' => 'buyer@example.com',
+                    'phone' => '9000000143',
+                    'serial_number' => '1234567',
+                    'product' => 'Mantra MIS100',
+                    'rd_service' => '1 Year Unlimited',
+                    'order_date' => '2026-09-12 10:00:00',
+                ],
+                'rd_order' => ['rdorderid' => 'RB143', 'paid_amount' => '597', 'gst_no' => null],
+                'service_commerce' => [
+                    'rdorderid' => 'RB143',
+                    'billing_state' => 'Dadra and Nagar Haveli',
+                    'place_of_supply_state' => 'Dadra and Nagar Haveli',
+                    'billing_address' => 'Silvassa, Dadra and Nagar Haveli, 396230',
+                    'billing_address_structured' => [
+                        'line1' => 'Silvassa',
+                        'city' => 'Silvassa',
+                        'state' => 'Dadra and Nagar Haveli',
+                        'pincode' => '396230',
+                    ],
+                    'gst_no' => null,
+                    'taxable_value' => 505.94,
+                    'tax_total' => 91.06,
+                    'line_total' => 597.0,
+                    'gst_percentage' => 18.0,
+                    'catalog_hsn_sac' => '998314',
+                    'service_description' => 'Information Technology (IT) Consulting & Support Services (SAC - 998313) - (Sr. No. 1234567) - 1 Year Unlimited',
+                    'ordered_at' => '2026-09-12 10:00:00',
+                ],
+                'lines' => [],
+            ],
+        ];
     }
 
     /**

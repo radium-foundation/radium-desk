@@ -57,5 +57,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-44 | 2026-09-18 | RB* service publish-minus-selling GST 1-paisa reconciliation | Gate exclusivePaisaTolerance=1 on radiumbox_com RB* service statutory mint only. Tests; no production repair/deploy. |
 | RadiumDesk-P-18-09-45 | 2026-09-18 | Release/deploy v4.0.87 RB* service GST 1-paisa reconciliation | Tag/deploy `5fab6a38` GST tolerance to KVM8 production. Post-deploy protected regression only. No five-order repair. Rollback: v4.0.86 / `98cfb26a`. |
 | RadiumDesk-P-18-09-46 | 2026-09-18 | RB* five-order GST repair (RB6/RB9/RB126/RB141/RB212) | Owner-authorized production statutory invoice repair on v4.0.87. Reuse CO-005342/CO-005343 orphans. No other RB* orders. |
+| RadiumDesk-P-18-09-47 | 2026-09-18 | RB* duration + invalid-GSTIN statutory support (35 orders) | Desk implementation for 29 express duration_price orders and 6 B2C-sanitized GSTIN/state orders. Investigation + tests. No deploy/production repair. |
 
 Do not renumber or overwrite earlier rows. Append only.

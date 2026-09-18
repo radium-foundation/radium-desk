@@ -25,6 +25,7 @@ final class RadiumBoxServiceCommerceSnapshotService
     public function __construct(
         private readonly OrderEnrichmentLookupService $lookup,
         private readonly RadiumBoxServiceCommerceLookupMapper $mapper,
+        private readonly RadiumBoxServiceCommerceLineBuilder $lineBuilder,
     ) {}
 
     public function ensureForSupportOrder(Order $order): CommerceOrder
@@ -87,7 +88,7 @@ final class RadiumBoxServiceCommerceSnapshotService
                 'customer_name' => $lookup->customerName ?? $order->customer_name,
                 'customer_phone' => $lookup->customerPhone ?? $order->customer_phone,
                 'customer_email' => $lookup->customerEmail ?? $order->customer_email,
-                'buyer_gstin' => BuyerGstin::normalize($lookup->buyerGstin ?? $order->gst_number),
+                'buyer_gstin' => $this->buyerGstinForSnapshot($lookup, $order),
                 'billing_address' => $lookup->billingAddress,
                 'billing_state' => $lookup->billingState,
                 'billing_address_structured' => $lookup->billingAddressStructured,
@@ -105,18 +106,21 @@ final class RadiumBoxServiceCommerceSnapshotService
                 'order_no' => sprintf('CO-%06d', $commerce->id),
             ]);
 
-            CommerceOrderItem::query()->create([
-                'commerce_order_id' => $commerce->id,
-                'line_no' => 1,
-                'description' => $lookup->serviceDescription,
-                'hsn_sac' => $lookup->catalogHsnSac,
-                'qty' => 1,
-                'unit_price' => $lookup->taxableValue,
-                'gst_percentage' => $lookup->gstPercentage,
-                'taxable_value' => $lookup->taxableValue,
-                'tax_total' => $lookup->taxTotal,
-                'line_total' => $lookup->lineTotal,
-            ]);
+            foreach ($this->lineBuilder->build($lookup) as $line) {
+                CommerceOrderItem::query()->create([
+                    'commerce_order_id' => $commerce->id,
+                    'line_no' => $line['line_no'],
+                    'description' => $line['description'],
+                    'variant' => $line['variant'],
+                    'hsn_sac' => $line['hsn_sac'],
+                    'qty' => $line['qty'],
+                    'unit_price' => $line['unit_price'],
+                    'gst_percentage' => $line['gst_percentage'],
+                    'taxable_value' => $line['taxable_value'],
+                    'tax_total' => $line['tax_total'],
+                    'line_total' => $line['line_total'],
+                ]);
+            }
 
             return $commerce->fresh(['items']) ?? $commerce;
         }, self::ATTEMPTS);
@@ -200,6 +204,17 @@ final class RadiumBoxServiceCommerceSnapshotService
         }
     }
 
+    private function buyerGstinForSnapshot(RadiumBoxServiceCommerceLookup $lookup, Order $order): ?string
+    {
+        if ($lookup->buyerGstin !== null) {
+            return $lookup->buyerGstin;
+        }
+
+        $deskGstin = BuyerGstin::normalize($order->gst_number);
+
+        return BuyerGstin::isValid($deskGstin) ? $deskGstin : null;
+    }
+
     private function paymentStatus(Order $order): string
     {
         if (filled($order->transaction_id) || filled($order->cashfree_payment_id)) {
@@ -250,13 +265,16 @@ final class RadiumBoxServiceCommerceSnapshotService
             'place_of_supply_state' => $lookup->placeOfSupplyState,
             'billing_address' => $lookup->billingAddress,
             'billing_address_structured' => $structured,
-            'buyer_gstin' => BuyerGstin::normalize($lookup->buyerGstin ?? $order->gst_number),
+            'buyer_gstin' => $this->buyerGstinForSnapshot($lookup, $order),
             'taxable_value' => $lookup->taxableValue,
             'tax_total' => $lookup->taxTotal,
             'line_total' => $lookup->lineTotal,
             'gst_percentage' => $lookup->gstPercentage,
             'service_description' => $lookup->serviceDescription,
             'catalog_hsn_sac' => $lookup->catalogHsnSac,
+            'duration_type' => $lookup->durationType,
+            'duration_price' => $lookup->durationPrice,
+            'base_taxable_value' => $lookup->baseTaxableValue,
         ], JSON_THROW_ON_ERROR));
     }
 }
