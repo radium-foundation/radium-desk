@@ -102,6 +102,11 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public ?string $nextPickupMode = null;
 
+    /**
+     * @var list<ShiprocketTrackResult|null>
+     */
+    public array $trackByAwbQueue = [];
+
     public ?string $lastAssignCourierId = null;
 
     /**
@@ -321,6 +326,12 @@ final class FakeShiprocketGateway implements ShiprocketGateway
                 error: 'HTTP 400 — Already in Pickup Queue.',
                 alreadyQueued: false,
             ),
+            'invalid_status' => new ShiprocketPickupResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'HTTP 400 — Invalid Status for pickup generation',
+                retryable: false,
+            ),
             'rejected' => new ShiprocketPickupResult(
                 provider: $this->provider(),
                 status: 'rejected',
@@ -413,22 +424,58 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public function trackByAwb(string $awb): ShiprocketTrackResult
     {
         $this->tracks++;
+        if ($this->trackByAwbQueue !== []) {
+            $next = array_shift($this->trackByAwbQueue);
+            if ($next !== null) {
+                return $next;
+            }
+        }
+
         $this->assertSuccessMode();
         $row = $this->awbRowByAwb($awb);
 
+        return self::awbAssignedTrack(
+            $awb,
+            (string) ($row['courier_id'] ?? '12'),
+            (string) ($row['courier_name'] ?? 'Fake Courier'),
+        );
+    }
+
+    public static function outForPickupTrack(string $awb, string $courierId = '12', string $courierName = 'Fake Courier'): ShiprocketTrackResult
+    {
         return new ShiprocketTrackResult(
-            provider: $this->provider(),
-            status: 'in_transit',
+            provider: 'shiprocket',
+            status: '19',
             activities: [
                 [
                     'awb' => $awb,
-                    'activity' => 'Picked up',
-                    'location' => 'Delhi',
+                    'activity' => 'Out for Pickup',
+                    'current_status' => 'Out for Pickup',
+                    'current_status_id' => 19,
                 ],
             ],
             awb: $awb,
-            courierId: $row['courier_id'] ?? '12',
-            courierName: $row['courier_name'] ?? 'Fake Courier',
+            courierId: $courierId,
+            courierName: $courierName,
+        );
+    }
+
+    public static function awbAssignedTrack(string $awb, string $courierId = '12', string $courierName = 'Fake Courier'): ShiprocketTrackResult
+    {
+        return new ShiprocketTrackResult(
+            provider: 'shiprocket',
+            status: 'awb_assigned',
+            activities: [
+                [
+                    'awb' => $awb,
+                    'activity' => 'AWB assigned',
+                    'current_status' => 'AWB Assigned',
+                    'current_status_id' => 6,
+                ],
+            ],
+            awb: $awb,
+            courierId: $courierId,
+            courierName: $courierName,
         );
     }
 
