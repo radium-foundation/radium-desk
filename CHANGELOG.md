@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.76 — 2026-09-18 — Service Ready Queue permanent capability fix
+
+- Restore Service Ready Queue visibility for hybrid `hardware_team` operators via `dashboard.ready_queue.view` or the settings-driven `ReadyQueueAdmin` capability, without requiring a manual admin role assignment.
+- Default eligible operators to the Ready Queue workspace instead of Hardware when they have admin-queue or Ready Queue capability access.
+- Add a fail-closed deployment contract (`ready-queue-service.manifest`) so `desk deploy` stops before rsync if protected Ready Queue files or markers are missing.
+- Regression tests lock permission grants, capability-based visibility, hybrid default routing, and RD service task access.
+
 ## 4.0.75 — 2026-09-17 — Hardware Dashboard P-302 mainline
 
 - Restore Hardware Dashboard P-07-09-302 into mainline: Needs Action default filter, shipping sub-filters (Ready for Pickup, Out for Pickup), received/last-activity timeline, workspace navigation, and live hardware endpoint.

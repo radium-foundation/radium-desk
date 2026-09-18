@@ -26,5 +26,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-17-09-17 | 2026-09-17 | Restore P-07-09-302 Hardware Dashboard Needs Action overlay | Surgical restoration from `radium-desk-needs-action-overlay` @ `aeb66090` on branch `fix/hardware-dashboard-p302-restore`. Local regression PASS (37 tests). Production surgical overlay **not performed** — SSH blocked. No full `desk deploy`. |
 | RadiumDesk-P-17-09-18 | 2026-09-17 | Integrate P-302 Hardware Dashboard into mainline + deployment guard | Merge `fix/hardware-dashboard-p302-restore` onto `origin/main`; `deploy-kvm.sh` verifies `tools/contracts/hardware-dashboard-p302.manifest` before rsync. Not deployed. |
 | RadiumDesk-P-18-09-02 | 2026-09-18 | Restore Service Ready Queue on mainline + deployment guard | Re-integrate `abbb2c75`/`61a58732` capability fix onto `main`; add `ready-queue-service.manifest` + deploy guard. Hybrid hardware operators regain Ready Queue via permission or ReadyQueueAdmin capability. Not deployed. |
+| RadiumDesk-P-18-09-03 | 2026-09-18 | Release v4.0.76 Service Ready Queue permanent fix | Verified permanent fix on `main`, strengthened deploy contract tests, tagged `v4.0.76`, pushed to `origin`. Production deploy not performed. |
 
 Do not renumber or overwrite earlier rows. Append only.
