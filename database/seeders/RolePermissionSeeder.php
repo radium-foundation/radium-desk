@@ -137,6 +137,9 @@ class RolePermissionSeeder extends Seeder
     /** Fill-if-absent shipping country overlay. Admin-team only. Not hardware_team. */
     public const PERMISSION_HARDWARE_FULFILMENT_CORRECT_COUNTRY = 'hardware.fulfilment.correct-country';
 
+    /** Cancel a verified historical duplicate Desk fulfilment. Admin role only. */
+    public const PERMISSION_HARDWARE_FULFILMENT_CANCEL_HISTORICAL_DUPLICATE = 'hardware.fulfilment.cancel-historical-duplicate';
+
     public const PERMISSION_POS_CANCEL = 'pos.cancel';
 
     /** Confirm a pending UPI POS intent after checking the live bank. Assigned to no role. */
@@ -447,6 +450,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_REFUNDS_REVOKE,
+            self::PERMISSION_HARDWARE_FULFILMENT_CANCEL_HISTORICAL_DUPLICATE,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
         ],
         self::ROLE_OPERATIONS_ADMIN => [

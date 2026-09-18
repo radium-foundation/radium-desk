@@ -116,6 +116,10 @@ final class HardwareFulfilmentOperationalClassifier
 
     public function fromFulfilment(HardwareFulfilment $fulfilment, HardwareShipmentReadiness $ready): HardwareFulfilmentOperationalRow
     {
+        if ($fulfilment->state === HardwareFulfilmentState::CancelledHistoricalDuplicate) {
+            return $this->cancelledHistoricalDuplicateRow($fulfilment);
+        }
+
         $order = $fulfilment->commerceOrder;
         $date = $order?->ordered_at ?? $order?->paid_at ?? $fulfilment->ingested_at ?? $fulfilment->created_at;
         $ist = $date?->copy()->timezone(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
@@ -515,5 +519,48 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         return 'RDE';
+    }
+
+    private function cancelledHistoricalDuplicateRow(HardwareFulfilment $fulfilment): HardwareFulfilmentOperationalRow
+    {
+        $order = $fulfilment->commerceOrder;
+        $date = $order?->ordered_at ?? $fulfilment->ingested_at ?? $fulfilment->created_at;
+        $ist = $date?->copy()->timezone(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
+        $catalog = HardwareFulfilmentProductLines::resolve($order, $fulfilment->supportOrder);
+
+        return new HardwareFulfilmentOperationalRow(
+            sourceId: (string) $fulfilment->source_id,
+            orderDateIst: $ist?->format('Y-m-d H:i') ?? '—',
+            lastActionDateIst: HardwareFulfilmentActivityTimestamps::lastActionIstForFulfilment($fulfilment),
+            customer: $order?->customer_name ?: '—',
+            product: $catalog['compact'],
+            sku: '—',
+            quantity: $catalog['quantity'] !== '' ? $catalog['quantity'] : '—',
+            payment: 'Paid',
+            fulfilmentStatus: 'CANCELLED HISTORICAL DUPLICATE',
+            serialStatus: 'Released',
+            invoiceStatus: $fulfilment->statutoryInvoice?->invoice_number ?: 'None',
+            shipmentStatus: 'Preserved',
+            awbStatus: 'Not assigned',
+            stage: HardwareFulfilmentOperationalStage::BlockedReview,
+            nextAction: 'View',
+            nextUrl: route('inventory.hardware-fulfilments.show', $fulfilment),
+            blocker: 'Historical duplicate Desk fulfilment cancelled. Shipment evidence preserved.',
+            fulfilmentId: (int) $fulfilment->id,
+            supportOrderId: $fulfilment->support_order_id !== null ? (int) $fulfilment->support_order_id : null,
+            hasFulfilment: true,
+            source: $this->sourcePrefix((string) $fulfilment->source_id),
+            section: HardwareOperationsSection::Exceptions,
+            nextAnchor: null,
+            mutatingAction: false,
+            packagePhotoRecorded: false,
+            statusLabel: 'Cancelled historical duplicate',
+            productLines: $catalog['lines'],
+            productMissing: $catalog['missing'],
+            allocatedSerialNumbers: [],
+            expectedSerialQuantity: null,
+            productStatusLabel: null,
+            isB2bCustomer: $this->isB2bCommerce($order),
+        );
     }
 }

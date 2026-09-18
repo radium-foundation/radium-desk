@@ -86,6 +86,7 @@ Service POS must not create inventory movements, reservations, sales, or serial 
 | WM112 mapping / fulfilment | P-18-09-16 (v4.0.80) | `SeedRadiumboxHardwareSkuMapsCommandTest`, `HardwareReadyQueueVariantDisplayTest` | model_id 340 → RBWM112MZ |
 | AWB / courier / label behavior | P-18-09-09 (v4.0.77) | `HardwareFulfilmentCourierWorkflowTest`, `HardwareFulfilmentP5ShipmentTest`, AWB gateway unit tests | Alternate courier recovery |
 | RBP222 invoice state before PDF (v4.0.81) | P-18-09-18 | `HardwareFulfilmentInvoicePdfFailureTest` | Fulfilment 948 recovery path |
+| Historical duplicate fulfilment cancellation | P-18-09-26 (RDE318338 / fulfilment 932) | `HardwareHistoricalDuplicateFulfilmentCancellationTest` | Safely terminate duplicate fulfilment, release allocated serial after ownership validation, cancel duplicate Desk invoice via `StatutoryInvoiceService::cancel()`, preserve shipment/provider evidence, exclude from Ready Queue/shipment workflows; **no Shiprocket mutation** |
 | Hardware POS | prior releases | `PosSaleServiceTest`, POS statutory/e-invoice suites | Out of scope for v4.0.82 UAT |
 
 ---
@@ -123,6 +124,7 @@ See `docs/desk-operational-reference-series-p-17-09-16.md`. Service orders use u
 ```bash
 php artisan test tests/Feature/ServicePos
 php artisan test tests/Feature/OperationalReference
+php artisan test tests/Feature/HardwareFulfilment/HardwareHistoricalDuplicateFulfilmentCancellationTest.php
 php artisan test tests/Feature/HardwareFulfilment/HardwareFulfilmentOperationalWorkflowTest.php --filter pickup
 bash tests/scripts/verify-hardware-dashboard-contract.test.sh
 bash tests/scripts/verify-ready-queue-contract.test.sh

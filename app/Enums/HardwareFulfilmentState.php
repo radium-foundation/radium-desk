@@ -15,6 +15,7 @@ enum HardwareFulfilmentState: string
     case Synced = 'synced';
     case Failed = 'failed';
     case RetryPending = 'retry_pending';
+    case CancelledHistoricalDuplicate = 'cancelled_historical_duplicate';
 
     /**
      * Owner-locked hardware sequence. SERIALS_ALLOCATED precedes INVOICE_ISSUED.
@@ -48,8 +49,13 @@ enum HardwareFulfilmentState: string
             self::AwbAssigned => 6,
             self::Shipped => 7,
             self::Synced => 8,
-            self::Failed, self::RetryPending => -1,
+            self::Failed, self::RetryPending, self::CancelledHistoricalDuplicate => -1,
         };
+    }
+
+    public function isTerminal(): bool
+    {
+        return in_array($this, [self::Synced, self::CancelledHistoricalDuplicate], true);
     }
 
     /**
@@ -64,14 +70,15 @@ enum HardwareFulfilmentState: string
             self::Paid => [self::Ingested, self::Failed, self::RetryPending],
             self::Ingested => [self::ReadyForFulfilment, self::Failed, self::RetryPending],
             self::ReadyForFulfilment => [self::SerialsAllocated, self::Failed, self::RetryPending],
-            self::SerialsAllocated => [self::InvoiceIssued, self::Failed, self::RetryPending],
-            self::InvoiceIssued => [self::ShipmentCreated, self::Failed, self::RetryPending],
-            self::ShipmentCreated => [self::AwbAssigned, self::Failed, self::RetryPending],
+            self::SerialsAllocated => [self::InvoiceIssued, self::Failed, self::RetryPending, self::CancelledHistoricalDuplicate],
+            self::InvoiceIssued => [self::ShipmentCreated, self::Failed, self::RetryPending, self::CancelledHistoricalDuplicate],
+            self::ShipmentCreated => [self::AwbAssigned, self::Failed, self::RetryPending, self::CancelledHistoricalDuplicate],
             self::AwbAssigned => [self::Shipped, self::Failed, self::RetryPending],
             self::Shipped => [self::Synced, self::Failed, self::RetryPending],
             self::Synced => [self::Synced, self::Failed, self::RetryPending],
             self::Failed => [self::RetryPending],
             self::RetryPending => [self::Failed],
+            self::CancelledHistoricalDuplicate => [],
         };
     }
 

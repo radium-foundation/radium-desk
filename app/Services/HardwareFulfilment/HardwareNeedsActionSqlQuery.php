@@ -338,6 +338,7 @@ final class HardwareNeedsActionSqlQuery
                 HardwareFulfilmentState::Ingested->value,
                 HardwareFulfilmentState::Shipped->value,
                 HardwareFulfilmentState::Synced->value,
+                HardwareFulfilmentState::CancelledHistoricalDuplicate->value,
             ])
             ->whereNotIn('hardware_fulfilments.source_id', $this->ownerBlockedSourceIds());
         $this->applyFulfilmentSearch($query, $search);

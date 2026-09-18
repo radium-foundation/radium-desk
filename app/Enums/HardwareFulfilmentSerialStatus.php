@@ -7,4 +7,5 @@ enum HardwareFulfilmentSerialStatus: string
     case Pending = 'pending';
     case Reserved = 'reserved';
     case Allocated = 'allocated';
+    case Released = 'released';
 }

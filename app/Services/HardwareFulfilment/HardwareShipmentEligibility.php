@@ -42,6 +42,12 @@ class HardwareShipmentEligibility
      */
     public function require(HardwareFulfilment $fulfilment): array
     {
+        if ($fulfilment->state === HardwareFulfilmentState::CancelledHistoricalDuplicate) {
+            throw ValidationException::withMessages([
+                'fulfilment' => 'Cancelled historical duplicate fulfilments cannot enter shipment workflows.',
+            ]);
+        }
+
         if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             throw ValidationException::withMessages([
                 'fulfilment' => 'Frozen pending hardware orders cannot be shipped.',
@@ -105,6 +111,10 @@ class HardwareShipmentEligibility
 
     public function inspect(HardwareFulfilment $fulfilment): HardwareShipmentReadiness
     {
+        if ($fulfilment->state === HardwareFulfilmentState::CancelledHistoricalDuplicate) {
+            return $this->cancelledHistoricalDuplicateReadiness($fulfilment);
+        }
+
         $fulfilment->loadMissing([
             'commerceOrder.items',
             'serials.inventorySerial.branch',
@@ -846,5 +856,29 @@ class HardwareShipmentEligibility
         }
 
         return $number;
+    }
+
+    private function cancelledHistoricalDuplicateReadiness(HardwareFulfilment $fulfilment): HardwareShipmentReadiness
+    {
+        return new HardwareShipmentReadiness(
+            canCreate: false,
+            blockers: ['Cancelled historical duplicate fulfilments cannot enter shipment workflows.'],
+            status: 'Cancelled historical duplicate',
+            pickupBranch: null,
+            pickupLocation: null,
+            shipTo: null,
+            parcel: null,
+            invoice: $fulfilment->statutoryInvoice?->invoice_number,
+            serials: [],
+            order: $fulfilment->commerceOrder?->order_no ?? $fulfilment->source_id,
+            product: null,
+            alreadyCreated: $fulfilment->shipment !== null,
+            actionLabel: 'View',
+            shipmentId: $fulfilment->shipment_id,
+            shipmentNo: $fulfilment->shipment_no,
+            providerShipmentId: $fulfilment->provider_shipment_id,
+            providerRejection: $fulfilment->shipment?->last_error,
+            payment: 'Paid',
+        );
     }
 }

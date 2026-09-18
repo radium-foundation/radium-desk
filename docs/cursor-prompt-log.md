@@ -36,5 +36,7 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-22 | 2026-09-18 | Production Service POS completion UAT (controlled) | Controlled production UAT on v4.0.82: DEV catalog → SVC-671+ → invoice/PDF → payments → isolation → 403. No code/deploy changes. |
 | RadiumDesk-P-18-09-23 | 2026-09-18 | Production Service POS DeskService GST split verification | Intra-state CGST+SGST and inter-state IGST production verification via Service POS. No code/deploy changes. |
 | RadiumDesk-P-18-09-24 | 2026-09-18 | v4.0.82 production regression lock (Service POS + verified contracts) | Permanent lock doc + Service POS GST split regression + quote idempotency test. Baseline `5186f4a6`. No deploy. |
+| RadiumDesk-P-18-09-25 | 2026-09-18 | Read-only production investigation: RBP188 + RDE318338 | Package-photo/shipment lifecycle for RBP188; historical duplicate-shipment state for RDE318338. Investigation only; no code/DB/deploy. |
+| RadiumDesk-P-18-09-26 | 2026-09-18 | RDE318338 historical duplicate fulfilment cancellation | Controlled cancellation for fulfilment 932 / serial 016 / INV-0767138 after historical Admin completion (IND671904). `desk:cancel-historical-duplicate-fulfilment`; preserve Shiprocket shipment 1591193505; no AWB/retry. Regression lock updated. |
 
 Do not renumber or overwrite earlier rows. Append only.
