@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.85 — 2026-09-18 — RB* service statutory invoicing integration
+
+- Route RB* service orders to `radiumbox_com` for statutory commerce snapshots via RadiumBox `service_commerce` lookup.
+- Add `RadiumBoxServiceCommerceSnapshotService`, lookup mapper, and SAC routing guard for goods HSN on service channel.
+- Statutory PDF uses black logo asset; suppress unselected zero-value optional service lines on invoice presentation.
+- Rollback target: v4.0.84 / `c6d55ab6`.
+
 ## 4.0.84 — 2026-09-18 — Ready for Pickup top-level hardware dashboard tab
 
 - Add Ready for Pickup as a top-level peer tab beside Needs Action on the hardware dashboard.
