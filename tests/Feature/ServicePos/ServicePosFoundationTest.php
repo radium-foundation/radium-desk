@@ -151,6 +151,32 @@ class ServicePosFoundationTest extends TestCase
         $this->assertGreaterThan(0, (float) $quote->total);
     }
 
+    public function test_quote_create_idempotency_key_returns_existing_quote(): void
+    {
+        $first = $this->quotes->createQuote(
+            $this->customer,
+            $this->branch,
+            [['service_item_id' => $this->rdItem->id, 'qty' => 1]],
+            $this->actor,
+            billingState: 'Delhi',
+            placeOfSupplyState: 'Delhi',
+            idempotencyKey: 'service-pos-quote-idem',
+        );
+
+        $second = $this->quotes->createQuote(
+            $this->customer,
+            $this->branch,
+            [['service_item_id' => $this->rdItem->id, 'qty' => 1]],
+            $this->actor,
+            billingState: 'Delhi',
+            placeOfSupplyState: 'Delhi',
+            idempotencyKey: 'service-pos-quote-idem',
+        );
+
+        $this->assertSame($first->id, $second->id);
+        $this->assertSame(1, ServiceQuote::query()->count());
+    }
+
     public function test_quote_conversion_creates_exactly_one_service_order(): void
     {
         $quote = $this->createThreeLineQuote();
