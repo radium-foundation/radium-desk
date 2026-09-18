@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.79 — 2026-09-18 — Hardware Ready Queue replacement-cable operator label
+
+- Append an explicit `Cable` designation to verified replacement-cable model_ids (1409, 1410, 1419–1422) on the Hardware Ready Queue and hardware fulfilment workspace via `operatorLabel()`.
+- Preserve exact Mantra MFS110 Type-C vs USB variant text and existing quantity formatting (`· 1 Q`, `· 1 Q +1`).
+- Keep invoice and statutory PDF line descriptions unchanged through `label()` / `invoiceDescription()` (no `Cable` suffix on invoices).
+- WM112 model_id 340 remains blocked (`Product mapping required`); no channel-map, inventory, or fulfilment-state changes.
+- Regression tests lock operator queue labels, invoice description isolation, Hardware Dashboard P-302, and Service Ready Queue contracts.
+
 ## 4.0.78 — 2026-09-18 — Hardware product mapping and Ready Queue variant display
 
 - Allow non-serialized Desk inventory products through Owner-approved `channel_sku_maps` with quantity stock allocation instead of serial allocation.
