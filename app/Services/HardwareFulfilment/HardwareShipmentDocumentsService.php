@@ -4,6 +4,7 @@ namespace App\Services\HardwareFulfilment;
 
 use App\Contracts\Shipping\ShiprocketGateway;
 use App\Enums\HardwareFulfilmentState;
+use App\Enums\ShiprocketTrackNormalized;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentEvent;
 use App\Models\Shipment;
@@ -11,11 +12,14 @@ use App\Models\ShipmentEvent;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwarePickupRequestOutcome;
 use App\Services\Shipping\Data\ShiprocketDocumentResult;
+use App\Services\Shipping\Data\ShiprocketTrackResult;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\Shipping\ShiprocketAlreadyQueuedPickup;
 use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
+use App\Services\Shipping\ShiprocketPickupInvalidStatus;
 use App\Services\Shipping\ShiprocketRetryableException;
+use App\Services\Shipping\ShiprocketTrackingNormalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -66,8 +70,9 @@ class HardwareShipmentDocumentsService
     {
         $alreadyLocal = false;
         $reconciled = false;
+        $reconciledProviderAdvanced = false;
 
-        $shipment = $this->mutateDocument($fulfilment, $actor, 'pickup', function (HardwareFulfilment $locked, Shipment $shipment) use ($actor, &$alreadyLocal, &$reconciled): Shipment {
+        $shipment = $this->mutateDocument($fulfilment, $actor, 'pickup', function (HardwareFulfilment $locked, Shipment $shipment) use ($actor, &$alreadyLocal, &$reconciled, &$reconciledProviderAdvanced): Shipment {
             if ($shipment->pickup_requested_at !== null) {
                 $alreadyLocal = true;
 
@@ -76,6 +81,13 @@ class HardwareShipmentDocumentsService
 
             $this->assertAwbReady($locked, $shipment);
             $this->assertProviderCallable();
+
+            $advanced = $this->applyProviderTrackPickupReconciliation($locked, $shipment, $actor);
+            if ($advanced !== null) {
+                $reconciledProviderAdvanced = true;
+
+                return $advanced;
+            }
 
             try {
                 $result = $this->gateway->requestPickup((string) $shipment->external_shipment_id);
@@ -94,41 +106,79 @@ class HardwareShipmentDocumentsService
             $reconciled = ShiprocketAlreadyQueuedPickup::matchesRejectedResult($result);
 
             if (! $result->isAccepted() && ! $reconciled) {
+                if (ShiprocketPickupInvalidStatus::matchesRejectedResult($result)) {
+                    $advanced = $this->applyProviderTrackPickupReconciliation($locked, $shipment, $actor);
+                    if ($advanced !== null) {
+                        $reconciledProviderAdvanced = true;
+
+                        return $advanced;
+                    }
+                }
+
                 throw ValidationException::withMessages([
                     'shipping' => $result->error ?? 'Shiprocket rejected pickup generation.',
                 ]);
             }
 
-            $shipment->forceFill([
-                'pickup_requested_at' => now(),
-                'last_error' => null,
-            ])->save();
-
-            $activity = $reconciled ? 'pickup_reconciled_already_queued' : 'pickup_requested';
-            $reason = $reconciled ? 'hardware_pickup_reconciled_already_queued' : 'hardware_pickup_requested';
-
-            $this->recordShipmentEvent($shipment, $activity, [
-                'provider' => $result->provider,
-                'result' => $result->status,
-                'already_queued' => $reconciled,
-                'error' => $result->error,
-            ]);
-            $this->recordFulfilmentEvent($locked, $actor, $reason, [
-                'shipment_id' => $shipment->id,
-                'provider' => $result->provider,
-                'correlation_id' => $shipment->correlation_id,
-                'result' => $result->status,
-                'already_queued' => $reconciled,
-                'external_shipment_id' => $shipment->external_shipment_id,
-            ]);
-
-            return $shipment->fresh() ?? $shipment;
+            return $this->markPickupRequested(
+                $locked,
+                $shipment,
+                $actor,
+                $reconciled ? 'pickup_reconciled_already_queued' : 'pickup_requested',
+                $reconciled ? 'hardware_pickup_reconciled_already_queued' : 'hardware_pickup_requested',
+                [
+                    'provider' => $result->provider,
+                    'result' => $result->status,
+                    'already_queued' => $reconciled,
+                    'error' => $result->error,
+                ],
+            );
         });
 
         return new HardwarePickupRequestOutcome(
             shipment: $shipment,
             alreadyLocal: $alreadyLocal,
             reconciled: $reconciled,
+            reconciledProviderAdvanced: $reconciledProviderAdvanced,
+        );
+    }
+
+    /**
+     * Reconcile local pickup state from verified provider tracking without
+     * calling /courier/generate/pickup. Idempotent when pickup is already local.
+     */
+    public function reconcilePickupFromProviderTrack(HardwareFulfilment $fulfilment, ?User $actor = null): HardwarePickupRequestOutcome
+    {
+        $alreadyLocal = false;
+        $reconciledProviderAdvanced = false;
+
+        $shipment = $this->mutateDocument($fulfilment, $actor, 'pickup', function (HardwareFulfilment $locked, Shipment $shipment) use ($actor, &$alreadyLocal, &$reconciledProviderAdvanced): Shipment {
+            if ($shipment->pickup_requested_at !== null) {
+                $alreadyLocal = true;
+
+                return $shipment;
+            }
+
+            $this->assertAwbReady($locked, $shipment);
+            $this->assertProviderCallable();
+
+            $advanced = $this->applyProviderTrackPickupReconciliation($locked, $shipment, $actor);
+            if ($advanced === null) {
+                throw ValidationException::withMessages([
+                    'shipping' => 'Provider tracking does not show an advanced pickup state to reconcile.',
+                ]);
+            }
+
+            $reconciledProviderAdvanced = true;
+
+            return $advanced;
+        });
+
+        return new HardwarePickupRequestOutcome(
+            shipment: $shipment,
+            alreadyLocal: $alreadyLocal,
+            reconciled: false,
+            reconciledProviderAdvanced: $reconciledProviderAdvanced,
         );
     }
 
@@ -303,6 +353,86 @@ class HardwareShipmentDocumentsService
                 'shipping' => 'This action requires a persisted provider AWB.',
             ]);
         }
+    }
+
+    private function applyProviderTrackPickupReconciliation(
+        HardwareFulfilment $locked,
+        Shipment $shipment,
+        ?User $actor,
+    ): ?Shipment {
+        if ($shipment->pickup_requested_at !== null) {
+            return $shipment;
+        }
+
+        $track = $this->providerTrackForShipment($shipment);
+        if (! ShiprocketTrackingNormalizer::pickupAlreadyAdvanced($track)) {
+            return null;
+        }
+
+        $normalized = ShiprocketTrackingNormalizer::normalize($track);
+        $this->persistProviderTrack($shipment, $normalized);
+
+        return $this->markPickupRequested(
+            $locked,
+            $shipment,
+            $actor,
+            'pickup_reconciled_provider_advanced',
+            'hardware_pickup_reconciled_provider_advanced',
+            [
+                'provider' => $track->provider,
+                'result' => $track->status,
+                'provider_track_status' => $normalized['provider_track_status'],
+                'provider_track_normalized' => $normalized['normalized']->value,
+            ],
+        );
+    }
+
+    private function providerTrackForShipment(Shipment $shipment): ShiprocketTrackResult
+    {
+        $awb = trim((string) $shipment->awb);
+        if ($awb !== '') {
+            return $this->gateway->trackByAwb($awb);
+        }
+
+        return $this->gateway->trackByShipment((string) $shipment->external_shipment_id);
+    }
+
+    /**
+     * @param  array{provider_track_status: string, normalized: ShiprocketTrackNormalized}  $normalized
+     */
+    private function persistProviderTrack(Shipment $shipment, array $normalized): void
+    {
+        $shipment->forceFill([
+            'provider_track_status' => $normalized['provider_track_status'],
+            'provider_track_normalized' => $normalized['normalized']->value,
+            'provider_tracked_at' => now(),
+        ])->save();
+    }
+
+    /**
+     * @param  array<string, mixed>  $eventPayload
+     */
+    private function markPickupRequested(
+        HardwareFulfilment $locked,
+        Shipment $shipment,
+        ?User $actor,
+        string $activity,
+        string $reason,
+        array $eventPayload,
+    ): Shipment {
+        $shipment->forceFill([
+            'pickup_requested_at' => now(),
+            'last_error' => null,
+        ])->save();
+
+        $this->recordShipmentEvent($shipment, $activity, $eventPayload);
+        $this->recordFulfilmentEvent($locked, $actor, $reason, array_merge([
+            'shipment_id' => $shipment->id,
+            'correlation_id' => $shipment->correlation_id,
+            'external_shipment_id' => $shipment->external_shipment_id,
+        ], $eventPayload));
+
+        return $shipment->fresh() ?? $shipment;
     }
 
     /**

@@ -14,6 +14,7 @@ use App\Models\StatutoryInvoice;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentCourierQuote;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
 use App\Services\Shipping\NullShiprocketGateway;
+use App\Services\Shipping\ShiprocketTrackingNormalizer;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Validation\ValidationException;
 
@@ -273,7 +274,11 @@ class HardwareShipmentEligibility
         $labelUrl = filled($shipment?->label_url) ? (string) $shipment->label_url : null;
         $manifestUrl = filled($shipment?->manifest_url) ? (string) $shipment->manifest_url : null;
         $manifestId = filled($shipment?->manifest_id) ? (string) $shipment->manifest_id : null;
-        $pickupRequested = $shipment?->pickup_requested_at !== null;
+        $pickupRequested = $shipment?->pickup_requested_at !== null
+            || ShiprocketTrackingNormalizer::pickupAdvancedOnShipment(
+                filled($shipment?->provider_track_normalized) ? (string) $shipment->provider_track_normalized : null,
+                $shipment?->pickup_requested_at,
+            );
         $beforeLabel = $this->packageEvidence($fulfilment, HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel);
         $labelApplied = $this->packageEvidence($fulfilment, HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied);
         $readyForPickup = $fulfilment->ready_for_pickup_at !== null;
