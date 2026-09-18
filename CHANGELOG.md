@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.78 — 2026-09-18 — Hardware product mapping and Ready Queue variant display
+
+- Allow non-serialized Desk inventory products through Owner-approved `channel_sku_maps` with quantity stock allocation instead of serial allocation.
+- Preserve serialized hardware fulfilment gates, statutory invoice guards, and existing POS/Service POS behavior.
+- Show exact hardware model/variant labels on the Hardware Ready Queue from stored `model_id` and variant metadata (including Mantra MFS110 Type-C vs USB cables).
+- Add idempotent `desk:seed-radiumbox-hardware-sku-maps` for verified radiumbox.com mappings (347, 1749, 1409, 1410); model_id 340 / WM112 remains blocked pending Desk catalog.
+- Regression tests lock variant display, non-serialized fulfilment, seed idempotency, Hardware Dashboard P-302, and Service Ready Queue contracts.
+
 ## 4.0.77 — 2026-09-18 — Shiprocket AWB courier reliability
 
 - Re-quote Shiprocket serviceability with `order_id` immediately before AWB assignment instead of reusing a stale stored courier.
