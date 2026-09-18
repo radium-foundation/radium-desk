@@ -8,8 +8,11 @@
     $activeFilter = $hardwareWorkspace['filter'] ?? HardwareWorkspaceFilter::NeedsAction->value;
     $search = $hardwareWorkspace['search'] ?? '';
     $activeFilterEnum = HardwareWorkspaceFilter::tryFrom($activeFilter) ?? HardwareWorkspaceFilter::NeedsAction;
+    $readyForPickupTopOpen = $activeScope === HardwareWorkspaceScope::Active->value
+        && $activeFilterEnum->isReadyForPickupWorkspace();
     $needsActionOpen = $activeScope === HardwareWorkspaceScope::Active->value && $activeFilterEnum->isNeedsAction();
-    $shippingOpen = $activeScope === HardwareWorkspaceScope::Active->value && $activeFilterEnum->isShipping();
+    $shippingTopOpen = $activeScope === HardwareWorkspaceScope::Active->value && $activeFilterEnum->isShippingTopTab();
+    $shippingSubNavOpen = $activeScope === HardwareWorkspaceScope::Active->value && $activeFilterEnum->showsShippingLifecycleSubNav();
     $completedOpen = $activeScope === HardwareWorkspaceScope::Shipped->value
         || in_array($activeFilterEnum, [HardwareWorkspaceFilter::Completed, HardwareWorkspaceFilter::Delivered], true);
 
@@ -34,10 +37,17 @@
             <span class="dashboard-case-filter-chip__label">Needs Action</span>
             <span class="dashboard-case-filter-chip__count" data-hardware-filter-count="needs_action">({{ $filterCounts['needs_action'] ?? 0 }})</span>
         </a>
-        <a href="{{ $hardwareUrl(['hw_filter' => HardwareWorkspaceFilter::Shipping->value]) }}"
-           @class(['dashboard-case-filter-chip', 'dashboard-case-filter-chip--warning', 'is-active' => $shippingOpen])
+        <a href="{{ $hardwareUrl(['hw_filter' => HardwareWorkspaceFilter::ReadyForPickup->value]) }}"
+           @class(['dashboard-case-filter-chip', 'dashboard-case-filter-chip--warning', 'is-active' => $readyForPickupTopOpen])
            role="tab"
-           @if($shippingOpen) aria-selected="true" aria-current="page" @else aria-selected="false" @endif>
+           @if($readyForPickupTopOpen) aria-selected="true" aria-current="page" @else aria-selected="false" @endif>
+            <span class="dashboard-case-filter-chip__label">Ready for Pickup</span>
+            <span class="dashboard-case-filter-chip__count" data-hardware-filter-count="ready_for_pickup">({{ $filterCounts['ready_for_pickup'] ?? 0 }})</span>
+        </a>
+        <a href="{{ $hardwareUrl(['hw_filter' => HardwareWorkspaceFilter::Shipping->value]) }}"
+           @class(['dashboard-case-filter-chip', 'dashboard-case-filter-chip--warning', 'is-active' => $shippingTopOpen])
+           role="tab"
+           @if($shippingTopOpen) aria-selected="true" aria-current="page" @else aria-selected="false" @endif>
             <span class="dashboard-case-filter-chip__label">Shipping</span>
             <span class="dashboard-case-filter-chip__count" data-hardware-filter-count="shipping">({{ $filterCounts['shipping'] ?? 0 }})</span>
         </a>
@@ -80,13 +90,14 @@
         </div>
     @endif
 
-    @if($shippingOpen)
+    @if($shippingSubNavOpen)
         <div class="dashboard-case-filters dashboard-operation-queues dashboard-hardware-nav__filters"
              role="tablist"
              aria-label="Shipping queues">
             @foreach($hardwareWorkspace['shipping_filters'] ?? HardwareWorkspaceFilter::shippingFilters() as $filter)
                 @php
-                    $filterActive = $activeFilter === $filter->value;
+                    $filterActive = $activeFilter === $filter->value
+                        && ! ($readyForPickupTopOpen && $filter === HardwareWorkspaceFilter::ReadyForPickup);
                 @endphp
                 <a href="{{ $hardwareUrl(['hw_filter' => $filter->value]) }}"
                    @class([

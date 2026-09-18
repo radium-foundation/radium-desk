@@ -130,6 +130,141 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $awaiting->fresh()->state);
     }
 
+    public function test_ready_for_pickup_is_top_level_peer_to_needs_action(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->seedCatalog();
+
+        $ready = $this->fulfilment(
+            'RDE990001',
+            HardwareFulfilmentState::AwbAssigned,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB990001',
+            label: true,
+            pickup: true,
+            manifest: true,
+            evidence: true,
+            ready: true,
+        );
+        $this->fulfilment('RDE990002', HardwareFulfilmentState::ReadyForFulfilment);
+
+        $html = $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'ready_for_pickup']))
+            ->assertOk()
+            ->assertSee('RDE990001')
+            ->assertDontSee('RDE990002')
+            ->getContent();
+
+        $this->assertStringContainsString('data-hardware-filter="ready_for_pickup"', $html);
+        $this->assertMatchesRegularExpression('/data-hardware-filter-count="ready_for_pickup">\(1\)/', $html);
+        preg_match('/<div class="dashboard-hardware-nav">(.*?)<div class="dashboard-quick-filter/s', $html, $hardwareNav);
+        $this->assertSame(1, substr_count($hardwareNav[1] ?? '', 'aria-current="page"'));
+
+        $needsActionHtml = $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'needs_action']))
+            ->assertOk()
+            ->assertSee('RDE990002')
+            ->assertDontSee('RDE990001')
+            ->getContent();
+
+        $this->assertStringContainsString('data-hardware-filter="needs_action"', $needsActionHtml);
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="dashboard-hardware-workspace"[^>]*data-hardware-filter="ready_for_pickup"/',
+            $needsActionHtml,
+        );
+
+        $from = HardwareFulfilmentEligibility::cutoffInstant();
+        $to = Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
+        $sql = app(HardwareNeedsActionSqlQuery::class);
+        $this->assertSame(1, $sql->filterCounts($from, $to)['ready_for_pickup']);
+        $this->assertSame(
+            1,
+            app(HardwareFulfilmentWorkQueue::class)->dashboard(
+                $from,
+                $to,
+                '',
+                HardwareWorkspaceScope::Active,
+                HardwareWorkspaceFilter::ReadyForPickup,
+            )['unfiltered_total'],
+        );
+        $this->assertSame((int) $ready->id, (int) app(HardwareFulfilmentWorkQueue::class)->dashboard(
+            $from,
+            $to,
+            '',
+            HardwareWorkspaceScope::Active,
+            HardwareWorkspaceFilter::ReadyForPickup,
+        )['rows']->first()?->fulfilmentId);
+    }
+
+    public function test_cancelled_historical_duplicate_is_excluded_from_ready_for_pickup_workspace(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->seedCatalog();
+
+        $this->fulfilment(
+            'RDE990003',
+            HardwareFulfilmentState::CancelledHistoricalDuplicate,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB990003',
+            label: true,
+            pickup: true,
+            manifest: true,
+            evidence: true,
+            ready: true,
+        );
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'ready_for_pickup']))
+            ->assertOk()
+            ->assertDontSee('RDE990003');
+
+        $from = HardwareFulfilmentEligibility::cutoffInstant();
+        $to = Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
+        $this->assertSame(
+            0,
+            app(HardwareNeedsActionSqlQuery::class)->filterCounts($from, $to)['ready_for_pickup'],
+        );
+    }
+
+    public function test_ready_for_pickup_workspace_selection_is_presentation_only(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->seedCatalog();
+
+        $this->fulfilment(
+            'RDE990004',
+            HardwareFulfilmentState::AwbAssigned,
+            serial: true,
+            invoice: true,
+            bound: true,
+            awb: 'AWB990004',
+            label: true,
+            pickup: true,
+            manifest: true,
+            evidence: true,
+            ready: true,
+        );
+
+        $html = $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'ready_for_pickup']))
+            ->assertOk()
+            ->assertSee('data-hardware-select', false)
+            ->assertSee('Open selected')
+            ->assertDontSee('Bulk Generate')
+            ->assertDontSee('hardware-fulfilments/bulk/labels', false)
+            ->assertDontSee('hardware-fulfilments/bulk/manifest', false)
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-batch-assign', $html);
+    }
+
     public function test_needs_action_paginates_without_rendering_the_full_queue(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
@@ -497,6 +632,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         bool $manifest = false,
         bool $evidence = false,
         ?string $track = null,
+        bool $ready = false,
     ): HardwareFulfilment {
         $creator = User::factory()->create(['is_active' => true]);
         $order = Order::query()->create([
@@ -617,6 +753,14 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
                 'uploaded_by_user_id' => $creator->id,
                 'uploaded_at' => now(),
             ]);
+        }
+
+        if ($ready) {
+            $readyUpdates = ['ready_for_pickup_at' => now()];
+            if ($state !== HardwareFulfilmentState::CancelledHistoricalDuplicate) {
+                $readyUpdates['state'] = HardwareFulfilmentState::AwbAssigned;
+            }
+            $fulfilment->forceFill($readyUpdates)->save();
         }
 
         return $fulfilment->fresh() ?? $fulfilment;

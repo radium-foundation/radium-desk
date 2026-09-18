@@ -97,4 +97,28 @@ enum HardwareWorkspaceFilter: string
     {
         return $this === self::Shipping || in_array($this, self::shippingFilters(), true);
     }
+
+    public function isReadyForPickupWorkspace(): bool
+    {
+        return $this === self::ReadyForPickup;
+    }
+
+    /**
+     * Shipping aggregate and in-flight lifecycle queues. Excludes the dedicated
+     * Ready for Pickup workspace tab, which uses the same underlying filter.
+     */
+    public function isShippingTopTab(): bool
+    {
+        return in_array($this, [
+            self::Shipping,
+            self::OutForPickup,
+            self::InTransit,
+            self::PickedUp,
+        ], true);
+    }
+
+    public function showsShippingLifecycleSubNav(): bool
+    {
+        return $this->isShipping();
+    }
 }

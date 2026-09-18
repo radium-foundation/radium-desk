@@ -38,5 +38,7 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-24 | 2026-09-18 | v4.0.82 production regression lock (Service POS + verified contracts) | Permanent lock doc + Service POS GST split regression + quote idempotency test. Baseline `5186f4a6`. No deploy. |
 | RadiumDesk-P-18-09-25 | 2026-09-18 | Read-only production investigation: RBP188 + RDE318338 | Package-photo/shipment lifecycle for RBP188; historical duplicate-shipment state for RDE318338. Investigation only; no code/DB/deploy. |
 | RadiumDesk-P-18-09-26 | 2026-09-18 | RDE318338 historical duplicate fulfilment cancellation | Controlled cancellation for fulfilment 932 / serial 016 / INV-0767138 after historical Admin completion (IND671904). `desk:cancel-historical-duplicate-fulfilment`; preserve Shiprocket shipment 1591193505; no AWB/retry. Regression lock updated. |
+| RadiumDesk-P-18-09-27 | 2026-09-18 | Read-only: hardware shipment automation + Ready for Pickup design | Map current state machine, operator action count, courier recommendation behavior, bulk label/manifest gaps, idempotency, and phased automation design. **No code/DB/deploy/commit.** |
+| RadiumDesk-P-18-09-28 | 2026-09-18 | Phase 1: Ready for Pickup top-level hardware dashboard tab | Add Ready for Pickup as peer tab to Needs Action; reuse `readyForPickupQuery()`; preserve Shipping lifecycle sub-nav. UI/navigation only. **No deploy.** |
 
 Do not renumber or overwrite earlier rows. Append only.
