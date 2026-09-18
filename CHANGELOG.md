@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.82 — 2026-09-18 — RBP222 pickup-state reconciliation
+
+- Reconcile local pickup state when Shiprocket tracking shows pickup already advanced (e.g. Out for Pickup / status 19) without calling `/courier/generate/pickup`.
+- Recover from HTTP 400 `Invalid Status for pickup generation` only after a read-only provider track confirms pickup-advanced movement; otherwise preserve the provider error.
+- Block Request Pickup eligibility when persisted provider track indicates pickup already advanced, even if local `pickup_requested_at` is still null.
+- Add idempotent `reconcilePickupFromProviderTrack()` for controlled one-record production recovery.
+- Preserve manual courier selection (recommended courier remains display-only), existing Already in Pickup Queue reconciliation, AWB/label/invoice/serial/parcel workflows, RBP103 measured parcel, WM112 mapping, Hardware Dashboard P-302, and Service Ready Queue contracts.
+- Rollback target: v4.0.81 / `9e00a510`.
+
 ## 4.0.81 — 2026-09-18 — RBP222 serialized invoice state-transition fix
 
 - Transition hardware fulfilments to `invoice_issued` immediately after durable statutory invoice mint/link, before PDF asset generation.
