@@ -49,9 +49,91 @@ class HardwareReadyQueueVariantDisplayTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('Mantra MFS110 Type-C', $html);
-        $this->assertStringContainsString('Mantra MFS110 USB', $html);
-        $this->assertSame(2, substr_count($html, 'Mantra MFS110 USB'));
+        $this->assertStringContainsString('Mantra MFS110 Type-C Cable', $html);
+        $this->assertStringContainsString('Mantra MFS110 USB Cable', $html);
+        $this->assertSame(2, substr_count($html, 'Mantra MFS110 USB Cable'));
+    }
+
+    public function test_rbp103_compact_line_includes_cable_designation_and_quantity(): void
+    {
+        $creator = User::factory()->create(['is_active' => true]);
+        $order = Order::query()->create([
+            'order_id' => 'RBP103',
+            'product_name' => 'Biometric Replacement Cable',
+            'status' => 'active',
+            'created_by' => $creator->id,
+        ]);
+        $commerce = CommerceOrder::query()->create([
+            'order_no' => 'CO-RBP103',
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => 'commerce_order',
+            'source_id' => 'RBP103',
+            'idempotency_key' => 'statutory:radiumbox_com:commerce_order:RBP103',
+            'payload_hash' => hash('sha256', 'RBP103'),
+            'status' => CommerceOrderStatus::InvoicePending,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'received_at' => now(),
+            'support_order_id' => $order->id,
+        ]);
+        foreach ([1409, 1410] as $index => $modelId) {
+            CommerceOrderItem::query()->create([
+                'commerce_order_id' => $commerce->id,
+                'line_no' => $index + 1,
+                'sku' => (string) $modelId,
+                'model_id' => $modelId,
+                'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
+                'requires_shipping' => true,
+                'description' => 'Biometric Replacement Cable',
+                'qty' => 1,
+                'unit_price' => 299,
+                'gst_percentage' => 18,
+                'taxable_value' => 253.39,
+                'tax_total' => 45.61,
+                'line_total' => 299,
+            ]);
+        }
+
+        $catalog = HardwareFulfilmentProductLines::resolve($commerce->fresh('items'), null);
+
+        $this->assertSame('Mantra MFS110 Type-C Cable · 1 Q +1', $catalog['compact']);
+    }
+
+    public function test_rde318526_compact_line_includes_cable_designation_and_quantity(): void
+    {
+        $commerce = $this->commerceWithItem('RDE318526', 1410, 'Biometric Replacement Cable');
+        $catalog = HardwareFulfilmentProductLines::resolve($commerce, null);
+
+        $this->assertSame('Mantra MFS110 USB Cable · 1 Q', $catalog['compact']);
+    }
+
+    public function test_wm112_remains_unmapped_product_label_without_cable_suffix(): void
+    {
+        $commerce = $this->commerceWithItem('RDE318482', 340, 'Dell WM112 Wireless Optical Mouse (Black)');
+        $catalog = HardwareFulfilmentProductLines::resolve($commerce, null);
+
+        $this->assertSame('Dell WM112 Wireless Optical Mouse (Black)', $catalog['lines'][0]['label']);
+        $this->assertSame('Dell WM112 Wireless Optical Mouse (Black) · 1 Q', $catalog['compact']);
+
+        HardwareFulfilment::query()->create([
+            'commerce_order_id' => $commerce->id,
+            'support_order_id' => $commerce->support_order_id,
+            'source_id' => 'RDE318482',
+            'source_type' => 'commerce_order',
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'idempotency_key' => $commerce->idempotency_key,
+            'state' => HardwareFulfilmentState::ReadyForFulfilment,
+            'ingested_at' => now(),
+        ]);
+
+        $from = HardwareFulfilmentEligibility::cutoffInstant();
+        $to = Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
+        $rows = app(HardwareFulfilmentWorkQueue::class)->dashboard($from, $to, 'RDE318482');
+
+        $this->assertSame(1, $rows['unfiltered_total']);
+        $this->assertSame('View', $rows['rows'][0]->nextAction ?? null);
+        $this->assertSame('Product mapping required', $rows['rows'][0]->operatorStatus());
     }
 
     public function test_generic_replacement_cable_alone_is_not_used_when_model_id_is_known(): void
@@ -60,7 +142,7 @@ class HardwareReadyQueueVariantDisplayTest extends TestCase
         $catalog = HardwareFulfilmentProductLines::resolve($commerce, null);
 
         $this->assertFalse($catalog['missing']);
-        $this->assertSame('Mantra MFS110 USB', $catalog['lines'][0]['label']);
+        $this->assertSame('Mantra MFS110 USB Cable', $catalog['lines'][0]['label']);
         $this->assertStringNotContainsString('Biometric Replacement Cable', $catalog['compact']);
     }
 
@@ -92,7 +174,7 @@ class HardwareReadyQueueVariantDisplayTest extends TestCase
         $rows = app(HardwareFulfilmentWorkQueue::class)->dashboard($from, $to, 'RDE318526');
 
         $this->assertSame(1, $rows['unfiltered_total']);
-        $this->assertStringContainsString('Mantra MFS110 USB', $rows['rows'][0]->product ?? '');
+        $this->assertStringContainsString('Mantra MFS110 USB Cable', $rows['rows'][0]->product ?? '');
     }
 
     private function seedCableMaps(): void

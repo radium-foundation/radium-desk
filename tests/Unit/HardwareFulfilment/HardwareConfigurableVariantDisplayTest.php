@@ -85,8 +85,24 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
         $typeC = $this->item(1409, null, null, null, 'Biometric Replacement Cable');
         $usb = $this->item(1410, null, null, null, 'Biometric Replacement Cable');
 
-        $this->assertSame('Mantra MFS110 Type-C', HardwareConfigurableVariantDisplay::label($typeC));
-        $this->assertSame('Mantra MFS110 USB', HardwareConfigurableVariantDisplay::label($usb));
+        $this->assertSame('Mantra MFS110 Type-C Cable', HardwareConfigurableVariantDisplay::label($typeC));
+        $this->assertSame('Mantra MFS110 USB Cable', HardwareConfigurableVariantDisplay::label($usb));
+    }
+
+    public function test_replacement_cable_designation_is_idempotent(): void
+    {
+        $item = $this->item(1409, null, null, null, 'Biometric Replacement Cable');
+        $item->variant = 'Mantra MFS110 Type-C Cable';
+
+        $this->assertSame('Mantra MFS110 Type-C Cable', HardwareConfigurableVariantDisplay::label($item));
+    }
+
+    public function test_wm112_mouse_label_is_unchanged_without_cable_suffix(): void
+    {
+        $this->assertSame(
+            'Dell WM112 Wireless Optical Mouse (Black)',
+            HardwareConfigurableVariantDisplay::label($this->item(340, null, null, null, 'Biometric Replacement Cable')),
+        );
     }
 
     public function test_generic_replacement_cable_without_model_id_is_ambiguous(): void
@@ -99,10 +115,10 @@ class HardwareConfigurableVariantDisplayTest extends TestCase
 
     public function test_handoff_variant_field_is_preferred_over_generic_description(): void
     {
-        $item = $this->item(9999, null, null, null, 'Biometric Replacement Cable');
+        $item = $this->item(1410, null, null, null, 'Biometric Replacement Cable');
         $item->variant = 'Mantra MFS110 USB';
 
-        $this->assertSame('Mantra MFS110 USB', HardwareConfigurableVariantDisplay::label($item));
+        $this->assertSame('Mantra MFS110 USB Cable', HardwareConfigurableVariantDisplay::label($item));
     }
 
     public function test_verified_token_and_camera_model_ids(): void

@@ -17,6 +17,20 @@ final class HardwareConfigurableVariantDisplay
     public const FAMILY_MANTRA_MFS = 'Mantra MFS';
 
     /**
+     * Verified Box replacement-cable model_ids (parent product 1408).
+     *
+     * @var array<int, true>
+     */
+    private const REPLACEMENT_CABLE_MODEL_IDS = [
+        1409 => true,
+        1410 => true,
+        1419 => true,
+        1420 => true,
+        1421 => true,
+        1422 => true,
+    ];
+
+    /**
      * Verified Box model_id → operator-facing variant label (P0-M1 / investigation).
      *
      * @var array<int, string>
@@ -106,24 +120,25 @@ final class HardwareConfigurableVariantDisplay
 
     public static function label(CommerceOrderItem $item): string
     {
+        $modelId = $item->model_id !== null ? (int) $item->model_id : 0;
+
         $canonical = self::forItem($item);
         if ($canonical !== null) {
-            return $canonical;
+            return self::withReplacementCableDesignation($modelId, $canonical);
         }
 
-        $modelId = $item->model_id !== null ? (int) $item->model_id : 0;
         $static = self::STATIC_VARIANT_LABELS[$modelId] ?? null;
         if ($static !== null) {
-            return $static;
+            return self::withReplacementCableDesignation($modelId, $static);
         }
 
         $variant = trim((string) ($item->variant ?? ''));
         if ($variant !== '') {
-            return $variant;
+            return self::withReplacementCableDesignation($modelId, $variant);
         }
 
         if (isset(self::MANTRA_MFS_MODELS[$modelId])) {
-            return self::fallbackLabel($item);
+            return self::withReplacementCableDesignation($modelId, self::fallbackLabel($item));
         }
 
         $fallback = self::fallbackLabel($item);
@@ -131,7 +146,7 @@ final class HardwareConfigurableVariantDisplay
             return 'Exact variant unavailable';
         }
 
-        return $fallback;
+        return self::withReplacementCableDesignation($modelId, $fallback);
     }
 
     public static function invoiceDescription(CommerceOrderItem $item, bool $annotateBundledRd = false): string
@@ -169,5 +184,22 @@ final class HardwareConfigurableVariantDisplay
         }
 
         return (bool) preg_match('/UGR86\s*\/\s*UGR89/i', $label);
+    }
+
+    private static function withReplacementCableDesignation(int $modelId, string $label): string
+    {
+        if ($label === '' || $label === 'Exact variant unavailable') {
+            return $label;
+        }
+
+        if (! isset(self::REPLACEMENT_CABLE_MODEL_IDS[$modelId])) {
+            return $label;
+        }
+
+        if (preg_match('/\bCable\b/i', $label)) {
+            return $label;
+        }
+
+        return rtrim($label).' Cable';
     }
 }
