@@ -122,6 +122,12 @@ class ServiceSacResolverTest extends TestCase
             '84716050',
             99,
         ));
+        $this->assertSame('84716050', $resolver->resolve(
+            'radiumbox_com',
+            'RBMFS110L1',
+            'RD Service',
+            '84716050',
+        ));
     }
 
     public function test_configured_future_service_uses_its_own_sac_not_998313(): void

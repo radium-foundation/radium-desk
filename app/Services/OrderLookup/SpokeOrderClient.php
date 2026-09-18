@@ -81,6 +81,43 @@ class SpokeOrderClient
         return in_array('rd', $accepts, true) && RdServiceOrderId::isValid($orderId);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function fetchPayload(string $orderId): ?array
+    {
+        if (! $this->isConfigured() || ! $this->isEligible($orderId)) {
+            return null;
+        }
+
+        $baseUrl = $this->originBaseUrl();
+        if ($baseUrl === null) {
+            return null;
+        }
+
+        $normalized = trim($orderId);
+
+        try {
+            $request = Http::baseUrl($baseUrl)
+                ->acceptJson()
+                ->withToken($this->token())
+                ->connectTimeout((int) ($this->config()['connect_timeout_seconds'] ?? 3))
+                ->timeout((int) ($this->config()['timeout_seconds'] ?? 8));
+
+            $host = $this->requestHostHeader();
+            if ($host !== null) {
+                $request = $request->withHeaders(['Host' => $host]);
+            }
+
+            $response = $request->get('/api/integrations/v1/rd-orders/'.rawurlencode($normalized));
+            $payload = $response->json();
+
+            return is_array($payload) ? $payload : null;
+        } catch (ConnectionException|RequestException) {
+            return null;
+        }
+    }
+
     public function fetch(string $orderId): RdServiceFetchResult
     {
         if (! $this->isConfigured()) {

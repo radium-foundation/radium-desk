@@ -104,7 +104,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Four Hundred Ninety-Nine Rupees Only', $pdf);
         $this->assertStringContainsString('Thank you for your business.', $pdf);
         $this->assertStringNotContainsString('Thanks for shopping', $pdf);
-        $this->assertStringContainsString('RD Technical Support - included', $pdf);
+        $this->assertStringNotContainsString('RD Technical Support - included', $pdf);
         $this->assertStringNotContainsString('???', $pdf);
         $this->assertStringNotContainsString('unset', $pdf);
         $this->assertStringNotContainsString('GSTIN B2C', $pdf);
@@ -613,11 +613,49 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $binary = (new SimplePdfRenderer)->render($this->payload());
         $text = $this->text($binary);
 
+        $this->assertSame('brand/logo.png', config('branding.logo'));
         $this->assertFileExists(public_path(config('branding.logo')));
         $this->assertStringContainsString('/Logo Do', $binary);
         $this->assertStringContainsString('DCTDecode', $binary);
         $this->assertStringContainsString('TAX INVOICE', $text);
+        $this->assertStringNotContainsString('radiumbox-logo-white.png', $binary);
         $this->assertStringNotContainsString('ADIUM', $text);
+    }
+
+    public function test_pdf_logo_preserves_aspect_ratio(): void
+    {
+        $binary = (new SimplePdfRenderer)->render($this->payload());
+
+        preg_match('/([0-9.]+) 0 0 ([0-9.]+) [0-9.]+ [0-9.]+ cm\n\/Logo Do/m', $binary, $matches);
+        $this->assertNotSame([], $matches, 'Expected Logo transformation matrix in PDF.');
+
+        [$sourceW, $sourceH] = getimagesize(public_path((string) config('branding.logo')));
+        $drawW = (float) $matches[1];
+        $drawH = (float) $matches[2];
+        $sourceRatio = $sourceW / $sourceH;
+        $drawRatio = $drawW / $drawH;
+
+        $this->assertEqualsWithDelta($sourceRatio, $drawRatio, 0.01);
+    }
+
+    public function test_configured_logo_png_contains_dark_brand_marks(): void
+    {
+        if (! extension_loaded('imagick') || ! class_exists(\Imagick::class)) {
+            $this->markTestSkipped('Imagick unavailable for logo colour verification.');
+        }
+
+        $image = new \Imagick(public_path((string) config('branding.logo')));
+        $image->setImageBackgroundColor(new \ImagickPixel('white'));
+        $image = $image->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+        $histogram = $image->getImageHistogram();
+        $darkest = 255;
+        foreach ($histogram as $pixel) {
+            $color = $pixel->getColor();
+            $darkest = min($darkest, (int) ($color['r'] ?? 255), (int) ($color['g'] ?? 255), (int) ($color['b'] ?? 255));
+        }
+        $image->destroy();
+
+        $this->assertLessThan(64, $darkest);
     }
 
     public function test_pdf_embeds_authoritative_stamp_and_signatory_block(): void

@@ -22,8 +22,8 @@ use App\Models\User;
 use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
+use App\Support\BusinessOrderId;
 use App\Support\Finance\GstStateCodes;
-use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
 use App\Support\StatutoryInvoice\InvoiceRoundOff;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -52,6 +52,8 @@ class StatutoryInvoiceService
         private readonly ServiceStatutoryClassification $serviceStatutory,
         private readonly PlaceOfSupplyResolver $placeOfSupply,
         private readonly EInvoiceInputReadiness $inputReadiness,
+        private readonly RadiumBoxServiceCommerceSnapshotService $radiumBoxServiceCommerce,
+        private readonly StatutoryInvoiceCommerceLinePresentation $commerceLinePresentation,
     ) {}
 
     public function findBySource(
@@ -308,13 +310,17 @@ class StatutoryInvoiceService
         $lines = [];
         $resolvedHsns = [];
         foreach ($order->items as $line) {
+            if (! $this->commerceLinePresentation->includesOnStatutoryInvoice($line)) {
+                continue;
+            }
+
             $hsnSac = $this->serviceSac->forCommerceItem($order, $line);
             $resolvedHsns[] = $hsnSac;
             $productUqc = $line->product_id !== null
                 ? ($catalogUqc[$line->product_id] ?? null)
                 : null;
             $lines[] = new StatutoryInvoiceLineDraft(
-                description: HardwareConfigurableVariantDisplay::invoiceDescription($line),
+                description: $this->commerceLinePresentation->invoiceDescription($line),
                 qty: (int) $line->qty,
                 unitPrice: (float) $line->unit_price,
                 gstPercentage: (float) $line->gst_percentage,
@@ -335,6 +341,12 @@ class StatutoryInvoiceService
                     $line->shipping_line_kind,
                 ),
             );
+        }
+
+        if ($lines === []) {
+            throw ValidationException::withMessages([
+                'commerce_order' => 'No billable statutory invoice lines remain after optional add-on suppression.',
+            ]);
         }
 
         $invoice = $this->mint(new StatutoryInvoiceMintRequest(
@@ -375,11 +387,15 @@ class StatutoryInvoiceService
 
     /**
      * Issue the statutory invoice for a Desk support order by delegating to
-     * the existing rdservice.in commerce-order identity. Does not mint a
-     * second support_order numbering identity.
+     * the existing commerce-order identity (rdservice.in for RD*, radiumbox.com
+     * for RB* service). Does not mint a second support_order numbering identity.
      */
     public function issueFromSupportOrder(Order $order, ?User $actor = null): StatutoryInvoice
     {
+        if (BusinessOrderId::isRadiumBoxService($order->order_id)) {
+            $this->radiumBoxServiceCommerce->ensureForSupportOrder($order);
+        }
+
         $commerce = $this->commerceOrderForSupportOrder($order);
 
         if ($commerce->support_order_id === null) {
@@ -537,19 +553,33 @@ class StatutoryInvoiceService
             ]);
         }
 
+        $channel = $this->serviceCommerceChannelForSupportOrderId($sourceId);
+
         $commerce = CommerceOrder::query()
-            ->where('channel', StatutoryInvoiceChannel::RdServiceIn)
+            ->where('channel', $channel)
             ->where('source_type', StatutoryInvoiceSourceType::CommerceOrder->value)
             ->where('source_id', $sourceId)
             ->first();
 
         if ($commerce === null) {
             throw ValidationException::withMessages([
-                'support_order' => 'No rdservice.in commerce order is linked to this Desk order.',
+                'support_order' => match ($channel) {
+                    StatutoryInvoiceChannel::RadiumBoxCom => 'No radiumbox.com service commerce order is linked to this Desk order.',
+                    default => 'No rdservice.in commerce order is linked to this Desk order.',
+                },
             ]);
         }
 
         return $commerce;
+    }
+
+    private function serviceCommerceChannelForSupportOrderId(string $sourceId): StatutoryInvoiceChannel
+    {
+        if (BusinessOrderId::isRadiumBoxService($sourceId)) {
+            return StatutoryInvoiceChannel::RadiumBoxCom;
+        }
+
+        return StatutoryInvoiceChannel::RdServiceIn;
     }
 
     private function resolveSupportOrderId(CommerceOrder $order): ?int
@@ -558,7 +588,8 @@ class StatutoryInvoiceService
             return (int) $order->support_order_id;
         }
 
-        if ($order->channel !== StatutoryInvoiceChannel::RdServiceIn) {
+        if ($order->channel !== StatutoryInvoiceChannel::RdServiceIn
+            && $order->channel !== StatutoryInvoiceChannel::RadiumBoxCom) {
             return null;
         }
 

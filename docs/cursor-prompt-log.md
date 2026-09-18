@@ -42,5 +42,8 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-28 | 2026-09-18 | Phase 1: Ready for Pickup top-level hardware dashboard tab | Add Ready for Pickup as peer tab to Needs Action; reuse `readyForPickupQuery()`; preserve Shipping lifecycle sub-nav. UI/navigation only. **No deploy.** |
 
 | RadiumDesk-P-18-09-29 | 2026-09-18 | Release/deploy v4.0.84 Ready for Pickup top-level tab | Deploy Phase 1 UI/navigation (`df1a8338`) to KVM8 production; post-deploy smoke for hardware dashboard nav, Ready for Pickup queue, RDE318338 exclusion, presentation-only selection. Rollback: v4.0.83 / `0a7ce286`.
+| RadiumDesk-P-18-09-32 | 2026-09-18 | Implement RB* service statutory commerce snapshot + routing | Desk snapshot service, RB*→radiumbox_com routing, SAC config, focused regression tests; radiumbox.com `service_commerce` lookup API. Not deployed. No RB222 production repair. |
+| RadiumDesk-P-18-09-33 | 2026-09-18 | Statutory PDF black logo + optional add-on line suppression | `brand/logo.png` authoritative PDF logo; suppress unselected zero-value duration/callback lines; service invoice descriptions from commerce text. Not deployed. |
+| RadiumDesk-P-18-09-34 | 2026-09-18 | RB* service statutory regression gate + commit/push | Final review; goods-HSN SAC guard; `branding.cin`; no new protected regressions vs baseline. Committed/pushed. Not deployed. No RB222 repair. |
 
 Do not renumber or overwrite earlier rows. Append only.

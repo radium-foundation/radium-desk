@@ -37,6 +37,12 @@ final class ServiceSacResolver
         if ($shippingLineKind === 'physical_merchandise') {
             return $this->normalizeSac($incomingHsnSac);
         }
+
+        $normalizedIncoming = $this->normalizeSac($incomingHsnSac);
+        if ($normalizedIncoming !== null && ! str_starts_with($normalizedIncoming, '998')) {
+            return $normalizedIncoming;
+        }
+
         $matched = [];
         foreach ($this->services() as $key => $service) {
             if (! is_array($service) || ! $this->matches($channel, $sku, $description, $amcId, $service)) {

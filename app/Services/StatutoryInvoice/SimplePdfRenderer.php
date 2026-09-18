@@ -388,7 +388,7 @@ class SimplePdfRenderer
         }
 
         $this->embeddedImages['Logo'] = $this->rasterBrandAsset(
-            $this->brandAssetPath('logo', 'brand/logo.svg'),
+            $this->brandAssetPath('logo', 'brand/logo.png'),
             480,
         );
         $this->embeddedImages['Stamp'] = $this->rasterBrandAsset(

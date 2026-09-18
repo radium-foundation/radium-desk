@@ -60,4 +60,14 @@ final class BusinessOrderId
     {
         return (bool) (self::parse($id)['hardware'] ?? false);
     }
+
+    public static function isRadiumBoxService(?string $id): bool
+    {
+        $parsed = self::parse($id);
+
+        return $parsed !== null
+            && $parsed['prefix'] === 'RB'
+            && $parsed['kind'] === 'service'
+            && $parsed['owner'] === 'radiumbox.com';
+    }
 }

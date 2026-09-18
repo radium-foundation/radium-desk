@@ -158,11 +158,11 @@ return [
     /*
     | Explicit per-service SAC. There is no generic default SAC.
     | RD Service and AMC are 998313. Hardware HSN 84716050 is unchanged
-    | (Box channel is outside these mappings). Future services must add
-    | their own entry with their own SAC. Unmatched lines keep incoming HSN/SAC.
-    | Priced AMC on rdservice_in/net is identified by description "AMC :"
-    | (amcid is null on those lines). match_amcid is a future service-channel
-    | identifier only; it must not apply on hardware channels.
+    | (physical_merchandise and hardware SKUs bypass these mappings).
+    | radiumbox_com RB* service lines match rd_service description needles;
+    | amc match_amcid stays on rdservice spokes only so hardware amcid values
+    | on radiumbox_com are not rewritten. Future services must add their own
+    | entry with their own SAC. Unmatched lines keep incoming HSN/SAC.
     */
     'service_sac' => [
         'rd_service' => [
@@ -175,6 +175,7 @@ return [
             'channels' => [
                 'rdservice_in',
                 'rdservice_net',
+                'radiumbox_com',
             ],
             'skus' => [
                 'RD-SVC',

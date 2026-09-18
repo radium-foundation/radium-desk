@@ -7,6 +7,10 @@ use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentFetchResult;
 use App\Services\RdService\RdServiceClient;
 use App\Services\RdService\RdServiceFetchResult;
+use App\Services\StatutoryInvoice\Data\RadiumBoxServiceCommerceLookup;
+use App\Services\StatutoryInvoice\RadiumBoxServiceCommerceLookupMapper;
+use App\Support\BusinessOrderId;
+use Illuminate\Validation\ValidationException;
 
 class OrderEnrichmentLookupService
 {
@@ -21,6 +25,7 @@ class OrderEnrichmentLookupService
         private readonly RdServiceClient $rdServiceClient,
         private readonly RadiumBoxClient $radiumBoxClient,
         private readonly SpokeOrderClientFactory $spokes,
+        private readonly RadiumBoxServiceCommerceLookupMapper $serviceCommerceMapper,
     ) {}
 
     /**
@@ -110,6 +115,34 @@ class OrderEnrichmentLookupService
         }
 
         return $this->spokeFetchesByOrderId[$key] = $last;
+    }
+
+    public function fetchRadiumBoxServiceCommerce(string $orderId): RadiumBoxServiceCommerceLookup
+    {
+        if (! BusinessOrderId::isRadiumBoxService($orderId)) {
+            throw ValidationException::withMessages([
+                'order_id' => 'Only RadiumBox RB* service orders have a radiumbox.com service commerce lookup.',
+            ]);
+        }
+
+        foreach ($this->spokes->configured() as $client) {
+            if ($client->source() !== 'radiumbox_com' || ! $client->isEligible($orderId)) {
+                continue;
+            }
+
+            $payload = $client->fetchPayload($orderId);
+            if (! is_array($payload)) {
+                throw ValidationException::withMessages([
+                    'service_commerce' => 'RadiumBox service lookup returned a non-JSON response.',
+                ]);
+            }
+
+            return $this->serviceCommerceMapper->map($payload, $orderId);
+        }
+
+        throw ValidationException::withMessages([
+            'service_commerce' => 'RadiumBox storefront service lookup is not configured for this order.',
+        ]);
     }
 
     private function adminFallbackEnabled(): bool
