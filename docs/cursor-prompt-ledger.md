@@ -397,4 +397,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-18-09-60 | 2026-09-18 | Owner `radium-logo.svg` branding replacement | Replace distorted `public/brand/logo.svg` + regenerate `logo.png` from owner SVG for statutory PDF/UI; align historical print + tests. Branding-only. **Not deployed.** |
 
+| RadiumDesk-P-18-09-61 | 2026-09-18 | Production surgical deploy logo replacement on v4.0.88 | Overlay `logo.svg`, `logo.png`, `historical-print.blade.php` to KVM8. Timestamped backup. Verify historical reprint + statutory PDF logo; financial content unchanged. No full `desk deploy`. No backfill. |
+
 Do not renumber or overwrite earlier rows. Append only.

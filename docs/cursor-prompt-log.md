@@ -71,5 +71,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-58 | 2026-09-18 | Companion: net production scheduler install (read-only) | No Desk changes. Verified commerce/statutory counts unchanged after net `schedule:run` cron install (RDServiceNet-P-18-09-08). Desk scheduler untouched. |
 | RadiumDesk-P-18-09-59 | 2026-09-18 | B2C backfill batch preflight companion (read-only) | Sequence state + issuer rules verified for 36-order net B2C manifest (RDServiceNet-P-18-09-09). No Desk production mutation. Manual mint remains required (`auto_issue=false`). |
 | RadiumDesk-P-18-09-60 | 2026-09-18 | Replace distorted Radium logo with owner `radium-logo.svg` | Authoritative owner SVG → `public/brand/logo.svg`; regenerate `logo.png` (480×179) for statutory PDF/UI. Align historical print + tests to `branding.logo`. Focused logo/PDF regression PASS. **Not deployed.** |
+| RadiumDesk-P-18-09-61 | 2026-09-18 | Integrate + surgical production deploy logo replacement | FF-merge `ea552ffa` to `main`. Surgical overlay logo assets + `historical-print.blade.php` on KVM8 `/var/www/radium-desk` (v4.0.88 / `c2b24169`). Production historical reprint + statutory PDF logo verification. No backfill. |
 
 Do not renumber or overwrite earlier rows. Append only.
