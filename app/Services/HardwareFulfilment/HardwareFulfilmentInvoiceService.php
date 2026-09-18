@@ -20,7 +20,9 @@ use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Services\StatutoryInvoice\StatutoryMintEligibility;
 use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class HardwareFulfilmentInvoiceService
 {
@@ -79,25 +81,67 @@ class HardwareFulfilmentInvoiceService
             return $invoice;
         });
 
-        $this->documents->generate($invoice);
-        $this->invoices->queueEinvoiceIfEligible($invoice);
+        $this->synchronizeInvoiceIssuedState($fulfilment, $invoice, $actor);
 
-        $fresh = $fulfilment->fresh() ?? $fulfilment;
-        if ($fresh->state === HardwareFulfilmentState::SerialsAllocated) {
-            $this->workflow->transition(
-                $fresh,
-                HardwareFulfilmentState::InvoiceIssued,
-                actorType: $actor !== null ? 'user' : 'system',
-                actorId: $actor?->id,
-                payload: [
-                    'reason' => 'hardware_invoice_issued',
-                    'invoice_id' => $invoice->id,
-                    'invoice_number' => $invoice->invoice_number,
-                ],
-            );
+        try {
+            $this->documents->generate($invoice);
+        } catch (Throwable $exception) {
+            Log::warning('hardware_statutory_invoice.document_generation_failed', [
+                'fulfilment_id' => $fulfilment->id,
+                'source_id' => $fulfilment->source_id,
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        try {
+            $this->invoices->queueEinvoiceIfEligible($invoice);
+        } catch (Throwable $exception) {
+            Log::warning('hardware_statutory_invoice.einvoice_queue_failed', [
+                'fulfilment_id' => $fulfilment->id,
+                'source_id' => $fulfilment->source_id,
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
         }
 
         return $invoice->load(['items', 'allocation', 'document']);
+    }
+
+    /**
+     * Durable invoice mint/link is complete once the transaction commits.
+     * Presentation PDF generation is a separate retryable step and must not
+     * leave SERIALS_ALLOCATED when a valid invoice already exists.
+     */
+    private function synchronizeInvoiceIssuedState(
+        HardwareFulfilment $fulfilment,
+        StatutoryInvoice $invoice,
+        ?User $actor = null,
+    ): void {
+        if (! filled($invoice->invoice_number)) {
+            return;
+        }
+
+        $fresh = $fulfilment->fresh() ?? $fulfilment;
+        if ($fresh->state !== HardwareFulfilmentState::SerialsAllocated) {
+            return;
+        }
+
+        $this->workflow->transition(
+            $fresh,
+            HardwareFulfilmentState::InvoiceIssued,
+            actorType: $actor !== null ? 'user' : 'system',
+            actorId: $actor?->id,
+            payload: [
+                'reason' => 'hardware_invoice_issued',
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+            ],
+        );
     }
 
     /**
