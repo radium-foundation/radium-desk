@@ -59,5 +59,7 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-18-09-46 | 2026-09-18 | RB* five-order GST repair (RB6/RB9/RB126/RB141/RB212) | Owner-authorized production statutory invoice repair on v4.0.87. Reuse CO-005342/CO-005343 orphans. No other RB* orders. |
 | RadiumDesk-P-18-09-47 | 2026-09-18 | RB* duration + invalid-GSTIN statutory support (35 orders) | Desk implementation for 29 express duration_price orders and 6 B2C-sanitized GSTIN/state orders. Investigation + tests. No deploy/production repair. |
 | RadiumDesk-P-18-09-48 | 2026-09-18 | Release/deploy v4.0.88 RB* duration + invalid-GSTIN statutory support | Tag/deploy `985245ad` duration/GSTIN/state statutory support to KVM8 production. Post-deploy protected regression only. No 35-order backfill. Rollback: v4.0.87 / `4aadf66a`. |
+| RadiumDesk-P-18-09-49 | 2026-09-18 | RB* 35-order backfill read-only preflight | Read-only verification of 29 duration + 6 GST/state RB* targets on v4.0.88 production. Desk/Box source/commerce/invoice/sequence state. No mutations/deploy/commit. |
+| RadiumDesk-P-18-09-50 | 2026-09-18 | RB* 35-order production statutory invoice backfill | Owner-authorized mint of 29 duration + 6 GST/state RB* service orders on v4.0.88 via `issueFromSupportOrder`. INV-673248–INV-673280 (Delhi B2C) + INV-2767169/2767170 (Mumbai POS RB239/RB42). RB58 minted with source Pending preserved. No deploy/code/payment/source mutations. |
 
 Do not renumber or overwrite earlier rows. Append only.
