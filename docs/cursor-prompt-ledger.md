@@ -99,5 +99,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-19-09-04 | 2026-09-19 | Dashboard RDE legacy preview layout fix | Flex-column card + per-section label/value grid; actions below preview with separator. Quick Create wrapper `dl`→`div` semantics only. **Not deployed.** |
 | RadiumDesk-P-19-09-05 | 2026-09-19 | Commit/deploy RDE legacy grouped preview (v4.0.89) | Owner-authorized commit+push+KVM deploy after P-19-09-03/04 review. Companion `radiumbox.com-P-19-09-04`. |
 | RadiumDesk-P-19-09-06 | 2026-09-19 | FM220 default pricing fix + Desk RadiumBox storefront controls | Code/tests only. LivePriceCalculator default OTG/RD/AMC selection aligned with storefront; SSR/API display price from default configuration; Desk inventory storefront eligibility flags synced via catalog-price API; server-side RD/AMC/cart enforcement. **Not deployed.** |
+| RadiumDesk-P-19-09-08 | 2026-09-19 | Phase B-1 controlled listing price normalization (968/944/949) | Owner-approved deploy: scoped default listing prices for FM220/MFS110/Morpho only; MFS100 L0 protected; eligibility migration; KVM8 deploy. Companion `radiumbox.com-P-19-09-08`. |
 
 Do not renumber or overwrite earlier rows. Append only.
