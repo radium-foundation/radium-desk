@@ -5,7 +5,7 @@ set -euo pipefail
 DEPLOY_HOST="${DEPLOY_HOST:-ravi@187.127.129.16}"
 LARAVEL_ROOT="${LARAVEL_ROOT:-/var/www/radium-desk}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 EXPECTED_COMMIT="${EXPECTED_COMMIT:-}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP_DIR="${LARAVEL_ROOT}/storage/app/backups/phase-b1-storefront-controls-${STAMP}"
@@ -30,7 +30,7 @@ verify_local_commit() {
   fi
   local head
   head="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
-  if [[ "${head}" != "${EXPECTED_COMMIT}" ]]; then
+  if [[ "${head}" != "${EXPECTED_COMMIT}" && "${head}" != "${EXPECTED_COMMIT:0:7}"* && "${EXPECTED_COMMIT}" != "${head:0:7}"* ]]; then
     echo "ERROR: repo HEAD ${head} does not match EXPECTED_COMMIT ${EXPECTED_COMMIT}" >&2
     exit 1
   fi
