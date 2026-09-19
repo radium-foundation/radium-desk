@@ -569,6 +569,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('products', [InventoryProductController::class, 'store'])->name('products.store');
         Route::get('products/{product}/edit', [InventoryProductController::class, 'edit'])->name('products.edit');
         Route::put('products/{product}', [InventoryProductController::class, 'update'])->name('products.update');
+        Route::post('products/{product}/retry-storefront-sync', [InventoryProductController::class, 'retryStorefrontSync'])->name('products.retry-storefront-sync');
 
         Route::get('branches', [InventoryBranchController::class, 'index'])->name('branches.index');
         Route::get('branches/create', [InventoryBranchController::class, 'create'])->name('branches.create');

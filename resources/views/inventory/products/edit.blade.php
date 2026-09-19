@@ -8,6 +8,9 @@
         <h1 class="h3 mb-1">Edit {{ $product->sku }}</h1>
     </div>
     @include('inventory.partials.workspace-nav', ['active' => 'products'])
+    @if (! empty($catalogPriceSyncEnabled))
+        @include('inventory.products.partials.storefront-sync-status', ['catalogPriceSync' => $catalogPriceSync ?? null])
+    @endif
     <div class="card border-0 shadow-sm">
         <div class="card-body">
             <form method="POST" action="{{ route('inventory.products.update', $product) }}">

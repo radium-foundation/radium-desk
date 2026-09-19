@@ -22,6 +22,7 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
             ['RBMFSTYPEC', 1409],
             ['RBMFSUSBCB', 1410],
             ['RBWM112MZ', 340],
+            ['RBSMOOTHED', 1753],
         ] as [$sku, $modelId]) {
             $product = InventoryProduct::query()->create([
                 'sku' => $sku,
@@ -47,7 +48,7 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
         $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--dry-run' => true])
             ->assertSuccessful();
 
-        $this->assertSame(0, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 340])->count());
+        $this->assertSame(0, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 340, 1753])->count());
     }
 
     public function test_wm112_maps_to_rbwm112mz_not_keyboard_mouse_combo(): void
@@ -76,12 +77,28 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
         $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
             ->assertSuccessful();
 
-        $this->assertSame(5, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 340])->count());
+        $this->assertSame(6, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 340, 1753])->count());
 
         $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
             ->assertSuccessful();
 
-        $this->assertSame(5, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 340])->count());
+        $this->assertSame(6, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 340, 1753])->count());
+    }
+
+    public function test_mbp401_map_is_created_idempotently(): void
+    {
+        $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
+            ->assertSuccessful();
+
+        $map = ChannelSkuMap::query()->where('model_id', 1753)->with('product')->firstOrFail();
+        $this->assertSame('RBSMOOTHED', $map->product->sku);
+        $this->assertSame('RBSMBARPRI', $map->catalog_sku);
+        $this->assertSame('1753', $map->channel_sku);
+
+        $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
+            ->assertSuccessful();
+
+        $this->assertSame(1, ChannelSkuMap::query()->where('model_id', 1753)->count());
     }
 
     public function test_conflicting_existing_map_fails_closed(): void

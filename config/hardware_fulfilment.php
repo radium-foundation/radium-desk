@@ -57,6 +57,13 @@ return [
                 'desk_sku' => 'RBWM112MZ',
                 'notes' => 'Dell WM112 Wireless Optical Mouse (Black)',
             ],
+            [
+                'model_id' => 1753,
+                'channel_sku' => '1753',
+                'catalog_sku' => 'RBSMBARPRI',
+                'desk_sku' => 'RBSMOOTHED',
+                'notes' => 'Smooth Edges MBP-401 Desktop Barcode Printer',
+            ],
         ],
     ],
 

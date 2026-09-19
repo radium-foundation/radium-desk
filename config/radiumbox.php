@@ -42,6 +42,15 @@ return [
     'wallet_refund_credit_enabled' => filter_var(env('RADIUMBOX_WALLET_REFUND_CREDIT_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
     /*
+    | Desk → radiumbox.com storefront catalog price sync. Uses the storefront
+    | integration token/base URL from config/order_lookup.php (radiumbox_com spoke).
+    | Default off until explicitly enabled in each environment.
+    */
+    'catalog_price_sync' => [
+        'enabled' => filter_var(env('RADIUMBOX_CATALOG_PRICE_SYNC_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
+    /*
     | Desk → radiumbox.com wallet refund reversal. Requires radiumbox.com to
     | deploy a matching integration endpoint first. Default off.
     */
