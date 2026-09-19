@@ -36,6 +36,9 @@ final class RadiumBoxCatalogPriceClient
         float $publishPrice,
         float $gstPercentage,
         string $idempotencyKey,
+        bool $storefrontSellable = true,
+        bool $rdServiceAvailable = true,
+        bool $amcAvailable = true,
     ): array {
         if (! $this->isConfigured()) {
             throw new RadiumBoxCatalogPriceSyncException('Storefront catalog price sync is not configured.');
@@ -65,6 +68,9 @@ final class RadiumBoxCatalogPriceClient
                 'publish_price' => round($publishPrice, 2),
                 'gst_percentage' => round($gstPercentage, 2),
                 'idempotency_key' => $idempotencyKey,
+                'storefront_sellable' => $storefrontSellable,
+                'rd_service_available' => $rdServiceAvailable,
+                'amc_available' => $amcAvailable,
             ]);
 
             $payload = $response->json();

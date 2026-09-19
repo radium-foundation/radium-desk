@@ -131,6 +131,9 @@ class ProductController extends Controller
             'is_serialized' => ['sometimes', 'boolean'],
             'tracks_batch' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
+            'sell_on_radiumbox' => ['sometimes', 'boolean'],
+            'rd_service_available' => ['sometimes', 'boolean'],
+            'amc_available' => ['sometimes', 'boolean'],
         ]);
 
         $data['sku'] = strtoupper($data['sku']);
@@ -140,6 +143,9 @@ class ProductController extends Controller
         $data['is_serialized'] = $request->boolean('is_serialized');
         $data['tracks_batch'] = $request->boolean('tracks_batch');
         $data['is_active'] = $request->boolean('is_active');
+        $data['sell_on_radiumbox'] = $request->boolean('sell_on_radiumbox');
+        $data['rd_service_available'] = $request->boolean('rd_service_available');
+        $data['amc_available'] = $request->boolean('amc_available');
 
         return $data;
     }

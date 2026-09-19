@@ -65,6 +65,8 @@
     </div>
 </div>
 
+@include('inventory.products.partials.storefront-controls')
+
 <h2 class="h5 mt-4">Variants</h2>
 <p class="text-muted small">Optional child SKUs. Leave blank if the product has no variants.</p>
 @php($variants = old('variants', $product?->variants?->map(fn ($v) => ['sku' => $v->sku, 'name' => $v->name, 'unit_price' => $v->unit_price, 'is_active' => $v->is_active])->all() ?? [[]]))
