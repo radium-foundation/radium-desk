@@ -77,7 +77,7 @@
                             <button type="button" class="btn btn-link btn-sm p-0" data-intake-back="search">Change search</button>
                         </div>
                         <p class="alert alert-info py-2 small mb-3" id="intake-legacy-preview-message"></p>
-                        <dl class="row small mb-3" id="intake-legacy-preview-fields"></dl>
+                        <div class="row small mb-3" id="intake-legacy-preview-fields"></div>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-outline-secondary btn-sm" data-intake-back="search">Cancel</button>
                             <button type="button" class="btn btn-primary btn-sm" id="intake-legacy-confirm-button">Confirm &amp; Continue</button>

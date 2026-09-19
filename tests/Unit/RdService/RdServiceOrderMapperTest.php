@@ -66,6 +66,16 @@ class RdServiceOrderMapperTest extends TestCase
         $this->assertSame('10024774', $enrichment->serialNumber);
         $this->assertSame('Pallab Mukherjee', $enrichment->customerName);
         $this->assertSame('9874773752', $enrichment->customerPhone);
+        $this->assertSame('Paid', $enrichment->radiumboxPaymentStatus);
+        $this->assertSame('cashfree', $enrichment->paymentMethod);
+        $this->assertSame('2735', $enrichment->paymentAmount);
+        $this->assertSame('IND568704', $enrichment->invoiceNumber);
+        $this->assertSame('Shipped', $enrichment->shipmentStatus);
+        $this->assertSame('19041860689453', $enrichment->awb);
+        $this->assertSame('MFS 110', $enrichment->productVariant);
+        $this->assertSame('PMTMFS110Z', $enrichment->productSku);
+        $this->assertSame('700150', $enrichment->deliveryAddress['pincode'] ?? null);
+        $this->assertTrue($enrichment->deliveryAddress['pincode_profile_mismatch'] ?? false);
         $this->assertTrue($enrichment->hasLegacyPreviewData());
     }
 
@@ -118,8 +128,11 @@ class RdServiceOrderMapperTest extends TestCase
                     'ordercode' => 'RDE177816',
                     'invoicecode' => 'IND568704',
                     'payment_status' => 'Paid',
+                    'payment_type' => 'cashfree',
+                    'total' => '2735',
                     'status' => 'Shipped',
                     'orderdate' => '2026-01-16 21:27:55',
+                    'invoice_date' => '2026-01-17 10:20:40',
                 ],
                 'snapshot' => [
                     'rdorderid' => 'RDE177816',
@@ -127,11 +140,26 @@ class RdServiceOrderMapperTest extends TestCase
                     'phone' => '9874773752',
                     'product' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner',
                     'model' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner',
+                    'product_variant' => 'MFS 110',
+                    'product_sku' => 'PMTMFS110Z',
                     'serial_number' => '10024774',
                     'payment_status' => 'Paid',
+                    'payment_method' => 'cashfree',
+                    'payment_amount' => '2735',
                     'rd_order_status' => 'Shipped',
+                    'shipment_status' => 'Shipped',
+                    'awb' => '19041860689453',
                     'invoice_number' => 'IND568704',
+                    'invoice_date' => '2026-01-17 10:20:40',
                     'order_date' => '2026-01-16 21:27:55',
+                    'delivery_address' => [
+                        'line' => 'Sukanta Sarani R.K.Pally, Sonarpur',
+                        'state' => 'West Bengal',
+                        'district' => 'South 24 Parganas',
+                        'pincode' => '700150',
+                        'source' => 'order_checkout_snapshot',
+                        'pincode_profile_mismatch' => true,
+                    ],
                 ],
                 'lines' => [[
                     'id' => 1,

@@ -62,4 +62,61 @@ class LegacyOrderDisplay
 
         return $parts !== [] ? implode(', ', $parts) : null;
     }
+
+    /**
+     * @param  array<string, mixed>|null  $address
+     */
+    public static function formatDeliveryAddress(?array $address): ?string
+    {
+        if ($address === null || $address === []) {
+            return null;
+        }
+
+        $lines = [];
+
+        if (filled($address['line'] ?? null)) {
+            $lines[] = (string) $address['line'];
+        }
+
+        if (filled($address['district'] ?? null)) {
+            $lines[] = (string) $address['district'];
+        }
+
+        if (filled($address['state'] ?? null)) {
+            $lines[] = (string) $address['state'];
+        }
+
+        if (filled($address['pincode'] ?? null)) {
+            $pin = (string) $address['pincode'];
+
+            if (($address['pincode_profile_mismatch'] ?? false) === true) {
+                $pin .= ' (order checkout; customer profile PIN differs)';
+            }
+
+            $lines[] = 'PIN '.$pin;
+        }
+
+        return $lines !== [] ? implode("\n", $lines) : null;
+    }
+
+    public static function formatInrAmount(?string $amount): ?string
+    {
+        if ($amount === null || trim($amount) === '') {
+            return null;
+        }
+
+        $normalized = trim($amount);
+
+        if (! is_numeric($normalized)) {
+            return '₹'.$normalized;
+        }
+
+        $value = (float) $normalized;
+
+        if (floor($value) === $value) {
+            return '₹'.(string) (int) $value;
+        }
+
+        return '₹'.rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+    }
 }

@@ -47,23 +47,95 @@ export const resolveIntakeOutcome = (intake) => {
     return 'matches';
 };
 
-export const buildLegacyPreviewSummaryHtml = (preview) => {
-    const fields = [
-        ['Order ID', preview.order_id],
-        ['Customer name', preview.customer_name],
-        ['Mobile', preview.mobile],
-        ['Product / model', preview.product_model],
-        ['Serial number', preview.serial_number],
+const previewField = (label, value) => (
+    value === null || value === undefined || value === ''
+        ? []
+        : [[label, value]]
+);
+
+const formatPreviewDisplayValue = (value) => {
+    if (value === null || value === undefined || value === '') {
+        return '—';
+    }
+
+    return String(value).replace(/\n/g, '<br>');
+};
+
+export const buildLegacyPreviewSections = (preview = {}) => {
+    const sections = [
+        {
+            title: 'Order',
+            fields: [
+                ['Order ID', preview.order_id],
+                ['Order date', preview.legacy_order_date],
+                ['Status', preview.legacy_order_status],
+                ...previewField('Order year', preview.purchase_year),
+            ],
+        },
+        {
+            title: 'Customer',
+            fields: [
+                ['Customer name', preview.customer_name],
+                ['Mobile', preview.mobile],
+                ...previewField('Email', preview.email),
+            ],
+        },
+        {
+            title: 'Delivery Address',
+            fields: preview.delivery_address_display
+                ? [['Delivery Address', preview.delivery_address_display]]
+                : [],
+        },
+        {
+            title: 'Product / Hardware',
+            fields: [
+                ['Product / model', preview.product_model],
+                ...previewField('Serial number', preview.serial_number),
+                ...previewField('Variant', preview.product_variant),
+                ...previewField('SKU', preview.product_sku),
+            ],
+        },
+        {
+            title: 'Payment',
+            fields: [
+                ...previewField('Payment status', preview.payment_status),
+                ...previewField('Payment method', preview.payment_method),
+                ...previewField('Amount paid', preview.payment_amount_display ?? preview.payment_amount),
+            ],
+        },
+        {
+            title: 'Invoice',
+            fields: [
+                ...previewField('Invoice number', preview.invoice_number),
+                ...previewField('Invoice date', preview.invoice_date),
+            ],
+        },
+        {
+            title: 'Shipment',
+            fields: [
+                ...previewField('Shipment status', preview.shipment_status),
+                ...previewField('AWB / tracking', preview.awb),
+            ],
+        },
     ];
 
-    return `
-        <dl class="dashboard-legacy-preview-card__fields mb-0">
-            ${fields.map(([label, value]) => `
-                <dt>${label}</dt>
-                <dd>${formatIntakePreviewValue(value)}</dd>
-            `).join('')}
-        </dl>
-    `;
+    return sections.filter((section) => section.fields.length > 0);
+};
+
+export const buildLegacyPreviewSummaryHtml = (preview) => {
+    const sections = buildLegacyPreviewSections(preview);
+
+    return sections.map((section) => `
+        <div class="dashboard-legacy-preview-card__section mb-2">
+            <div class="dashboard-legacy-preview-card__section-title small text-muted text-uppercase mb-1">${section.title}</div>
+            <dl class="dashboard-legacy-preview-card__fields mb-0">
+                ${section.fields.map(([label, value]) => `
+                    <dt>${label}</dt>
+                    <dd class="dashboard-legacy-preview-card__value">${formatPreviewDisplayValue(value)}</dd>
+                `).join('')}
+            </dl>
+        </div>
+    `).join('');
 };
 
 const parseJsonResponse = parseIntakeJsonResponse;

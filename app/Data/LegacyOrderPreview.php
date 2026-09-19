@@ -12,6 +12,7 @@ class LegacyOrderPreview
     /**
      * @param  array<int, mixed>|null  $serviceHistory
      * @param  array<string, mixed>|null  $amcDetails
+     * @param  array<string, mixed>|null  $deliveryAddress
      */
     public function __construct(
         public readonly string $orderId,
@@ -29,6 +30,15 @@ class LegacyOrderPreview
         public readonly ?array $amcDetails = null,
         public readonly ?string $legacyOrderStatus = null,
         public readonly ?Carbon $legacyOrderDate = null,
+        public readonly ?string $paymentStatus = null,
+        public readonly ?string $paymentMethod = null,
+        public readonly ?string $paymentAmount = null,
+        public readonly ?Carbon $invoiceDate = null,
+        public readonly ?string $shipmentStatus = null,
+        public readonly ?string $awb = null,
+        public readonly ?string $productVariant = null,
+        public readonly ?string $productSku = null,
+        public readonly ?array $deliveryAddress = null,
     ) {}
 
     public static function fromEnrichment(string $orderId, RadiumBoxOrderEnrichment $enrichment): self
@@ -49,6 +59,15 @@ class LegacyOrderPreview
             amcDetails: $enrichment->amcDetails,
             legacyOrderStatus: $enrichment->legacyOrderStatus ?? $enrichment->radiumboxOrderStatus,
             legacyOrderDate: $enrichment->legacyOrderDate,
+            paymentStatus: $enrichment->radiumboxPaymentStatus,
+            paymentMethod: $enrichment->paymentMethod,
+            paymentAmount: $enrichment->paymentAmount,
+            invoiceDate: $enrichment->invoiceDate,
+            shipmentStatus: $enrichment->shipmentStatus ?? $enrichment->legacyOrderStatus ?? $enrichment->radiumboxOrderStatus,
+            awb: $enrichment->awb,
+            productVariant: $enrichment->productVariant,
+            productSku: $enrichment->productSku,
+            deliveryAddress: $enrichment->deliveryAddress,
         );
     }
 
@@ -93,8 +112,11 @@ class LegacyOrderPreview
             'email' => $this->email,
             'product_model' => $this->productModel,
             'serial_number' => $this->serialNumber,
+            'product_variant' => $this->productVariant,
+            'product_sku' => $this->productSku,
             'gst_number' => $this->gstNumber,
             'invoice_number' => $this->invoiceNumber,
+            'invoice_date' => AppDateFormatter::datetime($this->invoiceDate),
             'purchase_year' => $this->purchaseYear,
             'service_history' => $this->serviceHistory,
             'amc_status' => $this->amcStatus,
@@ -103,6 +125,14 @@ class LegacyOrderPreview
             'amc_details_display' => LegacyOrderDisplay::formatAmcDetails($this->amcDetails),
             'legacy_order_status' => $this->legacyOrderStatus,
             'legacy_order_date' => AppDateFormatter::datetime($this->legacyOrderDate),
+            'payment_status' => $this->paymentStatus,
+            'payment_method' => $this->paymentMethod,
+            'payment_amount' => $this->paymentAmount,
+            'payment_amount_display' => LegacyOrderDisplay::formatInrAmount($this->paymentAmount),
+            'shipment_status' => $this->shipmentStatus,
+            'awb' => $this->awb,
+            'delivery_address' => $this->deliveryAddress,
+            'delivery_address_display' => LegacyOrderDisplay::formatDeliveryAddress($this->deliveryAddress),
         ];
     }
 }

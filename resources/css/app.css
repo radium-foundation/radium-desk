@@ -1509,12 +1509,21 @@ a:focus-visible .stat-card {
     border: 1px solid var(--dashboard-border-subtle);
     border-radius: var(--dashboard-radius-sm);
     box-shadow: var(--dashboard-shadow-sm);
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.dashboard-legacy-preview-card__section {
     column-gap: 0.75rem;
     display: grid;
     grid-template-columns: max-content 1fr;
-    margin-bottom: 0.5rem;
-    padding: 0.5rem 0.75rem;
     row-gap: 0.125rem;
+}
+
+.dashboard-legacy-preview-card__section-title {
+    grid-column: 1 / -1;
 }
 
 .dashboard-legacy-preview-card__fields {
@@ -1535,8 +1544,9 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-legacy-preview-card__actions {
-    grid-column: 2;
-    margin-top: 0.375rem;
+    border-top: 1px solid var(--dashboard-border-subtle);
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
 }
 
 .dashboard-cases-table-wrap,

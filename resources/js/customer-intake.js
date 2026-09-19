@@ -7,6 +7,7 @@ import {
 import { csrfToken } from './workspace/http';
 import { getWorkspaceSession } from './workspace';
 import {
+    buildLegacyPreviewSections,
     initLegacySearchConfirmModal,
     openLegacySearchConfirmModal,
     resolveIntakeOutcome,
@@ -373,34 +374,23 @@ const renderLegacyPreview = (modal, form, data) => {
     }
 
     if (fields) {
-        const previewFields = [
-            ['Order ID', preview.order_id],
-            ['Customer name', preview.customer_name],
-            ['Mobile', preview.mobile],
-            ['Email', preview.email],
-            ['Product / model', preview.product_model],
-            ['Serial number', preview.serial_number],
-            ['GST number', preview.gst_number],
-            ['Invoice number', preview.invoice_number],
-            ['Purchase / activation year', preview.purchase_year],
-            ['RD service history', preview.service_history],
-            ['AMC status', preview.amc_status],
-            ['AMC year', preview.amc_year],
-            ['AMC details', preview.amc_details_display ?? preview.amc_details],
-            ['Order date', preview.legacy_order_date],
-            ['Order status', preview.legacy_order_status],
-        ];
+        fields.innerHTML = buildLegacyPreviewSections(preview).map((section) => `
+            <div class="col-12 mb-3">
+                <div class="small text-muted text-uppercase mb-1">${section.title}</div>
+                <dl class="row mb-0">
+                    ${section.fields.map(([label, value]) => {
+                        const formattedValue = label === 'AMC details'
+                            ? formatAmcDetails(value)
+                            : formatPreviewValue(value).replace(/\n/g, '<br>');
 
-        fields.innerHTML = previewFields.map(([label, value]) => {
-            const formattedValue = label === 'AMC details'
-                ? formatAmcDetails(value)
-                : formatPreviewValue(value);
-
-            return `
-            <dt class="col-sm-4 text-muted">${label}</dt>
-            <dd class="col-sm-8 mb-2">${formattedValue}</dd>
-        `;
-        }).join('');
+                        return `
+                            <dt class="col-sm-4 text-muted">${label}</dt>
+                            <dd class="col-sm-8 mb-2">${formattedValue}</dd>
+                        `;
+                    }).join('')}
+                </dl>
+            </div>
+        `).join('');
     }
 
     if (actionField) {
