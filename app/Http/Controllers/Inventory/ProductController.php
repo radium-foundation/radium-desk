@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Inventory;
 use App\Http\Controllers\Controller;
 use App\Models\DeviceModel;
 use App\Models\InventoryProduct;
+use App\Services\Inventory\CatalogPriceSyncService;
 use App\Services\StatutoryInvoice\EInvoiceUqcMapper;
 use App\Support\Inventory\InventoryAccess;
 use Database\Seeders\RolePermissionSeeder;
@@ -71,6 +72,8 @@ class ProductController extends Controller
 
         return view('inventory.products.edit', array_merge($this->formOptions(), [
             'product' => $product,
+            'catalogPriceSync' => app(CatalogPriceSyncService::class)->latestLogFor($product),
+            'catalogPriceSyncEnabled' => (bool) config('radiumbox.catalog_price_sync.enabled'),
         ]));
     }
 
@@ -79,7 +82,18 @@ class ProductController extends Controller
         $product->update($this->validated($request, $product->id));
         $this->syncVariants($request, $product);
 
+        app(CatalogPriceSyncService::class)->dispatchIfEligible($product->fresh());
+
         return redirect()->route('inventory.products.edit', $product)->with('status', 'Product updated.');
+    }
+
+    public function retryStorefrontSync(InventoryProduct $product): RedirectResponse
+    {
+        app(CatalogPriceSyncService::class)->retry($product);
+
+        return redirect()
+            ->route('inventory.products.edit', $product)
+            ->with('status', 'Storefront price sync queued.');
     }
 
     /**
