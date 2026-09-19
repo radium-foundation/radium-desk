@@ -58,7 +58,10 @@ class SimplePdfRenderer
 
     private const NAVY_B = 0.373;
 
+    /** Absolute ceiling; actual first-page count is resolved from layout budget. */
     public const FIRST_PAGE_SERIAL_LIMIT = 50;
+
+    private const FIRST_PAGE_BODY_BUDGET = 400.0;
 
     private const SERIAL_COLUMNS = 4;
 
@@ -807,7 +810,7 @@ class SimplePdfRenderer
             $height += $this->rowHeight($row);
         }
 
-        $budget = $firstPage ? 400.0 : 560.0;
+        $budget = $firstPage ? self::FIRST_PAGE_BODY_BUDGET : 560.0;
         if ($firstPage) {
             $budget -= $this->serialSummaryHeight($payload);
         }
@@ -1036,26 +1039,109 @@ class SimplePdfRenderer
             return [];
         }
 
-        if (count($all) <= self::FIRST_PAGE_SERIAL_LIMIT) {
-            return $all;
-        }
+        $limit = $this->resolveFirstPageSerialCount($payload);
 
-        return array_slice($all, 0, self::FIRST_PAGE_SERIAL_LIMIT);
+        return array_slice($all, 0, $limit);
     }
 
     /**
-     * Serials after FIRST_PAGE_SERIAL_LIMIT. Empty when everything fits on page 1.
+     * Serials after the first-page summary. Empty when everything fits on page 1.
      *
      * @return list<string>
      */
     private function annexureSerials(StatutoryInvoicePdfPayload $payload): array
     {
         $all = $this->normalizedSerials($payload);
-        if (count($all) <= self::FIRST_PAGE_SERIAL_LIMIT) {
+        $limit = $this->resolveFirstPageSerialCount($payload);
+        if ($limit >= count($all)) {
             return [];
         }
 
-        return array_values(array_slice($all, self::FIRST_PAGE_SERIAL_LIMIT));
+        return array_values(array_slice($all, $limit));
+    }
+
+    /**
+     * Max serials that can share page 1 with totals and the locked QR/IRN/signatory block.
+     */
+    private function resolveFirstPageSerialCount(StatutoryInvoicePdfPayload $payload): int
+    {
+        $all = $this->normalizedSerials($payload);
+        if ($all === []) {
+            return 0;
+        }
+
+        $rows = $this->lineRows($payload);
+        $closing = $this->closingHeight($payload);
+        $max = min(count($all), self::FIRST_PAGE_SERIAL_LIMIT);
+
+        for ($count = $max; $count >= 0; $count--) {
+            $serialHeight = $this->serialSummaryHeightForCount($count, $count < count($all));
+            $closingOnFirstPage = $this->closingFitsOnFirstPageWithRows($rows, $closing, $serialHeight);
+
+            if ($payload->hasIssuedIrn() && ! $closingOnFirstPage) {
+                continue;
+            }
+
+            $firstPageRowHeight = $this->firstPageLineRowHeight($rows, $closingOnFirstPage, $serialHeight);
+            $required = $firstPageRowHeight + $serialHeight + ($closingOnFirstPage ? $closing : 0.0);
+            if ($required <= self::FIRST_PAGE_BODY_BUDGET) {
+                return $count;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function closingFitsOnFirstPageWithRows(array $rows, float $closing, float $serialHeight): bool
+    {
+        $rowHeight = 0.0;
+        foreach ($rows as $row) {
+            $rowHeight += $this->rowHeight($row);
+        }
+
+        return $rowHeight + $closing + $serialHeight <= self::FIRST_PAGE_BODY_BUDGET;
+    }
+
+    /**
+     * Height consumed by line rows that actually render on page 1.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function firstPageLineRowHeight(array $rows, bool $closingOnFirstPage, float $serialHeight): float
+    {
+        if ($closingOnFirstPage) {
+            $total = 0.0;
+            foreach ($rows as $row) {
+                $total += $this->rowHeight($row);
+            }
+
+            return $total;
+        }
+
+        $budget = self::FIRST_PAGE_BODY_BUDGET - $serialHeight;
+        if ($budget <= 0.0) {
+            return 0.0;
+        }
+
+        $consumed = 0.0;
+        foreach ($rows as $row) {
+            $height = $this->rowHeight($row);
+            if ($consumed > 0.0 && $consumed + $height > $budget) {
+                break;
+            }
+            if ($consumed === 0.0 && $height > $budget) {
+                return $budget;
+            }
+            if ($consumed + $height > $budget) {
+                break;
+            }
+            $consumed += $height;
+        }
+
+        return $consumed;
     }
 
     private function serialSummaryHeight(StatutoryInvoicePdfPayload $payload): float
@@ -1065,9 +1151,18 @@ class SimplePdfRenderer
             return 0.0;
         }
 
-        $rows = (int) ceil(count($first) / self::SERIAL_COLUMNS);
+        return $this->serialSummaryHeightForCount(count($first), $this->annexureSerials($payload) !== []);
+    }
+
+    private function serialSummaryHeightForCount(int $count, bool $hasAnnexureRemainder): float
+    {
+        if ($count <= 0) {
+            return 0.0;
+        }
+
+        $rows = (int) ceil($count / self::SERIAL_COLUMNS);
         $height = 16.0 + ($rows * self::SERIAL_ROW_HEIGHT) + 12.0;
-        if ($this->annexureSerials($payload) !== []) {
+        if ($hasAnnexureRemainder) {
             $height += 10.0;
         }
 
@@ -1111,7 +1206,7 @@ class SimplePdfRenderer
         }
 
         $total = count($this->normalizedSerials($payload));
-        $startNumber = self::FIRST_PAGE_SERIAL_LIMIT + 1;
+        $startNumber = $this->resolveFirstPageSerialCount($payload) + 1;
         $perPage = 80;
         $streams = [];
         $offset = 0;

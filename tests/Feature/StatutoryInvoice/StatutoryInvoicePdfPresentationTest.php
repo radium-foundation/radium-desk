@@ -1098,14 +1098,85 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Same', $pdf);
     }
 
-    public function test_fifty_one_serials_put_remainder_only_in_annexure(): void
+    public function test_fifty_serials_with_irn_keep_verification_block_on_page_one(): void
+    {
+        $serials = [];
+        for ($i = 1; $i <= 50; $i++) {
+            $serials[] = sprintf('1053%04d', 2000 + $i);
+        }
+        $jwt = $this->jwtSignedQr();
+        $irn = '632fdabeceaad34a5dc5c6782c0ec471bae2d88f8efb8eb6b82747dba3f919b1';
+
+        $binary = (new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-0767146',
+            issuedAt: '2026-09-18 17:56:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            sellerEmail: 'mail@radiumbox.com',
+            sellerPhone: '+91-84343 84343',
+            buyerName: 'CDSIMER',
+            buyerGstin: '29AAAJD1151D1ZS',
+            billingAddress: 'Dr. Chandramma Dayananda Sagar Institute of Medical Education & Research, Bengaluru, Karnataka 562112',
+            placeOfSupply: 'Karnataka',
+            lines: [[
+                'description' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner (bundled RD #1119)',
+                'hsnSac' => '84716050',
+                'qty' => 50,
+                'unitPrice' => '2499.00',
+                'taxableValue' => '21177.97',
+                'gstPercentage' => '18.00%',
+                'cgst' => '0.00',
+                'sgst' => '0.00',
+                'igst' => '3812.03',
+                'taxTotal' => '3812.03',
+                'lineTotal' => '124950.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '21177.97',
+            gstRate: '18.00%',
+            taxTotal: '3812.03',
+            cgst: '0.00',
+            sgst: '0.00',
+            igst: '3812.03',
+            invoiceValue: '124950.00',
+            serialNumbers: $serials,
+            orderId: 'RDE318516',
+            paymentReference: '6864309255',
+            paymentMethod: 'cashfree',
+            irn: $irn,
+            ackNo: '172621204889923',
+            ackDate: '2026-09-18 17:56:00',
+            signedQr: $jwt,
+        ));
+        $pdf = $this->text($binary);
+
+        $this->assertVerificationBlockOnPageOne($binary, $jwt);
+        $this->assertStringContainsString($irn, $pdf);
+        $this->assertStringContainsString('Ack No: 172621204889923', $pdf);
+        $this->assertStringContainsString('Date: 18 Sep 2026 17:56', $pdf);
+        $this->assertStringContainsString('% signed-qr-image', $binary);
+        $this->assertStringContainsString('Authorized Signatory', $pdf);
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
+        foreach ($serials as $serial) {
+            $this->assertStringContainsString($serial, $pdf);
+        }
+        $this->assertSame(1, substr_count($pdf, $serials[0]));
+        $this->assertSame(1, substr_count($pdf, $serials[49]));
+        $this->assertStringContainsString('Rs.124950.00', $pdf);
+        $this->assertStringContainsString('Rs.3812.03', $pdf);
+    }
+
+    public function test_fifty_one_serials_with_irn_use_annexure_before_pushing_verification_block(): void
     {
         $serials = [];
         for ($i = 1; $i <= 51; $i++) {
             $serials[] = sprintf('SN-%03d', $i);
         }
 
-        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+        $binary = (new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
             invoiceNumber: 'INV-076851',
             issuedAt: '2026-09-11 12:00:00',
             sellerLegalName: 'Phil Technologies (P) Limited',
@@ -1139,13 +1210,71 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             invoiceValue: '6018.00',
             serialNumbers: $serials,
             orderId: 'POS-000051',
-        )));
+            irn: 'issued-irn-token-0001',
+            ackNo: '112233',
+            ackDate: '2026-09-07 18:40:00',
+            signedQr: $this->jwtSignedQr(),
+        ));
+        $pdf = $this->text($binary);
 
+        $this->assertVerificationBlockOnPageOne($binary, $this->jwtSignedQr());
         $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
         $this->assertStringContainsString('ANNEXURE A', $pdf);
         $this->assertStringContainsString('51. SN-051', $pdf);
         $this->assertSame(1, substr_count($pdf, 'SN-001'));
         $this->assertSame(1, substr_count($pdf, 'SN-051'));
+    }
+
+    public function test_fifty_one_serials_without_irn_put_only_remainder_in_annexure(): void
+    {
+        $serials = [];
+        for ($i = 1; $i <= 51; $i++) {
+            $serials[] = sprintf('SN-%03d', $i);
+        }
+
+        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076852',
+            issuedAt: '2026-09-11 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Hardware Buyer',
+            buyerGstin: '07AAAAA0000A1Z5',
+            billingAddress: '1 Test Street, Delhi',
+            placeOfSupply: 'Delhi',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1',
+                'hsnSac' => '84716050',
+                'qty' => 51,
+                'unitPrice' => '100.00',
+                'taxableValue' => '5100.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '459.00',
+                'sgst' => '459.00',
+                'igst' => '0.00',
+                'taxTotal' => '918.00',
+                'lineTotal' => '6018.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '5100.00',
+            gstRate: '18.00%',
+            taxTotal: '900.00',
+            cgst: '459.00',
+            sgst: '459.00',
+            igst: '0.00',
+            invoiceValue: '6018.00',
+            serialNumbers: $serials,
+            orderId: 'POS-000052',
+        )));
+
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('51. SN-051', $pdf);
+        $this->assertSame(1, substr_count($pdf, 'SN-001'));
+        $this->assertSame(1, substr_count($pdf, 'SN-051'));
+        foreach ($serials as $serial) {
+            $this->assertStringContainsString($serial, $pdf);
+        }
     }
 
     public function test_one_hundred_serials_are_never_truncated(): void
@@ -1196,8 +1325,116 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         foreach ($serials as $serial) {
             $this->assertStringContainsString($serial, $pdf);
         }
-        $this->assertSame(1, substr_count($pdf, 'SN-050'));
         $this->assertSame(1, substr_count($pdf, 'SN-100'));
+    }
+
+    public function test_one_hundred_serials_with_irn_keep_verification_block_on_page_one(): void
+    {
+        $serials = [];
+        for ($i = 1; $i <= 100; $i++) {
+            $serials[] = sprintf('SN-%03d', $i);
+        }
+
+        $binary = (new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-076950',
+            issuedAt: '2026-09-11 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Hardware Buyer',
+            buyerGstin: '07AAAAA0000A1Z5',
+            billingAddress: '1 Test Street, Delhi',
+            placeOfSupply: 'Delhi',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1',
+                'hsnSac' => '84716050',
+                'qty' => 100,
+                'unitPrice' => '100.00',
+                'taxableValue' => '10000.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '900.00',
+                'sgst' => '900.00',
+                'igst' => '0.00',
+                'taxTotal' => '1800.00',
+                'lineTotal' => '11800.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '10000.00',
+            gstRate: '18.00%',
+            taxTotal: '1800.00',
+            cgst: '900.00',
+            sgst: '900.00',
+            igst: '0.00',
+            invoiceValue: '11800.00',
+            serialNumbers: $serials,
+            rounding: '0.00',
+            orderId: 'POS-000100',
+            irn: 'issued-irn-token-0001',
+            ackNo: '112233',
+            ackDate: '2026-09-07 18:40:00',
+            signedQr: $this->jwtSignedQr(),
+        ));
+        $pdf = $this->text($binary);
+
+        $this->assertVerificationBlockOnPageOne($binary, $this->jwtSignedQr());
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertGreaterThan(1, $this->pageCount($binary));
+        foreach ($serials as $serial) {
+            $this->assertStringContainsString($serial, $pdf);
+        }
+    }
+
+    public function test_qr_payload_is_unchanged_after_serial_annexure_layout(): void
+    {
+        $jwt = $this->jwtSignedQr();
+        $serials = [];
+        for ($i = 1; $i <= 60; $i++) {
+            $serials[] = sprintf('SN-%03d', $i);
+        }
+
+        $binary = (new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-QR-LAYOUT',
+            issuedAt: '2026-09-11 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Hardware Buyer',
+            buyerGstin: '07AAAAA0000A1Z5',
+            billingAddress: '1 Test Street, Delhi',
+            placeOfSupply: 'Delhi',
+            lines: [[
+                'description' => 'Mantra MFS 110 L1',
+                'hsnSac' => '84716050',
+                'qty' => 60,
+                'unitPrice' => '100.00',
+                'taxableValue' => '6000.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '540.00',
+                'sgst' => '540.00',
+                'igst' => '0.00',
+                'taxTotal' => '1080.00',
+                'lineTotal' => '7080.00',
+                'uqc' => 'PCS',
+            ]],
+            taxableValue: '6000.00',
+            gstRate: '18.00%',
+            taxTotal: '1080.00',
+            cgst: '540.00',
+            sgst: '540.00',
+            igst: '0.00',
+            invoiceValue: '7080.00',
+            serialNumbers: $serials,
+            irn: 'issued-irn-token-0001',
+            ackNo: '112233',
+            ackDate: '2026-09-07 18:40:00',
+            signedQr: $jwt,
+        ));
+
+        $this->assertStringContainsString('% signed-qr-image', $binary);
+        $this->assertStringNotContainsString($jwt, $binary);
+        $this->assertVerificationBlockOnPageOne($binary, $jwt);
     }
 
     public function test_unpaid_payment_does_not_print_a_receipt_date(): void
@@ -1269,6 +1506,101 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
     private function text(string $pdf): string
     {
         return str_replace(['\\(', '\\)', '\\\\'], ['(', ')', '\\'], $pdf);
+    }
+
+    private function pageCount(string $binary): int
+    {
+        if (! preg_match('/\/Type \/Pages[^>]*\/Count (\d+)/', $binary, $matches)) {
+            return 0;
+        }
+
+        return (int) $matches[1];
+    }
+
+    private function assertVerificationBlockOnPageOne(string $binary, ?string $expectedSignedQr = null): void
+    {
+        $pdfPath = storage_path('framework/testing/page1-verify-'.uniqid('', true).'.pdf');
+        file_put_contents($pdfPath, $binary);
+
+        $pageOneText = trim((string) shell_exec(
+            escapeshellarg($this->pdftotextBinary()).' -f 1 -l 1 '.escapeshellarg($pdfPath).' - 2>/dev/null'
+        ));
+        $pageTwoText = '';
+        if ($this->pageCount($binary) >= 2) {
+            $pageTwoText = trim((string) shell_exec(
+                escapeshellarg($this->pdftotextBinary()).' -f 2 -l 2 '.escapeshellarg($pdfPath).' - 2>/dev/null'
+            ));
+        }
+
+        $this->assertStringContainsString('e-Invoice Verification', $pageOneText, 'Page 1 must contain e-Invoice Verification.');
+        $this->assertStringContainsString('Authorized Signatory', $pageOneText, 'Page 1 must contain Authorized Signatory.');
+        if ($pageTwoText !== '') {
+            $this->assertStringNotContainsString(
+                'e-Invoice Verification',
+                $pageTwoText,
+                'e-Invoice Verification must not appear on page 2.',
+            );
+            $this->assertStringNotContainsString(
+                'Authorized Signatory',
+                $pageTwoText,
+                'Authorized Signatory must not appear on page 2.',
+            );
+        }
+
+        if ($expectedSignedQr !== null && str_contains($binary, '% signed-qr-image')) {
+            $pdftoppm = $this->pdftoppmBinary();
+            $zbar = $this->zbarimgBinary();
+            if ($pdftoppm !== null && $zbar !== null) {
+                $pngPrefix = storage_path('framework/testing/page1-qr-'.uniqid('', true));
+                $command = escapeshellarg($pdftoppm).' -png -r 300 -f 1 -l 1 '
+                    .escapeshellarg($pdfPath).' '.escapeshellarg($pngPrefix).' 2>/dev/null';
+                exec($command, $output, $exitCode);
+                $pngFile = $pngPrefix.'-1.png';
+                $this->assertSame(0, $exitCode, 'Expected pdftoppm to rasterize page 1 for QR verification.');
+                $this->assertFileExists($pngFile, 'Expected page-1 PNG for QR verification.');
+
+                $decodeCommand = escapeshellarg($zbar).' --raw -q '.escapeshellarg($pngFile);
+                $decoded = trim((string) shell_exec($decodeCommand.' 2>/dev/null'));
+                $this->assertSame($expectedSignedQr, $decoded, 'Page-1 QR payload must match the signed e-invoice JWT.');
+
+                @unlink($pngFile);
+            }
+        }
+
+        @unlink($pdfPath);
+    }
+
+    private function pdftotextBinary(): string
+    {
+        foreach (['/opt/homebrew/bin/pdftotext', '/usr/local/bin/pdftotext', '/usr/bin/pdftotext'] as $candidate) {
+            if (is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        $this->fail('pdftotext is required for page-aware verification-block assertions.');
+    }
+
+    private function pdftoppmBinary(): ?string
+    {
+        foreach (['/opt/homebrew/bin/pdftoppm', '/usr/local/bin/pdftoppm', '/usr/bin/pdftoppm'] as $candidate) {
+            if (is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function zbarimgBinary(): ?string
+    {
+        foreach (['/opt/homebrew/bin/zbarimg', '/usr/local/bin/zbarimg', '/usr/bin/zbarimg'] as $candidate) {
+            if (is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function regenerate(int $invoiceId): void
