@@ -102,5 +102,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-19-09-08 | 2026-09-19 | Phase B-1 controlled listing price normalization (968/944/949) | Owner-approved deploy: scoped default listing prices for FM220/MFS110/Morpho only; MFS100 L0 protected; eligibility migration; KVM8 deploy. Companion `radiumbox.com-P-19-09-08`. |
 | RadiumDesk-P-19-09-09 | 2026-09-19 | MFS100 PDP regression hotfix after Phase B-1 | Companion to `radiumbox.com-P-19-09-09`. RadiumBox-only slug/model resolution + per-model PDP configuration. No Desk code/DB changes. |
 | RadiumDesk-P-19-09-10 | 2026-09-19 | MFS100 PDP modelConfigurations parse + atomic switch fix | Companion to `radiumbox.com-P-19-09-10`. Storefront-only parse/state fix; no Desk code/DB changes. |
+| RadiumDesk-P-19-09-11 | 2026-09-19 | Parent 944 select_model default → MFS110 (946) | Companion to `radiumbox.com-P-19-09-11`. RadiumBox production DB only; no Desk changes. |
 
 Do not renumber or overwrite earlier rows. Append only.
