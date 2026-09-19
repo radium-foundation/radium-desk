@@ -20,6 +20,9 @@ class InventoryProduct extends Model
         'is_serialized',
         'tracks_batch',
         'is_active',
+        'sell_on_radiumbox',
+        'rd_service_available',
+        'amc_available',
         'device_model_id',
     ];
 
@@ -32,8 +35,17 @@ class InventoryProduct extends Model
             'is_serialized' => 'boolean',
             'tracks_batch' => 'boolean',
             'is_active' => 'boolean',
+            'sell_on_radiumbox' => 'boolean',
+            'rd_service_available' => 'boolean',
+            'amc_available' => 'boolean',
         ];
     }
+
+    protected $attributes = [
+        'sell_on_radiumbox' => true,
+        'rd_service_available' => true,
+        'amc_available' => true,
+    ];
 
     public function deviceModel(): BelongsTo
     {

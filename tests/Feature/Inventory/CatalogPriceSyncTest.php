@@ -96,6 +96,9 @@ class CatalogPriceSyncTest extends TestCase
                 && $request['publish_price'] === 10099.0
                 && $request['model_id'] === 1753
                 && $request['idempotency_key'] === $expectedKey
+                && $request['storefront_sellable'] === true
+                && $request['rd_service_available'] === true
+                && $request['amc_available'] === true
                 && $request->hasHeader('Idempotency-Key', $expectedKey);
         });
 
@@ -210,6 +213,9 @@ class CatalogPriceSyncTest extends TestCase
             'is_serialized' => (bool) $product->is_serialized,
             'tracks_batch' => (bool) $product->tracks_batch,
             'is_active' => (bool) $product->is_active,
+            'sell_on_radiumbox' => (bool) ($product->sell_on_radiumbox ?? true),
+            'rd_service_available' => (bool) ($product->rd_service_available ?? true),
+            'amc_available' => (bool) ($product->amc_available ?? true),
         ];
     }
 

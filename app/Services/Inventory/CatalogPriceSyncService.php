@@ -90,6 +90,9 @@ class CatalogPriceSyncService
                 publishPrice: $publishPrice,
                 gstPercentage: $gstPercentage,
                 idempotencyKey: $idempotencyKey,
+                storefrontSellable: (bool) $product->sell_on_radiumbox,
+                rdServiceAvailable: (bool) $product->rd_service_available,
+                amcAvailable: (bool) $product->amc_available,
             );
 
             $log->update([
