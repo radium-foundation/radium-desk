@@ -540,6 +540,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('hardware-fulfilments/{fulfilment}/courier-options', [InventoryHardwareFulfilmentSerialController::class, 'storeCourierOptions'])->name('hardware-fulfilments.courier-options.store');
         Route::post('hardware-fulfilments/{fulfilment}/courier', [InventoryHardwareFulfilmentSerialController::class, 'storeCourier'])->name('hardware-fulfilments.courier.store');
         Route::post('hardware-fulfilments/{fulfilment}/awb', [InventoryHardwareFulfilmentSerialController::class, 'storeAwb'])->name('hardware-fulfilments.awb.store');
+        Route::post('hardware-fulfilments/{fulfilment}/awb-reconcile', [InventoryHardwareFulfilmentSerialController::class, 'storeAwbReconcile'])->name('hardware-fulfilments.awb-reconcile.store');
         Route::post('hardware-fulfilments/{fulfilment}/label', [InventoryHardwareFulfilmentSerialController::class, 'storeLabel'])->name('hardware-fulfilments.label.store');
         Route::post('hardware-fulfilments/{fulfilment}/pickup', [InventoryHardwareFulfilmentSerialController::class, 'storePickup'])->name('hardware-fulfilments.pickup.store');
         Route::post('hardware-fulfilments/{fulfilment}/manifest', [InventoryHardwareFulfilmentSerialController::class, 'storeManifest'])->name('hardware-fulfilments.manifest.store');

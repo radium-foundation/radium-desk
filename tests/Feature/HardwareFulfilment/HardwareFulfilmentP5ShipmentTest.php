@@ -17,8 +17,11 @@ use App\Models\InventorySerial;
 use App\Models\InventoryUserBranch;
 use App\Models\OutboxEvent;
 use App\Models\Shipment;
+use App\Models\ShipmentEvent;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
+use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
+use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
 use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackOutboxWriter;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
@@ -447,7 +450,7 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame(HardwareFulfilmentState::AwbAssigned, $fulfilment->fresh()->state);
     }
 
-    public function test_awb_recovery_prefers_matching_mode_over_recommended_air(): void
+    public function test_awb_recovery_prefers_recommended_courier_after_courier_not_serviceable(): void
     {
         config(['shipping.preferred_courier_ids' => ['15084']]);
         $fulfilment = $this->invoicedFulfilment('RDE900631', 'DELHI-RETAIL');
@@ -472,11 +475,41 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $assigned = $this->shipments->assignAwb($fulfilment->fresh(['shipment']));
 
         $this->assertNotNull($assigned->awb);
-        $this->assertSame(['15084', '15106'], $this->fake->assignCourierIds);
-        $this->assertNotSame('48', $assigned->courier_id);
-        $this->assertSame('15106', $assigned->courier_id);
+        $this->assertSame(['15084', '48'], $this->fake->assignCourierIds);
+        $this->assertSame('48', $assigned->courier_id);
         $this->assertSame(1, Shipment::query()->count());
         $this->assertSame($created->external_shipment_id, $assigned->external_shipment_id);
+    }
+
+    public function test_awb_recovery_retries_with_recommended_courier_when_operator_selected_courier_is_not_serviceable(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900633', 'DELHI-RETAIL');
+        $created = $this->shipments->createShipment($fulfilment);
+        $fulfilment->forceFill([
+            'selected_courier_id' => '15086',
+            'selected_courier_name' => 'Shadowfax_Surface',
+        ])->save();
+        $fulfilment->shipment?->forceFill([
+            'courier_id' => '15086',
+            'courier_name' => 'Shadowfax_Surface',
+        ])->save();
+
+        $this->fake->courierOptions = [
+            ['courier_id' => '15084', 'courier_name' => 'Delhivery_Surface', 'mode' => '0', 'provider_recommended' => true],
+            ['courier_id' => '15086', 'courier_name' => 'Shadowfax_Surface', 'mode' => '0'],
+        ];
+        $this->fake->recommendedCourierId = '15084';
+        $this->fake->assignModeQueue = ['courier_not_serviceable', 'accepted'];
+
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh(['shipment']));
+
+        $this->assertNotNull($assigned->awb);
+        $this->assertSame(['15086', '15084'], $this->fake->assignCourierIds);
+        $this->assertSame('15084', $assigned->courier_id);
+        $this->assertSame('15084', $fulfilment->fresh()->selected_courier_id);
+        $this->assertSame(HardwareFulfilmentState::AwbAssigned, $fulfilment->fresh()->state);
+        $this->assertSame($created->external_shipment_id, $assigned->external_shipment_id);
+        $this->assertSame(2, $this->fake->awbs);
     }
 
     public function test_awb_uses_preferred_courier_when_stored_is_not_serviceable(): void
@@ -880,6 +913,124 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame(1, Shipment::query()->count());
     }
 
+    public function test_external_provider_awb_reconciles_without_assign_call_and_updates_courier(): void
+    {
+        $fulfilment = $this->boundShipmentWithoutAwb('RDE960001', '15086', 'Shadowfax_Surface');
+        $shipment = Shipment::query()->firstOrFail();
+        $this->fake->seedAwb(
+            (string) $shipment->external_shipment_id,
+            '284931180089754',
+            '15084',
+            'Delhivery_Surface',
+        );
+
+        $awbsBefore = $this->fake->awbs;
+        $outcome = $this->shipments->reconcileAwbFromProviderSearch($fulfilment->fresh(['shipment']), $this->actor);
+
+        $this->assertTrue($outcome->reconciled);
+        $this->assertFalse($outcome->alreadyLocal);
+        $this->assertSame($awbsBefore, $this->fake->awbs);
+        $this->assertSame(1, $this->fake->searches);
+
+        $shipment = $shipment->fresh();
+        $this->assertSame('284931180089754', $shipment->awb);
+        $this->assertSame('15084', $shipment->courier_id);
+        $this->assertSame('Delhivery_Surface', $shipment->courier_name);
+        $this->assertNull($shipment->failure_class);
+        $this->assertNull($shipment->last_error);
+        $this->assertSame('15084', $fulfilment->fresh()->selected_courier_id);
+        $this->assertSame(HardwareFulfilmentState::AwbAssigned, $fulfilment->fresh()->state);
+
+        $this->assertNotNull(ShipmentEvent::query()
+            ->where('shipment_id', $shipment->id)
+            ->where('source', 'reconcile')
+            ->where('activity', 'awb_assigned')
+            ->first());
+    }
+
+    public function test_awb_reconcile_is_idempotent_when_local_awb_already_matches_provider(): void
+    {
+        $fulfilment = $this->boundShipmentWithoutAwb('RDE960002', '15086', 'Shadowfax_Surface');
+        $shipment = Shipment::query()->firstOrFail();
+        $this->fake->seedAwb(
+            (string) $shipment->external_shipment_id,
+            'AWB-IDEM-001',
+            '15084',
+            'Delhivery_Surface',
+        );
+
+        $this->shipments->reconcileAwbFromProviderSearch($fulfilment->fresh(['shipment']), $this->actor);
+        $eventsAfterFirst = ShipmentEvent::query()
+            ->where('shipment_id', $shipment->id)
+            ->where('source', 'reconcile')
+            ->count();
+
+        $outcome = $this->shipments->reconcileAwbFromProviderSearch($fulfilment->fresh(['shipment']), $this->actor);
+
+        $this->assertTrue($outcome->alreadyLocal);
+        $this->assertFalse($outcome->reconciled);
+        $this->assertSame($eventsAfterFirst, ShipmentEvent::query()
+            ->where('shipment_id', $shipment->id)
+            ->where('source', 'reconcile')
+            ->count());
+    }
+
+    public function test_awb_reconcile_refuses_identity_mismatch(): void
+    {
+        $fulfilment = $this->boundShipmentWithoutAwb('RDE960003', '15086', 'Shadowfax_Surface');
+        $shipment = Shipment::query()->firstOrFail();
+
+        $this->fake->nextSearchResult = new ShiprocketSearchResult(
+            provider: 'shiprocket',
+            found: true,
+            externalOrderId: '9999999999',
+            externalShipmentId: (string) $shipment->external_shipment_id,
+            merchantOrderId: 'HW-RDE960003',
+            awb: 'AWB-MISMATCH',
+            courierId: '15084',
+            courierName: 'Delhivery_Surface',
+        );
+
+        try {
+            $this->shipments->reconcileAwbFromProviderSearch($fulfilment->fresh(['shipment']), $this->actor);
+            $this->fail('Identity mismatch must refuse reconciliation.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                'order id does not match',
+                strtolower(implode(' ', $exception->errors()['shipping'] ?? [])),
+            );
+        }
+
+        $this->assertNull($shipment->fresh()->awb);
+        $this->assertSame(HardwareFulfilmentState::ShipmentCreated, $fulfilment->fresh()->state);
+    }
+
+    public function test_pickup_generated_track_reconciles_pickup_state(): void
+    {
+        $fulfilment = $this->boundShipmentWithoutAwb('RDE960005', '15084', 'Delhivery_Surface');
+        $shipment = Shipment::query()->firstOrFail();
+        $this->fake->seedAwb(
+            (string) $shipment->external_shipment_id,
+            'AWB-PICKUP-001',
+            '15084',
+            'Delhivery_Surface',
+        );
+        $this->shipments->reconcileAwbFromProviderSearch($fulfilment->fresh(['shipment']), $this->actor);
+
+        $this->fake->trackByAwbQueue = [
+            FakeShiprocketGateway::pickupGeneratedTrack('AWB-PICKUP-001'),
+        ];
+
+        $outcome = app(HardwareShipmentDocumentsService::class)
+            ->reconcilePickupFromProviderTrack($fulfilment->fresh(['shipment']), $this->actor);
+
+        $this->assertTrue($outcome->reconciledProviderAdvanced);
+        $this->assertNotNull($outcome->shipment->pickup_requested_at);
+        $this->assertSame('Pickup Generated', $outcome->shipment->provider_track_status);
+        $this->assertSame('pickup_queued', $outcome->shipment->provider_track_normalized);
+        $this->assertSame(0, $this->fake->pickups);
+    }
+
     public function test_frozen_pending_orders_are_not_shipped(): void
     {
         foreach (HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS as $sourceId) {
@@ -899,6 +1050,27 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         }
 
         $this->assertSame(0, $this->fake->creates);
+    }
+
+    private function boundShipmentWithoutAwb(
+        string $sourceId,
+        string $courierId,
+        string $courierName,
+    ): HardwareFulfilment {
+        $fulfilment = $this->invoicedFulfilment($sourceId, 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $fulfilment->forceFill([
+            'selected_courier_id' => $courierId,
+            'selected_courier_name' => $courierName,
+        ])->save();
+        $fulfilment->shipment?->forceFill([
+            'courier_id' => $courierId,
+            'courier_name' => $courierName,
+            'failure_class' => 'provider_rejected',
+            'last_error' => 'HTTP 400 — Given courier not serviceable.',
+        ])->save();
+
+        return $fulfilment->fresh(['shipment']) ?? $fulfilment;
     }
 
     private function invoicedFulfilment(

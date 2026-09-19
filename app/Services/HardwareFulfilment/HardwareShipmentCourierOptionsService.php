@@ -462,15 +462,24 @@ class HardwareShipmentCourierOptionsService
                     'courier_options_expires_at' => now()->addSeconds(HardwareShipmentCourierQuote::ttlSeconds()),
                 ])->save();
 
-                $anchor = $this->selector->optionById($options, $rejectedId)
-                    ?? $this->selector->optionById($options, $this->selectedCourierId($locked));
-                $chosen = $this->selector->choose(
-                    $options,
-                    rejectedIds: [$rejectedId],
-                    recommendedId: $result->recommendedCourierId,
-                    anchor: $anchor,
-                    allowUnrankedEligible: true,
-                );
+                $recommended = $this->selector->optionById($options, $result->recommendedCourierId);
+                if (
+                    $recommended !== null
+                    && trim((string) ($recommended['courier_id'] ?? '')) !== ''
+                    && trim((string) ($recommended['courier_id'] ?? '')) !== $rejectedId
+                ) {
+                    $chosen = $recommended;
+                } else {
+                    $anchor = $this->selector->optionById($options, $rejectedId)
+                        ?? $this->selector->optionById($options, $this->selectedCourierId($locked));
+                    $chosen = $this->selector->choose(
+                        $options,
+                        rejectedIds: [$rejectedId],
+                        recommendedId: $result->recommendedCourierId,
+                        anchor: $anchor,
+                        allowUnrankedEligible: true,
+                    );
+                }
                 if ($chosen === null) {
                     return [
                         'error' => 'Shiprocket returned no currently serviceable alternate courier after rejecting courier '.$rejectedId.'. Select a courier from a fresh Get Courier Options result, then Assign AWB.',

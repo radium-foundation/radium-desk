@@ -28,6 +28,25 @@ class ShiprocketTrackingNormalizerTest extends TestCase
         $this->assertTrue(ShiprocketTrackingNormalizer::pickupAlreadyAdvanced($result));
     }
 
+    public function test_status_id_3_and_pickup_generated_normalize_to_pickup_queued(): void
+    {
+        $result = new ShiprocketTrackResult(
+            provider: 'shiprocket',
+            status: '3',
+            activities: [[
+                'current_status' => 'Pickup Generated',
+                'current_status_id' => 3,
+            ]],
+            awb: '284931180089754',
+        );
+
+        $normalized = ShiprocketTrackingNormalizer::normalize($result);
+
+        $this->assertSame('Pickup Generated', $normalized['provider_track_status']);
+        $this->assertSame(ShiprocketTrackNormalized::PickupQueued, $normalized['normalized']);
+        $this->assertTrue(ShiprocketTrackingNormalizer::pickupAlreadyAdvanced($result));
+    }
+
     public function test_pickup_advanced_on_shipment_uses_persisted_normalized_value(): void
     {
         $this->assertTrue(

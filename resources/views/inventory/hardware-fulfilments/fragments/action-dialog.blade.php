@@ -155,6 +155,20 @@
                         ],
                         'submitLabel' => 'Assign AWB',
                     ])
+                    @if($ready->alreadyCreated && blank($ready->awb))
+                        <x-c360.section-card title="Shiprocket Admin" class="mt-3">
+                            <p class="small mb-3">If the AWB was already assigned in Shiprocket Admin for this shipment, reconcile it here instead of assigning again.</p>
+                            @include('inventory.hardware-fulfilments.fragments.action-confirm', [
+                                'formAction' => route('inventory.hardware-fulfilments.awb-reconcile.store', $fulfilment),
+                                'formId' => 'hardware-action-awb-reconcile-form',
+                                'summary' => [
+                                    'Shipment' => $ready->status,
+                                    'Provider' => 'Search existing Shiprocket order',
+                                ],
+                                'submitLabel' => 'Reconcile from Shiprocket',
+                            ])
+                        </x-c360.section-card>
+                    @endif
                 @elseif($action === 'Generate Label')
                     @include('inventory.hardware-fulfilments.fragments.action-confirm', [
                         'formAction' => route('inventory.hardware-fulfilments.label.store', $fulfilment),

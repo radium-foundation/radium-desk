@@ -9,6 +9,7 @@ use App\Models\HardwareFulfilment;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
 use App\Models\User;
+use App\Services\HardwareFulfilment\Data\HardwareAwbReconcileOutcome;
 use App\Services\Shipping\Data\ShiprocketAwbResult;
 use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
@@ -208,6 +209,89 @@ class HardwareShipmentService
         throw ValidationException::withMessages([
             'shipping' => $outcome['rejected'] ?? 'Shiprocket rejected AWB assignment.',
         ]);
+    }
+
+    /**
+     * Bind a provider-assigned AWB from verified Shiprocket search without calling
+     * assign/awb. Idempotent when the local AWB already matches the provider.
+     */
+    public function reconcileAwbFromProviderSearch(HardwareFulfilment $fulfilment, ?User $actor = null): HardwareAwbReconcileOutcome
+    {
+        $this->assertNotFrozen($fulfilment);
+        $this->assertProviderCallable();
+
+        try {
+            $resolved = DB::transaction(function () use ($fulfilment, $actor): array {
+                $locked = HardwareFulfilment::query()
+                    ->whereKey($fulfilment->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $this->assertNotFrozen($locked);
+
+                $shipment = $this->existingShipment($locked);
+                if ($shipment === null || ! $shipment->isBound()) {
+                    throw ValidationException::withMessages([
+                        'shipping' => 'AWB reconciliation requires a created provider shipment.',
+                    ]);
+                }
+
+                if (filled($shipment->awb)) {
+                    $found = $this->searchForExisting($shipment);
+                    $this->assertSearchIdentity($locked, $shipment, $found);
+
+                    if (filled($found->awb) && $found->awb === $shipment->awb) {
+                        return [
+                            'shipment' => $shipment,
+                            'alreadyLocal' => true,
+                            'reconciled' => false,
+                        ];
+                    }
+
+                    throw ValidationException::withMessages([
+                        'shipping' => 'AWB is already bound and cannot be overwritten.',
+                    ]);
+                }
+
+                if ($locked->state !== HardwareFulfilmentState::ShipmentCreated) {
+                    throw ValidationException::withMessages([
+                        'state' => 'AWB reconciliation requires SHIPMENT_CREATED.',
+                    ]);
+                }
+
+                $found = $this->searchForExisting($shipment);
+                if ($found->retryable) {
+                    throw new ShiprocketRetryableException(
+                        $found->error ?? 'Shiprocket search is retryable.',
+                    );
+                }
+
+                if (! $found->found || ! filled($found->awb)) {
+                    throw ValidationException::withMessages([
+                        'shipping' => 'Shiprocket search did not return an AWB for this shipment.',
+                    ]);
+                }
+
+                $this->assertSearchIdentity($locked, $shipment, $found);
+                $this->bindAwbFromProviderSearch($locked, $shipment, $found, $actor);
+
+                return [
+                    'shipment' => $shipment->fresh() ?? $shipment,
+                    'alreadyLocal' => false,
+                    'reconciled' => true,
+                ];
+            });
+        } catch (ShiprocketRetryableException $exception) {
+            throw ValidationException::withMessages([
+                'shipping' => $exception->getMessage().' Retry AWB reconciliation after Shiprocket is reachable.',
+            ]);
+        }
+
+        return new HardwareAwbReconcileOutcome(
+            shipment: $resolved['shipment'],
+            alreadyLocal: $resolved['alreadyLocal'],
+            reconciled: $resolved['reconciled'],
+        );
     }
 
     /**
@@ -430,6 +514,117 @@ class HardwareShipmentService
         }
 
         return $shipment->fresh() ?? $shipment;
+    }
+
+    private function bindAwbFromProviderSearch(
+        HardwareFulfilment $fulfilment,
+        Shipment $shipment,
+        ShiprocketSearchResult $found,
+        ?User $actor,
+    ): void {
+        $awb = trim((string) $found->awb);
+        if ($awb === '') {
+            throw ValidationException::withMessages([
+                'shipping' => 'Shiprocket search did not return an AWB for this shipment.',
+            ]);
+        }
+
+        if ($shipment->awb !== null && $shipment->awb !== $awb) {
+            throw ValidationException::withMessages([
+                'shipping' => 'AWB is already bound and cannot be overwritten.',
+            ]);
+        }
+
+        $previousCourierId = trim((string) $shipment->courier_id);
+        $courierId = trim((string) ($found->courierId ?? ''));
+        $courierName = $found->courierName;
+
+        $shipment->forceFill([
+            'status' => ShipmentStatus::AwbAssigned,
+            'awb' => $shipment->awb ?? $awb,
+            'courier_id' => $courierId !== '' ? $courierId : $shipment->courier_id,
+            'courier_name' => $courierName ?? $shipment->courier_name,
+            'awb_assigned_at' => $shipment->awb_assigned_at ?? now(),
+            'failure_class' => null,
+            'last_error' => null,
+            'last_reconciled_at' => now(),
+        ])->save();
+
+        if ($courierId !== '') {
+            $fulfilment->forceFill([
+                'selected_courier_id' => $courierId,
+                'selected_courier_name' => $courierName,
+                'selected_courier_at' => now(),
+                'selected_courier_by_user_id' => $actor?->id,
+            ])->save();
+        }
+
+        ShipmentEvent::query()->create([
+            'shipment_id' => $shipment->id,
+            'source' => 'reconcile',
+            'activity' => 'awb_assigned',
+            'awb' => $shipment->awb,
+            'external_order_id' => $shipment->external_order_id,
+            'external_shipment_id' => $shipment->external_shipment_id,
+            'payload' => [
+                'reason' => 'provider_search_reconcile',
+                'provider_status' => $found->status,
+                'previous_courier_id' => $previousCourierId !== '' ? $previousCourierId : null,
+                'reconciled_courier_id' => $courierId !== '' ? $courierId : null,
+            ],
+        ]);
+
+        $this->syncFulfilment($fulfilment, $shipment);
+
+        if ($fulfilment->state === HardwareFulfilmentState::ShipmentCreated) {
+            $this->workflow->transition(
+                $fulfilment,
+                HardwareFulfilmentState::AwbAssigned,
+                actorType: $actor !== null ? 'user' : 'system',
+                actorId: $actor?->id,
+                payload: [
+                    'reason' => 'hardware_awb_assigned',
+                    'awb' => $shipment->awb,
+                    'reconciled_from_provider_search' => true,
+                ],
+            );
+        }
+    }
+
+    private function assertSearchIdentity(
+        HardwareFulfilment $fulfilment,
+        Shipment $shipment,
+        ShiprocketSearchResult $found,
+    ): void {
+        if (! $found->found) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Shiprocket search did not find this shipment.',
+            ]);
+        }
+
+        $boundOrderId = trim((string) $shipment->external_order_id);
+        $foundOrderId = trim((string) ($found->externalOrderId ?? ''));
+        if ($boundOrderId !== '' && $foundOrderId !== '' && $boundOrderId !== $foundOrderId) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Provider order id does not match the bound shipment.',
+            ]);
+        }
+
+        $boundShipmentId = trim((string) $shipment->external_shipment_id);
+        $foundShipmentId = trim((string) ($found->externalShipmentId ?? ''));
+        if ($boundShipmentId !== '' && $foundShipmentId !== '' && $boundShipmentId !== $foundShipmentId) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Provider shipment id does not match the bound shipment.',
+            ]);
+        }
+
+        $expectedMerchantId = $this->shipmentNo($fulfilment);
+        $merchantId = trim((string) ($found->merchantOrderId ?? ''));
+        if ($merchantId !== '' && $merchantId !== $expectedMerchantId) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Provider merchant reference does not match this fulfilment.',
+            ]);
+        }
     }
 
     private function bindAwb(

@@ -20,6 +20,7 @@ use App\Http\Requests\Inventory\IssueHardwareFulfilmentInvoiceRequest;
 use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyForPickupRequest;
 use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyRequest;
 use App\Http\Requests\Inventory\OpenHardwareFulfilmentRequest;
+use App\Http\Requests\Inventory\ReconcileHardwareFulfilmentAwbRequest;
 use App\Http\Requests\Inventory\RequestHardwareFulfilmentPickupRequest;
 use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
 use App\Http\Requests\Inventory\SelectHardwareFulfilmentCourierRequest;
@@ -619,6 +620,14 @@ class HardwareFulfilmentSerialController extends Controller
         $this->shipments->assignAwb($fulfilment, $request->user());
 
         return $this->mutationResponse($request, $fulfilment, 'AWB assigned.');
+    }
+
+    public function storeAwbReconcile(ReconcileHardwareFulfilmentAwbRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
+    {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $outcome = $this->shipments->reconcileAwbFromProviderSearch($fulfilment, $request->user());
+
+        return $this->mutationResponse($request, $fulfilment, $outcome->flash());
     }
 
     public function storeLabel(GenerateHardwareFulfilmentLabelRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse

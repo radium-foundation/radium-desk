@@ -93,6 +93,8 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public ?string $nextSearchMode = null;
 
+    public ?ShiprocketSearchResult $nextSearchResult = null;
+
     public ?string $nextAssignMode = null;
 
     /**
@@ -182,6 +184,13 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public function searchOrders(string $search): ShiprocketSearchResult
     {
         $this->searches++;
+
+        if ($this->nextSearchResult !== null) {
+            $result = $this->nextSearchResult;
+            $this->nextSearchResult = null;
+
+            return $result;
+        }
 
         $mode = $this->nextSearchMode;
         $this->nextSearchMode = null;
@@ -438,6 +447,25 @@ final class FakeShiprocketGateway implements ShiprocketGateway
             $awb,
             (string) ($row['courier_id'] ?? '12'),
             (string) ($row['courier_name'] ?? 'Fake Courier'),
+        );
+    }
+
+    public static function pickupGeneratedTrack(string $awb, string $courierId = '12', string $courierName = 'Fake Courier'): ShiprocketTrackResult
+    {
+        return new ShiprocketTrackResult(
+            provider: 'shiprocket',
+            status: '3',
+            activities: [
+                [
+                    'awb' => $awb,
+                    'activity' => 'Pickup Generated',
+                    'current_status' => 'Pickup Generated',
+                    'current_status_id' => 3,
+                ],
+            ],
+            awb: $awb,
+            courierId: $courierId,
+            courierName: $courierName,
         );
     }
 

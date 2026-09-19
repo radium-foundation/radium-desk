@@ -13,6 +13,9 @@ final class ShiprocketTrackingNormalizer
     /** @var list<int> Production-verified Shiprocket status ids for Out for Pickup. */
     private const OUT_FOR_PICKUP_STATUS_IDS = [19];
 
+    /** @var list<int> Production-verified Shiprocket status ids for pickup queued / generated. */
+    private const PICKUP_QUEUED_STATUS_IDS = [3];
+
     /**
      * @return array{provider_track_status: string, normalized: ShiprocketTrackNormalized}
      */
@@ -75,8 +78,16 @@ final class ShiprocketTrackingNormalizer
             return ShiprocketTrackNormalized::OutForPickup;
         }
 
+        if ($activityStatusId !== null && in_array($activityStatusId, self::PICKUP_QUEUED_STATUS_IDS, true)) {
+            return ShiprocketTrackNormalized::PickupQueued;
+        }
+
         if ($rawStatus !== '' && ctype_digit($rawStatus) && in_array((int) $rawStatus, self::OUT_FOR_PICKUP_STATUS_IDS, true)) {
             return ShiprocketTrackNormalized::OutForPickup;
+        }
+
+        if ($rawStatus !== '' && ctype_digit($rawStatus) && in_array((int) $rawStatus, self::PICKUP_QUEUED_STATUS_IDS, true)) {
+            return ShiprocketTrackNormalized::PickupQueued;
         }
 
         $haystack = strtolower(trim($label.' '.$rawStatus));
@@ -86,7 +97,7 @@ final class ShiprocketTrackingNormalizer
             str_contains($haystack, 'in transit'), str_contains($haystack, 'in_transit') => ShiprocketTrackNormalized::InTransit,
             str_contains($haystack, 'picked up'), str_contains($haystack, 'picked_up') => ShiprocketTrackNormalized::PickedUp,
             str_contains($haystack, 'out for pickup'), str_contains($haystack, 'out_for_pickup') => ShiprocketTrackNormalized::OutForPickup,
-            str_contains($haystack, 'pickup queued'), str_contains($haystack, 'pickup_requested'), str_contains($haystack, 'pickup scheduled') => ShiprocketTrackNormalized::PickupQueued,
+            str_contains($haystack, 'pickup generated'), str_contains($haystack, 'pickup queued'), str_contains($haystack, 'pickup_requested'), str_contains($haystack, 'pickup scheduled') => ShiprocketTrackNormalized::PickupQueued,
             default => ShiprocketTrackNormalized::Unknown,
         };
     }
