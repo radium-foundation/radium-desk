@@ -6,6 +6,7 @@ use App\Services\RadiumBox\Exceptions\RadiumBoxInvalidResponseException;
 use App\Services\RadiumBox\Exceptions\RadiumBoxOrderNotFoundException;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
 use App\Services\RadiumBox\RadiumBoxOrderSearchResponseMapper;
+use Illuminate\Support\Carbon;
 
 class RdServiceOrderMapper
 {
@@ -51,9 +52,12 @@ class RdServiceOrderMapper
         $this->assertCorrelationMatches($data, $rdOrder, $expectedOrderId);
 
         $mapped = $this->adminMapper->map($payload, $expectedOrderId);
-        $overlaid = $this->overlaySnapshot($mapped, is_array($data['snapshot'] ?? null) ? $data['snapshot'] : []);
 
-        return $this->withLinkedOrderIds($overlaid, $data, $expectedOrderId);
+        return $this->overlaySnapshot(
+            $mapped,
+            is_array($data['snapshot'] ?? null) ? $data['snapshot'] : [],
+            is_array($data['order'] ?? null) ? $data['order'] : [],
+        );
     }
 
     /**
@@ -83,15 +87,25 @@ class RdServiceOrderMapper
 
     /**
      * @param  array<string, mixed>  $snapshot
+     * @param  array<string, mixed>  $order
      */
-    private function overlaySnapshot(RadiumBoxOrderEnrichment $mapped, array $snapshot): RadiumBoxOrderEnrichment
-    {
+    private function overlaySnapshot(
+        RadiumBoxOrderEnrichment $mapped,
+        array $snapshot,
+        array $order = [],
+    ): RadiumBoxOrderEnrichment {
         $amc = $mapped->amc
             ?? $this->adminMapper->normalizeOptionalString($snapshot['amc_service'] ?? null)
             ?? $this->adminMapper->normalizeOptionalString($snapshot['amc_status'] ?? null);
 
         $serviceHistory = $mapped->serviceHistory
             ?? $this->adminMapper->normalizeHistory($snapshot['rd_service'] ?? null);
+
+        $invoiceDate = $mapped->invoiceDate
+            ?? $this->parseSnapshotDate($snapshot['invoice_date'] ?? null)
+            ?? $this->parseSnapshotDate($order['invoice_date'] ?? null);
+
+        $deliveryAddress = $mapped->deliveryAddress ?? $this->normalizeDeliveryAddress($snapshot['delivery_address'] ?? null);
 
         return new RadiumBoxOrderEnrichment(
             serialNumber: $mapped->serialNumber
@@ -102,9 +116,11 @@ class RdServiceOrderMapper
             warranty: $mapped->warranty,
             amc: $amc,
             radiumboxPaymentStatus: $mapped->radiumboxPaymentStatus
-                ?? $this->adminMapper->normalizeOptionalString($snapshot['payment_status'] ?? null),
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['payment_status'] ?? null)
+                ?? $this->adminMapper->normalizeOptionalString($order['payment_status'] ?? null),
             radiumboxOrderStatus: $mapped->radiumboxOrderStatus
-                ?? $this->adminMapper->normalizeOptionalString($snapshot['rd_order_status'] ?? null),
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['rd_order_status'] ?? null)
+                ?? $this->adminMapper->normalizeOptionalString($order['status'] ?? null),
             customerName: $mapped->customerName
                 ?? $this->adminMapper->normalizeOptionalString($snapshot['customer_name'] ?? null),
             customerPhone: $mapped->customerPhone
@@ -114,111 +130,38 @@ class RdServiceOrderMapper
             gstNumber: $mapped->gstNumber
                 ?? $this->adminMapper->normalizeOptionalString($snapshot['gst_number'] ?? null),
             invoiceNumber: $mapped->invoiceNumber
-                ?? $this->adminMapper->normalizeOptionalString($snapshot['invoice_number'] ?? null),
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['invoice_number'] ?? null)
+                ?? $this->adminMapper->normalizeOptionalString($order['invoicecode'] ?? null),
             purchaseYear: $mapped->purchaseYear,
             serviceHistory: $serviceHistory,
             amcStatus: $mapped->amcStatus ?? $amc,
             amcYear: $mapped->amcYear,
             amcDetails: $mapped->amcDetails ?? $this->amcDetailsFromSnapshot($snapshot, $amc),
             legacyOrderStatus: $mapped->legacyOrderStatus
-                ?? $this->adminMapper->normalizeOptionalString($snapshot['rd_order_status'] ?? null),
-            legacyOrderDate: $mapped->legacyOrderDate,
-            linkedOrderIds: $mapped->linkedOrderIds,
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['rd_order_status'] ?? null)
+                ?? $this->adminMapper->normalizeOptionalString($order['status'] ?? null),
+            legacyOrderDate: $mapped->legacyOrderDate
+                ?? $this->parseSnapshotDate($snapshot['order_date'] ?? null)
+                ?? $this->parseSnapshotDate($order['orderdate'] ?? null),
+            paymentMethod: $mapped->paymentMethod
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['payment_method'] ?? null)
+                ?? $this->adminMapper->normalizeOptionalString($order['payment_type'] ?? null),
+            paymentAmount: $mapped->paymentAmount
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['payment_amount'] ?? null)
+                ?? $this->adminMapper->normalizeOptionalString($order['total'] ?? null),
+            invoiceDate: $invoiceDate,
+            shipmentStatus: $mapped->shipmentStatus
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['shipment_status'] ?? null)
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['rd_order_status'] ?? null)
+                ?? $this->adminMapper->normalizeOptionalString($order['status'] ?? null),
+            awb: $mapped->awb
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['awb'] ?? null),
+            productVariant: $mapped->productVariant
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['product_variant'] ?? null),
+            productSku: $mapped->productSku
+                ?? $this->adminMapper->normalizeOptionalString($snapshot['product_sku'] ?? null),
+            deliveryAddress: $deliveryAddress,
         );
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    private function withLinkedOrderIds(
-        RadiumBoxOrderEnrichment $mapped,
-        array $data,
-        string $expectedOrderId,
-    ): RadiumBoxOrderEnrichment {
-        return new RadiumBoxOrderEnrichment(
-            serialNumber: $mapped->serialNumber,
-            deviceModel: $mapped->deviceModel,
-            activationYear: $mapped->activationYear,
-            warranty: $mapped->warranty,
-            amc: $mapped->amc,
-            radiumboxPaymentStatus: $mapped->radiumboxPaymentStatus,
-            radiumboxOrderStatus: $mapped->radiumboxOrderStatus,
-            customerName: $mapped->customerName,
-            customerPhone: $mapped->customerPhone,
-            customerEmail: $mapped->customerEmail,
-            gstNumber: $mapped->gstNumber,
-            invoiceNumber: $mapped->invoiceNumber,
-            purchaseYear: $mapped->purchaseYear,
-            serviceHistory: $mapped->serviceHistory,
-            amcStatus: $mapped->amcStatus,
-            amcYear: $mapped->amcYear,
-            amcDetails: $mapped->amcDetails,
-            legacyOrderStatus: $mapped->legacyOrderStatus,
-            legacyOrderDate: $mapped->legacyOrderDate,
-            linkedOrderIds: $this->linkedOrderIds($data, $expectedOrderId),
-        );
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     * @return list<string>
-     */
-    private function linkedOrderIds(array $data, string $expectedOrderId): array
-    {
-        $correlation = is_array($data['correlation'] ?? null) ? $data['correlation'] : [];
-        $order = is_array($data['order'] ?? null) ? $data['order'] : [];
-        $snapshot = is_array($data['snapshot'] ?? null) ? $data['snapshot'] : [];
-        $rdOrder = is_array($data['rd_order'] ?? null) ? $data['rd_order'] : [];
-
-        $ids = [];
-        foreach ([
-            $expectedOrderId,
-            $correlation['rdorderid'] ?? null,
-            $correlation['ordercode'] ?? null,
-            $correlation['customer_order_id'] ?? null,
-            $rdOrder['rdorderid'] ?? null,
-            $rdOrder['order_id'] ?? null,
-            $order['ordercode'] ?? null,
-            $order['rdservice_order_id'] ?? null,
-            $snapshot['rdorderid'] ?? null,
-            $snapshot['ordercode'] ?? null,
-        ] as $value) {
-            foreach ($this->normalizeLinkedOrderIds($value) as $id) {
-                $ids[$id] = $id;
-            }
-        }
-
-        return array_values($ids);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function normalizeLinkedOrderIds(mixed $value): array
-    {
-        if (is_int($value)) {
-            $value = (string) $value;
-        }
-
-        if (! is_string($value)) {
-            return [];
-        }
-
-        $value = trim($value);
-        if ($value === '') {
-            return [];
-        }
-
-        $upper = strtoupper($value);
-        if (preg_match('/^(RD|RDE|RIN|RA)[0-9A-Z]{3,20}$/', $upper) === 1) {
-            return [$upper];
-        }
-
-        if (preg_match('/^[0-9]{4,20}$/', $value) === 1) {
-            return ['RD'.$value];
-        }
-
-        return [];
     }
 
     /**
@@ -247,5 +190,53 @@ class RdServiceOrderMapper
         $normalized = $this->adminMapper->normalizeOptionalString($value);
 
         return $normalized !== null ? strtolower($normalized) : null;
+    }
+
+    private function parseSnapshotDate(mixed $value): ?Carbon
+    {
+        $normalized = $this->adminMapper->normalizeOptionalString($value);
+
+        if ($normalized === null) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($normalized, config('app.timezone', 'Asia/Kolkata'));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function normalizeDeliveryAddress(mixed $value): ?array
+    {
+        if (! is_array($value) || $value === []) {
+            return null;
+        }
+
+        $address = [
+            'line' => $this->adminMapper->normalizeOptionalString($value['line'] ?? null),
+            'state' => $this->adminMapper->normalizeOptionalString($value['state'] ?? null),
+            'district' => $this->adminMapper->normalizeOptionalString($value['district'] ?? null),
+            'pincode' => $this->adminMapper->normalizeOptionalString($value['pincode'] ?? null),
+            'source' => $this->adminMapper->normalizeOptionalString($value['source'] ?? null),
+        ];
+
+        if (($value['pincode_profile_mismatch'] ?? false) === true) {
+            $address['pincode_profile_mismatch'] = true;
+        }
+
+        if (
+            $address['line'] === null
+            && $address['state'] === null
+            && $address['district'] === null
+            && $address['pincode'] === null
+        ) {
+            return null;
+        }
+
+        return $address;
     }
 }

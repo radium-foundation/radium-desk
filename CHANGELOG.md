@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.89 — 2026-09-19 — RDE legacy grouped preview
+
+- Dashboard and Quick Create show grouped legacy preview sections for RDE hardware orders (order, customer, delivery address, product, payment, invoice, shipment) before Create Service Request.
+- Preview uses radiumbox.com checkout-address snapshot with explicit PIN mismatch note when profile PIN differs.
+- Dashboard legacy card layout stacks sections vertically with Create Service Request below the preview.
+- Rollback target: v4.0.88 / `c2b24169`.
+
 ## 4.0.88 — 2026-09-18 — RB* service duration and invalid-GSTIN statutory support
 
 - Represent RadiumBox RB* express `duration_price` as a separate statutory line with ₹18 GST on the ₹100 add-on when `duration_price > 0`.

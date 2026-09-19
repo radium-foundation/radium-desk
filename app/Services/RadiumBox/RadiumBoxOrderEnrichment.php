@@ -30,8 +30,15 @@ readonly class RadiumBoxOrderEnrichment
         public ?array $amcDetails = null,
         public ?string $legacyOrderStatus = null,
         public ?Carbon $legacyOrderDate = null,
-        /** @var list<string> */
-        public array $linkedOrderIds = [],
+        public ?string $paymentMethod = null,
+        public ?string $paymentAmount = null,
+        public ?Carbon $invoiceDate = null,
+        public ?string $shipmentStatus = null,
+        public ?string $awb = null,
+        public ?string $productVariant = null,
+        public ?string $productSku = null,
+        /** @var array<string, mixed>|null */
+        public ?array $deliveryAddress = null,
     ) {}
 
     public function hasData(): bool
@@ -58,7 +65,15 @@ readonly class RadiumBoxOrderEnrichment
             || filled($this->amcDetails)
             || filled($this->legacyOrderStatus)
             || filled($this->radiumboxOrderStatus)
-            || $this->legacyOrderDate !== null;
+            || $this->legacyOrderDate !== null
+            || filled($this->paymentMethod)
+            || filled($this->paymentAmount)
+            || $this->invoiceDate !== null
+            || filled($this->shipmentStatus)
+            || filled($this->awb)
+            || filled($this->productVariant)
+            || filled($this->productSku)
+            || filled($this->deliveryAddress);
     }
 
     /**
