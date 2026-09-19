@@ -103,5 +103,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-19-09-09 | 2026-09-19 | MFS100 PDP regression hotfix after Phase B-1 | Companion to `radiumbox.com-P-19-09-09`. RadiumBox-only slug/model resolution + per-model PDP configuration. No Desk code/DB changes. |
 | RadiumDesk-P-19-09-10 | 2026-09-19 | MFS100 PDP modelConfigurations parse + atomic switch fix | Companion to `radiumbox.com-P-19-09-10`. Storefront-only parse/state fix; no Desk code/DB changes. |
 | RadiumDesk-P-19-09-11 | 2026-09-19 | Parent 944 select_model default → MFS110 (946) | Companion to `radiumbox.com-P-19-09-11`. RadiumBox production DB only; no Desk changes. |
+| RadiumDesk-P-19-09-12 | 2026-09-19 | MFS110 default + Desk ₹2,498 price sync fix | Companion to `radiumbox.com-P-19-09-12`. RadiumBox code/tests + production re-sync for Desk #28→946; no Desk code changes. |
 
 Do not renumber or overwrite earlier rows. Append only.
