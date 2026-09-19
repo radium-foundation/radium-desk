@@ -58,6 +58,89 @@ class RdServiceOrderMapperTest extends TestCase
         ], 'RD3000003');
     }
 
+    public function test_it_maps_rde_ecom_hardware_fields_from_spoke_payload(): void
+    {
+        $enrichment = $this->mapper->map($this->rdeEcomPayload(), 'RDE177816');
+
+        $this->assertSame('Mantra MFS 100 / 110 L1 Fingerprint Scanner', $enrichment->deviceModel);
+        $this->assertSame('10024774', $enrichment->serialNumber);
+        $this->assertSame('Pallab Mukherjee', $enrichment->customerName);
+        $this->assertSame('9874773752', $enrichment->customerPhone);
+        $this->assertTrue($enrichment->hasLegacyPreviewData());
+    }
+
+    public function test_it_maps_rde_ecom_without_serial_from_spoke_payload(): void
+    {
+        $payload = $this->rdeEcomPayload();
+        $payload['data']['rd_order']['serial_no'] = null;
+        $payload['data']['snapshot']['serial_number'] = null;
+
+        $enrichment = $this->mapper->map($payload, 'RDE177816');
+
+        $this->assertSame('Mantra MFS 100 / 110 L1 Fingerprint Scanner', $enrichment->deviceModel);
+        $this->assertNull($enrichment->serialNumber);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rdeEcomPayload(): array
+    {
+        return [
+            'status' => 200,
+            'spec_version' => '1.0',
+            'website_id' => 'radiumbox.com',
+            'message' => 'OK',
+            'data' => [
+                'correlation' => [
+                    'rdorderid' => 'RDE177816',
+                    'customer_order_id' => 'RDE177816',
+                    'cashfree_order_id' => 'RDE177816',
+                    'orders_id' => 177816,
+                    'ordercode' => 'RDE177816',
+                ],
+                'rd_order' => [
+                    'id' => 177816,
+                    'rdorderid' => 'RDE177816',
+                    'order_id' => 'RDE177816',
+                    'product_name' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner',
+                    'serial_no' => '10024774',
+                    'status' => 'Shipped',
+                    'payment_status' => 'Paid',
+                    'userdetails' => json_encode([
+                        'name' => 'Pallab Mukherjee',
+                        'email' => 'customer@example.com',
+                        'phone' => '9874773752',
+                    ]),
+                ],
+                'order' => [
+                    'id' => 177816,
+                    'ordercode' => 'RDE177816',
+                    'invoicecode' => 'IND568704',
+                    'payment_status' => 'Paid',
+                    'status' => 'Shipped',
+                    'orderdate' => '2026-01-16 21:27:55',
+                ],
+                'snapshot' => [
+                    'rdorderid' => 'RDE177816',
+                    'customer_name' => 'Pallab Mukherjee',
+                    'phone' => '9874773752',
+                    'product' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner',
+                    'model' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner',
+                    'serial_number' => '10024774',
+                    'payment_status' => 'Paid',
+                    'rd_order_status' => 'Shipped',
+                    'invoice_number' => 'IND568704',
+                    'order_date' => '2026-01-16 21:27:55',
+                ],
+                'lines' => [[
+                    'id' => 1,
+                    'product_name' => 'Mantra MFS 100 / 110 L1 Fingerprint Scanner',
+                ]],
+            ],
+        ];
+    }
+
     /**
      * @return array<string, mixed>
      */
