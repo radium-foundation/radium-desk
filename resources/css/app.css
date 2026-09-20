@@ -460,6 +460,55 @@ body.unified-intake-primary .app-topbar [data-universal-search-form] .btn-outlin
     font-size: 1.125rem;
 }
 
+.dashboard-shiprocket-balance {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.85rem;
+    margin-bottom: 0.75rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--dashboard-border-subtle);
+    border-radius: 0.65rem;
+    background: var(--dashboard-card-bg);
+    font-size: 0.875rem;
+}
+
+.dashboard-shiprocket-balance__label {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.dashboard-shiprocket-balance__value {
+    font-weight: 650;
+}
+
+.dashboard-shiprocket-balance__meta {
+    color: var(--dashboard-text-muted, #6c757d);
+    font-size: 0.8125rem;
+}
+
+.dashboard-shiprocket-balance--neutral {
+    border-color: rgba(13, 110, 253, 0.18);
+}
+
+.dashboard-shiprocket-balance--warning {
+    border-color: rgba(255, 193, 7, 0.45);
+    background: rgba(255, 193, 7, 0.08);
+}
+
+.dashboard-shiprocket-balance--critical {
+    border-color: rgba(220, 53, 69, 0.45);
+    background: rgba(220, 53, 69, 0.08);
+}
+
+.dashboard-shiprocket-balance--muted {
+    border-color: var(--dashboard-border-subtle);
+}
+
+.dashboard-shiprocket-balance--stale .dashboard-shiprocket-balance__meta {
+    font-style: italic;
+}
+
 /* ==========================================================================
    Phase 4.2.4 — Dashboard Design System (shared utilities)
    Consumed by later modernization stages. No Blade markup required here.

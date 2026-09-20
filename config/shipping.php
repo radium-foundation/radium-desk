@@ -39,6 +39,19 @@ return [
 
     'courier_options_ttl_seconds' => max(60, (int) env('SHIPROCKET_COURIER_OPTIONS_TTL_SECONDS', 900)),
 
+    /*
+    | Read-only Shiprocket wallet balance cache. Defaults to the courier-options TTL
+    | so balance is not fetched on every Hardware dashboard page load.
+    */
+    'wallet_balance_ttl_seconds' => max(60, (int) env('SHIPROCKET_WALLET_BALANCE_TTL_SECONDS', 900)),
+
+    /*
+    | Owner-tunable low-balance warning threshold (INR). Informational only in
+    | Phase 1 — does not block shipping actions. Default is a conservative buffer
+    | above typical single-shipment freight; confirm with Owner before production.
+    */
+    'wallet_balance_low_threshold' => (string) env('SHIPROCKET_WALLET_BALANCE_LOW_THRESHOLD', '1000.00'),
+
     'timeout_seconds' => max(1, (int) env('SHIPROCKET_TIMEOUT_SECONDS', 15)),
 
     /*

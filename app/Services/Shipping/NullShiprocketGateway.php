@@ -14,6 +14,7 @@ use App\Services\Shipping\Data\ShiprocketPickupResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\Shipping\Data\ShiprocketTokenResult;
 use App\Services\Shipping\Data\ShiprocketTrackResult;
+use App\Services\Shipping\Data\ShiprocketWalletBalanceResult;
 
 /**
  * Production-safe default. Makes no HTTP or network call and never
@@ -81,6 +82,16 @@ final class NullShiprocketGateway implements ShiprocketGateway
     public function trackByShipment(string $externalShipmentId): ShiprocketTrackResult
     {
         throw new ShiprocketDisabledException(self::MESSAGE);
+    }
+
+    public function getWalletBalance(): ShiprocketWalletBalanceResult
+    {
+        return new ShiprocketWalletBalanceResult(
+            provider: $this->provider(),
+            status: 'failed',
+            error: self::MESSAGE,
+            failureKind: 'disabled',
+        );
     }
 
     public function cancelOrders(array $externalOrderIds): ShiprocketCancelResult
