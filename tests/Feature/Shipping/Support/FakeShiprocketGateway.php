@@ -15,6 +15,7 @@ use App\Services\Shipping\Data\ShiprocketPickupResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\Shipping\Data\ShiprocketTokenResult;
 use App\Services\Shipping\Data\ShiprocketTrackResult;
+use App\Services\Shipping\Data\ShiprocketWalletBalanceResult;
 use App\Services\Shipping\ShiprocketNonRetryableException;
 use App\Services\Shipping\ShiprocketRetryableException;
 use RuntimeException;
@@ -52,6 +53,12 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public int $cancels = 0;
 
     public int $courierLists = 0;
+
+    public int $walletBalanceCalls = 0;
+
+    public ?string $walletBalanceAmount = '9084.26';
+
+    public ?string $nextWalletBalanceMode = null;
 
     public ?ShiprocketCourierOptionsRequest $lastCourierRequest = null;
 
@@ -531,6 +538,40 @@ final class FakeShiprocketGateway implements ShiprocketGateway
                 ? '2026-09-03 09:00'
                 : null,
         );
+    }
+
+    public function getWalletBalance(): ShiprocketWalletBalanceResult
+    {
+        $this->walletBalanceCalls++;
+        $mode = $this->nextWalletBalanceMode ?? $this->mode;
+
+        return match ($mode) {
+            'accepted', 'timeout_accepted' => new ShiprocketWalletBalanceResult(
+                provider: $this->provider(),
+                status: 'available',
+                balanceAmount: $this->walletBalanceAmount ?? '9084.26',
+            ),
+            'rejected' => new ShiprocketWalletBalanceResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'Fake provider rejected wallet balance.',
+                failureKind: 'provider',
+            ),
+            'retryable', 'timeout' => new ShiprocketWalletBalanceResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: 'Fake provider unavailable.',
+                retryable: true,
+                failureKind: 'provider',
+            ),
+            'auth_failed' => new ShiprocketWalletBalanceResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: 'Shiprocket authentication failed.',
+                failureKind: 'auth',
+            ),
+            default => throw new RuntimeException('Unknown fake Shiprocket wallet balance mode: '.$mode),
+        };
     }
 
     public function cancelOrders(array $externalOrderIds): ShiprocketCancelResult

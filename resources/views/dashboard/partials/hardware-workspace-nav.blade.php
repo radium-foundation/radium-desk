@@ -27,6 +27,8 @@
 @endphp
 
 <div class="dashboard-hardware-nav">
+    @include('dashboard.partials.hardware-shiprocket-balance', ['hardwareWorkspace' => $hardwareWorkspace])
+
     <div class="dashboard-case-filters dashboard-operation-queues dashboard-hardware-nav__groups"
          role="tablist"
          aria-label="Hardware workspace">

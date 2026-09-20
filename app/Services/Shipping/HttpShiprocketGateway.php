@@ -15,6 +15,7 @@ use App\Services\Shipping\Data\ShiprocketPickupResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\Shipping\Data\ShiprocketTokenResult;
 use App\Services\Shipping\Data\ShiprocketTrackResult;
+use App\Services\Shipping\Data\ShiprocketWalletBalanceResult;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -378,6 +379,55 @@ final class HttpShiprocketGateway implements ShiprocketGateway
             activities: is_array($tracking['shipment_track'] ?? null) ? $tracking['shipment_track'] : [],
             externalShipmentId: $externalShipmentId,
             awb: $this->scalar($tracking['awb'] ?? $tracking['awb_code'] ?? null),
+        );
+    }
+
+    public function getWalletBalance(): ShiprocketWalletBalanceResult
+    {
+        try {
+            $response = $this->send('get', '/account/details/wallet-balance');
+        } catch (ShiprocketRetryableException $exception) {
+            return new ShiprocketWalletBalanceResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: $exception->getMessage(),
+                retryable: true,
+                failureKind: 'provider',
+            );
+        } catch (ShiprocketNonRetryableException $exception) {
+            return new ShiprocketWalletBalanceResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: $exception->getMessage(),
+                retryable: false,
+                failureKind: $this->walletBalanceFailureKind($exception->getMessage()),
+            );
+        } catch (ShiprocketDisabledException $exception) {
+            return new ShiprocketWalletBalanceResult(
+                provider: $this->provider(),
+                status: 'failed',
+                error: $exception->getMessage(),
+                retryable: false,
+                failureKind: 'disabled',
+            );
+        }
+
+        $data = $this->firstArray($response['json']['data'] ?? $response['json']);
+        $balanceAmount = $this->normalizeWalletBalanceAmount($data['balance_amount'] ?? null);
+        if ($balanceAmount === null) {
+            return new ShiprocketWalletBalanceResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: $this->errorMessage($response['json'], 'Shiprocket did not return wallet balance.'),
+                retryable: false,
+                failureKind: 'provider',
+            );
+        }
+
+        return new ShiprocketWalletBalanceResult(
+            provider: $this->provider(),
+            status: 'available',
+            balanceAmount: $balanceAmount,
         );
     }
 
@@ -900,6 +950,51 @@ final class HttpShiprocketGateway implements ShiprocketGateway
         $text = preg_replace('/\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9._-]{10,}\b/', '[redacted]', $text) ?? $text;
 
         return trim($text);
+    }
+
+    private function walletBalanceFailureKind(string $message): string
+    {
+        $normalized = strtolower($message);
+
+        return str_contains($normalized, 'authentication')
+            || str_contains($normalized, 'unauthorized')
+            || str_contains($normalized, 'invalid credentials')
+            ? 'auth'
+            : 'provider';
+    }
+
+    private function normalizeWalletBalanceAmount(mixed $value): ?string
+    {
+        if ($value === null || is_array($value)) {
+            return null;
+        }
+
+        if (is_int($value)) {
+            if ($value < 0) {
+                return null;
+            }
+
+            return sprintf('%d.00', $value);
+        }
+
+        if (is_float($value)) {
+            if ($value < 0) {
+                return null;
+            }
+
+            return number_format($value, 2, '.', '');
+        }
+
+        $text = trim((string) $value);
+        if ($text === '' || ! is_numeric($text)) {
+            return null;
+        }
+
+        if ((float) $text < 0) {
+            return null;
+        }
+
+        return bcadd($text, '0', 2);
     }
 
     private function providerNumericId(string $id): int|string

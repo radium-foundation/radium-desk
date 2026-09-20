@@ -13,6 +13,7 @@ use App\Services\Shipping\Data\ShiprocketPickupResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\Shipping\Data\ShiprocketTokenResult;
 use App\Services\Shipping\Data\ShiprocketTrackResult;
+use App\Services\Shipping\Data\ShiprocketWalletBalanceResult;
 
 /**
  * Desk-owned Shiprocket adapter. Domain code must not call HTTP.
@@ -43,6 +44,8 @@ interface ShiprocketGateway
     public function trackByAwb(string $awb): ShiprocketTrackResult;
 
     public function trackByShipment(string $externalShipmentId): ShiprocketTrackResult;
+
+    public function getWalletBalance(): ShiprocketWalletBalanceResult;
 
     /**
      * @param  list<int|string>  $externalOrderIds

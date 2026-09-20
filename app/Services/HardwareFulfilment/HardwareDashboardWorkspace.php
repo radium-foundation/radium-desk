@@ -7,6 +7,8 @@ use App\Enums\HardwareWorkspaceScope;
 use App\Models\HardwareFulfilment;
 use App\Models\Incident;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalRow;
+use App\Services\Shipping\Data\ShiprocketWalletBalancePresentation;
+use App\Services\Shipping\ShiprocketWalletBalanceReadService;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
 use App\Support\HardwareFulfilment\HardwareFulfilmentNavigation;
 use Illuminate\Http\Request;
@@ -20,6 +22,7 @@ final class HardwareDashboardWorkspace
 {
     public function __construct(
         private readonly HardwareFulfilmentWorkQueue $workQueue,
+        private readonly ShiprocketWalletBalanceReadService $walletBalance,
     ) {}
 
     /**
@@ -35,6 +38,7 @@ final class HardwareDashboardWorkspace
      *     incidentIds: array<int, int>,
      *     operableFulfilmentIds: array<int, true>,
      *     canOperateHardware: bool,
+     *     shiprocketBalance: ?ShiprocketWalletBalancePresentation,
      *     unfilteredTotal: int
      * }
      */
@@ -61,6 +65,7 @@ final class HardwareDashboardWorkspace
             'incidentIds' => $this->incidentIds($dashboard['rows']),
             'operableFulfilmentIds' => $this->operableFulfilmentIds($dashboard['rows'], $request->user()),
             'canOperateHardware' => HardwareFulfilmentAccess::allows($request->user()),
+            'shiprocketBalance' => $this->walletBalance->presentFor($request->user()),
             'unfilteredTotal' => $dashboard['unfiltered_total'],
             'page' => $dashboard['page'] ?? 1,
             'per_page' => $dashboard['per_page'] ?? 40,
