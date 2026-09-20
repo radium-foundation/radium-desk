@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.91 — 2026-09-20 — RadiumBox storefront catalog price sync
+
+- Add queued Desk → RadiumBox storefront catalog price sync on inventory product save for mapped SKUs (`POST /api/integrations/v1/catalog-prices`).
+- Add B-1 storefront eligibility controls on inventory products (`sell_on_radiumbox`, `rd_service_available`, `amc_available`) with product UI status and manual retry route.
+- Feature flag `RADIUMBOX_CATALOG_PRICE_SYNC_ENABLED` defaults off; restore migration files for schema already applied on production (no new reconciliation migration).
+- Preserve v4.0.90 Shiprocket wallet balance banner and existing fulfilment workflows unchanged.
+- Rollback target: v4.0.90 / `9a5ffa5b`.
+
 ## 4.0.90 — 2026-09-20 — Shiprocket wallet balance on Hardware dashboard
 
 - Show a cached, read-only Shiprocket wallet balance banner on the Hardware workspace for fulfilment operators.
