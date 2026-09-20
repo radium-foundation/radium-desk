@@ -752,12 +752,17 @@ class LeaveRequestService
         $requesterName = $requester?->firstName() ?: 'A team member';
         $startDate = $leaveRequest->start_date->toDateString();
         $endDate = $leaveRequest->end_date->toDateString();
+        $durationLabel = $leaveRequest->duration?->label() ?? 'Full Day';
+        $datesLabel = $startDate === $endDate
+            ? $startDate
+            : "{$startDate} to {$endDate}";
 
         return implode("\n", [
             'Leave Request Submitted',
             '',
-            "{$requesterName} requested leave.",
-            "Dates: {$startDate} to {$endDate}",
+            "New leave request from {$requesterName}.",
+            "Type: {$durationLabel}",
+            "Dates: {$datesLabel}",
             'Reason: '.$leaveRequest->reason,
             '',
             'Review in Radium Desk.',
@@ -770,19 +775,33 @@ class LeaveRequestService
         $reviewerName = $reviewer?->firstName() ?: 'Operations';
         $startDate = $leaveRequest->start_date->toDateString();
         $endDate = $leaveRequest->end_date->toDateString();
+        $durationLabel = $leaveRequest->duration?->label() ?? 'Full Day';
+        $datesLabel = $startDate === $endDate
+            ? $startDate
+            : "{$startDate} to {$endDate}";
         $decision = match ($leaveRequest->status) {
             LeaveRequestStatus::Approved => 'approved',
             LeaveRequestStatus::Rejected => 'rejected',
             default => 'updated',
         };
 
-        return implode("\n", [
+        $lines = [
             'Leave Request '.ucfirst($decision),
             '',
-            "Your leave request ({$startDate} to {$endDate}) was {$decision} by {$reviewerName}.",
-            '',
-            'View in Radium Desk.',
-        ]);
+            "Your {$durationLabel} leave request ({$datesLabel}) was {$decision} by {$reviewerName}.",
+        ];
+
+        if (
+            $leaveRequest->status === LeaveRequestStatus::Rejected
+            && filled($leaveRequest->review_notes)
+        ) {
+            $lines[] = 'Reason: '.$leaveRequest->review_notes;
+        }
+
+        $lines[] = '';
+        $lines[] = 'View in Radium Desk.';
+
+        return implode("\n", $lines);
     }
 
     private function decisionTelegramTitle(LeaveRequest $leaveRequest): string

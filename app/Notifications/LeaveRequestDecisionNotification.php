@@ -32,15 +32,28 @@ class LeaveRequestDecisionNotification extends Notification
         $reviewerName = $reviewer?->firstName() ?: 'Operations';
         $startDate = $this->leaveRequest->start_date->toDateString();
         $endDate = $this->leaveRequest->end_date->toDateString();
+        $durationLabel = $this->leaveRequest->duration?->label() ?? 'Full Day';
+        $datesLabel = $startDate === $endDate
+            ? $startDate
+            : "{$startDate} to {$endDate}";
         $decision = match ($this->leaveRequest->status) {
             LeaveRequestStatus::Approved => 'approved',
             LeaveRequestStatus::Rejected => 'rejected',
             default => 'updated',
         };
 
+        $message = "Your {$durationLabel} leave request ({$datesLabel}) was {$decision} by {$reviewerName}.";
+
+        if (
+            $this->leaveRequest->status === LeaveRequestStatus::Rejected
+            && filled($this->leaveRequest->review_notes)
+        ) {
+            $message .= ' Reason: '.$this->leaveRequest->review_notes;
+        }
+
         return [
             'title' => 'Leave Request '.ucfirst($decision),
-            'message' => "Your leave request ({$startDate} to {$endDate}) was {$decision} by {$reviewerName}.",
+            'message' => $message,
             'url' => route('leave-requests.show', $this->leaveRequest),
         ];
     }
