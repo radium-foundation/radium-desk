@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.92 — 2026-09-20 — Leave notifications, Team Activity Agent DC, serial reallocation, refund timeline
+
+- Harden leave-request notifications: designated approver receives submission alerts; requester receives approval/rejection alerts with review notes on rejection; duplicate workflow attempts do not re-notify. Uses `WORKFORCE_LEAVE_APPROVER_EMAIL` / default `shipra@radiumbox.com`.
+- Team Activity: show per-agent total inbound calls plus Agent DC count (`callType=2`, `HangupBy=agent`) with disconnect icon and accessibility labels. **Calls primary metric changes from answered to total inbound.**
+- Fix released hardware fulfilment serial reallocation: `released` serial rows no longer block reuse; `pending` / `reserved` / `allocated` rows still block; historical released rows retained.
+- Fix Customer 360 refund timeline classification: refund audit events no longer render as “Payment received”; legitimate payment milestones unchanged.
+- Catalog-price-sync unchanged; no database migrations.
+- Rollback target: v4.0.91 / `45407047`.
+
 ## 4.0.91 — 2026-09-20 — RadiumBox storefront catalog price sync
 
 - Add queued Desk → RadiumBox storefront catalog price sync on inventory product save for mapped SKUs (`POST /api/integrations/v1/catalog-prices`).
