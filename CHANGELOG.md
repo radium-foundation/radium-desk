@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.90 — 2026-09-20 — Shiprocket wallet balance on Hardware dashboard
+
+- Show a cached, read-only Shiprocket wallet balance banner on the Hardware workspace for fulfilment operators.
+- Balance is informational only in Phase 1; shipping actions and fulfilment gating remain unchanged.
+- Graceful degradation when Shiprocket is unavailable — never displays a false ₹0 balance.
+- Rollback target: v4.0.89 / `4b8fd365`.
+
 ## 4.0.89 — 2026-09-19 — RDE legacy grouped preview
 
 - Dashboard and Quick Create show grouped legacy preview sections for RDE hardware orders (order, customer, delivery address, product, payment, invoice, shipment) before Create Service Request.
