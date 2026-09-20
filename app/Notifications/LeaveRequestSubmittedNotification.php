@@ -31,10 +31,14 @@ class LeaveRequestSubmittedNotification extends Notification
         $requesterName = $requester?->firstName() ?: 'A team member';
         $startDate = $this->leaveRequest->start_date->toDateString();
         $endDate = $this->leaveRequest->end_date->toDateString();
+        $durationLabel = $this->leaveRequest->duration?->label() ?? 'Full Day';
+        $datesLabel = $startDate === $endDate
+            ? $startDate
+            : "{$startDate} to {$endDate}";
 
         return [
             'title' => 'Leave Request Submitted',
-            'message' => "{$requesterName} requested leave from {$startDate} to {$endDate}.",
+            'message' => "New leave request from {$requesterName} ({$durationLabel}, {$datesLabel}).",
             'url' => route('leave-requests.show', $this->leaveRequest),
         ];
     }
