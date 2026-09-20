@@ -7,6 +7,7 @@ readonly class TeamActivityCallMetrics
     public function __construct(
         public int $answeredCount,
         public int $totalCount,
+        public int $agentDisconnectedCount,
         public int $talkDurationSeconds,
         public string $talkDurationLabel,
     ) {}
@@ -15,6 +16,7 @@ readonly class TeamActivityCallMetrics
     {
         return $this->totalCount > 0
             || $this->answeredCount > 0
+            || $this->agentDisconnectedCount > 0
             || $this->talkDurationSeconds > 0;
     }
 }

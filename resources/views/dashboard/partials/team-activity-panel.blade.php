@@ -51,7 +51,14 @@
                         <span class="visually-hidden">Live state, Today, Current, Sessions, Latest, Previous</span>
                     </span>
                     <span class="team-activity-grid-header__cell team-activity-col--latest" role="columnheader">Latest Event</span>
-                    <span class="team-activity-grid-header__cell team-activity-col--calls" role="columnheader">Calls</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--calls" role="columnheader">
+                        <span class="team-activity-grid-header__title">Calls</span>
+                        <span class="team-activity-calls-header__sub" aria-hidden="true">
+                            <span>Total</span>
+                            <span>Agent DC</span>
+                        </span>
+                        <span class="visually-hidden">Total calls, Agent disconnected</span>
+                    </span>
                     <span class="team-activity-grid-header__cell team-activity-col--pending" role="columnheader">Pending</span>
                     <span class="team-activity-grid-header__cell team-activity-col--kpi"
                           role="columnheader"

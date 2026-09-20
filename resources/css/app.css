@@ -2692,7 +2692,7 @@ a:focus-visible .stat-card {
         minmax(8.5rem, 10.5rem)
         minmax(16rem, 19.5rem)
         minmax(0, 1fr)
-        minmax(5.5rem, 7rem)
+        minmax(6.25rem, 8rem)
         minmax(3.75rem, 5rem)
         minmax(4rem, 5.5rem)
         1.125rem;
@@ -3609,6 +3609,79 @@ a:focus-visible .stat-card {
 }
 
 .team-activity-calls-compact__duration .team-activity-duration__value {
+    color: #6c757d;
+    font-size: var(--team-activity-metric-small-size);
+    font-weight: var(--team-activity-metric-weight);
+}
+
+.team-activity-calls-header__sub {
+    display: grid;
+    grid-template-columns: minmax(1.75rem, 1fr) minmax(2.75rem, 1.35fr);
+    gap: 0.25rem;
+    width: 100%;
+    font-size: 0.5rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #dde3ea;
+    line-height: 1.1;
+}
+
+.team-activity-calls-header__sub > span:last-child {
+    text-align: center;
+}
+
+.team-activity-calls-split {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.team-activity-calls-split__metrics {
+    display: grid;
+    grid-template-columns: minmax(1.75rem, 1fr) minmax(2.75rem, 1.35fr);
+    gap: 0.25rem;
+    align-items: center;
+    width: 100%;
+}
+
+.team-activity-calls-split__metric {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.team-activity-calls-split__metric--agent-dc {
+    justify-content: center;
+    gap: 0.125rem;
+    color: #64748b;
+}
+
+.team-activity-calls-split__icon {
+    font-size: 0.5625rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.team-activity-calls-split__value--agent-dc {
+    font-size: var(--team-activity-metric-size);
+    font-weight: var(--team-activity-metric-weight);
+    color: #64748b;
+    line-height: var(--team-activity-metric-line-height);
+}
+
+.team-activity-calls-split__duration {
+    font-size: var(--team-activity-metric-small-size);
+    font-weight: 500;
+    line-height: 1;
+    color: #6c757d;
+}
+
+.team-activity-calls-split__duration .team-activity-duration__value {
     color: #6c757d;
     font-size: var(--team-activity-metric-small-size);
     font-weight: var(--team-activity-metric-weight);

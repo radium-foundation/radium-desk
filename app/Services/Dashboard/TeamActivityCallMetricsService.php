@@ -68,6 +68,7 @@ class TeamActivityCallMetricsService
                 destination_number,
                 COUNT(*) as total_calls,
                 SUM(CASE WHEN UPPER(status) IN (?, ?) THEN 1 ELSE 0 END) as answered_count,
+                '.$this->agentDisconnectedCountSumExpression().' as agent_disconnected_count,
                 '.$this->talkDurationSumExpression().'
             ', [
                 self::ANSWERED_STATUSES[0],
@@ -91,12 +92,14 @@ class TeamActivityCallMetricsService
                 $metricsByUserId[$user->id] = [
                     'answered_count' => 0,
                     'total_calls' => 0,
+                    'agent_disconnected_count' => 0,
                     'talk_duration_seconds' => 0,
                 ];
             }
 
             $metricsByUserId[$user->id]['answered_count'] += (int) $row->answered_count;
             $metricsByUserId[$user->id]['total_calls'] += (int) $row->total_calls;
+            $metricsByUserId[$user->id]['agent_disconnected_count'] += (int) ($row->agent_disconnected_count ?? 0);
             $metricsByUserId[$user->id]['talk_duration_seconds'] += (int) ($row->talk_duration_seconds ?? 0);
         }
 
@@ -108,6 +111,7 @@ class TeamActivityCallMetricsService
             $metrics[$userId] = new TeamActivityCallMetrics(
                 answeredCount: (int) $counts['answered_count'],
                 totalCount: (int) $counts['total_calls'],
+                agentDisconnectedCount: (int) $counts['agent_disconnected_count'],
                 talkDurationSeconds: $talkDurationSeconds,
                 talkDurationLabel: $this->presenceEngine->formatDuration($talkDurationSeconds),
             );
@@ -126,6 +130,14 @@ class TeamActivityCallMetricsService
         return match (DB::connection()->getDriverName()) {
             'sqlite' => 'SUM(CASE WHEN UPPER(status) IN (?, ?) THEN COALESCE(CAST(json_extract(payload, \'$.CallDuration\') AS INTEGER), 0) ELSE 0 END) as talk_duration_seconds',
             default => 'SUM(CASE WHEN UPPER(status) IN (?, ?) THEN COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(payload, \'$.CallDuration\')) AS UNSIGNED), 0) ELSE 0 END) as talk_duration_seconds',
+        };
+    }
+
+    private function agentDisconnectedCountSumExpression(): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => 'SUM(CASE WHEN call_type IN (\'2\', \'2.0\') AND LOWER(json_extract(payload, \'$.HangupBy\')) = \'agent\' THEN 1 ELSE 0 END)',
+            default => 'SUM(CASE WHEN call_type IN (\'2\', \'2.0\') AND LOWER(JSON_UNQUOTE(JSON_EXTRACT(payload, \'$.HangupBy\'))) = \'agent\' THEN 1 ELSE 0 END)',
         };
     }
 

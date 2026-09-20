@@ -178,6 +178,15 @@ class BonvoiceWebhookPayloadParser
     /**
      * @param  array<string, mixed>  $payload
      */
+    public function hangupBy(array $payload): ?string
+    {
+        return $this->scalarValue(data_get($payload, 'HangupBy'))
+            ?? $this->scalarValue(data_get($payload, 'hangup_by'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function durationSeconds(array $payload): ?string
     {
         return $this->scalarValue(data_get($payload, 'CallDuration'))
@@ -192,9 +201,6 @@ class BonvoiceWebhookPayloadParser
         return $this->parseTimestamp(data_get($payload, 'StartTime') ?? data_get($payload, 'start_time'));
     }
 
-    /**
-     * @param  mixed  $value
-     */
     private function parseTimestamp(mixed $value): ?Carbon
     {
         if (! is_scalar($value) || trim((string) $value) === '') {
@@ -245,9 +251,6 @@ class BonvoiceWebhookPayloadParser
         return filled($this->callId($payload));
     }
 
-    /**
-     * @param  mixed  $value
-     */
     private function scalarValue(mixed $value): ?string
     {
         if (! is_scalar($value)) {

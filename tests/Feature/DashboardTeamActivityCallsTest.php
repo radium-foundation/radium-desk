@@ -33,13 +33,21 @@ class DashboardTeamActivityCallsTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_calls_column_shows_agent_answered_with_team_ivr_total_superscript(): void
+    public function test_calls_column_shows_total_and_agent_disconnected_counts(): void
     {
         $viewer = $this->supervisor();
         $agent = $this->createAgent('Calls Agent', bonvoiceExtension: '08448423017');
 
-        $this->seedInboundCall('agent-answered-1', 'ANSWERED', '08448423017', ['CallDuration' => '150']);
-        $this->seedInboundCall('agent-answered-2', 'ANSWERED', '08448423017', ['CallDuration' => '150']);
+        $this->seedInboundCall('agent-answered-1', 'ANSWERED', '08448423017', [
+            'CallDuration' => '150',
+            'callType' => '2',
+            'HangupBy' => 'customer',
+        ]);
+        $this->seedInboundCall('agent-answered-2', 'ANSWERED', '08448423017', [
+            'CallDuration' => '150',
+            'callType' => '2',
+            'HangupBy' => 'agent',
+        ]);
         $this->seedInboundCall('team-missed-1', 'NOANSWER', null);
         $this->seedInboundCall('team-missed-2', 'NOINPUT', null);
 
@@ -48,14 +56,19 @@ class DashboardTeamActivityCallsTest extends TestCase
 
         $this->assertNotNull($row);
         $this->assertSame(2, $row->callsAnsweredToday);
+        $this->assertSame(2, $row->callsTotalToday);
+        $this->assertSame(1, $row->callsAgentDisconnectedToday);
         $this->assertSame(4, $panel->ivrCallsTotalToday);
 
         $html = $this->panelHtml($viewer);
 
+        $this->assertStringContainsString('team-activity-calls-split', $html);
         $this->assertStringContainsString('team-activity-calls-compact__count">2<', $html);
-        $this->assertStringContainsString('team-activity-calls-compact__sup', $html);
-        $this->assertStringContainsString('title="Total IVR calls received today (team-wide)"', $html);
-        $this->assertStringContainsString('>4</sup>', $html);
+        $this->assertStringContainsString('bi-telephone-x', $html);
+        $this->assertStringContainsString('team-activity-calls-split__value--agent-dc">1<', $html);
+        $this->assertStringContainsString('Calls disconnected by agent', $html);
+        $this->assertStringContainsString('>Total<', $html);
+        $this->assertStringContainsString('>Agent DC<', $html);
     }
 
     private function panelHtml(User $viewer): string
@@ -111,6 +124,8 @@ class DashboardTeamActivityCallsTest extends TestCase
         ?string $destinationNumber,
         array $payload = [],
     ): BonvoiceCallEvent {
+        $callType = $payload['callType'] ?? null;
+
         return BonvoiceCallEvent::query()->create([
             'call_id' => $callId,
             'leg' => 'A',
@@ -118,6 +133,7 @@ class DashboardTeamActivityCallsTest extends TestCase
             'destination_number' => $destinationNumber,
             'direction' => 'Inbound',
             'status' => $status,
+            'call_type' => is_string($callType) ? $callType : null,
             'started_at' => now(),
             'payload' => array_merge([
                 'callID' => $callId,
