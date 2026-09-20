@@ -5,18 +5,20 @@ namespace App\Services\Dashboard;
 use App\Data\RecentActivityItem;
 use App\Data\TeamActivityAgentRow;
 use App\Data\TeamActivityPanel;
+use App\Data\TeamActivityPerformanceBadge;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\Operations\RoleAwareKpiMetricsService;
 use App\Services\Operations\TeamAvailabilityOverviewService;
 use App\Services\Operations\WorkCalendarService;
-use App\Support\Dashboard\RecentActivityPresenter;
 use App\Services\PerformanceIntelligence\PerformanceSnapshotRepository;
+use App\Support\Dashboard\RecentActivityPresenter;
 use App\Support\Dashboard\TeamActivityBadgeResolver;
 use App\Support\Dashboard\TeamActivityEntryPresenter;
 use App\Support\Dashboard\TeamActivityKpiAuditQuery;
 use App\Support\Dashboard\TeamActivityRowSorter;
 use App\Support\Dashboard\TeamActivityStatusResolver;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class TeamActivityPanelService
@@ -163,6 +165,7 @@ class TeamActivityPanelService
                 kpiBreakdown: $kpiMetrics?->breakdown,
                 callsAnsweredToday: $callMetrics?->answeredCount,
                 callsTotalToday: $callMetrics?->totalCount,
+                callsAgentDisconnectedToday: $callMetrics?->agentDisconnectedCount,
                 callsTalkDurationLabel: $callMetrics?->talkDurationLabel,
                 pendingCasesCount: $pendingMetrics?->pendingCount,
                 overdueCasesCount: $pendingMetrics?->overdueCount,
@@ -193,7 +196,7 @@ class TeamActivityPanelService
 
     /**
      * @param  list<int>  $userIds
-     * @return array<int, list<\App\Data\TeamActivityPerformanceBadge>>
+     * @return array<int, list<TeamActivityPerformanceBadge>>
      */
     private function performanceBadgesForUsers(array $userIds): array
     {
@@ -323,7 +326,7 @@ class TeamActivityPanelService
     /**
      * @param  array<int, AuditLog>  $latestByUser
      * @param  list<string>  $allowlist
-     * @return array<int, \Illuminate\Support\Carbon>
+     * @return array<int, Carbon>
      */
     private function previousActivityAtByUser(array $latestByUser, array $allowlist): array
     {

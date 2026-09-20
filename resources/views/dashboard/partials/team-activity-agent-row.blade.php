@@ -51,22 +51,29 @@
         || filled($previousElapsed)
     );
 
+    $callsAgentDisconnectedToday = $agent->callsAgentDisconnectedToday ?? 0;
+
     $hasCallMetrics = ! $agent->isVirtual
-        && $agent->callsAnsweredToday !== null
+        && $agent->callsTotalToday !== null
         && filled($agent->callsTalkDurationLabel)
         && (
-            $agent->callsAnsweredToday > 0
+            $agent->callsTotalToday > 0
+            || $callsAgentDisconnectedToday > 0
             || $ivrCallsTotalToday > 0
             || $agent->callsTalkDurationLabel !== '0m'
         );
 
     if ($hasCallMetrics) {
-        $callsTitle = number_format($agent->callsAnsweredToday).' calls answered'
+        $callsTitle = number_format($agent->callsTotalToday).' total calls'
+            ."\n".($callsAgentDisconnectedToday === 1 ? '1 call disconnected by agent' : number_format($callsAgentDisconnectedToday).' calls disconnected by agent')
+            ."\n".number_format($agent->callsAnsweredToday).' calls answered'
             ."\n".number_format($ivrCallsTotalToday).' total IVR calls received today (team-wide)'
             ."\n".$agent->callsTalkDurationLabel.' talk time today';
-        $callsAriaLabel = ($agent->callsAnsweredToday === 1 ? '1 call answered' : number_format($agent->callsAnsweredToday).' calls answered')
+        $callsAriaLabel = ($agent->callsTotalToday === 1 ? '1 total call' : number_format($agent->callsTotalToday).' total calls')
             .'; '
-            .($ivrCallsTotalToday === 1 ? '1 total IVR call received today team-wide' : number_format($ivrCallsTotalToday).' total IVR calls received today team-wide')
+            .($callsAgentDisconnectedToday === 1 ? '1 call disconnected by agent' : number_format($callsAgentDisconnectedToday).' calls disconnected by agent')
+            .'; '
+            .($agent->callsAnsweredToday === 1 ? '1 call answered' : number_format($agent->callsAnsweredToday).' calls answered')
             .'; '
             .$agent->callsTalkDurationLabel.' talk time today';
     }
@@ -160,17 +167,22 @@
 
         <span class="team-activity-col team-activity-col--calls" role="cell">
             @if($hasCallMetrics)
-                <span class="team-activity-calls team-activity-calls-compact"
+                <span class="team-activity-calls team-activity-calls-split"
                       title="{{ $callsTitle }}"
                       aria-label="{{ $callsAriaLabel }}">
-                    <span class="team-activity-calls-compact__figure">
-                        <span class="team-activity-calls-compact__count">{{ number_format($agent->callsAnsweredToday) }}</span>
-                        <sup class="team-activity-calls-compact__sup"
-                              title="Total IVR calls received today (team-wide)">{{ number_format($ivrCallsTotalToday) }}</sup>
+                    <span class="team-activity-calls-split__metrics">
+                        <span class="team-activity-calls-split__metric">
+                            <span class="team-activity-calls-split__value team-activity-calls-compact__count">{{ number_format($agent->callsTotalToday) }}</span>
+                        </span>
+                        <span class="team-activity-calls-split__metric team-activity-calls-split__metric--agent-dc"
+                              title="Calls disconnected by agent"
+                              aria-label="{{ $callsAgentDisconnectedToday === 1 ? '1 call disconnected by agent' : number_format($callsAgentDisconnectedToday).' calls disconnected by agent' }}">
+                            <i class="bi bi-telephone-x team-activity-calls-split__icon" aria-hidden="true"></i>
+                            <span class="team-activity-calls-split__value team-activity-calls-split__value--agent-dc">{{ number_format($callsAgentDisconnectedToday) }}</span>
+                        </span>
                     </span>
-                    <span class="team-activity-calls-compact__separator" aria-hidden="true">·</span>
-                    <span class="team-activity-calls-compact__duration"><x-team-activity.duration :value="$agent->callsTalkDurationLabel" /></span>
-                    <span class="visually-hidden">Calls answered, total IVR calls, talk duration</span>
+                    <span class="team-activity-calls-split__duration"><x-team-activity.duration :value="$agent->callsTalkDurationLabel" /></span>
+                    <span class="visually-hidden">Total calls, agent disconnected calls, talk duration</span>
                 </span>
             @else
                 <span class="team-activity-calls team-activity-calls--empty" aria-hidden="true">—</span>
