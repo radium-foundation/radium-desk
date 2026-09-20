@@ -86,6 +86,16 @@ return [
     ), static fn (string $id): bool => $id !== ''))),
 
     /*
+    | When false (default), operators must explicitly confirm the recommended
+    | courier before Ship & Generate Label. When true, preparePrerequisites may
+    | auto-select using the same selector rules as AWB recovery.
+    */
+    'auto_select_recommended_courier' => filter_var(
+        env('SHIPROCKET_AUTO_SELECT_RECOMMENDED_COURIER', false),
+        FILTER_VALIDATE_BOOLEAN,
+    ),
+
+    /*
     | Default false. The HTTP client exists but stays unbound unless this is
     | true, shipping is enabled, provider is shiprocket, and credentials exist.
     | Isolated one-order fulfilment may instantiate the client in-process.

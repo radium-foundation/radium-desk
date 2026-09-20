@@ -158,6 +158,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $ready = $this->readiness([
             'alreadyCreated' => false,
             'canCreate' => true,
+            'canShipAndGenerateLabel' => true,
             'canSelectCourier' => true,
             'canFetchCourierOptions' => true,
             'selectedCourierId' => '15084',
@@ -169,9 +170,9 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         ]);
         $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
 
-        $this->assertTrue($ready->canCreate);
-        $this->assertSame('Create Shipment', $row->nextAction);
-        $this->assertSame('hardware-shipment-create', $row->nextAnchor);
+        $this->assertTrue($ready->canShipAndGenerateLabel);
+        $this->assertSame('Ship & Generate Label', $row->nextAction);
+        $this->assertSame('hardware-ship-and-label', $row->nextAnchor);
         $this->assertTrue($row->mutatingAction);
         $this->assertNotSame('Select Courier', $row->nextAction);
     }
@@ -182,18 +183,20 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $ready = $this->readiness([
             'alreadyCreated' => false,
             'canCreate' => false,
+            'canConfirmRecommendedCourier' => true,
             'canSelectCourier' => true,
             'canFetchCourierOptions' => true,
             'selectedCourierId' => null,
-            'courierOptions' => [['courier_id' => '15084']],
+            'courierOptions' => [['courier_id' => '15084', 'courier_name' => 'Delhivery_Surface', 'provider_recommended' => true]],
+            'recommendedCourierLabel' => 'Delhivery_Surface (15084)',
             'actionLabel' => 'Create Shipment',
             'awb' => null,
             'labelUrl' => null,
         ]);
         $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
 
-        $this->assertSame('Select Courier', $row->nextAction);
-        $this->assertSame('hardware-courier', $row->nextAnchor);
+        $this->assertSame('Confirm Recommended Courier', $row->nextAction);
+        $this->assertSame('hardware-courier-confirm', $row->nextAnchor);
     }
 
     public function test_measured_parcel_is_required_before_courier_options(): void
@@ -242,6 +245,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $ready = $this->readiness([
             'alreadyCreated' => false,
             'canCreate' => true,
+            'canShipAndGenerateLabel' => true,
             'canSelectCourier' => true,
             'canFetchCourierOptions' => true,
             'selectedCourierId' => '15137',
@@ -254,9 +258,9 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         ]);
         $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
 
-        $this->assertSame('Create Shipment', $row->nextAction);
+        $this->assertSame('Ship & Generate Label', $row->nextAction);
         $this->assertSame('Ready for Shipment', $row->operatorStatus());
-        $this->assertSame('hardware-shipment-create', $row->nextAnchor);
+        $this->assertSame('hardware-ship-and-label', $row->nextAnchor);
         $this->assertTrue($row->mutatingAction);
         $this->assertSame(HardwareFulfilmentOperationalStage::ReadyForShipment, $row->stage);
         $this->assertSame(HardwareDashboardQueue::Ready, $row->dashboardQueue());
@@ -317,10 +321,12 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $ready = $this->readiness([
             'alreadyCreated' => false,
             'canCreate' => false,
+            'canConfirmRecommendedCourier' => true,
             'canSelectCourier' => true,
             'canFetchCourierOptions' => true,
             'selectedCourierId' => null,
-            'courierOptions' => [['courier_id' => '15137']],
+            'courierOptions' => [['courier_id' => '15137', 'provider_recommended' => true]],
+            'recommendedCourierLabel' => 'Bluedart (15137)',
             'actionLabel' => 'Create Shipment',
             'awb' => null,
             'labelUrl' => null,
@@ -328,8 +334,8 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         ]);
         $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
 
-        $this->assertSame('Select Courier', $row->nextAction);
-        $this->assertSame('hardware-courier', $row->nextAnchor);
+        $this->assertSame('Confirm Recommended Courier', $row->nextAction);
+        $this->assertSame('hardware-courier-confirm', $row->nextAnchor);
         $this->assertTrue($row->mutatingAction);
     }
 
@@ -403,6 +409,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $ready = $this->readiness([
             'alreadyCreated' => true,
             'canCreate' => false,
+            'canShipAndGenerateLabel' => true,
             'canSelectCourier' => true,
             'selectedCourierId' => '15084',
             'awb' => null,
@@ -410,7 +417,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         ]);
         $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
 
-        $this->assertSame('Assign AWB', $row->nextAction);
+        $this->assertSame('Ship & Generate Label', $row->nextAction);
         $this->assertNotSame('Select Courier', $row->nextAction);
         $this->assertNotSame('Create Shipment', $row->nextAction);
     }
@@ -627,6 +634,10 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
             packageLabelAppliedRecorded: $overrides['packageLabelAppliedRecorded'] ?? false,
             canAttachMeasuredParcel: (bool) ($overrides['canAttachMeasuredParcel'] ?? false),
             providerRejection: $overrides['providerRejection'] ?? null,
+            canConfirmRecommendedCourier: (bool) ($overrides['canConfirmRecommendedCourier'] ?? false),
+            canShipAndGenerateLabel: (bool) ($overrides['canShipAndGenerateLabel'] ?? false),
+            recommendedCourierLabel: $overrides['recommendedCourierLabel'] ?? null,
+            orchestrationAutoSelectEnabled: (bool) ($overrides['orchestrationAutoSelectEnabled'] ?? false),
         );
     }
 

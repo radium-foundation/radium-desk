@@ -11,6 +11,7 @@ use App\Http\Requests\Inventory\AllocateHardwareFulfilmentSerialsRequest;
 use App\Http\Requests\Inventory\AssignHardwareFulfilmentAwbRequest;
 use App\Http\Requests\Inventory\AttachHardwareFulfilmentMeasuredParcelRequest;
 use App\Http\Requests\Inventory\AttachHardwareFulfilmentParcelRequest;
+use App\Http\Requests\Inventory\ConfirmHardwareFulfilmentRecommendedCourierRequest;
 use App\Http\Requests\Inventory\CorrectHardwareFulfilmentShippingCountryRequest;
 use App\Http\Requests\Inventory\CreateHardwareFulfilmentShipmentRequest;
 use App\Http\Requests\Inventory\FetchHardwareFulfilmentCourierOptionsRequest;
@@ -24,6 +25,7 @@ use App\Http\Requests\Inventory\ReconcileHardwareFulfilmentAwbRequest;
 use App\Http\Requests\Inventory\RequestHardwareFulfilmentPickupRequest;
 use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
 use App\Http\Requests\Inventory\SelectHardwareFulfilmentCourierRequest;
+use App\Http\Requests\Inventory\ShipAndGenerateHardwareFulfilmentLabelRequest;
 use App\Http\Requests\Inventory\StoreHardwareFulfilmentPackageEvidenceRequest;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
@@ -47,6 +49,7 @@ use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentCourierOptionsService;
 use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
+use App\Services\HardwareFulfilment\HardwareShipmentOrchestrationService;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
 use App\Support\Inventory\InventoryBranchScope;
@@ -76,6 +79,7 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentOperationalClassifier $operationalClassifier,
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly HardwareFulfilmentIsolatedWorkflowService $isolated,
+        private readonly HardwareShipmentOrchestrationService $orchestration,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
@@ -385,6 +389,19 @@ class HardwareFulfilmentSerialController extends Controller
 
         $ready = $this->shipmentEligibility->inspect($fulfilment);
         $row = $this->operationalClassifier->fromFulfilment($fulfilment, $ready);
+        $prepError = null;
+        if ($this->orchestration->shouldAutoPrepare($fulfilment, $ready)) {
+            try {
+                $fulfilment = $this->orchestration->preparePrerequisites($fulfilment, $request->user());
+                $ready = $this->shipmentEligibility->inspect($fulfilment);
+                $row = $this->operationalClassifier->fromFulfilment($fulfilment, $ready);
+            } catch (ValidationException $exception) {
+                $prepError = collect($exception->errors())->flatten()->first();
+                $fulfilment = $fulfilment->fresh() ?? $fulfilment;
+                $ready = $this->shipmentEligibility->inspect($fulfilment);
+                $row = $this->operationalClassifier->fromFulfilment($fulfilment, $ready);
+            }
+        }
         $requirements = [];
         $canAllocate = false;
         $allocateUnavailableReason = null;
@@ -418,6 +435,7 @@ class HardwareFulfilmentSerialController extends Controller
             'searchUrl' => route('inventory.hardware-fulfilments.serials.search', $fulfilment),
             'showUrl' => route('inventory.hardware-fulfilments.show', $fulfilment),
             'incidentId' => $this->incidentIdFor($fulfilment),
+            'prepError' => $prepError,
         ]);
     }
 
@@ -612,6 +630,26 @@ class HardwareFulfilmentSerialController extends Controller
         $this->couriers->select($fulfilment, $request->validated('courier_id'), $request->user());
 
         return $this->mutationResponse($request, $fulfilment, 'Courier selected.');
+    }
+
+    public function storeConfirmRecommendedCourier(
+        ConfirmHardwareFulfilmentRecommendedCourierRequest $request,
+        HardwareFulfilment $fulfilment,
+    ): RedirectResponse|JsonResponse {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->orchestration->confirmRecommendedCourier($fulfilment, $request->user());
+
+        return $this->mutationResponse($request, $fulfilment, 'Recommended courier confirmed.');
+    }
+
+    public function storeShipAndLabel(
+        ShipAndGenerateHardwareFulfilmentLabelRequest $request,
+        HardwareFulfilment $fulfilment,
+    ): RedirectResponse|JsonResponse {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $outcome = $this->orchestration->shipAndGenerateLabel($fulfilment, $request->user());
+
+        return $this->mutationResponse($request, $fulfilment, $outcome->flash());
     }
 
     public function storeAwb(AssignHardwareFulfilmentAwbRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
