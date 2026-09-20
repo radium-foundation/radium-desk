@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.93 — 2026-09-20 — Ship & Generate Label orchestration
+
+- Add hardware fulfilment **Ship & Generate Label** orchestration after invoice, reusing existing courier selection, shipment create, AWB assignment, and label generation services.
+- Default operator flow is **2-click**: Confirm Recommended Courier → Ship & Generate Label; legacy shipment/AWB/courier endpoints preserved.
+- Optional **1-click** auto-selection when `SHIPROCKET_AUTO_SELECT_RECOMMENDED_COURIER=true` (default `false`).
+- Fix orchestration eligibility so ambiguous provider create timeouts can retry via existing search reconciliation.
+- No database migrations. Vite assets built at deploy time.
+- Rollback target: v4.0.92 / `7e197bd6`.
+
 ## 4.0.92 — 2026-09-20 — Leave notifications, Team Activity Agent DC, serial reallocation, refund timeline
 
 - Harden leave-request notifications: designated approver receives submission alerts; requester receives approval/rejection alerts with review notes on rejection; duplicate workflow attempts do not re-notify. Uses `WORKFORCE_LEAVE_APPROVER_EMAIL` / default `shipra@radiumbox.com`.
