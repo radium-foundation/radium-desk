@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Enums\IncidentStatus;
+use App\Enums\RefundStatus;
 use App\Models\Incident;
 use App\Models\RefundRequest;
 use App\Models\User;
+use App\Support\Remarks\RemarkSystemSource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -32,33 +34,44 @@ class RefundCaseCloseService
         }
 
         if ($incident->status === IncidentStatus::Closed) {
-            $this->markRefundClosed($refund, $actor, $request);
+            $this->finalizeCompletedRefund($refund, $incident, $actor, $request, closeIncident: false);
 
             return;
         }
 
+        $this->finalizeCompletedRefund($refund, $incident, $actor, $request, closeIncident: true);
+    }
+
+    private function finalizeCompletedRefund(
+        RefundRequest $refund,
+        Incident $incident,
+        User $actor,
+        ?Request $request,
+        bool $closeIncident,
+    ): void {
         try {
-            DB::transaction(function () use ($incident, $refund, $actor, $request): void {
-                $this->businessHoldService->clearActiveHold(
-                    incident: $incident,
+            DB::transaction(function () use ($refund, $incident, $actor, $request, $closeIncident): void {
+                $this->businessHoldService->clearRefundHoldForRefund(
+                    refund: $refund,
                     actor: $actor,
                     source: 'refund_completed',
-                    type: \App\Enums\BusinessHoldType::Refund,
                 );
 
-                $this->remarkService->createSystemRemarkForRemarkable(
-                    remarkable: $incident,
-                    actor: $actor,
-                    body: "Service case closed after refund {$refund->reference_no} was completed.",
-                    systemSource: \App\Support\Remarks\RemarkSystemSource::REFUND_CLOSE,
-                    request: $request,
-                );
+                if ($closeIncident) {
+                    $this->remarkService->createSystemRemarkForRemarkable(
+                        remarkable: $incident,
+                        actor: $actor,
+                        body: "Service case closed after refund {$refund->reference_no} was completed.",
+                        systemSource: RemarkSystemSource::REFUND_CLOSE,
+                        request: $request,
+                    );
 
-                $this->statusService->updateStatus($incident, IncidentStatus::Closed, $actor);
+                    $this->statusService->updateStatus($incident, IncidentStatus::Closed, $actor);
+                }
+
                 $this->markRefundClosed($refund, $actor, $request);
             });
         } catch (Throwable $exception) {
-            // Payout already completed — keep refund completed and record close failure.
             $this->auditLogService->log(
                 userId: $actor->id,
                 event: 'refund.closed',
@@ -81,7 +94,7 @@ class RefundCaseCloseService
         }
 
         $refund->update([
-            'status' => \App\Enums\RefundStatus::Closed,
+            'status' => RefundStatus::Closed,
             'closed_at' => now(),
         ]);
 

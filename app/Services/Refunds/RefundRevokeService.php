@@ -11,6 +11,7 @@ use App\Models\RefundRequest;
 use App\Models\RefundRevocationAttempt;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\BusinessHoldService;
 use App\Services\Commercial\CommercialServiceRestorationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ class RefundRevokeService
     public function __construct(
         private readonly WalletRefundReversalResolver $walletReversalResolver,
         private readonly CommercialServiceRestorationService $commercialRestorationService,
+        private readonly BusinessHoldService $businessHoldService,
         private readonly AuditLogService $auditLogService,
     ) {}
 
@@ -239,6 +241,15 @@ class RefundRevokeService
                 'status' => RefundRevocationAttemptStatus::Completed,
                 'commercial_service_restoration_id' => $restoration->id,
             ]);
+
+            $fresh->loadMissing('incident');
+            if ($fresh->incident !== null) {
+                $this->businessHoldService->clearRefundHoldForRefund(
+                    refund: $fresh,
+                    actor: $actor,
+                    source: 'refund_revoked',
+                );
+            }
 
             $this->auditLogService->log(
                 userId: $actor->id,
