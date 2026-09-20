@@ -3,9 +3,9 @@
 namespace App\Services\Timeline\Sources;
 
 use App\Contracts\Timeline\TimelineEventSource;
-use App\Data\TimelineEvent;
 use App\Data\OrderCorrectionChange;
 use App\Data\OrderTimelineEntry;
+use App\Data\TimelineEvent;
 use App\Enums\TimelineEventType;
 use App\Models\AuditLog;
 use App\Models\Incident;
