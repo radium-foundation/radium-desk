@@ -348,6 +348,10 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         if (! filled($ready->awb)) {
+            if ($ready->canShipAndGenerateLabel) {
+                return [HardwareFulfilmentOperationalStage::AwbPending, 'Ship & Generate Label', 'hardware-ship-and-label', 'AWB Pending'];
+            }
+
             return [HardwareFulfilmentOperationalStage::AwbPending, 'Assign AWB', 'hardware-awb', 'AWB Pending'];
         }
 
@@ -362,6 +366,10 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         if ($ready->labelUrl === null) {
+            if ($ready->canShipAndGenerateLabel) {
+                return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Ship & Generate Label', 'hardware-ship-and-label', 'Label Pending'];
+            }
+
             return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Generate Label', 'hardware-label', 'Label Pending'];
         }
 
@@ -412,6 +420,14 @@ final class HardwareFulfilmentOperationalClassifier
     {
         if ($ready->canAttachMeasuredParcel) {
             return ['Enter Package Dimensions', 'hardware-parcel-measure'];
+        }
+
+        if ($ready->canShipAndGenerateLabel) {
+            return ['Ship & Generate Label', 'hardware-ship-and-label'];
+        }
+
+        if ($ready->canConfirmRecommendedCourier) {
+            return ['Confirm Recommended Courier', 'hardware-courier-confirm'];
         }
 
         if ($ready->canCreate) {

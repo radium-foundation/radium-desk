@@ -296,6 +296,50 @@ class HardwareShipmentEligibility
             HardwareFulfilmentState::Shipped,
             HardwareFulfilmentState::Synced,
         ], true);
+        $parcelReadyForOrchestration = ! $this->snapshots->canAttachMeasured($fulfilment)
+            && ! $this->snapshots->canAttach($fulfilment)
+            && $parcel !== null;
+        $orchestrationAutoSelectEnabled = (bool) config('shipping.auto_select_recommended_courier', false);
+        $canResumeShipAndLabel = $notTerminal
+            && $this->providerReady()
+            && (
+                ($alreadyCreated && ! filled($shipment?->awb))
+                || ($awbReady && $labelUrl === null)
+            );
+        $canShipAndGenerateLabel = $notTerminal
+            && $this->providerReady()
+            && $parcelReadyForOrchestration
+            && (
+                $canResumeShipAndLabel
+                || ($needsReconcile && $localReady)
+                || ($localReady && $validSelection && ! $needsReconcile)
+            );
+        $recommendedOption = ($optionsFresh && $courierOptions !== [])
+            ? app(HardwareShipmentCourierSelector::class)->choose(
+                $courierOptions,
+                recommendedId: HardwareShipmentCourierQuote::recommendedCourierId($fulfilment),
+                allowUnrankedEligible: false,
+            )
+            : null;
+        $recommendedCourierLabel = null;
+        if ($recommendedOption !== null) {
+            $recommendedName = trim((string) ($recommendedOption['courier_name'] ?? ''));
+            $recommendedId = trim((string) ($recommendedOption['courier_id'] ?? ''));
+            $recommendedCourierLabel = $recommendedName !== '' && $recommendedId !== ''
+                ? $recommendedName.' ('.$recommendedId.')'
+                : ($recommendedName !== '' ? $recommendedName : $recommendedId);
+        }
+        $canConfirmRecommendedCourier = $notTerminal
+            && $this->providerReady()
+            && $parcelReadyForOrchestration
+            && ! $needsReconcile
+            && ! $validSelection
+            && $optionsFresh
+            && $courierOptions !== []
+            && $recommendedOption !== null
+            && ! $orchestrationAutoSelectEnabled
+            && $localReady
+            && ! $alreadyCreated;
 
         return new HardwareShipmentReadiness(
             canCreate: $canCreate,
@@ -364,6 +408,10 @@ class HardwareShipmentEligibility
             providerTrackStatus: filled($shipment?->provider_track_status) ? (string) $shipment->provider_track_status : null,
             providerTrackNormalized: filled($shipment?->provider_track_normalized) ? (string) $shipment->provider_track_normalized : null,
             stockCommitted: $stockCommitted,
+            canConfirmRecommendedCourier: $canConfirmRecommendedCourier,
+            canShipAndGenerateLabel: $canShipAndGenerateLabel,
+            recommendedCourierLabel: $recommendedCourierLabel,
+            orchestrationAutoSelectEnabled: $orchestrationAutoSelectEnabled,
         );
     }
 

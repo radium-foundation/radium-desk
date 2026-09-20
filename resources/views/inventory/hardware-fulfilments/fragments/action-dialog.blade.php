@@ -8,6 +8,8 @@
         'Enter Package Dimensions' => 'Measure the complete packed shipment, then save before courier options.',
         'Get Courier Options' => 'Prepare shipment details, then fetch returned courier options.',
         'Select Courier' => 'Choose one courier returned by Shiprocket.',
+        'Confirm Recommended Courier' => 'Confirm the Shiprocket-recommended courier before shipping.',
+        'Ship & Generate Label' => 'Create the shipment, assign the AWB, and generate the label.',
         'Create Shipment' => 'Create the provider shipment for this prepared order.',
         'Reconcile Shipment' => 'Reconcile the existing shipment before continuing.',
         'Assign AWB' => 'Assign the AWB from the bound shipment.',
@@ -24,6 +26,8 @@
         'Enter Package Dimensions' => '📦',
         'Get Courier Options' => '🚚',
         'Select Courier' => '🚚',
+        'Confirm Recommended Courier' => '🚚',
+        'Ship & Generate Label' => '🏷️',
         'Create Shipment' => '🚚',
         'Reconcile Shipment' => '🚚',
         'Assign AWB' => '🏷️',
@@ -32,7 +36,14 @@
         'Generate Manifest' => '📋',
         'Upload Package Photo' => '📷',
     ];
-    $shipmentActions = ['Get Courier Options', 'Select Courier', 'Create Shipment', 'Reconcile Shipment'];
+    $shipmentActions = [
+        'Get Courier Options',
+        'Select Courier',
+        'Confirm Recommended Courier',
+        'Ship & Generate Label',
+        'Create Shipment',
+        'Reconcile Shipment',
+    ];
     $requiredSerials = (int) collect($requirements ?? [])->sum('qty');
     $allocateCompact = $action === 'Allocate Serial'
         && collect($requirements ?? [])->count() <= 1
@@ -144,6 +155,12 @@
                 @elseif(in_array($action, $shipmentActions, true))
                     @include('inventory.hardware-fulfilments.fragments.action-start-shipment', [
                         'showUrl' => $showUrl ?? null,
+                        'prepError' => $prepError ?? null,
+                    ])
+                @elseif($action === 'Ship & Generate Label')
+                    @include('inventory.hardware-fulfilments.fragments.action-start-shipment', [
+                        'showUrl' => $showUrl ?? null,
+                        'prepError' => $prepError ?? null,
                     ])
                 @elseif($action === 'Assign AWB')
                     @include('inventory.hardware-fulfilments.fragments.action-confirm', [

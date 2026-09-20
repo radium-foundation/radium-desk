@@ -76,6 +76,10 @@ final class HardwareShipmentReadiness
         public readonly ?string $providerTrackStatus = null,
         public readonly ?string $providerTrackNormalized = null,
         public readonly bool $stockCommitted = false,
+        public readonly bool $canConfirmRecommendedCourier = false,
+        public readonly bool $canShipAndGenerateLabel = false,
+        public readonly ?string $recommendedCourierLabel = null,
+        public readonly bool $orchestrationAutoSelectEnabled = false,
     ) {}
 
     public function packagePhotoRecorded(): bool

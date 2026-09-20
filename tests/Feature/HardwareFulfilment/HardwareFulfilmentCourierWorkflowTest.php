@@ -111,7 +111,7 @@ class HardwareFulfilmentCourierWorkflowTest extends TestCase
 
     public function test_readiness_blocks_courier_options_and_create(): void
     {
-        $fulfilment = $this->allocatedFulfilment('RDE930010', 'DELHI-RETAIL');
+        $fulfilment = $this->readyFulfilment('RDE930010');
 
         $this->actingAs($this->admin)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
@@ -222,7 +222,7 @@ class HardwareFulfilmentCourierWorkflowTest extends TestCase
         $this->assertSame(0, Shipment::query()->count());
     }
 
-    public function test_json_courier_selection_advances_dashboard_to_create_shipment_without_creating(): void
+    public function test_json_courier_selection_advances_dashboard_to_ship_and_label_without_creating(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE930022', 'DELHI-RETAIL');
         $this->actingAs($this->admin)
@@ -233,7 +233,7 @@ class HardwareFulfilmentCourierWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('hardware-action-courier-select-form', false)
             ->assertSee('Select Courier')
-            ->assertDontSee('hardware-action-create-shipment-form', false);
+            ->assertDontSee('hardware-action-ship-and-label-form', false);
 
         $createsBefore = $this->fake->creates;
 
@@ -247,7 +247,7 @@ class HardwareFulfilmentCourierWorkflowTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('ok', true)
-            ->assertJsonPath('next_action', 'Create Shipment')
+            ->assertJsonPath('next_action', 'Ship & Generate Label')
             ->assertJsonPath('mutating', true)
             ->assertJsonPath('status', 'Courier selected.');
 
@@ -262,20 +262,14 @@ class HardwareFulfilmentCourierWorkflowTest extends TestCase
         $dialog = $this->actingAs($this->admin)
             ->get(route('inventory.hardware-fulfilments.action-dialog', $fresh))
             ->assertOk()
-            ->assertSee('hardware-action-create-shipment-form', false)
-            ->assertSee('Create Shipment')
+            ->assertSee('hardware-action-ship-and-label-form', false)
+            ->assertSee('Ship &amp; Generate Label', false)
             ->assertSee('Fake Surface')
             ->assertDontSee('hardware-action-courier-select-form', false)
             ->getContent();
 
         $this->assertStringNotContainsString('id="hardware-action-courier-select-form"', $dialog);
-        $this->assertStringContainsString('id="hardware-action-create-shipment-form"', $dialog);
-
-        $this->actingAs($this->admin)
-            ->get(route('dashboard', ['workspace' => 'hardware']))
-            ->assertOk()
-            ->assertSee('RDE930022')
-            ->assertSee('Create Shipment');
+        $this->assertStringContainsString('id="hardware-action-ship-and-label-form"', $dialog);
 
         $this->assertSame(0, $this->fake->creates);
         Http::assertNothingSent();

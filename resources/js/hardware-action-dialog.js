@@ -307,9 +307,30 @@ const searchPicker = async (picker) => {
 
 let activeSerialPickers = [];
 
+const bindCourierChangeToggle = (root) => {
+    root.querySelectorAll('[data-hardware-courier-change-toggle]').forEach((button) => {
+        if (button.dataset.hardwareCourierToggleBound === '1') {
+            return;
+        }
+        button.dataset.hardwareCourierToggleBound = '1';
+        button.addEventListener('click', () => {
+            const panelId = button.getAttribute('aria-controls');
+            const panel = panelId ? root.querySelector(`#${panelId}`) : null;
+            if (!panel) {
+                return;
+            }
+            const expanded = button.getAttribute('aria-expanded') === 'true';
+            button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+            panel.classList.toggle('d-none', expanded);
+            panel.hidden = expanded;
+        });
+    });
+};
+
 export const bindHardwareActionForms = (root) => {
     bindSerialPickers(root);
     bindMeasuredParcelForms(root);
+    bindCourierChangeToggle(root);
     root.querySelectorAll('[data-hardware-action-form]').forEach((form) => {
         form.addEventListener('submit', (event) => {
             event.preventDefault();
@@ -438,6 +459,9 @@ const submitForm = async (form) => {
     const root = form.closest('[data-hardware-action-dialog-root]') ?? form;
     const submit = form.querySelector('[data-hardware-action-submit]');
     const isSerialForm = form.id === 'hardware-action-serial-form';
+    const isShipAndLabelForm = form.id === 'hardware-action-ship-and-label-form';
+    const isConfirmCourierForm = form.id === 'hardware-action-courier-confirm-form';
+    const submitIdleLabel = submit?.textContent ?? '';
 
     if (form.dataset.hardwareSubmitting === '1') {
         return;
@@ -468,6 +492,10 @@ const submitForm = async (form) => {
     submit?.setAttribute('disabled', 'disabled');
     if (isSerialForm && submit) {
         submit.textContent = 'Allocating…';
+    } else if (isShipAndLabelForm && submit) {
+        submit.textContent = 'Shipping…';
+    } else if (isConfirmCourierForm && submit) {
+        submit.textContent = 'Confirming…';
     }
 
     try {
@@ -508,6 +536,9 @@ const submitForm = async (form) => {
             }
         } else if (form.hasAttribute('data-hardware-measured-parcel')) {
             updateMeasuredParcelState(form);
+        } else if ((isShipAndLabelForm || isConfirmCourierForm) && submit && submitIdleLabel !== '') {
+            submit.textContent = submitIdleLabel;
+            submit.removeAttribute('disabled');
         } else {
             submit?.removeAttribute('disabled');
         }

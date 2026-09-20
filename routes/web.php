@@ -539,6 +539,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('hardware-fulfilments/{fulfilment}/country', [InventoryHardwareFulfilmentSerialController::class, 'storeCountry'])->name('hardware-fulfilments.country.store');
         Route::post('hardware-fulfilments/{fulfilment}/courier-options', [InventoryHardwareFulfilmentSerialController::class, 'storeCourierOptions'])->name('hardware-fulfilments.courier-options.store');
         Route::post('hardware-fulfilments/{fulfilment}/courier', [InventoryHardwareFulfilmentSerialController::class, 'storeCourier'])->name('hardware-fulfilments.courier.store');
+        Route::post('hardware-fulfilments/{fulfilment}/confirm-recommended-courier', [InventoryHardwareFulfilmentSerialController::class, 'storeConfirmRecommendedCourier'])->name('hardware-fulfilments.confirm-recommended-courier.store');
+        Route::post('hardware-fulfilments/{fulfilment}/ship-and-label', [InventoryHardwareFulfilmentSerialController::class, 'storeShipAndLabel'])->name('hardware-fulfilments.ship-and-label.store');
         Route::post('hardware-fulfilments/{fulfilment}/awb', [InventoryHardwareFulfilmentSerialController::class, 'storeAwb'])->name('hardware-fulfilments.awb.store');
         Route::post('hardware-fulfilments/{fulfilment}/awb-reconcile', [InventoryHardwareFulfilmentSerialController::class, 'storeAwbReconcile'])->name('hardware-fulfilments.awb-reconcile.store');
         Route::post('hardware-fulfilments/{fulfilment}/label', [InventoryHardwareFulfilmentSerialController::class, 'storeLabel'])->name('hardware-fulfilments.label.store');
