@@ -136,7 +136,49 @@ class BusinessHoldService
             return null;
         }
 
+        return $this->clearHoldRecord($hold, $incident, $actor, $source);
+    }
+
+    public function clearRefundHoldForRefund(
+        RefundRequest $refund,
+        User $actor,
+        string $source,
+    ): ?BusinessHold {
+        $refund->loadMissing('incident');
+
+        $incident = $refund->incident;
+
+        if ($incident === null) {
+            return null;
+        }
+
+        $hold = BusinessHold::query()
+            ->where('incident_id', $incident->id)
+            ->where('hold_type', BusinessHoldType::Refund)
+            ->where('source_type', $refund->getMorphClass())
+            ->where('source_id', $refund->id)
+            ->active()
+            ->orderByDesc('id')
+            ->first();
+
+        if ($hold === null) {
+            return null;
+        }
+
+        return $this->clearHoldRecord($hold, $incident, $actor, $source);
+    }
+
+    private function clearHoldRecord(
+        BusinessHold $hold,
+        Incident $incident,
+        User $actor,
+        string $source,
+    ): BusinessHold {
         return DB::transaction(function () use ($hold, $incident, $actor, $source): BusinessHold {
+            if (! $hold->isActive()) {
+                return $hold;
+            }
+
             $hold->update([
                 'cleared_at' => now(),
                 'cleared_by' => $actor->id,
@@ -158,6 +200,9 @@ class BusinessHoldService
                     'business_hold_id' => $hold->id,
                     'cleared_at' => $hold->cleared_at?->toIso8601String(),
                     'resolution_source' => $source,
+                    'refund_request_id' => $hold->source_type === (new RefundRequest)->getMorphClass()
+                        ? $hold->source_id
+                        : null,
                 ],
             );
 
