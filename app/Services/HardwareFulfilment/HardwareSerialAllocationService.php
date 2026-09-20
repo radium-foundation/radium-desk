@@ -248,6 +248,7 @@ class HardwareSerialAllocationService
                     }
 
                     $this->assertSerialNotAllocatedElsewhere($stockSerial, $number);
+                    $this->detachReleasedFulfilmentSerialClaims($stockSerial, $number);
                     $created[] = [$item, $position + 1, $stockSerial, $product];
                 }
             }
@@ -647,6 +648,7 @@ class HardwareSerialAllocationService
     private function assertSerialNotAllocatedElsewhere(InventorySerial $serial, string $number): void
     {
         $taken = HardwareFulfilmentSerial::query()
+            ->whereIn('status', $this->activeHardwareFulfilmentSerialStatuses())
             ->where(function ($query) use ($serial, $number) {
                 $query->where('inventory_serial_id', $serial->id)
                     ->orWhere('serial_number', $number);
@@ -658,6 +660,39 @@ class HardwareSerialAllocationService
                 'serials' => "Serial {$number} is already allocated to a hardware fulfilment.",
             ]);
         }
+    }
+
+    /**
+     * Terminal released rows are retained for audit; only active fulfilment serial
+     * statuses should block inventory reuse.
+     *
+     * @return list<HardwareFulfilmentSerialStatus>
+     */
+    private function activeHardwareFulfilmentSerialStatuses(): array
+    {
+        return [
+            HardwareFulfilmentSerialStatus::Pending,
+            HardwareFulfilmentSerialStatus::Reserved,
+            HardwareFulfilmentSerialStatus::Allocated,
+        ];
+    }
+
+    /**
+     * Released rows are retained for audit but their unique serial claims must be
+     * cleared before the same inventory serial can be allocated again.
+     */
+    private function detachReleasedFulfilmentSerialClaims(InventorySerial $serial, string $number): void
+    {
+        HardwareFulfilmentSerial::query()
+            ->where('status', HardwareFulfilmentSerialStatus::Released)
+            ->where(function ($query) use ($serial, $number) {
+                $query->where('inventory_serial_id', $serial->id)
+                    ->orWhere('serial_number', $number);
+            })
+            ->update([
+                'inventory_serial_id' => null,
+                'serial_number' => null,
+            ]);
     }
 
     /**

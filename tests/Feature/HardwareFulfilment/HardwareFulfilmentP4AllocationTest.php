@@ -348,6 +348,127 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
         $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
     }
 
+    public function test_released_historical_row_does_not_block_reallocation(): void
+    {
+        $serialNumber = 'SN-P4-RELEASED-001';
+        $branch = $this->stockAt('DELHI-RETAIL', [$serialNumber]);
+        $inventorySerial = InventorySerial::query()->where('serial_number', $serialNumber)->firstOrFail();
+
+        $historical = $this->readyFulfilment('RDE900416', 'DELHI-RETAIL', 1);
+        $historicalItemId = (int) $historical->commerceOrder?->items->first()?->id;
+
+        HardwareFulfilmentSerial::query()->create([
+            'hardware_fulfilment_id' => $historical->id,
+            'commerce_order_item_id' => $historicalItemId,
+            'line_no' => 1,
+            'position' => 1,
+            'inventory_serial_id' => $inventorySerial->id,
+            'serial_number' => $serialNumber,
+            'status' => HardwareFulfilmentSerialStatus::Released,
+            'allocated_at' => now(),
+        ]);
+
+        $this->assertSame(InventorySerialStatus::Available, $inventorySerial->fresh()->status);
+
+        $target = $this->readyFulfilment('RDE900417', 'DELHI-RETAIL', 1);
+        $allocated = $this->allocation->allocateSerials($target, [$serialNumber], $this->actor);
+
+        $this->assertGreaterThanOrEqual(
+            HardwareFulfilmentState::SerialsAllocated->rank(),
+            $allocated->state?->rank() ?? -1,
+        );
+        $this->assertSame(
+            [$serialNumber],
+            $this->workflow->allocatedSerialNumbers($allocated),
+        );
+        $this->assertSame(InventorySerialStatus::Sold, $inventorySerial->fresh()->status);
+        $this->assertSame(2, HardwareFulfilmentSerial::query()->where('hardware_fulfilment_id', $target->id)->orWhere('hardware_fulfilment_id', $historical->id)->count());
+        $this->assertSame(
+            1,
+            HardwareFulfilmentSerial::query()
+                ->where('hardware_fulfilment_id', $target->id)
+                ->where('status', HardwareFulfilmentSerialStatus::Allocated)
+                ->where('serial_number', $serialNumber)
+                ->count(),
+        );
+
+        $releasedRow = HardwareFulfilmentSerial::query()
+            ->where('hardware_fulfilment_id', $historical->id)
+            ->firstOrFail();
+        $this->assertSame(HardwareFulfilmentSerialStatus::Released, $releasedRow->status);
+        $this->assertNull($releasedRow->serial_number);
+        $this->assertNull($releasedRow->inventory_serial_id);
+    }
+
+    public function test_pending_row_still_blocks_reallocation(): void
+    {
+        $serialNumber = 'SN-P4-PENDING-001';
+        $this->stockAt('DELHI-RETAIL', [$serialNumber]);
+        $inventorySerial = InventorySerial::query()->where('serial_number', $serialNumber)->firstOrFail();
+
+        $existing = $this->readyFulfilment('RDE900418', 'DELHI-RETAIL', 1);
+        $existingItemId = (int) $existing->commerceOrder?->items->first()?->id;
+
+        HardwareFulfilmentSerial::query()->create([
+            'hardware_fulfilment_id' => $existing->id,
+            'commerce_order_item_id' => $existingItemId,
+            'line_no' => 1,
+            'position' => 1,
+            'inventory_serial_id' => $inventorySerial->id,
+            'serial_number' => $serialNumber,
+            'status' => HardwareFulfilmentSerialStatus::Pending,
+        ]);
+
+        $target = $this->readyFulfilment('RDE900419', 'DELHI-RETAIL', 1);
+
+        try {
+            $this->allocation->allocateSerials($target, [$serialNumber], $this->actor);
+            $this->fail('Pending fulfilment serial rows must still block reuse.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                'already allocated',
+                implode(' ', $exception->errors()['serials'] ?? []),
+            );
+        }
+
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $target->fresh()->state);
+    }
+
+    public function test_active_allocated_row_still_blocks_reallocation(): void
+    {
+        $serialNumber = 'SN-P4-ACTIVE-001';
+        $this->stockAt('DELHI-RETAIL', [$serialNumber]);
+        $inventorySerial = InventorySerial::query()->where('serial_number', $serialNumber)->firstOrFail();
+
+        $existing = $this->readyFulfilment('RDE900420', 'DELHI-RETAIL', 1);
+        $existingItemId = (int) $existing->commerceOrder?->items->first()?->id;
+
+        HardwareFulfilmentSerial::query()->create([
+            'hardware_fulfilment_id' => $existing->id,
+            'commerce_order_item_id' => $existingItemId,
+            'line_no' => 1,
+            'position' => 1,
+            'inventory_serial_id' => $inventorySerial->id,
+            'serial_number' => $serialNumber,
+            'status' => HardwareFulfilmentSerialStatus::Allocated,
+            'allocated_at' => now(),
+        ]);
+
+        $target = $this->readyFulfilment('RDE900421', 'DELHI-RETAIL', 1);
+
+        try {
+            $this->allocation->allocateSerials($target, [$serialNumber], $this->actor);
+            $this->fail('Active allocated fulfilment serial rows must still block reuse.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                'already allocated',
+                implode(' ', $exception->errors()['serials'] ?? []),
+            );
+        }
+
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $target->fresh()->state);
+    }
+
     private function readyFulfilment(
         string $sourceId,
         string $branchCode,
