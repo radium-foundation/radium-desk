@@ -201,7 +201,7 @@ class OrderCustomerTimelineSource implements TimelineEventSource
             return TimelineEventType::InternalNote;
         }
 
-        if (str_contains($title, 'payment') || str_contains($title, 'refund')) {
+        if (str_contains($title, 'payment')) {
             return TimelineEventType::Payment;
         }
 
