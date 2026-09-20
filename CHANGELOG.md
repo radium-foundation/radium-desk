@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.94 — 2026-09-20 — Refund Hold lifecycle fix
+
+- Fix stale Refund Hold when refund completion runs on an already-closed service case: completion now clears the refund-specific active hold before marking the refund closed.
+- Fix revoke/restoration path to reconcile stale refund holds via `clearRefundHoldForRefund()` after successful desk revoke.
+- Wallet credit/reversal behavior unchanged; no wallet client, ledger, or API changes.
+- No database migrations. Vite assets built at deploy time.
+- Rollback target: v4.0.93 / `7eb52a5b`.
+
 ## 4.0.93 — 2026-09-20 — Ship & Generate Label orchestration
 
 - Add hardware fulfilment **Ship & Generate Label** orchestration after invoice, reusing existing courier selection, shipment create, AWB assignment, and label generation services.
