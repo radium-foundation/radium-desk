@@ -31,6 +31,40 @@ return [
     */
     'unknown_customer_days' => max(1, (int) env('RETENTION_UNKNOWN_CUSTOMER_DAYS', 30)),
 
+    /*
+    | Owner-approved Phase 4B noise ignore reasons only.
+    | unknown_customer is intentionally excluded and handled by the dedicated command.
+    */
+    'approved_noise_ignore_reasons' => [
+        'own_outbound',
+        'known_system_email',
+        'newsletter_or_marketing',
+        'auto_responder',
+        'bounce_or_delivery_subsystem',
+    ],
+
+    /*
+    | Recurring inbound email retention orchestration (database:retention-email-schedule).
+    | Daily dry-run + weekly execute. needs_review is never auto-purged.
+    */
+    'email_retention' => [
+        'scheduler_enabled' => filter_var(env('RETENTION_EMAIL_SCHEDULER_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'lock_file' => env('RETENTION_EMAIL_LOCK_FILE', '/var/lock/radium-desk-email-retention.lock'),
+        'manifest_directory' => env(
+            'RETENTION_EMAIL_MANIFEST_DIRECTORY',
+            '/var/backups/radium-desk/ignored-email-retention',
+        ),
+        'expected_unknown_customer_days' => 30,
+        'expected_ignored_email_days' => 90,
+        'candidate_growth_abort_percent' => max(0, (int) env('RETENTION_EMAIL_CANDIDATE_GROWTH_ABORT_PERCENT', 20)),
+        'recovery_runs_root' => env('RETENTION_EMAIL_RECOVERY_RUNS_ROOT', '/var/backups/radium-desk/runs'),
+        'recovery_backup_max_age_days' => max(1, (int) env('RETENTION_EMAIL_RECOVERY_BACKUP_MAX_AGE_DAYS', 14)),
+        'keep_daily_audit_logs' => max(1, (int) env('RETENTION_EMAIL_KEEP_DAILY_AUDIT_LOGS', 30)),
+        'keep_weekly_audit_logs' => max(1, (int) env('RETENTION_EMAIL_KEEP_WEEKLY_AUDIT_LOGS', 12)),
+        'daily_dry_run_time' => env('RETENTION_EMAIL_DAILY_DRY_RUN_TIME', '04:00'),
+        'weekly_execute_time' => env('RETENTION_EMAIL_WEEKLY_EXECUTE_TIME', '04:15'),
+    ],
+
     'unknown_customer' => [
         'prune_batch_size' => max(1, (int) env('RETENTION_UNKNOWN_CUSTOMER_PRUNE_BATCH_SIZE', 10000)),
         'sample_id_limit' => max(1, (int) env('RETENTION_UNKNOWN_CUSTOMER_SAMPLE_ID_LIMIT', 10)),
@@ -40,7 +74,7 @@ return [
         ),
         'baseline_candidate_count' => is_numeric(env('RETENTION_UNKNOWN_CUSTOMER_BASELINE_COUNT'))
             ? (int) env('RETENTION_UNKNOWN_CUSTOMER_BASELINE_COUNT')
-            : 162014,
+            : 0,
         'baseline_variance_percent' => max(0, (int) env('RETENTION_UNKNOWN_CUSTOMER_BASELINE_VARIANCE_PERCENT', 20)),
     ],
 
@@ -58,15 +92,11 @@ return [
             : 52847,
         'baseline_variance_percent' => max(0, (int) env('RETENTION_IGNORED_EMAIL_BASELINE_VARIANCE_PERCENT', 20)),
         'ignore_reasons' => [
-            'promotions',
-            'social',
-            'spam',
-            'trash',
-            'newsletter_or_marketing',
+            'own_outbound',
             'known_system_email',
+            'newsletter_or_marketing',
             'auto_responder',
             'bounce_or_delivery_subsystem',
-            'own_outbound',
         ],
     ],
 

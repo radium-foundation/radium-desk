@@ -39,7 +39,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
     public function test_old_ignored_no_order_processed_email_is_candidate(): void
     {
         $message = $this->seedCandidate([
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'received_at' => '2026-06-01 10:00:00',
             'processed_at' => '2026-06-01 10:05:00',
         ]);
@@ -53,7 +53,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
     public function test_new_ignored_email_is_not_candidate(): void
     {
         $this->seedCandidate([
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'received_at' => '2026-09-01 10:00:00',
             'processed_at' => '2026-09-01 10:05:00',
         ]);
@@ -71,7 +71,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
         ]);
 
         $this->seedCandidate([
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'order_id' => $order->id,
             'processed_at' => '2026-06-01 10:05:00',
         ]);
@@ -136,7 +136,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
         $incident = $this->seedIncident();
 
         $this->seedCandidate([
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'incident_id' => $incident->id,
             'processed_at' => '2026-06-01 10:05:00',
         ]);
@@ -147,7 +147,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
     public function test_missing_processed_at_is_never_candidate(): void
     {
         $this->seedCandidate([
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'processed_at' => null,
         ]);
 
@@ -159,7 +159,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
 
     public function test_pending_inbound_outbox_excludes_candidate(): void
     {
-        $message = $this->seedCandidate(['ignore_reason' => 'spam']);
+        $message = $this->seedCandidate(['ignore_reason' => 'known_system_email']);
 
         OutboxEvent::query()->create([
             'idempotency_key' => 'retention.ignored-email.pending.'.$message->id,
@@ -177,7 +177,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
 
     public function test_processing_inbound_outbox_excludes_candidate(): void
     {
-        $message = $this->seedCandidate(['ignore_reason' => 'trash']);
+        $message = $this->seedCandidate(['ignore_reason' => 'auto_responder']);
 
         OutboxEvent::query()->create([
             'idempotency_key' => 'retention.ignored-email.processing.'.$message->id,
@@ -248,7 +248,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
     public function test_boundary_exactly_at_ninety_days_is_not_candidate(): void
     {
         $this->seedCandidate([
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'received_at' => '2026-06-23 12:00:00',
             'processed_at' => '2026-06-23 12:05:00',
         ]);
@@ -259,7 +259,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
     public function test_one_second_before_ninety_day_boundary_is_candidate(): void
     {
         $this->seedCandidate([
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'received_at' => '2026-06-23 11:59:59',
             'processed_at' => '2026-06-23 12:00:00',
         ]);
@@ -270,7 +270,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
     public function test_future_received_at_is_never_candidate(): void
     {
         $this->seedCandidate([
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'received_at' => '2026-12-01 10:00:00',
             'processed_at' => '2026-12-01 10:05:00',
         ]);
@@ -280,7 +280,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
 
     public function test_dry_run_performs_no_writes(): void
     {
-        $this->seedCandidate(['ignore_reason' => 'promotions']);
+        $this->seedCandidate(['ignore_reason' => 'own_outbound']);
 
         $before = IncomingEmailMessage::query()->count();
 
@@ -300,7 +300,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
 
     public function test_execute_mode_deletes_only_candidates(): void
     {
-        $candidate = $this->seedCandidate(['ignore_reason' => 'spam']);
+        $candidate = $this->seedCandidate(['ignore_reason' => 'own_outbound']);
         $this->seedCandidate([
             'ignore_reason' => 'unknown_customer',
             'provider_message_id' => 'unknown-'.uniqid(),
@@ -322,7 +322,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
     {
         for ($index = 0; $index < 5; $index++) {
             $this->seedCandidate([
-                'ignore_reason' => 'trash',
+                'ignore_reason' => 'known_system_email',
                 'provider_message_id' => 'trash-'.$index,
                 'processed_at' => '2026-06-01 10:05:00',
             ]);
@@ -341,9 +341,9 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
 
     public function test_execute_revalidates_candidates_before_delete(): void
     {
-        $candidate = $this->seedCandidate(['ignore_reason' => 'promotions']);
+        $candidate = $this->seedCandidate(['ignore_reason' => 'own_outbound']);
         $protected = $this->seedCandidate([
-            'ignore_reason' => 'spam',
+            'ignore_reason' => 'known_system_email',
             'provider_message_id' => 'protected-'.uniqid(),
         ]);
 
@@ -361,7 +361,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
 
     public function test_incident_link_fk_excludes_candidate(): void
     {
-        $message = $this->seedCandidate(['ignore_reason' => 'spam']);
+        $message = $this->seedCandidate(['ignore_reason' => 'known_system_email']);
         $incident = $this->seedIncident();
 
         IncidentIncomingEmailLink::query()->create([
@@ -375,7 +375,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
 
     public function test_outgoing_reply_reference_excludes_candidate(): void
     {
-        $message = $this->seedCandidate(['ignore_reason' => 'trash']);
+        $message = $this->seedCandidate(['ignore_reason' => 'auto_responder']);
         $admin = User::factory()->create();
         $order = Order::query()->create([
             'order_id' => 'ORD-'.uniqid(),
@@ -418,7 +418,7 @@ class RetentionIgnoredEmailPruneServiceTest extends TestCase
             'subject' => 'Ignored retention test',
             'preview' => 'Preview text',
             'status' => IncomingEmailMessageStatus::Ignored,
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'received_at' => '2026-06-01 10:00:00',
             'processed_at' => '2026-06-01 10:05:00',
             'attachment_count' => 0,

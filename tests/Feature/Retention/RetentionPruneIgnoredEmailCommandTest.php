@@ -35,7 +35,7 @@ class RetentionPruneIgnoredEmailCommandTest extends TestCase
             'subject' => 'Ignored retention command test',
             'preview' => 'Preview text',
             'status' => IncomingEmailMessageStatus::Ignored,
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'received_at' => '2026-06-01 10:00:00',
             'processed_at' => '2026-06-01 10:05:00',
             'attachment_count' => 0,
@@ -70,7 +70,7 @@ class RetentionPruneIgnoredEmailCommandTest extends TestCase
             'subject' => 'Manifest test',
             'preview' => 'Preview text',
             'status' => IncomingEmailMessageStatus::Ignored,
-            'ignore_reason' => 'spam',
+            'ignore_reason' => 'own_outbound',
             'received_at' => '2026-06-01 10:00:00',
             'processed_at' => '2026-06-01 10:05:00',
             'attachment_count' => 0,
@@ -88,7 +88,7 @@ class RetentionPruneIgnoredEmailCommandTest extends TestCase
         ])->assertSuccessful();
 
         $this->assertFileExists($manifest);
-        $this->assertSame(((string) $message->id).PHP_EOL, file_get_contents($manifest));
+        $this->assertSame(((string) $message->id).PHP_EOL, (string) file_get_contents($manifest));
 
         unlink($manifest);
     }

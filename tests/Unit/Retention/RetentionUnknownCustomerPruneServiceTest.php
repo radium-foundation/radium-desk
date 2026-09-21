@@ -397,7 +397,7 @@ class RetentionUnknownCustomerPruneServiceTest extends TestCase
         ]);
 
         $this->seedCandidate([
-            'ignore_reason' => 'promotions',
+            'ignore_reason' => 'own_outbound',
             'provider_message_id' => 'promotions-noise',
             'received_at' => '2026-06-01 10:00:00',
             'processed_at' => '2026-06-01 10:05:00',
@@ -407,7 +407,7 @@ class RetentionUnknownCustomerPruneServiceTest extends TestCase
 
         $this->assertSame(1, $summary->candidateCount);
         $this->assertSame(1, $summary->excludedUnknownCustomerCount);
-        $this->assertArrayHasKey('promotions', $summary->candidatesByIgnoreReason);
+        $this->assertArrayHasKey('own_outbound', $summary->candidatesByIgnoreReason);
     }
 
     /**

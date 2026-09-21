@@ -252,6 +252,31 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/cashfree-auto-recover.log'));
 
+        // Inbound email retention: daily dry-run + weekly approved deletion.
+        // Production Hostinger cron should call bin/email-retention-schedule.sh directly;
+        // these entries mirror the same schedule when scheduler_enabled is true.
+        $schedule->exec(sprintf(
+            'cd %s && RETENTION_EMAIL_SCHEDULER_ENABLED=true RETENTION_EMAIL_SCHEDULE_SKIP_LOCK=true %s/bin/email-retention-schedule.sh --dry-run-only',
+            base_path(),
+            base_path(),
+        ))
+            ->name('database:retention-email-schedule-daily')
+            ->dailyAt((string) config('retention.email_retention.daily_dry_run_time', '04:00'))
+            ->when(fn (): bool => (bool) config('retention.email_retention.scheduler_enabled', false))
+            ->withoutOverlapping(120)
+            ->appendOutputTo(storage_path('logs/email-retention-schedule.log'));
+
+        $schedule->exec(sprintf(
+            'cd %s && RETENTION_EMAIL_SCHEDULER_ENABLED=true RETENTION_EMAIL_SCHEDULE_SKIP_LOCK=true %s/bin/email-retention-schedule.sh --weekly-execute',
+            base_path(),
+            base_path(),
+        ))
+            ->name('database:retention-email-schedule-weekly')
+            ->weeklyOn(0, (string) config('retention.email_retention.weekly_execute_time', '04:15'))
+            ->when(fn (): bool => (bool) config('retention.email_retention.scheduler_enabled', false))
+            ->withoutOverlapping(180)
+            ->appendOutputTo(storage_path('logs/email-retention-schedule.log'));
+
         // Legacy backfill remains available for manual/admin use.
         // $schedule->command('radiumbox:backfill-orders --limit=50')
         //     ->hourly()
