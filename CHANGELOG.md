@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.103 — 2026-09-21 — POS retail Hardware shipping
+
+- Capture pre-tax customer shipping on POS retail Hardware sales (`inventory_sales.shipping_amount`) and propagate through `issueFromPosSale` to `statutory_invoices.shipping_amount` and invoice totals/GST split.
+- Counter UI: Shipping (pre-tax) field and totals row; UPI intent/verification quotes include shipping. Commerce, Service, RDService, fulfilment, and Shiprocket paths unchanged.
+- Migrations: `2026_09_21_130000_add_shipping_amount_to_inventory_sales`, `2026_09_21_140000_add_shipping_amount_to_statutory_invoices` (PO sequence migration `2026_09_21_120000_initialize_purchase_order_operational_sequence` unchanged).
+- Rollback target: v4.0.102 / `82b3031b` (application only; schema rollback requires separate migration plan).
+
 ## 4.0.102 — 2026-09-21 — Statutory invoice PDF serial layout (Option B)
 
 - Fix statutory invoice PDF serial rendering for high-volume hardware invoices: main page shows the first 10 serial numbers with an Annexure A notice; Annexure A lists the complete serial set.
