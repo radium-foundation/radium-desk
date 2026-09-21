@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.95 — 2026-09-21 — RDP hardware fulfilment eligibility
+
+- Allow paid rdservice.in `hardware_direct_buy` **RDP** orders to open Hardware Fulfilment on channel ingest, using the same RdService.in guardrails as **RIN** (`hardware_direct_buy` metadata, physical merchandise, fail-closed ingest contract).
+- Preserve existing **RDE**, **RBP**, and **RIN** hardware paths unchanged.
+- No database migrations. Vite assets built at deploy time.
+- Rollback target: v4.0.94 / `18aea967`.
+
 ## 4.0.94 — 2026-09-20 — Refund Hold lifecycle fix
 
 - Fix stale Refund Hold when refund completion runs on an already-closed service case: completion now clears the refund-specific active hold before marking the refund closed.
