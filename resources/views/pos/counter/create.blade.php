@@ -63,8 +63,15 @@
                         <div class="card border-0 shadow-sm mb-3" id="pos-serial-card" hidden>
                             <div class="card-body">
                                 <h2 class="h6" id="pos-serial-heading">Available serials</h2>
-                                <label class="form-label" for="pos-serial-search">Serial search</label>
-                                <input type="search" id="pos-serial-search" class="form-control" placeholder="Scan or type serial" autocomplete="off">
+                                <div id="pos-serial-selected-wrap" hidden>
+                                    <div class="small fw-semibold mb-2" id="pos-serial-selected-heading">Selected serials (0)</div>
+                                    <div id="pos-serial-selected" class="d-flex flex-wrap gap-2 mb-3"></div>
+                                </div>
+                                <label class="form-label" for="pos-serial-entry">Add serials</label>
+                                <input type="text" id="pos-serial-entry" class="form-control" placeholder="Scan or paste serials..." autocomplete="off">
+                                <div id="pos-serial-feedback" class="small mt-2" hidden></div>
+                                <label class="form-label mt-3" for="pos-serial-filter">Browse available</label>
+                                <input type="search" id="pos-serial-filter" class="form-control form-control-sm" placeholder="Filter available serials..." autocomplete="off">
                                 <div id="pos-serial-results" class="list-group mt-2"></div>
                                 <p class="small text-muted mb-0 mt-2">One serial is one unit. Sold or reserved serials will not appear.</p>
                             </div>
@@ -247,14 +254,20 @@
                 const branchId = @json($operatingBranch->id);
                 const productSearchUrl = @json($searchProductsUrl);
                 const serialSearchUrl = @json($searchSerialsUrl);
+                const matchSerialsUrl = @json($matchSerialsUrl);
                 const oldLines = @json(array_values(old('lines', [])));
 
                 const productInput = document.getElementById('pos-product-search');
                 const productResults = document.getElementById('pos-product-results');
                 const serialCard = document.getElementById('pos-serial-card');
                 const serialHeading = document.getElementById('pos-serial-heading');
-                const serialInput = document.getElementById('pos-serial-search');
+                const serialEntry = document.getElementById('pos-serial-entry');
+                const serialFilter = document.getElementById('pos-serial-filter');
                 const serialResults = document.getElementById('pos-serial-results');
+                const serialSelectedWrap = document.getElementById('pos-serial-selected-wrap');
+                const serialSelectedHeading = document.getElementById('pos-serial-selected-heading');
+                const serialSelected = document.getElementById('pos-serial-selected');
+                const serialFeedback = document.getElementById('pos-serial-feedback');
                 const cartBody = document.getElementById('pos-cart-body');
                 const cartEmpty = document.getElementById('pos-cart-empty');
                 const cartFields = document.getElementById('pos-cart-fields');
@@ -305,8 +318,131 @@
                 let cart = [];
                 let pendingProduct = null;
                 let searchTimer = null;
-                let serialTimer = null;
+                let serialFilterTimer = null;
                 let submitting = false;
+                let serialProcessing = false;
+
+                function normalizeSerial(value) {
+                    return (value || '').trim().toUpperCase();
+                }
+
+                function parseSerialList(value) {
+                    if (!value) {
+                        return [];
+                    }
+
+                    return value
+                        .split(/[\s,;]+/)
+                        .map(normalizeSerial)
+                        .filter(Boolean)
+                        .filter(function (serial, index, list) {
+                            return list.indexOf(serial) === index;
+                        });
+                }
+
+                function escapeHtml(value) {
+                    return String(value)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+                }
+
+                function cartHasSerial(serialNumber) {
+                    return cart.some(function (item) {
+                        return item.serials.indexOf(serialNumber) !== -1;
+                    });
+                }
+
+                function pendingCartItem() {
+                    if (!pendingProduct) {
+                        return null;
+                    }
+
+                    const variantId = pendingProduct.variant ? pendingProduct.variant.id : null;
+
+                    return cart.find(function (item) {
+                        return item.is_serialized
+                            && item.product_id === pendingProduct.product.id
+                            && item.variant_id === variantId;
+                    }) || null;
+                }
+
+                function pendingSerials() {
+                    const item = pendingCartItem();
+
+                    return item ? item.serials.slice() : [];
+                }
+
+                function showSerialFeedback(kind, lines) {
+                    if (!serialFeedback) {
+                        return;
+                    }
+
+                    if (!lines.length) {
+                        serialFeedback.hidden = true;
+                        serialFeedback.innerHTML = '';
+
+                        return;
+                    }
+
+                    const className = kind === 'success' ? 'text-success' : 'text-danger';
+                    serialFeedback.hidden = false;
+                    serialFeedback.className = 'small mt-2 ' + className;
+                    serialFeedback.innerHTML = lines.map(function (line) {
+                        return '<div>' + escapeHtml(line) + '</div>';
+                    }).join('');
+                }
+
+                function renderPendingSerials() {
+                    if (!serialSelected || !serialSelectedWrap || !serialSelectedHeading) {
+                        return;
+                    }
+
+                    const serials = pendingSerials();
+                    serialSelected.innerHTML = '';
+                    serialSelectedHeading.textContent = 'Selected serials (' + serials.length + ')';
+                    serialSelectedWrap.hidden = serials.length === 0;
+
+                    serials.forEach(function (serialNumber) {
+                        const chip = document.createElement('span');
+                        chip.className = 'badge text-bg-light border d-inline-flex align-items-center gap-2 py-2 px-2';
+                        chip.innerHTML = '<span class="font-monospace">' + escapeHtml(serialNumber) + '</span>'
+                            + '<button type="button" class="btn-close btn-close-sm" aria-label="Remove serial"></button>';
+                        chip.querySelector('button').addEventListener('click', function () {
+                            removePendingSerial(serialNumber);
+                        });
+                        serialSelected.appendChild(chip);
+                    });
+                }
+
+                function removePendingSerial(serialNumber) {
+                    const variantId = pendingProduct && pendingProduct.variant ? pendingProduct.variant.id : null;
+                    const index = cart.findIndex(function (item) {
+                        return item.is_serialized
+                            && item.product_id === (pendingProduct ? pendingProduct.product.id : null)
+                            && item.variant_id === variantId;
+                    });
+
+                    if (index === -1) {
+                        return;
+                    }
+
+                    const item = cart[index];
+                    item.serials = item.serials.filter(function (serial) {
+                        return serial !== serialNumber;
+                    });
+
+                    if (item.serials.length === 0) {
+                        cart.splice(index, 1);
+                    } else {
+                        item.qty = item.serials.length;
+                    }
+
+                    renderCart();
+                    renderPendingSerials();
+                    loadSerials(serialFilter ? serialFilter.value.trim() : '');
+                }
 
                 function money(value) {
                     return (Math.round(value * 100) / 100).toFixed(2);
@@ -375,6 +511,7 @@
                     });
                     renderTotals();
                     syncFields();
+                    renderPendingSerials();
                 }
 
                 function renderTotals() {
@@ -446,9 +583,14 @@
                 }
 
                 function addSerializedItem(product, variant, serialNumber) {
+                    const normalized = normalizeSerial(serialNumber);
+                    if (normalized === '') {
+                        return { added: false, reason: 'empty' };
+                    }
+
                     const variantId = variant ? variant.id : null;
-                    if (cart.some(function (item) { return item.serials.indexOf(serialNumber) !== -1; })) {
-                        return;
+                    if (cartHasSerial(normalized)) {
+                        return { added: false, reason: 'duplicate', serial: normalized };
                     }
 
                     const existing = cart.find(function (item) {
@@ -458,7 +600,7 @@
                     });
 
                     if (existing) {
-                        existing.serials.push(serialNumber);
+                        existing.serials.push(normalized);
                         existing.qty = existing.serials.length;
                     } else {
                         cart.push({
@@ -472,11 +614,151 @@
                             unit_price: variant ? variant.unit_price : product.unit_price,
                             qty: 1,
                             discount: 0,
-                            serials: [serialNumber],
+                            serials: [normalized],
                         });
                     }
 
                     renderCart();
+
+                    return { added: true, serial: normalized };
+                }
+
+                function matchSerialTokens(tokens) {
+                    if (!pendingProduct || !tokens.length) {
+                        return Promise.resolve({ results: [] });
+                    }
+
+                    const params = new URLSearchParams({
+                        branch_id: String(branchId),
+                        product_id: String(pendingProduct.product.id),
+                        serials: tokens.join('\n'),
+                    });
+                    if (pendingProduct.variant) {
+                        params.set('variant_id', String(pendingProduct.variant.id));
+                    }
+
+                    return fetch(matchSerialsUrl + '?' + params.toString(), {
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    }).then(function (response) {
+                        if (!response.ok) {
+                            throw new Error('serial-match-failed');
+                        }
+
+                        return response.json();
+                    });
+                }
+
+                function processSerialTokens(tokens) {
+                    if (!pendingProduct || !tokens.length || serialProcessing) {
+                        return Promise.resolve();
+                    }
+
+                    serialProcessing = true;
+                    const alreadySelected = [];
+                    const toValidate = [];
+
+                    tokens.forEach(function (token) {
+                        const normalized = normalizeSerial(token);
+                        if (normalized === '') {
+                            return;
+                        }
+                        if (cartHasSerial(normalized)) {
+                            alreadySelected.push(normalized);
+
+                            return;
+                        }
+                        toValidate.push(normalized);
+                    });
+
+                    if (!toValidate.length) {
+                        const lines = [];
+                        if (alreadySelected.length) {
+                            lines.push('Already selected: ' + alreadySelected.join(', '));
+                        }
+                        showSerialFeedback(alreadySelected.length ? 'error' : 'success', lines);
+                        serialProcessing = false;
+
+                        return Promise.resolve();
+                    }
+
+                    return matchSerialTokens(toValidate)
+                        .then(function (data) {
+                            const added = [];
+                            const unavailable = [];
+                            const notFound = [];
+                            const wrongBranch = [];
+
+                            (data.results || []).forEach(function (result) {
+                                const serialNumber = result.serial_number || result.input;
+                                if (result.status === 'available') {
+                                    const outcome = addSerializedItem(
+                                        pendingProduct.product,
+                                        pendingProduct.variant,
+                                        serialNumber,
+                                    );
+                                    if (outcome.added) {
+                                        added.push(outcome.serial);
+                                    } else if (outcome.reason === 'duplicate') {
+                                        alreadySelected.push(outcome.serial);
+                                    }
+
+                                    return;
+                                }
+
+                                if (result.status === 'wrong_branch') {
+                                    wrongBranch.push(serialNumber);
+
+                                    return;
+                                }
+
+                                if (result.status === 'not_found' || result.status === 'wrong_product' || result.status === 'wrong_variant') {
+                                    notFound.push(serialNumber);
+
+                                    return;
+                                }
+
+                                unavailable.push(serialNumber);
+                            });
+
+                            const lines = [];
+                            if (added.length) {
+                                lines.push('✓ ' + added.length + ' serial' + (added.length === 1 ? '' : 's') + ' added');
+                            }
+                            if (alreadySelected.length) {
+                                lines.push('Already selected: ' + alreadySelected.join(', '));
+                            }
+                            if (unavailable.length) {
+                                lines.push('Unavailable: ' + unavailable.join(', '));
+                            }
+                            if (notFound.length) {
+                                lines.push('Not found for this product: ' + notFound.join(', '));
+                            }
+                            if (wrongBranch.length) {
+                                lines.push('Not available at this branch: ' + wrongBranch.join(', '));
+                            }
+
+                            showSerialFeedback(added.length ? 'success' : 'error', lines);
+                            loadSerials(serialFilter ? serialFilter.value.trim() : '');
+                        })
+                        .catch(function () {
+                            showSerialFeedback('error', ['Could not validate serials. Try again.']);
+                        })
+                        .finally(function () {
+                            serialProcessing = false;
+                        });
+                }
+
+                function submitSerialEntry(rawValue) {
+                    const tokens = parseSerialList(rawValue);
+                    if (!tokens.length) {
+                        return Promise.resolve();
+                    }
+
+                    if (serialEntry) {
+                        serialEntry.value = '';
+                    }
+
+                    return processSerialTokens(tokens);
                 }
 
                 function showProductResults(products) {
@@ -499,8 +781,17 @@
                                     pendingProduct = choice;
                                     serialCard.hidden = false;
                                     serialHeading.textContent = 'Serials for ' + choice.label;
-                                    serialInput.value = '';
-                                    serialInput.focus();
+                                    if (serialEntry) {
+                                        serialEntry.value = '';
+                                    }
+                                    if (serialFilter) {
+                                        serialFilter.value = '';
+                                    }
+                                    showSerialFeedback('success', []);
+                                    renderPendingSerials();
+                                    if (serialEntry) {
+                                        serialEntry.focus();
+                                    }
                                     loadSerials('');
                                     productResults.classList.add('d-none');
                                 } else {
@@ -556,8 +847,7 @@
                                 button.className = 'list-group-item list-group-item-action';
                                 button.textContent = serial.serial_number;
                                 button.addEventListener('click', function () {
-                                    addSerializedItem(pendingProduct.product, pendingProduct.variant, serial.serial_number);
-                                    loadSerials(serialInput.value);
+                                    processSerialTokens([serial.serial_number]);
                                 });
                                 serialResults.appendChild(button);
                             });
@@ -580,10 +870,34 @@
                     searchTimer = setTimeout(function () { loadProducts(query); }, 200);
                 });
 
-                serialInput.addEventListener('input', function () {
-                    clearTimeout(serialTimer);
-                    serialTimer = setTimeout(function () { loadSerials(serialInput.value.trim()); }, 200);
-                });
+                if (serialEntry) {
+                    serialEntry.addEventListener('keydown', function (event) {
+                        if (event.key === 'Enter' || event.key === 'Tab') {
+                            event.preventDefault();
+                            submitSerialEntry(serialEntry.value);
+                        }
+                    });
+
+                    serialEntry.addEventListener('paste', function (event) {
+                        const pasted = (event.clipboardData || window.clipboardData).getData('text');
+                        if (!pasted || !parseSerialList(pasted).length) {
+                            return;
+                        }
+
+                        event.preventDefault();
+                        serialEntry.value = '';
+                        submitSerialEntry(pasted);
+                    });
+                }
+
+                if (serialFilter) {
+                    serialFilter.addEventListener('input', function () {
+                        clearTimeout(serialFilterTimer);
+                        serialFilterTimer = setTimeout(function () {
+                            loadSerials(serialFilter.value.trim());
+                        }, 200);
+                    });
+                }
 
                 cartBody.addEventListener('click', function (event) {
                     const button = event.target.closest('.pos-remove');
@@ -649,7 +963,7 @@
                         if (!line.product_id) {
                             return;
                         }
-                        const serials = (line.serials || '').toString().split(/\s+/).filter(Boolean);
+                        const serials = parseSerialList((line.serials || '').toString());
                         cart.push({
                             product_id: parseInt(line.product_id, 10),
                             variant_id: line.variant_id ? parseInt(line.variant_id, 10) : null,

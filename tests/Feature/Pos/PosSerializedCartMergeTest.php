@@ -259,6 +259,7 @@ class PosSerializedCartMergeTest extends TestCase
         $response->assertOk();
         $response->assertSee('consolidateSerializedCart', false);
         $response->assertSee('item.is_serialized', false);
-        $response->assertSee('existing.serials.push(serialNumber)', false);
+        $response->assertSee('processSerialTokens', false);
+        $response->assertSee('pos-serial-entry', false);
     }
 }

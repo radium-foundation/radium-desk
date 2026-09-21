@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.101 — 2026-09-21 — POS multi-serial selection for serialized products
+
+- Product POS counter supports multiple serials on one invoice line: scan/paste/Enter/Tab entry, selected-serial chips, and browse filter separated from entry input.
+- Batch serial validation via `GET pos.serials.match` (`PosSerialMatchEvaluator`); quantity remains synced to selected serial count through existing cart merge and `PosSaleLineNormalizer`.
+- Regression: `PosSerialMatchEvaluatorTest`, `PosMultiSerialSelectionTest`, browser QA runners. No database migrations. Vite assets built at deploy time.
+- Rollback target: v4.0.100 / `92ec96de`.
+
 ## 4.0.100 — 2026-09-21 — Purchasing PO release wording, FY numbering, GR complete fix
 
 - Rename draft PO action from “Send PO” to **Release PO** (Draft → Sent only; no supplier email/transmission).

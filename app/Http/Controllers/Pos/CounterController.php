@@ -14,7 +14,9 @@ use App\Services\Pos\PosUpiIntentService;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventoryBranchScope;
+use App\Support\Inventory\InventorySerialNumber;
 use App\Support\Inventory\PosAccess;
+use App\Support\Inventory\PosSerialMatchEvaluator;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -56,6 +58,7 @@ class CounterController extends Controller
             'idempotencyKey' => old('idempotency_key', (string) Str::uuid()),
             'searchProductsUrl' => route('pos.products.search'),
             'searchSerialsUrl' => route('pos.serials.search'),
+            'matchSerialsUrl' => route('pos.serials.match'),
             'customerLookupConfig' => $this->customerLookupConfig(
                 resultsId: 'pos-customer-results',
                 statusId: 'pos-customer-status',
@@ -292,6 +295,39 @@ class CounterController extends Controller
                 'sku' => $serial->product?->sku,
                 'product_name' => $serial->product?->name,
             ])->values()->all(),
+        ]);
+    }
+
+    public function matchSerial(Request $request, PosSerialMatchEvaluator $evaluator): JsonResponse
+    {
+        abort_unless(
+            PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_SELL),
+            403,
+        );
+
+        $branch = InventoryBranchScope::requireBranchId($request->input('branch_id'), $request->user());
+        $productId = $request->integer('product_id');
+        abort_unless($productId > 0, 422, 'Product is required.');
+
+        $product = InventoryProduct::query()->findOrFail($productId);
+        abort_unless($product->is_serialized, 422, 'Product is not serialized.');
+
+        $variantId = $request->integer('variant_id');
+        $variant = $variantId > 0
+            ? $product->variants()->whereKey($variantId)->first()
+            : null;
+
+        $rawSerials = $request->input('serials', $request->input('serial'));
+        if ($rawSerials === null) {
+            return response()->json(['results' => []]);
+        }
+
+        $serialNumbers = is_array($rawSerials)
+            ? InventorySerialNumber::parseList($rawSerials)
+            : InventorySerialNumber::parseList((string) $rawSerials);
+
+        return response()->json([
+            'results' => $evaluator->evaluate($branch, $product, $variant, $serialNumbers),
         ]);
     }
 
