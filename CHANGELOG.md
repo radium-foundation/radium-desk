@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.97 — 2026-09-21 — Qty-1 quantity-stock parcel packaging
+
+- Resolve allocated inventory products from quantity-stock commitment when serial rows are absent, so non-serialized hardware fulfilments can evaluate catalog packaging correctly.
+- Allow operator measured parcel entry for single-SKU qty-1 quantity-only fulfilments when verified catalog packaging is unavailable and no complete ingest parcel exists.
+- Preserve parcel safety: incomplete ingest dimensions are not invented; verified catalog packaging remains preferred when present; multi-SKU and serialized qty-1 paths unchanged.
+- No database migrations. Vite assets built at deploy time.
+- Rollback target: v4.0.96 / `22fc39d4`.
+
 ## 4.0.96 — 2026-09-21 — RDP legacy payload-hash replay compatibility
 
 - Accept the pre-v4.0.95 **service** canonical payload hash on channel-ingest replay for qualifying rdservice.in **RDP** `hardware_direct_buy` orders whose stored hash predates RDP hardware classification.
