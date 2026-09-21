@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.98 — 2026-09-21 — Purchase Order product search UX
+
+- Replace preloaded product rows on New Purchase Order with server-side SKU/name/HSN search and add-to-lines workflow.
+- Reuse `purchasing.products.search` JSON endpoint; debounced search UI with editable Qty, Unit cost, Tax %, and Discount per line.
+- Duplicate product+variant selection increments quantity instead of creating a second line.
+- No database migrations. Vite assets built at deploy time.
+- Rollback target: v4.0.97 / `46b2d9f6`.
+
 ## 4.0.97 — 2026-09-21 — Qty-1 quantity-stock parcel packaging
 
 - Resolve allocated inventory products from quantity-stock commitment when serial rows are absent, so non-serialized hardware fulfilments can evaluate catalog packaging correctly.
