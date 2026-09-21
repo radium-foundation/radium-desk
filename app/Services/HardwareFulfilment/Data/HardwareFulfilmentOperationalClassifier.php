@@ -534,6 +534,10 @@ final class HardwareFulfilmentOperationalClassifier
             return 'RIN';
         }
 
+        if (str_starts_with($normalized, 'RDP')) {
+            return 'RDP';
+        }
+
         return 'RDE';
     }
 

@@ -24,6 +24,8 @@ final class HardwareFulfilmentEligibility
 
     public const RIN_SOURCE_PREFIX = 'RIN';
 
+    public const RDP_SOURCE_PREFIX = 'RDP';
+
     public const CUTOFF_IST = '2026-09-05 00:00:00';
 
     public const CUTOFF_TIMEZONE = 'Asia/Kolkata';
@@ -73,7 +75,7 @@ final class HardwareFulfilmentEligibility
             return false;
         }
 
-        if (self::isRinHardwareRequest($request)) {
+        if (self::isRdServiceInHardwareRequest($request)) {
             return self::hasPhysicalLine($request);
         }
 
@@ -95,11 +97,16 @@ final class HardwareFulfilmentEligibility
 
     public static function isRinHardwareRequest(ChannelOrderIngestRequest $request): bool
     {
+        return self::isRdServiceInHardwareRequest($request);
+    }
+
+    public static function isRdServiceInHardwareRequest(ChannelOrderIngestRequest $request): bool
+    {
         if ($request->channel !== StatutoryInvoiceChannel::RdServiceIn) {
             return false;
         }
 
-        if (! self::looksLikeRinSourceId($request->sourceId)) {
+        if (! self::looksLikeRdServiceInHardwareSourceId($request->sourceId)) {
             return false;
         }
 
@@ -111,6 +118,19 @@ final class HardwareFulfilmentEligibility
     public static function looksLikeRinSourceId(string $sourceId): bool
     {
         return (bool) preg_match('/^RIN\d+$/i', trim($sourceId));
+    }
+
+    public static function looksLikeRdServiceInHardwareSourceId(string $sourceId): bool
+    {
+        $parsed = BusinessOrderId::parse($sourceId);
+        if ($parsed !== null) {
+            return $parsed['hardware'] === true && $parsed['owner'] === 'rdservice.in';
+        }
+
+        $normalized = strtoupper(trim($sourceId));
+
+        return self::looksLikeRinSourceId($normalized)
+            || (bool) preg_match('/^RDP\d+$/i', $normalized);
     }
 
     public static function hasPhysicalLine(ChannelOrderIngestRequest $request): bool
@@ -145,7 +165,7 @@ final class HardwareFulfilmentEligibility
     public static function looksLikeHardwareSourceId(string $sourceId): bool
     {
         return self::isRadiumBoxHardwareSourceId($sourceId)
-            || self::looksLikeRinSourceId($sourceId);
+            || self::looksLikeRdServiceInHardwareSourceId($sourceId);
     }
 
     public static function isRadiumBoxHardwareSourceId(string $sourceId): bool

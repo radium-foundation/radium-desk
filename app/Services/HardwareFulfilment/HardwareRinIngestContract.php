@@ -10,17 +10,17 @@ use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Fail-closed rdservice.in RIN hardware ingest contract.
+ * Fail-closed rdservice.in RIN/RDP hardware ingest contract.
  * Does not change Box/RDE ingest.
  */
 final class HardwareRinIngestContract
 {
     public function assert(ChannelOrderIngestRequest $request): void
     {
-        if (HardwareFulfilmentEligibility::looksLikeRinSourceId($request->sourceId)
+        if (HardwareFulfilmentEligibility::looksLikeRdServiceInHardwareSourceId($request->sourceId)
             && $request->channel !== StatutoryInvoiceChannel::RdServiceIn) {
             throw ValidationException::withMessages([
-                'channel' => 'RIN hardware must ingest as channel rdservice_in. It cannot use radiumbox_com.',
+                'channel' => 'rdservice.in hardware must ingest as channel rdservice_in. It cannot use radiumbox_com.',
             ]);
         }
 
@@ -31,7 +31,7 @@ final class HardwareRinIngestContract
             ]);
         }
 
-        if (! HardwareFulfilmentEligibility::looksLikeRinSourceId($request->sourceId)) {
+        if (! HardwareFulfilmentEligibility::looksLikeRdServiceInHardwareSourceId($request->sourceId)) {
             return;
         }
 

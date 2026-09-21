@@ -36,13 +36,56 @@ class HardwareFulfilmentPrefixGuardTest extends TestCase
         $this->assertTrue(HardwareFulfilmentEligibility::looksLikeHardwareSourceId('RDE318516'));
         $this->assertTrue(HardwareFulfilmentEligibility::shouldOpenRecord($rin));
         $this->assertTrue(HardwareFulfilmentEligibility::looksLikeHardwareSourceId('RIN3460196'));
+        $rdp = new ChannelOrderIngestRequest(
+            channel: StatutoryInvoiceChannel::RdServiceIn,
+            sourceType: StatutoryInvoiceSourceType::CommerceOrder,
+            sourceId: 'RDP29',
+            lines: [$this->physicalLine()],
+            paymentStatus: 'paid',
+            currency: 'INR',
+            metadata: ['source_order_type' => 'hardware_direct_buy'],
+        );
+        $this->assertTrue(HardwareFulfilmentEligibility::shouldOpenRecord($rdp));
+        $this->assertTrue(HardwareFulfilmentEligibility::looksLikeHardwareSourceId('RDP29'));
+        $this->assertTrue(HardwareFulfilmentEligibility::looksLikeRdServiceInHardwareSourceId('RDP29'));
     }
 
-    public function test_rb_rdp_rnp_rsp_do_not_look_like_hardware(): void
+    public function test_rb_rnp_rsp_do_not_look_like_hardware(): void
     {
-        foreach (['RB1', 'RDP1', 'RNP1', 'RSP1', 'RD3511756'] as $id) {
+        foreach (['RB1', 'RNP1', 'RSP1', 'RD3511756'] as $id) {
             $this->assertFalse(HardwareFulfilmentEligibility::looksLikeHardwareSourceId($id), $id);
         }
+    }
+
+    public function test_rdp_without_hardware_direct_buy_does_not_open_fulfilment(): void
+    {
+        $request = new ChannelOrderIngestRequest(
+            channel: StatutoryInvoiceChannel::RdServiceIn,
+            sourceType: StatutoryInvoiceSourceType::CommerceOrder,
+            sourceId: 'RDP99',
+            lines: [$this->physicalLine()],
+            paymentStatus: 'paid',
+            currency: 'INR',
+            metadata: ['source_order_type' => 'service_renewal'],
+        );
+
+        $this->assertFalse(HardwareFulfilmentEligibility::shouldOpenRecord($request));
+        $this->assertFalse(HardwareFulfilmentEligibility::isRdServiceInHardwareRequest($request));
+    }
+
+    public function test_rdp_hardware_direct_buy_on_box_channel_does_not_open_fulfilment(): void
+    {
+        $request = new ChannelOrderIngestRequest(
+            channel: StatutoryInvoiceChannel::RadiumBoxCom,
+            sourceType: StatutoryInvoiceSourceType::CommerceOrder,
+            sourceId: 'RDP99',
+            lines: [$this->physicalLine()],
+            paymentStatus: 'paid',
+            currency: 'INR',
+            metadata: ['source_order_type' => 'hardware_direct_buy'],
+        );
+
+        $this->assertFalse(HardwareFulfilmentEligibility::shouldOpenRecord($request));
     }
 
     private function boxPhysical(string $sourceId): ChannelOrderIngestRequest

@@ -79,6 +79,40 @@ class HardwareRinIngestTest extends TestCase
         $this->assertNoFulfilmentMutations();
     }
 
+    public function test_rdp_hardware_creates_one_commerce_and_ready_fulfilment(): void
+    {
+        $this->mapRinSkus();
+        $payload = $this->rinPayload('RDP29', catalog: 'mantra-fingerprint');
+
+        $this->signedPost($payload, StatutoryInvoiceChannel::RdServiceIn, self::SERVICE_SECRET)->assertCreated();
+
+        $this->assertSame(1, CommerceOrder::query()->count());
+        $this->assertSame(1, HardwareFulfilment::query()->count());
+        $order = CommerceOrder::query()->firstOrFail();
+        $fulfilment = HardwareFulfilment::query()->firstOrFail();
+
+        $this->assertSame('rdservice_in', $order->channel->value);
+        $this->assertSame('RDP29', $order->source_id);
+        $this->assertSame('statutory:rdservice_in:commerce_order:RDP29', $order->idempotency_key);
+        $this->assertSame('hardware_direct_buy', $order->metadata['source_order_type'] ?? null);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->state);
+        $this->assertSame('RDP29', $fulfilment->source_id);
+        $this->assertNoFulfilmentMutations();
+    }
+
+    public function test_rdp_non_hardware_direct_buy_fails_closed_without_fulfilment(): void
+    {
+        $this->mapRinSkus();
+        $payload = $this->rinPayload('RDP30', catalog: 'mantra-fingerprint');
+        $payload['metadata']['source_order_type'] = 'service_renewal';
+
+        $this->signedPost($payload, StatutoryInvoiceChannel::RdServiceIn, self::SERVICE_SECRET)
+            ->assertStatus(422);
+
+        $this->assertSame(0, CommerceOrder::query()->count());
+        $this->assertSame(0, HardwareFulfilment::query()->count());
+    }
+
     public function test_rin_retry_is_idempotent(): void
     {
         $this->mapRinSkus();
