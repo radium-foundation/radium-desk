@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.99 — 2026-09-21 — Purchase Order line keyboard entry UX
+
+- Stop re-rendering PO product rows on every keystroke so Tab focus is preserved across Qty, Unit cost, Tax %, and Discount fields.
+- Autofocus Qty when a product line is added; select-on-focus for quick value replacement; Enter advances fields without submitting the form.
+- No database migrations. Vite assets built at deploy time.
+- Rollback target: v4.0.98 / `fc93ce55`.
+
 ## 4.0.98 — 2026-09-21 — Purchase Order product search UX
 
 - Replace preloaded product rows on New Purchase Order with server-side SKU/name/HSN search and add-to-lines workflow.
