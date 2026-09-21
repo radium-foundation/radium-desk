@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.104 — 2026-09-21 — CA Monthly Report
+
+- Add read-only Finance **CA Monthly Report** with invoice-date filtering (`issued_at`), invoice-grain preview (expand/collapse multi-line invoices), and line-grain CSV/XLSX export.
+- **27-column** Owner contract (Branch through Document Type); Ordertype Hardware/Service/Bundled; cancelled invoices included; IRN/acknowledgement from e-invoice records; invoice-level `shipping_amount` on first line only (consumes v4.0.103 schema; no POS/shipping code changes).
+- Permissions: view via Finance invoices access; export via `finance.reports.export`. No database migrations.
+- Rollback target: v4.0.103 / `b407e8cd` (application only).
+
 ## 4.0.103 — 2026-09-21 — POS retail Hardware shipping
 
 - Capture pre-tax customer shipping on POS retail Hardware sales (`inventory_sales.shipping_amount`) and propagate through `issueFromPosSale` to `statutory_invoices.shipping_amount` and invoice totals/GST split.

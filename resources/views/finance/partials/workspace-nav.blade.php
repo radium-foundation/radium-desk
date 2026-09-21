@@ -49,6 +49,11 @@
             'url' => route('finance.vendor-payments.index'),
             'visible' => FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_VENDOR_PAYMENTS_VIEW),
         ],
+        'ca_monthly_report' => [
+            'label' => 'CA Monthly Report',
+            'url' => route('finance.reports.ca-monthly.index'),
+            'visible' => FinanceAccess::allowsInvoices($user),
+        ],
         'invoices' => [
             'label' => 'Statutory invoices',
             'url' => route('finance.invoices.index'),

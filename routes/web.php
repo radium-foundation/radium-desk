@@ -29,6 +29,7 @@ use App\Http\Controllers\DeviceModelAliasController;
 use App\Http\Controllers\DeviceModelController;
 use App\Http\Controllers\Finance\BankAccountController;
 use App\Http\Controllers\Finance\BankLedgerController;
+use App\Http\Controllers\Finance\CaMonthlyReportController;
 use App\Http\Controllers\Finance\CashAccountController;
 use App\Http\Controllers\Finance\CashLedgerController;
 use App\Http\Controllers\Finance\CustomerPaymentController;
@@ -425,6 +426,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('invoices/pending', [StatutoryInvoiceIssueController::class, 'pending'])->name('invoices.pending');
         Route::get('invoices/historical/{invoice}/print', [HistoricalInvoiceController::class, 'print'])->name('invoices.historical.print');
         Route::match(['get', 'post'], 'invoices/historical', [HistoricalInvoiceController::class, 'index'])->name('invoices.historical');
+        Route::get('reports/ca-monthly/export.xlsx', [CaMonthlyReportController::class, 'exportXlsx'])->name('reports.ca-monthly.export.xlsx');
+        Route::get('reports/ca-monthly/export.csv', [CaMonthlyReportController::class, 'exportCsv'])->name('reports.ca-monthly.export.csv');
+        Route::get('reports/ca-monthly', [CaMonthlyReportController::class, 'index'])->name('reports.ca-monthly.index');
         Route::get('invoices/export', [StatutoryInvoiceController::class, 'export'])->name('invoices.export');
         Route::get('invoices/commerce-orders/{order}', [StatutoryInvoiceIssueController::class, 'show'])->name('invoices.commerce-orders.show');
         Route::post('invoices/commerce-orders/{order}/issue', [StatutoryInvoiceIssueController::class, 'issue'])->name('invoices.commerce-orders.issue');
