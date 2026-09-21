@@ -143,6 +143,32 @@ Remote `upload-complete.json` contains `backup_id`, `uploaded_at`, `remote_path`
 
 ---
 
+## Local staging retention (Phase 1)
+
+**Script:** [`bin/backup-prune-local.sh`](../bin/backup-prune-local.sh)
+
+Standalone KVM script. Deletes **cloud-verified** local runs older than 7 days. Dry-run by default.
+
+### Policy
+
+| Age | Action |
+|-----|--------|
+| ≤ 7 days (UTC, by `backup_id`) | **Keep** locally (no cloud check required) |
+| > 7 days | **Delete locally only if** cloud copy re-verified over SSH |
+| Any age, verification fails | **Keep** locally |
+
+Cloud re-verification checks remote `upload-complete.json` + remote `manifest.json` SHA-256 (not local manifest SHA — local manifest gains `cloud_uploaded` metadata after upload).
+
+### Behaviour
+
+- **Dry-run by default**; `--execute` required to delete
+- Never deletes incomplete, in-progress, or cloud-unverified runs
+- Re-validates each candidate immediately before deletion
+
+See [`docs/storage-lifecycle-phase1.md`](storage-lifecycle-phase1.md).
+
+---
+
 ## Cloud retention (Phase 4)
 
 **Script:** [`bin/backup-prune-cloud.sh`](../bin/backup-prune-cloud.sh)
