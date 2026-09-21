@@ -106,5 +106,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-21-09-07 | 2026-09-21 | PO New Order line keyboard/tab numeric entry UX | Stop full row re-render on each keystroke; Qty→Unit cost→Tax→Discount tab order; focus Qty on add; select-on-focus. Branch `fix/po-line-keyboard-ux`. **Not deployed.** |
 | RadiumDesk-P-21-09-08 | 2026-09-21 | Production release/deploy v4.0.99 PO line keyboard UX | Owner-authorized KVM deploy of `7e947ca5` keyboard/tab entry workflow. Tag `v4.0.99`. Post-deploy production health + browser UAT. Rollback: v4.0.98 / `fc93ce55`. |
 | RadiumDesk-P-21-09-09 | 2026-09-21 | Purchasing PO release wording, FY PO numbering, GR complete 500 fix | Rename Send→Release PO (draft→sent only, no supplier email). PO-671+ FY operational numbering via `reference_sequences`. Fix GR complete: `StockIn` movement + idempotent replay + invalid `goodsReceiptId` arg. **Not deployed.** |
+| RadiumDesk-P-21-09-10 | 2026-09-21 | Production release/deploy v4.0.100 Purchasing PO numbering + GR complete | Owner-authorized KVM deploy of `fix/purchasing-po-numbering-gr-complete`. Local browser UAT (PO-671, Release PO, serialized GR complete). Tag `v4.0.100`. Rollback: v4.0.99 / `7bba1155`. |
 
 Do not renumber or overwrite earlier rows. Append only.

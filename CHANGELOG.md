@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.100 — 2026-09-21 — Purchasing PO release wording, FY numbering, GR complete fix
+
+- Rename draft PO action from “Send PO” to **Release PO** (Draft → Sent only; no supplier email/transmission).
+- New purchase orders use FY operational numbering: FY 2026-27 → `PO-671`, `PO-672`, … via `reference_sequences` (legacy `PO-07-*` and `PO-2026-*` preserved).
+- Fix goods receipt completion HTTP 500: use `InventoryMovementType::StockIn`, remove invalid `recordMovement()` argument, idempotent replay for completed receipts.
+- Migration: `2026_09_21_120000_initialize_purchase_order_operational_sequence.php`.
+- Rollback target: v4.0.99 / `7bba1155`.
+
 ## 4.0.99 — 2026-09-21 — Purchase Order line keyboard entry UX
 
 - Stop re-rendering PO product rows on every keystroke so Tab focus is preserved across Qty, Unit cost, Tax %, and Discount fields.
