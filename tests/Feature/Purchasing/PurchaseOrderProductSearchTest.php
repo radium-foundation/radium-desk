@@ -141,6 +141,35 @@ class PurchaseOrderProductSearchTest extends TestCase
             ->assertDontSee('PO-HIDDEN-1 — Hidden Product One');
     }
 
+    public function test_create_page_exposes_keyboard_friendly_line_input_markup(): void
+    {
+        $this->ensurePurchasingTables();
+
+        $response = $this->actingAs($this->creator)
+            ->get(route('purchasing.purchase-orders.create'))
+            ->assertOk();
+
+        $html = $response->getContent();
+
+        $this->assertStringContainsString('data-field="qty"', $html);
+        $this->assertStringContainsString('data-field="unit_cost"', $html);
+        $this->assertStringContainsString('data-field="tax_rate"', $html);
+        $this->assertStringContainsString('data-field="discount"', $html);
+        $this->assertStringContainsString('po-line-field', $html);
+        $this->assertStringContainsString('inputmode="numeric"', $html);
+        $this->assertStringContainsString('inputmode="decimal"', $html);
+        $this->assertStringContainsString('id="po-create-submit"', $html);
+        $this->assertStringContainsString('type="submit"', $html);
+        $this->assertStringContainsString('updateLineFromInput', $html);
+        $this->assertStringContainsString('focusLineField', $html);
+        $this->assertStringContainsString('normalizeLineInput', $html);
+        $this->assertStringContainsString("renderLines({ lineIndex: focusIndex, field: 'qty' });", $html);
+        $this->assertMatchesRegularExpression(
+            '/linesBody\.addEventListener\(\'input\'[\s\S]*?updateLineFromInput\(target\);[\s\S]*?\}\);/',
+            $html,
+        );
+    }
+
     public function test_product_search_matches_sku(): void
     {
         $product = InventoryProduct::query()->create([

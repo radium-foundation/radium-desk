@@ -58,7 +58,7 @@
         </div>
 
         <div class="table-responsive mb-3">
-            <table class="table align-middle">
+            <table class="table align-middle" id="po-lines-table">
                 <thead>
                     <tr>
                         <th>Product</th>
@@ -78,7 +78,7 @@
         </div>
         <div id="po-line-fields"></div>
         <p class="text-muted small">Search and add at least one product line before saving.</p>
-        <button class="btn btn-primary">Create draft PO</button>
+        <button type="submit" class="btn btn-primary" id="po-create-submit">Create draft PO</button>
     </form>
 @endsection
 
@@ -104,29 +104,31 @@
                 return (Math.round(value * 100) / 100).toFixed(2);
             }
 
-            function renderLines() {
-                linesBody.querySelectorAll('tr.po-line-row').forEach(function (row) {
-                    row.remove();
-                });
-
-                if (!lines.length) {
-                    linesEmpty.hidden = false;
-                } else {
-                    linesEmpty.hidden = true;
-                    lines.forEach(function (line, index) {
-                        const row = document.createElement('tr');
-                        row.className = 'po-line-row';
-                        row.innerHTML =
-                            '<td>' + line.label + '</td>' +
-                            '<td><input type="number" class="form-control po-line-qty" data-index="' + index + '" min="1" value="' + line.quantity + '" required></td>' +
-                            '<td><input type="number" step="0.01" class="form-control po-line-unit-cost" data-index="' + index + '" min="0" value="' + money(line.unit_cost) + '" required></td>' +
-                            '<td><input type="number" step="0.01" class="form-control po-line-tax-rate" data-index="' + index + '" min="0" value="' + money(line.tax_rate) + '"></td>' +
-                            '<td><input type="number" step="0.01" class="form-control po-line-discount" data-index="' + index + '" min="0" value="' + money(line.discount_amount) + '"></td>' +
-                            '<td><button type="button" class="btn btn-sm btn-outline-danger po-line-remove" data-index="' + index + '" aria-label="Remove line">&times;</button></td>';
-                        linesBody.appendChild(row);
-                    });
+            function selectInputValue(input) {
+                if (!input || typeof input.select !== 'function') {
+                    return;
                 }
+                try {
+                    input.select();
+                } catch (error) {
+                    // Some browsers reject select() on number inputs; ignore.
+                }
+            }
 
+            function focusLineField(lineIndex, field) {
+                const row = linesBody.querySelector('tr.po-line-row[data-line-index="' + lineIndex + '"]');
+                if (!row) {
+                    return;
+                }
+                const input = row.querySelector('.po-line-' + field);
+                if (!input) {
+                    return;
+                }
+                input.focus();
+                selectInputValue(input);
+            }
+
+            function syncHiddenFields() {
                 lineFields.innerHTML = '';
                 lines.forEach(function (line, index) {
                     const add = function (name, value) {
@@ -147,15 +149,85 @@
                 });
             }
 
+            function updateLineFromInput(target) {
+                const index = Number(target.getAttribute('data-line-index'));
+                if (Number.isNaN(index) || !lines[index]) {
+                    return;
+                }
+
+                if (target.classList.contains('po-line-qty')) {
+                    lines[index].quantity = Math.max(1, parseInt(target.value || '1', 10));
+                } else if (target.classList.contains('po-line-unit-cost')) {
+                    lines[index].unit_cost = Math.max(0, parseFloat(target.value || '0'));
+                } else if (target.classList.contains('po-line-tax-rate')) {
+                    lines[index].tax_rate = Math.max(0, parseFloat(target.value || '0'));
+                } else if (target.classList.contains('po-line-discount')) {
+                    lines[index].discount_amount = Math.max(0, parseFloat(target.value || '0'));
+                }
+
+                syncHiddenFields();
+            }
+
+            function normalizeLineInput(target) {
+                const index = Number(target.getAttribute('data-line-index'));
+                if (Number.isNaN(index) || !lines[index]) {
+                    return;
+                }
+
+                if (target.classList.contains('po-line-qty')) {
+                    target.value = String(lines[index].quantity);
+                } else if (target.classList.contains('po-line-unit-cost')) {
+                    target.value = money(lines[index].unit_cost);
+                } else if (target.classList.contains('po-line-tax-rate')) {
+                    target.value = money(lines[index].tax_rate);
+                } else if (target.classList.contains('po-line-discount')) {
+                    target.value = money(lines[index].discount_amount);
+                }
+            }
+
+            function renderLines(focusTarget) {
+                linesBody.querySelectorAll('tr.po-line-row').forEach(function (row) {
+                    row.remove();
+                });
+
+                if (!lines.length) {
+                    linesEmpty.hidden = false;
+                } else {
+                    linesEmpty.hidden = true;
+                    lines.forEach(function (line, index) {
+                        const row = document.createElement('tr');
+                        row.className = 'po-line-row';
+                        row.setAttribute('data-line-index', String(index));
+                        row.innerHTML =
+                            '<td>' + line.label + '</td>' +
+                            '<td><input type="number" inputmode="numeric" class="form-control po-line-qty po-line-field" data-line-index="' + index + '" data-field="qty" min="1" step="1" value="' + line.quantity + '" required></td>' +
+                            '<td><input type="number" inputmode="decimal" class="form-control po-line-unit-cost po-line-field" data-line-index="' + index + '" data-field="unit_cost" min="0" step="0.01" value="' + money(line.unit_cost) + '" required></td>' +
+                            '<td><input type="number" inputmode="decimal" class="form-control po-line-tax-rate po-line-field" data-line-index="' + index + '" data-field="tax_rate" min="0" step="0.01" value="' + money(line.tax_rate) + '"></td>' +
+                            '<td><input type="number" inputmode="decimal" class="form-control po-line-discount po-line-field" data-line-index="' + index + '" data-field="discount" min="0" step="0.01" value="' + money(line.discount_amount) + '"></td>' +
+                            '<td><button type="button" class="btn btn-sm btn-outline-danger po-line-remove" data-line-index="' + index + '" aria-label="Remove line">&times;</button></td>';
+                        linesBody.appendChild(row);
+                    });
+                }
+
+                syncHiddenFields();
+
+                if (focusTarget && typeof focusTarget.lineIndex === 'number') {
+                    focusLineField(focusTarget.lineIndex, focusTarget.field || 'qty');
+                }
+            }
+
             function addLine(product, variant) {
                 const variantId = variant ? variant.id : null;
                 const key = lineKey(product.id, variantId);
-                const existing = lines.find(function (line) {
+                let focusIndex = 0;
+
+                const existingIndex = lines.findIndex(function (line) {
                     return lineKey(line.product_id, line.variant_id) === key;
                 });
 
-                if (existing) {
-                    existing.quantity += 1;
+                if (existingIndex !== -1) {
+                    lines[existingIndex].quantity += 1;
+                    focusIndex = existingIndex;
                 } else {
                     const label = variant
                         ? product.sku + ' / ' + variant.sku + ' — ' + product.name + ' (' + variant.name + ')'
@@ -169,12 +241,12 @@
                         tax_rate: product.gst_percentage,
                         discount_amount: 0,
                     });
+                    focusIndex = lines.length - 1;
                 }
 
-                renderLines();
+                renderLines({ lineIndex: focusIndex, field: 'qty' });
                 productInput.value = '';
                 productResults.classList.add('d-none');
-                productInput.focus();
             }
 
             function showProductResults(products) {
@@ -248,22 +320,54 @@
 
             linesBody.addEventListener('input', function (event) {
                 const target = event.target;
-                const index = Number(target.getAttribute('data-index'));
-                if (Number.isNaN(index) || !lines[index]) {
+                if (!target.classList.contains('po-line-field')) {
+                    return;
+                }
+                updateLineFromInput(target);
+            });
+
+            linesBody.addEventListener('blur', function (event) {
+                const target = event.target;
+                if (!target.classList.contains('po-line-field')) {
+                    return;
+                }
+                updateLineFromInput(target);
+                normalizeLineInput(target);
+            }, true);
+
+            linesBody.addEventListener('focusin', function (event) {
+                const target = event.target;
+                if (!target.classList.contains('po-line-field')) {
+                    return;
+                }
+                selectInputValue(target);
+            });
+
+            linesBody.addEventListener('keydown', function (event) {
+                const target = event.target;
+                if (!target.classList.contains('po-line-field')) {
                     return;
                 }
 
-                if (target.classList.contains('po-line-qty')) {
-                    lines[index].quantity = Math.max(1, parseInt(target.value || '1', 10));
-                } else if (target.classList.contains('po-line-unit-cost')) {
-                    lines[index].unit_cost = Math.max(0, parseFloat(target.value || '0'));
-                } else if (target.classList.contains('po-line-tax-rate')) {
-                    lines[index].tax_rate = Math.max(0, parseFloat(target.value || '0'));
-                } else if (target.classList.contains('po-line-discount')) {
-                    lines[index].discount_amount = Math.max(0, parseFloat(target.value || '0'));
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    const field = target.getAttribute('data-field');
+                    const lineIndex = Number(target.getAttribute('data-line-index'));
+                    const order = ['qty', 'unit_cost', 'tax_rate', 'discount'];
+                    const position = order.indexOf(field);
+                    if (position === -1) {
+                        return;
+                    }
+                    if (position < order.length - 1) {
+                        focusLineField(lineIndex, order[position + 1]);
+                        return;
+                    }
+                    if (lineIndex + 1 < lines.length) {
+                        focusLineField(lineIndex + 1, 'qty');
+                        return;
+                    }
+                    productInput.focus();
                 }
-
-                renderLines();
             });
 
             linesBody.addEventListener('click', function (event) {
@@ -271,7 +375,7 @@
                 if (!button) {
                     return;
                 }
-                const index = Number(button.getAttribute('data-index'));
+                const index = Number(button.getAttribute('data-line-index'));
                 if (Number.isNaN(index)) {
                     return;
                 }

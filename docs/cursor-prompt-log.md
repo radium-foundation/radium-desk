@@ -103,5 +103,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-21-09-03 | 2026-09-21 | Purchase Order searchable product selection UX | Replace preloaded product rows on New PO with server-side SKU/name search + add-to-lines workflow. Reuse `purchasing.products.search` route. Branch `fix/po-product-search-ux`. **Not deployed.** |
 | RadiumDesk-P-21-09-04 | 2026-09-21 | Push PO product-search branch + staging UAT gate | Push `fix/po-product-search-ux` @ `dab5224b`. **STOPPED before staging deploy** — no documented Desk staging environment (`docs/desk-rdservice-net-paired-rehearsal-feasibility-p-18-09-54.md`, `tools/config.sh` production-only KVM). Local browser UAT attempted. **No production deploy.** |
 | RadiumDesk-P-21-09-05 | 2026-09-21 | Production release/deploy v4.0.98 PO product-search UX | Owner-authorized KVM deploy of `dab5224b` product search/add workflow. Tag `v4.0.98`. Post-deploy production browser UAT. `goods_receipts` schema out of scope. Rollback: v4.0.97 / `46b2d9f6`. |
+| RadiumDesk-P-21-09-07 | 2026-09-21 | PO New Order line keyboard/tab numeric entry UX | Stop full row re-render on each keystroke; Qty→Unit cost→Tax→Discount tab order; focus Qty on add; select-on-focus. Branch `fix/po-line-keyboard-ux`. **Not deployed.** |
 
 Do not renumber or overwrite earlier rows. Append only.
