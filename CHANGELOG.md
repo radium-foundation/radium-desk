@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.102 — 2026-09-21 — Statutory invoice PDF serial layout (Option B)
+
+- Fix statutory invoice PDF serial rendering for high-volume hardware invoices: main page shows the first 10 serial numbers with an Annexure A notice; Annexure A lists the complete serial set.
+- Fix long production serial numbers being clipped in the PDF grid by rendering index and serial text on separate lines.
+- Presentation-only renderer change; no database migrations, invoice minting, or transaction workflow changes.
+- Rollback target: v4.0.101 / `721b4540`.
+
 ## 4.0.101 — 2026-09-21 — POS multi-serial selection for serialized products
 
 - Product POS counter supports multiple serials on one invoice line: scan/paste/Enter/Tab entry, selected-serial chips, and browse filter separated from entry input.
