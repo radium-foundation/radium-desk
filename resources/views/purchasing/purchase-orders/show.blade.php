@@ -12,7 +12,7 @@
         <div class="d-flex gap-2">
             @if($purchaseOrder->status->value === 'draft')
                 @can(\Database\Seeders\RolePermissionSeeder::PERMISSION_PURCHASE_EDIT)
-                    <form method="POST" action="{{ route('purchasing.purchase-orders.send', $purchaseOrder) }}">@csrf<button class="btn btn-primary">Send PO</button></form>
+                    <form method="POST" action="{{ route('purchasing.purchase-orders.send', $purchaseOrder) }}">@csrf<button class="btn btn-primary">Release PO</button></form>
                 @endcan
             @endif
             @if($purchaseOrder->status->canReceive())
@@ -20,9 +20,11 @@
                     <a href="{{ route('purchasing.goods-receipts.create', $purchaseOrder) }}" class="btn btn-outline-primary">Receive goods</a>
                 @endcan
             @endif
-            @can(\Database\Seeders\RolePermissionSeeder::PERMISSION_PURCHASE_INVOICE)
-                <a href="{{ route('purchasing.supplier-invoices.create', $purchaseOrder) }}" class="btn btn-outline-secondary">Record supplier invoice</a>
-            @endcan
+            @if(! in_array($purchaseOrder->status->value, ['draft', 'cancelled'], true))
+                @can(\Database\Seeders\RolePermissionSeeder::PERMISSION_PURCHASE_INVOICE)
+                    <a href="{{ route('purchasing.supplier-invoices.create', $purchaseOrder) }}" class="btn btn-outline-secondary">Record supplier invoice</a>
+                @endcan
+            @endif
         </div>
     </div>
 

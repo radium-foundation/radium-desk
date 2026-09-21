@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\StatutoryInvoice\StatutoryFinancialYear;
 use Illuminate\Database\Eloquent\Model;
 
 class ReferenceSequence extends Model
@@ -16,6 +17,14 @@ class ReferenceSequence extends Model
 
     /** Independent Product POS operational series (POS-6720+). Not database-id derived. */
     public const PRODUCT_POS_OPERATIONAL = 'product_pos_operational';
+
+    /** Independent purchase order operational series (PO-671+ for FY 2026-27). */
+    public const PURCHASE_ORDER_OPERATIONAL_PREFIX = 'purchase_order_operational';
+
+    public static function purchaseOrderSequenceName(StatutoryFinancialYear $year): string
+    {
+        return self::PURCHASE_ORDER_OPERATIONAL_PREFIX.'|'.$year->token();
+    }
 
     protected $primaryKey = 'name';
 

@@ -53,16 +53,22 @@ class PurchasingReconciliationService
 
     public function completeReceiving(GoodsReceipt $receipt, User $actor, ?string $idempotencyKey = null): GoodsReceipt
     {
+        $idempotencyKey ??= 'gr-complete-'.$receipt->id;
+
+        if ($receipt->status === GoodsReceiptStatus::Completed) {
+            if ($receipt->completion_idempotency_key === $idempotencyKey) {
+                return $receipt;
+            }
+
+            throw ValidationException::withMessages([
+                'status' => 'This receipt has already been completed.',
+            ]);
+        }
+
         if ($receipt->status !== GoodsReceiptStatus::PendingConfirmation) {
             throw ValidationException::withMessages([
                 'status' => 'Only receipts pending confirmation can be completed.',
             ]);
-        }
-
-        $idempotencyKey ??= 'gr-complete-'.$receipt->id;
-
-        if ($receipt->status === GoodsReceiptStatus::Completed && $receipt->completion_idempotency_key === $idempotencyKey) {
-            return $receipt;
         }
 
         $summary = $this->buildSummary($receipt);
@@ -155,7 +161,7 @@ class PurchasingReconciliationService
             }
 
             $this->stock->recordMovement(
-                type: InventoryMovementType::PurchaseReceipt,
+                type: InventoryMovementType::StockIn,
                 product: $item->product,
                 branch: $receipt->branch,
                 qty: 1,
@@ -164,7 +170,6 @@ class PurchasingReconciliationService
                 serial: $serial,
                 toStatus: InventorySerialStatus::Available,
                 notes: "Goods receipt {$receipt->receipt_number}",
-                goodsReceiptId: $receipt->id,
             );
 
             $grSerial->update(['inventory_serial_id' => $serial->id]);

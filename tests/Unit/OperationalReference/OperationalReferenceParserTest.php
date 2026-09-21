@@ -66,11 +66,35 @@ class OperationalReferenceParserTest extends TestCase
         ];
     }
 
+    #[DataProvider('purchaseOrderCases')]
+    public function test_parse_purchase_order_operational_value(?int $expected, string $reference): void
+    {
+        $this->travelTo('2026-09-21');
+
+        $this->assertSame($expected, OperationalReferenceParser::parsePurchaseOrderOperationalValue($reference));
+    }
+
+    /**
+     * @return array<string, array{0: ?int, 1: string}>
+     */
+    public static function purchaseOrderCases(): array
+    {
+        return [
+            'legacy year format ignored' => [null, 'PO-2026-00001'],
+            'legacy hyphenated ignored' => [null, 'PO-07-001'],
+            'new format at floor' => [671, 'PO-671'],
+            'new format above floor' => [675, 'PO-675'],
+            'wrong fy prefix ignored' => [null, 'PO-781'],
+        ];
+    }
+
     public function test_legacy_detectors(): void
     {
         $this->assertTrue(OperationalReferenceParser::isLegacyRefundReference('REF-2026-000001'));
         $this->assertTrue(OperationalReferenceParser::isLegacyServiceOrderReference('SVC-000001'));
         $this->assertTrue(OperationalReferenceParser::isLegacyProductPosReference('POS-000019'));
+        $this->assertTrue(OperationalReferenceParser::isLegacyPurchaseOrderReference('PO-2026-00001'));
+        $this->assertTrue(OperationalReferenceParser::isLegacyPurchaseOrderReference('PO-07-001'));
         $this->assertFalse(OperationalReferenceParser::isLegacyRefundReference('REF-67315'));
     }
 }
