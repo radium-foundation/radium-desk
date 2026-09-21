@@ -394,4 +394,64 @@ pass "first deletion failure aborts and does not continue"
 rm -f "$WRAP"
 rm -rf "$REMOTE"
 
+# --- ssh must not consume stdin while classifying multiple leaf paths ---
+REMOTE="$(mktemp -d "${TMPDIR:-/tmp}/radium-backup-prune-XXXXXX")"
+create_completed_backup "$REMOTE" "20260819T180000Z"
+create_completed_backup "$REMOTE" "20260819T080000Z"
+create_completed_backup "$REMOTE" "20260818T080000Z"
+STDIN_WRAP="$(mktemp "${TMPDIR:-/tmp}/radium-backup-ssh-stdin-wrap-XXXXXX")"
+cat >"$STDIN_WRAP" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+has_n=0
+while [[ \$# -gt 0 ]]; do
+    case "\$1" in
+        -n)
+            has_n=1
+            shift
+            ;;
+        -p|-i|-o)
+            shift 2
+            ;;
+        -*)
+            shift
+            ;;
+        *@*)
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+if [[ "\$has_n" -eq 0 ]]; then
+    cat >/dev/null
+fi
+exec "$FIXTURES/ssh" "\$@"
+EOF
+chmod +x "$STDIN_WRAP"
+OUTPUT="$(
+    env \
+        PATH="$FIXTURES:$PATH" \
+        SSH_BIN="$STDIN_WRAP" \
+        BACKUP_CLOUD_REMOTE_ROOT="$REMOTE" \
+        BACKUP_CLOUD_SSH_HOST=mockhost \
+        BACKUP_CLOUD_SSH_USER=mockuser \
+        BACKUP_CLOUD_SSH_PORT=22 \
+        BACKUP_PRUNE_AS_OF="$AS_OF" \
+        "$ROOT/bin/backup-prune-cloud.sh" \
+        --dry-run \
+        2>&1
+)"
+STATUS=$?
+[[ "$STATUS" -eq 0 ]] || fail "stdin-safe dry-run failed: $OUTPUT"
+echo "$OUTPUT" | grep -E 'completed=3 skipped=0' >/dev/null \
+    || fail "expected all three completed backups to classify; got: $(echo "$OUTPUT" | grep completed=)"
+assert_keep "$OUTPUT" "20260819T180000Z"
+assert_keep "$OUTPUT" "20260819T080000Z"
+assert_keep "$OUTPUT" "20260818T080000Z"
+pass "ssh -n prevents stdin consumption during multi-path enumeration"
+rm -f "$STDIN_WRAP"
+rm -rf "$REMOTE"
+
 echo "All backup-prune-cloud checks passed."
