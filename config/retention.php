@@ -24,6 +24,32 @@ return [
     'ignored_email_days' => max(1, (int) env('RETENTION_IGNORED_EMAIL_DAYS', 90)),
 
     /*
+    | Rolling ignored incoming email retention (database:retention-prune-ignored-email).
+    | Dry-run by default. Execute requires separate Owner approval.
+    | Uses received_at (not created_at) with ignored_email_days cutoff.
+    | unknown_customer is excluded from the default allowlist until explicitly approved.
+    */
+    'ignored_email' => [
+        'prune_batch_size' => max(1, (int) env('RETENTION_IGNORED_EMAIL_PRUNE_BATCH_SIZE', 10000)),
+        'sample_id_limit' => max(1, (int) env('RETENTION_IGNORED_EMAIL_SAMPLE_ID_LIMIT', 10)),
+        'baseline_candidate_count' => is_numeric(env('RETENTION_IGNORED_EMAIL_BASELINE_COUNT'))
+            ? (int) env('RETENTION_IGNORED_EMAIL_BASELINE_COUNT')
+            : 52847,
+        'baseline_variance_percent' => max(0, (int) env('RETENTION_IGNORED_EMAIL_BASELINE_VARIANCE_PERCENT', 20)),
+        'ignore_reasons' => [
+            'promotions',
+            'social',
+            'spam',
+            'trash',
+            'newsletter_or_marketing',
+            'known_system_email',
+            'auto_responder',
+            'bounce_or_delivery_subsystem',
+            'own_outbound',
+        ],
+    ],
+
+    /*
     | Expired cache rows (expiration < now) are immediate prune candidates.
     | No day-based grace period — Laravel already skips them on read.
     */
