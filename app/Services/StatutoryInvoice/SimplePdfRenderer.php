@@ -58,14 +58,22 @@ class SimplePdfRenderer
 
     private const NAVY_B = 0.373;
 
-    /** Absolute ceiling; actual first-page count is resolved from layout budget. */
-    public const FIRST_PAGE_SERIAL_LIMIT = 50;
+    /** Maximum serial numbers shown on the main invoice page before Annexure A. */
+    public const MAIN_PAGE_SERIAL_LIMIT = 10;
 
     private const FIRST_PAGE_BODY_BUDGET = 400.0;
 
     private const SERIAL_COLUMNS = 4;
 
     private const SERIAL_ROW_HEIGHT = 10.0;
+
+    private const SERIAL_INDEX_WIDTH = 28.0;
+
+    private const SERIAL_LINE_HEIGHT = 8.0;
+
+    private const ANNEXURE_FIRST_PAGE_GRID_Y = 696.0;
+
+    private const ANNEXURE_CONTINUED_PAGE_GRID_Y = 754.0;
 
     /** @var array<string, array{width: int, height: int, data: string}> */
     private array $embeddedImages = [];
@@ -247,7 +255,15 @@ class SimplePdfRenderer
             [$visible, $leftover] = $this->splitRow($row, $available);
             if ($visible === null) {
                 if ($drawn === 0) {
-                    [$visible, $leftover] = $this->splitRow($row, $y - self::CONTENT_FLOOR);
+                    if ($first && $serialReserve > 0.0) {
+                        if ($available <= 0) {
+                            break;
+                        }
+
+                        [$visible, $leftover] = $this->splitRow($row, $available);
+                    } else {
+                        [$visible, $leftover] = $this->splitRow($row, $y - self::CONTENT_FLOOR);
+                    }
                 }
                 if ($visible === null) {
                     break;
@@ -750,7 +766,7 @@ class SimplePdfRenderer
 
         $serials = $row['serialLines'];
         if ($serials === []) {
-            return $available >= 28 ? [$row, null] : [null, $row];
+            return [null, $row];
         }
 
         $minItem = $row;
@@ -1045,23 +1061,22 @@ class SimplePdfRenderer
     }
 
     /**
-     * Serials after the first-page summary. Empty when everything fits on page 1.
+     * Complete serial list for Annexure A. Empty when all serials fit on the main invoice page.
      *
      * @return list<string>
      */
     private function annexureSerials(StatutoryInvoicePdfPayload $payload): array
     {
         $all = $this->normalizedSerials($payload);
-        $limit = $this->resolveFirstPageSerialCount($payload);
-        if ($limit >= count($all)) {
+        if ($all === [] || count($all) <= self::MAIN_PAGE_SERIAL_LIMIT) {
             return [];
         }
 
-        return array_values(array_slice($all, $limit));
+        return $all;
     }
 
     /**
-     * Max serials that can share page 1 with totals and the locked QR/IRN/signatory block.
+     * Serials shown on the main invoice page before Annexure A.
      */
     private function resolveFirstPageSerialCount(StatutoryInvoicePdfPayload $payload): int
     {
@@ -1070,26 +1085,12 @@ class SimplePdfRenderer
             return 0;
         }
 
-        $rows = $this->lineRows($payload);
-        $closing = $this->closingHeight($payload);
-        $max = min(count($all), self::FIRST_PAGE_SERIAL_LIMIT);
+        return min(count($all), self::MAIN_PAGE_SERIAL_LIMIT);
+    }
 
-        for ($count = $max; $count >= 0; $count--) {
-            $serialHeight = $this->serialSummaryHeightForCount($count, $count < count($all));
-            $closingOnFirstPage = $this->closingFitsOnFirstPageWithRows($rows, $closing, $serialHeight);
-
-            if ($payload->hasIssuedIrn() && ! $closingOnFirstPage) {
-                continue;
-            }
-
-            $firstPageRowHeight = $this->firstPageLineRowHeight($rows, $closingOnFirstPage, $serialHeight);
-            $required = $firstPageRowHeight + $serialHeight + ($closingOnFirstPage ? $closing : 0.0);
-            if ($required <= self::FIRST_PAGE_BODY_BUDGET) {
-                return $count;
-            }
-        }
-
-        return 0;
+    private function hasSerialAnnexure(StatutoryInvoicePdfPayload $payload): bool
+    {
+        return count($this->normalizedSerials($payload)) > self::MAIN_PAGE_SERIAL_LIMIT;
     }
 
     /**
@@ -1161,9 +1162,10 @@ class SimplePdfRenderer
         }
 
         $rows = (int) ceil($count / self::SERIAL_COLUMNS);
-        $height = 16.0 + ($rows * self::SERIAL_ROW_HEIGHT) + 12.0;
+        $rowHeight = max(self::SERIAL_ROW_HEIGHT, (2 * self::SERIAL_LINE_HEIGHT) + 2.0);
+        $height = 16.0 + ($rows * $rowHeight) + 12.0;
         if ($hasAnnexureRemainder) {
-            $height += 10.0;
+            $height += 11.0;
         }
 
         return $height;
@@ -1182,13 +1184,13 @@ class SimplePdfRenderer
         $height = $this->serialSummaryHeight($payload);
         $ops[] = $this->card(self::MARGIN, $y - $height + 12, self::CONTENT_RIGHT - self::MARGIN, $height - 4);
         $ops[] = $this->text(self::MARGIN + 8, $y, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-        if ($this->annexureSerials($payload) !== []) {
-            $ops[] = $this->text(self::MARGIN + 92, $y, '(More in Annexure A)', 7, false, 0.4, 0.4, 0.4);
+        if ($this->hasSerialAnnexure($payload)) {
+            $ops[] = $this->text(self::MARGIN + 92, $y, '(Complete list in Annexure A)', 7, false, 0.4, 0.4, 0.4);
         }
         $y -= 12;
         $y = $this->numberedSerialGrid($ops, $first, 1, $y);
-        if ($this->annexureSerials($payload) !== []) {
-            $ops[] = $this->text(self::MARGIN + 8, $y, '* More serial numbers in Annexure A', 7, false, 0.32, 0.32, 0.32);
+        if ($this->hasSerialAnnexure($payload)) {
+            $ops[] = $this->text(self::MARGIN + 8, $y, 'Complete serial-number list provided in Annexure A.', 7, false, 0.32, 0.32, 0.32);
             $y -= 11;
         }
 
@@ -1200,21 +1202,26 @@ class SimplePdfRenderer
      */
     private function annexurePageStreams(StatutoryInvoicePdfPayload $payload): array
     {
-        $remaining = $this->annexureSerials($payload);
-        if ($remaining === []) {
+        $all = $this->annexureSerials($payload);
+        if ($all === []) {
             return [];
         }
 
         $total = count($this->normalizedSerials($payload));
-        $startNumber = $this->resolveFirstPageSerialCount($payload) + 1;
-        $perPage = 80;
         $streams = [];
         $offset = 0;
         $first = true;
-        while ($offset < count($remaining)) {
-            $slice = array_slice($remaining, $offset, $perPage);
-            $streams[] = $this->annexurePage($payload, $slice, $total, $first, $startNumber + $offset);
-            $offset += count($slice);
+        while ($offset < count($all)) {
+            $gridY = $first ? self::ANNEXURE_FIRST_PAGE_GRID_Y : self::ANNEXURE_CONTINUED_PAGE_GRID_Y;
+            $slice = array_slice($all, $offset);
+            $simOps = [];
+            [, $fit] = $this->renderNumberedSerialGrid($simOps, $slice, $offset + 1, $gridY, false);
+            if ($fit < 1) {
+                $fit = 1;
+            }
+            $chunk = array_slice($slice, 0, $fit);
+            $streams[] = $this->annexurePage($payload, $chunk, $total, $first, $offset + 1);
+            $offset += $fit;
             $first = false;
         }
 
@@ -1269,27 +1276,65 @@ class SimplePdfRenderer
      */
     private function numberedSerialGrid(array &$ops, array $serials, int $startNumber, float $y): float
     {
-        $colWidth = (self::CONTENT_RIGHT - self::MARGIN - 16) / self::SERIAL_COLUMNS;
-        $col = 0;
-        $rowY = $y;
-        foreach ($serials as $i => $serial) {
-            if ($rowY < self::CONTENT_FLOOR + 8) {
-                break;
-            }
-            $x = self::MARGIN + 8 + ($col * $colWidth);
-            $label = ($startNumber + $i).'. '.$this->ascii($serial);
-            $ops[] = $this->text($x, $rowY, $this->clip($label, $colWidth - 6, 7), 7, false, 0.15, 0.15, 0.15);
-            $col++;
-            if ($col >= self::SERIAL_COLUMNS) {
-                $col = 0;
-                $rowY -= self::SERIAL_ROW_HEIGHT;
-            }
-        }
-        if ($col > 0) {
-            $rowY -= self::SERIAL_ROW_HEIGHT;
-        }
+        [$rowY] = $this->renderNumberedSerialGrid($ops, $serials, $startNumber, $y, true);
 
         return $rowY;
+    }
+
+    /**
+     * @param  list<string>  $ops
+     * @param  list<string>  $serials
+     * @return array{0: float, 1: int}
+     */
+    private function renderNumberedSerialGrid(array &$ops, array $serials, int $startNumber, float $y, bool $write): array
+    {
+        $colWidth = (self::CONTENT_RIGHT - self::MARGIN - 16) / self::SERIAL_COLUMNS;
+        $serialWidth = max(36.0, $colWidth - self::SERIAL_INDEX_WIDTH - 4.0);
+        $cells = [];
+        foreach ($serials as $i => $serial) {
+            $cells[] = [
+                'number' => ($startNumber + $i).'.',
+                'lines' => $this->hardSplit($this->ascii($serial), $serialWidth, 7),
+            ];
+        }
+
+        $rowY = $y;
+        $rendered = 0;
+        for ($offset = 0; $offset < count($cells); $offset += self::SERIAL_COLUMNS) {
+            $rowCells = array_slice($cells, $offset, self::SERIAL_COLUMNS);
+            $rowLines = 1;
+            foreach ($rowCells as $cell) {
+                $rowLines = max($rowLines, count($cell['lines']));
+            }
+            $rowHeight = max(self::SERIAL_ROW_HEIGHT, ($rowLines * self::SERIAL_LINE_HEIGHT) + 2.0);
+            if ($rowY - $rowHeight < self::CONTENT_FLOOR + 8) {
+                break;
+            }
+
+            if ($write) {
+                foreach ($rowCells as $colIdx => $cell) {
+                    $x = self::MARGIN + 8 + ($colIdx * $colWidth);
+                    $ops[] = $this->text($x, $rowY, $cell['number'], 7, false, 0.15, 0.15, 0.15);
+                    foreach ($cell['lines'] as $lineIdx => $line) {
+                        $ops[] = $this->text(
+                            $x + self::SERIAL_INDEX_WIDTH,
+                            $rowY - ($lineIdx * self::SERIAL_LINE_HEIGHT),
+                            $line,
+                            7,
+                            false,
+                            0.15,
+                            0.15,
+                            0.15,
+                        );
+                    }
+                }
+            }
+
+            $rendered += count($rowCells);
+            $rowY -= $rowHeight;
+        }
+
+        return [$rowY, $rendered];
     }
 
     /**

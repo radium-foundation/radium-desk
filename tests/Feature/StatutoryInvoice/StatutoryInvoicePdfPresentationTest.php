@@ -22,10 +22,12 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\AssertsStatutoryInvoicePdfSerials;
 use Tests\TestCase;
 
 class StatutoryInvoicePdfPresentationTest extends TestCase
 {
+    use AssertsStatutoryInvoicePdfSerials;
     use RefreshDatabase;
 
     private StatutoryInvoiceService $invoices;
@@ -396,7 +398,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
 
         $this->assertStringContainsString('TAX INVOICE', $pdf);
         $this->assertStringContainsString('Serial Numbers', $pdf);
-        $this->assertStringNotContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertStringNotContainsString('Complete serial-number list provided in Annexure A.', $pdf);
         $this->assertStringNotContainsString('ANNEXURE A', $pdf);
         $this->assertStringContainsString('UQC', $pdf);
         $this->assertStringContainsString('PCS', $pdf);
@@ -1037,24 +1039,25 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             orderId: 'RDE318900',
         )));
 
-        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
-        $this->assertStringNotContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $pdf);
         foreach ($serials as $serial) {
             $this->assertStringContainsString($serial, $pdf);
         }
+        $this->assertGreaterThanOrEqual(2, substr_count($pdf, 'SN-01'));
         $this->assertSame(1, substr_count($pdf, 'SN-24'));
         $this->assertStringContainsString('Rs.2832.00', $pdf);
         $this->assertStringContainsString('Page 1 of', $pdf);
     }
 
-    public function test_fifty_serials_fit_on_page_one_without_annexure(): void
+    public function test_fifty_serials_use_option_b_main_page_summary_and_complete_annexure(): void
     {
         $serials = [];
         for ($i = 1; $i <= 50; $i++) {
             $serials[] = sprintf('SN-%03d', $i);
         }
 
-        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+        $binary = (new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
             invoiceNumber: 'INV-076850',
             issuedAt: '2026-09-11 12:00:00',
             sellerLegalName: 'Phil Technologies (P) Limited',
@@ -1088,12 +1091,14 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             invoiceValue: '5900.00',
             serialNumbers: $serials,
             orderId: 'POS-000050',
-        )));
+        ));
+        $pdf = $this->text($binary);
 
-        $this->assertStringContainsString('1. SN-001', $pdf);
-        $this->assertStringContainsString('50. SN-050', $pdf);
-        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
-        $this->assertStringNotContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertOptionBWithAnnexure($binary, $serials);
+        $this->assertStringContainsString('10.', $pdf);
+        $this->assertStringContainsString('50.', $pdf);
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $pdf);
         $this->assertStringContainsString('SHIP TO', $pdf);
         $this->assertStringContainsString('Same', $pdf);
     }
@@ -1158,13 +1163,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Date: 18 Sep 2026 17:56', $pdf);
         $this->assertStringContainsString('% signed-qr-image', $binary);
         $this->assertStringContainsString('Authorized Signatory', $pdf);
-        $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
-        foreach ($serials as $serial) {
-            $this->assertStringContainsString($serial, $pdf);
-        }
-        $this->assertSame(1, substr_count($pdf, $serials[0]));
-        $this->assertSame(1, substr_count($pdf, $serials[49]));
+        $this->assertOptionBWithAnnexure($binary, $serials);
         $this->assertStringContainsString('Rs.124950.00', $pdf);
         $this->assertStringContainsString('Rs.3812.03', $pdf);
     }
@@ -1218,21 +1217,20 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $pdf = $this->text($binary);
 
         $this->assertVerificationBlockOnPageOne($binary, $this->jwtSignedQr());
-        $this->assertStringContainsString('* More serial numbers in Annexure A', $pdf);
+        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $pdf);
         $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('51. SN-051', $pdf);
-        $this->assertSame(1, substr_count($pdf, 'SN-001'));
-        $this->assertSame(1, substr_count($pdf, 'SN-051'));
+        $this->assertOptionBWithAnnexure($binary, $serials);
+        $this->assertStringContainsString('51.', $pdf);
     }
 
-    public function test_fifty_one_serials_without_irn_put_only_remainder_in_annexure(): void
+    public function test_fifty_one_serials_without_irn_use_complete_annexure_a(): void
     {
         $serials = [];
         for ($i = 1; $i <= 51; $i++) {
             $serials[] = sprintf('SN-%03d', $i);
         }
 
-        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+        $binary = (new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
             invoiceNumber: 'INV-076852',
             issuedAt: '2026-09-11 12:00:00',
             sellerLegalName: 'Phil Technologies (P) Limited',
@@ -1266,15 +1264,11 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             invoiceValue: '6018.00',
             serialNumbers: $serials,
             orderId: 'POS-000052',
-        )));
+        ));
+        $pdf = $this->text($binary);
 
-        $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('51. SN-051', $pdf);
-        $this->assertSame(1, substr_count($pdf, 'SN-001'));
-        $this->assertSame(1, substr_count($pdf, 'SN-051'));
-        foreach ($serials as $serial) {
-            $this->assertStringContainsString($serial, $pdf);
-        }
+        $this->assertOptionBWithAnnexure($binary, $serials);
+        $this->assertStringContainsString('51.', $pdf);
     }
 
     public function test_one_hundred_serials_are_never_truncated(): void

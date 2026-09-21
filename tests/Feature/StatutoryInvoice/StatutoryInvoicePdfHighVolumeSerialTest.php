@@ -5,10 +5,13 @@ namespace Tests\Feature\StatutoryInvoice;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
 use App\Services\StatutoryInvoice\SimplePdfRenderer;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\AssertsStatutoryInvoicePdfSerials;
 use Tests\TestCase;
 
 class StatutoryInvoicePdfHighVolumeSerialTest extends TestCase
 {
+    use AssertsStatutoryInvoicePdfSerials;
+
     private const IRN = '632fdabeceaad34a5dc5c6782c0ec471bae2d88f8efb8eb6b82747dba3f919b1';
 
     #[DataProvider('highVolumeIrnCounts')]
@@ -24,13 +27,12 @@ class StatutoryInvoicePdfHighVolumeSerialTest extends TestCase
             orderId: 'POS-HV-IRN-'.$count,
             signedQr: $jwt,
         ));
-        $text = $this->text($binary);
+        $text = $this->pdfText($binary);
 
-        $this->assertCompleteOrderedSerialSet($text, $serials);
+        $this->assertOptionBWithAnnexure($binary, $serials);
         $this->assertStringContainsString('ANNEXURE A', $text);
-        $this->assertStringContainsString('* More serial numbers in Annexure A', $text);
-        $this->assertGreaterThanOrEqual(2, $this->pageCount($binary));
-        $this->assertStringContainsString('ANNEXURE A (continued)', $text);
+        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $text);
+        $this->assertGreaterThanOrEqual(2, $this->pdfPageCount($binary));
         $this->assertStringContainsString('Rs.11800.00', $text);
         $this->assertStringContainsString('Rs.1800.00', $text);
         $this->assertVerificationBlockOnPageOne($binary, $jwt);
@@ -49,11 +51,11 @@ class StatutoryInvoicePdfHighVolumeSerialTest extends TestCase
             invoiceNumber: 'INV-HV-PLAIN-'.$count,
             orderId: 'POS-HV-PLAIN-'.$count,
         ));
-        $text = $this->text($binary);
+        $text = $this->pdfText($binary);
 
-        $this->assertCompleteOrderedSerialSet($text, $serials);
+        $this->assertOptionBWithAnnexure($binary, $serials);
         $this->assertStringContainsString('ANNEXURE A', $text);
-        $this->assertGreaterThanOrEqual(2, $this->pageCount($binary));
+        $this->assertGreaterThanOrEqual(2, $this->pdfPageCount($binary));
         $this->assertStringNotContainsString('e-Invoice Verification', $text);
         $this->assertStringContainsString('Rs.11800.00', $text);
     }
@@ -70,11 +72,10 @@ class StatutoryInvoicePdfHighVolumeSerialTest extends TestCase
             orderId: 'POS-HV-ANNEX-250',
             signedQr: $this->jwtSignedQr(),
         ));
-        $text = $this->text($binary);
+        $text = $this->pdfText($binary);
 
-        $this->assertSame(4, $this->pageCount($binary));
-        $this->assertCompleteOrderedSerialSet($text, $serials);
-        $this->assertGreaterThanOrEqual(2, substr_count($text, 'ANNEXURE A (continued)'));
+        $this->assertSame(2, $this->pdfPageCount($binary));
+        $this->assertOptionBWithAnnexure($binary, $serials);
         $this->assertStringContainsString('Total serials', $text);
         $this->assertStringContainsString((string) $count, $text);
     }
@@ -168,44 +169,6 @@ class StatutoryInvoicePdfHighVolumeSerialTest extends TestCase
         );
     }
 
-    /**
-     * @param  list<string>  $expectedSerials
-     */
-    private function assertCompleteOrderedSerialSet(string $text, array $expectedSerials): void
-    {
-        $this->assertSame(count($expectedSerials), count(array_unique($expectedSerials)));
-
-        foreach ($expectedSerials as $serial) {
-            $this->assertSame(
-                1,
-                substr_count($text, $serial),
-                "Serial {$serial} must appear exactly once in the PDF.",
-            );
-        }
-
-        preg_match_all('/\d+\. (HV-\d{5})/', $text, $matches);
-        $found = $matches[1] ?? [];
-        $this->assertSame(
-            $expectedSerials,
-            $found,
-            'Serial numbers must appear in ascending order across the invoice and annexure pages.',
-        );
-    }
-
-    private function text(string $pdf): string
-    {
-        return str_replace(['\\(', '\\)', '\\\\'], ['(', ')', '\\'], $pdf);
-    }
-
-    private function pageCount(string $binary): int
-    {
-        if (! preg_match('/\/Type \/Pages[^>]*\/Count (\d+)/', $binary, $matches)) {
-            return 0;
-        }
-
-        return (int) $matches[1];
-    }
-
     private function jwtSignedQr(): string
     {
         return 'eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoiZWluaXZvaWNlLXRlc3QtcGF5bG9hZC1maXh0dXJlIn0.dGVzdC1zaWduYXR1cmUtZml4dHVyZS1ub3QtcHJvZHVjdGlvbg';
@@ -220,7 +183,7 @@ class StatutoryInvoicePdfHighVolumeSerialTest extends TestCase
             escapeshellarg($this->pdftotextBinary()).' -f 1 -l 1 '.escapeshellarg($pdfPath).' - 2>/dev/null'
         ));
         $pageTwoText = '';
-        if ($this->pageCount($binary) >= 2) {
+        if ($this->pdfPageCount($binary) >= 2) {
             $pageTwoText = trim((string) shell_exec(
                 escapeshellarg($this->pdftotextBinary()).' -f 2 -l 2 '.escapeshellarg($pdfPath).' - 2>/dev/null'
             ));
