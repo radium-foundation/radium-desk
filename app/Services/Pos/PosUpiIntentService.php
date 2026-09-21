@@ -60,6 +60,7 @@ class PosUpiIntentService
         int $receivingBankAccountId,
         User $actor,
         float $headerDiscount = 0,
+        float $shippingAmount = 0,
         ?string $notes = null,
         ?string $saleIdempotencyKey = null,
         array $statutory = [],
@@ -91,7 +92,7 @@ class PosUpiIntentService
             return $this->refreshExpiry($existing, $actor);
         }
 
-        $quote = $this->sales->quoteTotals($lines, $headerDiscount);
+        $quote = $this->sales->quoteTotals($lines, $headerDiscount, $shippingAmount);
         $amount = PosUpiUriBuilder::formatAmount($quote['total']);
 
         $account = FinanceBankAccount::query()
@@ -118,6 +119,7 @@ class PosUpiIntentService
             $lines,
             $actor,
             $headerDiscount,
+            $shippingAmount,
             $notes,
             $saleIdempotencyKey,
             $amount,
@@ -160,6 +162,7 @@ class PosUpiIntentService
                     ],
                     'lines' => $lines,
                     'discount' => $headerDiscount,
+                    'shipping_amount' => $shippingAmount,
                     'notes' => $notes,
                     'payment_method' => 'UPI',
                     'statutory' => [

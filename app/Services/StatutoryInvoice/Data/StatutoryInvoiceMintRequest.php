@@ -42,6 +42,10 @@ final class StatutoryInvoiceMintRequest
          */
         public readonly bool $radiumboxServicePublishSellingGst = false,
         public readonly ?array $billingAddressStructured = null,
+        /**
+         * Invoice-level pre-tax shipping. Persisted only when supplied at mint time.
+         */
+        public readonly float $shippingAmount = 0,
     ) {}
 
     /**
@@ -80,6 +84,7 @@ final class StatutoryInvoiceMintRequest
             inclusiveHardwareGst: $this->inclusiveHardwareGst,
             radiumboxServicePublishSellingGst: $this->radiumboxServicePublishSellingGst,
             billingAddressStructured: $this->billingAddressStructured,
+            shippingAmount: $this->shippingAmount,
         );
     }
 
@@ -113,6 +118,7 @@ final class StatutoryInvoiceMintRequest
             inclusiveHardwareGst: $this->inclusiveHardwareGst,
             radiumboxServicePublishSellingGst: $this->radiumboxServicePublishSellingGst,
             billingAddressStructured: $this->billingAddressStructured,
+            shippingAmount: $this->shippingAmount,
         );
     }
 

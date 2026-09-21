@@ -99,6 +99,7 @@ class CounterController extends Controller
             'payment_reference' => ['nullable', 'string', 'max:128'],
             'receiving_bank_account_id' => ['nullable', 'integer', 'exists:finance_bank_accounts,id'],
             'discount' => ['nullable', 'numeric', 'min:0'],
+            'shipping_amount' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:500'],
             'idempotency_key' => ['nullable', 'string', 'max:80'],
             'buyer_gstin' => ['nullable', 'string', 'max:32', function (string $attribute, mixed $value, \Closure $fail): void {
@@ -170,6 +171,7 @@ class CounterController extends Controller
                 receivingBankAccountId: (int) ($data['receiving_bank_account_id'] ?? 0),
                 actor: $request->user(),
                 headerDiscount: (float) ($data['discount'] ?? 0),
+                shippingAmount: (float) ($data['shipping_amount'] ?? 0),
                 notes: $data['notes'] ?? null,
                 saleIdempotencyKey: $data['idempotency_key'] ?? null,
                 statutory: $statutory,
@@ -186,6 +188,7 @@ class CounterController extends Controller
             paymentMethod: $data['payment_method'],
             actor: $request->user(),
             headerDiscount: (float) ($data['discount'] ?? 0),
+            shippingAmount: (float) ($data['shipping_amount'] ?? 0),
             paymentReference: $data['payment_reference'] ?? null,
             notes: $data['notes'] ?? null,
             idempotencyKey: $data['idempotency_key'] ?? null,

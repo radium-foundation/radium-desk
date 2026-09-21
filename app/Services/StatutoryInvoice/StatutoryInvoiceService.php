@@ -138,6 +138,7 @@ class StatutoryInvoiceService
                     'place_of_supply_state_code' => $request->placeOfSupplyStateCode,
                     'place_of_supply_source' => $request->placeOfSupplySource,
                     'taxable_value' => $totals['taxable_value'],
+                    'shipping_amount' => round(max(0, $request->shippingAmount), 2),
                     'discount' => $request->discount,
                     'tax_total' => $totals['tax_total'],
                     'cgst' => $totals['cgst'],
@@ -276,6 +277,7 @@ class StatutoryInvoiceService
                 ? StatutoryFinancialYear::containing($sale->completed_at)->token()
                 : null,
             billingAddressStructured: StatutoryBillingStructured::fromStored($sale->billing_address_structured),
+            shippingAmount: round(max(0, (float) ($sale->shipping_amount ?? 0)), 2),
         ), $actor);
 
         $this->generateDocumentSafely($invoice);
@@ -798,10 +800,12 @@ class StatutoryInvoiceService
         $hasSgst = false;
         $hasIgst = false;
 
+        $maxLineGstRate = 0.0;
         foreach ($request->lines as $line) {
             $taxable += $line->taxableValue;
             $tax += $line->taxTotal;
             $lineTotal += $line->lineTotal;
+            $maxLineGstRate = max($maxLineGstRate, (float) $line->gstPercentage);
             if ($line->cgst !== null) {
                 $cgst += $line->cgst;
                 $hasCgst = true;
@@ -813,6 +817,38 @@ class StatutoryInvoiceService
             if ($line->igst !== null) {
                 $igst += $line->igst;
                 $hasIgst = true;
+            }
+        }
+
+        $shippingAmount = round(max(0, $request->shippingAmount), 2);
+        if ($shippingAmount > 0) {
+            $shippingTax = round($shippingAmount * ($maxLineGstRate / 100), 2);
+            $tax += $shippingTax;
+            $lineTotal += $shippingAmount + $shippingTax;
+
+            $location = is_string($request->numberingLocation) ? trim($request->numberingLocation) : '';
+            if ($location !== '' && ($hasCgst || $hasSgst || $hasIgst)) {
+                $sellerCode = $this->locations->gstStateCode($location);
+                $split = $this->gstSplit->splitLine(
+                    $sellerCode,
+                    $request->placeOfSupplyState,
+                    $maxLineGstRate,
+                    $shippingAmount,
+                    $shippingTax,
+                    $this->exclusivePaisaToleranceForMint($request),
+                );
+                if ($split->cgst > 0) {
+                    $cgst += $split->cgst;
+                    $hasCgst = true;
+                }
+                if ($split->sgst > 0) {
+                    $sgst += $split->sgst;
+                    $hasSgst = true;
+                }
+                if ($split->igst > 0) {
+                    $igst += $split->igst;
+                    $hasIgst = true;
+                }
             }
         }
 

@@ -20,6 +20,7 @@ use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\PosStatutoryInvoiceIssuer;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
 use App\Support\Inventory\InventorySerialNumber;
+use App\Support\Inventory\PosRetailShippingGst;
 use App\Support\Inventory\PosSaleLineNormalizer;
 use App\Support\StatutoryInvoice\InvoiceRoundOff;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -60,6 +61,7 @@ class PosSaleService
         string $paymentMethod,
         User $actor,
         float $headerDiscount = 0,
+        float $shippingAmount = 0,
         ?string $paymentReference = null,
         ?string $notes = null,
         ?InventoryReservation $reservation = null,
@@ -89,6 +91,8 @@ class PosSaleService
             ]);
         }
 
+        $shippingAmount = round(max(0, $shippingAmount), 2);
+
         $idempotencyKey = $idempotencyKey !== null && trim($idempotencyKey) !== ''
             ? trim($idempotencyKey)
             : null;
@@ -101,6 +105,7 @@ class PosSaleService
                 $paymentMethod,
                 $actor,
                 $headerDiscount,
+                $shippingAmount,
                 $paymentReference,
                 $notes,
                 $reservation,
@@ -170,6 +175,7 @@ class PosSaleService
                 $subtotal = 0.0;
                 $tax = 0.0;
                 $lineDiscountTotal = 0.0;
+                $lineGstRates = [];
 
                 foreach ($lines as $index => $line) {
                     $product = InventoryProduct::query()
@@ -291,10 +297,16 @@ class PosSaleService
                     $subtotal += $lineSubtotal;
                     $tax += $lineTax;
                     $lineDiscountTotal += $lineDiscount;
+                    $lineGstRates[] = $gst;
                 }
 
+                $tax += PosRetailShippingGst::taxOnExclusiveAmount(
+                    $shippingAmount,
+                    PosRetailShippingGst::maxLineGstRate($lineGstRates),
+                );
+
                 $discount = round($headerDiscount + $lineDiscountTotal, 2);
-                $unrounded = round($subtotal - $discount + $tax, 2);
+                $unrounded = round($subtotal - $discount + $shippingAmount + $tax, 2);
                 if ($unrounded < 0) {
                     throw ValidationException::withMessages([
                         'discount' => 'Discount cannot exceed sale total.',
@@ -316,7 +328,8 @@ class PosSaleService
                     'invoice_number' => $invoiceNumber,
                     'subtotal' => $subtotal,
                     'discount' => $discount,
-                    'tax' => $tax,
+                    'tax' => round($tax, 2),
+                    'shipping_amount' => $shippingAmount,
                     'total' => $total,
                 ]);
 
@@ -463,7 +476,7 @@ class PosSaleService
      * }>  $lines
      * @return array{subtotal: float, discount: float, tax: float, rounding: float, total: float}
      */
-    public function quoteTotals(array $lines, float $headerDiscount = 0): array
+    public function quoteTotals(array $lines, float $headerDiscount = 0, float $shippingAmount = 0): array
     {
         $lines = PosSaleLineNormalizer::normalize($lines);
 
@@ -479,9 +492,12 @@ class PosSaleService
             ]);
         }
 
+        $shippingAmount = round(max(0, $shippingAmount), 2);
+
         $subtotal = 0.0;
         $tax = 0.0;
         $lineDiscountTotal = 0.0;
+        $lineGstRates = [];
 
         foreach ($lines as $index => $line) {
             $product = InventoryProduct::query()
@@ -536,10 +552,16 @@ class PosSaleService
             $subtotal += $lineSubtotal;
             $tax += $lineTax;
             $lineDiscountTotal += $lineDiscount;
+            $lineGstRates[] = $gst;
         }
 
+        $tax += PosRetailShippingGst::taxOnExclusiveAmount(
+            $shippingAmount,
+            PosRetailShippingGst::maxLineGstRate($lineGstRates),
+        );
+
         $discount = round($headerDiscount + $lineDiscountTotal, 2);
-        $unrounded = round($subtotal - $discount + $tax, 2);
+        $unrounded = round($subtotal - $discount + $shippingAmount + $tax, 2);
         if ($unrounded < 0) {
             throw ValidationException::withMessages([
                 'discount' => 'Discount cannot exceed sale total.',
@@ -550,6 +572,7 @@ class PosSaleService
         return [
             'subtotal' => round($subtotal, 2),
             'discount' => $discount,
+            'shipping_amount' => $shippingAmount,
             'tax' => round($tax, 2),
             'rounding' => $roundOff['rounding'],
             'total' => $roundOff['rounded'],

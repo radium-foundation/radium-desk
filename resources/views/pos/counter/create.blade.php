@@ -205,6 +205,11 @@
                                     <input type="number" step="0.01" min="0" name="discount" id="discount" class="form-control" value="{{ old('discount', 0) }}">
                                     @error('discount')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
+                                <div class="mb-2">
+                                    <label class="form-label" for="shipping_amount">Shipping (pre-tax)</label>
+                                    <input type="number" step="0.01" min="0" name="shipping_amount" id="shipping_amount" class="form-control" value="{{ old('shipping_amount', 0) }}">
+                                    @error('shipping_amount')<div class="text-danger small">{{ $message }}</div>@enderror
+                                </div>
                                 <div>
                                     <label class="form-label" for="notes">Notes</label>
                                     <input type="text" name="notes" id="notes" class="form-control" value="{{ old('notes') }}">
@@ -217,6 +222,7 @@
                                 <h2 class="h5">Totals</h2>
                                 <div class="d-flex justify-content-between"><span>Subtotal</span><span id="pos-subtotal">0.00</span></div>
                                 <div class="d-flex justify-content-between"><span>Discount</span><span id="pos-discount">0.00</span></div>
+                                <div class="d-flex justify-content-between"><span>Shipping</span><span id="pos-shipping">0.00</span></div>
                                 <div class="d-flex justify-content-between"><span>Tax</span><span id="pos-tax">0.00</span></div>
                                 <div class="d-flex justify-content-between fw-semibold fs-5 mt-2"><span>Total</span><span id="pos-total">0.00</span></div>
                                 <p class="small text-muted mb-0 mt-2">Internal invoice only — not a GST e-invoice.</p>
@@ -272,6 +278,7 @@
                 const cartEmpty = document.getElementById('pos-cart-empty');
                 const cartFields = document.getElementById('pos-cart-fields');
                 const headerDiscount = document.getElementById('discount');
+                const shippingAmount = document.getElementById('shipping_amount');
                 const form = document.getElementById('pos-counter-form');
                 const completeButton = document.getElementById('pos-complete');
                 const paymentMethod = document.getElementById('payment_method');
@@ -455,6 +462,24 @@
                     return { lineSubtotal, tax, lineTotal: taxable + tax };
                 }
 
+                function maxLineGstRate() {
+                    let maxRate = 0;
+                    cart.forEach(function (item) {
+                        maxRate = Math.max(maxRate, parseFloat(item.gst_percentage) || 0);
+                    });
+
+                    return maxRate;
+                }
+
+                function shippingTaxAmount(shipping) {
+                    const rate = maxLineGstRate();
+                    if (shipping <= 0 || rate <= 0) {
+                        return 0;
+                    }
+
+                    return shipping * (rate / 100);
+                }
+
                 function serializedCartKey(item) {
                     return item.product_id + ':' + (item.variant_id || 0);
                 }
@@ -525,11 +550,14 @@
                         tax += totals.tax;
                     });
                     const header = parseFloat(headerDiscount.value || '0') || 0;
+                    const shipping = parseFloat(shippingAmount.value || '0') || 0;
                     const discount = header + lineDiscount;
-                    const total = subtotal - discount + tax;
+                    const shippingTax = shippingTaxAmount(shipping);
+                    const total = subtotal - discount + shipping + tax + shippingTax;
                     document.getElementById('pos-subtotal').textContent = money(subtotal);
                     document.getElementById('pos-discount').textContent = money(discount);
-                    document.getElementById('pos-tax').textContent = money(tax);
+                    document.getElementById('pos-shipping').textContent = money(shipping);
+                    document.getElementById('pos-tax').textContent = money(tax + shippingTax);
                     document.getElementById('pos-total').textContent = money(Math.max(0, total));
                 }
 
@@ -928,6 +956,7 @@
                 });
 
                 headerDiscount.addEventListener('input', renderTotals);
+                shippingAmount.addEventListener('input', renderTotals);
 
                 if (completeButton) {
                     completeButton.addEventListener('click', function (event) {

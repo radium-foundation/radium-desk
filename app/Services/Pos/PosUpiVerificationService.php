@@ -89,7 +89,8 @@ class PosUpiVerificationService
                 $payload = $locked->cart_payload ?? [];
                 $lines = $payload['lines'] ?? [];
                 $headerDiscount = (float) ($payload['discount'] ?? 0);
-                $quote = $this->sales->quoteTotals($lines, $headerDiscount);
+                $shippingAmount = (float) ($payload['shipping_amount'] ?? 0);
+                $quote = $this->sales->quoteTotals($lines, $headerDiscount, $shippingAmount);
                 $quoted = PosUpiUriBuilder::formatAmount($quote['total']);
                 $expected = PosUpiUriBuilder::formatAmount($locked->amount);
 
@@ -122,6 +123,7 @@ class PosUpiVerificationService
                     paymentMethod: 'UPI',
                     actor: $actor,
                     headerDiscount: $headerDiscount,
+                    shippingAmount: $shippingAmount,
                     paymentReference: $utr,
                     notes: $payload['notes'] ?? null,
                     reservation: $reservation,
