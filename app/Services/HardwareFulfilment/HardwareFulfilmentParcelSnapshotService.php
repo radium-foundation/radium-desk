@@ -79,8 +79,12 @@ class HardwareFulfilmentParcelSnapshotService
             return false;
         }
 
+        if ($this->completeIngestParcel(is_array($order->parcel) ? $order->parcel : null) !== null) {
+            return false;
+        }
+
         return $this->physicalQty($order) > 1
-            && $this->completeIngestParcel(is_array($order->parcel) ? $order->parcel : null) === null;
+            || $this->quantityOnlyMeasuredEligible($fulfilment);
     }
 
     /**
@@ -217,7 +221,7 @@ class HardwareFulfilmentParcelSnapshotService
         }
 
         $physicalQty = $this->physicalQty($order);
-        if ($physicalQty <= 1) {
+        if ($physicalQty <= 1 && ! $this->quantityOnlyMeasuredEligible($fulfilment)) {
             return 'Measured shipment packaging is only used when quantity is greater than 1.';
         }
 
@@ -423,15 +427,43 @@ class HardwareFulfilmentParcelSnapshotService
             return null;
         }
 
+        $productId = (int) array_key_first($ids);
+
         $fulfilment->loadMissing('serials.inventorySerial.product.packaging');
         foreach ($fulfilment->serials as $row) {
             $product = $row->inventorySerial?->product;
-            if ($product !== null && $product->id === array_key_first($ids)) {
+            if ($product !== null && $product->id === $productId) {
                 return $product;
             }
         }
 
-        return null;
+        return InventoryProduct::query()
+            ->with('packaging')
+            ->find($productId);
+    }
+
+    private function quantityOnlyMeasuredEligible(HardwareFulfilment $fulfilment): bool
+    {
+        $fulfilment->loadMissing(['commerceOrder.items', 'serials.inventorySerial', 'shipment']);
+        $order = $fulfilment->commerceOrder;
+        if ($order === null) {
+            return false;
+        }
+
+        $commitment = app(HardwarePhysicalStockCommitment::class);
+        if (! $commitment->isQuantityOnlyOrder($order) || ! $commitment->isStockCommitted($fulfilment, $order)) {
+            return false;
+        }
+
+        if ($this->physicalQty($order) !== 1 || count($this->allocatedProductIds($fulfilment)) !== 1) {
+            return false;
+        }
+
+        if ($this->canAttach($fulfilment)) {
+            return false;
+        }
+
+        return $this->ineligibleReason($fulfilment) === 'Verified catalog packaging is missing.';
     }
 
     /**

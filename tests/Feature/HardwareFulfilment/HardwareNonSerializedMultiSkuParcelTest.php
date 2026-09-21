@@ -13,6 +13,7 @@ use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
+use App\Models\InventoryProductPackaging;
 use App\Models\InventoryUserBranch;
 use App\Models\Order;
 use App\Models\StatutoryInvoice;
@@ -126,6 +127,78 @@ class HardwareNonSerializedMultiSkuParcelTest extends TestCase
             ->assertDontSee('Open Fulfilment');
     }
 
+    public function test_single_sku_quantity_stock_without_catalog_packaging_enables_measured_parcel(): void
+    {
+        $fulfilment = $this->invoicedSingleCableFulfilment('RDE318526', modelId: 1410, parcel: [
+            'weight' => 0.1,
+            'length' => 13,
+            'height' => 8,
+        ]);
+        $snapshots = app(HardwareFulfilmentParcelSnapshotService::class);
+
+        $catalog = $snapshots->catalogPackaging($fulfilment);
+        $this->assertSame('Not verified', $catalog['label']);
+        $this->assertFalse($catalog['verified']);
+        $this->assertSame('Verified catalog packaging is missing.', $snapshots->ineligibleReason($fulfilment));
+        $this->assertNull($snapshots->measuredIneligibleReason($fulfilment));
+        $this->assertTrue($snapshots->canAttachMeasured($fulfilment));
+        $this->assertTrue($snapshots->requiresMeasuredParcel($fulfilment));
+
+        $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment);
+        $this->assertTrue($ready->canAttachMeasuredParcel);
+        $this->assertFalse($ready->canAttachSnapshot);
+        $this->assertContains('Parcel packaging not attached', $ready->blockers);
+
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+        $this->assertSame('Enter Package Dimensions', $row->nextAction);
+        $this->assertSame('hardware-parcel-measure', $row->nextAnchor);
+    }
+
+    public function test_single_sku_quantity_stock_with_verified_packaging_prefers_catalog_attach(): void
+    {
+        $fulfilment = $this->invoicedSingleCableFulfilment('RDE910050', modelId: 1410, parcel: null);
+        InventoryProductPackaging::query()->create([
+            'inventory_product_id' => $this->usb->id,
+            'gross_weight' => 0.12,
+            'length' => 13,
+            'breadth' => 8,
+            'height' => 3,
+            'weight_unit' => 'kg',
+            'dimension_unit' => 'cm',
+            'verified_by_user_id' => $this->operator->id,
+            'verified_at' => now(),
+        ]);
+
+        $snapshots = app(HardwareFulfilmentParcelSnapshotService::class);
+        $this->assertTrue($snapshots->canAttach($fulfilment));
+        $this->assertFalse($snapshots->canAttachMeasured($fulfilment));
+        $this->assertSame(
+            'Measured shipment packaging is only used when quantity is greater than 1.',
+            $snapshots->measuredIneligibleReason($fulfilment),
+        );
+    }
+
+    public function test_single_sku_quantity_stock_without_packaging_remains_blocked_until_measured(): void
+    {
+        $fulfilment = $this->invoicedSingleCableFulfilment('RDE318527', modelId: 1410, parcel: null);
+        $snapshots = app(HardwareFulfilmentParcelSnapshotService::class);
+
+        $this->assertFalse($snapshots->canAttach($fulfilment));
+        $this->assertTrue($snapshots->canAttachMeasured($fulfilment));
+
+        app(HardwareFulfilmentParcelSnapshotService::class)->attachMeasured($fulfilment, [
+            'length' => 13,
+            'breadth' => 8,
+            'height' => 3,
+            'weight' => 0.1,
+        ], $this->operator);
+
+        $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment->fresh());
+        $this->assertNotContains('Parcel packaging not attached', $ready->blockers);
+        $this->assertSame('measured', $ready->parcelSource);
+        $this->assertSame($this->usb->id, $fulfilment->fresh()->parcel_snapshot['inventory_product_id']);
+    }
+
     public function test_measured_parcel_attach_clears_blocker_for_courier_flow(): void
     {
         $fulfilment = $this->invoicedMultiCableFulfilment('RBP103');
@@ -234,6 +307,107 @@ class HardwareNonSerializedMultiSkuParcelTest extends TestCase
             'source_id' => $sourceId,
             'idempotency_key' => 'invoice:'.$sourceId,
             'invoice_value' => 598,
+            'issued_at' => now(),
+        ]);
+        $fulfilment->forceFill([
+            'state' => HardwareFulfilmentState::InvoiceIssued,
+            'statutory_invoice_id' => $invoice->id,
+        ])->save();
+        $commerce->forceFill(['statutory_invoice_id' => $invoice->id])->save();
+
+        return $fulfilment->fresh(['commerceOrder.items', 'serials']);
+    }
+
+    /**
+     * @param  array<string, float|int>|null  $parcel
+     */
+    private function invoicedSingleCableFulfilment(string $sourceId, int $modelId, ?array $parcel = null): HardwareFulfilment
+    {
+        $branch = InventoryBranch::query()->firstOrCreate(
+            ['code' => 'DELHI-RETAIL'],
+            ['name' => 'Delhi Retail', 'is_active' => true],
+        );
+        InventoryUserBranch::query()->firstOrCreate([
+            'user_id' => $this->operator->id,
+            'branch_id' => $branch->id,
+        ]);
+        app(InventoryStockService::class)->stockInQuantity($this->usb, $branch, 5, $this->operator);
+
+        $creator = User::factory()->create(['is_active' => true]);
+        $order = Order::query()->create([
+            'order_id' => $sourceId,
+            'product_name' => 'Mantra MFS110 USB Cable',
+            'status' => 'active',
+            'customer_name' => 'Sonu Agrahari',
+            'created_by' => $creator->id,
+        ]);
+        $commerce = CommerceOrder::query()->create([
+            'order_no' => 'CO-'.$sourceId,
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => 'commerce_order',
+            'source_id' => $sourceId,
+            'idempotency_key' => 'statutory:radiumbox_com:commerce_order:'.$sourceId,
+            'payload_hash' => hash('sha256', $sourceId),
+            'status' => CommerceOrderStatus::InvoicePending,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'received_at' => now(),
+            'customer_name' => 'Sonu Agrahari',
+            'customer_phone' => '9000000099',
+            'customer_email' => 'buyer@example.com',
+            'shipping_address_structured' => [
+                'line1' => '12 Test Lane',
+                'city' => 'Delhi',
+                'state' => 'Delhi',
+                'pincode' => '110001',
+                'country' => 'India',
+            ],
+            'parcel' => $parcel,
+            'support_order_id' => $order->id,
+        ]);
+
+        CommerceOrderItem::query()->create([
+            'commerce_order_id' => $commerce->id,
+            'line_no' => 1,
+            'sku' => (string) $modelId,
+            'model_id' => $modelId,
+            'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
+            'requires_shipping' => true,
+            'description' => 'Mantra MFS110 USB Cable',
+            'qty' => 1,
+            'unit_price' => 199,
+            'gst_percentage' => 18,
+            'taxable_value' => 168.64,
+            'tax_total' => 30.36,
+            'line_total' => 199,
+        ]);
+
+        $fulfilment = HardwareFulfilment::query()->create([
+            'commerce_order_id' => $commerce->id,
+            'support_order_id' => $order->id,
+            'source_id' => $sourceId,
+            'source_type' => 'commerce_order',
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'idempotency_key' => $commerce->idempotency_key,
+            'state' => HardwareFulfilmentState::ReadyForFulfilment,
+            'ingested_at' => now(),
+            'fulfilment_branch_id' => $branch->id,
+        ]);
+
+        app(HardwareFulfilmentWorkflowService::class)->transition($fulfilment, HardwareFulfilmentState::ReadyForFulfilment);
+        app(HardwareSerialAllocationService::class)->allocateQuantityStock($fulfilment->fresh(['commerceOrder.items']), $this->operator);
+
+        $fulfilment = $fulfilment->fresh(['commerceOrder.items']);
+        $invoice = StatutoryInvoice::query()->create([
+            'invoice_number' => 'INV-'.$sourceId,
+            'document_type' => StatutoryInvoiceDocumentType::TaxInvoice,
+            'status' => StatutoryInvoiceStatus::Issued,
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => 'commerce_order',
+            'source_id' => $sourceId,
+            'idempotency_key' => 'invoice:'.$sourceId,
+            'invoice_value' => 199,
             'issued_at' => now(),
         ]);
         $fulfilment->forceFill([
