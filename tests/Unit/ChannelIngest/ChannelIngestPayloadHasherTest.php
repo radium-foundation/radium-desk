@@ -153,6 +153,117 @@ class ChannelIngestPayloadHasherTest extends TestCase
         $this->assertSame('hardware_direct_buy', $this->hasher->hardwareCanonical($first)['metadata']['source_order_type'] ?? null);
     }
 
+    public function test_matches_stored_accepts_current_hardware_hash(): void
+    {
+        $request = $this->validator->validate($this->rdpHardwarePayload(), StatutoryInvoiceChannel::RdServiceIn);
+
+        $this->assertTrue($this->hasher->matchesStored($this->hasher->hash($request), $request));
+    }
+
+    public function test_matches_stored_rejects_unrelated_payload_changes(): void
+    {
+        $request = $this->validator->validate($this->rdpHardwarePayload(), StatutoryInvoiceChannel::RdServiceIn);
+        $tampered = $this->validator->validate(array_merge($this->rdpHardwarePayload(), [
+            'payment_reference' => 'RDP29-tampered',
+        ]), StatutoryInvoiceChannel::RdServiceIn);
+
+        $this->assertFalse($this->hasher->matchesStored($this->hasher->hash($request), $tampered));
+    }
+
+    public function test_legacy_rdp_service_hash_matches_pre_v4_0_95_stored_hash_on_replay(): void
+    {
+        $request = $this->validator->validate($this->rdpHardwarePayload(), StatutoryInvoiceChannel::RdServiceIn);
+        $legacyStored = $this->hasher->legacyPreHardwareRdpServiceHash($request);
+
+        $this->assertNotSame($legacyStored, $this->hasher->hash($request));
+        $this->assertTrue($this->hasher->matchesStored($legacyStored, $request));
+        $this->assertSame(
+            '289c41b273c826921c33811708cfaef8fd433424a6ba086bc9952bdbea69ef9f',
+            $legacyStored,
+        );
+    }
+
+    public function test_current_rdp_hardware_hash_matches_new_rdp_ingests(): void
+    {
+        $request = $this->validator->validate($this->rdpHardwarePayload('RDP900101'), StatutoryInvoiceChannel::RdServiceIn);
+
+        $this->assertSame(
+            hash('sha256', (string) json_encode($this->hasher->hardwareCanonical($request))),
+            $this->hasher->hash($request),
+        );
+        $this->assertTrue($this->hasher->matchesStored($this->hasher->hash($request), $request));
+    }
+
+    public function test_rin_hardware_cannot_use_legacy_rdp_service_hash_fallback(): void
+    {
+        $payload = [
+            'channel' => StatutoryInvoiceChannel::RdServiceIn->value,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => 'RIN900778',
+            'source_order_id' => 'RIN900778',
+            'payment_status' => 'paid',
+            'payment_provider' => 'cashfree',
+            'payment_reference' => 'RIN900778',
+            'currency' => 'INR',
+            'customer' => ['name' => 'Buyer', 'phone' => '9000000001'],
+            'place_of_supply_state' => 'West Bengal',
+            'shipping_address' => [
+                'line1' => '12 Street',
+                'city' => 'Jaunpur',
+                'state' => 'Uttar Pradesh',
+                'pincode' => '222165',
+            ],
+            'ordered_at' => '2026-09-06T20:47:08+05:30',
+            'metadata' => [
+                'source' => 'rdservice.in',
+                'source_order_type' => 'hardware_direct_buy',
+                'source_product_id' => 'mantra-fingerprint',
+            ],
+            'lines' => [[
+                'description' => 'MFS110',
+                'sku' => 'RBMFS110L1',
+                'catalog_sku' => 'mantra-fingerprint',
+                'qty' => 1,
+                'unit_price' => 2649,
+                'hsn_sac' => '84716050',
+                'gst_percentage' => 18,
+                'taxable_value' => 2244.92,
+                'tax_total' => 404.08,
+                'line_total' => 2649,
+                'shipping_line_kind' => 'physical_merchandise',
+                'requires_shipping' => true,
+                'model_id' => 91001,
+            ]],
+        ];
+        $request = $this->validator->validate($payload, StatutoryInvoiceChannel::RdServiceIn);
+        $legacyServiceHash = $this->hasher->legacyPreHardwareRdpServiceHash($request);
+
+        $this->assertNotSame($legacyServiceHash, $this->hasher->hash($request));
+        $this->assertFalse($this->hasher->matchesStored($legacyServiceHash, $request));
+    }
+
+    public function test_legacy_rdp_tampered_payload_still_rejects(): void
+    {
+        $request = $this->validator->validate($this->rdpHardwarePayload(), StatutoryInvoiceChannel::RdServiceIn);
+        $legacyStored = $this->hasher->legacyPreHardwareRdpServiceHash($request);
+        $tampered = $this->validator->validate(array_merge($this->rdpHardwarePayload(), [
+            'lines' => [array_merge($this->rdpHardwarePayload()['lines'][0], ['unit_price' => 3648])],
+        ]), StatutoryInvoiceChannel::RdServiceIn);
+
+        $this->assertFalse($this->hasher->matchesStored($legacyStored, $tampered));
+    }
+
+    public function test_service_order_still_uses_service_hash_and_rejects_tampering(): void
+    {
+        $request = $this->validator->validate($this->servicePayload(), StatutoryInvoiceChannel::RdServiceIn);
+        $tampered = $this->validator->validate(array_merge($this->servicePayload(), [
+            'payment_reference' => 'pay_RD-1001-changed',
+        ]), StatutoryInvoiceChannel::RdServiceIn);
+
+        $this->assertTrue($this->hasher->matchesStored($this->hasher->hash($request), $request));
+        $this->assertFalse($this->hasher->matchesStored($this->hasher->hash($request), $tampered));
+    }
+
     public function test_hardware_hash_includes_split_tenders_and_omits_absent_tenders(): void
     {
         $plain = $this->hardwareRequest();
@@ -219,6 +330,69 @@ class ChannelIngestPayloadHasherTest extends TestCase
                 'shipping_line_kind' => 'physical_merchandise',
                 'requires_shipping' => true,
                 'model_id' => 951,
+            ]],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rdpHardwarePayload(string $sourceId = 'RDP29'): array
+    {
+        return [
+            'channel' => StatutoryInvoiceChannel::RdServiceIn->value,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => $sourceId,
+            'source_order_id' => $sourceId,
+            'payment_status' => 'paid',
+            'payment_provider' => 'cashfree',
+            'payment_reference' => $sourceId,
+            'payment_method' => 'cashfree',
+            'currency' => 'INR',
+            'customer' => [
+                'name' => 'Pradyut Dey',
+                'phone' => '9679441406',
+                'email' => 'pradyutd104@gmail.com',
+            ],
+            'billing_address' => [
+                'line1' => 'Pipursai, Pipursai',
+                'city' => 'Kharagpur',
+                'state' => 'West Bengal',
+                'pincode' => '721445',
+            ],
+            'shipping_address' => [
+                'line1' => 'Pipursai, Pipursai',
+                'city' => 'Kharagpur',
+                'state' => 'West Bengal',
+                'pincode' => '721445',
+            ],
+            'place_of_supply_state' => 'West Bengal',
+            'ordered_at' => '2026-09-18 18:17:48',
+            'metadata' => [
+                'source' => 'rdservice.in',
+                'source_order_type' => 'hardware_direct_buy',
+                'source_product_id' => 'mantra-fingerprint',
+                'source_state' => 'West Bengal',
+                'source_district' => 'Kharagpur',
+                'product_summary' => 'MFS110 L1 (STQC) Fingerprint Scanner × 1, RD 3Y, Warranty 3Y, USB+Type-C',
+                'bundle_rd_years' => 3,
+                'bundle_warranty_years' => 3,
+                'bundle_otg' => 'USB+Type-C',
+            ],
+            'lines' => [[
+                'description' => 'MFS110 L1 (STQC) Fingerprint Scanner',
+                'sku' => 'RBMFS110L1',
+                'catalog_sku' => 'mantra-fingerprint',
+                'qty' => 1,
+                'unit_price' => 3647,
+                'hsn_sac' => '84716050',
+                'gst_percentage' => 18,
+                'taxable_value' => 3090.68,
+                'tax_total' => 556.32,
+                'line_total' => 3647,
+                'shipping_line_kind' => 'physical_merchandise',
+                'requires_shipping' => true,
+                'model_id' => 91001,
             ]],
         ];
     }

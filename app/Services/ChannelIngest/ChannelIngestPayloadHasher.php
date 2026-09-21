@@ -13,6 +13,8 @@ use App\Services\HardwareFulfilment\HardwareHandoffTenderContract;
  *
  * Service channels keep the historical hash so existing service retries stay 200.
  * radiumbox_com and rdservice.in RIN hardware_direct_buy use the hardware hash.
+ * rdservice.in RDP hardware_direct_buy ingested before RDP used the hardware hash
+ * keep the legacy service hash on replay via matchesStored() only.
  */
 class ChannelIngestPayloadHasher
 {
@@ -55,7 +57,34 @@ class ChannelIngestPayloadHasher
 
     public function matchesStored(string $stored, ChannelOrderIngestRequest $request): bool
     {
-        return hash_equals($stored, $this->hash($request));
+        if (hash_equals($stored, $this->hash($request))) {
+            return true;
+        }
+
+        if (! $this->usesLegacyPreHardwareRdpServiceHash($request)) {
+            return false;
+        }
+
+        return hash_equals($stored, $this->legacyPreHardwareRdpServiceHash($request));
+    }
+
+    /**
+     * Pre-v4.0.95 RDP hardware_direct_buy orders were hashed with serviceCanonical()
+     * because RDP was not yet classified as hardware ingest. Replay must accept that
+     * exact legacy hash without weakening verification for RIN, Box, or service orders.
+     */
+    public function legacyPreHardwareRdpServiceHash(ChannelOrderIngestRequest $request): string
+    {
+        return hash('sha256', (string) json_encode($this->serviceCanonical($request)));
+    }
+
+    private function usesLegacyPreHardwareRdpServiceHash(ChannelOrderIngestRequest $request): bool
+    {
+        if (! HardwareFulfilmentEligibility::isRdServiceInHardwareRequest($request)) {
+            return false;
+        }
+
+        return (bool) preg_match('/^RDP\d+$/i', trim($request->sourceId));
     }
 
     /**

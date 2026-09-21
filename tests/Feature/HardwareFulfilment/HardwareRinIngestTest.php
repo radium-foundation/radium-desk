@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\HardwareFulfilment;
 
+use App\Enums\CommerceOrderStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
+use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentSerial;
 use App\Models\InventoryProduct;
@@ -13,6 +15,8 @@ use App\Models\OutboxEvent;
 use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
+use App\Services\ChannelIngest\ChannelIngestPayloadHasher;
+use App\Services\ChannelIngest\ChannelIngestPayloadValidator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -111,6 +115,92 @@ class HardwareRinIngestTest extends TestCase
 
         $this->assertSame(0, CommerceOrder::query()->count());
         $this->assertSame(0, HardwareFulfilment::query()->count());
+    }
+
+    public function test_legacy_rdp_stored_service_hash_replay_is_duplicate_and_opens_fulfilment(): void
+    {
+        $this->mapRinSkus();
+        $payload = $this->rinPayload('RDP29', catalog: 'mantra-fingerprint');
+        $payload['payment_method'] = 'cashfree';
+        $payload['payment_reference'] = 'RDP29';
+        $payload['customer'] = [
+            'name' => 'Pradyut Dey',
+            'phone' => '9679441406',
+            'email' => 'pradyutd104@gmail.com',
+        ];
+        $payload['billing_address'] = $payload['shipping_address'] = [
+            'line1' => 'Pipursai, Pipursai',
+            'city' => 'Kharagpur',
+            'state' => 'West Bengal',
+            'pincode' => '721445',
+        ];
+        $payload['lines'][0]['unit_price'] = 3647;
+        $payload['lines'][0]['taxable_value'] = 3090.68;
+        $payload['lines'][0]['tax_total'] = 556.32;
+        $payload['lines'][0]['line_total'] = 3647;
+        $payload['ordered_at'] = '2026-09-18 18:17:48';
+
+        $validator = app(ChannelIngestPayloadValidator::class);
+        $hasher = app(ChannelIngestPayloadHasher::class);
+        $request = $validator->validate($payload, StatutoryInvoiceChannel::RdServiceIn);
+        $legacyHash = $hasher->legacyPreHardwareRdpServiceHash($request);
+
+        $order = CommerceOrder::query()->create([
+            'order_no' => 'CO-005318',
+            'channel' => StatutoryInvoiceChannel::RdServiceIn,
+            'source_type' => 'commerce_order',
+            'source_id' => 'RDP29',
+            'source_order_id' => 'RDP29',
+            'idempotency_key' => 'statutory:rdservice_in:commerce_order:RDP29',
+            'payload_hash' => $legacyHash,
+            'status' => CommerceOrderStatus::Validated,
+            'invoice_eligible' => false,
+            'payment_status' => 'paid',
+            'payment_provider' => 'cashfree',
+            'payment_reference' => 'RDP29',
+            'payment_method' => 'cashfree',
+            'currency' => 'INR',
+            'customer_name' => 'Pradyut Dey',
+            'customer_phone' => '9679441406',
+            'customer_email' => 'pradyutd104@gmail.com',
+            'billing_address_structured' => $payload['billing_address'],
+            'shipping_address_structured' => $payload['shipping_address'],
+            'place_of_supply_state' => 'West Bengal',
+            'taxable_value' => 3090.68,
+            'tax_total' => 556.32,
+            'order_value' => 3647,
+            'metadata' => $payload['metadata'],
+            'ordered_at' => '2026-09-18 18:17:48',
+            'received_at' => '2026-09-18 18:25:02',
+        ]);
+        CommerceOrderItem::query()->create([
+            'commerce_order_id' => $order->id,
+            'line_no' => 1,
+            'sku' => 'RBMFS110L1',
+            'shipping_line_kind' => 'physical_merchandise',
+            'requires_shipping' => true,
+            'model_id' => 91001,
+            'catalog_sku' => 'mantra-fingerprint',
+            'description' => 'MFS110 L1 (STQC) Fingerprint Scanner',
+            'hsn_sac' => '84716050',
+            'qty' => 1,
+            'unit_price' => 3647,
+            'gst_percentage' => 18,
+            'taxable_value' => 3090.68,
+            'tax_total' => 556.32,
+            'line_total' => 3647,
+        ]);
+
+        $this->assertSame(0, HardwareFulfilment::query()->count());
+
+        $this->signedPost($payload, StatutoryInvoiceChannel::RdServiceIn, self::SERVICE_SECRET)
+            ->assertOk()
+            ->assertJsonPath('duplicate', true);
+
+        $this->assertSame(1, CommerceOrder::query()->count());
+        $this->assertSame(1, HardwareFulfilment::query()->count());
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, HardwareFulfilment::query()->firstOrFail()->state);
+        $this->assertNoFulfilmentMutations();
     }
 
     public function test_rin_retry_is_idempotent(): void
