@@ -24,6 +24,27 @@ return [
     'ignored_email_days' => max(1, (int) env('RETENTION_IGNORED_EMAIL_DAYS', 90)),
 
     /*
+    | Rolling ignored unknown_customer email retention (database:retention-prune-unknown-customer).
+    | Dry-run by default. Execute requires separate Owner approval.
+    | Uses received_at (not created_at) with unknown_customer_days cutoff.
+    | Only status=ignored AND ignore_reason=unknown_customer rows are eligible.
+    */
+    'unknown_customer_days' => max(1, (int) env('RETENTION_UNKNOWN_CUSTOMER_DAYS', 30)),
+
+    'unknown_customer' => [
+        'prune_batch_size' => max(1, (int) env('RETENTION_UNKNOWN_CUSTOMER_PRUNE_BATCH_SIZE', 10000)),
+        'sample_id_limit' => max(1, (int) env('RETENTION_UNKNOWN_CUSTOMER_SAMPLE_ID_LIMIT', 10)),
+        'manifest_directory' => env(
+            'RETENTION_UNKNOWN_CUSTOMER_MANIFEST_DIRECTORY',
+            '/var/backups/radium-desk/ignored-email-retention',
+        ),
+        'baseline_candidate_count' => is_numeric(env('RETENTION_UNKNOWN_CUSTOMER_BASELINE_COUNT'))
+            ? (int) env('RETENTION_UNKNOWN_CUSTOMER_BASELINE_COUNT')
+            : 162014,
+        'baseline_variance_percent' => max(0, (int) env('RETENTION_UNKNOWN_CUSTOMER_BASELINE_VARIANCE_PERCENT', 20)),
+    ],
+
+    /*
     | Rolling ignored incoming email retention (database:retention-prune-ignored-email).
     | Dry-run by default. Execute requires separate Owner approval.
     | Uses received_at (not created_at) with ignored_email_days cutoff.
