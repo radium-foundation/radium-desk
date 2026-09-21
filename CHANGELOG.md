@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.96 — 2026-09-21 — RDP legacy payload-hash replay compatibility
+
+- Accept the pre-v4.0.95 **service** canonical payload hash on channel-ingest replay for qualifying rdservice.in **RDP** `hardware_direct_buy` orders whose stored hash predates RDP hardware classification.
+- `matchesStored()` still prefers the current hardware canonical hash; legacy fallback is limited to `^RDP\d+$` and exact service-hash equality.
+- RIN, Box, service, and tampered payloads remain unchanged. No database migrations. Vite assets built at deploy time.
+- Rollback target: v4.0.95 / `31cef0d2`.
+
 ## 4.0.95 — 2026-09-21 — RDP hardware fulfilment eligibility
 
 - Allow paid rdservice.in `hardware_direct_buy` **RDP** orders to open Hardware Fulfilment on channel ingest, using the same RdService.in guardrails as **RIN** (`hardware_direct_buy` metadata, physical merchandise, fail-closed ingest contract).
