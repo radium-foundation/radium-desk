@@ -152,7 +152,7 @@ class PurchaseOrderController extends Controller
 
         $this->purchaseOrders->send($purchaseOrder, auth()->user());
 
-        return back()->with('status', 'Purchase order sent.');
+        return back()->with('status', 'Purchase order released for receiving.');
     }
 
     public function cancel(PurchaseOrder $purchaseOrder): RedirectResponse

@@ -2,6 +2,8 @@
 
 namespace App\Support\OperationalReference;
 
+use App\Services\StatutoryInvoice\StatutoryFinancialYear;
+
 /**
  * Parsing rules for independent operational reference series.
  *
@@ -86,5 +88,42 @@ final class OperationalReferenceParser
     public static function isLegacyProductPosReference(string $reference): bool
     {
         return preg_match('/^POS-0+\d+$/', $reference) === 1;
+    }
+
+    /**
+     * New purchase order format: PO-{FY code}{serial} (e.g. PO-671 for FY 2026-27).
+     * Legacy PO-YYYY-NNNNN and PO-XX-NNN formats are ignored.
+     */
+    public static function parsePurchaseOrderOperationalValue(string $reference, ?StatutoryFinancialYear $financialYear = null): ?int
+    {
+        if (self::isLegacyPurchaseOrderReference($reference)) {
+            return null;
+        }
+
+        if (preg_match('/^PO-(\d+)$/', $reference, $matches) !== 1) {
+            return null;
+        }
+
+        $value = (int) $matches[1];
+        $financialYear ??= StatutoryFinancialYear::containing(now());
+        $fyCode = $financialYear->code();
+        $floor = (int) ($fyCode.'1');
+
+        if ($value < $floor || ! str_starts_with((string) $value, $fyCode)) {
+            return null;
+        }
+
+        $serial = (int) substr((string) $value, strlen($fyCode));
+        if ($serial < 1) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    public static function isLegacyPurchaseOrderReference(string $reference): bool
+    {
+        return preg_match('/^PO-\d{4}-\d+$/', $reference) === 1
+            || preg_match('/^PO-\d{2}-\d+$/', $reference) === 1;
     }
 }

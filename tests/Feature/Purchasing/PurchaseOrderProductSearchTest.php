@@ -275,6 +275,7 @@ class PurchaseOrderProductSearchTest extends TestCase
         $po = PurchaseOrder::query()->firstOrFail();
         $response->assertRedirect(route('purchasing.purchase-orders.show', $po));
 
+        $this->assertSame('PO-671', $po->po_number);
         $this->assertDatabaseCount('purchase_orders', 1);
         $this->assertDatabaseCount('purchase_order_items', 2);
 
