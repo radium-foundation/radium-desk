@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.0.122 — 2026-09-22 — CA Monthly Report invoice-level register
+
+- Redesign CA Monthly Report export from 27-column line-grain dump to a 21-column invoice-level accounting register with expandable XLSX line detail (9 detail columns).
+- Parent rows use authoritative `statutory_invoices` totals (taxable, shipping, IGST/CGST/SGST, short/excess, invoice total); CSV exports parent rows only.
+- Branch resolution: invoice branch → inventory sale branch → commerce `branch_code` (no GSTIN/state inference).
+- Payment mode resolution: hardware evidence → support order → commerce → allocation → invoice snapshot; provider aliases (e.g. cashfree, payu) filtered.
+- Exclude zero-value included support lines from expandable detail; remove Status and Document Type from export/preview.
+- XLSX workbook: title/period rows, frozen header, AutoFilter, outline-grouped hidden child rows, summary totals.
+- Regression: `CaMonthlyReportInvoiceRegisterTest` + updated `CaMonthlyReportTest` / `CaMonthlyReportExportTest` (70 CA report tests). Traceability: `radiumbox.com-P-22-09-09`, `RadiumDesk-P-22-09-28`. **No database migration.**
+- Rollback target: v4.0.121 / `dd83acc6`.
+
 ## 4.0.121 — 2026-09-22 — RadiumBox wallet refund response parsing (REF-67330)
 
 - Fix `RadiumBoxWalletRefundClient` to parse verified Box wallet-refunds API response variants: numeric `wallet_reference`, `txnid` alias, and `RD{id}` derivation when `wallet_transaction_id` is present.
