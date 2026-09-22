@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.118 — 2026-09-22 — Invoice PDF Annexure packing and service density
+
+- Pack grouped Annexure A serials across product/model boundaries on the same page when vertical capacity remains, instead of starting a new Annexure page for each model group.
+- Flow the statutory closing block after sparse invoice content for compact single-line service invoices, while preserving bottom-anchored footer behavior for dense invoices.
+- Presentation-only PDF changes; no statutory snapshot, tax, e-invoice payload, IRN, or serial allocation mutation. Regression: `StatutoryInvoicePdfPaginationTest` (88 targeted statutory PDF suites).
+- Rollback target: v4.0.117 / `7f4acbd3` (application only).
+
 ## 4.0.117 — 2026-09-22 — Invoice PDF pagination: statutory footer on page 1
 
 - Keep totals, payment details, e-Invoice verification (IRN/QR), and authorized signatory on the main invoice page instead of pushing them to a closing-only continuation page when serial preview content is present.
