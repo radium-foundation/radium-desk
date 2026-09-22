@@ -72,6 +72,12 @@ class SimplePdfRenderer
 
     private const SERIAL_LINE_HEIGHT = 8.0;
 
+    /** Clearance between a row separator and the row text drawn below it. */
+    private const TABLE_ROW_RULE_GAP = 10.0;
+
+    /** Padding below the last line of row content before the next separator. */
+    private const TABLE_ROW_BOTTOM_PAD = 8.0;
+
     private const ANNEXURE_FIRST_PAGE_GRID_Y = 696.0;
 
     private const ANNEXURE_CONTINUED_PAGE_GRID_Y = 754.0;
@@ -283,7 +289,7 @@ class SimplePdfRenderer
                 }
             }
 
-            $ops[] = $this->tableRow($visible, $y);
+            $ops[] = $this->tableRow($visible, $y, $drawn > 0);
             $y -= $this->rowHeight($visible);
             $drawn++;
             array_shift($rows);
@@ -548,7 +554,7 @@ class SimplePdfRenderer
         $bottomY = $topY - $blockHeight;
 
         $ops[] = $this->card(self::MARGIN, $bottomY, $right - self::MARGIN, $blockHeight);
-        $ty = $topY - 12;
+        $ty = $topY - 14;
         $ops[] = $this->text(self::MARGIN + 8, $ty, 'e-Invoice Verification', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
         $ty -= 12;
         if ($hasQr) {
@@ -714,7 +720,7 @@ class SimplePdfRenderer
     {
         $ops = [];
         $ops[] = $this->hairline(self::MARGIN, $y + 6, self::CONTENT_RIGHT, 0.45);
-        $ops[] = $this->hairline(self::MARGIN, $y - 8, self::CONTENT_RIGHT, 0.45);
+        $ops[] = $this->hairline(self::MARGIN, $y - 10, self::CONTENT_RIGHT, 0.45);
         $ops[] = $this->text(self::COL_NO, $y, '#', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
         $ops[] = $this->text(self::COL_PRODUCT, $y, 'Product / Service', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
         $ops[] = $this->text(self::COL_HSN, $y, 'HSN/SAC', 6, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
@@ -732,9 +738,12 @@ class SimplePdfRenderer
     /**
      * @param  array<string, mixed>  $row
      */
-    private function tableRow(array $row, float $y): string
+    private function tableRow(array $row, float $y, bool $withTopRule = false): string
     {
         $ops = [];
+        if ($withTopRule) {
+            $ops[] = $this->hairline(self::MARGIN, $y + self::TABLE_ROW_RULE_GAP, self::CONTENT_RIGHT, 0.88);
+        }
         if (($row['kind'] ?? 'item') === 'serials') {
             $serialY = $y;
             $label = trim((string) ($row['serialLabel'] ?? ''));
@@ -746,7 +755,6 @@ class SimplePdfRenderer
                 $ops[] = $this->text(self::COL_PRODUCT, $serialY, $line, 7, false, 0.32, 0.32, 0.32);
                 $serialY -= 9;
             }
-            $ops[] = $this->hairline(self::MARGIN, $y - $this->rowHeight($row) + 4, self::CONTENT_RIGHT, 0.88);
 
             return implode('', $ops);
         }
@@ -780,8 +788,6 @@ class SimplePdfRenderer
             }
         }
 
-        $ops[] = $this->hairline(self::MARGIN, $y - $this->rowHeight($row) + 4, self::CONTENT_RIGHT, 0.88);
-
         return implode('', $ops);
     }
 
@@ -793,7 +799,7 @@ class SimplePdfRenderer
         if (($row['kind'] ?? 'item') === 'serials') {
             $label = trim((string) ($row['serialLabel'] ?? ''));
 
-            return ($label !== '' ? 14 : 4) + (9 * count($row['serialLines'])) + 8;
+            return ($label !== '' ? 14 : 4) + (9 * count($row['serialLines'])) + self::TABLE_ROW_BOTTOM_PAD;
         }
 
         $desc = max(1, count($row['descLines']));
@@ -801,7 +807,7 @@ class SimplePdfRenderer
         if ($row['serialLines'] !== []) {
             $height += 12 + (9 * count($row['serialLines']));
         } else {
-            $height += 6;
+            $height += self::TABLE_ROW_BOTTOM_PAD;
         }
 
         return $height;
@@ -928,7 +934,7 @@ class SimplePdfRenderer
         $height += 12 * count($pairs);
         $height += 18;
         if ($this->hasPayment($payload)) {
-            $height += 36;
+            $height += 40;
         }
         $irnH = $payload->hasIssuedIrn() ? max(76.0, self::QR_SIZE + 18) : 12.0;
         $height += max($irnH, 58.0);
@@ -962,7 +968,7 @@ class SimplePdfRenderer
         $pairY = $y - 14;
         foreach ($pairs as [$label, $value, $bold]) {
             if ($bold) {
-                $ops[] = $this->hairline($rightX + 6, $pairY + 8, self::CONTENT_RIGHT - 6, 0.45);
+                $ops[] = $this->hairline($rightX + 6, $pairY + 10, self::CONTENT_RIGHT - 6, 0.45);
                 $ops[] = $this->text($rightX + 8, $pairY, $label, 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
                 $ops[] = $this->rightText(self::CONTENT_RIGHT - 8, $pairY, $value, 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
                 $pairY -= 16;
@@ -978,15 +984,15 @@ class SimplePdfRenderer
 
         if ($this->hasPayment($payload)) {
             $cols = $this->paymentColumns($payload);
-            $payH = 30.0;
+            $payH = 34.0;
             $payBottom = $y - $payH;
             $ops[] = $this->card(self::MARGIN, $payBottom, self::CONTENT_RIGHT - self::MARGIN, $payH);
-            $ops[] = $this->text(self::MARGIN + 8, $y - 11, 'Payment Details', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+            $ops[] = $this->text(self::MARGIN + 8, $y - 10, 'Payment Details', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
             $colW = (self::CONTENT_RIGHT - self::MARGIN - 16) / max(count($cols), 1);
             $colX = self::MARGIN + 8;
             foreach ($cols as [$label, $value]) {
-                $ops[] = $this->text($colX, $y - 21, $label, 6, false, 0.42, 0.42, 0.42);
-                $ops[] = $this->text($colX, $y - 31, $this->clip($value, $colW - 8, 8), 8, true, 0.14, 0.14, 0.14);
+                $ops[] = $this->text($colX, $y - 20, $label, 6, false, 0.42, 0.42, 0.42);
+                $ops[] = $this->text($colX, $y - 30, $this->clip($value, $colW - 8, 8), 8, true, 0.14, 0.14, 0.14);
                 $colX += $colW;
             }
             $y = $payBottom - 10;
@@ -1303,9 +1309,9 @@ class SimplePdfRenderer
 
         $rows = (int) ceil(max(1, $previewCount) / self::SERIAL_COLUMNS);
         $rowHeight = max(self::SERIAL_ROW_HEIGHT, (2 * self::SERIAL_LINE_HEIGHT) + 2.0);
-        $height = 16.0 + (count($groups) * 12.0) + ($rows * $rowHeight) + 12.0;
+        $height = 18.0 + (count($groups) * 14.0) + ($rows * $rowHeight) + 14.0;
         if ($hasAnnexureRemainder) {
-            $height += 11.0;
+            $height += 13.0;
         }
 
         return $height;
@@ -1453,9 +1459,9 @@ class SimplePdfRenderer
 
         $rows = (int) ceil($count / self::SERIAL_COLUMNS);
         $rowHeight = max(self::SERIAL_ROW_HEIGHT, (2 * self::SERIAL_LINE_HEIGHT) + 2.0);
-        $height = 16.0 + ($rows * $rowHeight) + 12.0;
+        $height = 18.0 + ($rows * $rowHeight) + 14.0;
         if ($hasAnnexureRemainder) {
-            $height += 11.0;
+            $height += 13.0;
         }
 
         return $height;
@@ -1476,16 +1482,16 @@ class SimplePdfRenderer
         }
 
         $height = $this->serialSummaryHeight($payload);
-        $ops[] = $this->card(self::MARGIN, $y - $height + 12, self::CONTENT_RIGHT - self::MARGIN, $height - 4);
-        $ops[] = $this->text(self::MARGIN + 8, $y, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->card(self::MARGIN, $y - $height + 10, self::CONTENT_RIGHT - self::MARGIN, $height - 2);
+        $ops[] = $this->text(self::MARGIN + 8, $y - 2, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
         if ($this->hasSerialAnnexure($payload)) {
-            $ops[] = $this->text(self::MARGIN + 92, $y, '(Complete list in Annexure A)', 7, false, 0.4, 0.4, 0.4);
+            $ops[] = $this->text(self::MARGIN + 92, $y - 2, '(Complete list in Annexure A)', 7, false, 0.4, 0.4, 0.4);
         }
-        $y -= 12;
+        $y -= 14;
         $y = $this->numberedSerialGrid($ops, $first, 1, $y);
         if ($this->hasSerialAnnexure($payload)) {
-            $ops[] = $this->text(self::MARGIN + 8, $y, 'Complete serial-number list provided in Annexure A.', 7, false, 0.32, 0.32, 0.32);
-            $y -= 11;
+            $ops[] = $this->text(self::MARGIN + 8, $y - 2, 'Complete serial-number list provided in Annexure A.', 7, false, 0.32, 0.32, 0.32);
+            $y -= 13;
         }
 
         return $y - 10;
@@ -1502,12 +1508,12 @@ class SimplePdfRenderer
         }
 
         $height = $this->serialSummaryHeight($payload);
-        $ops[] = $this->card(self::MARGIN, $y - $height + 12, self::CONTENT_RIGHT - self::MARGIN, $height - 4);
-        $ops[] = $this->text(self::MARGIN + 8, $y, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->card(self::MARGIN, $y - $height + 10, self::CONTENT_RIGHT - self::MARGIN, $height - 2);
+        $ops[] = $this->text(self::MARGIN + 8, $y - 2, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
         if ($this->hasSerialAnnexure($payload)) {
-            $ops[] = $this->text(self::MARGIN + 92, $y, '(Complete list in Annexure A)', 7, false, 0.4, 0.4, 0.4);
+            $ops[] = $this->text(self::MARGIN + 92, $y - 2, '(Complete list in Annexure A)', 7, false, 0.4, 0.4, 0.4);
         }
-        $y -= 12;
+        $y -= 14;
 
         foreach ($groups as $group) {
             if ($group['serials'] === []) {
@@ -1524,14 +1530,14 @@ class SimplePdfRenderer
                 0.22,
                 0.22,
             );
-            $y -= 11;
+            $y -= 12;
             $y = $this->numberedSerialGrid($ops, $group['serials'], 1, $y);
-            $y -= 4;
+            $y -= 6;
         }
 
         if ($this->hasSerialAnnexure($payload)) {
-            $ops[] = $this->text(self::MARGIN + 8, $y, 'Complete serial-number list provided in Annexure A.', 7, false, 0.32, 0.32, 0.32);
-            $y -= 11;
+            $ops[] = $this->text(self::MARGIN + 8, $y - 2, 'Complete serial-number list provided in Annexure A.', 7, false, 0.32, 0.32, 0.32);
+            $y -= 13;
         }
 
         return $y - 10;
