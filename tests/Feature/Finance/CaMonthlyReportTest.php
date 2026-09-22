@@ -72,7 +72,7 @@ class CaMonthlyReportTest extends TestCase
             ->assertSee('CA Monthly Report')
             ->assertSee($invoice->invoice_number)
             ->assertSee('RD Service')
-            ->assertSee('Preflight')
+            ->assertSee('Preflight summary')
             ->assertSee('Tax invoice')
             ->assertDontSee('data-invoice-id=', false);
     }
@@ -718,6 +718,95 @@ class CaMonthlyReportTest extends TestCase
         $response->assertSee('CA Monthly Report');
         $response->assertSee(now()->startOfMonth()->toDateString(), false);
         $response->assertSee(now()->toDateString(), false);
+    }
+
+    public function test_page_presents_reporting_period_and_date_basis_prominently(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk()
+            ->assertSee('1 Sep 2026 – 21 Sep 2026', false)
+            ->assertSee('Date of Invoice', false)
+            ->assertSee('statutory_invoices.issued_at', false)
+            ->assertSee('Reporting period', false);
+    }
+
+    public function test_preflight_summary_and_full_metrics_sections_render(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk()
+            ->assertSee('Preflight summary', false)
+            ->assertSee('Full preflight metrics', false)
+            ->assertSee('Statutory invoices:', false)
+            ->assertSee('Lines not reconciling:', false)
+            ->assertSee('Informational', false);
+    }
+
+    public function test_export_report_controls_include_format_email_and_user_facing_labels(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk()
+            ->assertSee('Export report', false)
+            ->assertSee('Export Report', false)
+            ->assertSee('Excel (.xlsx)', false)
+            ->assertSee('CSV (.csv)', false)
+            ->assertSee('Email report (optional)', false)
+            ->assertSee('Download now', false)
+            ->assertDontSee('Queue Export / Email', false);
+    }
+
+    public function test_recent_exports_section_renders_for_user_exports(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true, 'email' => 'finance-ui@example.com']);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        config(['ca_monthly_report.sync_max_lines' => 2]);
+        $this->actingAs($user)
+            ->post(route('finance.reports.ca-monthly.exports.store'), array_merge(self::RANGE, [
+                'format' => 'csv',
+            ]))
+            ->assertRedirect();
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk()
+            ->assertSee('Recent exports', false)
+            ->assertSee('2026-09-01 to 2026-09-21', false)
+            ->assertSee('CSV', false);
+    }
+
+    public function test_invoice_preview_section_renders_with_table_headers(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk()
+            ->assertSee('Invoice preview', false)
+            ->assertSee('Invoice No.', false)
+            ->assertSee('Date of Invoice', false);
     }
 
     public function test_agent_cannot_access_ca_monthly_report(): void

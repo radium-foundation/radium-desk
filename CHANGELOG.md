@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.107 — 2026-09-22 — CA Monthly Report presentation refresh
+
+- Refine Finance CA Monthly Report UI: prominent reporting period header, compact grouped preflight summary with expandable full metrics, unified Export Report workflow, improved recent exports and invoice preview layout. Presentation only; no export logic, permissions, or schema changes.
+- Rollback target: v4.0.106 / `f8fce220` (application only).
+
 ## 4.0.106 — 2026-09-22 — CA Monthly Report page memory hotfix
 
 - Fix production HTTP 500 on Finance CA Monthly Report index for large date ranges: preflight now processes invoices in bounded chunks instead of loading every line into memory at once.
