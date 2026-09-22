@@ -27,6 +27,10 @@
             'label' => 'Sell Services',
             'url' => route('service-pos.counter.create'),
         ];
+        $tabs['service_sales'] = [
+            'label' => 'Service Sales',
+            'url' => route('service-pos.sales.index'),
+        ];
     }
 
     if (PurchasingAccess::allows($user)) {

@@ -20,8 +20,10 @@ class ServiceOrder extends Model
         'buyer_email',
         'buyer_gstin',
         'billing_address',
+        'billing_address_structured',
         'billing_state',
         'place_of_supply_state',
+        'payment_reference',
         'status',
         'payment_status',
         'subtotal',
@@ -44,6 +46,7 @@ class ServiceOrder extends Model
             'discount' => 'decimal:2',
             'total' => 'decimal:2',
             'invoiced_at' => 'datetime',
+            'billing_address_structured' => 'array',
         ];
     }
 

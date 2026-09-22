@@ -20,8 +20,10 @@ class ServiceQuote extends Model
         'buyer_email',
         'buyer_gstin',
         'billing_address',
+        'billing_address_structured',
         'billing_state',
         'place_of_supply_state',
+        'payment_reference',
         'subtotal',
         'tax_total',
         'discount',
@@ -41,6 +43,7 @@ class ServiceQuote extends Model
             'discount' => 'decimal:2',
             'total' => 'decimal:2',
             'valid_until' => 'datetime',
+            'billing_address_structured' => 'array',
         ];
     }
 

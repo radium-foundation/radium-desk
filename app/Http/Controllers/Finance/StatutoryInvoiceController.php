@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Finance;
 
+use App\Enums\EInvoiceRecordStatus;
 use App\Enums\StatutoryInvoiceDocumentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\StatutoryInvoice;
@@ -9,6 +10,8 @@ use App\ReadModels\Finance\StatutoryInvoiceRegisterReadModel;
 use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
 use App\Services\StatutoryInvoice\StatutoryDocumentService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
+use App\Services\StatutoryInvoice\StatutoryInvoiceService;
+use Database\Seeders\RolePermissionSeeder;
 use App\Support\Finance\CsvDownload;
 use App\Support\Finance\FinanceAccess;
 use App\Support\Finance\ReportPeriod;
@@ -64,11 +67,34 @@ class StatutoryInvoiceController extends Controller
 
     public function show(StatutoryInvoice $invoice): View
     {
-        $invoice->load(['items', 'branch', 'inventorySale', 'issuedBy', 'cancelledBy', 'document']);
+        $invoice->load(['items', 'branch', 'inventorySale', 'issuedBy', 'cancelledBy', 'document', 'eInvoiceRecord']);
+
+        $eInvoiceRecord = $invoice->eInvoiceRecord;
+        $canReevaluateEinvoice = FinanceAccess::allowsInvoiceIssue(request()->user())
+            && request()->user()?->can(RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE)
+            && $eInvoiceRecord !== null
+            && $eInvoiceRecord->status === EInvoiceRecordStatus::Skipped->value
+            && ! $eInvoiceRecord->hasIssuedIrn();
 
         return view('finance.invoices.show', [
             'invoice' => $invoice,
+            'canReevaluateEinvoice' => $canReevaluateEinvoice,
         ]);
+    }
+
+    public function reevaluateEinvoice(Request $request, StatutoryInvoice $invoice): RedirectResponse
+    {
+        abort_unless(
+            FinanceAccess::allowsInvoiceIssue($request->user())
+                && $request->user()?->can(RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE),
+            403,
+        );
+
+        app(StatutoryInvoiceService::class)->reevaluateEinvoiceEligibility($invoice->fresh(['items']));
+
+        return redirect()
+            ->route('finance.invoices.show', $invoice)
+            ->with('status', 'E-invoice eligibility re-evaluated. This does not submit to the IRP automatically.');
     }
 
     public function download(StatutoryInvoice $invoice): Response

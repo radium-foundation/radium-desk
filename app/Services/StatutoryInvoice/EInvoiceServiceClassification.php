@@ -17,7 +17,9 @@ final class EInvoiceServiceClassification
         $hsn = is_string($item->hsn_sac) ? trim($item->hsn_sac) : '';
         $sku = is_string($item->sku) ? trim($item->sku) : '';
 
-        if ($channel === StatutoryInvoiceChannel::RdServiceIn || $channel === StatutoryInvoiceChannel::RdServiceNet) {
+        if ($channel === StatutoryInvoiceChannel::RdServiceIn
+            || $channel === StatutoryInvoiceChannel::RdServiceNet
+            || $channel === StatutoryInvoiceChannel::DeskService) {
             return $this->matchesConfiguredService($channel->value, $hsn, $sku) ? 'Y' : null;
         }
 

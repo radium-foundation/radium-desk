@@ -103,6 +103,7 @@ use App\Http\Controllers\ServiceCaseAssignmentController;
 use App\Http\Controllers\ServiceCaseStatusController;
 use App\Http\Controllers\ServicePos\CounterController as ServicePosCounterController;
 use App\Http\Controllers\ServicePos\QuoteController as ServicePosQuoteController;
+use App\Http\Controllers\ServicePos\SaleController as ServicePosSaleController;
 use App\Http\Controllers\ServicePos\ServiceOrderController as ServicePosOrderController;
 use App\Http\Controllers\SettingProductController;
 use App\Http\Controllers\SettingsController;
@@ -443,6 +444,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('invoices/service-orders/{serviceOrder}/issue', [StatutoryInvoiceIssueController::class, 'issueServiceOrder'])->name('invoices.service-orders.issue');
         Route::get('invoices', [StatutoryInvoiceController::class, 'index'])->name('invoices.index');
         Route::get('invoices/{invoice}/pdf', [StatutoryInvoiceController::class, 'download'])->name('invoices.pdf');
+        Route::post('invoices/{invoice}/reevaluate-einvoice', [StatutoryInvoiceController::class, 'reevaluateEinvoice'])->name('invoices.reevaluate-einvoice');
         Route::get('invoices/{invoice}', [StatutoryInvoiceController::class, 'show'])->name('invoices.show');
 
         Route::prefix('settings')->name('settings.')->group(function () {
@@ -604,6 +606,7 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::prefix('service-pos')->name('service-pos.')->group(function () {
         Route::redirect('/', '/service-pos/counter');
+        Route::get('sales', [ServicePosSaleController::class, 'index'])->name('sales.index');
         Route::get('counter', [ServicePosCounterController::class, 'create'])->name('counter.create');
         Route::get('items/search', [ServicePosCounterController::class, 'searchItems'])->name('items.search');
         Route::post('quotes', [ServicePosCounterController::class, 'storeQuote'])->name('quotes.store');

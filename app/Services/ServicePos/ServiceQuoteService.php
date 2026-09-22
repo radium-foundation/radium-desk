@@ -44,6 +44,8 @@ class ServiceQuoteService
         ?string $buyerGstin = null,
         float $headerDiscount = 0,
         ?string $idempotencyKey = null,
+        ?array $billingAddressStructured = null,
+        ?string $paymentReference = null,
     ): ServiceQuote {
         if ($lines === []) {
             throw ValidationException::withMessages([
@@ -73,6 +75,8 @@ class ServiceQuoteService
             $buyerGstin,
             $headerDiscount,
             $idempotencyKey,
+            $billingAddressStructured,
+            $paymentReference,
         ): ServiceQuote {
             $quote = ServiceQuote::query()->create([
                 'quote_number' => 'SQ-TMP-'.strtoupper(bin2hex(random_bytes(4))),
@@ -84,8 +88,10 @@ class ServiceQuoteService
                 'buyer_email' => $customer->email,
                 'buyer_gstin' => BuyerGstin::normalize($buyerGstin ?? $customer->gstin),
                 'billing_address' => $billingAddress,
+                'billing_address_structured' => $billingAddressStructured,
                 'billing_state' => $billingState,
                 'place_of_supply_state' => $placeOfSupplyState ?? $billingState,
+                'payment_reference' => $paymentReference,
                 'idempotency_key' => $idempotencyKey,
                 'created_by' => $actor->id,
             ]);
@@ -169,8 +175,10 @@ class ServiceQuoteService
                 'buyer_email' => $quote->buyer_email,
                 'buyer_gstin' => $quote->buyer_gstin,
                 'billing_address' => $quote->billing_address,
+                'billing_address_structured' => $quote->billing_address_structured,
                 'billing_state' => $quote->billing_state,
                 'place_of_supply_state' => $quote->place_of_supply_state,
+                'payment_reference' => $quote->payment_reference,
                 'status' => ServiceOrderStatus::Open,
                 'payment_status' => ServiceOrderPaymentStatus::Unpaid,
                 'subtotal' => $quote->subtotal,

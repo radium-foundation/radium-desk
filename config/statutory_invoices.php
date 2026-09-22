@@ -205,6 +205,21 @@ return [
             ],
             'match_amcid' => true,
         ],
+        'desk_freight_auction' => [
+            'sac' => '998311',
+            'is_servc' => 'Y',
+            'uqc' => 'OTH',
+            'channels' => [
+                'desk_service',
+            ],
+            'skus' => [
+                'RBSMARKETS',
+            ],
+            'description_needles' => [
+                'secondary freight reverse auction',
+                'freight reverse auction',
+            ],
+        ],
     ],
 
 ];
