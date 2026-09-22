@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.0.114 — 2026-09-22 — Service POS e-invoice parity
+
+- Add structured service billing (city, PIN, JSON snapshot) on service quotes/orders, propagated to statutory invoice minting for B2B IRP readiness.
+- Capture buyer PO/reference via existing `payment_reference` (quote → order → statutory invoice).
+- Classify `desk_service` SAC 998311 for e-invoice (`UQC=OTH`, `is_servc=Y`) using existing statutory classification; reuse Product POS e-invoice pipeline.
+- Add Service Sales history at `/service-pos/sales` (commerce workspace navigation).
+- Add finance action to re-evaluate skipped e-invoice records without auto-submitting to IRP.
+- Migration: `billing_address_structured` and `payment_reference` on `service_quotes` / `service_orders`. Regression: `ServicePosEinvoiceParityTest`.
+- Rollback target: v4.0.113 / `489940ee` (application); schema rollback drops new nullable columns only.
+
 ## 4.0.113 — 2026-09-22 — Purchase Order detail tab navigation
 
 - Fix non-functional PO detail tabs (Products, Receiving, Payments, Activity): replace disabled placeholder spans with Bootstrap 5 tab panes on the existing show page.
