@@ -57,6 +57,40 @@ class HardwareSkuMapService
         }
     }
 
+    /**
+     * Preload channel SKU maps for operational queue scans.
+     *
+     * @param  list<StatutoryInvoiceChannel|string>  $channels
+     */
+    public function warmResolvedProductsForChannels(array $channels): void
+    {
+        $channelValues = [];
+        foreach ($channels as $channel) {
+            $channelValues[] = $channel instanceof StatutoryInvoiceChannel ? $channel->value : (string) $channel;
+        }
+
+        $channelValues = array_values(array_unique(array_filter($channelValues)));
+        if ($channelValues === []) {
+            return;
+        }
+
+        ChannelSkuMap::query()
+            ->with('product')
+            ->whereIn('channel', $channelValues)
+            ->get()
+            ->each(function (ChannelSkuMap $map): void {
+                if ($map->product === null || ! $map->product->is_active) {
+                    return;
+                }
+
+                $channelValue = $map->channel instanceof StatutoryInvoiceChannel
+                    ? $map->channel->value
+                    : (string) $map->channel;
+
+                $this->resolvedProducts[$channelValue.'|'.(int) $map->model_id] = $map->product;
+            });
+    }
+
     private function requireMappedProduct(StatutoryInvoiceChannel|string $channel, ?int $modelId): InventoryProduct
     {
         $channelValue = $channel instanceof StatutoryInvoiceChannel ? $channel->value : $channel;

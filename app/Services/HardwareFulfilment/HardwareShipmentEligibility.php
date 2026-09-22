@@ -111,6 +111,150 @@ class HardwareShipmentEligibility
 
     public function inspect(HardwareFulfilment $fulfilment): HardwareShipmentReadiness
     {
+        return $this->inspectForOperationalQueue($fulfilment, fullShipmentInspect: true);
+    }
+
+    /**
+     * Read-only inspect for Hardware Operations work queue rows.
+     * Skips Shiprocket quote/courier machinery unless the row is still in
+     * pre-shipment create/quote states that require it.
+     */
+    public function inspectForOperationalQueue(
+        HardwareFulfilment $fulfilment,
+        bool $fullShipmentInspect = false,
+    ): HardwareShipmentReadiness {
+        if ($fulfilment->state === HardwareFulfilmentState::CancelledHistoricalDuplicate) {
+            return $this->cancelledHistoricalDuplicateReadiness($fulfilment);
+        }
+
+        if (! $fullShipmentInspect && $this->shouldUseOperationalQueueLightInspect($fulfilment)) {
+            return $this->operationalQueueLightInspect($fulfilment);
+        }
+
+        return $this->inspectFull($fulfilment);
+    }
+
+    private function shouldUseOperationalQueueLightInspect(HardwareFulfilment $fulfilment): bool
+    {
+        return match ($fulfilment->state) {
+            HardwareFulfilmentState::Ingested,
+            HardwareFulfilmentState::ReadyForFulfilment,
+            HardwareFulfilmentState::SerialsAllocated,
+            HardwareFulfilmentState::Shipped,
+            HardwareFulfilmentState::Synced,
+            HardwareFulfilmentState::AwbAssigned => true,
+            default => false,
+        };
+    }
+
+    private function operationalQueueLightInspect(HardwareFulfilment $fulfilment): HardwareShipmentReadiness
+    {
+        $fulfilment->loadMissing([
+            'commerceOrder.items',
+            'serials.inventorySerial.branch',
+            'fulfilmentBranch',
+            'shipment',
+            'statutoryInvoice',
+            'commerceOrder.statutoryInvoice',
+        ]);
+
+        $order = $fulfilment->commerceOrder;
+        $shipment = $this->existingShipment($fulfilment);
+        $alreadyCreated = $shipment !== null && $shipment->isBound();
+        $serials = $order === null ? [] : $this->allocatedSerials($fulfilment);
+        $stockCommitted = $order !== null
+            && app(HardwarePhysicalStockCommitment::class)->isStockCommitted($fulfilment, $order);
+        $invoice = $this->linkedInvoice($fulfilment, $order);
+        $blockers = [];
+
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $order)) {
+            $blockers[] = 'Frozen pending hardware orders cannot be shipped.';
+        }
+        if ($order === null) {
+            $blockers[] = 'Hardware fulfilment is missing its commerce order.';
+        } elseif (! $this->isPaid($fulfilment, $order)) {
+            $blockers[] = 'Payment not verified';
+        }
+        if (! $stockCommitted && ! $alreadyCreated && $serials === []) {
+            $blockers[] = 'Serial allocation required';
+        }
+        if (($invoice === null || ! filled($invoice->invoice_number)) && ! $alreadyCreated) {
+            $blockers[] = 'Invoice required';
+        }
+
+        $branch = $fulfilment->fulfilmentBranch;
+        $pickup = null;
+        if ($branch !== null && $branch->is_active && in_array($branch->code, ['DELHI-RETAIL', 'MUMBAI'], true)) {
+            try {
+                $pickup = $this->pickups->requireForBranch($branch);
+            } catch (ValidationException) {
+                $blockers[] = 'Pickup location is not configured';
+            }
+        } elseif ($serials !== []) {
+            $blockers[] = 'Pickup branch unknown';
+        }
+
+        $beforeLabel = $this->packageEvidence($fulfilment, HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel);
+        $labelApplied = $this->packageEvidence($fulfilment, HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied);
+        $pickupRequested = $shipment?->pickup_requested_at !== null
+            || ShiprocketTrackingNormalizer::pickupAdvancedOnShipment(
+                filled($shipment?->provider_track_normalized) ? (string) $shipment->provider_track_normalized : null,
+                $shipment?->pickup_requested_at,
+            );
+        $labelUrl = filled($shipment?->label_url) ? (string) $shipment->label_url : null;
+        $manifestUrl = filled($shipment?->manifest_url) ? (string) $shipment->manifest_url : null;
+        $manifestId = filled($shipment?->manifest_id) ? (string) $shipment->manifest_id : null;
+        $awbReady = $alreadyCreated
+            && filled($shipment?->awb)
+            && $fulfilment->state === HardwareFulfilmentState::AwbAssigned;
+
+        return new HardwareShipmentReadiness(
+            canCreate: false,
+            blockers: array_values(array_unique($blockers)),
+            status: $this->shipmentStatusLabel($shipment, $alreadyCreated),
+            pickupBranch: $branch?->code,
+            pickupLocation: $pickup,
+            shipTo: null,
+            parcel: null,
+            invoice: $invoice?->invoice_number,
+            serials: $serials,
+            order: $order?->order_no ?? $fulfilment->source_id,
+            product: $this->productLabel($order),
+            alreadyCreated: $alreadyCreated,
+            parcelSource: 'unavailable',
+            payment: ($order !== null && $this->isPaid($fulfilment, $order)) ? 'Paid' : 'Not verified',
+            awb: $shipment?->awb ?: $fulfilment->awb,
+            shipmentId: $shipment?->id,
+            shipmentNo: $shipment?->shipment_no ?: $fulfilment->shipment_no,
+            providerShipmentId: $shipment?->external_shipment_id ?: $fulfilment->provider_shipment_id,
+            customer: $order !== null ? trim((string) $order->customer_name) : null,
+            phone: $order !== null ? trim((string) $order->customer_phone) : null,
+            email: $order !== null ? trim((string) $order->customer_email) : null,
+            quantity: $order !== null ? $this->requiredPhysicalQty($order) : null,
+            invoiceId: $invoice?->id,
+            canGenerateLabel: $awbReady && $labelUrl === null,
+            canRequestPickup: $awbReady && ! $pickupRequested,
+            canGenerateManifest: $awbReady && $pickupRequested && $manifestUrl === null && $manifestId === null,
+            labelUrl: $labelUrl,
+            labelStatus: $labelUrl !== null ? 'Generated' : 'Not generated',
+            manifestUrl: $manifestUrl,
+            manifestId: $manifestId,
+            manifestStatus: $manifestUrl !== null || $manifestId !== null ? 'Generated' : 'Not generated',
+            pickupStatus: $pickupRequested ? 'Requested' : 'Not requested',
+            packageBeforeLabelRecorded: $beforeLabel !== null,
+            packageLabelAppliedRecorded: $labelApplied !== null,
+            packageBeforeLabelId: $beforeLabel?->id,
+            packageLabelAppliedId: $labelApplied?->id,
+            readyForPickup: $fulfilment->ready_for_pickup_at !== null,
+            providerTrackNormalized: filled($shipment?->provider_track_normalized)
+                ? (string) $shipment->provider_track_normalized
+                : null,
+            stockCommitted: $stockCommitted,
+        );
+    }
+
+    private function inspectFull(HardwareFulfilment $fulfilment): HardwareShipmentReadiness
+    {
         if ($fulfilment->state === HardwareFulfilmentState::CancelledHistoricalDuplicate) {
             return $this->cancelledHistoricalDuplicateReadiness($fulfilment);
         }
@@ -672,6 +816,14 @@ class HardwareShipmentEligibility
 
     private function linkedInvoice(HardwareFulfilment $fulfilment, ?CommerceOrder $order): ?StatutoryInvoice
     {
+        if ($fulfilment->relationLoaded('statutoryInvoice') && $fulfilment->statutoryInvoice !== null) {
+            return $fulfilment->statutoryInvoice;
+        }
+
+        if ($order?->relationLoaded('statutoryInvoice') && $order->statutoryInvoice !== null) {
+            return $order->statutoryInvoice;
+        }
+
         $invoiceId = $fulfilment->statutory_invoice_id ?? $order?->statutory_invoice_id;
         if ($invoiceId === null) {
             return null;

@@ -352,7 +352,7 @@ final class HardwareFulfilmentWorkQueue
             ->map(function (HardwareFulfilment $fulfilment) {
                 return $this->classifier->fromFulfilment(
                     $fulfilment,
-                    $this->eligibility->inspect($fulfilment),
+                    $this->eligibility->inspectForOperationalQueue($fulfilment),
                 );
             });
     }
@@ -389,7 +389,12 @@ final class HardwareFulfilmentWorkQueue
      */
     private function buildAllRows(Carbon $fromIst, Carbon $toIst, string $orderSearch, string $payment): Collection
     {
-        $this->lastInspectedFulfilmentCount = HardwareFulfilment::query()->count();
+        app(HardwareSkuMapService::class)->warmResolvedProductsForChannels([
+            'radiumbox_com',
+            'rdservice_in',
+        ]);
+
+        $this->lastInspectedFulfilmentCount = 0;
 
         $fulfilments = HardwareFulfilment::query()
             ->with([
@@ -406,9 +411,11 @@ final class HardwareFulfilmentWorkQueue
             ->orderByDesc('id')
             ->get()
             ->map(function (HardwareFulfilment $fulfilment) {
+                $this->lastInspectedFulfilmentCount++;
+
                 return $this->classifier->fromFulfilment(
                     $fulfilment,
-                    $this->eligibility->inspect($fulfilment),
+                    $this->eligibility->inspectForOperationalQueue($fulfilment),
                 );
             });
 

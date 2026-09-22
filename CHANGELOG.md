@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.112 — 2026-09-22 — Hardware Fulfilments work queue performance
+
+- Fix slow default Hardware Operations work queue (`/inventory/hardware-fulfilments?queue=work`): production baseline was ~15.5s server time and 12,722 DB queries because the queue loaded all ~1,003 fulfilments and ran full shipment `inspect()` per row before paginating 40 in PHP.
+- Preload `channel_sku_maps` once per request (request-scoped singleton) and use lightweight operational-queue inspect for common fulfilment states, skipping Shiprocket quote/courier machinery on list rows. Detail/shipment flows still use full inspect.
+- Avoid redundant per-row statutory invoice lookups when invoices are eager loaded. Regression: `HardwareFulfilmentWorkQueuePerformanceTest`.
+- Rollback target: v4.0.111 / `d9aa2835` (application only).
+
 ## 4.0.111 — 2026-09-22 — POS Sales list statutory invoice display
 
 - Fix POS Sales list Invoice column to show authoritative GST invoice numbers from `statutory_invoices.invoice_number` (via `statutoryInvoice` relation) instead of internal POS receipts (`inventory_sales.invoice_number`).
