@@ -105,28 +105,98 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         $this->assertLessThan(strpos($text, $modelBSerials[0]), strpos($text, $modelASerials[0]));
     }
 
-    public function test_multi_model_invoice_with_one_group_over_ten_and_one_group_under_ten(): void
+    public function test_multi_model_annexure_includes_all_groups_when_one_model_exceeds_ten(): void
     {
-        $modelASerials = $this->serialList('MFS110', 12);
-        $modelBSerials = $this->serialList('FM220', 3);
+        $modelASerials = $this->serialList('MFS110', 100);
+        $modelBSerials = $this->serialList('FM220', 5);
         $binary = (new SimplePdfRenderer)->render($this->multiGroupPayload(
             modelA: $modelASerials,
             modelB: $modelBSerials,
         ));
-        $text = $this->pdfText($binary);
+        $extracted = $this->extractedPdfText($binary);
+        $main = $this->mainPageExtractedText($extracted);
 
-        $this->assertStringContainsString('ANNEXURE A', $text);
-        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $text);
-        $this->assertStringContainsString('RBMFS110L1', $text);
-        $this->assertStringContainsString('RBFM220UFP', $text);
-        foreach ($modelASerials as $serial) {
-            $this->assertSerialPresentInPdf($binary, $serial);
+        $this->assertGroupedAnnexureComplete($binary, [
+            'RBMFS110L1' => $modelASerials,
+            'RBFM220UFP' => $modelBSerials,
+        ], 105);
+        $this->assertSerialsPresentInExtractedText($main, array_slice($modelASerials, 0, 10), 'Main page Model A preview');
+        $this->assertSerialsPresentInExtractedText($main, $modelBSerials, 'Main page Model B preview');
+        $this->assertSerialsAbsentFromExtractedText($main, [$modelASerials[10]], 'Main page Model A annexure-only serial');
+    }
+
+    public function test_multi_model_with_both_groups_under_ten_does_not_generate_annexure(): void
+    {
+        $modelASerials = $this->serialList('MFS110', 5);
+        $modelBSerials = $this->serialList('FM220', 5);
+        $binary = (new SimplePdfRenderer)->render($this->multiGroupPayload(
+            modelA: $modelASerials,
+            modelB: $modelBSerials,
+        ));
+        $extracted = $this->extractedPdfText($binary);
+
+        $this->assertStringNotContainsString('ANNEXURE A', $extracted);
+        $this->assertSerialsPresentInExtractedText($extracted, array_merge($modelASerials, $modelBSerials), 'Main page');
+    }
+
+    public function test_multi_model_annexure_includes_small_group_when_large_group_requires_annexure(): void
+    {
+        $modelASerials = $this->serialList('MFS110', 11);
+        $modelBSerials = $this->serialList('FM220', 5);
+        $binary = (new SimplePdfRenderer)->render($this->multiGroupPayload(
+            modelA: $modelASerials,
+            modelB: $modelBSerials,
+        ));
+        $extracted = $this->extractedPdfText($binary);
+        $main = $this->mainPageExtractedText($extracted);
+
+        $this->assertGroupedAnnexureComplete($binary, [
+            'RBMFS110L1' => $modelASerials,
+            'RBFM220UFP' => $modelBSerials,
+        ], 16);
+        $this->assertSerialsPresentInExtractedText($main, array_slice($modelASerials, 0, 10), 'Main page Model A preview');
+        $this->assertSerialsPresentInExtractedText($main, $modelBSerials, 'Main page Model B preview');
+    }
+
+    public function test_multi_model_annexure_includes_every_group_when_all_groups_exceed_ten(): void
+    {
+        $modelASerials = $this->serialList('MFS110', 15);
+        $modelBSerials = $this->serialList('FM220', 12);
+        $binary = (new SimplePdfRenderer)->render($this->multiGroupPayload(
+            modelA: $modelASerials,
+            modelB: $modelBSerials,
+        ));
+
+        $this->assertGroupedAnnexureComplete($binary, [
+            'RBMFS110L1' => $modelASerials,
+            'RBFM220UFP' => $modelBSerials,
+        ], 27);
+    }
+
+    public function test_inv_0767211_style_fixture_lists_all_one_hundred_five_serials_once_in_annexure_groups(): void
+    {
+        $modelASerials = $this->inv0767211ModelASerials();
+        $modelBSerials = $this->inv0767211ModelBSerials();
+        $binary = (new SimplePdfRenderer)->render($this->multiGroupPayload(
+            modelA: $modelASerials,
+            modelB: $modelBSerials,
+            invoiceNumber: 'INV-0767211',
+            orderId: 'POS-6735',
+        ));
+
+        $this->assertGroupedAnnexureComplete($binary, [
+            'RBMFS110L1' => $modelASerials,
+            'RBFM220UFP' => $modelBSerials,
+        ], 105);
+
+        $annexure = $this->annexureExtractedText($this->extractedPdfText($binary));
+        foreach (array_merge($modelASerials, $modelBSerials) as $serial) {
+            $this->assertSame(
+                1,
+                substr_count($annexure, $serial),
+                "Annexure must contain serial {$serial} exactly once.",
+            );
         }
-        foreach ($modelBSerials as $serial) {
-            $this->assertSerialPresentInPdf($binary, $serial);
-        }
-        $this->assertStringContainsString($modelASerials[11], $text);
-        $this->assertStringNotContainsString('11.', $this->pdfLiteralSliceBefore($binary, $modelBSerials[0]));
     }
 
     public function test_desk_service_po_number_renders_below_order_id_and_not_as_payment_reference(): void
@@ -170,15 +240,11 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         $sale = $this->completeMultiLinePosSale($modelASerials, $modelBSerials);
         $invoice = StatutoryInvoice::query()->where('inventory_sale_id', $sale->id)->firstOrFail();
         $binary = $this->invoicePdf($invoice);
-        $text = $this->pdfText($binary);
 
-        $this->assertStringContainsString('ANNEXURE A', $text);
-        $this->assertStringContainsString('RBMFS110L1', $text);
-        $this->assertStringContainsString('RBFM220UFP', $text);
-        foreach (array_merge($modelASerials, $modelBSerials) as $serial) {
-            $this->assertSerialPresentInPdf($binary, $serial);
-        }
-        $this->assertStringContainsString($modelASerials[10], $text);
+        $this->assertGroupedAnnexureComplete($binary, [
+            'RBMFS110L1' => $modelASerials,
+            'RBFM220UFP' => $modelBSerials,
+        ], 13);
     }
 
     /**
@@ -199,10 +265,16 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
      * @param  list<string>  $modelA
      * @param  list<string>  $modelB
      */
-    private function multiGroupPayload(array $modelA, array $modelB): StatutoryInvoicePdfPayload
-    {
+    private function multiGroupPayload(
+        array $modelA,
+        array $modelB,
+        string $invoiceNumber = 'INV-0767211-TEST',
+        string $orderId = 'POS-TEST',
+    ): StatutoryInvoicePdfPayload {
         return $this->basePayload(
             serialNumbers: array_merge($modelA, $modelB),
+            invoiceNumber: $invoiceNumber,
+            orderId: $orderId,
             serialGroups: [
                 [
                     'label' => 'RBMFS110L1 — Mantra MFS 110 L1 Single Fingerprint Biometric Scanner',
@@ -257,6 +329,7 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         ?string $channel = null,
         ?string $paymentReference = null,
         ?string $orderId = 'POS-TEST',
+        string $invoiceNumber = 'INV-0767211-TEST',
         array $lines = [],
     ): StatutoryInvoicePdfPayload {
         if ($lines === []) {
@@ -277,7 +350,7 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         }
 
         return new StatutoryInvoicePdfPayload(
-            invoiceNumber: 'INV-0767211-TEST',
+            invoiceNumber: $invoiceNumber,
             issuedAt: '2026-09-22 12:00:00',
             sellerLegalName: 'Phil Technologies (P) Limited',
             sellerGstin: '07AAICP1128M1Z9',
@@ -433,14 +506,39 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         return str_replace(['\\(', '\\)', '\\\\'], ['(', ')', '\\'], $pdf);
     }
 
-    private function pdfLiteralSliceBefore(string $binary, string $needle): string
+    /**
+     * @return list<string>
+     */
+    private function inv0767211ModelASerials(): array
     {
-        $decoded = $this->pdfText($binary);
-        $position = strpos($decoded, $needle);
-        if ($position === false) {
-            return $decoded;
-        }
+        return [
+            '10915091', '10919561', '10928298', '10934742', '10960303', '10998661', '10998882', '11000884',
+            '11001165', '11001181', '11001272', '11001352', '11001530', '11001560', '11001566', '11001571',
+            '11001579', '11001707', '11001722', '11002115', '11002119', '11002127', '11002467', '11002799',
+            '11002835', '11002873', '11002881', '11002882', '11002891', '11002913', '11002920', '11002928',
+            '11002936', '11002978', '11002982', '11002989', '11003005', '11003022', '11003035', '11003072',
+            '11003129', '11003154', '11004523', '11004555', '11004562', '11004669', '11004677', '11008760',
+            '11009237', '11009610', '11111311', '11111319', '11111350', '11111354', '11111432', '11111435',
+            '11111439', '11111448', '11111458', '11113057', '11113157', '11113220', '11119552', '11120140',
+            '11120270', '11120280', '11120340', '11120342', '11120376', '11120383', '11120413', '11120427',
+            '11120441', '11120474', '11120503', '11120513', '11120519', '11120532', '11120556', '11120578',
+            '11120629', '11120637', '11121017', '11121032', '11121055', '11121093', '11121098', '11121100',
+            '11121251', '11121785', '11121979', '11122009', '11122022', '11122036', '11122047', '11122066',
+            '11122082', '11122086', '11122088', '11122108',
+        ];
+    }
 
-        return substr($decoded, 0, $position);
+    /**
+     * @return list<string>
+     */
+    private function inv0767211ModelBSerials(): array
+    {
+        return [
+            'M260758058',
+            'M260758070',
+            'M260758326',
+            'M260758531',
+            'M260758589',
+        ];
     }
 }

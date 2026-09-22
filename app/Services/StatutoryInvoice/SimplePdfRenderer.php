@@ -1166,21 +1166,26 @@ class SimplePdfRenderer
      */
     private function annexureSerialGroups(StatutoryInvoicePdfPayload $payload): array
     {
-        $groups = [];
-        foreach ($this->normalizedSerialGroups($payload) as $group) {
-            if (count($group['serials']) > self::MAIN_PAGE_SERIAL_LIMIT) {
-                $groups[] = $group;
+        if ($this->hasGroupedSerials($payload)) {
+            if (! $this->hasSerialAnnexure($payload)) {
+                return [];
             }
+
+            return $this->normalizedSerialGroups($payload);
         }
 
-        return $groups;
+        return [];
     }
 
     private function annexureSerialTotal(StatutoryInvoicePdfPayload $payload): int
     {
         if ($this->hasGroupedSerials($payload)) {
+            if (! $this->hasSerialAnnexure($payload)) {
+                return 0;
+            }
+
             $total = 0;
-            foreach ($this->annexureSerialGroups($payload) as $group) {
+            foreach ($this->normalizedSerialGroups($payload) as $group) {
                 $total += count($group['serials']);
             }
 

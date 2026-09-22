@@ -169,4 +169,105 @@ trait AssertsStatutoryInvoicePdfSerials
 
         return (int) $matches[1];
     }
+
+    protected function extractedPdfText(string $binary): string
+    {
+        $path = storage_path('framework/testing/pdf-extract-'.uniqid('', true).'.pdf');
+        file_put_contents($path, $binary);
+        $text = trim((string) shell_exec(
+            escapeshellarg($this->pdftotextBinary()).' '.escapeshellarg($path).' - 2>/dev/null'
+        ));
+        @unlink($path);
+
+        return $text;
+    }
+
+    protected function annexureExtractedText(string $extractedText): string
+    {
+        $start = strpos($extractedText, 'ANNEXURE A');
+        if ($start === false) {
+            return '';
+        }
+
+        $end = strrpos($extractedText, 'Annexure to tax invoice');
+        if ($end === false || $end <= $start) {
+            return substr($extractedText, $start);
+        }
+
+        return substr($extractedText, $start, $end - $start);
+    }
+
+    protected function mainPageExtractedText(string $extractedText): string
+    {
+        $annexure = strpos($extractedText, 'ANNEXURE A');
+        if ($annexure === false) {
+            return $extractedText;
+        }
+
+        return substr($extractedText, 0, $annexure);
+    }
+
+    /**
+     * @param  list<string>  $serials
+     */
+    protected function assertSerialsPresentInExtractedText(string $text, array $serials, string $context): void
+    {
+        foreach ($serials as $serial) {
+            $this->assertStringContainsString(
+                $serial,
+                $text,
+                "{$context}: serial {$serial} must be present.",
+            );
+        }
+    }
+
+    /**
+     * @param  list<string>  $serials
+     */
+    protected function assertSerialsAbsentFromExtractedText(string $text, array $serials, string $context): void
+    {
+        foreach ($serials as $serial) {
+            $this->assertStringNotContainsString(
+                $serial,
+                $text,
+                "{$context}: serial {$serial} must not be present.",
+            );
+        }
+    }
+
+    /**
+     * @param  array<string, list<string>>  $groups keyed by label fragment present in PDF
+     */
+    protected function assertGroupedAnnexureComplete(
+        string $binary,
+        array $groups,
+        int $expectedTotal,
+    ): void {
+        $extracted = $this->extractedPdfText($binary);
+        $annexure = $this->annexureExtractedText($extracted);
+
+        $this->assertStringContainsString('ANNEXURE A', $extracted);
+        $this->assertStringContainsString('Total serials', $extracted);
+        $this->assertMatchesRegularExpression(
+            '/\n'.$expectedTotal.'\n/',
+            $extracted,
+            'Annexure A must report the complete invoice serial population.',
+        );
+
+        foreach ($groups as $labelFragment => $serials) {
+            $this->assertStringContainsString($labelFragment, $annexure, "Annexure must include group {$labelFragment}.");
+            $this->assertSerialsPresentInExtractedText($annexure, $serials, "Annexure group {$labelFragment}");
+        }
+    }
+
+    protected function pdftotextBinary(): string
+    {
+        foreach (['/opt/homebrew/bin/pdftotext', '/usr/local/bin/pdftotext', '/usr/bin/pdftotext'] as $candidate) {
+            if (is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        $this->fail('pdftotext is required for grouped annexure assertions.');
+    }
 }
