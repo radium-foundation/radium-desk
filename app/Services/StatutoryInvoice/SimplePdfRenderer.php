@@ -848,7 +848,11 @@ class SimplePdfRenderer
             $rows[] = [
                 'kind' => 'item',
                 'lineNo' => (string) ($index + 1),
-                'descLines' => $this->wrapWidth((string) $line['description'], self::PRODUCT_WIDTH, 8),
+                'descLines' => $this->wrapWidth(
+                    $this->customerFacingDescription((string) $line['description']),
+                    self::PRODUCT_WIDTH,
+                    8,
+                ),
                 'hsn' => $this->display((string) $line['hsnSac']),
                 'qty' => (string) $line['qty'],
                 'uqc' => $this->display(isset($line['uqc']) ? (string) $line['uqc'] : ''),
@@ -1363,7 +1367,16 @@ class SimplePdfRenderer
                 continue;
             }
 
-            $ops[] = $this->text(self::MARGIN + 8, $y, $this->clip($group['label'], self::CONTENT_RIGHT - self::MARGIN - 16, 7), 7, true, 0.22, 0.22, 0.22);
+            $ops[] = $this->text(
+                self::MARGIN + 8,
+                $y,
+                $this->clip($this->customerFacingDescription($group['label']), self::CONTENT_RIGHT - self::MARGIN - 16, 7),
+                7,
+                true,
+                0.22,
+                0.22,
+                0.22,
+            );
             $y -= 11;
             $y = $this->numberedSerialGrid($ops, $group['serials'], 1, $y);
             $y -= 4;
@@ -1546,7 +1559,16 @@ class SimplePdfRenderer
         }
 
         if ($groupFirst) {
-            $ops[] = $this->text(self::MARGIN + 8, $y, $this->clip($groupLabel, self::CONTENT_RIGHT - self::MARGIN - 16, 8), 8, true, 0.22, 0.22, 0.22);
+            $ops[] = $this->text(
+                self::MARGIN + 8,
+                $y,
+                $this->clip($this->customerFacingDescription($groupLabel), self::CONTENT_RIGHT - self::MARGIN - 16, 8),
+                8,
+                true,
+                0.22,
+                0.22,
+                0.22,
+            );
             $y -= 14;
         }
 
@@ -1880,6 +1902,24 @@ class SimplePdfRenderer
         $one = $ones[$number % 10];
 
         return $one === '' ? $ten : $ten.'-'.$one;
+    }
+
+    /**
+     * Presentation-only product/serial label for customer-facing PDF output.
+     * Strips catalog SKU prefixes such as "RBMFS110L1 — " while leaving stored invoice data unchanged.
+     */
+    private function customerFacingDescription(string $description): string
+    {
+        $description = trim($description);
+        if ($description === '') {
+            return $description;
+        }
+
+        if (preg_match('/^([A-Z0-9][A-Z0-9\/._-]*)\s+[\x{2014}\x{2013}-]\s+(.+)$/u', $description, $matches) === 1) {
+            return trim($matches[2]);
+        }
+
+        return $description;
     }
 
     private function display(?string $value): string

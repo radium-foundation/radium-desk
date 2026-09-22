@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.116 — 2026-09-22 — Invoice PDF Annexure completeness and customer-facing SKU removal
+
+- Fix grouped Annexure A to include every invoice-line serial group when any model requires an annexure (e.g. INV-0767211 100+5 → Annexure total 105, not 100).
+- Remove catalog SKU prefixes from customer-facing PDF product and serial-group labels; stored statutory line descriptions and internal SKU data remain unchanged.
+- Presentation-only PDF changes; no statutory snapshot, tax, e-invoice payload, or IRN mutation. Regression: `StatutoryInvoicePdfSerialGroupingAndServicePoTest`, `StatutoryInvoicePdfCustomerFacingSkuTest`, plus existing Option B/presentation suites.
+- Rollback target: v4.0.115 / `657625cc` (application only).
+
 ## 4.0.115 — 2026-09-22 — Invoice PDF serial grouping and Service POS PO header
 
 - Group statutory invoice PDF serial numbers by POS sale line / product model instead of flattening multi-model sales into one list.

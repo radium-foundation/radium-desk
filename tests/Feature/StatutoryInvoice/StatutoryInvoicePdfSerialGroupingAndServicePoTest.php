@@ -90,15 +90,15 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         ));
         $text = $this->pdfText($binary);
 
-        $this->assertStringContainsString('RBMFS110L1', $text);
-        $this->assertStringContainsString('RBFM220UFP', $text);
+        $this->assertStringContainsString('Mantra MFS 110 L1', $text);
+        $this->assertStringContainsString('Access FM220 USB L1', $text);
         $this->assertStringNotContainsString('ANNEXURE A', $text);
         foreach (array_merge($modelASerials, $modelBSerials) as $serial) {
             $this->assertSerialPresentInPdf($binary, $serial);
         }
 
-        $modelAIndex = strpos($text, 'RBMFS110L1');
-        $modelBIndex = strpos($text, 'RBFM220UFP');
+        $modelAIndex = strpos($text, 'Mantra MFS 110 L1');
+        $modelBIndex = strpos($text, 'Access FM220 USB L1');
         $this->assertNotFalse($modelAIndex);
         $this->assertNotFalse($modelBIndex);
         $this->assertLessThan($modelBIndex, $modelAIndex);
@@ -117,8 +117,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         $main = $this->mainPageExtractedText($extracted);
 
         $this->assertGroupedAnnexureComplete($binary, [
-            'RBMFS110L1' => $modelASerials,
-            'RBFM220UFP' => $modelBSerials,
+            'Mantra MFS 110 L1' => $modelASerials,
+            'Access FM220 USB L1' => $modelBSerials,
         ], 105);
         $this->assertSerialsPresentInExtractedText($main, array_slice($modelASerials, 0, 10), 'Main page Model A preview');
         $this->assertSerialsPresentInExtractedText($main, $modelBSerials, 'Main page Model B preview');
@@ -151,8 +151,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         $main = $this->mainPageExtractedText($extracted);
 
         $this->assertGroupedAnnexureComplete($binary, [
-            'RBMFS110L1' => $modelASerials,
-            'RBFM220UFP' => $modelBSerials,
+            'Mantra MFS 110 L1' => $modelASerials,
+            'Access FM220 USB L1' => $modelBSerials,
         ], 16);
         $this->assertSerialsPresentInExtractedText($main, array_slice($modelASerials, 0, 10), 'Main page Model A preview');
         $this->assertSerialsPresentInExtractedText($main, $modelBSerials, 'Main page Model B preview');
@@ -168,8 +168,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         ));
 
         $this->assertGroupedAnnexureComplete($binary, [
-            'RBMFS110L1' => $modelASerials,
-            'RBFM220UFP' => $modelBSerials,
+            'Mantra MFS 110 L1' => $modelASerials,
+            'Access FM220 USB L1' => $modelBSerials,
         ], 27);
     }
 
@@ -185,8 +185,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         ));
 
         $this->assertGroupedAnnexureComplete($binary, [
-            'RBMFS110L1' => $modelASerials,
-            'RBFM220UFP' => $modelBSerials,
+            'Mantra MFS 110 L1' => $modelASerials,
+            'Access FM220 USB L1' => $modelBSerials,
         ], 105);
 
         $annexure = $this->annexureExtractedText($this->extractedPdfText($binary));
@@ -242,8 +242,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         $binary = $this->invoicePdf($invoice);
 
         $this->assertGroupedAnnexureComplete($binary, [
-            'RBMFS110L1' => $modelASerials,
-            'RBFM220UFP' => $modelBSerials,
+            'Mantra MFS 110 L1' => $modelASerials,
+            'Access FM220 USB L1' => $modelBSerials,
         ], 13);
     }
 
