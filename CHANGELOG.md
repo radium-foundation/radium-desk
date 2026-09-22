@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.121 — 2026-09-22 — RadiumBox wallet refund response parsing (REF-67330)
+
+- Fix `RadiumBoxWalletRefundClient` to parse verified Box wallet-refunds API response variants: numeric `wallet_reference`, `txnid` alias, and `RD{id}` derivation when `wallet_transaction_id` is present.
+- Show explicit **Missing** for absent wallet ledger reference and refund detail serial number.
+- Regression: `RadiumBoxWalletRefundClientTest`, `WalletRefundExecutionTest`, `Customer360WalletLedgerTest`. Prompt **RadiumDesk-P-22-09-27**. No refund execution in this release.
+- Rollback target: v4.0.120 / `359fb11d`.
+
 ## 4.0.120 — 2026-09-22 — Hardware serial allocation multi-serial search (RBP415)
 
 - Fix bulk serial search in Allocate Serials: parse comma/newline-separated serial lists with exact-match lookup instead of a single `LIKE` on the pasted string.
