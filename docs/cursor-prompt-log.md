@@ -115,5 +115,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-21-09-23 | 2026-09-21 | CA Monthly Report export hardening v4.0.105 (candidate) | Bounded-memory CSV/XLSX streaming, async export jobs, secure downloads, email delivery, retention prune. Migration `ca_monthly_report_exports`. Branch `release/ca-monthly-export-v4.0.105`. **Not committed/pushed/deployed.** |
 | RadiumDesk-P-21-09-24 | 2026-09-21 | CA Monthly Report export v4.0.105 pre-release hardening pass | Queue isolation to maintenance, sync threshold benchmark, memory measurements, email/signed-link/async safety tests, migration review, full regression. **Not committed/pushed/deployed.** |
 | RadiumDesk-P-21-09-25 | 2026-09-22 | Release/deploy v4.0.105 CA Monthly Report export hardening | Commit/tag/push `release/ca-monthly-export-v4.0.105`; KVM deploy; migration `ca_monthly_report_exports`; production CA export verification. Rollback: v4.0.104 / `159031b8`. |
+| RadiumDesk-P-21-09-26 | 2026-09-22 | Production incident: CA Monthly Report HTTP 500 hotfix v4.0.106 | Root cause: 128MB OOM in preflight on large ranges. Chunked preflight + default date range. Deploy v4.0.106. Rollback: v4.0.105 / `1ba78ddf`. |
 
 Do not renumber or overwrite earlier rows. Append only.

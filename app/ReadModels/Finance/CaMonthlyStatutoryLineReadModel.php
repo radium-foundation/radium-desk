@@ -113,9 +113,6 @@ class CaMonthlyStatutoryLineReadModel
 
     public function preflight(Request $request): CaMonthlyReportPreflight
     {
-        $includedItems = $this->includedItems($request);
-        $periodInvoices = $this->periodInvoices($request);
-
         $invoiceIds = [];
         $hardwareOrderIds = [];
         $serviceOrderIds = [];
@@ -132,6 +129,8 @@ class CaMonthlyStatutoryLineReadModel
         $discountLineCount = 0;
         $nonReconcilingLineCount = 0;
         $shippingInvoiceCount = 0;
+        $unclassifiedOrdertypeLineCount = 0;
+        $lineCount = 0;
 
         $taxableTotal = 0.0;
         $shippingTotal = 0.0;
@@ -141,109 +140,143 @@ class CaMonthlyStatutoryLineReadModel
         $shortExcessTotal = 0.0;
         $totalAmountTotal = 0.0;
 
-        $invoices = $includedItems
-            ->map(fn (StatutoryInvoiceItem $item): ?StatutoryInvoice => $item->invoice)
-            ->filter()
-            ->unique('id')
-            ->values();
+        $chunkSize = max(1, (int) config('ca_monthly_report.invoice_chunk_size', 25));
 
-        $orderContexts = $this->orderContextResolver->resolveForInvoices($invoices);
-        $orderTypes = $this->orderTypeResolver->resolveForInvoices($invoices);
-        $allocationPaymentMethods = $this->paymentEvidenceResolver->allocationPaymentMethodsForInvoices($invoices);
-        $builtRows = $this->lineBuilder->buildRows(
-            $includedItems,
-            $orderContexts,
-            $orderTypes,
-            $allocationPaymentMethods,
-        );
+        $this->filteredInvoiceQuery($request)
+            ->with($this->invoiceRelations())
+            ->orderBy('id')
+            ->chunkById($chunkSize, function (Collection $invoices) use (
+                &$invoiceIds,
+                &$hardwareOrderIds,
+                &$serviceOrderIds,
+                &$bundledOrderIds,
+                &$unclassifiedOrderIds,
+                &$cancelledIncludedIds,
+                &$creditNoteIds,
+                &$missingOrderDateCount,
+                &$missingHsnSac,
+                &$missingGstinInvoiceIds,
+                &$missingIrnInvoiceIds,
+                &$missingAckInvoiceIds,
+                &$missingStateInvoiceIds,
+                &$discountLineCount,
+                &$nonReconcilingLineCount,
+                &$shippingInvoiceCount,
+                &$unclassifiedOrdertypeLineCount,
+                &$lineCount,
+                &$taxableTotal,
+                &$shippingTotal,
+                &$igstTotal,
+                &$cgstTotal,
+                &$sgstTotal,
+                &$shortExcessTotal,
+                &$totalAmountTotal,
+            ): void {
+                $items = collect();
 
-        foreach ($builtRows as $row) {
-            $this->accumulateRowTotals($row, $taxableTotal, $shippingTotal, $igstTotal, $cgstTotal, $sgstTotal, $shortExcessTotal, $totalAmountTotal);
+                foreach ($invoices as $invoice) {
+                    foreach ($invoice->items->sortBy('line_no')->values() as $item) {
+                        $item->setRelation('invoice', $invoice);
+                        $items->push($item);
+                    }
+                }
 
-            if (! $row->reconciles) {
-                $nonReconcilingLineCount++;
-            }
+                if ($items->isEmpty()) {
+                    return;
+                }
 
-            if ($row->lineDiscount > 0) {
-                $discountLineCount++;
-            }
-        }
+                $lineCount += $items->count();
 
-        foreach ($includedItems as $item) {
-            $invoice = $item->invoice;
-            if ($invoice === null) {
-                continue;
-            }
+                $orderContexts = $this->orderContextResolver->resolveForInvoices($invoices);
+                $orderTypes = $this->orderTypeResolver->resolveForInvoices($invoices);
+                $allocationPaymentMethods = $this->paymentEvidenceResolver->allocationPaymentMethodsForInvoices($invoices);
+                $builtRows = $this->lineBuilder->buildRows(
+                    $items,
+                    $orderContexts,
+                    $orderTypes,
+                    $allocationPaymentMethods,
+                );
 
-            $invoiceIds[$invoice->id] = true;
+                foreach ($builtRows as $row) {
+                    $this->accumulateRowTotals($row, $taxableTotal, $shippingTotal, $igstTotal, $cgstTotal, $sgstTotal, $shortExcessTotal, $totalAmountTotal);
 
-            if ($invoice->status === StatutoryInvoiceStatus::Cancelled) {
-                $cancelledIncludedIds[$invoice->id] = true;
-            }
+                    if (! $row->reconciles) {
+                        $nonReconcilingLineCount++;
+                    }
 
-            if ($invoice->document_type === StatutoryInvoiceDocumentType::CreditNote) {
-                $creditNoteIds[$invoice->id] = true;
-            }
+                    if ($row->lineDiscount > 0) {
+                        $discountLineCount++;
+                    }
+                }
 
-            if (round((float) ($invoice->shipping_amount ?? 0), 2) > 0) {
-                $shippingInvoiceCount++;
-            }
+                foreach ($items as $item) {
+                    $invoice = $item->invoice;
+                    if ($invoice === null) {
+                        continue;
+                    }
 
-            $orderType = $orderTypes[$invoice->id] ?? null;
-            if ($orderType === CaMonthlyReportOrderType::HARDWARE) {
-                $hardwareOrderIds[$invoice->id] = true;
-            } elseif ($orderType === CaMonthlyReportOrderType::SERVICE) {
-                $serviceOrderIds[$invoice->id] = true;
-            } elseif ($orderType === CaMonthlyReportOrderType::BUNDLED) {
-                $bundledOrderIds[$invoice->id] = true;
-            } else {
-                $unclassifiedOrderIds[$invoice->id] = true;
-            }
+                    $invoiceIds[$invoice->id] = true;
 
-            $orderContext = $orderContexts[$invoice->id] ?? null;
-            if ($this->nullableString($orderContext?->orderDate) === null) {
-                $missingOrderDateCount++;
-            }
+                    if ($invoice->status === StatutoryInvoiceStatus::Cancelled) {
+                        $cancelledIncludedIds[$invoice->id] = true;
+                    }
 
-            if ($this->nullableString($item->hsn_sac) === null) {
-                $missingHsnSac++;
-            }
+                    if ($invoice->document_type === StatutoryInvoiceDocumentType::CreditNote) {
+                        $creditNoteIds[$invoice->id] = true;
+                    }
 
-            if ($this->nullableString($invoice->buyer_gstin) === null) {
-                $missingGstinInvoiceIds[$invoice->id] = true;
-            }
+                    if (round((float) ($invoice->shipping_amount ?? 0), 2) > 0) {
+                        $shippingInvoiceCount++;
+                    }
 
-            if ($this->nullableString($invoice->eInvoiceRecord?->irn) === null) {
-                $missingIrnInvoiceIds[$invoice->id] = true;
-            }
+                    $orderType = $orderTypes[$invoice->id] ?? null;
+                    if ($orderType === CaMonthlyReportOrderType::HARDWARE) {
+                        $hardwareOrderIds[$invoice->id] = true;
+                    } elseif ($orderType === CaMonthlyReportOrderType::SERVICE) {
+                        $serviceOrderIds[$invoice->id] = true;
+                    } elseif ($orderType === CaMonthlyReportOrderType::BUNDLED) {
+                        $bundledOrderIds[$invoice->id] = true;
+                    } else {
+                        $unclassifiedOrderIds[$invoice->id] = true;
+                    }
 
-            if ($this->nullableString($invoice->eInvoiceRecord?->ack_no) === null) {
-                $missingAckInvoiceIds[$invoice->id] = true;
-            }
+                    if ($orderType === null) {
+                        $unclassifiedOrdertypeLineCount++;
+                    }
 
-            if ($this->resolveState($invoice) === null) {
-                $missingStateInvoiceIds[$invoice->id] = true;
-            }
-        }
+                    $orderContext = $orderContexts[$invoice->id] ?? null;
+                    if ($this->nullableString($orderContext?->orderDate) === null) {
+                        $missingOrderDateCount++;
+                    }
 
-        $periodCancelledInvoices = $periodInvoices
-            ->filter(fn (StatutoryInvoice $invoice): bool => $invoice->status === StatutoryInvoiceStatus::Cancelled)
-            ->values();
+                    if ($this->nullableString($item->hsn_sac) === null) {
+                        $missingHsnSac++;
+                    }
+
+                    if ($this->nullableString($invoice->buyer_gstin) === null) {
+                        $missingGstinInvoiceIds[$invoice->id] = true;
+                    }
+
+                    if ($this->nullableString($invoice->eInvoiceRecord?->irn) === null) {
+                        $missingIrnInvoiceIds[$invoice->id] = true;
+                    }
+
+                    if ($this->nullableString($invoice->eInvoiceRecord?->ack_no) === null) {
+                        $missingAckInvoiceIds[$invoice->id] = true;
+                    }
+
+                    if ($this->resolveState($invoice) === null) {
+                        $missingStateInvoiceIds[$invoice->id] = true;
+                    }
+                }
+            });
+
+        $periodCancelledInvoices = $this->filteredInvoiceQuery($request)
+            ->where('status', StatutoryInvoiceStatus::Cancelled)
+            ->with($this->invoiceRelations())
+            ->get();
 
         $cancelledEvidenceSummary = $this->paymentEvidenceResolver->summarizeCancelledInvoices($periodCancelledInvoices);
-
-        $lineCount = $includedItems->count();
-        $unclassifiedOrdertypeLineCount = 0;
-        foreach ($includedItems as $item) {
-            $invoice = $item->invoice;
-            if ($invoice === null) {
-                continue;
-            }
-
-            if (($orderTypes[$invoice->id] ?? null) === null) {
-                $unclassifiedOrdertypeLineCount++;
-            }
-        }
 
         return new CaMonthlyReportPreflight(
             invoiceCount: count($invoiceIds),
@@ -344,21 +377,6 @@ class CaMonthlyStatutoryLineReadModel
             ->get();
     }
 
-    /**
-     * @return Collection<int, StatutoryInvoice>
-     */
-    private function periodInvoices(Request $request): Collection
-    {
-        return StatutoryInvoice::query()
-            ->tap(function (Builder $query) use ($request): void {
-                ReportPeriod::fromRequest($request)->apply(
-                    $query,
-                    CaMonthlyReportDefinition::AUTHORITATIVE_DATE_COLUMN,
-                );
-            })
-            ->get();
-    }
-
     private function filteredInvoiceQuery(Request $request): Builder
     {
         return StatutoryInvoice::query()
@@ -418,7 +436,6 @@ class CaMonthlyStatutoryLineReadModel
         return [
             'invoice.branch',
             'invoice.eInvoiceRecord',
-            'invoice.items',
             'invoice.inventorySale',
         ];
     }

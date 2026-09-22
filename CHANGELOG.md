@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.106 — 2026-09-22 — CA Monthly Report page memory hotfix
+
+- Fix production HTTP 500 on Finance CA Monthly Report index for large date ranges: preflight now processes invoices in bounded chunks instead of loading every line into memory at once.
+- Default missing `date_from` / `date_to` to the current calendar month through today so the index page never queries an unbounded dataset.
+- Rollback target: v4.0.105 / `1ba78ddf` (application only).
+
 ## 4.0.105 — 2026-09-22 — CA Monthly Report export hardening
 
 - Stream chunked CSV/XLSX generation for CA Monthly Report exports; synchronous downloads up to `CA_MONTHLY_REPORT_SYNC_MAX_LINES` (default 500), larger ranges queue asynchronously.

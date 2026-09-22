@@ -40,18 +40,20 @@ class CaMonthlyReportController extends Controller
 
     public function index(Request $request): View
     {
+        $request = $this->requestWithDefaultPeriod($request);
         $period = ReportPeriod::fromRequest($request);
         $filters = $period->filters();
         $user = $request->user();
+        $preflight = $this->readModel->preflight($request);
 
         return view('finance.reports.ca-monthly', [
             'filters' => $filters,
             'headers' => $this->readModel->headers(),
             'invoiceGroups' => $this->readModel->paginateInvoiceGroups($request),
-            'preflight' => $this->readModel->preflight($request),
+            'preflight' => $preflight,
             'canExport' => FinanceAccess::allowsReportExport($user),
             'dateBasis' => CaMonthlyReportDefinition::AUTHORITATIVE_DATE_COLUMN,
-            'estimatedExportLines' => $this->exportThreshold->estimatedLineCount($request),
+            'estimatedExportLines' => $preflight->lineCount,
             'asyncExportThreshold' => (int) config('ca_monthly_report.sync_max_lines', 500),
             'recentExports' => $user !== null
                 ? $this->exportService->recentExportsForUser($user)
@@ -224,5 +226,24 @@ class CaMonthlyReportController extends Controller
     private function stamp(): string
     {
         return now()->timezone((string) config('app.timezone'))->format('Ymd-His');
+    }
+
+    private function requestWithDefaultPeriod(Request $request): Request
+    {
+        $period = ReportPeriod::fromRequest($request);
+
+        if ($period->from !== null && $period->to !== null) {
+            return $request;
+        }
+
+        $timezone = (string) config('app.timezone');
+        $today = now()->timezone($timezone);
+
+        return $request->duplicate(
+            query: array_merge($request->query(), [
+                'date_from' => $period->from ?? $today->copy()->startOfMonth()->toDateString(),
+                'date_to' => $period->to ?? $today->toDateString(),
+            ]),
+        );
     }
 }

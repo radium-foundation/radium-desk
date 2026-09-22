@@ -689,6 +689,37 @@ class CaMonthlyReportTest extends TestCase
         );
     }
 
+    public function test_preflight_processes_large_ranges_in_invoice_chunks_without_loading_every_line_at_once(): void
+    {
+        config(['ca_monthly_report.invoice_chunk_size' => 5]);
+
+        for ($i = 0; $i < 60; $i++) {
+            $day = str_pad((string) (($i % 20) + 1), 2, '0', STR_PAD_LEFT);
+            $this->makeTaxInvoice(['issued_at' => "2026-09-{$day} 10:00:00"]);
+        }
+
+        $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
+
+        $this->assertSame(60, $preflight->lineCount);
+        $this->assertSame(60, $preflight->invoiceCount);
+    }
+
+    public function test_index_defaults_missing_dates_to_current_month_and_renders_successfully(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => now()->toDateString().' 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $response = $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index'));
+
+        $response->assertOk();
+        $response->assertSee('CA Monthly Report');
+        $response->assertSee(now()->startOfMonth()->toDateString(), false);
+        $response->assertSee(now()->toDateString(), false);
+    }
+
     public function test_agent_cannot_access_ca_monthly_report(): void
     {
         $user = User::factory()->create(['is_active' => true]);
