@@ -105,5 +105,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-21-09-29 | 2026-09-22 | Sidebar scroll accessibility fix v4.0.109 | Viewport-bounded sidebar flex scroll; active nav scrollIntoView; CSS regression test. Tag/deploy v4.0.109. Rollback: v4.0.108 / `c485c282`. |
 | RadiumDesk-P-21-09-30 | 2026-09-22 | Five-destination primary navigation v4.0.110 | Five destination-only sidebar groups; workspace nav consolidation; CA Monthly Report hold. Tag/deploy v4.0.110. Rollback: v4.0.109 / `f458e6f0`. |
 | RadiumDesk-P-22-09-01 | 2026-09-22 | POS Sales list authoritative invoice number display | Sales list Invoice column mapped to internal POS receipt instead of `statutory_invoices.invoice_number`. Fix list display + statutory search; regression tests. Not deployed. |
+| RadiumDesk-P-22-09-02 | 2026-09-22 | Release/deploy v4.0.111 POS Sales list statutory invoice display | Cherry-pick approved fix to `main`; tag/deploy `v4.0.111` to KVM8. Rollback: v4.0.110 / `b90ab4ec`. |
 
 Do not renumber or overwrite earlier rows. Append only.

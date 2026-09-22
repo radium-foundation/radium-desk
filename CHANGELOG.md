@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.111 — 2026-09-22 — POS Sales list statutory invoice display
+
+- Fix POS Sales list Invoice column to show authoritative GST invoice numbers from `statutory_invoices.invoice_number` (via `statutoryInvoice` relation) instead of internal POS receipts (`inventory_sales.invoice_number`).
+- Extend Sales list search to match statutory invoice numbers. Sales without a minted statutory invoice show `—`.
+- Regression: `PosSalesListInvoiceDisplayTest`. No database migrations or invoice numbering changes.
+- Rollback target: v4.0.110 / `b90ab4ec` (application only).
+
 ## 4.0.110 — 2026-09-22 — Five-destination primary navigation
 
 - Replace the seven-group primary sidebar with five destination-only entries: Home / Desk, Commerce, Inventory, Finance, and Control & Admin.
