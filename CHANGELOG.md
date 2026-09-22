@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.115 — 2026-09-22 — Invoice PDF serial grouping and Service POS PO header
+
+- Group statutory invoice PDF serial numbers by POS sale line / product model instead of flattening multi-model sales into one list.
+- Preserve Option B layout: up to 10 serials per model on the main page; complete per-model lists in Annexure A when a line exceeds 10.
+- Show Service POS buyer PO/reference as **PO Number** directly below **Order ID** in the invoice header; suppress duplicate **Reference No.** in Payment Details for `desk_service`.
+- Presentation-only PDF changes; no statutory snapshot, tax, e-invoice payload, or IRN mutation. Regression: `StatutoryInvoicePdfSerialGroupingAndServicePoTest` plus existing Option B/presentation suites.
+- Rollback target: v4.0.114 / `c7ab6f6b` (application only).
+
 ## 4.0.114 — 2026-09-22 — Service POS e-invoice parity
 
 - Add structured service billing (city, PIN, JSON snapshot) on service quotes/orders, propagated to statutory invoice minting for B2B IRP readiness.
