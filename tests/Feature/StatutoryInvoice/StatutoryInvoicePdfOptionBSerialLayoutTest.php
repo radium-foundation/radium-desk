@@ -84,10 +84,18 @@ class StatutoryInvoicePdfOptionBSerialLayoutTest extends TestCase
     public static function annexureCounts(): array
     {
         return [
-            '11 serials' => [11],
-            '20 serials' => [20],
             '120 serials' => [120],
         ];
+    }
+
+    public function test_eleven_serials_fit_on_main_page_without_annexure_when_space_allows(): void
+    {
+        $serials = $this->productionSerialList(11);
+        $binary = (new SimplePdfRenderer)->render($this->payload($serials, withIrn: true));
+        $text = $this->extractText($binary);
+
+        $this->assertOptionBMainPageOnly($binary, $serials);
+        $this->assertStringNotContainsString('ANNEXURE A', $text);
     }
 
     /**

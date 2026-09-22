@@ -74,10 +74,11 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
 
     public function test_single_model_with_more_than_ten_serials_uses_option_b_annexure_regression(): void
     {
-        $serials = $this->serialList('SN-B', 15);
-        $binary = (new SimplePdfRenderer)->render($this->singleGroupPayload($serials));
+        $serials = $this->serialList('SN-B', 120);
+        $binary = (new SimplePdfRenderer)->render($this->singleGroupPayload($serials, withIrn: true));
 
         $this->assertOptionBWithAnnexure($binary, $serials);
+        $this->assertMainInvoiceFooterOnFirstPage($binary, 'issued-irn-token-0001');
     }
 
     public function test_multiple_models_render_serials_grouped_by_invoice_line(): void
@@ -141,7 +142,7 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
 
     public function test_multi_model_annexure_includes_small_group_when_large_group_requires_annexure(): void
     {
-        $modelASerials = $this->serialList('MFS110', 11);
+        $modelASerials = $this->serialList('MFS110', 100);
         $modelBSerials = $this->serialList('FM220', 5);
         $binary = (new SimplePdfRenderer)->render($this->multiGroupPayload(
             modelA: $modelASerials,
@@ -153,15 +154,16 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         $this->assertGroupedAnnexureComplete($binary, [
             'Mantra MFS 110 L1' => $modelASerials,
             'Access FM220 USB L1' => $modelBSerials,
-        ], 16);
+        ], 105);
         $this->assertSerialsPresentInExtractedText($main, array_slice($modelASerials, 0, 10), 'Main page Model A preview');
         $this->assertSerialsPresentInExtractedText($main, $modelBSerials, 'Main page Model B preview');
+        $this->assertMainInvoiceFooterOnFirstPage($binary);
     }
 
     public function test_multi_model_annexure_includes_every_group_when_all_groups_exceed_ten(): void
     {
-        $modelASerials = $this->serialList('MFS110', 15);
-        $modelBSerials = $this->serialList('FM220', 12);
+        $modelASerials = $this->serialList('MFS110', 50);
+        $modelBSerials = $this->serialList('FM220', 50);
         $binary = (new SimplePdfRenderer)->render($this->multiGroupPayload(
             modelA: $modelASerials,
             modelB: $modelBSerials,
@@ -170,7 +172,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         $this->assertGroupedAnnexureComplete($binary, [
             'Mantra MFS 110 L1' => $modelASerials,
             'Access FM220 USB L1' => $modelBSerials,
-        ], 27);
+        ], 100);
+        $this->assertMainInvoiceFooterOnFirstPage($binary);
     }
 
     public function test_inv_0767211_style_fixture_lists_all_one_hundred_five_serials_once_in_annexure_groups(): void
@@ -235,8 +238,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
 
     public function test_multi_line_pos_sale_groups_serials_by_sale_line_allocation(): void
     {
-        $modelASerials = $this->serialList('LIVE-A', 11);
-        $modelBSerials = $this->serialList('LIVE-B', 2);
+        $modelASerials = $this->serialList('LIVE-A', 100);
+        $modelBSerials = $this->serialList('LIVE-B', 5);
         $sale = $this->completeMultiLinePosSale($modelASerials, $modelBSerials);
         $invoice = StatutoryInvoice::query()->where('inventory_sale_id', $sale->id)->firstOrFail();
         $binary = $this->invoicePdf($invoice);
@@ -244,13 +247,14 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         $this->assertGroupedAnnexureComplete($binary, [
             'Mantra MFS 110 L1' => $modelASerials,
             'Access FM220 USB L1' => $modelBSerials,
-        ], 13);
+        ], 105);
+        $this->assertMainInvoiceFooterOnFirstPage($binary);
     }
 
     /**
      * @param  list<string>  $serials
      */
-    private function singleGroupPayload(array $serials): StatutoryInvoicePdfPayload
+    private function singleGroupPayload(array $serials, bool $withIrn = false): StatutoryInvoicePdfPayload
     {
         return $this->basePayload(
             serialNumbers: $serials,
@@ -258,6 +262,7 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
                 'label' => 'RBMFS110L1 — Mantra MFS 110 L1',
                 'serials' => $serials,
             ]],
+            withIrn: $withIrn,
         );
     }
 
@@ -331,6 +336,7 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         ?string $orderId = 'POS-TEST',
         string $invoiceNumber = 'INV-0767211-TEST',
         array $lines = [],
+        bool $withIrn = false,
     ): StatutoryInvoicePdfPayload {
         if ($lines === []) {
             $lines = [[
@@ -375,6 +381,10 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
             paymentStatus: $paymentReference !== null ? 'Paid' : null,
             paymentReference: $paymentReference,
             orderId: $orderId,
+            irn: $withIrn ? 'issued-irn-token-0001' : null,
+            ackNo: $withIrn ? '112233' : null,
+            ackDate: $withIrn ? '2026-09-22 12:00:00' : null,
+            signedQr: $withIrn ? 'eyJhbGciOiJFUzI1NiJ9.payload.signature' : null,
         );
     }
 

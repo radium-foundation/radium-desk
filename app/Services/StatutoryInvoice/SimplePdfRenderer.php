@@ -79,9 +79,19 @@ class SimplePdfRenderer
     /** @var array<string, array{width: int, height: int, data: string}> */
     private array $embeddedImages = [];
 
+    private ?bool $resolvedHasSerialAnnexure = null;
+
+    /** @var list<array{label: string, serials: list<string>}>|null */
+    private ?array $resolvedFirstPageSerialGroups = null;
+
+    private ?int $resolvedFirstPageSerialCount = null;
+
     public function render(StatutoryInvoicePdfPayload $payload): string
     {
         $this->embeddedImages = [];
+        $this->resolvedHasSerialAnnexure = null;
+        $this->resolvedFirstPageSerialGroups = null;
+        $this->resolvedFirstPageSerialCount = null;
         $this->prepareEmbeddedImages();
         $contents = $this->invoicePageStreams($payload);
 
@@ -182,6 +192,8 @@ class SimplePdfRenderer
      */
     private function invoicePageStreams(StatutoryInvoicePdfPayload $payload): array
     {
+        $this->ensureSerialLayoutResolved($payload);
+
         $rows = $this->lineRows($payload);
         $streams = [];
         $remaining = $rows;
@@ -189,23 +201,18 @@ class SimplePdfRenderer
         $closing = $this->closingHeight($payload);
         $drewClosing = false;
 
-        do {
-            $needClosing = $this->rowsFitWithClosing($remaining, $closing, $page === 1, $payload) || $page >= 20;
-            [$stream, $remaining, $closed] = $this->invoicePage($payload, $remaining, $page, $needClosing, $closing);
-            $streams[] = $stream;
-            $drewClosing = $drewClosing || $closed;
-            $page++;
-        } while ($remaining !== [] && $page <= 20);
-
-        if ($remaining !== []) {
-            [$stream, , $closed] = $this->invoicePage($payload, $remaining, $page, true, $closing);
+        while ($remaining !== [] && $page <= 20) {
+            $includeClosing = $this->shouldIncludeClosingOnPage($remaining, $page, $closing, $payload) || $page >= 20;
+            [$stream, $remaining, $closed] = $this->invoicePage($payload, $remaining, $page, $includeClosing, $closing);
             $streams[] = $stream;
             $drewClosing = $drewClosing || $closed;
             $page++;
         }
 
-        if (! $drewClosing) {
-            $streams[] = $this->invoicePage($payload, [], $page, true, $closing)[0];
+        if ($remaining !== []) {
+            [$stream, , $closed] = $this->invoicePage($payload, $remaining, $page, true, $closing);
+            $streams[] = $stream;
+            $drewClosing = $drewClosing || $closed;
         }
 
         foreach ($this->annexurePageStreams($payload) as $annexure) {
@@ -243,8 +250,13 @@ class SimplePdfRenderer
 
         $drawn = 0;
         $serialReserve = $first ? $this->serialSummaryHeight($payload) : 0.0;
-        $floor = $includeClosing ? self::CONTENT_FLOOR + $closing + 8 : self::CONTENT_FLOOR + 8;
-        $floor += $serialReserve;
+        $closingAnchor = $first && $includeClosing ? $this->firstPageClosingAnchorY($closing) : null;
+        if ($closingAnchor !== null) {
+            $floor = $closingAnchor + $serialReserve;
+        } else {
+            $floor = $includeClosing ? self::CONTENT_FLOOR + $closing + 8 : self::CONTENT_FLOOR + 8;
+            $floor += $serialReserve;
+        }
 
         while ($rows !== []) {
             $row = $rows[0];
@@ -288,12 +300,47 @@ class SimplePdfRenderer
 
         $drewClosing = false;
         if ($includeClosing && $rows === []) {
-            $y -= 8;
-            $ops[] = $this->closingBlock($payload, $y);
+            $closingY = $closingAnchor ?? ($y - 8);
+            $ops[] = $this->closingBlock($payload, $closingY);
             $drewClosing = true;
         }
 
         return [implode('', $ops), $rows, $drewClosing];
+    }
+
+    private function firstPageClosingAnchorY(float $closing): float
+    {
+        return self::CONTENT_FLOOR + $closing + 8.0;
+    }
+
+    private function estimateFirstPageTableStartY(StatutoryInvoicePdfPayload $payload): float
+    {
+        $ops = [];
+        $y = $this->firstPageHeader($ops, $payload);
+        $y = $this->partyBlock($ops, $payload, $y);
+
+        return $y - 18.0;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function remainingRowsFitAboveClosingAnchor(
+        array $rows,
+        StatutoryInvoicePdfPayload $payload,
+        float $closing,
+    ): bool {
+        $available = $this->estimateFirstPageTableStartY($payload) - $this->firstPageClosingAnchorY($closing);
+        if ($available <= 0.0) {
+            return false;
+        }
+
+        $rowHeight = 0.0;
+        foreach ($rows as $row) {
+            $rowHeight += $this->rowHeight($row);
+        }
+
+        return $rowHeight + $this->serialSummaryHeight($payload) <= $available;
     }
 
     /**
@@ -823,19 +870,22 @@ class SimplePdfRenderer
     /**
      * @param  list<array<string, mixed>>  $rows
      */
-    private function rowsFitWithClosing(array $rows, float $closing, bool $firstPage, StatutoryInvoicePdfPayload $payload): bool
-    {
-        $height = 0.0;
+    private function shouldIncludeClosingOnPage(
+        array $rows,
+        int $page,
+        float $closing,
+        StatutoryInvoicePdfPayload $payload,
+    ): bool {
+        $rowHeight = 0.0;
         foreach ($rows as $row) {
-            $height += $this->rowHeight($row);
+            $rowHeight += $this->rowHeight($row);
         }
 
-        $budget = $firstPage ? self::FIRST_PAGE_BODY_BUDGET : 560.0;
-        if ($firstPage) {
-            $budget -= $this->serialSummaryHeight($payload);
+        if ($page === 1) {
+            return $this->remainingRowsFitAboveClosingAnchor($rows, $payload, $closing);
         }
 
-        return $height + $closing <= $budget;
+        return $rowHeight + $closing <= 560.0;
     }
 
     /**
@@ -1129,12 +1179,134 @@ class SimplePdfRenderer
             return [];
         }
 
-        $all = $this->normalizedSerials($payload);
-        if ($all === [] || count($all) <= self::MAIN_PAGE_SERIAL_LIMIT) {
+        if (! $this->hasSerialAnnexure($payload)) {
             return [];
         }
 
-        return $all;
+        return $this->normalizedSerials($payload);
+    }
+
+    private function ensureSerialLayoutResolved(StatutoryInvoicePdfPayload $payload): void
+    {
+        if ($this->resolvedHasSerialAnnexure !== null) {
+            return;
+        }
+
+        if ($this->hasGroupedSerials($payload)) {
+            $this->resolveGroupedSerialLayout($payload);
+
+            return;
+        }
+
+        $this->resolveUngroupedSerialLayout($payload);
+    }
+
+    private function resolveUngroupedSerialLayout(StatutoryInvoicePdfPayload $payload): void
+    {
+        $all = $this->normalizedSerials($payload);
+        $total = count($all);
+        if ($total === 0) {
+            $this->resolvedHasSerialAnnexure = false;
+            $this->resolvedFirstPageSerialCount = 0;
+
+            return;
+        }
+
+        $serialBudget = $this->mainPageSerialBudget($payload);
+        $completeHeight = $this->serialSummaryHeightForCount($total, false);
+        if ($completeHeight <= $serialBudget) {
+            $this->resolvedHasSerialAnnexure = false;
+            $this->resolvedFirstPageSerialCount = $total;
+
+            return;
+        }
+
+        $previewCap = min($total, self::MAIN_PAGE_SERIAL_LIMIT);
+        for ($count = $previewCap; $count >= 1; $count--) {
+            if ($this->serialSummaryHeightForCount($count, true) <= $serialBudget) {
+                $this->resolvedHasSerialAnnexure = true;
+                $this->resolvedFirstPageSerialCount = $count;
+
+                return;
+            }
+        }
+
+        $this->resolvedHasSerialAnnexure = true;
+        $this->resolvedFirstPageSerialCount = 0;
+    }
+
+    private function resolveGroupedSerialLayout(StatutoryInvoicePdfPayload $payload): void
+    {
+        $groups = $this->normalizedSerialGroups($payload);
+        if ($groups === []) {
+            $this->resolvedHasSerialAnnexure = false;
+            $this->resolvedFirstPageSerialGroups = [];
+
+            return;
+        }
+
+        if ($this->groupedSerialSummaryHeightForGroups($groups, false) <= $this->mainPageSerialBudget($payload)) {
+            $this->resolvedHasSerialAnnexure = false;
+            $this->resolvedFirstPageSerialGroups = $groups;
+
+            return;
+        }
+
+        $previewGroups = [];
+        foreach ($groups as $group) {
+            $previewGroups[] = [
+                'label' => $group['label'],
+                'serials' => array_slice($group['serials'], 0, self::MAIN_PAGE_SERIAL_LIMIT),
+            ];
+        }
+
+        $this->resolvedHasSerialAnnexure = true;
+        $this->resolvedFirstPageSerialGroups = $previewGroups;
+    }
+
+    private function mainPageSerialBudget(StatutoryInvoicePdfPayload $payload): float
+    {
+        $rows = $this->lineRows($payload);
+        $closing = $this->closingHeight($payload);
+        $tableStart = $this->estimateFirstPageTableStartY($payload);
+        $closingAnchor = $this->firstPageClosingAnchorY($closing);
+        $allRowHeight = 0.0;
+        foreach ($rows as $row) {
+            $allRowHeight += $this->rowHeight($row);
+        }
+
+        $availableAboveClosing = $tableStart - $closingAnchor - $allRowHeight;
+        if ($availableAboveClosing > 0.0) {
+            return $availableAboveClosing;
+        }
+
+        $partialRowHeight = $this->firstPageLineRowHeight($rows, false, 0.0);
+
+        return max(0.0, $tableStart - $partialRowHeight - 8.0);
+    }
+
+    /**
+     * @param  list<array{label: string, serials: list<string>}>  $groups
+     */
+    private function groupedSerialSummaryHeightForGroups(array $groups, bool $hasAnnexureRemainder): float
+    {
+        $previewCount = 0;
+        foreach ($groups as $group) {
+            $previewCount += count($group['serials']);
+        }
+
+        if ($previewCount === 0) {
+            return 0.0;
+        }
+
+        $rows = (int) ceil(max(1, $previewCount) / self::SERIAL_COLUMNS);
+        $rowHeight = max(self::SERIAL_ROW_HEIGHT, (2 * self::SERIAL_LINE_HEIGHT) + 2.0);
+        $height = 16.0 + (count($groups) * 12.0) + ($rows * $rowHeight) + 12.0;
+        if ($hasAnnexureRemainder) {
+            $height += 11.0;
+        }
+
+        return $height;
     }
 
     /**
@@ -1142,27 +1314,16 @@ class SimplePdfRenderer
      */
     private function resolveFirstPageSerialCount(StatutoryInvoicePdfPayload $payload): int
     {
-        $all = $this->normalizedSerials($payload);
-        if ($all === []) {
-            return 0;
-        }
+        $this->ensureSerialLayoutResolved($payload);
 
-        return min(count($all), self::MAIN_PAGE_SERIAL_LIMIT);
+        return $this->resolvedFirstPageSerialCount ?? 0;
     }
 
     private function hasSerialAnnexure(StatutoryInvoicePdfPayload $payload): bool
     {
-        if ($this->hasGroupedSerials($payload)) {
-            foreach ($this->normalizedSerialGroups($payload) as $group) {
-                if (count($group['serials']) > self::MAIN_PAGE_SERIAL_LIMIT) {
-                    return true;
-                }
-            }
+        $this->ensureSerialLayoutResolved($payload);
 
-            return false;
-        }
-
-        return count($this->normalizedSerials($payload)) > self::MAIN_PAGE_SERIAL_LIMIT;
+        return $this->resolvedHasSerialAnnexure ?? false;
     }
 
     /**
@@ -1204,15 +1365,9 @@ class SimplePdfRenderer
      */
     private function firstPageSerialGroups(StatutoryInvoicePdfPayload $payload): array
     {
-        $groups = [];
-        foreach ($this->normalizedSerialGroups($payload) as $group) {
-            $groups[] = [
-                'label' => $group['label'],
-                'serials' => array_slice($group['serials'], 0, self::MAIN_PAGE_SERIAL_LIMIT),
-            ];
-        }
+        $this->ensureSerialLayoutResolved($payload);
 
-        return $groups;
+        return $this->resolvedFirstPageSerialGroups ?? [];
     }
 
     /**
@@ -1269,33 +1424,23 @@ class SimplePdfRenderer
 
     private function serialSummaryHeight(StatutoryInvoicePdfPayload $payload): float
     {
+        $this->ensureSerialLayoutResolved($payload);
+
         if ($this->hasGroupedSerials($payload)) {
             $groups = $this->firstPageSerialGroups($payload);
             if ($groups === []) {
                 return 0.0;
             }
 
-            $previewCount = 0;
-            foreach ($groups as $group) {
-                $previewCount += count($group['serials']);
-            }
-
-            $rows = (int) ceil(max(1, $previewCount) / self::SERIAL_COLUMNS);
-            $rowHeight = max(self::SERIAL_ROW_HEIGHT, (2 * self::SERIAL_LINE_HEIGHT) + 2.0);
-            $height = 16.0 + (count($groups) * 12.0) + ($rows * $rowHeight) + 12.0;
-            if ($this->hasSerialAnnexure($payload)) {
-                $height += 11.0;
-            }
-
-            return $height;
+            return $this->groupedSerialSummaryHeightForGroups($groups, $this->hasSerialAnnexure($payload));
         }
 
-        $first = $this->firstPageSerials($payload);
-        if ($first === []) {
+        $count = $this->resolveFirstPageSerialCount($payload);
+        if ($count === 0) {
             return 0.0;
         }
 
-        return $this->serialSummaryHeightForCount(count($first), $this->hasSerialAnnexure($payload));
+        return $this->serialSummaryHeightForCount($count, $this->hasSerialAnnexure($payload));
     }
 
     private function serialSummaryHeightForCount(int $count, bool $hasAnnexureRemainder): float

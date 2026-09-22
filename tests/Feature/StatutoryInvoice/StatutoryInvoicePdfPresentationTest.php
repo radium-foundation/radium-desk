@@ -1039,12 +1039,11 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             orderId: 'RDE318900',
         )));
 
-        $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $pdf);
+        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
         foreach ($serials as $serial) {
             $this->assertStringContainsString($serial, $pdf);
         }
-        $this->assertGreaterThanOrEqual(2, substr_count($pdf, 'SN-01'));
+        $this->assertSame(1, substr_count($pdf, 'SN-01'));
         $this->assertSame(1, substr_count($pdf, 'SN-24'));
         $this->assertStringContainsString('Rs.2832.00', $pdf);
         $this->assertStringContainsString('Page 1 of', $pdf);
@@ -1053,7 +1052,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
     public function test_fifty_serials_use_option_b_main_page_summary_and_complete_annexure(): void
     {
         $serials = [];
-        for ($i = 1; $i <= 50; $i++) {
+        for ($i = 1; $i <= 120; $i++) {
             $serials[] = sprintf('SN-%03d', $i);
         }
 
@@ -1071,9 +1070,9 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             lines: [[
                 'description' => 'Mantra MFS 110 L1',
                 'hsnSac' => '84716050',
-                'qty' => 50,
+                'qty' => 120,
                 'unitPrice' => '100.00',
-                'taxableValue' => '5000.00',
+                'taxableValue' => '12000.00',
                 'gstPercentage' => '18.00%',
                 'cgst' => '450.00',
                 'sgst' => '450.00',
@@ -1082,13 +1081,13 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
                 'lineTotal' => '5900.00',
                 'uqc' => 'PCS',
             ]],
-            taxableValue: '5000.00',
+            taxableValue: '12000.00',
             gstRate: '18.00%',
-            taxTotal: '900.00',
-            cgst: '450.00',
-            sgst: '450.00',
+            taxTotal: '2160.00',
+            cgst: '1080.00',
+            sgst: '1080.00',
             igst: '0.00',
-            invoiceValue: '5900.00',
+            invoiceValue: '14160.00',
             serialNumbers: $serials,
             orderId: 'POS-000050',
         ));
@@ -1096,7 +1095,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
 
         $this->assertOptionBWithAnnexure($binary, $serials);
         $this->assertStringContainsString('10.', $pdf);
-        $this->assertStringContainsString('50.', $pdf);
+        $this->assertStringContainsString('120.', $pdf);
         $this->assertStringContainsString('ANNEXURE A', $pdf);
         $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $pdf);
         $this->assertStringContainsString('SHIP TO', $pdf);
@@ -1171,7 +1170,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
     public function test_fifty_one_serials_with_irn_use_annexure_before_pushing_verification_block(): void
     {
         $serials = [];
-        for ($i = 1; $i <= 51; $i++) {
+        for ($i = 1; $i <= 120; $i++) {
             $serials[] = sprintf('SN-%03d', $i);
         }
 
@@ -1189,24 +1188,24 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             lines: [[
                 'description' => 'Mantra MFS 110 L1',
                 'hsnSac' => '84716050',
-                'qty' => 51,
+                'qty' => 120,
                 'unitPrice' => '100.00',
-                'taxableValue' => '5100.00',
+                'taxableValue' => '12000.00',
                 'gstPercentage' => '18.00%',
-                'cgst' => '459.00',
-                'sgst' => '459.00',
+                'cgst' => '1080.00',
+                'sgst' => '1080.00',
                 'igst' => '0.00',
-                'taxTotal' => '918.00',
-                'lineTotal' => '6018.00',
+                'taxTotal' => '2160.00',
+                'lineTotal' => '14160.00',
                 'uqc' => 'PCS',
             ]],
-            taxableValue: '5100.00',
+            taxableValue: '12000.00',
             gstRate: '18.00%',
-            taxTotal: '900.00',
-            cgst: '459.00',
-            sgst: '459.00',
+            taxTotal: '2160.00',
+            cgst: '1080.00',
+            sgst: '1080.00',
             igst: '0.00',
-            invoiceValue: '6018.00',
+            invoiceValue: '14160.00',
             serialNumbers: $serials,
             orderId: 'POS-000051',
             irn: 'issued-irn-token-0001',
@@ -1220,13 +1219,13 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $pdf);
         $this->assertStringContainsString('ANNEXURE A', $pdf);
         $this->assertOptionBWithAnnexure($binary, $serials);
-        $this->assertStringContainsString('51.', $pdf);
+        $this->assertStringContainsString('120.', $pdf);
     }
 
     public function test_fifty_one_serials_without_irn_use_complete_annexure_a(): void
     {
         $serials = [];
-        for ($i = 1; $i <= 51; $i++) {
+        for ($i = 1; $i <= 120; $i++) {
             $serials[] = sprintf('SN-%03d', $i);
         }
 
@@ -1244,31 +1243,31 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             lines: [[
                 'description' => 'Mantra MFS 110 L1',
                 'hsnSac' => '84716050',
-                'qty' => 51,
+                'qty' => 120,
                 'unitPrice' => '100.00',
-                'taxableValue' => '5100.00',
+                'taxableValue' => '12000.00',
                 'gstPercentage' => '18.00%',
-                'cgst' => '459.00',
-                'sgst' => '459.00',
+                'cgst' => '1080.00',
+                'sgst' => '1080.00',
                 'igst' => '0.00',
-                'taxTotal' => '918.00',
-                'lineTotal' => '6018.00',
+                'taxTotal' => '2160.00',
+                'lineTotal' => '14160.00',
                 'uqc' => 'PCS',
             ]],
-            taxableValue: '5100.00',
+            taxableValue: '12000.00',
             gstRate: '18.00%',
-            taxTotal: '900.00',
-            cgst: '459.00',
-            sgst: '459.00',
+            taxTotal: '2160.00',
+            cgst: '1080.00',
+            sgst: '1080.00',
             igst: '0.00',
-            invoiceValue: '6018.00',
+            invoiceValue: '14160.00',
             serialNumbers: $serials,
             orderId: 'POS-000052',
         ));
         $pdf = $this->text($binary);
 
         $this->assertOptionBWithAnnexure($binary, $serials);
-        $this->assertStringContainsString('51.', $pdf);
+        $this->assertStringContainsString('120.', $pdf);
     }
 
     public function test_one_hundred_serials_are_never_truncated(): void

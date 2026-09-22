@@ -270,4 +270,53 @@ trait AssertsStatutoryInvoicePdfSerials
 
         $this->fail('pdftotext is required for grouped annexure assertions.');
     }
+
+    protected function mainInvoicePageCount(string $binary): int
+    {
+        $extracted = $this->extractedPdfText($binary);
+        $annexurePos = strpos($extracted, 'ANNEXURE A');
+        $mainText = $annexurePos === false ? $extracted : substr($extracted, 0, $annexurePos);
+        $continuedCount = substr_count($mainText, '(continued)');
+
+        return 1 + $continuedCount;
+    }
+
+    protected function assertMainInvoiceFooterOnFirstPage(string $binary, ?string $irn = null): void
+    {
+        $extracted = $this->extractedPdfText($binary);
+        $main = $this->mainPageExtractedText($extracted);
+
+        $this->assertStringContainsString('TOTAL INVOICE VALUE', $main, 'Main invoice page must include totals.');
+        $this->assertStringContainsString('Authorized Signatory', $main, 'Main invoice page must include authorized signatory.');
+
+        if ($irn !== null) {
+            $this->assertStringContainsString('IRN', $main, 'Main invoice page must include IRN block.');
+            $this->assertStringContainsString($irn, $main, 'Main invoice page must include issued IRN.');
+        }
+
+        $this->assertSame(
+            1,
+            $this->mainInvoicePageCount($binary),
+            'Statutory footer must not be pushed to a separate invoice continuation page.',
+        );
+    }
+
+    protected function assertNoClosingOnlyContinuationPage(string $binary): void
+    {
+        $extracted = $this->extractedPdfText($binary);
+        $annexurePos = strpos($extracted, 'ANNEXURE A');
+        $mainText = $annexurePos === false ? $extracted : substr($extracted, 0, $annexurePos);
+
+        if (! str_contains($mainText, '(continued)')) {
+            return;
+        }
+
+        $continuedPos = strpos($mainText, '(continued)');
+        $continuedSection = substr($mainText, $continuedPos);
+        $this->assertStringNotContainsString(
+            'Serial Numbers',
+            $continuedSection,
+            'Invoice continuation pages must not exist solely for totals/IRN/signature.',
+        );
+    }
 }
