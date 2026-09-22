@@ -64,9 +64,9 @@ class OperationsHubNavigationTest extends TestCase
 
         $html = $this->sidebarHtml($admin);
 
-        $this->assertSame(1, substr_count($html, 'title="Mission Control"'));
+        $this->assertSame(1, substr_count($html, 'title="Control &amp; Admin"'));
         $this->assertSame(0, $this->operationsHubSidebarLabelCount($html, 'Automation Health'));
-        $this->assertStringContainsString(route('admin.operations.index'), $html);
+        $this->assertStringNotContainsString('title="Mission Control"', $html);
         $this->assertStringNotContainsString('title="Automation Operations"', $html);
         $this->assertStringNotContainsString('title="Automation Health"', $html);
         $this->assertStringNotContainsString('title="Operations Control Center"', $html);
@@ -82,10 +82,9 @@ class OperationsHubNavigationTest extends TestCase
         $this->assertStringNotContainsString('title="Operations Control Center"', $html);
         $this->assertStringNotContainsString('title="Automation Health"', $html);
         $this->assertStringNotContainsString('title="Automation Operations"', $html);
-        $this->assertStringContainsString('Mission Control</span>', $html);
-        $this->assertStringNotContainsString('data-nav-key="operations.orders"', $html);
-        $this->assertStringNotContainsString('data-nav-key="operations.incidents"', $html);
-        $this->assertStringNotContainsString('data-nav-key="operations.refunds"', $html);
+        $this->assertStringContainsString('title="Control &amp; Admin"', $html);
+        $this->assertStringNotContainsString('title="Mission Control"', $html);
+        $this->assertStringNotContainsString('title="Administration"', $html);
     }
 
     public function test_admin_operations_control_center_shows_merged_hub_navigation(): void
@@ -95,7 +94,7 @@ class OperationsHubNavigationTest extends TestCase
         $response = $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('aria-label="Mission Control workspace"', false)
+            ->assertSee('aria-label="Control &amp; Admin workspace"', false)
             ->assertSee('aria-label="Operations hub"', false)
             ->assertSee('id="operations-dashboard-tabs"', false)
             ->assertSee('id="operations-tab-today"', false)
@@ -134,7 +133,7 @@ class OperationsHubNavigationTest extends TestCase
             ->assertSee('data-bs-target="#operations-pane-automation"', false)
             ->assertSee('data-automation-health-url="'.route('admin.operations.automation-health').'"', false)
             ->assertSee('data-automation-subview-target="health"', false)
-            ->assertSee('aria-label="Mission Control workspace"', false);
+            ->assertSee('aria-label="Control &amp; Admin workspace"', false);
     }
 
     public function test_admin_operations_hub_supports_automation_pipeline_subview_query(): void
@@ -227,7 +226,7 @@ class OperationsHubNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.operations.automation-health'))
             ->assertOk()
-            ->assertSee('aria-label="Mission Control workspace"', false)
+            ->assertSee('aria-label="Control &amp; Admin workspace"', false)
             ->assertSee(route('admin.operations.index', ['hub_tab' => 'automation']), false)
             ->assertSee(route('cashfree.webhook-explorer.index'), false)
             ->assertSee('Automation Health')
@@ -242,7 +241,7 @@ class OperationsHubNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.automation.index'))
             ->assertOk()
-            ->assertSee('aria-label="Mission Control workspace"', false)
+            ->assertSee('aria-label="Control &amp; Admin workspace"', false)
             ->assertSee('hub_tab=automation', false)
             ->assertDontSee('aria-label="Operations hub"', false);
     }
@@ -254,7 +253,7 @@ class OperationsHubNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('cashfree.webhook-explorer.index'))
             ->assertOk()
-            ->assertSee('aria-label="Mission Control workspace"', false)
+            ->assertSee('aria-label="Control &amp; Admin workspace"', false)
             ->assertSee(route('audit-logs.index'), false)
             ->assertDontSee('aria-label="Operations hub"', false);
     }

@@ -45,7 +45,7 @@
             </div>
         </div>
 
-        @include('navigation.administration-workspace-nav', ['active' => 'ira_memory'])
+        @include('navigation.control-and-admin-workspace-nav', ['active' => 'ira_memory'])
 
         @if(session('status'))
             <div class="alert alert-success">{{ session('status') }}</div>

@@ -11,7 +11,7 @@
         </p>
     </div>
 
-    @include('navigation.administration-workspace-nav', ['active' => 'performance_intelligence'])
+    @include('navigation.control-and-admin-workspace-nav', ['active' => 'performance_intelligence'])
 
     @if(session('status'))
         <div class="alert alert-success">{{ session('status') }}</div>

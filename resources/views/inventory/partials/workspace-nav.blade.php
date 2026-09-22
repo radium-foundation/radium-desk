@@ -19,11 +19,6 @@
             'url' => route('inventory.serials.index'),
             'visible' => true,
         ],
-        'hardware-fulfilments' => [
-            'label' => 'Hardware',
-            'url' => route('inventory.hardware-fulfilments.index'),
-            'visible' => \App\Support\HardwareFulfilment\HardwareFulfilmentAccess::allows($user),
-        ],
         'transfers' => [
             'label' => 'Transfers',
             'url' => route('inventory.transfers.index'),
@@ -45,7 +40,7 @@
             'visible' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_OPENING_IMPORT),
         ],
         'movements' => [
-            'label' => 'Movements',
+            'label' => 'Stock History',
             'url' => route('inventory.movements.index'),
             'visible' => true,
         ],

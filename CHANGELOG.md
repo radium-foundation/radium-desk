@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.110 — 2026-09-22 — Five-destination primary navigation
+
+- Replace the seven-group primary sidebar with five destination-only entries: Home / Desk, Commerce, Inventory, Finance, and Control & Admin.
+- Consolidate detailed functions into existing workspace navigation (Commerce, Inventory, Finance, Control & Admin) without adding a third navigation tier; preserve all routes, permissions, and deep links.
+- Remove Service Desk, Service Cases, and To-Dos from primary sidebar icons; move Hardware under Commerce; move Attendance, Leave, Cash Book, and Refunds into their respective workspace tabs. CA Monthly Report implementation untouched.
+- Rollback target: v4.0.109 / `f458e6f0` (application only).
+
 ## 4.0.109 — 2026-09-22 — Sidebar scroll accessibility fix
 
 - Fix primary sidebar exceeding the viewport after the v4.0.108 navigation expansion: constrain `.app-sidebar` to the viewport and make the inner `nav` region scrollable (`min-height: 0`, `overflow-y: auto`).

@@ -8,7 +8,7 @@
         <p class="text-muted mb-0">Holidays block automatic assignment. Emergency overrides can be added in a future phase.</p>
     </div>
 
-    @include('navigation.administration-workspace-nav', ['active' => 'holiday_calendar'])
+    @include('navigation.control-and-admin-workspace-nav', ['active' => 'holiday_calendar'])
 
     <div class="row g-4">
         <div class="col-lg-4">

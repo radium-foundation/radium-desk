@@ -3,6 +3,8 @@
 @section('title', 'Refunds')
 
 @section('content')
+    @include('finance.partials.workspace-nav', ['active' => 'refunds'])
+
     @include('refunds.partials.index-listing', [
         'refunds' => $refunds,
         'requesters' => $requesters,

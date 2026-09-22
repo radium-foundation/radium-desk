@@ -7,9 +7,9 @@
 
 <div {{ $attributes->merge(['class' => 'settings-center']) }}>
     @if($workspaceNav === 'mission-control')
-        @include('navigation.mission-control-workspace-nav', ['active' => $workspaceActive])
+        @include('navigation.control-and-admin-workspace-nav', ['active' => $workspaceActive])
     @elseif($workspaceNav === 'administration')
-        @include('navigation.administration-workspace-nav', ['active' => $workspaceActive])
+        @include('navigation.control-and-admin-workspace-nav', ['active' => $workspaceActive])
     @endif
 
     <x-settings-center.page-header :title="$title" :subtitle="$subtitle">

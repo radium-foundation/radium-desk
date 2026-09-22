@@ -11,4 +11,4 @@
     };
 @endphp
 
-@include('navigation.mission-control-workspace-nav', ['active' => $workspaceActive])
+@include('navigation.control-and-admin-workspace-nav', ['active' => $workspaceActive])

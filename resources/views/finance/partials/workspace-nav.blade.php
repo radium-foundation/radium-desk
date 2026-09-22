@@ -3,8 +3,10 @@
 ])
 
 @php
+    use App\Models\RefundRequest;
     use App\Support\Finance\FinanceAccess;
     use Database\Seeders\RolePermissionSeeder;
+    use Illuminate\Support\Facades\Gate;
 
     $user = auth()->user();
 
@@ -48,6 +50,16 @@
             'label' => 'Vendor Payments',
             'url' => route('finance.vendor-payments.index'),
             'visible' => FinanceAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_VENDOR_PAYMENTS_VIEW),
+        ],
+        'cash_book' => [
+            'label' => 'Cash Book',
+            'url' => route('cash-book.index'),
+            'visible' => $user?->can(RolePermissionSeeder::PERMISSION_CASHBOOK_VIEW) ?? false,
+        ],
+        'refunds' => [
+            'label' => 'Refunds',
+            'url' => route('refunds.index'),
+            'visible' => Gate::check('viewAny', RefundRequest::class),
         ],
         'ca_monthly_report' => [
             'label' => 'CA Monthly Report',

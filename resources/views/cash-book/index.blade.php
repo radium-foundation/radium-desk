@@ -3,6 +3,8 @@
 @section('title', 'Cash Book')
 
 @section('content')
+    @include('finance.partials.workspace-nav', ['active' => 'cash_book'])
+
     @php
         $period = $filters['period'] ?? 'today';
         $typeFilter = $filters['type'] ?? '';

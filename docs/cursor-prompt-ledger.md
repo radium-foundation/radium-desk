@@ -103,5 +103,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-21-09-15 | 2026-09-21 | Statutory invoice PDF Option B serial layout + rendering fix | `SimplePdfRenderer`: main page max 10 serials; Annexure A complete list 1..N; separate index/serial multi-line grid (fixes clip truncation on long production serials). Tests with production-length strings. Deploy authorized; PDF regeneration not in scope. |
 | RadiumDesk-P-21-09-28 | 2026-09-22 | Release/deploy v4.0.108 compact seven-group primary navigation | Approved 7-group sidebar IA on `main`; navigation resolver/tests only; CA Monthly Report hold. Tag/deploy v4.0.108. Rollback: v4.0.107 / `feb5572b`. |
 | RadiumDesk-P-21-09-29 | 2026-09-22 | Sidebar scroll accessibility fix v4.0.109 | Viewport-bounded sidebar flex scroll; active nav scrollIntoView; CSS regression test. Tag/deploy v4.0.109. Rollback: v4.0.108 / `c485c282`. |
+| RadiumDesk-P-21-09-30 | 2026-09-22 | Five-destination primary navigation v4.0.110 | Five destination-only sidebar groups; workspace nav consolidation; CA Monthly Report hold. Tag/deploy v4.0.110. Rollback: v4.0.109 / `f458e6f0`. |
 
 Do not renumber or overwrite earlier rows. Append only.

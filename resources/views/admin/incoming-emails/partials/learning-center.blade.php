@@ -12,7 +12,7 @@
 @endphp
 
 <div class="ira-lc-page">
-    @include('navigation.administration-workspace-nav', ['active' => 'learning_center'])
+    @include('navigation.control-and-admin-workspace-nav', ['active' => 'incoming_email'])
 
     <div class="ira-lc-page__intro">
         <h1 class="ira-lc-page__title">IRA Learning Center</h1>

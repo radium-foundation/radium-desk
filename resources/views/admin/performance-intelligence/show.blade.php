@@ -20,7 +20,7 @@
         </p>
     </div>
 
-    @include('navigation.administration-workspace-nav', ['active' => 'performance_intelligence'])
+    @include('navigation.control-and-admin-workspace-nav', ['active' => 'performance_intelligence'])
 
     <p class="mb-3">
         <a href="{{ route('admin.performance-intelligence.index', ['date' => $date->toDateString()]) }}" class="btn btn-sm btn-outline-secondary">

@@ -32,7 +32,7 @@
                 : 'today';
         @endphp
 
-        @include('navigation.mission-control-workspace-nav', [
+        @include('navigation.control-and-admin-workspace-nav', [
             'active' => $operationsHubActive === 'automation' ? 'automation' : 'operations',
         ])
 

@@ -9,6 +9,8 @@
     @endphp
 
     <div class="workforce-management-page" data-workforce-management-attendance>
+        @include('navigation.control-and-admin-workspace-nav', ['active' => 'attendance'])
+
         <header class="wm-page-header">
             <div class="wm-page-header__eyebrow">Workforce Management</div>
             <h1 class="wm-page-header__title">Attendance</h1>

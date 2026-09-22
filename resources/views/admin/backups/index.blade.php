@@ -10,7 +10,7 @@
         </p>
     </div>
 
-    @include('navigation.administration-workspace-nav', ['active' => 'backups'])
+    @include('navigation.control-and-admin-workspace-nav', ['active' => 'backups'])
 
     <div class="alert alert-info border-0 shadow-sm" role="status">
         <i class="bi bi-info-circle me-1" aria-hidden="true"></i>

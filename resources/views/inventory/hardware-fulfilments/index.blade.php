@@ -18,7 +18,7 @@
         </p>
     </div>
 
-    @include('inventory.partials.workspace-nav', ['active' => 'hardware-fulfilments'])
+    @include('commerce.partials.workspace-nav', ['active' => 'hardware'])
 
     <ul class="nav nav-pills gap-2 mb-3" role="tablist">
         <li class="nav-item" role="presentation">

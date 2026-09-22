@@ -119,5 +119,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-21-09-27 | 2026-09-22 | CA Monthly Report presentation/UX refresh v4.0.107 | Compact preflight summary, unified Export Report UI, recent exports and invoice preview polish. Presentation only. Deploy v4.0.107. Rollback: v4.0.106 / `f8fce220`. |
 | RadiumDesk-P-21-09-28 | 2026-09-22 | Release/deploy v4.0.108 compact seven-group primary navigation | Port approved IA from obsolete v4.0.103 WIP onto `main` @ `feb5572b`. Navigation/tests only; CA Monthly Report implementation untouched. Tag/deploy v4.0.108. Rollback: v4.0.107 / `feb5572b`. |
 | RadiumDesk-P-21-09-29 | 2026-09-22 | Sidebar scroll accessibility fix v4.0.109 | Production/browser diagnosis: sidebar grew past viewport; lower nav items unreachable. Minimal CSS flex scroll fix + active-link scrollIntoView. Tag/deploy v4.0.109. Rollback: v4.0.108 / `c485c282`. |
+| RadiumDesk-P-21-09-30 | 2026-09-22 | Five-destination primary navigation v4.0.110 | Replace seven-group sidebar with Home/Desk, Commerce, Inventory, Finance, Control & Admin. Workspace nav consolidation only; CA Monthly Report untouched. Tag/deploy v4.0.110. Rollback: v4.0.109 / `f458e6f0`. |
 
 Do not renumber or overwrite earlier rows. Append only.

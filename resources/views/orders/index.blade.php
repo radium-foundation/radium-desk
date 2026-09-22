@@ -3,6 +3,8 @@
 @section('title', 'Orders')
 
 @section('content')
+    @include('commerce.partials.workspace-nav', ['active' => 'orders'])
+
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
         <div>
             <h1 class="h3 mb-1">Orders</h1>

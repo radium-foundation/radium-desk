@@ -89,7 +89,7 @@
         <h1 class="h3 mb-2">{{ $canAllocate ? 'Allocate serial' : 'Hardware fulfilment' }}</h1>
         <p class="text-muted mb-3">{{ $qtyLabel }}. Physical branch and pickup come from the allocated stock serial.</p>
 
-        @include('inventory.partials.workspace-nav', ['active' => 'hardware-fulfilments'])
+        @include('commerce.partials.workspace-nav', ['active' => 'hardware'])
 
         @if(isset($opsRow, $stepperMilestones, $stepperCurrentIndex))
             <div class="hf-alloc-card mb-3" id="hardware-progress">

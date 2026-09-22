@@ -3,6 +3,8 @@
 @section('title', 'Leave Requests')
 
 @section('content')
+    @include('navigation.control-and-admin-workspace-nav', ['active' => 'leave'])
+
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
             <h1 class="h3 mb-1">Leave Requests</h1>
