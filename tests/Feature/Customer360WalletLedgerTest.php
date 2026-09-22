@@ -84,6 +84,51 @@ class Customer360WalletLedgerTest extends TestCase
         $this->assertStringContainsString(route('refunds.show', $refund->id), $html);
     }
 
+    public function test_wallet_ledger_shows_missing_when_wallet_reference_is_absent(): void
+    {
+        Http::fake([
+            'radiumbox.test/api/integrations/v1/wallet-ledger*' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'balance' => [
+                        'available' => 617,
+                        'pending_credits' => 0,
+                        'pending_debits' => 0,
+                    ],
+                    'transactions' => [
+                        [
+                            'id' => 273105,
+                            'created_at' => now()->toIso8601String(),
+                            'type' => 'credit',
+                            'credit' => 617,
+                            'debit' => null,
+                            'status' => 'success',
+                            'message' => 'Wallet refund for order RB317 (Desk REF-67330)',
+                            'orderid' => null,
+                            'order_code' => 'RB317',
+                            'txnid' => null,
+                            'desk_refund_reference' => 'REF-67330',
+                            'admin_id' => null,
+                            'missing_order_link' => true,
+                        ],
+                    ],
+                    'pagination' => ['limit' => 25, 'has_more' => false, 'next_before_id' => null],
+                ],
+            ], 200),
+        ]);
+
+        $financeUser = $this->financeUser();
+        [$incident] = $this->walletIncident($financeUser, 'wallet@example.com', 'RB317');
+
+        $response = $this->actingAs($financeUser)
+            ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1')
+            ->assertOk();
+
+        $html = (string) $response->json('html');
+        $this->assertStringContainsString('Missing', $html);
+        $this->assertStringContainsString('REF-67330', $html);
+    }
+
     public function test_unauthorized_user_receives_403(): void
     {
         $agent = User::factory()->create();

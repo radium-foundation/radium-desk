@@ -240,10 +240,71 @@ class WalletRefundExecutionTest extends TestCase
 
         $refund->refresh();
         $this->assertSame('RD273105', $refund->execution_reference_no);
+        $this->assertSame('273105', $refund->execution_transaction_id);
 
         Http::assertSent(fn ($request) => $request->url() === 'https://radiumbox.test/api/integrations/v1/wallet-refunds'
             && $request['order_id'] === 'RDE318801');
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'rdservice.in.test'));
+    }
+
+    public function test_radiumbox_wallet_refund_ref_67330_accepts_numeric_wallet_reference(): void
+    {
+        Http::fake([
+            'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::response([
+                'status' => 201,
+                'message' => 'Wallet credit created',
+                'data' => [
+                    'wallet_transaction_id' => 273105,
+                    'wallet_reference' => 273105,
+                    'desk_refund_reference' => 'REF-67330',
+                    'userid' => 42,
+                    'credit' => 617,
+                    'balance' => 617,
+                ],
+            ], 201),
+        ]);
+
+        [$ops, $refund] = $this->pendingWalletRefundFixture('RB317', '617.00', 'REF-67330');
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [])
+            ->assertRedirect(route('refunds.show', $refund));
+
+        $refund->refresh();
+        $this->assertContains($refund->status, [RefundStatus::Completed, RefundStatus::Closed]);
+        $this->assertSame('273105', $refund->execution_reference_no);
+        $this->assertSame('273105', $refund->execution_transaction_id);
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://radiumbox.test/api/integrations/v1/wallet-refunds'
+            && $request['desk_refund_reference'] === 'REF-67330'
+            && $request['order_id'] === 'RB317'
+            && (float) $request['amount'] === 617.0);
+    }
+
+    public function test_radiumbox_wallet_refund_ref_67330_derives_reference_when_txnid_missing(): void
+    {
+        Http::fake([
+            'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::response([
+                'status' => 200,
+                'message' => 'Wallet credit already exists',
+                'data' => [
+                    'wallet_transaction_id' => 273105,
+                    'desk_refund_reference' => 'REF-67330',
+                    'credit' => 617,
+                    'balance' => 617,
+                ],
+            ], 200),
+        ]);
+
+        [$ops, $refund] = $this->pendingWalletRefundFixture('RB317', '617.00', 'REF-67330');
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [])
+            ->assertRedirect(route('refunds.show', $refund));
+
+        $refund->refresh();
+        $this->assertSame('RD273105', $refund->execution_reference_no);
+        $this->assertSame('273105', $refund->execution_transaction_id);
     }
 
     public function test_unconfigured_radiumbox_wallet_does_not_fall_back_to_manual(): void

@@ -142,7 +142,7 @@ class WalletLedgerReadService
                 'desk_refund_reference' => $deskRefundReference !== '' ? $deskRefundReference : null,
                 'desk_refund_id' => $refund?->id,
                 'can_view_refund' => $refund !== null && $viewer->can('refunds.view'),
-                'reference' => $transaction['txnid'] ?? (string) ($transaction['id'] ?? ''),
+                'reference' => $this->walletTransactionReference($transaction),
                 'badges' => $this->badgesFor($transaction, $refund, $deskOrder),
             ];
         })->values()->all();
@@ -242,5 +242,22 @@ class WalletLedgerReadService
         $trimmed = trim($value);
 
         return $trimmed !== '' ? $trimmed : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $transaction
+     */
+    private function walletTransactionReference(array $transaction): string
+    {
+        $txnid = $transaction['txnid'] ?? null;
+        if (is_string($txnid) && trim($txnid) !== '') {
+            return trim($txnid);
+        }
+
+        if (is_int($txnid) && $txnid > 0) {
+            return (string) $txnid;
+        }
+
+        return 'Missing';
     }
 }

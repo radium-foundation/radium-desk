@@ -115,7 +115,7 @@
                             </dd>
 
                             <dt class="col-sm-4 text-muted">Serial Number</dt>
-                            <dd class="col-sm-8">{{ $refund->order->serial_number }}</dd>
+                            <dd class="col-sm-8">{{ filled($refund->order->serial_number) ? $refund->order->serial_number : 'Missing' }}</dd>
 
                             <dt class="col-sm-4 text-muted">Product</dt>
                             <dd class="col-sm-8">{{ $refund->order->product_name }} ({{ $refund->order->device_model }})</dd>
