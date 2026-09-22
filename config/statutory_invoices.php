@@ -130,6 +130,15 @@ return [
         */
         'issuance_policy' => env('STATUTORY_EINVOICE_ISSUANCE_POLICY', 'hardware_only'),
         /*
+        | Comma-separated statutory invoice ids that must not reach IRP GENERATE.
+        | Reversible via env only. Does not change e-invoice eligibility/queue state.
+        */
+        'irp_submission_held_invoice_ids' => array_values(array_filter(array_map(
+            static fn (string $id): int => (int) trim($id),
+            explode(',', (string) env('STATUTORY_EINVOICE_IRP_HELD_INVOICE_IDS', '')),
+        ), static fn (int $id): bool => $id > 0)),
+        'exception_remediation_extra_invoice_ids' => [],
+        /*
         | Direct WhiteBooks Production API. Default base is the verified host.
         | Leave secrets empty. Do not copy media.radiumbox.com or Admin secrets.
         | One WhiteBooks client pair + per-issuer GST portal username/password.

@@ -90,6 +90,10 @@ class EInvoiceProcessor
                 return ['kind' => 'skip', 'reason' => $eligibility->reason];
             }
 
+            if (EInvoiceIrpSubmissionHold::isHeld((int) $lockedInvoice->id)) {
+                return ['kind' => 'skip', 'reason' => EInvoiceIrpSubmissionHold::holdReason()];
+            }
+
             if ($this->gateway->provider() === 'none') {
                 return ['kind' => 'skip', 'reason' => 'provider_disabled'];
             }
@@ -135,6 +139,13 @@ class EInvoiceProcessor
         /** @var EInvoiceIrnPayload $payload */
         $payload = $decision['payload'];
         $lockedInvoice = $decision['invoice'] ?? $invoice;
+
+        if (EInvoiceIrpSubmissionHold::isHeld((int) $lockedInvoice->id)) {
+            return EInvoiceSubmitResult::skipped(
+                $this->gateway->provider(),
+                ['reason' => EInvoiceIrpSubmissionHold::holdReason()],
+            );
+        }
 
         try {
             $result = $this->gateway->submit($lockedInvoice, $payload);
@@ -197,6 +208,10 @@ class EInvoiceProcessor
                 return ['kind' => 'done'];
             }
 
+            if (EInvoiceIrpSubmissionHold::isHeld((int) $invoice->id)) {
+                return ['kind' => 'done'];
+            }
+
             if (! $this->submissionEnabled()) {
                 $this->persistSkip($invoice, $this->skipReason());
 
@@ -230,6 +245,10 @@ class EInvoiceProcessor
 
     private function runGenerate(StatutoryInvoice $invoice, EInvoiceIrnPayload $payload): void
     {
+        if (EInvoiceIrpSubmissionHold::isHeld((int) $invoice->id)) {
+            return;
+        }
+
         try {
             $result = $this->gateway->submit($invoice, $payload);
         } catch (Throwable) {
