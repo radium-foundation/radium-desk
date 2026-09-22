@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.113 — 2026-09-22 — Purchase Order detail tab navigation
+
+- Fix non-functional PO detail tabs (Products, Receiving, Payments, Activity): replace disabled placeholder spans with Bootstrap 5 tab panes on the existing show page.
+- Support deep links via `?tab=products|receiving|payments|activity`; PO Details remains the default tab.
+- Preserve received-PO immutability: no edit routes added; released POs show an informational notice on the Details tab.
+- Regression: `PurchasingPurchaseOrderDetailTabsTest`. No database migrations or PO lifecycle/pricing changes.
+- Rollback target: v4.0.112 / `9169cf7a` (application only).
+
 ## 4.0.112 — 2026-09-22 — Hardware Fulfilments work queue performance
 
 - Fix slow default Hardware Operations work queue (`/inventory/hardware-fulfilments?queue=work`): production baseline was ~15.5s server time and 12,722 DB queries because the queue loaded all ~1,003 fulfilments and ran full shipment `inspect()` per row before paginating 40 in PHP.

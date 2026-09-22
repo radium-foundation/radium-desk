@@ -129,7 +129,7 @@ class PurchaseOrderController extends Controller
         return redirect()->route('purchasing.purchase-orders.show', $po)->with('status', 'Purchase order created.');
     }
 
-    public function show(PurchaseOrder $purchaseOrder): View
+    public function show(Request $request, PurchaseOrder $purchaseOrder): View
     {
         $purchaseOrder->load(['vendor', 'branch', 'items.product', 'goodsReceipts', 'supplierInvoices.payments']);
 
@@ -140,9 +140,15 @@ class PurchaseOrderController extends Controller
             ->limit(20)
             ->get();
 
+        $activeTab = $request->string('tab')->toString();
+        if (! in_array($activeTab, ['details', 'products', 'receiving', 'payments', 'activity'], true)) {
+            $activeTab = 'details';
+        }
+
         return view('purchasing.purchase-orders.show', [
             'purchaseOrder' => $purchaseOrder,
             'audit' => $audit,
+            'activeTab' => $activeTab,
         ]);
     }
 
