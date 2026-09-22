@@ -301,6 +301,48 @@ trait AssertsStatutoryInvoicePdfSerials
         );
     }
 
+    protected function annexurePageCount(string $binary): int
+    {
+        $extracted = $this->extractedPdfText($binary);
+        if (! str_contains($extracted, 'ANNEXURE A')) {
+            return 0;
+        }
+
+        return substr_count($extracted, 'ANNEXURE A');
+    }
+
+    protected function pdfWordYMin(string $binary, string $word): float
+    {
+        $tmpPdf = tempnam(sys_get_temp_dir(), 'statutory-pdf-');
+        $tmpHtml = tempnam(sys_get_temp_dir(), 'statutory-pdf-bbox-');
+        file_put_contents($tmpPdf, $binary);
+
+        $command = sprintf(
+            '%s -bbox %s %s 2>/dev/null',
+            escapeshellarg($this->pdftotextBinary()),
+            escapeshellarg($tmpPdf),
+            escapeshellarg($tmpHtml),
+        );
+        shell_exec($command);
+        $html = is_file($tmpHtml) ? (string) file_get_contents($tmpHtml) : '';
+        @unlink($tmpPdf);
+        @unlink($tmpHtml);
+
+        if ($html === '') {
+            $this->fail('Unable to extract PDF bounding boxes for layout assertions.');
+        }
+
+        if (! preg_match_all(
+            '/<word[^>]+xMin="[^"]+" yMin="([0-9.]+)"[^>]*>'.$word.'<\/word>/',
+            $html,
+            $matches,
+        )) {
+            $this->fail("PDF marker word [{$word}] was not found in bbox output.");
+        }
+
+        return (float) min($matches[1]);
+    }
+
     protected function assertNoClosingOnlyContinuationPage(string $binary): void
     {
         $extracted = $this->extractedPdfText($binary);

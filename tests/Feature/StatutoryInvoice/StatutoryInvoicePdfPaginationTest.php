@@ -99,7 +99,67 @@ class StatutoryInvoicePdfPaginationTest extends TestCase
         ], 105);
         $this->assertSerialsPresentInExtractedText($main, array_slice($modelASerials, 0, 10), 'Main page Model A preview');
         $this->assertSerialsPresentInExtractedText($main, $modelBSerials, 'Main page Model B preview');
-        $this->assertGreaterThan(1, $this->pdfPageCount($binary), 'Annexure pages are expected for 105 serials.');
+        $this->assertSame(2, $this->pdfPageCount($binary), 'INV-0767211 should use one main page and one packed Annexure page.');
+        $this->assertSame(1, $this->annexurePageCount($binary));
+        $this->assertStringNotContainsString('ANNEXURE A (continued)', $this->extractedPdfText($binary));
+    }
+
+    public function test_annexure_packs_small_second_group_after_large_first_group_on_same_page(): void
+    {
+        $modelASerials = $this->serialList('PACK-A', 100);
+        $modelBSerials = $this->serialList('PACK-B', 5);
+        $binary = (new SimplePdfRenderer)->render($this->multiGroupPayload(
+            modelA: $modelASerials,
+            modelB: $modelBSerials,
+            withIrn: true,
+        ));
+
+        $this->assertSame(2, $this->pdfPageCount($binary));
+        $annexure = $this->annexureExtractedText($this->extractedPdfText($binary));
+        $this->assertStringContainsString('Mantra MFS 110 L1', $annexure);
+        $this->assertStringContainsString('Access FM220 USB L1', $annexure);
+        $this->assertStringNotContainsString('ANNEXURE A (continued)', $this->extractedPdfText($binary));
+        $this->assertGroupedAnnexureComplete($binary, [
+            'Mantra MFS 110 L1' => $modelASerials,
+            'Access FM220 USB L1' => $modelBSerials,
+        ], 105);
+    }
+
+    public function test_annexure_splits_across_pages_when_capacity_is_exceeded(): void
+    {
+        $serials = $this->serialList('CAP', 260);
+        $binary = (new SimplePdfRenderer)->render($this->basePayload(
+            serialNumbers: $serials,
+            serialGroups: [[
+                'label' => 'RBMFS110L1 — Mantra MFS 110 L1',
+                'serials' => $serials,
+            ]],
+            withIrn: true,
+        ));
+
+        $this->assertGreaterThan(2, $this->pdfPageCount($binary));
+        $this->assertGreaterThan(1, $this->annexurePageCount($binary));
+        $this->assertStringContainsString('ANNEXURE A (continued)', $this->extractedPdfText($binary));
+        $this->assertOptionBWithAnnexure($binary, $serials);
+        $this->assertMainInvoiceFooterOnFirstPage($binary, self::IRN);
+    }
+
+    public function test_service_single_line_invoice_uses_compact_closing_layout(): void
+    {
+        $binary = (new SimplePdfRenderer)->render($this->inv0767220Payload());
+        $extracted = $this->extractedPdfText($binary);
+
+        $this->assertSame(1, $this->pdfPageCount($binary));
+        $this->assertStringContainsString('Secondary Freight Reverse Auction', $extracted);
+        $this->assertStringContainsString('PO Number', $extracted);
+        $this->assertStringContainsString('ATFL/MAN/15374', $extracted);
+        $this->assertStringContainsString('TOTAL INVOICE VALUE', $extracted);
+        $this->assertStringContainsString('Authorized Signatory', $extracted);
+        $this->assertStringNotContainsString('ANNEXURE A', $extracted);
+
+        $amountInWordsY = $this->pdfWordYMin($binary, 'words');
+        $this->assertGreaterThan(250.0, $amountInWordsY, 'Closing block should follow sparse service content instead of bottom-anchoring with a large gap.');
+        $this->assertLessThan(520.0, $amountInWordsY, 'Closing block should remain below the line-item table.');
     }
 
     public function test_small_serial_set_fits_on_main_page_without_annexure(): void
@@ -222,6 +282,50 @@ class StatutoryInvoicePdfPaginationTest extends TestCase
         $this->assertStringContainsString('UPI-PAGINATION-REF', $text);
         $this->assertStringNotContainsString('PO Number', $text);
         $this->assertMainInvoiceFooterOnFirstPage($binary);
+    }
+
+    private function inv0767220Payload(): StatutoryInvoicePdfPayload
+    {
+        return new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-0767220',
+            issuedAt: '2026-09-22 16:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '07AAICP1128M1Z9',
+            sellerAddress: '1312, Hemkunt Chambers, Nehru Place, New Delhi 110019',
+            sellerState: 'Delhi',
+            buyerName: 'Sundrop Brands Limited',
+            buyerGstin: '09AAECA0303M1ZX',
+            billingAddress: '101 LAL KUAN, SHIV MANDIR, G.T. ROAD',
+            placeOfSupply: 'Uttar Pradesh',
+            lines: [[
+                'description' => 'Secondary Freight Reverse Auction',
+                'hsnSac' => '998311',
+                'qty' => 1,
+                'unitPrice' => '50000.00',
+                'taxableValue' => '50000.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '0.00',
+                'sgst' => '0.00',
+                'igst' => '9000.00',
+                'taxTotal' => '9000.00',
+                'lineTotal' => '59000.00',
+                'uqc' => 'OTH',
+            ]],
+            taxableValue: '50000.00',
+            gstRate: '18.00%',
+            taxTotal: '9000.00',
+            cgst: '0.00',
+            sgst: '0.00',
+            igst: '9000.00',
+            invoiceValue: '59000.00',
+            serialNumbers: [],
+            serialGroups: [],
+            channel: StatutoryInvoiceChannel::DeskService->value,
+            paymentMethod: null,
+            paymentStatus: null,
+            paymentReference: 'ATFL/MAN/15374',
+            orderId: 'SVC-676',
+        );
     }
 
     /**
