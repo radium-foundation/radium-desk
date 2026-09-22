@@ -61,6 +61,56 @@ class CaMonthlyStatutoryLineReadModel
         return $this->buildRowCells($this->includedItems($request));
     }
 
+    public function countExportLines(Request $request): int
+    {
+        return $this->filteredLineQuery($request)->count();
+    }
+
+    /**
+     * Stream export rows in bounded-memory invoice chunks.
+     *
+     * @param  callable(list<string>): void  $callback
+     */
+    public function streamExportRows(Request $request, callable $callback): int
+    {
+        $rowCount = 0;
+        $chunkSize = max(1, (int) config('ca_monthly_report.invoice_chunk_size', 25));
+
+        $this->filteredInvoiceQuery($request)
+            ->with($this->invoiceRelations())
+            ->orderBy('id')
+            ->chunkById($chunkSize, function (Collection $invoices) use ($callback, &$rowCount): void {
+                $items = collect();
+
+                foreach ($invoices as $invoice) {
+                    foreach ($invoice->items->sortBy('line_no')->values() as $item) {
+                        $item->setRelation('invoice', $invoice);
+                        $items->push($item);
+                    }
+                }
+
+                if ($items->isEmpty()) {
+                    return;
+                }
+
+                $orderContexts = $this->orderContextResolver->resolveForInvoices($invoices);
+                $orderTypes = $this->orderTypeResolver->resolveForInvoices($invoices);
+                $allocationPaymentMethods = $this->paymentEvidenceResolver->allocationPaymentMethodsForInvoices($invoices);
+
+                foreach ($this->lineBuilder->buildRows(
+                    $items,
+                    $orderContexts,
+                    $orderTypes,
+                    $allocationPaymentMethods,
+                ) as $row) {
+                    $callback($row->cells);
+                    $rowCount++;
+                }
+            });
+
+        return $rowCount;
+    }
+
     public function preflight(Request $request): CaMonthlyReportPreflight
     {
         $includedItems = $this->includedItems($request);

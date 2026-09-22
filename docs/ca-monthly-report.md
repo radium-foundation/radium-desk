@@ -1,6 +1,6 @@
 # CA Monthly Report
 
-**Prompt:** `RadiumDesk-P-21-09-07`
+**Prompt:** `RadiumDesk-P-21-09-07` (contract), `RadiumDesk-P-21-09-23` (export hardening v4.0.105)
 
 ## Period filter
 
@@ -62,3 +62,41 @@ Resolver order for **Payment Mode** column:
 3. `payment_reference` fallback
 
 Preflight still summarizes cancelled payment-evidence categories for CA review.
+
+## Export hardening (v4.0.105)
+
+### Bounded memory
+
+- Line export uses invoice `chunkById()` batches (`ca_monthly_report.invoice_chunk_size`, default 25).
+- CSV sync downloads stream rows directly to `php://output`.
+- XLSX writes worksheet XML incrementally to a temp file, then zips bounded artifacts.
+- The legacy `exportRows()` array helper remains for tests/small fixtures only.
+
+### Sync vs async threshold
+
+- Default `ca_monthly_report.sync_max_lines = 500` (override via `CA_MONTHLY_REPORT_SYNC_MAX_LINES`; benchmarked in `CaMonthlyReportExportBenchmarkTest`: 500 lines ≈262ms / 105MB peak on sqlite).
+- Async generation jobs use the `maintenance` queue (`CA_MONTHLY_REPORT_EXPORT_QUEUE`), already consumed by production Supervisor at lowest priority.
+- Rationale: production v4.0.104 OOM at 128MB for a full September 2026 month; a single-day export (~388 lines) succeeded.
+- Exports above the threshold create a `ca_monthly_report_exports` row and dispatch `GenerateCaMonthlyReportExportJob`.
+
+### Artifact storage
+
+- Disk: `local` private storage (`storage/app/private/ca-monthly-report-exports/`).
+- Retention: `ca_monthly_report.retention_hours` (default 72h).
+- Cleanup: `php artisan ca-monthly-report:prune-exports --execute` (scheduled daily 03:30).
+
+### Secure download
+
+- Authenticated download: `finance.reports.ca-monthly.exports.download` (owner + `finance.reports.export`).
+- Email link fallback: signed `finance.reports.ca-monthly.exports.download.signed` (expires with artifact).
+
+### Email delivery
+
+- Optional recipient on queue/export form.
+- Uses existing `NotificationMailSender` + `CaMonthlyReportExportMail`.
+- Attachment when `file_size_bytes <= ca_monthly_report.max_email_attachment_bytes` (default 8 MiB); otherwise secure download link.
+- Email is queued separately (`SendCaMonthlyReportExportEmailJob`); report is not regenerated on email retry.
+
+### Idempotency
+
+- Duplicate export requests with the same user, date range, and format within `idempotency_window_minutes` (default 10) reuse the latest non-failed export row.

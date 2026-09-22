@@ -428,6 +428,13 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::match(['get', 'post'], 'invoices/historical', [HistoricalInvoiceController::class, 'index'])->name('invoices.historical');
         Route::get('reports/ca-monthly/export.xlsx', [CaMonthlyReportController::class, 'exportXlsx'])->name('reports.ca-monthly.export.xlsx');
         Route::get('reports/ca-monthly/export.csv', [CaMonthlyReportController::class, 'exportCsv'])->name('reports.ca-monthly.export.csv');
+        Route::post('reports/ca-monthly/exports', [CaMonthlyReportController::class, 'queueExport'])->name('reports.ca-monthly.exports.store');
+        Route::get('reports/ca-monthly/exports/{export}', [CaMonthlyReportController::class, 'showExport'])->name('reports.ca-monthly.exports.show');
+        Route::get('reports/ca-monthly/exports/{export}/download', [CaMonthlyReportController::class, 'downloadExport'])->name('reports.ca-monthly.exports.download');
+        Route::get('reports/ca-monthly/exports/{export}/download/signed', [CaMonthlyReportController::class, 'downloadExportSigned'])
+            ->withoutMiddleware(['auth', 'active'])
+            ->name('reports.ca-monthly.exports.download.signed');
+        Route::post('reports/ca-monthly/exports/{export}/email', [CaMonthlyReportController::class, 'emailExport'])->name('reports.ca-monthly.exports.email');
         Route::get('reports/ca-monthly', [CaMonthlyReportController::class, 'index'])->name('reports.ca-monthly.index');
         Route::get('invoices/export', [StatutoryInvoiceController::class, 'export'])->name('invoices.export');
         Route::get('invoices/commerce-orders/{order}', [StatutoryInvoiceIssueController::class, 'show'])->name('invoices.commerce-orders.show');

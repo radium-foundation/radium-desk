@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.105 — 2026-09-22 — CA Monthly Report export hardening
+
+- Stream chunked CSV/XLSX generation for CA Monthly Report exports; synchronous downloads up to `CA_MONTHLY_REPORT_SYNC_MAX_LINES` (default 500), larger ranges queue asynchronously.
+- Async exports: `ca_monthly_report_exports` table, maintenance-queue generation job, notifications-queue email delivery, private artifact storage, signed download links for large attachments, 72h retention prune.
+- Finance UI: export status polling, recent exports table, email delivery. No POS/shipping/PDF/statutory minting changes.
+- Migration: `2026_09_21_150000_create_ca_monthly_report_exports_table` (new table only).
+- Rollback target: v4.0.104 / `159031b8` (application); schema rollback drops `ca_monthly_report_exports` only.
+
 ## 4.0.104 — 2026-09-21 — CA Monthly Report
 
 - Add read-only Finance **CA Monthly Report** with invoice-date filtering (`issued_at`), invoice-grain preview (expand/collapse multi-line invoices), and line-grain CSV/XLSX export.

@@ -66,11 +66,98 @@
         <div class="alert alert-warning py-2 small mb-2">{{ $warning }}</div>
     @endforeach
 
+    @if (session('status'))
+        <div class="alert alert-info py-2 small">{{ session('status') }}</div>
+    @endif
+
     @if ($canExport)
-        <p class="mb-3">
-            <a href="{{ route('finance.reports.ca-monthly.export.xlsx', request()->query()) }}" class="btn btn-primary">Export XLSX</a>
-            <a href="{{ route('finance.reports.ca-monthly.export.csv', request()->query()) }}" class="btn btn-outline-primary">Export CSV</a>
-        </p>
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                    <a href="{{ route('finance.reports.ca-monthly.export.xlsx', request()->query()) }}" class="btn btn-primary">Export XLSX</a>
+                    <a href="{{ route('finance.reports.ca-monthly.export.csv', request()->query()) }}" class="btn btn-outline-primary">Export CSV</a>
+                </div>
+                <p class="small text-muted mb-3">
+                    Estimated {{ number_format($estimatedExportLines) }} export line(s).
+                    Exports above {{ number_format($asyncExportThreshold) }} lines are queued for background generation.
+                </p>
+                <form method="post" action="{{ route('finance.reports.ca-monthly.exports.store') }}" class="row g-2 align-items-end">
+                    @csrf
+                    <input type="hidden" name="date_from" value="{{ $filters['date_from'] ?? '' }}">
+                    <input type="hidden" name="date_to" value="{{ $filters['date_to'] ?? '' }}">
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted mb-1" for="export_format">Format</label>
+                        <select id="export_format" name="format" class="form-select" required>
+                            <option value="xlsx">XLSX</option>
+                            <option value="csv">CSV</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1" for="email_recipient">Email Report (optional)</label>
+                        <input type="email" id="email_recipient" name="email_recipient" value="{{ auth()->user()?->email }}" class="form-control" placeholder="finance@example.com">
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-outline-secondary">Queue Export / Email</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        @if ($recentExports->isNotEmpty())
+            <div class="card mb-3" id="ca-monthly-exports">
+                <div class="card-body">
+                    <h2 class="h6 mb-3">Recent exports</h2>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Date range</th>
+                                    <th>Format</th>
+                                    <th>Status</th>
+                                    <th>Rows</th>
+                                    <th>Email</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($recentExports as $export)
+                                    <tr data-export-id="{{ $export->id }}" data-export-status="{{ $export->status->value }}">
+                                        <td class="small">{{ $export->dateRangeLabel() }}</td>
+                                        <td class="small">{{ $export->format->label() }}</td>
+                                        <td class="small">
+                                            <span class="export-status-label">{{ $export->status->label() }}</span>
+                                            @if ($export->failure_message)
+                                                <div class="text-danger">{{ $export->failure_message }}</div>
+                                            @endif
+                                        </td>
+                                        <td class="small export-row-count">{{ $export->row_count ?? '—' }}</td>
+                                        <td class="small">
+                                            @if ($export->email_recipient)
+                                                {{ $export->email_recipient }}
+                                                @if ($export->email_status)
+                                                    <div class="text-muted">{{ $export->email_status->label() }}
+                                                        @if ($export->email_delivery_mode)
+                                                            · {{ $export->email_delivery_mode->label() }}
+                                                        @endif
+                                                    </div>
+                                                @endif
+                                            @else
+                                                —
+                                            @endif
+                                        </td>
+                                        <td class="text-end">
+                                            @if ($export->isDownloadable())
+                                                <a href="{{ route('finance.reports.ca-monthly.exports.download', $export) }}" class="btn btn-sm btn-outline-primary">Download</a>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        @endif
     @endif
 
     <style>
@@ -206,6 +293,45 @@
 @push('scripts')
     <script>
         (() => {
+            const exportsRoot = document.getElementById('ca-monthly-exports');
+            if (exportsRoot) {
+                const poll = () => {
+                    exportsRoot.querySelectorAll('[data-export-status="queued"], [data-export-status="processing"]').forEach((row) => {
+                        const exportId = row.dataset.exportId;
+                        fetch(`{{ url('/finance/reports/ca-monthly/exports') }}/${exportId}`, {
+                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        })
+                            .then((response) => response.ok ? response.json() : null)
+                            .then((payload) => {
+                                if (!payload) {
+                                    return;
+                                }
+
+                                row.dataset.exportStatus = payload.status;
+                                const statusLabel = row.querySelector('.export-status-label');
+                                if (statusLabel) {
+                                    statusLabel.textContent = payload.status_label;
+                                }
+
+                                const rowCount = row.querySelector('.export-row-count');
+                                if (rowCount && payload.row_count !== null) {
+                                    rowCount.textContent = payload.row_count;
+                                }
+
+                                if (payload.download_url && !row.querySelector('a[href="' + payload.download_url + '"]')) {
+                                    const cell = row.querySelector('td:last-child');
+                                    if (cell) {
+                                        cell.innerHTML = `<a href="${payload.download_url}" class="btn btn-sm btn-outline-primary">Download</a>`;
+                                    }
+                                }
+                            });
+                    });
+                };
+
+                window.setInterval(poll, 5000);
+                poll();
+            }
+
             const root = document.getElementById('ca-monthly-report');
             if (!root) {
                 return;

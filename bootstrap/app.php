@@ -257,6 +257,11 @@ return Application::configure(basePath: dirname(__DIR__))
         //     ->hourly()
         //     ->withoutOverlapping()
         //     ->appendOutputTo(storage_path('logs/radiumbox-backfill.log'));
+
+        $schedule->command('ca-monthly-report:prune-exports --execute')
+            ->dailyAt('03:30')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/ca-monthly-report-prune-exports.log'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
