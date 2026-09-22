@@ -6,8 +6,16 @@ export const applySidebarState = (expanded) => {
     document.documentElement.classList.toggle('sidebar-expanded', expanded);
 };
 
+const scrollActiveNavItemIntoView = () => {
+    const nav = document.querySelector('.app-sidebar nav');
+    const activeLink = nav?.querySelector('.nav-link.active');
+
+    activeLink?.scrollIntoView({ block: 'nearest' });
+};
+
 export const initSidebar = () => {
     applySidebarState(isSidebarExpanded());
+    scrollActiveNavItemIntoView();
 
     document.querySelectorAll('[data-sidebar-toggle]').forEach((button) => {
         button.addEventListener('click', () => {

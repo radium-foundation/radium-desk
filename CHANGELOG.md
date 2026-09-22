@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.109 — 2026-09-22 — Sidebar scroll accessibility fix
+
+- Fix primary sidebar exceeding the viewport after the v4.0.108 navigation expansion: constrain `.app-sidebar` to the viewport and make the inner `nav` region scrollable (`min-height: 0`, `overflow-y: auto`).
+- Scroll the active nav link into view on load. Subtle scrollbar styling on the nav scroller for discoverability. CSS/JS only; no navigation IA, route, or permission changes.
+- Rollback target: v4.0.108 / `c485c282` (application only).
+
 ## 4.0.108 — 2026-09-22 — Compact seven-group primary navigation
 
 - Replace nine top-level sidebar groups with the approved business-oriented IA: Home, Customers & Service, Sales & Purchasing, Inventory, Finance, Workforce, and Control & Admin.

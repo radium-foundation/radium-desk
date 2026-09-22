@@ -65,20 +65,48 @@ body {
 .app-sidebar {
     width: var(--sidebar-collapsed-width);
     background-color: var(--sidebar-bg);
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
     min-height: 100vh;
+    min-height: 100dvh;
     position: fixed;
     top: 0;
     left: 0;
     z-index: 1040;
-    overflow-x: hidden;
+    overflow: hidden;
     transition: width 0.25s ease-in-out;
     display: flex;
     flex-direction: column;
 }
 
+.app-sidebar .brand,
+.app-version-footer {
+    flex-shrink: 0;
+}
+
 .app-sidebar nav {
     flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+}
+
+.app-sidebar nav::-webkit-scrollbar {
+    width: 6px;
+}
+
+.app-sidebar nav::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.28);
+    border-radius: 3px;
+}
+
+.app-sidebar nav::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.42);
 }
 
 .app-sidebar .brand-mark-icon {
