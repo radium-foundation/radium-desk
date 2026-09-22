@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.108 — 2026-09-22 — Compact seven-group primary navigation
+
+- Replace nine top-level sidebar groups with the approved business-oriented IA: Home, Customers & Service, Sales & Purchasing, Inventory, Finance, Workforce, and Control & Admin.
+- Surface previously orphaned workflows (Purchasing, Service POS, Orders, Incidents, Refunds) via existing routes and permission gates; move Cash Book under Finance; retire Personal as a top-level group (items under Workforce).
+- Presentation/navigation only: no route, schema, permission, or CA Monthly Report implementation changes.
+- Rollback target: v4.0.107 / `feb5572b` (application only).
+
 ## 4.0.107 — 2026-09-22 — CA Monthly Report presentation refresh
 
 - Refine Finance CA Monthly Report UI: prominent reporting period header, compact grouped preflight summary with expandable full metrics, unified Export Report workflow, improved recent exports and invoice preview layout. Presentation only; no export logic, permissions, or schema changes.

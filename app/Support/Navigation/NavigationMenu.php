@@ -4,43 +4,37 @@ namespace App\Support\Navigation;
 
 enum NavigationMenu: string
 {
-    case Dashboard = 'dashboard';
-    case Operations = 'operations';
-    case MissionControl = 'mission_control';
-    case WorkforceManagement = 'workforce_management';
+    case Home = 'home';
+    case CustomersAndService = 'customers_and_service';
+    case SalesAndPurchasing = 'sales_and_purchasing';
     case Inventory = 'inventory';
-    case Pos = 'pos';
     case Finance = 'finance';
-    case Administration = 'administration';
-    case Personal = 'personal';
+    case Workforce = 'workforce';
+    case ControlAndAdmin = 'control_and_admin';
 
     public function label(): string
     {
         return match ($this) {
-            self::Dashboard => 'Dashboard',
-            self::Operations => 'Operations',
-            self::MissionControl => 'Mission Control',
-            self::WorkforceManagement => 'Workforce Management',
+            self::Home => 'Home',
+            self::CustomersAndService => 'Customers & Service',
+            self::SalesAndPurchasing => 'Sales & Purchasing',
             self::Inventory => 'Inventory',
-            self::Pos => 'POS',
             self::Finance => 'Finance',
-            self::Administration => 'Administration',
-            self::Personal => 'Personal',
+            self::Workforce => 'Workforce',
+            self::ControlAndAdmin => 'Control & Admin',
         };
     }
 
     public function homeRoute(): string
     {
         return match ($this) {
-            self::Dashboard => 'dashboard',
-            self::Operations => 'orders.index',
-            self::MissionControl => 'admin.platform.index',
-            self::WorkforceManagement => 'workforce-management.attendance.index',
+            self::Home => 'dashboard',
+            self::CustomersAndService => 'dashboard',
+            self::SalesAndPurchasing => 'pos.counter.create',
             self::Inventory => 'inventory.stock.index',
-            self::Pos => 'pos.counter.create',
             self::Finance => 'finance.dashboard',
-            self::Administration => 'admin.administration.index',
-            self::Personal => 'my-workforce.index',
+            self::Workforce => 'workforce-management.attendance.index',
+            self::ControlAndAdmin => 'admin.administration.index',
         };
     }
 }

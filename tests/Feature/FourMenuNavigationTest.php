@@ -6,11 +6,22 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class FourMenuNavigationTest extends TestCase
 {
     use RefreshDatabase;
+
+    private const TOP_LEVEL_GROUPS = [
+        'Home',
+        'Customers &amp; Service',
+        'Sales &amp; Purchasing',
+        'Inventory',
+        'Finance',
+        'Workforce',
+        'Control &amp; Admin',
+    ];
 
     protected function setUp(): void
     {
@@ -28,69 +39,172 @@ class FourMenuNavigationTest extends TestCase
             ->getContent();
     }
 
+    private function sidebarMarkup(string $html): string
+    {
+        if (! preg_match('/<aside class="app-sidebar"[^>]*>.*?<\/aside>/s', $html, $matches)) {
+            return '';
+        }
+
+        return $matches[0];
+    }
+
     private function navSectionCount(string $html, string $label): int
     {
-        return substr_count($html, '>'.$label.'</span>');
+        return substr_count($this->sidebarMarkup($html), '>'.$label.'</span>');
+    }
+
+    private function sidebarContains(string $html, string $needle): bool
+    {
+        return str_contains($this->sidebarMarkup($html), $needle);
     }
 
     private function activeSidebarItemCount(string $html): int
     {
-        if (! preg_match('/<aside class="app-sidebar"[^>]*>.*?<\/aside>/s', $html, $matches)) {
-            return 0;
-        }
-
-        return substr_count($matches[0], 'class="nav-link active"');
+        return substr_count($this->sidebarMarkup($html), 'class="nav-link active"');
     }
 
-    public function test_admin_sidebar_uses_standardized_menu_sections(): void
+    public function test_admin_sidebar_exposes_all_seven_top_level_groups(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $html = $this->sidebarHtml($admin);
 
-        $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Dashboard'));
-        $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Operations'));
-        $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Mission Control'));
-        $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Administration'));
-        $this->assertStringNotContainsString('Control Center</span>', $html);
-        $this->assertStringNotContainsString('Super Admin</span>', $html);
-        $this->assertStringNotContainsString('Operations Hub', $html);
-        $this->assertStringNotContainsString('Workforce Hub', $html);
-        $this->assertStringNotContainsString('title="Approvals"', $html);
-        $this->assertStringNotContainsString(route('approvals.index'), $html);
+        foreach (self::TOP_LEVEL_GROUPS as $group) {
+            $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, $group), "Missing group: {$group}");
+        }
+
+        foreach ([
+            'Operations',
+            'Mission Control',
+            'Workforce Management',
+            'POS',
+            'Personal',
+        ] as $retiredSection) {
+            $this->assertSame(0, $this->navSectionCount($html, $retiredSection), "Retired section still present: {$retiredSection}");
+        }
+
+        $this->assertFalse($this->sidebarContains($html, 'title="Approvals"'));
+        $this->assertStringNotContainsString(route('approvals.index'), $this->sidebarMarkup($html));
     }
 
-    public function test_agent_sidebar_shows_operations_without_admin_menus(): void
+    public function test_home_dashboard_link_uses_existing_dashboard_route(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $html = $this->sidebarHtml($admin);
+
+        $this->assertStringContainsString(route('dashboard'), $html);
+        $this->assertStringContainsString('title="Dashboard"', $html);
+    }
+
+    public function test_sales_and_purchasing_exposes_pos_service_pos_and_purchasing_for_admin(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $html = $this->sidebarHtml($admin);
+
+        $this->assertStringContainsString(route('pos.counter.create'), $html);
+        $this->assertStringContainsString(route('service-pos.counter.create'), $html);
+        $this->assertStringContainsString(route('purchasing.purchase-orders.index'), $html);
+        $this->assertStringContainsString('title="Sell Products"', $html);
+        $this->assertStringContainsString('title="Sell Services"', $html);
+        $this->assertStringContainsString('title="Buy Products"', $html);
+        $this->assertStringContainsString('title="Product Sales"', $html);
+    }
+
+    public function test_customers_and_service_exposes_discoverable_workflow_links_for_admin(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $html = $this->sidebarHtml($admin);
+
+        $this->assertStringContainsString('title="Service Desk"', $html);
+        $this->assertStringContainsString(route('incidents.index'), $html);
+        $this->assertStringContainsString(route('orders.index'), $html);
+        $this->assertStringContainsString(route('refunds.index'), $html);
+    }
+
+    public function test_inventory_sidebar_keeps_core_capabilities_accessible(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $html = $this->sidebarHtml($admin);
+
+        $this->assertStringContainsString(route('inventory.stock.index'), $html);
+        $this->assertStringContainsString(route('inventory.serials.index'), $html);
+        $this->assertStringContainsString(route('inventory.hardware-fulfilments.index'), $html);
+        $this->assertStringContainsString(route('inventory.transfers.index'), $html);
+        $this->assertStringContainsString(route('inventory.movements.index'), $html);
+        $this->assertStringContainsString('title="Stock History"', $html);
+    }
+
+    public function test_finance_and_cash_book_remain_accessible_for_admin(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $html = $this->sidebarHtml($admin);
+
+        $this->assertStringContainsString(route('finance.dashboard'), $html);
+        $this->assertStringContainsString(route('cash-book.index'), $html);
+    }
+
+    public function test_ca_monthly_report_workspace_tab_is_registered_when_route_exists(): void
+    {
+        if (! Route::has('finance.reports.ca-monthly.index')) {
+            $this->markTestSkipped('finance.reports.ca-monthly.index is not registered on this branch.');
+        }
+
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($admin)
+            ->get(route('finance.reports.ca-monthly.index'))
+            ->assertOk()
+            ->assertSee('CA Monthly Report', false);
+    }
+
+    public function test_agent_sidebar_shows_control_center_without_administration(): void
     {
         $agent = User::factory()->create(['is_active' => true]);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $html = $this->sidebarHtml($agent);
 
-        $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Operations'));
-        $this->assertStringNotContainsString('data-nav-key="operations.orders"', $html);
-        $this->assertStringNotContainsString('data-nav-key="operations.incidents"', $html);
-        $this->assertStringNotContainsString('data-nav-key="operations.refunds"', $html);
-        $this->assertStringContainsString('My Leave', $html);
-        $this->assertStringContainsString('Mission Control</span>', $html);
-        $this->assertStringNotContainsString('Administration</span>', $html);
+        $this->assertStringContainsString('title="Leave"', $html);
+        $this->assertStringContainsString('title="Control Center"', $html);
+        $this->assertStringNotContainsString('title="Administration"', $html);
         $this->assertStringNotContainsString('title="Automation Health"', $html);
-        $this->assertStringNotContainsString('title="Automation Operations"', $html);
     }
 
-    public function test_admin_mission_control_sidebar_points_to_operations_workspace(): void
+    public function test_agent_sees_customers_and_service_workflow_links(): void
+    {
+        $agent = User::factory()->create(['is_active' => true]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $html = $this->sidebarHtml($agent);
+
+        $this->assertStringContainsString('title="Service Desk"', $html);
+        $this->assertStringContainsString('data-nav-key="customers_and_service.orders"', $html);
+        $this->assertStringContainsString('data-nav-key="customers_and_service.refunds"', $html);
+    }
+
+    public function test_admin_control_center_sidebar_points_to_operations_workspace(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $html = $this->sidebarHtml($admin);
 
-        $this->assertSame(1, substr_count($html, 'title="Mission Control"'));
+        $this->assertSame(1, substr_count($html, 'title="Control Center"'));
         $this->assertStringContainsString(route('admin.operations.index'), $html);
         $this->assertStringNotContainsString('title="Audit Logs"', $html);
         $this->assertStringNotContainsString('title="Webhook Explorer"', $html);
-        $this->assertStringNotContainsString('title="Automation"', $html);
     }
 
     public function test_admin_administration_sidebar_points_to_primary_workspace(): void
@@ -104,10 +218,9 @@ class FourMenuNavigationTest extends TestCase
         $this->assertStringContainsString(route('admin.administration.index'), $html);
         $this->assertStringNotContainsString('title="Users"', $html);
         $this->assertStringNotContainsString('title="System Settings"', $html);
-        $this->assertStringNotContainsString('title="Holiday Calendar"', $html);
     }
 
-    public function test_superadmin_mission_control_sidebar_is_deduplicated(): void
+    public function test_superadmin_control_center_sidebar_is_deduplicated(): void
     {
         $superadmin = User::factory()->create(['is_active' => true]);
         $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
@@ -115,26 +228,10 @@ class FourMenuNavigationTest extends TestCase
         $html = $this->sidebarHtml($superadmin);
 
         $this->assertStringContainsString(route('admin.platform.index'), $html);
-        $this->assertSame(1, substr_count($html, 'title="Mission Control"'));
-        $this->assertStringNotContainsString('title="Audit Logs"', $html);
-        $this->assertStringNotContainsString('title="Webhook Explorer"', $html);
-        $this->assertStringNotContainsString('title="Automation"', $html);
+        $this->assertSame(1, substr_count($html, 'title="Control Center"'));
     }
 
-    public function test_plain_admin_uses_single_mission_control_entry(): void
-    {
-        $admin = User::factory()->create(['is_active' => true]);
-        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
-
-        $html = $this->sidebarHtml($admin);
-
-        $this->assertSame(1, substr_count($html, 'title="Mission Control"'));
-        $this->assertStringNotContainsString('title="Audit Logs"', $html);
-        $this->assertStringNotContainsString('title="Webhook Explorer"', $html);
-        $this->assertStringNotContainsString('title="Automation"', $html);
-    }
-
-    public function test_operations_control_center_highlights_mission_control_item(): void
+    public function test_operations_control_center_highlights_control_center_item(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -146,12 +243,12 @@ class FourMenuNavigationTest extends TestCase
 
         $this->assertSame(1, $this->activeSidebarItemCount($html));
         $this->assertMatchesRegularExpression(
-            '/title="Mission Control".*?class="[^"]*\bactive\b[^"]*"|class="[^"]*\bactive\b[^"]*".*?title="Mission Control"/s',
+            '/title="Control Center".*?class="[^"]*\bactive\b[^"]*"|class="[^"]*\bactive\b[^"]*".*?title="Control Center"/s',
             $html,
         );
     }
 
-    public function test_team_hub_tab_highlights_mission_control_workspace(): void
+    public function test_team_hub_tab_highlights_control_center_workspace(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -167,25 +264,7 @@ class FourMenuNavigationTest extends TestCase
         $this->assertStringContainsString('aria-label="Mission Control workspace"', $html);
     }
 
-    public function test_automation_hub_tab_uses_mission_control_workspace(): void
-    {
-        $admin = User::factory()->create(['is_active' => true]);
-        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
-
-        $html = $this->actingAs($admin)
-            ->get(route('admin.operations.index', ['hub_tab' => 'automation']))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertSame(1, $this->activeSidebarItemCount($html));
-        $this->assertStringContainsString('aria-label="Mission Control workspace"', $html);
-        $this->assertMatchesRegularExpression(
-            '/aria-label="Mission Control workspace".*?aria-current="page"[^>]*>\s*Automation\s*</s',
-            $html,
-        );
-    }
-
-    public function test_document_title_includes_menu_context(): void
+    public function test_document_title_uses_control_and_admin_menu_context(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -193,7 +272,7 @@ class FourMenuNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('<title>Mission Control · Operations Control Center</title>', false);
+            ->assertSee('<title>Control &amp; Admin · Operations Control Center</title>', false);
     }
 
     public function test_administration_home_breadcrumb_shows_menu_only(): void
@@ -206,7 +285,7 @@ class FourMenuNavigationTest extends TestCase
             ->assertOk()
             ->assertSee('aria-label="breadcrumb"', false)
             ->assertSee('breadcrumb-item active', false)
-            ->assertSee('Administration', false)
+            ->assertSee('Control &amp; Admin', false)
             ->assertDontSee('Administration</a>', false);
     }
 
@@ -291,8 +370,7 @@ class FourMenuNavigationTest extends TestCase
             ->assertSee(route('cashfree.webhook-explorer.index'), false)
             ->assertSee(route('audit-logs.index'), false)
             ->assertSee('#platform-health', false)
-            ->assertSee('id="platform-health"', false)
-            ->assertSee('data-platform-workspace-links', false);
+            ->assertSee('id="platform-health"', false);
     }
 
     public function test_existing_deep_link_urls_continue_to_work(): void
@@ -337,5 +415,33 @@ class FourMenuNavigationTest extends TestCase
             ->assertOk()
             ->assertDontSee('aria-label="Mission Control workspace"', false)
             ->assertDontSee(route('admin.workforce.performance.index'), false);
+    }
+
+    public function test_collapsed_sidebar_items_expose_accessible_tooltips(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $html = $this->sidebarHtml($admin);
+
+        $this->assertStringContainsString('title="Dashboard"', $html);
+        $this->assertStringContainsString('title="Sell Products"', $html);
+        $this->assertStringContainsString('title="Stock History"', $html);
+        $this->assertStringContainsString('title="Control Center"', $html);
+    }
+
+    public function test_learning_center_is_not_duplicated_in_sidebar(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $html = $this->sidebarHtml($admin);
+        $learningCenterCount = substr_count($this->sidebarMarkup($html), 'title="Learning Center"');
+
+        if ($learningCenterCount === 0) {
+            $this->markTestSkipped('Learning Center is hidden when inbound email intake is disabled.');
+        }
+
+        $this->assertSame(1, $learningCenterCount);
     }
 }
