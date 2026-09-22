@@ -467,7 +467,7 @@ class StatutoryInvoiceService
                 return $again->load(['items', 'allocation', 'document']);
             }
 
-            $order->loadMissing(['lines', 'customer', 'branch']);
+            $order->loadMissing(['lines.serviceItem', 'customer', 'branch']);
             if ($order->lines->isEmpty()) {
                 throw ValidationException::withMessages([
                     'service_order' => 'Service order has no lines.',
@@ -478,6 +478,13 @@ class StatutoryInvoiceService
             $resolvedSacs = [];
             foreach ($order->lines as $line) {
                 $resolvedSacs[] = $line->sac_code;
+                $serviceSku = $line->serviceItem?->code;
+                $profile = $this->serviceStatutory->profileForCommerceLine(
+                    StatutoryInvoiceChannel::DeskService->value,
+                    $serviceSku,
+                    (string) $line->description,
+                    $line->sac_code,
+                );
                 $lines[] = new StatutoryInvoiceLineDraft(
                     description: (string) $line->description,
                     qty: (int) $line->qty,
@@ -487,8 +494,11 @@ class StatutoryInvoiceService
                     lineTotal: (float) $line->line_total,
                     taxableValue: (float) $line->taxable_value,
                     discount: (float) $line->discount,
-                    sku: null,
+                    sku: $serviceSku,
                     hsnSac: $line->sac_code,
+                    uqc: $profile !== null
+                        ? $this->uqc->snapshot(null, $profile->uqc)
+                        : null,
                 );
             }
 
@@ -513,7 +523,7 @@ class StatutoryInvoiceService
                 placeOfSupplyState: $order->place_of_supply_state,
                 discount: $headerDiscount,
                 paymentMethod: null,
-                paymentReference: null,
+                paymentReference: $order->payment_reference,
                 numberingLocation: $this->issuer->requireForCommerceOrder(
                     $order->branch?->code,
                     $order->buyer_gstin,
@@ -521,6 +531,7 @@ class StatutoryInvoiceService
                     $resolvedSacs,
                 ),
                 financialYearToken: StatutoryFinancialYear::containing(now())->token(),
+                billingAddressStructured: StatutoryBillingStructured::fromStored($order->billing_address_structured),
             ), $actor);
 
             $this->linkServiceOrder($order, $invoice);
@@ -529,6 +540,45 @@ class StatutoryInvoiceService
 
             return $invoice->load(['items', 'allocation', 'document']);
         }, self::ATTEMPTS);
+    }
+
+    /**
+     * Owner-initiated re-evaluation for invoices whose e-invoice record was
+     * skipped after issuance. Does not mutate posted invoice fields and does
+     * not bypass EInvoiceIrnGuard when an IRN already exists.
+     */
+    public function reevaluateEinvoiceEligibility(StatutoryInvoice $invoice): void
+    {
+        $existing = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
+        if (EInvoiceIrnGuard::recordHasIssuedIrn($existing) || EInvoiceIrnGuard::mustNotResubmit($existing)) {
+            return;
+        }
+        if (EInvoiceIrnGuard::mustRecoverInsteadOfGenerate($existing)) {
+            return;
+        }
+        if ($existing !== null && $existing->status !== EInvoiceRecordStatus::Skipped->value) {
+            return;
+        }
+
+        $decision = $this->einvoiceEligibility->evaluate($invoice);
+        $attributes = EInvoiceIrnGuard::attributesWithoutClearingIssuedIrn([
+            'provider' => (string) config('statutory_invoices.einvoice.provider', 'none'),
+            'status' => $decision->eligible
+                ? EInvoiceRecordStatus::Queued->value
+                : EInvoiceRecordStatus::Skipped->value,
+            'response_payload' => $decision->eligible
+                ? ['queue_reason' => $decision->reason, 'reevaluated_at' => now()->toIso8601String()]
+                : ['skip_reason' => $decision->reason, 'reevaluated_at' => now()->toIso8601String()],
+        ]);
+
+        EInvoiceRecord::query()->updateOrCreate(
+            ['invoice_id' => $invoice->id],
+            $attributes,
+        );
+
+        if ($decision->eligible) {
+            $this->einvoiceOutbox->write($invoice);
+        }
     }
 
     public function cancel(StatutoryInvoice $invoice, User $actor, string $reason): StatutoryInvoice

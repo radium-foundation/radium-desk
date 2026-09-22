@@ -66,6 +66,8 @@
                             <div id="svc-customer-results" class="list-group mb-2 d-none pos-customer-lookup-results"></div>
                             <p class="small text-muted mb-2" id="svc-customer-status"></p>
                             <div id="pos-customer-lookup-root" class="d-none" data-config='@json($customerLookupConfig)'></div>
+                            <div class="mb-2"><label class="form-label" for="svc-billing-address">Billing address</label><textarea name="billing_address" id="svc-billing-address" class="form-control" rows="2">{{ old('billing_address') }}</textarea></div>
+                            <div class="mb-2"><label class="form-label" for="svc-billing-city">Billing city</label><input name="billing_city" id="svc-billing-city" class="form-control" value="{{ old('billing_city') }}" maxlength="120" autocomplete="off">@error('billing_city')<div class="text-danger small">{{ $message }}</div>@enderror</div>
                             <div class="mb-2"><label class="form-label" for="svc-billing-state">Billing state</label>
                                 <select name="billing_state" id="svc-billing-state" class="form-select" required>
                                     @foreach($placeOfSupplyStates as $state)
@@ -73,6 +75,7 @@
                                     @endforeach
                                 </select>
                             </div>
+                            <div class="mb-2"><label class="form-label" for="svc-billing-pincode">Billing PIN</label><input name="billing_pincode" id="svc-billing-pincode" class="form-control" value="{{ old('billing_pincode') }}" maxlength="6" inputmode="numeric" autocomplete="off">@error('billing_pincode')<div class="text-danger small">{{ $message }}</div>@enderror</div>
                             <div class="mb-2"><label class="form-label" for="svc-place-of-supply">Place of supply</label>
                                 <select name="place_of_supply_state" id="svc-place-of-supply" class="form-select">
                                     <option value="">Same as billing</option>
@@ -81,7 +84,7 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="mb-2"><label class="form-label" for="svc-billing-address">Billing address</label><textarea name="billing_address" id="svc-billing-address" class="form-control" rows="2">{{ old('billing_address') }}</textarea></div>
+                            <div class="mb-2"><label class="form-label" for="svc-payment-reference">PO / Reference Number</label><input name="payment_reference" id="svc-payment-reference" class="form-control" value="{{ old('payment_reference') }}" maxlength="128" autocomplete="off"></div>
                         </div>
                     </div>
                     <div class="card border-0 shadow-sm">

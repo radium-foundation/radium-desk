@@ -7,6 +7,7 @@ use App\Models\InventoryBranch;
 use App\Models\InventoryCustomer;
 use App\Models\ServiceCategory;
 use App\Models\ServiceItem;
+use App\Services\Inventory\PosStatutorySnapshot;
 use App\Services\ServicePos\ServiceQuoteService;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Support\Finance\IndianStates;
@@ -24,6 +25,7 @@ class CounterController extends Controller
 {
     public function __construct(
         private readonly ServiceQuoteService $quotes,
+        private readonly PosStatutorySnapshot $statutorySnapshot,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(ServiceAccess::allowsSell($request->user()), 403);
@@ -55,7 +57,9 @@ class CounterController extends Controller
                     'email' => 'svc-customer-email',
                     'gstin' => 'svc-buyer-gstin',
                     'billing_address' => 'svc-billing-address',
+                    'billing_city' => 'svc-billing-city',
                     'billing_state' => 'svc-billing-state',
+                    'billing_pincode' => 'svc-billing-pincode',
                     'place_of_supply_state' => 'svc-place-of-supply',
                 ],
                 'searchInputIds' => ['svc-customer-phone', 'svc-customer-name', 'svc-customer-email'],
@@ -108,8 +112,11 @@ class CounterController extends Controller
             'customer_email' => ['nullable', 'email', 'max:160'],
             'buyer_gstin' => ['nullable', 'string', 'max:32'],
             'billing_address' => ['nullable', 'string', 'max:1000'],
+            'billing_city' => ['nullable', 'string', 'max:120'],
             'billing_state' => ['required', 'string', 'max:64', Rule::in(IndianStates::names())],
+            'billing_pincode' => ['nullable', 'string', 'max:6'],
             'place_of_supply_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
+            'payment_reference' => ['nullable', 'string', 'max:128'],
             'discount' => ['nullable', 'numeric', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
             'lines' => ['required', 'array', 'min:1'],
@@ -124,6 +131,18 @@ class CounterController extends Controller
 
         $branch = InventoryBranchScope::requireBranchId($data['branch_id'], $request->user());
         $customer = $this->findOrCreateCustomer($data);
+        $snapshot = $this->statutorySnapshot->capture(
+            $customer->gstin,
+            [
+                'buyer_gstin' => BuyerGstin::normalize($data['buyer_gstin'] ?? null),
+                'billing_address' => $data['billing_address'] ?? null,
+                'billing_city' => $data['billing_city'] ?? null,
+                'billing_state' => $data['billing_state'],
+                'billing_pincode' => $data['billing_pincode'] ?? null,
+                'place_of_supply_state' => $data['place_of_supply_state'] ?? null,
+            ],
+            $branch->code,
+        );
 
         $lines = [];
         foreach ($data['lines'] as $line) {
@@ -138,12 +157,16 @@ class CounterController extends Controller
             branch: $branch,
             lines: $lines,
             actor: $request->user(),
-            billingAddress: $data['billing_address'] ?? null,
-            billingState: $data['billing_state'],
-            placeOfSupplyState: $data['place_of_supply_state'] ?? $data['billing_state'],
-            buyerGstin: BuyerGstin::normalize($data['buyer_gstin'] ?? null),
+            billingAddress: $snapshot['billing_address'],
+            billingState: $snapshot['billing_address_structured']['state'] ?? $data['billing_state'],
+            placeOfSupplyState: $snapshot['place_of_supply_state'] ?? $data['place_of_supply_state'] ?? $data['billing_state'],
+            buyerGstin: $snapshot['buyer_gstin'],
             headerDiscount: (float) ($data['discount'] ?? 0),
             idempotencyKey: $data['idempotency_key'] ?? null,
+            billingAddressStructured: $snapshot['billing_address_structured'],
+            paymentReference: isset($data['payment_reference']) && trim((string) $data['payment_reference']) !== ''
+                ? trim((string) $data['payment_reference'])
+                : null,
         );
 
         return redirect()

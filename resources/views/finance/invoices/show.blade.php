@@ -12,7 +12,15 @@
                 {{ $invoice->channel->label() }} · source {{ $invoice->source_type }} {{ $invoice->source_id }}
             </p>
         </div>
-        <a href="{{ route('finance.invoices.pdf', $invoice) }}" class="btn btn-outline-secondary">GST PDF</a>
+        <div class="d-flex gap-2">
+            @if(!empty($canReevaluateEinvoice))
+                <form method="POST" action="{{ route('finance.invoices.reevaluate-einvoice', $invoice) }}">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-primary">Re-evaluate e-invoice eligibility</button>
+                </form>
+            @endif
+            <a href="{{ route('finance.invoices.pdf', $invoice) }}" class="btn btn-outline-secondary">GST PDF</a>
+        </div>
     </div>
 
     @include('finance.partials.workspace-nav', ['active' => 'invoices'])
@@ -34,6 +42,19 @@
     <p>Buyer: {{ $invoice->buyer_name ?: '—' }} · GSTIN {{ $invoice->buyer_gstin ?: 'B2C' }}</p>
     <p>Seller: {{ $invoice->seller_name ?: '—' }} · GSTIN {{ $invoice->seller_gstin ?: '—' }}</p>
     <p>Place of supply {{ $invoice->place_of_supply_state ?: 'unset' }}</p>
+    @if($invoice->payment_reference)
+        <p>PO / reference {{ $invoice->payment_reference }}</p>
+    @endif
+    @if($invoice->eInvoiceRecord)
+        <p class="text-muted small mb-0">
+            E-invoice {{ $invoice->eInvoiceRecord->status }}
+            @if($invoice->eInvoiceRecord->irn)
+                · IRN present
+            @elseif(is_array($invoice->eInvoiceRecord->response_payload))
+                · {{ $invoice->eInvoiceRecord->response_payload['skip_reason'] ?? $invoice->eInvoiceRecord->response_payload['queue_reason'] ?? '—' }}
+            @endif
+        </p>
+    @endif
     @if($invoice->inventorySale?->invoice_number)
         <p class="text-muted">POS internal receipt {{ $invoice->inventorySale->invoice_number }} (not a GST number)</p>
     @endif
