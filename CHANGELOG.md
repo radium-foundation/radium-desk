@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.119 — 2026-09-22 — Invoice PDF horizontal rule clearance
+
+- Move product-table row separators above each row so horizontal rules no longer intersect wrapped product text or the next row's glyphs.
+- Add targeted vertical clearance in payment details, totals, serial preview, and e-Invoice verification bordered blocks.
+- Presentation-only PDF changes; no statutory snapshot, tax, e-invoice payload, IRN, serial allocation, or pagination logic mutation. Regression: `StatutoryInvoicePdfPaginationTest`, `StatutoryInvoicePdfPresentationTest`, and related serial grouping suites (65 focused).
+- Rollback target: v4.0.118 / `bb6697b3` (application only).
+
 ## 4.0.118 — 2026-09-22 — Invoice PDF Annexure packing and service density
 
 - Pack grouped Annexure A serials across product/model boundaries on the same page when vertical capacity remains, instead of starting a new Annexure page for each model group.
