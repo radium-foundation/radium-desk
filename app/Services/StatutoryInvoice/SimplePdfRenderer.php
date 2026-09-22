@@ -2,6 +2,7 @@
 
 namespace App\Services\StatutoryInvoice;
 
+use App\Enums\StatutoryInvoiceChannel;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
 
 class SimplePdfRenderer
@@ -315,6 +316,9 @@ class SimplePdfRenderer
         $orderId = $this->display($payload->orderId ?: $payload->sourceId);
         if ($orderId !== '-') {
             $meta[] = ['Order ID', $orderId];
+        }
+        if ($this->showPoNumberInHeader($payload)) {
+            $meta[] = ['PO Number', $this->display($payload->paymentReference)];
         }
         $cardH = 12.0 + (12.0 * count($meta));
         $cardTop = $y - 16;
@@ -1021,12 +1025,62 @@ class SimplePdfRenderer
         if ($method !== '') {
             $cols[] = ['Mode of Payment', $this->display($method)];
         }
-        if (! $unpaid && trim((string) ($payload->paymentReference ?? '')) !== '') {
+        if (! $unpaid && trim((string) ($payload->paymentReference ?? '')) !== '' && ! $this->showPoNumberInHeader($payload)) {
             $cols[] = ['Reference No.', $this->display($payload->paymentReference)];
         }
         $cols[] = ['Invoice Value', $this->money($payload->invoiceValue)];
 
         return $cols;
+    }
+
+    private function showPoNumberInHeader(StatutoryInvoicePdfPayload $payload): bool
+    {
+        return $payload->channel === StatutoryInvoiceChannel::DeskService->value
+            && trim((string) ($payload->paymentReference ?? '')) !== '';
+    }
+
+    private function hasGroupedSerials(StatutoryInvoicePdfPayload $payload): bool
+    {
+        $nonEmptyGroups = 0;
+        foreach ($payload->serialGroups as $group) {
+            foreach ($group['serials'] ?? [] as $serial) {
+                if (trim((string) $serial) !== '') {
+                    $nonEmptyGroups++;
+                    break;
+                }
+            }
+        }
+
+        return $nonEmptyGroups > 1;
+    }
+
+    /**
+     * @return list<array{label: string, serials: list<string>}>
+     */
+    private function normalizedSerialGroups(StatutoryInvoicePdfPayload $payload): array
+    {
+        $groups = [];
+        foreach ($payload->serialGroups as $group) {
+            $serials = [];
+            foreach ($group['serials'] ?? [] as $serial) {
+                $value = trim((string) $serial);
+                if ($value !== '') {
+                    $serials[] = $value;
+                }
+            }
+
+            if ($serials === []) {
+                continue;
+            }
+
+            $label = trim((string) ($group['label'] ?? ''));
+            $groups[] = [
+                'label' => $label !== '' ? $label : 'Serial Numbers',
+                'serials' => $serials,
+            ];
+        }
+
+        return $groups;
     }
 
     /**
@@ -1067,6 +1121,10 @@ class SimplePdfRenderer
      */
     private function annexureSerials(StatutoryInvoicePdfPayload $payload): array
     {
+        if ($this->hasGroupedSerials($payload)) {
+            return [];
+        }
+
         $all = $this->normalizedSerials($payload);
         if ($all === [] || count($all) <= self::MAIN_PAGE_SERIAL_LIMIT) {
             return [];
@@ -1090,7 +1148,62 @@ class SimplePdfRenderer
 
     private function hasSerialAnnexure(StatutoryInvoicePdfPayload $payload): bool
     {
+        if ($this->hasGroupedSerials($payload)) {
+            foreach ($this->normalizedSerialGroups($payload) as $group) {
+                if (count($group['serials']) > self::MAIN_PAGE_SERIAL_LIMIT) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         return count($this->normalizedSerials($payload)) > self::MAIN_PAGE_SERIAL_LIMIT;
+    }
+
+    /**
+     * @return list<array{label: string, serials: list<string>}>
+     */
+    private function annexureSerialGroups(StatutoryInvoicePdfPayload $payload): array
+    {
+        $groups = [];
+        foreach ($this->normalizedSerialGroups($payload) as $group) {
+            if (count($group['serials']) > self::MAIN_PAGE_SERIAL_LIMIT) {
+                $groups[] = $group;
+            }
+        }
+
+        return $groups;
+    }
+
+    private function annexureSerialTotal(StatutoryInvoicePdfPayload $payload): int
+    {
+        if ($this->hasGroupedSerials($payload)) {
+            $total = 0;
+            foreach ($this->annexureSerialGroups($payload) as $group) {
+                $total += count($group['serials']);
+            }
+
+            return $total;
+        }
+
+        return count($this->normalizedSerials($payload));
+    }
+
+    /**
+     * @return list<array{label: string, serials: list<string>}>
+     */
+    private function firstPageSerialGroups(StatutoryInvoicePdfPayload $payload): array
+    {
+        $groups = [];
+        foreach ($this->normalizedSerialGroups($payload) as $group) {
+            $groups[] = [
+                'label' => $group['label'],
+                'serials' => array_slice($group['serials'], 0, self::MAIN_PAGE_SERIAL_LIMIT),
+            ];
+        }
+
+        return $groups;
     }
 
     /**
@@ -1147,12 +1260,33 @@ class SimplePdfRenderer
 
     private function serialSummaryHeight(StatutoryInvoicePdfPayload $payload): float
     {
+        if ($this->hasGroupedSerials($payload)) {
+            $groups = $this->firstPageSerialGroups($payload);
+            if ($groups === []) {
+                return 0.0;
+            }
+
+            $previewCount = 0;
+            foreach ($groups as $group) {
+                $previewCount += count($group['serials']);
+            }
+
+            $rows = (int) ceil(max(1, $previewCount) / self::SERIAL_COLUMNS);
+            $rowHeight = max(self::SERIAL_ROW_HEIGHT, (2 * self::SERIAL_LINE_HEIGHT) + 2.0);
+            $height = 16.0 + (count($groups) * 12.0) + ($rows * $rowHeight) + 12.0;
+            if ($this->hasSerialAnnexure($payload)) {
+                $height += 11.0;
+            }
+
+            return $height;
+        }
+
         $first = $this->firstPageSerials($payload);
         if ($first === []) {
             return 0.0;
         }
 
-        return $this->serialSummaryHeightForCount(count($first), $this->annexureSerials($payload) !== []);
+        return $this->serialSummaryHeightForCount(count($first), $this->hasSerialAnnexure($payload));
     }
 
     private function serialSummaryHeightForCount(int $count, bool $hasAnnexureRemainder): float
@@ -1176,6 +1310,10 @@ class SimplePdfRenderer
      */
     private function serialSummaryBlock(array &$ops, StatutoryInvoicePdfPayload $payload, float $y): float
     {
+        if ($this->hasGroupedSerials($payload)) {
+            return $this->groupedSerialSummaryBlock($ops, $payload, $y);
+        }
+
         $first = $this->firstPageSerials($payload);
         if ($first === []) {
             return $y;
@@ -1198,10 +1336,51 @@ class SimplePdfRenderer
     }
 
     /**
+     * @param  list<string>  $ops
+     */
+    private function groupedSerialSummaryBlock(array &$ops, StatutoryInvoicePdfPayload $payload, float $y): float
+    {
+        $groups = $this->firstPageSerialGroups($payload);
+        if ($groups === []) {
+            return $y;
+        }
+
+        $height = $this->serialSummaryHeight($payload);
+        $ops[] = $this->card(self::MARGIN, $y - $height + 12, self::CONTENT_RIGHT - self::MARGIN, $height - 4);
+        $ops[] = $this->text(self::MARGIN + 8, $y, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        if ($this->hasSerialAnnexure($payload)) {
+            $ops[] = $this->text(self::MARGIN + 92, $y, '(Complete list in Annexure A)', 7, false, 0.4, 0.4, 0.4);
+        }
+        $y -= 12;
+
+        foreach ($groups as $group) {
+            if ($group['serials'] === []) {
+                continue;
+            }
+
+            $ops[] = $this->text(self::MARGIN + 8, $y, $this->clip($group['label'], self::CONTENT_RIGHT - self::MARGIN - 16, 7), 7, true, 0.22, 0.22, 0.22);
+            $y -= 11;
+            $y = $this->numberedSerialGrid($ops, $group['serials'], 1, $y);
+            $y -= 4;
+        }
+
+        if ($this->hasSerialAnnexure($payload)) {
+            $ops[] = $this->text(self::MARGIN + 8, $y, 'Complete serial-number list provided in Annexure A.', 7, false, 0.32, 0.32, 0.32);
+            $y -= 11;
+        }
+
+        return $y - 10;
+    }
+
+    /**
      * @return list<string>
      */
     private function annexurePageStreams(StatutoryInvoicePdfPayload $payload): array
     {
+        if ($this->hasGroupedSerials($payload)) {
+            return $this->groupedAnnexurePageStreams($payload);
+        }
+
         $all = $this->annexureSerials($payload);
         if ($all === []) {
             return [];
@@ -1223,6 +1402,55 @@ class SimplePdfRenderer
             $streams[] = $this->annexurePage($payload, $chunk, $total, $first, $offset + 1);
             $offset += $fit;
             $first = false;
+        }
+
+        return $streams;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function groupedAnnexurePageStreams(StatutoryInvoicePdfPayload $payload): array
+    {
+        $groups = $this->annexureSerialGroups($payload);
+        if ($groups === []) {
+            return [];
+        }
+
+        $total = $this->annexureSerialTotal($payload);
+        $streams = [];
+        $firstPage = true;
+
+        foreach ($groups as $group) {
+            $serials = $group['serials'];
+            $offset = 0;
+            $groupFirst = true;
+
+            while ($offset < count($serials)) {
+                $gridY = $firstPage
+                    ? self::ANNEXURE_FIRST_PAGE_GRID_Y
+                    : self::ANNEXURE_CONTINUED_PAGE_GRID_Y;
+                $labelReserve = $groupFirst ? 16.0 : 0.0;
+                $slice = array_slice($serials, $offset);
+                $simOps = [];
+                [, $fit] = $this->renderNumberedSerialGrid($simOps, $slice, $offset + 1, $gridY - $labelReserve, false);
+                if ($fit < 1) {
+                    $fit = 1;
+                }
+                $chunk = array_slice($slice, 0, $fit);
+                $streams[] = $this->groupedAnnexurePage(
+                    $payload,
+                    $group['label'],
+                    $chunk,
+                    $total,
+                    $firstPage,
+                    $offset + 1,
+                    $groupFirst,
+                );
+                $offset += $fit;
+                $groupFirst = false;
+                $firstPage = false;
+            }
         }
 
         return $streams;
@@ -1265,6 +1493,59 @@ class SimplePdfRenderer
 
         $this->numberedSerialGrid($ops, $serials, $startNumber, $y);
 
+        $ops[] = $this->text(self::MARGIN, self::CONTENT_FLOOR - 6, 'Annexure to tax invoice '.$payload->invoiceNumber, 7, false, 0.4, 0.4, 0.4);
+
+        return implode('', $ops);
+    }
+
+    /**
+     * @param  list<string>  $serials
+     */
+    private function groupedAnnexurePage(
+        StatutoryInvoicePdfPayload $payload,
+        string $groupLabel,
+        array $serials,
+        int $total,
+        bool $first,
+        int $startNumber,
+        bool $groupFirst,
+    ): string {
+        $ops = [];
+        $y = 808.0;
+        $ops[] = $this->logoMark(self::MARGIN, $y);
+        $title = $first ? 'ANNEXURE A' : 'ANNEXURE A (continued)';
+        $ops[] = $this->text(self::MARGIN + 148, $y - 2, $title, 13, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->text(self::MARGIN + 148, $y - 16, 'Serial Numbers', 8, false, 0.38, 0.38, 0.38);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, $payload->invoiceNumber, 9, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y - 12, $this->invoiceDate($payload->issuedAt), 8, false, 0.35, 0.35, 0.35);
+        $y -= 40;
+        $ops[] = $this->accentLine(self::MARGIN, $y, self::CONTENT_RIGHT);
+        $y -= 14;
+
+        if ($first) {
+            $metaHeight = 44.0;
+            $metaBottom = $y - $metaHeight;
+            $ops[] = $this->card(self::MARGIN, $metaBottom, self::CONTENT_RIGHT - self::MARGIN, $metaHeight);
+            $order = $this->display($payload->orderId ?: $payload->sourceId);
+            $metaY = $y - 14;
+            foreach ([
+                ['Invoice', $payload->invoiceNumber],
+                ['Order / reference', $order],
+                ['Total serials', (string) $total],
+            ] as [$label, $value]) {
+                $ops[] = $this->text(self::MARGIN + 10, $metaY, $label, 7, true, 0.4, 0.4, 0.4);
+                $ops[] = $this->text(self::MARGIN + 118, $metaY, $this->clip((string) $value, 380, 8), 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+                $metaY -= 12;
+            }
+            $y = $metaBottom - 14;
+        }
+
+        if ($groupFirst) {
+            $ops[] = $this->text(self::MARGIN + 8, $y, $this->clip($groupLabel, self::CONTENT_RIGHT - self::MARGIN - 16, 8), 8, true, 0.22, 0.22, 0.22);
+            $y -= 14;
+        }
+
+        $this->numberedSerialGrid($ops, $serials, $startNumber, $y);
         $ops[] = $this->text(self::MARGIN, self::CONTENT_FLOOR - 6, 'Annexure to tax invoice '.$payload->invoiceNumber, 7, false, 0.4, 0.4, 0.4);
 
         return implode('', $ops);

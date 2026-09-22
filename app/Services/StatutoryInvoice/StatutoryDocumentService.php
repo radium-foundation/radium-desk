@@ -153,7 +153,8 @@ class StatutoryDocumentService
         $fulfilment = HardwareFulfilment::query()
             ->where('statutory_invoice_id', $invoice->id)
             ->first();
-        $serials = $this->serialsForInvoice($invoice, $fulfilment);
+        $serialGroups = $this->serialGroupsForInvoice($invoice, $fulfilment);
+        $serials = $this->flattenSerialGroups($serialGroups);
         $commerce = $this->commercePresentation($invoice);
 
         return new StatutoryInvoicePdfPayload(
@@ -176,6 +177,8 @@ class StatutoryDocumentService
             igst: $this->formatTaxComponent($invoice->igst),
             invoiceValue: $this->formatMoney($invoice->invoice_value),
             serialNumbers: $serials,
+            serialGroups: $serialGroups,
+            channel: $invoice->channel->value,
             sourceId: $invoice->source_id,
             fulfilmentId: $fulfilment?->id,
             irn: $this->issuedIrn($invoice),
@@ -272,35 +275,100 @@ class StatutoryDocumentService
     }
 
     /**
-     * Presentation-only serial list. Does not rewrite stored invoice lines.
+     * Presentation-only serial groups from invoice-line allocation. Does not rewrite stored lines.
      *
-     * @return list<string>
+     * @return list<array{label: string, serials: list<string>}>
      */
-    private function serialsForInvoice(StatutoryInvoice $invoice, ?HardwareFulfilment $fulfilment): array
+    private function serialGroupsForInvoice(StatutoryInvoice $invoice, ?HardwareFulfilment $fulfilment): array
     {
         if ($fulfilment !== null) {
             $locked = $fulfilment->metadata['invoice_serials'] ?? null;
             if (is_array($locked) && $locked !== []) {
-                return array_values(array_map(static fn (mixed $serial): string => (string) $serial, $locked));
+                $serials = array_values(array_map(static fn (mixed $serial): string => (string) $serial, $locked));
+            } else {
+                $serials = $this->hardwareWorkflow->allocatedSerialNumbers($fulfilment);
             }
 
-            return $this->hardwareWorkflow->allocatedSerialNumbers($fulfilment);
+            if ($serials === []) {
+                return [];
+            }
+
+            $label = trim((string) ($invoice->items->first()?->description ?? ''));
+            if ($label === '') {
+                $label = 'Serial Numbers';
+            }
+
+            return [['label' => $label, 'serials' => $serials]];
         }
 
         if ($invoice->inventory_sale_id === null) {
             return [];
         }
 
-        $sale = InventorySale::query()->with(['serials.serial'])->find($invoice->inventory_sale_id);
+        $sale = InventorySale::query()
+            ->with(['lines.serials.serial', 'lines.product', 'lines.variant', 'serials.serial'])
+            ->find($invoice->inventory_sale_id);
         if ($sale === null) {
             return [];
         }
 
-        $out = [];
+        $groups = [];
+        foreach ($sale->lines as $line) {
+            $serials = [];
+            foreach ($line->serials as $assignment) {
+                $value = trim((string) ($assignment->serial?->serial_number ?? ''));
+                if ($value !== '') {
+                    $serials[] = $value;
+                }
+            }
+
+            if ($serials === []) {
+                continue;
+            }
+
+            $groups[] = [
+                'label' => $line->catalogLabel(),
+                'serials' => $serials,
+            ];
+        }
+
+        if ($groups !== []) {
+            return $groups;
+        }
+
+        $fallback = [];
         foreach ($sale->serials as $assignment) {
             $value = trim((string) ($assignment->serial?->serial_number ?? ''));
             if ($value !== '') {
-                $out[] = $value;
+                $fallback[] = $value;
+            }
+        }
+
+        if ($fallback === []) {
+            return [];
+        }
+
+        $label = trim((string) ($invoice->items->first()?->description ?? ''));
+        if ($label === '') {
+            $label = 'Serial Numbers';
+        }
+
+        return [['label' => $label, 'serials' => $fallback]];
+    }
+
+    /**
+     * @param  list<array{label: string, serials: list<string>}>  $groups
+     * @return list<string>
+     */
+    private function flattenSerialGroups(array $groups): array
+    {
+        $out = [];
+        foreach ($groups as $group) {
+            foreach ($group['serials'] as $serial) {
+                $value = trim((string) $serial);
+                if ($value !== '') {
+                    $out[] = $value;
+                }
             }
         }
 

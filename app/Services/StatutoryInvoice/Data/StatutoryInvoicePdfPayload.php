@@ -20,6 +20,7 @@ final class StatutoryInvoicePdfPayload
      *     uqc?: ?string
      * }>  $lines
      * @param  list<string>  $serialNumbers
+     * @param  list<array{label: string, serials: list<string>}>  $serialGroups
      */
     public function __construct(
         public readonly string $invoiceNumber,
@@ -41,6 +42,8 @@ final class StatutoryInvoicePdfPayload
         public readonly string $igst,
         public readonly string $invoiceValue,
         public readonly array $serialNumbers = [],
+        public readonly array $serialGroups = [],
+        public readonly ?string $channel = null,
         public readonly ?string $sourceId = null,
         public readonly ?int $fulfilmentId = null,
         public readonly ?string $irn = null,
