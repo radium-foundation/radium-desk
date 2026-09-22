@@ -9,8 +9,10 @@ final class CaMonthlyReportInvoiceChildRow
         public readonly string $quantity,
         public readonly string $hsnSac,
         public readonly string $taxableAmount,
+        public readonly string $shipping,
         public readonly string $igst,
         public readonly string $cgst,
         public readonly string $sgst,
+        public readonly string $lineTotal,
     ) {}
 }

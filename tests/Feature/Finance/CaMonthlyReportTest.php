@@ -16,9 +16,11 @@ use App\Models\InventoryCustomer;
 use App\Models\PaymentAllocation;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
+use App\Enums\CaMonthlyReportExportFormat;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use App\Reports\CaMonthly\CaMonthlyReportOrderType;
+use App\Services\Finance\CaMonthlyReportExportGenerator;
 use App\Support\Finance\CaMonthlyReportXlsxWriter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -73,7 +75,7 @@ class CaMonthlyReportTest extends TestCase
             ->assertSee($invoice->invoice_number)
             ->assertSee('RD Service')
             ->assertSee('Preflight summary')
-            ->assertSee('Tax invoice')
+            ->assertSee('Invoice preview')
             ->assertDontSee('data-invoice-id=', false);
     }
 
@@ -121,7 +123,7 @@ class CaMonthlyReportTest extends TestCase
 
         $readModel = app(CaMonthlyStatutoryLineReadModel::class);
 
-        $this->assertCount(2, $readModel->exportRows($this->request()));
+        $this->assertCount(1, $readModel->exportRows($this->request()));
 
         $user = User::factory()->create(['is_active' => true]);
         $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -151,10 +153,10 @@ class CaMonthlyReportTest extends TestCase
         $firstDataRow = $this->readXlsxRow($path, 4);
 
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $headers);
-        $this->assertCount(27, $headers);
-        $this->assertSame('RD Service', $firstDataRow[11]);
-        $this->assertSame('Tax invoice', $firstDataRow[26]);
-        $this->assertCount(27, app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0]);
+        $this->assertCount(21, $headers);
+        $this->assertSame('998313', $firstDataRow[10]);
+        $this->assertSame('118.00', $firstDataRow[17]);
+        $this->assertCount(21, app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0]);
     }
 
     public function test_service_ordertype_is_resolved_from_sac_code(): void
@@ -163,7 +165,7 @@ class CaMonthlyReportTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportOrderType::SERVICE, $row[3]);
+        $this->assertSame(CaMonthlyReportOrderType::SERVICE, $row[4]);
     }
 
     public function test_hardware_ordertype_is_resolved_from_pos_channel_and_hsn(): void
@@ -172,7 +174,7 @@ class CaMonthlyReportTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportOrderType::HARDWARE, $row[3]);
+        $this->assertSame(CaMonthlyReportOrderType::HARDWARE, $row[4]);
     }
 
     public function test_bundled_ordertype_is_resolved_for_hardware_and_service_lines(): void
@@ -199,8 +201,7 @@ class CaMonthlyReportTest extends TestCase
 
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
 
-        $this->assertSame(CaMonthlyReportOrderType::BUNDLED, $rows[0][3]);
-        $this->assertSame(CaMonthlyReportOrderType::BUNDLED, $rows[1][3]);
+        $this->assertSame(CaMonthlyReportOrderType::BUNDLED, $rows[0][4]);
     }
 
     public function test_multiple_service_lines_remain_service_ordertype(): void
@@ -227,8 +228,8 @@ class CaMonthlyReportTest extends TestCase
 
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
 
-        $this->assertSame(CaMonthlyReportOrderType::SERVICE, $rows[0][3]);
-        $this->assertSame(CaMonthlyReportOrderType::SERVICE, $rows[1][3]);
+        $this->assertCount(1, $rows);
+        $this->assertSame(CaMonthlyReportOrderType::SERVICE, $rows[0][4]);
     }
 
     public function test_date_of_order_and_date_of_invoice_are_independently_populated(): void
@@ -268,9 +269,8 @@ class CaMonthlyReportTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('2026-09-05', $row[1]);
-        $this->assertSame('2026-09-15', $row[4]);
-        $this->assertNotSame($row[1], $row[4]);
+        $this->assertSame('2026-09-15', $row[1]);
+        $this->assertSame('WEB-12345', $row[3]);
     }
 
     public function test_discount_reduces_taxable_amount_and_amount_column(): void
@@ -295,8 +295,8 @@ class CaMonthlyReportTest extends TestCase
         $row = $this->firstRow();
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
 
-        $this->assertSame('90.00', $row[14]);
-        $this->assertSame('90.00', $row[25]);
+        $this->assertSame('90.00', $row[11]);
+        $this->assertSame('106.20', $row[17]);
         $this->assertSame(1, $preflight->discountLineCount);
     }
 
@@ -310,9 +310,8 @@ class CaMonthlyReportTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('100.00', $row[14]);
-        $this->assertSame('100.00', $row[25]);
-        $this->assertSame('118.00', $row[20]);
+        $this->assertSame('100.00', $row[11]);
+        $this->assertSame('118.00', $row[17]);
     }
 
     public function test_shipping_remains_blank_without_authoritative_source(): void
@@ -321,7 +320,7 @@ class CaMonthlyReportTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('', $row[15]);
+        $this->assertSame('', $row[12]);
     }
 
     public function test_invoice_level_shipping_amount_is_reported_on_first_line_only(): void
@@ -351,8 +350,7 @@ class CaMonthlyReportTest extends TestCase
 
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
 
-        $this->assertSame('25.00', $rows[0][15]);
-        $this->assertSame('', $rows[1][15]);
+        $this->assertSame('25.00', $rows[0][12]);
     }
 
     public function test_gst_columns_and_total_amount_are_populated(): void
@@ -362,10 +360,10 @@ class CaMonthlyReportTest extends TestCase
         $row = $this->firstRow();
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
 
-        $this->assertSame('9.00', $row[17]);
-        $this->assertSame('9.00', $row[18]);
-        $this->assertSame('', $row[16]);
-        $this->assertSame('118.00', $row[20]);
+        $this->assertSame('9.00', $row[14]);
+        $this->assertSame('9.00', $row[15]);
+        $this->assertSame('', $row[13]);
+        $this->assertSame('118.00', $row[17]);
         $this->assertSame('100.00', $preflight->taxableAmountTotal);
         $this->assertSame('118.00', $preflight->totalAmountTotal);
     }
@@ -401,8 +399,7 @@ class CaMonthlyReportTest extends TestCase
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
 
-        $this->assertSame('', $rows[0][19]);
-        $this->assertSame('0.35', $rows[1][19]);
+        $this->assertSame('0.35', $rows[0][16]);
         $this->assertSame('0.35', $preflight->shortExcessTotal);
     }
 
@@ -421,8 +418,8 @@ class CaMonthlyReportTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('ACK123456789', $row[22]);
-        $this->assertStringNotContainsString('2026', $row[22]);
+        $this->assertSame('ACK123456789', $row[19]);
+        $this->assertStringNotContainsString('2026', $row[19]);
     }
 
     public function test_eway_bill_remains_blank_without_authoritative_source(): void
@@ -432,7 +429,7 @@ class CaMonthlyReportTest extends TestCase
         $row = $this->firstRow();
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
 
-        $this->assertSame('', $row[10]);
+        $this->assertSame('', $row[9]);
         $this->assertGreaterThan(0, $preflight->unresolvedEwayBillLineCount);
     }
 
@@ -455,8 +452,7 @@ class CaMonthlyReportTest extends TestCase
         $this->assertCount(1, $readModel->exportRows($this->request()));
         $this->assertSame(1, $preflight->cancelledIncludedCount);
         $this->assertSame(0, $preflight->cancelledExcludedCount);
-        $this->assertSame('Cancelled', $row[23]);
-        $this->assertSame('Tax invoice', $row[26]);
+        $this->assertSame('0.00', $row[17]);
     }
 
     public function test_cancelled_commerce_invoice_with_payment_snapshot_is_included(): void
@@ -477,8 +473,7 @@ class CaMonthlyReportTest extends TestCase
 
         $this->assertSame(1, $preflight->cancelledIncludedCount);
         $this->assertSame(1, $preflight->cancelledIncludedViaPaymentReferenceCount);
-        $this->assertSame('Cancelled', $row[23]);
-        $this->assertSame('UPI', $row[24]);
+        $this->assertSame('UPI', $row[20]);
     }
 
     public function test_cancelled_pos_invoice_with_payment_snapshot_is_included(): void
@@ -545,7 +540,7 @@ class CaMonthlyReportTest extends TestCase
         $this->assertCount(1, $readModel->exportRows($this->request()));
         $this->assertSame(1, $preflight->cancelledIncludedCount);
         $this->assertSame(1, $preflight->cancelledIncludedViaPaymentAllocationCount);
-        $this->assertSame('Bank Transfer', $row[24]);
+        $this->assertSame('Bank Transfer', $row[20]);
     }
 
     public function test_cancelled_service_pos_invoice_without_allocation_is_still_included(): void
@@ -608,8 +603,7 @@ class CaMonthlyReportTest extends TestCase
         $row = $readModel->exportRows($this->request())[0];
 
         $this->assertSame(1, $preflight->creditNoteCount);
-        $this->assertSame('CN-2026-0001', $row[5]);
-        $this->assertSame('Credit note', $row[26]);
+        $this->assertSame('CN-2026-0001', $row[2]);
     }
 
     public function test_commerce_physical_merchandise_line_kind_classifies_hardware(): void
@@ -668,15 +662,14 @@ class CaMonthlyReportTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportOrderType::HARDWARE, $row[3]);
+        $this->assertSame(CaMonthlyReportOrderType::HARDWARE, $row[4]);
     }
 
     public function test_non_reconciling_lines_are_reported_in_preflight(): void
     {
         $this->makeTaxInvoice([
             'issued_at' => '2026-09-10 10:00:00',
-        ], [
-            'line_total' => '120.00',
+            'invoice_value' => '120.00',
         ]);
 
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
@@ -821,15 +814,17 @@ class CaMonthlyReportTest extends TestCase
 
     public function test_xlsx_writer_places_headers_on_row_three(): void
     {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
         $path = storage_path('app/tmp/ca-monthly-writer-test.xlsx');
-        app(CaMonthlyReportXlsxWriter::class)->write(
+        app(CaMonthlyReportExportGenerator::class)->generateToPath(
+            $this->request(),
+            \App\Enums\CaMonthlyReportExportFormat::Xlsx,
             $path,
-            CaMonthlyReportDefinition::HEADERS,
-            [['Only', 'Data', 'Row']],
         );
 
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $this->readXlsxRow($path, 3));
-        $this->assertSame(['Only', 'Data', 'Row'], array_slice($this->readXlsxRow($path, 4), 0, 3));
+        $this->assertSame('118.00', $this->readXlsxRow($path, 4)[17]);
 
         @unlink($path);
     }

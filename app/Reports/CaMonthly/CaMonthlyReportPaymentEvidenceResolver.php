@@ -2,12 +2,27 @@
 
 namespace App\Reports\CaMonthly;
 
+use App\Models\CommerceOrder;
+use App\Models\HardwareFulfilmentPaymentEvidence;
+use App\Models\Order;
 use App\Models\PaymentAllocation;
 use App\Models\StatutoryInvoice;
 use Illuminate\Support\Collection;
 
 final class CaMonthlyReportPaymentEvidenceResolver
 {
+    /**
+     * Payment providers are not payment instruments and must not be shown as Payment Mode.
+     *
+     * @var list<string>
+     */
+    private const PAYMENT_PROVIDER_ALIASES = [
+        'cashfree',
+        'payumoney',
+        'payu',
+        'razorpay',
+    ];
+
     /**
      * @param  array<int, float>|null  $allocationTotalsByInvoiceId
      */
@@ -132,9 +147,110 @@ final class CaMonthlyReportPaymentEvidenceResolver
                 continue;
             }
 
-            $method = $this->nullableString($row->method);
+            $method = $this->normalizePaymentMode($row->method);
             if ($method !== null) {
                 $methods[$invoiceId] = $method;
+            }
+        }
+
+        return $methods;
+    }
+
+    /**
+     * @param  iterable<int, StatutoryInvoice>  $invoices
+     * @return array<int, string>
+     */
+    public function hardwarePaymentMethodsForInvoices(iterable $invoices): array
+    {
+        $sourceIds = [];
+        $commerceOrderIds = [];
+        foreach ($invoices as $invoice) {
+            $sourceId = $this->nullableString($invoice->source_order_id)
+                ?? $this->nullableString($invoice->source_id);
+            if ($sourceId !== null) {
+                $sourceIds[strtoupper($sourceId)] = true;
+            }
+        }
+
+        if ($sourceIds === []) {
+            return [];
+        }
+
+        $rows = HardwareFulfilmentPaymentEvidence::query()
+            ->where('verified', true)
+            ->where(function ($query) use ($sourceIds): void {
+                $query->whereIn('source_id', array_keys($sourceIds));
+            })
+            ->orderBy('id')
+            ->get();
+
+        $bySource = [];
+        $byCommerce = [];
+        foreach ($rows as $row) {
+            $method = $this->normalizePaymentMode($row->payment_method);
+            if ($method === null) {
+                continue;
+            }
+
+            $sourceId = strtoupper((string) $row->source_id);
+            if ($sourceId !== '' && ! isset($bySource[$sourceId])) {
+                $bySource[$sourceId] = $method;
+            }
+
+            if ($row->commerce_order_id !== null && ! isset($byCommerce[(int) $row->commerce_order_id])) {
+                $byCommerce[(int) $row->commerce_order_id] = $method;
+            }
+        }
+
+        $methods = [];
+        foreach ($invoices as $invoice) {
+            $sourceId = strtoupper((string) ($this->nullableString($invoice->source_order_id)
+                ?? $this->nullableString($invoice->source_id)
+                ?? ''));
+            if ($sourceId !== '' && isset($bySource[$sourceId])) {
+                $methods[$invoice->id] = $bySource[$sourceId];
+            }
+        }
+
+        return $methods;
+    }
+
+    /**
+     * @param  iterable<int, StatutoryInvoice>  $invoices
+     * @return array<int, string>
+     */
+    public function supportOrderPaymentMethodsForInvoices(iterable $invoices): array
+    {
+        $supportOrderIds = [];
+        foreach ($invoices as $invoice) {
+            if ($invoice->support_order_id !== null) {
+                $supportOrderIds[] = (int) $invoice->support_order_id;
+            }
+        }
+
+        if ($supportOrderIds === []) {
+            return [];
+        }
+
+        $orders = Order::query()
+            ->whereIn('id', array_values(array_unique($supportOrderIds)))
+            ->get()
+            ->keyBy('id');
+
+        $methods = [];
+        foreach ($invoices as $invoice) {
+            if ($invoice->support_order_id === null) {
+                continue;
+            }
+
+            $order = $orders->get((int) $invoice->support_order_id);
+            if ($order === null) {
+                continue;
+            }
+
+            $method = $this->normalizePaymentMode($order->payment_method);
+            if ($method !== null) {
+                $methods[$invoice->id] = $method;
             }
         }
 
@@ -144,18 +260,56 @@ final class CaMonthlyReportPaymentEvidenceResolver
     public function resolvePaymentModeDisplay(
         StatutoryInvoice $invoice,
         ?string $allocationPaymentMethod = null,
+        ?CommerceOrder $commerceOrder = null,
+        ?string $hardwarePaymentMethod = null,
+        ?string $supportOrderPaymentMethod = null,
     ): string {
-        $paymentMethod = $this->nullableString($invoice->payment_method);
-        if ($paymentMethod !== null) {
-            return $paymentMethod;
+        foreach ([
+            $hardwarePaymentMethod,
+            $supportOrderPaymentMethod,
+            $this->normalizePaymentMode($commerceOrder?->payment_method),
+            $allocationPaymentMethod,
+            $this->normalizePaymentMode($invoice->payment_method),
+        ] as $candidate) {
+            if ($candidate !== null && $candidate !== '') {
+                return $candidate;
+            }
         }
 
-        $allocationMethod = $this->nullableString($allocationPaymentMethod);
-        if ($allocationMethod !== null) {
-            return $allocationMethod;
+        return '';
+    }
+
+    private function normalizePaymentMode(mixed $value): ?string
+    {
+        $trimmed = $this->nullableString($value);
+        if ($trimmed === null) {
+            return null;
         }
 
-        return (string) ($this->nullableString($invoice->payment_reference) ?? '');
+        $normalized = strtolower(str_replace(['_', '-'], ' ', $trimmed));
+        foreach (self::PAYMENT_PROVIDER_ALIASES as $provider) {
+            if ($normalized === $provider || str_contains($normalized, $provider)) {
+                return null;
+            }
+        }
+
+        return $this->formatPaymentModeLabel($trimmed);
+    }
+
+    private function formatPaymentModeLabel(string $value): string
+    {
+        $normalized = strtolower(str_replace(['_', '-'], ' ', trim($value)));
+
+        return match ($normalized) {
+            'upi' => 'UPI',
+            'card', 'credit card', 'debit card' => 'Card',
+            'netbanking', 'net banking', 'nb' => 'Net Banking',
+            'wallet' => 'Wallet',
+            'bank transfer', 'bank_transfer', 'neft', 'imps', 'rtgs' => 'Bank Transfer',
+            'cod', 'cash on delivery' => 'COD',
+            'cash' => 'Cash',
+            default => ucwords($normalized),
+        };
     }
 
     private function allocatedTotalForInvoice(int $invoiceId): float

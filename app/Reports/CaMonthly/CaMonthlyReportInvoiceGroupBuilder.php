@@ -9,114 +9,76 @@ use Illuminate\Support\Collection;
 final class CaMonthlyReportInvoiceGroupBuilder
 {
     public function __construct(
-        private readonly CaMonthlyReportLineBuilder $lineBuilder,
-        private readonly CaMonthlyReportPaymentEvidenceResolver $paymentEvidenceResolver,
+        private readonly CaMonthlyReportInvoiceExportBuilder $exportBuilder,
+        private readonly CaMonthlyReportLineValuePolicy $lineValuePolicy,
     ) {}
 
     /**
      * @param  Collection<int, StatutoryInvoice>  $invoices
-     * @param  array<int, CaMonthlyReportOrderContext>  $orderContexts
-     * @param  array<int, ?string>  $orderTypes
-     * @param  array<int, string>  $allocationPaymentMethods
      * @return list<CaMonthlyReportInvoiceGroup>
      */
-    public function buildGroups(
-        Collection $invoices,
-        array $orderContexts,
-        array $orderTypes,
-        array $allocationPaymentMethods = [],
-    ): array {
-        $items = $invoices
-            ->flatMap(fn (StatutoryInvoice $invoice): Collection => $invoice->items)
-            ->values();
+    public function buildGroups(Collection $invoices): array
+    {
+        if ($invoices->isEmpty()) {
+            return [];
+        }
 
-        $builtRows = $this->lineBuilder->buildRows($items, $orderContexts, $orderTypes, $allocationPaymentMethods);
-        $rowIndex = 0;
+        $exportRows = $this->exportBuilder->buildForInvoices($invoices);
         $groups = [];
 
-        foreach ($invoices as $invoice) {
-            $lineCount = $invoice->items->count();
-            $invoiceRows = array_slice($builtRows, $rowIndex, $lineCount);
-            $rowIndex += $lineCount;
+        foreach ($invoices->values() as $index => $invoice) {
+            $exportRow = $exportRows[$index] ?? null;
+            if ($exportRow === null) {
+                continue;
+            }
 
-            $paymentMode = $this->paymentEvidenceResolver->resolvePaymentModeDisplay(
-                $invoice,
-                $allocationPaymentMethods[$invoice->id] ?? null,
-            );
-            $shippingAmount = round((float) ($invoice->shipping_amount ?? 0), 2);
-            $taxAmount = round(
-                (float) ($invoice->igst ?? 0)
-                + (float) ($invoice->cgst ?? 0)
-                + (float) ($invoice->sgst ?? 0),
-                2,
+            $exportableItems = $this->lineValuePolicy->filterExportable(
+                $invoice->items->sortBy('line_no')->values()->all(),
             );
 
             $children = [];
-            foreach ($invoice->items->sortBy('line_no') as $item) {
-                $children[] = $this->buildChildRow($item);
+            foreach ($exportableItems as $itemIndex => $item) {
+                $detail = $exportRow->detailRows[$itemIndex] ?? null;
+                if ($detail === null) {
+                    continue;
+                }
+
+                $children[] = new CaMonthlyReportInvoiceChildRow(
+                    productName: $detail[0],
+                    quantity: $detail[1],
+                    hsnSac: $detail[2],
+                    taxableAmount: $detail[3],
+                    shipping: $detail[4],
+                    igst: $detail[5],
+                    cgst: $detail[6],
+                    sgst: $detail[7],
+                    lineTotal: $detail[8],
+                );
             }
+
+            $taxAmount = round($exportRow->igst + $exportRow->cgst + $exportRow->sgst, 2);
 
             $groups[] = new CaMonthlyReportInvoiceGroup(
                 invoiceId: $invoice->id,
                 invoiceNumber: (string) $invoice->invoice_number,
-                issuedDate: $this->formatDate($invoice->issued_at),
+                issuedDate: $exportRow->parentCells[1],
                 buyerName: (string) ($invoice->buyer_name ?? ''),
-                orderType: (string) ($orderTypes[$invoice->id] ?? ''),
-                taxableAmount: $this->money((float) $invoice->taxable_value),
-                shippingAmount: $shippingAmount !== 0.0 ? $this->money($shippingAmount) : '',
-                taxAmount: $taxAmount !== 0.0 ? $this->money($taxAmount) : '',
-                totalAmount: $this->money((float) $invoice->invoice_value),
-                paymentMode: $paymentMode,
+                orderType: $exportRow->parentCells[4],
+                taxableAmount: $exportRow->parentCells[11],
+                shippingAmount: $exportRow->parentCells[12],
+                taxAmount: $taxAmount !== 0.0 ? number_format($taxAmount, 2, '.', '') : '',
+                totalAmount: $exportRow->parentCells[17],
+                paymentMode: $exportRow->parentCells[20],
                 status: $invoice->status->label(),
                 documentType: $invoice->document_type->label(),
-                expandable: $lineCount > 1,
+                expandable: $exportRow->expandable,
                 children: $children,
-                exportRows: array_map(
-                    fn (CaMonthlyReportLineRow $row): array => $row->cells,
-                    $invoiceRows,
-                ),
-                singleLineRow: $lineCount === 1 ? ($invoiceRows[0] ?? null) : null,
+                exportRows: [$exportRow->parentCells],
+                singleLineRow: count($children) === 1 ? null : null,
+                parentRow: $exportRow->parentCells,
             );
         }
 
         return $groups;
-    }
-
-    private function buildChildRow(StatutoryInvoiceItem $item): CaMonthlyReportInvoiceChildRow
-    {
-        return new CaMonthlyReportInvoiceChildRow(
-            productName: (string) $item->description,
-            quantity: (string) $item->qty,
-            hsnSac: (string) ($item->hsn_sac ?? ''),
-            taxableAmount: $this->money((float) $item->taxable_value),
-            igst: $this->zeroBlankMoney($item->igst),
-            cgst: $this->zeroBlankMoney($item->cgst),
-            sgst: $this->zeroBlankMoney($item->sgst),
-        );
-    }
-
-    private function formatDate(mixed $value): string
-    {
-        if (! $value instanceof \DateTimeInterface) {
-            return '';
-        }
-
-        return $value->format('Y-m-d');
-    }
-
-    private function money(float $value): string
-    {
-        return number_format($value, 2, '.', '');
-    }
-
-    private function zeroBlankMoney(mixed $value): string
-    {
-        if ($value === null || $value === '') {
-            return '';
-        }
-
-        $amount = round((float) $value, 2);
-
-        return $amount === 0.0 ? '' : $this->money($amount);
     }
 }

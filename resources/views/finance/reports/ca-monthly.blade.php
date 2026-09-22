@@ -20,7 +20,7 @@
         <p class="text-muted mb-0 small">
             Statutory invoice export for CA review. Reporting period uses
             <strong>Date of Invoice</strong> (<code>statutory_invoices.issued_at</code>).
-            Preview groups multi-product invoices; export retains one row per product line in the 27-column contract.
+            Preview groups multi-product invoices; Excel export is one invoice summary row with expandable non-zero line detail.
         </p>
     </div>
 
@@ -200,8 +200,6 @@
                             <th scope="col" class="text-nowrap text-end d-none d-lg-table-cell">Tax</th>
                             <th scope="col" class="text-nowrap text-end">Total</th>
                             <th scope="col" class="text-nowrap d-none d-xl-table-cell">Payment</th>
-                            <th scope="col" class="text-nowrap d-none d-md-table-cell">Status</th>
-                            <th scope="col" class="text-nowrap d-none d-xl-table-cell">Document Type</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -227,8 +225,6 @@
                                     <td class="text-end d-none d-lg-table-cell">{{ $group->taxAmount !== '' ? $group->taxAmount : '—' }}</td>
                                     <td class="text-end">{{ $group->totalAmount }}</td>
                                     <td class="d-none d-xl-table-cell">{{ $group->paymentMode !== '' ? $group->paymentMode : '—' }}</td>
-                                    <td class="d-none d-md-table-cell">{{ $group->status }}</td>
-                                    <td class="d-none d-xl-table-cell">{{ $group->documentType }}</td>
                                 </tr>
                                 @foreach ($group->children as $child)
                                     <tr
@@ -239,16 +235,15 @@
                                         <td></td>
                                         <td colspan="4" class="ps-4 small text-muted">{{ $child->productName }}</td>
                                         <td class="text-end small">{{ $child->taxableAmount }}</td>
-                                        <td class="text-end small d-none d-lg-table-cell">—</td>
+                                        <td class="text-end small d-none d-lg-table-cell">{{ $child->shipping !== '' ? $child->shipping : '—' }}</td>
                                         <td class="text-end small d-none d-lg-table-cell">
                                             @php
                                                 $lineTax = array_filter([$child->igst, $child->cgst, $child->sgst]);
                                             @endphp
                                             {{ $lineTax !== [] ? implode(' / ', $lineTax) : '—' }}
                                         </td>
-                                        <td class="text-end small">—</td>
+                                        <td class="text-end small">{{ $child->lineTotal !== '' ? $child->lineTotal : '—' }}</td>
                                         <td class="small text-muted d-none d-xl-table-cell">Qty {{ $child->quantity }} · {{ $child->hsnSac !== '' ? $child->hsnSac : '—' }}</td>
-                                        <td colspan="2" class="d-none d-md-table-cell"></td>
                                     </tr>
                                 @endforeach
                             @else
@@ -268,13 +263,11 @@
                                     <td class="text-end d-none d-lg-table-cell">{{ $group->taxAmount !== '' ? $group->taxAmount : '—' }}</td>
                                     <td class="text-end">{{ $group->totalAmount }}</td>
                                     <td class="d-none d-xl-table-cell">{{ $group->paymentMode !== '' ? $group->paymentMode : '—' }}</td>
-                                    <td class="d-none d-md-table-cell">{{ $group->status }}</td>
-                                    <td class="d-none d-xl-table-cell">{{ $group->documentType }}</td>
                                 </tr>
                             @endif
                         @empty
                             <tr>
-                                <td colspan="12" class="text-muted p-3">No statutory invoices for the selected date range.</td>
+                                <td colspan="10" class="text-muted p-3">No statutory invoices for the selected date range.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -288,8 +281,8 @@
     </div>
 
     <details class="mt-2">
-        <summary class="small text-muted">Full 27-column export contract</summary>
-        <p class="small text-muted mb-2">Export retains one row per product line with all columns below.</p>
+        <summary class="small text-muted">Invoice-level export contract</summary>
+        <p class="small text-muted mb-2">Excel export uses one invoice summary row per statutory invoice. Multi-line invoices include expandable non-zero line detail rows grouped beneath the parent.</p>
         <div class="table-responsive">
             <table class="table table-sm">
                 <thead>

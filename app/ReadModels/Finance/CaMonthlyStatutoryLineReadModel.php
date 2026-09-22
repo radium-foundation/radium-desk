@@ -5,23 +5,24 @@ namespace App\ReadModels\Finance;
 use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceStatus;
 use App\Models\StatutoryInvoice;
-use App\Models\StatutoryInvoiceItem;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
-use App\Reports\CaMonthly\CaMonthlyReportInclusionPolicy;
+use App\Reports\CaMonthly\CaMonthlyReportInvoiceExportBuilder;
+use App\Reports\CaMonthly\CaMonthlyReportInvoiceExportRow;
 use App\Reports\CaMonthly\CaMonthlyReportInvoiceGroup;
 use App\Reports\CaMonthly\CaMonthlyReportInvoiceGroupBuilder;
-use App\Reports\CaMonthly\CaMonthlyReportLineBuilder;
-use App\Reports\CaMonthly\CaMonthlyReportLineRow;
+use App\Reports\CaMonthly\CaMonthlyReportLineValuePolicy;
 use App\Reports\CaMonthly\CaMonthlyReportOrderContextResolver;
 use App\Reports\CaMonthly\CaMonthlyReportOrderType;
 use App\Reports\CaMonthly\CaMonthlyReportOrderTypeResolver;
 use App\Reports\CaMonthly\CaMonthlyReportPaymentEvidenceResolver;
 use App\Reports\CaMonthly\CaMonthlyReportPreflight;
+use App\Reports\CaMonthly\CaMonthlyReportWorkbookMeta;
 use App\Support\Finance\ReportPeriod;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class CaMonthlyStatutoryLineReadModel
@@ -29,9 +30,9 @@ class CaMonthlyStatutoryLineReadModel
     public function __construct(
         private readonly CaMonthlyReportOrderContextResolver $orderContextResolver,
         private readonly CaMonthlyReportOrderTypeResolver $orderTypeResolver,
-        private readonly CaMonthlyReportLineBuilder $lineBuilder,
+        private readonly CaMonthlyReportInvoiceExportBuilder $invoiceExportBuilder,
         private readonly CaMonthlyReportInvoiceGroupBuilder $groupBuilder,
-        private readonly CaMonthlyReportInclusionPolicy $inclusionPolicy,
+        private readonly CaMonthlyReportLineValuePolicy $lineValuePolicy,
         private readonly CaMonthlyReportPaymentEvidenceResolver $paymentEvidenceResolver,
     ) {}
 
@@ -48,7 +49,7 @@ class CaMonthlyStatutoryLineReadModel
             ->withQueryString();
 
         $invoices = collect($paginator->items());
-        $groups = $this->buildGroups($invoices);
+        $groups = $this->groupBuilder->buildGroups($invoices);
 
         return $paginator->setCollection(collect($groups));
     }
@@ -58,16 +59,21 @@ class CaMonthlyStatutoryLineReadModel
      */
     public function exportRows(Request $request): array
     {
-        return $this->buildRowCells($this->includedItems($request));
+        $rows = [];
+        foreach ($this->invoiceExportRows($request) as $exportRow) {
+            $rows[] = $exportRow->parentCells;
+        }
+
+        return $rows;
     }
 
     public function countExportLines(Request $request): int
     {
-        return $this->filteredLineQuery($request)->count();
+        return (int) $this->filteredInvoiceQuery($request)->count();
     }
 
     /**
-     * Stream export rows in bounded-memory invoice chunks.
+     * Stream invoice-level parent rows (CSV and flat exports).
      *
      * @param  callable(list<string>): void  $callback
      */
@@ -80,35 +86,49 @@ class CaMonthlyStatutoryLineReadModel
             ->with($this->invoiceRelations())
             ->orderBy('id')
             ->chunkById($chunkSize, function (Collection $invoices) use ($callback, &$rowCount): void {
-                $items = collect();
-
-                foreach ($invoices as $invoice) {
-                    foreach ($invoice->items->sortBy('line_no')->values() as $item) {
-                        $item->setRelation('invoice', $invoice);
-                        $items->push($item);
-                    }
-                }
-
-                if ($items->isEmpty()) {
-                    return;
-                }
-
-                $orderContexts = $this->orderContextResolver->resolveForInvoices($invoices);
-                $orderTypes = $this->orderTypeResolver->resolveForInvoices($invoices);
-                $allocationPaymentMethods = $this->paymentEvidenceResolver->allocationPaymentMethodsForInvoices($invoices);
-
-                foreach ($this->lineBuilder->buildRows(
-                    $items,
-                    $orderContexts,
-                    $orderTypes,
-                    $allocationPaymentMethods,
-                ) as $row) {
-                    $callback($row->cells);
+                foreach ($this->invoiceExportBuilder->buildForInvoices($invoices) as $exportRow) {
+                    $callback($exportRow->parentCells);
                     $rowCount++;
                 }
             });
 
         return $rowCount;
+    }
+
+    /**
+     * Stream grouped invoice export rows (XLSX with expandable detail).
+     *
+     * @param  callable(CaMonthlyReportInvoiceExportRow): void  $callback
+     */
+    public function streamExportInvoiceGroups(Request $request, callable $callback): int
+    {
+        $rowCount = 0;
+        $chunkSize = max(1, (int) config('ca_monthly_report.invoice_chunk_size', 25));
+
+        $this->filteredInvoiceQuery($request)
+            ->with($this->invoiceRelations())
+            ->orderBy('id')
+            ->chunkById($chunkSize, function (Collection $invoices) use ($callback, &$rowCount): void {
+                foreach ($this->invoiceExportBuilder->buildForInvoices($invoices) as $exportRow) {
+                    $callback($exportRow);
+                    $rowCount++;
+                }
+            });
+
+        return $rowCount;
+    }
+
+    public function workbookMeta(Request $request): CaMonthlyReportWorkbookMeta
+    {
+        $period = ReportPeriod::fromRequest($request);
+
+        return new CaMonthlyReportWorkbookMeta(
+            periodFrom: $period->from ?? '',
+            periodTo: $period->to ?? '',
+            generatedAt: Carbon::now()
+                ->timezone((string) config('app.timezone'))
+                ->format('Y-m-d H:i:s T'),
+        );
     }
 
     public function preflight(Request $request): CaMonthlyReportPreflight
@@ -130,7 +150,8 @@ class CaMonthlyStatutoryLineReadModel
         $nonReconcilingLineCount = 0;
         $shippingInvoiceCount = 0;
         $unclassifiedOrdertypeLineCount = 0;
-        $lineCount = 0;
+        $exportableLineCount = 0;
+        $excludedZeroValueLineCount = 0;
 
         $taxableTotal = 0.0;
         $shippingTotal = 0.0;
@@ -163,7 +184,8 @@ class CaMonthlyStatutoryLineReadModel
                 &$nonReconcilingLineCount,
                 &$shippingInvoiceCount,
                 &$unclassifiedOrdertypeLineCount,
-                &$lineCount,
+                &$exportableLineCount,
+                &$excludedZeroValueLineCount,
                 &$taxableTotal,
                 &$shippingTotal,
                 &$igstTotal,
@@ -172,50 +194,51 @@ class CaMonthlyStatutoryLineReadModel
                 &$shortExcessTotal,
                 &$totalAmountTotal,
             ): void {
-                $items = collect();
-
-                foreach ($invoices as $invoice) {
-                    foreach ($invoice->items->sortBy('line_no')->values() as $item) {
-                        $item->setRelation('invoice', $invoice);
-                        $items->push($item);
-                    }
-                }
-
-                if ($items->isEmpty()) {
-                    return;
-                }
-
-                $lineCount += $items->count();
-
                 $orderContexts = $this->orderContextResolver->resolveForInvoices($invoices);
                 $orderTypes = $this->orderTypeResolver->resolveForInvoices($invoices);
-                $allocationPaymentMethods = $this->paymentEvidenceResolver->allocationPaymentMethodsForInvoices($invoices);
-                $builtRows = $this->lineBuilder->buildRows(
-                    $items,
-                    $orderContexts,
-                    $orderTypes,
-                    $allocationPaymentMethods,
-                );
+                $exportRows = $this->invoiceExportBuilder->buildForInvoices($invoices);
 
-                foreach ($builtRows as $row) {
-                    $this->accumulateRowTotals($row, $taxableTotal, $shippingTotal, $igstTotal, $cgstTotal, $sgstTotal, $shortExcessTotal, $totalAmountTotal);
-
-                    if (! $row->reconciles) {
-                        $nonReconcilingLineCount++;
-                    }
-
-                    if ($row->lineDiscount > 0) {
-                        $discountLineCount++;
-                    }
-                }
-
-                foreach ($items as $item) {
-                    $invoice = $item->invoice;
-                    if ($invoice === null) {
+                foreach ($invoices as $index => $invoice) {
+                    $exportRow = $exportRows[$index] ?? null;
+                    if ($exportRow === null) {
                         continue;
                     }
 
                     $invoiceIds[$invoice->id] = true;
+                    $taxableTotal += $exportRow->taxableAmount;
+                    $shippingTotal += $exportRow->shippingAmount;
+                    $igstTotal += $exportRow->igst;
+                    $cgstTotal += $exportRow->cgst;
+                    $sgstTotal += $exportRow->sgst;
+                    $shortExcessTotal += $exportRow->shortExcess;
+                    $totalAmountTotal += $exportRow->invoiceTotal;
+
+                    $calculated = round(
+                        $exportRow->taxableAmount
+                        + $exportRow->shippingAmount
+                        + $exportRow->igst
+                        + $exportRow->cgst
+                        + $exportRow->sgst
+                        + $exportRow->shortExcess,
+                        2,
+                    );
+                    if (abs($calculated - $exportRow->invoiceTotal) > 0.01) {
+                        $nonReconcilingLineCount++;
+                    }
+
+                    foreach ($invoice->items as $item) {
+                        if ($this->lineValuePolicy->isExportable($item)) {
+                            $exportableLineCount++;
+                            if (round((float) $item->discount, 2) > 0) {
+                                $discountLineCount++;
+                            }
+                            if ($this->nullableString($item->hsn_sac) === null) {
+                                $missingHsnSac++;
+                            }
+                        } else {
+                            $excludedZeroValueLineCount++;
+                        }
+                    }
 
                     if ($invoice->status === StatutoryInvoiceStatus::Cancelled) {
                         $cancelledIncludedIds[$invoice->id] = true;
@@ -238,19 +261,12 @@ class CaMonthlyStatutoryLineReadModel
                         $bundledOrderIds[$invoice->id] = true;
                     } else {
                         $unclassifiedOrderIds[$invoice->id] = true;
-                    }
-
-                    if ($orderType === null) {
                         $unclassifiedOrdertypeLineCount++;
                     }
 
                     $orderContext = $orderContexts[$invoice->id] ?? null;
                     if ($this->nullableString($orderContext?->orderDate) === null) {
                         $missingOrderDateCount++;
-                    }
-
-                    if ($this->nullableString($item->hsn_sac) === null) {
-                        $missingHsnSac++;
                     }
 
                     if ($this->nullableString($invoice->buyer_gstin) === null) {
@@ -280,7 +296,7 @@ class CaMonthlyStatutoryLineReadModel
 
         return new CaMonthlyReportPreflight(
             invoiceCount: count($invoiceIds),
-            lineCount: $lineCount,
+            lineCount: $exportableLineCount,
             hardwareOrderCount: count($hardwareOrderIds),
             serviceOrderCount: count($serviceOrderIds),
             bundledOrderCount: count($bundledOrderIds),
@@ -298,8 +314,8 @@ class CaMonthlyStatutoryLineReadModel
             missingIrnInvoiceCount: count($missingIrnInvoiceIds),
             missingAcknowledgementInvoiceCount: count($missingAckInvoiceIds),
             missingStateInvoiceCount: count($missingStateInvoiceIds),
-            unresolvedEwayBillLineCount: $lineCount,
-            unresolvedShippingLineCount: $lineCount - $shippingInvoiceCount,
+            unresolvedEwayBillLineCount: $exportableLineCount,
+            unresolvedShippingLineCount: count($invoiceIds) - $shippingInvoiceCount,
             unclassifiedOrdertypeLineCount: $unclassifiedOrdertypeLineCount,
             discountLineCount: $discountLineCount,
             nonReconcilingLineCount: $nonReconcilingLineCount,
@@ -322,59 +338,17 @@ class CaMonthlyStatutoryLineReadModel
     }
 
     /**
-     * @param  Collection<int, StatutoryInvoiceItem>  $items
-     * @return list<list<string>>
+     * @return list<CaMonthlyReportInvoiceExportRow>
      */
-    private function buildRowCells(Collection $items): array
+    private function invoiceExportRows(Request $request): array
     {
-        $invoices = $items
-            ->map(fn (StatutoryInvoiceItem $item): ?StatutoryInvoice => $item->invoice)
-            ->filter()
-            ->unique('id')
-            ->values();
-
-        $orderContexts = $this->orderContextResolver->resolveForInvoices($invoices);
-        $orderTypes = $this->orderTypeResolver->resolveForInvoices($invoices);
-        $allocationPaymentMethods = $this->paymentEvidenceResolver->allocationPaymentMethodsForInvoices($invoices);
-
-        return array_map(
-            fn (CaMonthlyReportLineRow $row): array => $row->cells,
-            $this->lineBuilder->buildRows($items, $orderContexts, $orderTypes, $allocationPaymentMethods),
-        );
-    }
-
-    /**
-     * @param  Collection<int, StatutoryInvoice>  $invoices
-     * @return list<CaMonthlyReportInvoiceGroup>
-     */
-    private function buildGroups(Collection $invoices): array
-    {
-        if ($invoices->isEmpty()) {
-            return [];
-        }
-
-        $orderContexts = $this->orderContextResolver->resolveForInvoices($invoices);
-        $orderTypes = $this->orderTypeResolver->resolveForInvoices($invoices);
-        $allocationPaymentMethods = $this->paymentEvidenceResolver->allocationPaymentMethodsForInvoices($invoices);
-
-        return $this->groupBuilder->buildGroups(
-            $invoices,
-            $orderContexts,
-            $orderTypes,
-            $allocationPaymentMethods,
-        );
-    }
-
-    /**
-     * @return Collection<int, StatutoryInvoiceItem>
-     */
-    private function includedItems(Request $request): Collection
-    {
-        return $this->filteredLineQuery($request)
-            ->with($this->lineRelations())
-            ->orderBy('statutory_invoice_items.invoice_id')
-            ->orderBy('statutory_invoice_items.line_no')
+        $invoices = $this->filteredInvoiceQuery($request)
+            ->with($this->invoiceRelations())
+            ->orderBy('statutory_invoices.'.CaMonthlyReportDefinition::AUTHORITATIVE_DATE_COLUMN)
+            ->orderBy('statutory_invoices.id')
             ->get();
+
+        return $this->invoiceExportBuilder->buildForInvoices($invoices);
     }
 
     private function filteredInvoiceQuery(Request $request): Builder
@@ -395,26 +369,6 @@ class CaMonthlyStatutoryLineReadModel
             });
     }
 
-    private function filteredLineQuery(Request $request): Builder
-    {
-        return StatutoryInvoiceItem::query()
-            ->select('statutory_invoice_items.*')
-            ->join('statutory_invoices', 'statutory_invoices.id', '=', 'statutory_invoice_items.invoice_id')
-            ->where(function (Builder $query): void {
-                $query->where('statutory_invoices.document_type', StatutoryInvoiceDocumentType::CreditNote)
-                    ->orWhereIn('statutory_invoices.status', [
-                        StatutoryInvoiceStatus::Issued,
-                        StatutoryInvoiceStatus::Cancelled,
-                    ]);
-            })
-            ->tap(function (Builder $query) use ($request): void {
-                ReportPeriod::fromRequest($request)->apply(
-                    $query,
-                    'statutory_invoices.'.CaMonthlyReportDefinition::AUTHORITATIVE_DATE_COLUMN,
-                );
-            });
-    }
-
     /**
      * @return list<string>
      */
@@ -424,19 +378,7 @@ class CaMonthlyStatutoryLineReadModel
             'branch',
             'eInvoiceRecord',
             'items',
-            'inventorySale',
-        ];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function lineRelations(): array
-    {
-        return [
-            'invoice.branch',
-            'invoice.eInvoiceRecord',
-            'invoice.inventorySale',
+            'inventorySale.branch',
         ];
     }
 
@@ -461,24 +403,5 @@ class CaMonthlyStatutoryLineReadModel
         $trimmed = trim((string) $value);
 
         return $trimmed === '' ? null : $trimmed;
-    }
-
-    private function accumulateRowTotals(
-        CaMonthlyReportLineRow $row,
-        float &$taxableTotal,
-        float &$shippingTotal,
-        float &$igstTotal,
-        float &$cgstTotal,
-        float &$sgstTotal,
-        float &$shortExcessTotal,
-        float &$totalAmountTotal,
-    ): void {
-        $taxableTotal += $row->taxableAmount;
-        $shippingTotal += $row->shippingAmount;
-        $igstTotal += $row->igst;
-        $cgstTotal += $row->cgst;
-        $sgstTotal += $row->sgst;
-        $shortExcessTotal += $row->shortExcess;
-        $totalAmountTotal += $row->totalAmount;
     }
 }

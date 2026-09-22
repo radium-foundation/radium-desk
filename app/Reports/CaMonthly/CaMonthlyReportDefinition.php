@@ -18,44 +18,61 @@ final class CaMonthlyReportDefinition
      */
     public const AUTHORITATIVE_DATE_COLUMN = 'issued_at';
 
+    public const TITLE_ROW = 1;
+
+    public const PERIOD_ROW = 2;
+
     public const HEADER_ROW = 3;
 
-    public const SHEET_NAME = 'Sheet1';
+    public const DATA_START_ROW = 4;
 
-    public const TEMPLATE_VERSION = '2026-09-21';
+    public const SHEET_NAME = 'CA Monthly Report';
+
+    public const TEMPLATE_VERSION = '2026-09-22';
 
     /**
-     * Exact CA column labels in order (A–AA).
+     * Invoice-level CA register columns (parent rows).
      *
      * @var list<string>
      */
     public const HEADERS = [
         'Branch',
-        'Date_of_order',
-        'Orderid',
-        'Ordertype',
-        'Date of Invoice',
+        'Invoice Date',
         'Invoice No.',
-        'Full Name',
-        'GST',
-        'STATE',
-        'POS',
+        'Order ID',
+        'Order Type',
+        'Customer Name',
+        'GSTIN',
+        'State',
+        'Place of Supply',
         'eWay Bill',
-        'NAME OF PRODUCT',
-        'Quantity',
-        'SAC/HSN',
+        'HSN/SAC',
         'Taxable Amount',
         'Shipping',
         'IGST',
         'CGST',
         'SGST',
         'Short/Excess',
-        'Total Amount',
+        'Invoice Total',
         'IRN Number',
         'Acknowledgement',
-        'Status',
         'Payment Mode',
-        'Amount',
-        'Document Type',
+    ];
+
+    /**
+     * Expandable line-item detail columns (child rows).
+     *
+     * @var list<string>
+     */
+    public const DETAIL_HEADERS = [
+        'Product / Service',
+        'Quantity',
+        'HSN/SAC',
+        'Taxable Amount',
+        'Shipping',
+        'IGST',
+        'CGST',
+        'SGST',
+        'Line Total',
     ];
 }

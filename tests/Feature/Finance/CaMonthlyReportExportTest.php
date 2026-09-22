@@ -57,7 +57,7 @@ class CaMonthlyReportExportTest extends TestCase
         ]);
     }
 
-    public function test_streaming_export_preserves_twenty_seven_column_contract(): void
+    public function test_streaming_export_preserves_invoice_register_column_contract(): void
     {
         $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
 
@@ -67,9 +67,9 @@ class CaMonthlyReportExportTest extends TestCase
         });
 
         $this->assertCount(1, $rows);
-        $this->assertCount(27, $rows[0]);
+        $this->assertCount(21, $rows[0]);
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, CaMonthlyReportDefinition::HEADERS);
-        $this->assertSame('Tax invoice', $rows[0][26]);
+        $this->assertSame('118.00', $rows[0][17]);
     }
 
     public function test_sync_csv_streams_without_building_full_array_in_controller_path(): void
@@ -82,7 +82,8 @@ class CaMonthlyReportExportTest extends TestCase
             ->get(route('finance.reports.ca-monthly.export.csv', self::RANGE));
 
         $response->assertOk();
-        $this->assertStringContainsString('RD Service', $response->streamedContent());
+        $this->assertStringContainsString('INV-EINV-1', $response->streamedContent());
+        $this->assertStringContainsString('Service', $response->streamedContent());
     }
 
     public function test_large_export_is_queued_instead_of_blocking_request(): void
@@ -541,10 +542,9 @@ class CaMonthlyReportExportTest extends TestCase
             $rows[] = $row;
         });
 
-        $this->assertCount(2, $rows);
-        $this->assertSame('25.00', $rows[0][15]);
-        $this->assertSame('', $rows[1][15]);
-        $this->assertStringContainsString('cancel', strtolower($rows[0][23]));
+        $this->assertCount(1, $rows);
+        $this->assertSame('25.00', $rows[0][12]);
+        $this->assertSame('118.00', $rows[0][17]);
     }
 
     public function test_agent_cannot_queue_export(): void

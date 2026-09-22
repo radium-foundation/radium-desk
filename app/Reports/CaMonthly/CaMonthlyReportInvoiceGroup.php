@@ -7,6 +7,7 @@ final class CaMonthlyReportInvoiceGroup
     /**
      * @param  list<CaMonthlyReportInvoiceChildRow>  $children
      * @param  list<list<string>>  $exportRows
+     * @param  list<string>  $parentRow
      */
     public function __construct(
         public readonly int $invoiceId,
@@ -25,5 +26,6 @@ final class CaMonthlyReportInvoiceGroup
         public readonly array $children,
         public readonly array $exportRows,
         public readonly ?CaMonthlyReportLineRow $singleLineRow = null,
+        public readonly array $parentRow = [],
     ) {}
 }
