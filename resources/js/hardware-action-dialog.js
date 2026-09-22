@@ -59,6 +59,20 @@ const displayBranch = (code) => {
 
 const serialValue = (serial) => String(serial?.serial_number ?? serial?.serial ?? serial ?? '').trim();
 
+const normalizeSerial = (value) => String(value || '').trim().toUpperCase();
+
+const parseSerialList = (value) => {
+    if (!value) {
+        return [];
+    }
+
+    return String(value)
+        .split(/[\s,;]+/)
+        .map(normalizeSerial)
+        .filter(Boolean)
+        .filter((serial, index, list) => list.indexOf(serial) === index);
+};
+
 const collectPickers = (root) => Array.from(root.querySelectorAll('[data-hardware-serial-picker]')).map((el) => ({
     el,
     itemId: el.dataset.itemId,
@@ -276,9 +290,14 @@ const updateAllocateState = (root, pickers) => {
     }
 };
 
-const searchPicker = async (picker) => {
+const searchPicker = async (picker, { autoSelect = false } = {}) => {
     const q = picker.query.value.trim();
-    if (q.length < 2) {
+    const tokens = parseSerialList(q);
+    if (tokens.length === 0 && q.length < 2) {
+        picker.results.textContent = '';
+        return;
+    }
+    if (tokens.length === 1 && q.length < 2) {
         picker.results.textContent = '';
         return;
     }
@@ -294,12 +313,38 @@ const searchPicker = async (picker) => {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
             const errors = payload.errors || {};
-            picker.results.textContent = (errors.serials || errors.branch || [payload.message || SERIAL_ALLOCATE_MESSAGES.wrongProduct])[0];
+            picker.results.textContent = (errors.q || errors.serials || errors.branch || [payload.message || SERIAL_ALLOCATE_MESSAGES.wrongProduct])[0];
             return;
         }
 
         const serials = payload.serials ?? [];
         renderResults(picker, serials);
+
+        if (autoSelect || tokens.length > 1) {
+            const byNumber = {};
+            serials.forEach((serial) => {
+                const value = normalizeSerial(serialValue(serial));
+                if (value !== '') {
+                    byNumber[value] = serial;
+                }
+            });
+
+            tokens.forEach((token) => {
+                const match = byNumber[token];
+                if (!match) {
+                    return;
+                }
+
+                chooseSerial(picker, {
+                    serial_number: serialValue(match),
+                    branch_code: match.branch_code || '',
+                });
+            });
+
+            if (tokens.length > 1) {
+                picker.query.value = '';
+            }
+        }
     } catch {
         picker.results.textContent = 'Search failed.';
     }
@@ -411,6 +456,32 @@ export const bindSerialPickers = (root) => {
             picker.timer = window.setTimeout(() => {
                 void searchPicker(picker);
             }, 200);
+        });
+        picker.query.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== 'Tab') {
+                return;
+            }
+
+            const tokens = parseSerialList(picker.query.value);
+            if (tokens.length <= 1) {
+                return;
+            }
+
+            event.preventDefault();
+            window.clearTimeout(picker.timer);
+            void searchPicker(picker, { autoSelect: true });
+        });
+        picker.query.addEventListener('paste', (event) => {
+            const pasted = event.clipboardData?.getData('text') ?? '';
+            const tokens = parseSerialList(pasted);
+            if (tokens.length <= 1) {
+                return;
+            }
+
+            event.preventDefault();
+            picker.query.value = pasted;
+            window.clearTimeout(picker.timer);
+            void searchPicker(picker, { autoSelect: true });
         });
         renderSelected(picker);
     });

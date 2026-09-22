@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.120 — 2026-09-22 — Hardware serial allocation multi-serial search (RBP415)
+
+- Fix bulk serial search in Allocate Serials: parse comma/newline-separated serial lists with exact-match lookup instead of a single `LIKE` on the pasted string.
+- Relax search validation: keep 80-character limit for single partial searches; allow up to 50 serial tokens per multi-serial query (4096 raw chars max).
+- UI: paste/Enter bulk entry auto-selects matched available serials; qty 12+ orders no longer blocked around ~10 pasted serials.
+- Regression: `HardwareFulfilmentSerialAllocationUiTest`, `hardware-action-dialog.test.js`. No allocation persistence changes beyond existing guards.
+- Rollback target: v4.0.119 / `c79f0291`.
+
 ## 4.0.119 — 2026-09-22 — Invoice PDF horizontal rule clearance
 
 - Move product-table row separators above each row so horizontal rules no longer intersect wrapped product text or the next row's glyphs.

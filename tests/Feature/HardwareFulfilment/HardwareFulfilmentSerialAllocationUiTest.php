@@ -372,6 +372,7 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
     {
         $double = $this->readyFulfilment('RDE900821', qty: 2);
         $ten = $this->readyFulfilment('RDE900822', qty: 10);
+        $twelve = $this->readyFulfilment('RDE900825', qty: 12);
 
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.action-dialog', $double))
@@ -392,6 +393,85 @@ class HardwareFulfilmentSerialAllocationUiTest extends TestCase
             ->assertSee('Serials allocated: 0 / 10')
             ->assertSee('Total required: 10')
             ->assertSee('data-qty="10"', false);
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.action-dialog', $twelve))
+            ->assertOk()
+            ->assertSee('Allocate Serials')
+            ->assertSee('Qty 12')
+            ->assertSee('Serials allocated: 0 / 12')
+            ->assertSee('Total required: 12')
+            ->assertSee('data-qty="12"', false);
+    }
+
+    public function test_multi_serial_search_accepts_pasted_list_and_returns_exact_matches(): void
+    {
+        $fulfilment = $this->readyFulfilment('RDE900826', qty: 12);
+        $serials = [];
+        for ($index = 1; $index <= 12; $index++) {
+            $serials[] = sprintf('SN-UI-826-%02d', $index);
+        }
+        $this->stockAt('DELHI-RETAIL', $serials);
+        $itemId = $this->itemId($fulfilment);
+        $query = implode(',', $serials);
+
+        $this->actingAs($this->operator)
+            ->getJson(route('inventory.hardware-fulfilments.serials.search', [
+                'fulfilment' => $fulfilment->id,
+                'commerce_order_item_id' => $itemId,
+                'q' => $query,
+            ]))
+            ->assertOk()
+            ->assertJsonCount(12, 'serials');
+
+        $this->actingAs($this->operator)
+            ->post(route('inventory.hardware-fulfilments.serials.store', $fulfilment), [
+                'serials' => [$itemId => $serials],
+            ])
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment));
+
+        $fresh = $fulfilment->fresh(['fulfilmentBranch', 'serials']);
+        $this->assertGreaterThanOrEqual(
+            HardwareFulfilmentState::SerialsAllocated->rank(),
+            $fresh->state->rank(),
+        );
+        $this->assertSame(12, $fresh->serials->count());
+        $this->assertSame('DELHI-RETAIL', $fresh->fulfilmentBranch?->code);
+    }
+
+    public function test_partial_search_still_rejects_queries_over_eighty_characters(): void
+    {
+        $fulfilment = $this->readyFulfilment('RDE900827');
+        $itemId = $this->itemId($fulfilment);
+        $query = str_repeat('A', 81);
+
+        $this->actingAs($this->operator)
+            ->getJson(route('inventory.hardware-fulfilments.serials.search', [
+                'fulfilment' => $fulfilment->id,
+                'commerce_order_item_id' => $itemId,
+                'q' => $query,
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['q']);
+    }
+
+    public function test_multi_serial_search_rejects_more_than_fifty_tokens(): void
+    {
+        $fulfilment = $this->readyFulfilment('RDE900828');
+        $itemId = $this->itemId($fulfilment);
+        $tokens = [];
+        for ($index = 1; $index <= 51; $index++) {
+            $tokens[] = 'SN'.$index;
+        }
+
+        $this->actingAs($this->operator)
+            ->getJson(route('inventory.hardware-fulfilments.serials.search', [
+                'fulfilment' => $fulfilment->id,
+                'commerce_order_item_id' => $itemId,
+                'q' => implode(',', $tokens),
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['q']);
     }
 
     public function test_action_dialog_renders_independent_pickers_for_multiple_products(): void

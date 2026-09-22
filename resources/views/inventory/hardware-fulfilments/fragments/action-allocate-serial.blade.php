@@ -55,7 +55,7 @@
                            id="hardware-action-serial-search-{{ $itemId }}"
                            class="form-control"
                            data-hardware-serial-query
-                           placeholder="Serial number"
+                           placeholder="Serial number or paste multiple"
                            autocomplete="off"
                            @disabled(! ($canAllocate ?? false))>
                     <div class="small mt-2" data-hardware-serial-results aria-live="polite"></div>

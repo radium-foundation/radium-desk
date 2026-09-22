@@ -161,6 +161,12 @@ class HardwareSerialAllocationService
         $item = $this->requirePhysicalItem($order, $commerceOrderItemId);
         $product = $this->skuMap->requireProductForItem($order->channel, $item);
         $q = trim($query);
+        $tokens = $q !== '' ? InventorySerialNumber::parseList($q) : [];
+        $effectiveLimit = max(1, min($limit, 50));
+        if (count($tokens) > 1) {
+            $tokens = array_slice($tokens, 0, 50);
+            $effectiveLimit = max($effectiveLimit, count($tokens));
+        }
 
         $serials = InventorySerial::query()
             ->with(['product', 'branch'])
@@ -170,9 +176,16 @@ class HardwareSerialAllocationService
                 $branches,
             ))
             ->where('status', InventorySerialStatus::Available)
-            ->when($q !== '', fn ($builder) => $builder->where('serial_number', 'like', '%'.$q.'%'))
+            ->when(
+                count($tokens) > 1,
+                fn ($builder) => $builder->whereIn('serial_number', $tokens),
+                fn ($builder) => $builder->when(
+                    count($tokens) === 1,
+                    fn ($inner) => $inner->where('serial_number', 'like', '%'.$tokens[0].'%'),
+                ),
+            )
             ->orderBy('serial_number')
-            ->limit(max(1, min($limit, 50)))
+            ->limit($effectiveLimit)
             ->get();
 
         return $serials->map(static fn (InventorySerial $serial): array => [

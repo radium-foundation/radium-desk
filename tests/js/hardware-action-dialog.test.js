@@ -151,6 +151,44 @@ describe('hardware allocate serial popup', () => {
         expect(document.querySelectorAll('input[name="serials[31][]"]')).toHaveLength(10);
     });
 
+    it('requires twelve serials before enabling submit', async () => {
+        mountAllocateForm({ lines: [{ itemId: '32', qty: 12 }] });
+        const serials = Array.from({ length: 12 }, (_, index) => ({
+            serial_number: `SN-${index + 1}`,
+            branch_code: 'DELHI-RETAIL',
+        }));
+        await searchAndRender('32', serials);
+        for (let index = 1; index <= 11; index += 1) {
+            clickResult('32', `SN-${index}`);
+        }
+        expect(document.querySelector('[data-hardware-action-submit]').disabled).toBe(true);
+        expect(document.querySelector('[data-hardware-serial-count]').textContent).toBe('Serials allocated: 11 / 12');
+
+        clickResult('32', 'SN-12');
+        expect(document.querySelector('[data-hardware-action-submit]').disabled).toBe(false);
+        expect(document.querySelectorAll('input[name="serials[32][]"]')).toHaveLength(12);
+    });
+
+    it('surfaces backend q validation errors in the results panel', async () => {
+        mountAllocateForm({ lines: [{ itemId: '34', qty: 1 }] });
+        workspaceFetch.mockResolvedValueOnce({
+            ok: false,
+            json: async () => ({
+                message: 'The q field must not be greater than 80 characters.',
+                errors: { q: ['The q field must not be greater than 80 characters.'] },
+            }),
+        });
+
+        const picker = document.querySelector('[data-hardware-serial-picker][data-item-id="34"]');
+        const input = picker.querySelector('[data-hardware-serial-query]');
+        input.value = 'A'.repeat(81);
+        input.dispatchEvent(new Event('input'));
+        await vi.advanceTimersByTimeAsync(200);
+
+        expect(picker.querySelector('[data-hardware-serial-results]').textContent)
+            .toBe('The q field must not be greater than 80 characters.');
+    });
+
     it('renders independent pickers for different product quantities', async () => {
         mountAllocateForm({
             lines: [
