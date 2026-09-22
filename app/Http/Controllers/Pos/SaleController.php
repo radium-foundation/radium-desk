@@ -32,13 +32,16 @@ class SaleController extends Controller
         $search = $request->string('q')->trim()->toString();
 
         $sales = InventoryBranchScope::constrain(
-            InventorySale::query()->with(['branch', 'customer', 'createdBy']),
+            InventorySale::query()->with(['branch', 'customer', 'createdBy', 'statutoryInvoice']),
             $user,
         )
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($inner) use ($search) {
                     $inner->where('sale_no', 'like', '%'.$search.'%')
                         ->orWhere('invoice_number', 'like', '%'.$search.'%')
+                        ->orWhereHas('statutoryInvoice', function ($invoice) use ($search) {
+                            $invoice->where('invoice_number', 'like', '%'.$search.'%');
+                        })
                         ->orWhereHas('customer', function ($customer) use ($search) {
                             $customer->where('phone', 'like', '%'.$search.'%')
                                 ->orWhere('name', 'like', '%'.$search.'%');
