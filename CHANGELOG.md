@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.117 — 2026-09-22 — Invoice PDF pagination: statutory footer on page 1
+
+- Keep totals, payment details, e-Invoice verification (IRN/QR), and authorized signatory on the main invoice page instead of pushing them to a closing-only continuation page when serial preview content is present.
+- Decide Annexure A from available main-page serial area capacity (complete serial set cannot fit), not from the per-model preview limit alone; preview remains capped at 10 per group when Annexure is required.
+- Presentation-only PDF changes; no statutory snapshot, tax, e-invoice payload, IRN, or serial allocation mutation. Regression: `StatutoryInvoicePdfPaginationTest` plus existing serial grouping, SKU, Option B, and presentation suites (85 targeted).
+- Rollback target: v4.0.116 / `a1456433` (application only).
+
 ## 4.0.116 — 2026-09-22 — Invoice PDF Annexure completeness and customer-facing SKU removal
 
 - Fix grouped Annexure A to include every invoice-line serial group when any model requires an annexure (e.g. INV-0767211 100+5 → Annexure total 105, not 100).
