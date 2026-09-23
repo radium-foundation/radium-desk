@@ -35,6 +35,23 @@ class HardwareInclusiveGstReconcilerTest extends TestCase
         $this->assertSame(249900, (int) round($result->taxableValue * 100) + (int) round($result->taxTotal * 100));
     }
 
+    public function test_rbp415_qty_twelve_two_paisa_exclusive_projects_from_gross(): void
+    {
+        $result = $this->reconciler->reconcile($this->item([
+            'gst_percentage' => null,
+            'taxable_value' => 30996.63,
+            'tax_total' => 5579.37,
+            'line_total' => 36576.00,
+        ]));
+
+        $this->assertSame(18.0, $result->gstPercentage);
+        $this->assertSame(30996.61, $result->taxableValue);
+        $this->assertSame(5579.39, $result->taxTotal);
+        $this->assertSame(36576.00, $result->lineTotal);
+        $this->assertSame(3657600, (int) round($result->taxableValue * 100) + (int) round($result->taxTotal * 100));
+        $this->assertSame(5579.39, round($result->taxableValue * 0.18, 2));
+    }
+
     public function test_qty_ten_one_paisa_inclusive_projects_from_gross(): void
     {
         $result = $this->reconciler->reconcile($this->item([

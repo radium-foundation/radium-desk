@@ -74,6 +74,33 @@ class HardwareInclusiveGstInvoiceTest extends TestCase
         $this->assertSame('381.20', (string) $fulfilment->fresh()->commerceOrder?->items->first()?->tax_total);
     }
 
+    public function test_rbp415_qty_twelve_projects_invoice_from_gross_without_rewriting_commerce(): void
+    {
+        $fulfilment = $this->prepareIssuable('RBP415', [
+            'qty' => 12,
+            'unit_price' => 3048.00,
+            'taxable_value' => 30996.63,
+            'tax_total' => 5579.37,
+            'line_total' => 36576.00,
+        ], buyerGstin: '36AADCO1540P1Z8', placeOfSupply: 'Telangana');
+
+        $invoice = $this->invoices->issueInvoice($fulfilment);
+        $item = $fulfilment->fresh()->commerceOrder?->items->first();
+
+        $this->assertSame('30996.61', (string) $invoice->taxable_value);
+        $this->assertSame('5579.39', (string) $invoice->tax_total);
+        $this->assertSame('0.00', (string) $invoice->cgst);
+        $this->assertSame('0.00', (string) $invoice->sgst);
+        $this->assertSame('5579.39', (string) $invoice->igst);
+        $this->assertSame('36576.00', (string) $invoice->invoice_value);
+        $this->assertSame('18.00', (string) $invoice->items->first()?->gst_percentage);
+        $this->assertSame(3657600, (int) round((float) $invoice->taxable_value * 100) + (int) round((float) $invoice->tax_total * 100));
+        $this->assertSame('30996.63', (string) $item?->taxable_value);
+        $this->assertSame('5579.37', (string) $item?->tax_total);
+        $this->assertSame(12, $fulfilment->fresh()->serials()->count());
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
+    }
+
     public function test_qty_ten_one_paisa_inclusive_projects_invoice_from_gross_without_rewriting_commerce(): void
     {
         $fulfilment = $this->prepareIssuable('RDE901902', [

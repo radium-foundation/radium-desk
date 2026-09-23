@@ -54,7 +54,19 @@ final class HardwareInclusiveGstReconciler
             );
         }
 
-        if ($exclusiveDelta > self::PAISA_TOLERANCE || $inclusiveDelta > self::PAISA_TOLERANCE) {
+        if ($inclusiveDelta > self::PAISA_TOLERANCE) {
+            throw ValidationException::withMessages([
+                'gst' => GstSplitService::TAX_MISMATCH,
+            ]);
+        }
+
+        // Stored taxable + tax already equals gross exactly; only the exclusive
+        // split may be off after multi-qty per-unit accumulation (e.g. qty 12).
+        if ($inclusiveDelta === 0) {
+            return $this->fromInclusiveGross($gross, $rate);
+        }
+
+        if ($exclusiveDelta > self::PAISA_TOLERANCE) {
             throw ValidationException::withMessages([
                 'gst' => GstSplitService::TAX_MISMATCH,
             ]);
