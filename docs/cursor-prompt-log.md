@@ -164,5 +164,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-23-09-19 | 2026-09-23 | Read-only investigation: six B2B IRP-2227 permanent_failure invoices | Snapshot + e_invoice_records + retry options A–F for INV-076775/076780/2767203/2767251/2767279/0767278. **No data/code/deploy/IRP changes.** |
 | RadiumDesk-P-23-09-20 | 2026-09-23 | Execute B2B-only CGST/SGST snapshot remediation (6 invoices) + PDF regen | `desk:remediate-b2b-cgst-sgst-snapshot`; manifest + DB backup; no e_invoice/IRP mutation. |
 | RadiumDesk-P-23-09-21 | 2026-09-23 | Harden zero-tax-line CGST/SGST allocation + correct INV-2767116/RD3787 | `allocateLineHalfPaise` eligible-line only; `desk:remediate-inv-2767116-cgst-sgst-snapshot`; no e_invoice/IRP mutation. |
+| RadiumDesk-P-23-09-22 | 2026-09-23 | Release/deploy v4.0.128 zero-tax-line-safe CGST/SGST allocation | Tag/deploy **v4.0.128** @ `7fc5d06b`+release metadata; mint-path hardening only; no new remediation/IRP. Rollback: v4.0.127 / `b90458f8`. |
 
 Do not renumber or overwrite earlier rows. Append only.

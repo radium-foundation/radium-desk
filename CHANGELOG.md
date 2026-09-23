@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.128 — 2026-09-23 — Zero-tax-line-safe intra-state CGST/SGST allocation
+
+- Harden `IntraStateCgstSgstRules::allocateLineHalfPaise` so invoice-level ±1 paise adjustments apply only to eligible positive-tax lines; zero-tax/zero-value lines remain exactly zero and no CGST/SGST component can become negative.
+- Fail closed via existing `assertMintSnapshot` when the target header half cannot be reached safely under these constraints.
+- Add governed snapshot remediation commands for historical B2C (70), B2B IRP-2227 (6), and INV-2767116/RD3787 corrections (production data already remediated under P-23-09-18/20/21; **this release does not re-run remediation**).
+- Preserves v4.0.127 invoice-level CGST/SGST reconciliation, v4.0.126 RD Service 1-paisa tolerance, RBP415 hardware inclusive GST, e-invoice guards, and all corrected production snapshots.
+- Regression: `IntraStateCgstSgstRulesTest`, `GstSplitServiceTest`, `IntraStateCgstSgstIssuanceTest`, `EInvoiceStoredGstGuardIntraStateTest`, remediation unit tests. Prompts **RadiumDesk-P-23-09-18** through **P-23-09-22**.
+- Rollback target: v4.0.127 / `b90458f8`.
+
 ## 4.0.127 — 2026-09-23 — Statutory eligibility + intra-state CGST/SGST IRP compliance
 
 - Align statutory mint eligibility with billable commerce lines: require ≥1 line with `includesOnStatutoryInvoice()`; GST pre-check runs on billable lines only; four zero-billable support-only orders (RD3513756, RD2916, RD3162, RD7478) fail eligibility instead of mint.
