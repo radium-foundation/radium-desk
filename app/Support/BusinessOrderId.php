@@ -70,4 +70,14 @@ final class BusinessOrderId
             && $parsed['kind'] === 'service'
             && $parsed['owner'] === 'radiumbox.com';
     }
+
+    public static function isRdServiceInService(?string $id): bool
+    {
+        $parsed = self::parse($id);
+
+        return $parsed !== null
+            && $parsed['prefix'] === 'RD'
+            && $parsed['kind'] === 'service'
+            && $parsed['owner'] === 'rdservice.in';
+    }
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.126 — 2026-09-23 — rdservice.in RD Service 1-paisa GST tolerance
+
+- Allow exactly **1 paisa** exclusive GST identity tolerance for `rdservice_in` **RD*** service orders with commercial date on/after **2026-09-01**, via consolidated `PublishSellingExclusiveGstTolerance` (publish-minus-selling inclusive catalog splits).
+- Preserves fail-closed behaviour for >1 paisa; does not apply to RDP/RIN hardware, does not use hardware inclusive reconciler, does not rewrite commerce rows.
+- Regression: `RdServiceInPublishSellingGstToleranceTest`, `ServiceGstSplitIssuanceTest`. Prompt **RadiumDesk-P-23-09-06**.
+- Rollback target: v4.0.125 / `55ccd76c`.
+
 ## 4.0.125 — 2026-09-23 — RD Service statutory display name (effective 2026-09-01)
 
 - Canonical RD service statutory line description **IT Consulting & Support Service** for SAC **998313**, applied only when commerce commercial date is on/after **2026-09-01** (`ordered_at` → `paid_at` → `received_at` via `StatutoryMintEligibility::commercialDate()`).

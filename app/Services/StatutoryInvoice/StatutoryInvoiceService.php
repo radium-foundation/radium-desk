@@ -27,6 +27,7 @@ use App\Support\Finance\GstStateCodes;
 use App\Support\StatutoryInvoice\InvoiceRoundOff;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -34,6 +35,8 @@ use Illuminate\Validation\ValidationException;
 class StatutoryInvoiceService
 {
     public const ATTEMPTS = 5;
+
+    private ?Carbon $mintCommercialAt = null;
 
     public function __construct(
         private readonly StatutoryInvoiceNumberingService $numbering,
@@ -352,35 +355,42 @@ class StatutoryInvoiceService
             ]);
         }
 
-        $invoice = $this->mint(new StatutoryInvoiceMintRequest(
-            channel: $order->channel,
-            sourceType: StatutoryInvoiceSourceType::CommerceOrder,
-            sourceId: $order->source_id,
-            lines: $lines,
-            sourceOrderId: $order->source_order_id ?? $order->source_id,
-            sellerGstin: null,
-            sellerName: null,
-            buyerName: $order->customer_name,
-            buyerPhone: $order->customer_phone,
-            buyerGstin: BuyerGstin::normalize($order->buyer_gstin),
-            billingAddress: $order->billing_address,
-            placeOfSupplyState: $order->place_of_supply_state,
-            discount: (float) ($order->discount ?? 0),
-            paymentMethod: $order->payment_method,
-            paymentReference: $order->payment_reference,
-            supportOrderId: $this->resolveSupportOrderId($order),
-            numberingLocation: $this->issuer->requireForCommerceOrder(
-                $order->branch_code,
-                $order->buyer_gstin,
-                $order->billing_state,
-                $resolvedHsns,
-            ),
-            financialYearToken: $this->eligibility->commercialDate($order) !== null
-                ? StatutoryFinancialYear::containing($this->eligibility->commercialDate($order))->token()
-                : null,
-            radiumboxServicePublishSellingGst: $this->usesRadiumboxServicePublishSellingGst($order),
-            billingAddressStructured: StatutoryBillingStructured::fromStored($order->billing_address_structured),
-        ), $actor);
+        $this->mintCommercialAt = $this->eligibility->commercialDate($order);
+
+        try {
+            $invoice = $this->mint(new StatutoryInvoiceMintRequest(
+                channel: $order->channel,
+                sourceType: StatutoryInvoiceSourceType::CommerceOrder,
+                sourceId: $order->source_id,
+                lines: $lines,
+                sourceOrderId: $order->source_order_id ?? $order->source_id,
+                sellerGstin: null,
+                sellerName: null,
+                buyerName: $order->customer_name,
+                buyerPhone: $order->customer_phone,
+                buyerGstin: BuyerGstin::normalize($order->buyer_gstin),
+                billingAddress: $order->billing_address,
+                placeOfSupplyState: $order->place_of_supply_state,
+                discount: (float) ($order->discount ?? 0),
+                paymentMethod: $order->payment_method,
+                paymentReference: $order->payment_reference,
+                supportOrderId: $this->resolveSupportOrderId($order),
+                numberingLocation: $this->issuer->requireForCommerceOrder(
+                    $order->branch_code,
+                    $order->buyer_gstin,
+                    $order->billing_state,
+                    $resolvedHsns,
+                ),
+                financialYearToken: $this->mintCommercialAt !== null
+                    ? StatutoryFinancialYear::containing($this->mintCommercialAt)->token()
+                    : null,
+                radiumboxServicePublishSellingGst: $order->channel === StatutoryInvoiceChannel::RadiumBoxCom
+                    && BusinessOrderId::isRadiumBoxService($order->source_id),
+                billingAddressStructured: StatutoryBillingStructured::fromStored($order->billing_address_structured),
+            ), $actor);
+        } finally {
+            $this->mintCommercialAt = null;
+        }
 
         $this->linkCommerceOrder($order, $invoice);
         $this->generateDocumentSafely($invoice);
@@ -766,35 +776,12 @@ class StatutoryInvoiceService
                 $line->gstPercentage,
                 $line->taxableValue,
                 $line->taxTotal,
-                $this->exclusivePaisaToleranceForMint($request),
+                PublishSellingExclusiveGstTolerance::forMintRequest($request, $this->mintCommercialAt),
             );
             $lines[] = $line->withTaxComponents($split->cgst, $split->sgst, $split->igst);
         }
 
         return $request->withLines($lines);
-    }
-
-    /**
-     * RadiumBox RB* service commerce only. Hardware (RBP/RDE) and rdservice.in
-     * RD* service orders keep the default fail-closed exclusive tolerance.
-     */
-    private function usesRadiumboxServicePublishSellingGst(CommerceOrder $order): bool
-    {
-        return $order->channel === StatutoryInvoiceChannel::RadiumBoxCom
-            && BusinessOrderId::isRadiumBoxService($order->source_id);
-    }
-
-    private function exclusivePaisaToleranceForMint(StatutoryInvoiceMintRequest $request): int
-    {
-        if ($request->inclusiveHardwareGst || $request->radiumboxServicePublishSellingGst) {
-            return 1;
-        }
-
-        if ($request->channel === StatutoryInvoiceChannel::RdServiceNet) {
-            return 1;
-        }
-
-        return 0;
     }
 
     private function financialYear(StatutoryInvoiceMintRequest $request): ?StatutoryFinancialYear
@@ -886,7 +873,7 @@ class StatutoryInvoiceService
                     $maxLineGstRate,
                     $shippingAmount,
                     $shippingTax,
-                    $this->exclusivePaisaToleranceForMint($request),
+                    PublishSellingExclusiveGstTolerance::forMintRequest($request, $this->mintCommercialAt),
                 );
                 if ($split->cgst > 0) {
                     $cgst += $split->cgst;

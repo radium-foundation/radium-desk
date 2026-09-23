@@ -56,4 +56,12 @@ class BusinessOrderIdTest extends TestCase
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RA1'));
         $this->assertFalse(BusinessOrderId::isHardwareByPrefix('RDS1'));
     }
+
+    public function test_rd_service_orders_are_classified_for_rdservice_in_publish_selling_tolerance(): void
+    {
+        $this->assertTrue(BusinessOrderId::isRdServiceInService('RD5777'));
+        $this->assertFalse(BusinessOrderId::isRdServiceInService('RDP900101'));
+        $this->assertFalse(BusinessOrderId::isRdServiceInService('RIN3512344'));
+        $this->assertFalse(BusinessOrderId::isRdServiceInService('RB6'));
+    }
 }
