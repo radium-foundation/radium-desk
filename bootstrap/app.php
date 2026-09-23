@@ -245,6 +245,17 @@ return Application::configure(basePath: dirname(__DIR__))
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/missing-serial-automation.log'));
 
+        // Stagger +11 off missing-serial — same 15-minute cadence (:11,:26,:41,:56).
+        $schedule->command('desk:reconcile-service-statutory-invoices')
+            ->cron(sprintf(
+                '11-59/%d * * * *',
+                max(5, (int) config('service_statutory_invoice.reconciliation.schedule_interval_minutes', 15)),
+            ))
+            ->when(fn (): bool => (bool) config('service_statutory_invoice.reconciliation.enabled', true))
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/service-statutory-invoice-reconciliation.log'));
+
         // Stagger +7 off recover-sync — same 15-minute cadence (:07,:22,:37,:52).
         $schedule->command('cashfree:auto-recover-missing')
             ->cron(sprintf('7-59/%d * * * *', max(1, (int) config('cashfree.auto_recover.schedule_interval_minutes', 15))))

@@ -9,6 +9,7 @@ use App\Enums\EInvoiceIssuancePolicyMode;
 use App\Enums\EInvoiceRecordStatus;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\OutboxEventStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceSourceType;
 use App\Enums\StatutorySupplyKind;
@@ -33,6 +34,7 @@ use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
 use App\Services\StatutoryInvoice\EInvoiceEligibility;
 use App\Services\StatutoryInvoice\EInvoiceIssuancePolicy;
 use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
+use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceMintOutboxWriter;
 use App\Services\StatutoryInvoice\StatutoryBillingIssuer;
 use App\Services\StatutoryInvoice\StatutoryFinancialYear;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
@@ -302,6 +304,11 @@ class ServiceStatutoryIssuanceTest extends TestCase
 
         $this->assertSame('TXN-SVC-REF-FAIL', $assigned->transaction_id);
         $this->assertSame(0, StatutoryInvoice::query()->count());
+        $outbox = OutboxEvent::query()
+            ->where('event_type', ServiceStatutoryInvoiceMintOutboxWriter::EVENT_TYPE)
+            ->first();
+        $this->assertNotNull($outbox);
+        $this->assertSame(OutboxEventStatus::Failed, $outbox->status);
     }
 
     public function test_no_response_closure_trigger_issues_after_successful_commit(): void

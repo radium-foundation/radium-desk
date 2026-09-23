@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\IncidentStatus;
+use App\Enums\StatutoryInvoice\ServiceStatutoryInvoiceMintTrigger;
 use App\Enums\SupportAppointmentStatus;
 use App\Models\Incident;
 use App\Models\Order;
@@ -134,7 +135,11 @@ class ServiceCaseStatusService
             $order = $updated->order ?? $updated->fresh(['order'])?->order;
             if ($order instanceof Order) {
                 app(ServiceStatutoryInvoiceIssuer::class)
-                    ->issueAfterWorkflowCommit($order, $actor);
+                    ->issueAfterWorkflowCommit(
+                        $order,
+                        $actor,
+                        ServiceStatutoryInvoiceMintTrigger::ServiceCaseClosed,
+                    );
             }
         }
 

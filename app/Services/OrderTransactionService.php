@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\CommercialAction;
 use App\Enums\IncidentStatus;
+use App\Enums\StatutoryInvoice\ServiceStatutoryInvoiceMintTrigger;
 use App\Jobs\SendServiceReferenceDriverGuideJob;
 use App\Models\Incident;
 use App\Models\Order;
@@ -188,7 +189,11 @@ class OrderTransactionService
         }
 
         app(ServiceStatutoryInvoiceIssuer::class)
-            ->issueAfterWorkflowCommit($freshOrder, $actor);
+            ->issueAfterWorkflowCommit(
+                $freshOrder,
+                $actor,
+                ServiceStatutoryInvoiceMintTrigger::ServiceReferenceCompleted,
+            );
 
         return $freshOrder;
     }
