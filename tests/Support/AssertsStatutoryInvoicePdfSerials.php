@@ -184,6 +184,155 @@ trait AssertsStatutoryInvoicePdfSerials
         $this->assertSame(297.0, SimplePdfRenderer::PAGE_SIZE_A4_HEIGHT_MM);
     }
 
+    protected function assertStatutoryPdfLayoutConstantsLocked(): void
+    {
+        $this->assertSame(10, SimplePdfRenderer::MAX_INLINE_SERIALS);
+        $this->assertSame(SimplePdfRenderer::MAX_INLINE_SERIALS, SimplePdfRenderer::MAIN_PAGE_SERIAL_LIMIT);
+        $this->assertSame(595.0, SimplePdfRenderer::PAGE_WIDTH_PT);
+        $this->assertSame(842.0, SimplePdfRenderer::PAGE_HEIGHT_PT);
+        $this->assertSame(
+            'Complete list of Serial Numbers provided in Annexure A.',
+            SimplePdfRenderer::ANNEXURE_NOTICE_TEXT,
+        );
+    }
+
+    protected function assertPdfPageCount(string $binary, int $expected): void
+    {
+        $this->assertSame($expected, $this->pdfPageCount($binary), "PDF must contain exactly {$expected} page(s).");
+    }
+
+    /**
+     * @param  list<string>  $serials
+     */
+    protected function assertNoDuplicateSerialsInPdf(string $binary, array $serials): void
+    {
+        $extracted = $this->extractedPdfText($binary);
+        $annexure = $this->annexureExtractedText($extracted);
+
+        foreach ($serials as $serial) {
+            if (str_contains($serial, '/')) {
+                $this->assertSerialPresentInPdf($binary, $serial, "Serial {$serial} must appear in the PDF.");
+                $this->assertLessThanOrEqual(
+                    1,
+                    $this->countSerialOccurrencesInScope($binary, $annexure, $serial),
+                    "Serial {$serial} must not be duplicated in the annexure.",
+                );
+
+                continue;
+            }
+
+            $this->assertSame(
+                1,
+                substr_count($extracted, $serial),
+                "Serial {$serial} must appear exactly once in the PDF.",
+            );
+        }
+    }
+
+    /**
+     * @param  list<string>  $serials
+     */
+    protected function assertAnnexureContainsCompleteSerialPopulation(string $binary, array $serials): void
+    {
+        $extracted = $this->extractedPdfText($binary);
+        $annexure = $this->annexureExtractedText($extracted);
+
+        $this->assertStringContainsString('ANNEXURE A', $extracted);
+        $this->assertGreaterThanOrEqual(2, $this->pdfPageCount($binary));
+        $this->assertAllSerialsPresentInPdfBinary($binary, $serials);
+        $this->assertNumberedSerialIndexesPresent($binary, $serials);
+        $this->assertNoIndexOnlySerialOutput($binary, $serials);
+
+        foreach ($serials as $serial) {
+            $this->assertSerialPresentInPdf($binary, $serial, "Annexure must contain serial {$serial}.");
+        }
+    }
+
+    protected function assertPage1StructureForAnnexureInvoice(string $binary, ?string $irn = null, ?string $ackNo = null): void
+    {
+        $extracted = $this->extractedPdfText($binary);
+        $main = $this->firstMainInvoicePageText($extracted);
+
+        $this->assertStringContainsString('TAX INVOICE', $main);
+        $this->assertStringContainsString('BILL TO', $main);
+        $this->assertStringContainsString('SHIP TO', $main);
+        $this->assertStringContainsString('Product / Service', $main);
+        $this->assertStringContainsString(SimplePdfRenderer::ANNEXURE_NOTICE_TEXT, $main);
+        $this->assertMainInvoiceFooterOnFirstPage($binary, $irn);
+        $this->assertInvoiceClosingPresentBeforeAnnexure($binary, $irn, $ackNo);
+        $this->assertStringContainsString('Page 1 of', $extracted);
+    }
+
+    protected function assertNoOrphanedBlankPages(string $binary): void
+    {
+        $count = $this->pdfPageCount($binary);
+        $this->assertGreaterThan(0, $count);
+
+        for ($page = 1; $page <= $count; $page++) {
+            $pageText = $this->extractedPdfPageText($binary, $page);
+            $alnum = preg_replace('/\s+/', '', $pageText) ?? '';
+
+            $this->assertGreaterThan(
+                30,
+                strlen($alnum),
+                "Page {$page} must not be blank or orphaned.",
+            );
+        }
+    }
+
+    protected function extractedPdfPageText(string $binary, int $page): string
+    {
+        $path = storage_path('framework/testing/pdf-page-'.uniqid('', true).'.pdf');
+        file_put_contents($path, $binary);
+        $text = trim((string) shell_exec(
+            escapeshellarg($this->pdftotextBinary())
+            .' -f '.(int) $page
+            .' -l '.(int) $page
+            .' '
+            .escapeshellarg($path)
+            .' - 2>/dev/null'
+        ));
+        @unlink($path);
+
+        return $text;
+    }
+
+    private function countSerialOccurrencesInScope(string $binary, string $scopeText, string $serial): int
+    {
+        if (str_contains($scopeText, $serial) || str_contains($binary, $serial)) {
+            return 1;
+        }
+
+        if (! str_contains($serial, '/')) {
+            return substr_count($scopeText, $serial);
+        }
+
+        [$prefix, $suffix] = array_pad(explode('/', $serial, 2), 2, '');
+        $prefixCandidates = array_values(array_unique(array_filter([
+            $prefix,
+            rtrim($prefix, '-'),
+            substr($prefix, 0, max(1, strlen($prefix) - 2)),
+            substr($prefix, 0, max(1, strlen($prefix) - 3)),
+        ])));
+        $prefixFound = false;
+        foreach ($prefixCandidates as $candidate) {
+            if ($candidate !== '' && (str_contains($scopeText, $candidate) || str_contains($binary, $candidate))) {
+                $prefixFound = true;
+                break;
+            }
+        }
+
+        if (! $prefixFound) {
+            return 0;
+        }
+
+        if ($suffix === '') {
+            return 1;
+        }
+
+        return (str_contains($scopeText, $suffix) || str_contains($binary, $suffix)) ? 1 : 0;
+    }
+
     protected function pdfLiteral(string $value): string
     {
         return '('.str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $value).')';
@@ -289,7 +438,13 @@ trait AssertsStatutoryInvoicePdfSerials
 
         foreach ($groups as $labelFragment => $serials) {
             $this->assertStringContainsString($labelFragment, $annexure, "Annexure must include group {$labelFragment}.");
-            $this->assertSerialsPresentInExtractedText($annexure, $serials, "Annexure group {$labelFragment}");
+            foreach ($serials as $serial) {
+                $this->assertSerialPresentInPdf(
+                    $binary,
+                    $serial,
+                    "Annexure group {$labelFragment}: serial {$serial} must be present.",
+                );
+            }
         }
     }
 

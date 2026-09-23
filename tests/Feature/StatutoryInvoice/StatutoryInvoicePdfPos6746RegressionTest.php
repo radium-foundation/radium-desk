@@ -160,6 +160,74 @@ class StatutoryInvoicePdfPos6746RegressionTest extends TestCase
         }
     }
 
+    public function test_inv_0767292_regression_contract_locks_verified_production_shape(): void
+    {
+        $groups = $this->pos6746SerialGroups();
+        $allSerials = array_merge($groups['morpho'], $groups['gps'], $groups['mis'], $groups['mfs']);
+        $binary = (new SimplePdfRenderer)->render($this->pos6746Payload(withIrn: true, withPayment: true));
+
+        $this->assertStatutoryPdfLayoutConstantsLocked();
+        $this->assertA4PageDimensions($binary);
+        $this->assertPdfPageCount($binary, 3);
+        $this->assertPage1StructureForAnnexureInvoice($binary, self::IRN, self::ACK);
+        $this->assertPage1HasZeroInlineSerials($binary, $allSerials);
+        $this->assertGroupedAnnexureComplete($binary, [
+            'Morpho MSO 1300 E3 RD L1' => $groups['morpho'],
+            'UGR86' => $groups['gps'],
+            'MIS100' => $groups['mis'],
+            'MFS 110' => $groups['mfs'],
+        ], 430);
+        $this->assertAnnexureContainsCompleteSerialPopulation($binary, $allSerials);
+        $this->assertNoDuplicateSerialsInPdf($binary, $allSerials);
+        $this->assertNoOrphanedBlankPages($binary);
+        $this->assertStringContainsString('INV-0767292', $this->firstMainInvoicePageText($this->extractedPdfText($binary)));
+        $this->assertStringContainsString('POS-6746', $this->extractedPdfText($binary));
+        $this->assertStringContainsString('Nine Lakh Eighty-Four Thousand Two Hundred Thirty-Eight Rupees Only', $this->extractedPdfText($binary));
+    }
+
+    public function test_regenerate_presentation_preserves_invoice_and_e_invoice_identity_for_pos_6746_shape(): void
+    {
+        $invoice = $this->mintB2bPosInvoice(['SN-P6746-IMMUTABLE']);
+        $this->attachSubmittedIrn($invoice);
+
+        $fresh = $invoice->fresh(['items', 'eInvoiceRecord']);
+        $beforeInvoice = [
+            'invoice_number' => $fresh->invoice_number,
+            'status' => $fresh->status->value,
+            'taxable_value' => (string) $fresh->taxable_value,
+            'tax_total' => (string) $fresh->tax_total,
+            'invoice_value' => (string) $fresh->invoice_value,
+            'cgst' => (string) $fresh->cgst,
+            'sgst' => (string) $fresh->sgst,
+            'igst' => (string) $fresh->igst,
+        ];
+        $beforeRecord = $invoice->eInvoiceRecord?->only(['irn', 'ack_no', 'status']);
+        $invoiceCount = StatutoryInvoice::query()->count();
+
+        app(StatutoryDocumentService::class)->regeneratePresentation($invoice->fresh(['items', 'eInvoiceRecord']));
+
+        $afterInvoice = $invoice->fresh(['items', 'eInvoiceRecord', 'document']);
+        $afterRecord = $afterInvoice->eInvoiceRecord?->only(['irn', 'ack_no', 'status']);
+        $afterSnapshot = [
+            'invoice_number' => $afterInvoice->invoice_number,
+            'status' => $afterInvoice->status->value,
+            'taxable_value' => (string) $afterInvoice->taxable_value,
+            'tax_total' => (string) $afterInvoice->tax_total,
+            'invoice_value' => (string) $afterInvoice->invoice_value,
+            'cgst' => (string) $afterInvoice->cgst,
+            'sgst' => (string) $afterInvoice->sgst,
+            'igst' => (string) $afterInvoice->igst,
+        ];
+
+        $this->assertSame($beforeInvoice, $afterSnapshot);
+        $this->assertSame($beforeRecord, $afterRecord);
+        $this->assertSame($invoiceCount, StatutoryInvoice::query()->count());
+        $this->assertStringContainsString(
+            self::IRN,
+            $this->extractedPdfText(app(StatutoryDocumentService::class)->binary($afterInvoice->document)),
+        );
+    }
+
     public function test_finalize_after_irn_validates_pdf_contains_irn_ack_and_qr(): void
     {
         $invoice = $this->mintB2bPosInvoice(['SN-P6746-FINALIZE']);

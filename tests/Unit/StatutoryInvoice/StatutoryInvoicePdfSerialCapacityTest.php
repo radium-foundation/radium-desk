@@ -9,6 +9,12 @@ use ReflectionMethod;
 
 class StatutoryInvoicePdfSerialCapacityTest extends TestCase
 {
+    public function test_max_inline_serials_constant_is_locked_at_ten(): void
+    {
+        $this->assertSame(10, SimplePdfRenderer::MAX_INLINE_SERIALS);
+        $this->assertSame(SimplePdfRenderer::MAX_INLINE_SERIALS, SimplePdfRenderer::MAIN_PAGE_SERIAL_LIMIT);
+    }
+
     public function test_ten_or_fewer_serials_use_main_page_only(): void
     {
         $capacity = $this->firstPageSerialCapacity($this->hardwarePayload(serialCount: 10, withIrn: true));
