@@ -11,7 +11,8 @@ use Illuminate\Validation\ValidationException;
  *
  * Intra-State vs inter-State follows IGST Act ss.7–8: seller GST state versus
  * place of supply. billing_state is not used. The stored tax_total is never
- * rewritten; a mismatch fails closed. Used for commerce and POS (exclusive) lines.
+ * rewritten. Intra-state lines use equal CGST/SGST halves (NIC IRP 2227); odd-paise
+ * tax may drift from component sum by 1 paisa. Used for commerce and POS lines.
  */
 final class GstSplitService
 {
@@ -96,8 +97,7 @@ final class GstSplitService
         $intraState = trim($sellerGstStateCode) === $placeCode;
 
         if ($intraState) {
-            $cgst = $this->money($tax / 2);
-            $sgst = $this->money($tax - $cgst);
+            [$cgst, $sgst] = IntraStateCgstSgstRules::equalHalves($tax);
             $igst = 0.0;
             $halfRate = $gstPercentage / 2;
             $split = new GstComponentSplit(
@@ -121,7 +121,13 @@ final class GstSplitService
             );
         }
 
-        if ($this->money($split->cgst + $split->sgst + $split->igst) !== $tax) {
+        $componentSumPaise = IntraStateCgstSgstRules::paise($split->cgst + $split->sgst + $split->igst);
+        $taxPaise = IntraStateCgstSgstRules::paise($tax);
+        $allowedDrift = $split->intraState
+            ? IntraStateCgstSgstRules::componentSumDriftPaise($tax)
+            : 0;
+
+        if (abs($componentSumPaise - $taxPaise) > $allowedDrift) {
             throw ValidationException::withMessages([
                 'gst' => self::COMPONENTS_MISMATCH,
             ]);

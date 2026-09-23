@@ -27,6 +27,9 @@ final class EInvoiceStoredGstGuard
 
         foreach ($invoice->items as $item) {
             $reasons = array_merge($reasons, self::itemReasons($item));
+            if (! IntraStateCgstSgstRules::lineHasEqualComponents($item)) {
+                $reasons[] = IntraStateCgstSgstRules::INTRA_STATE_CGST_SGST_UNEQUAL;
+            }
         }
 
         if ($invoice->items->isEmpty()) {
@@ -50,7 +53,15 @@ final class EInvoiceStoredGstGuard
         $headerSgst = self::paise($invoice->sgst);
         $headerIgst = self::paise($invoice->igst);
         $headerTax = self::paise($invoice->tax_total);
-        if ($headerCgst + $headerSgst + $headerIgst !== $headerTax) {
+        if (IntraStateCgstSgstRules::isIntraStateLine(
+            (float) $invoice->cgst,
+            (float) $invoice->sgst,
+            (float) $invoice->igst,
+        ) && $headerCgst !== $headerSgst) {
+            $reasons[] = IntraStateCgstSgstRules::INTRA_STATE_CGST_SGST_UNEQUAL;
+        }
+        $allowedDrift = IntraStateCgstSgstRules::maxAllowedInvoiceComponentDriftPaise($invoice);
+        if (abs($headerCgst + $headerSgst + $headerIgst - $headerTax) > $allowedDrift) {
             $reasons[] = 'gst_components_mismatch';
         }
 

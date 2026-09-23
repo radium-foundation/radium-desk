@@ -14,17 +14,10 @@ Invariant:
 
 `order_value > 0` is not used as an eligibility gate.
 
-## Deferred CGST/SGST architecture (not implemented)
+## CGST/SGST architecture (implemented in P-23-09-13)
 
-Odd-paise intra-state tax totals (for example ₹96.25 → CGST ₹48.13 / SGST ₹48.12) expose a
-tension between sum reconciliation and IRP error 2227 (CGST must equal SGST).
+See `docs/desk-intra-state-cgst-sgst-irp-p-23-09-13.md` for the NIC IRP rule, equal-half
+allocation, guard behaviour, and historical remediation classification.
 
-Before changing financial semantics:
-
-1. An authoritative GST/IRP rule for odd-paise intra-state splits must be confirmed.
-2. IRP mapper-only normalization is prohibited — it would diverge PDF/register snapshots from IRP payloads.
-3. Issued statutory invoice financial columns are immutable for routine operations.
-4. Future GST calculation changes apply only at mint time via `GstSplitService` (or successor), not on read paths.
-5. Historical remediation (cancel/reissue, governed exception workflow) requires a separate authorized prompt.
-
-No CA or NIC approval is claimed in this document.
+Mapper-only normalization remains prohibited. Issued invoice snapshots are immutable for
+routine operations.

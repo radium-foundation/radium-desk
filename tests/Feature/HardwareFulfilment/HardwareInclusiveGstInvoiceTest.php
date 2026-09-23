@@ -251,10 +251,14 @@ class HardwareInclusiveGstInvoiceTest extends TestCase
         $this->assertSame('21177.97', (string) $invoice->taxable_value);
         $this->assertSame('3812.03', (string) $invoice->tax_total);
         $this->assertSame('1906.02', (string) $invoice->cgst);
-        $this->assertSame('1906.01', (string) $invoice->sgst);
+        $this->assertSame('1906.02', (string) $invoice->sgst);
         $this->assertSame('0.00', (string) $invoice->igst);
         $this->assertSame('24990.00', (string) $invoice->invoice_value);
-        $this->assertSame(3812.03, round((float) $invoice->cgst + (float) $invoice->sgst, 2));
+        $this->assertSame((float) $invoice->cgst, (float) $invoice->sgst);
+        $this->assertSame(1, abs(
+            (int) round(((float) $invoice->cgst + (float) $invoice->sgst) * 100)
+            - (int) round((float) $invoice->tax_total * 100)
+        ));
     }
 
     public function test_gst_mismatch_beyond_one_paisa_still_fails(): void

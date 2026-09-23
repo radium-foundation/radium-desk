@@ -162,4 +162,34 @@ class GstSplitServiceTest extends TestCase
         $this->assertSame(0.0, $result->igst);
         $this->assertSame(9.0, $result->cgstRate);
     }
+
+    public function test_even_tax_total_splits_to_equal_cgst_sgst(): void
+    {
+        $result = $this->split->splitLine('07', 'Delhi', 18.0, 422.88, 76.12);
+
+        $this->assertTrue($result->intraState);
+        $this->assertSame(38.06, $result->cgst);
+        $this->assertSame(38.06, $result->sgst);
+        $this->assertSame(76.12, round($result->cgst + $result->sgst, 2));
+    }
+
+    public function test_odd_paise_tax_splits_to_equal_cgst_sgst_for_irp_2227(): void
+    {
+        $cases = [
+            [534.75, 96.25, 48.13],
+            [421.19, 75.81, 37.91],
+            [669.47, 120.51, 60.26],
+        ];
+
+        foreach ($cases as [$taxable, $tax, $half]) {
+            $result = $this->split->splitLine('27', 'Maharashtra', 18.0, $taxable, $tax, 1);
+
+            $this->assertTrue($result->intraState);
+            $this->assertSame($half, $result->cgst);
+            $this->assertSame($half, $result->sgst);
+            $this->assertSame(1, abs(
+                (int) round(($result->cgst + $result->sgst) * 100) - (int) round($tax * 100)
+            ));
+        }
+    }
 }
