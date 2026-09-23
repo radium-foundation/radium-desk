@@ -83,22 +83,66 @@ final class IntraStateCgstSgstRules
             return $allocated;
         }
 
-        $indices = array_keys($allocated);
-
         if ($delta > 0) {
+            $eligible = self::incrementEligibleIndices($idealHalfPaisePerLine);
             for ($offset = 0; $offset < $delta; $offset++) {
-                $allocated[$indices[$offset % count($indices)]]++;
+                if ($eligible === []) {
+                    break;
+                }
+
+                $allocated[$eligible[$offset % count($eligible)]]++;
             }
 
             return $allocated;
         }
 
-        $indices = array_reverse($indices);
+        $eligible = self::decrementEligibleIndices($allocated);
         for ($offset = 0; $offset < abs($delta); $offset++) {
-            $allocated[$indices[$offset % count($indices)]]--;
+            if ($eligible === []) {
+                break;
+            }
+
+            $allocated[$eligible[$offset % count($eligible)]]--;
         }
 
         return $allocated;
+    }
+
+    /**
+     * Lines with a positive ideal half may absorb an upward invoice-level adjustment.
+     *
+     * @param  list<int>  $idealHalfPaisePerLine
+     * @return list<int>
+     */
+    private static function incrementEligibleIndices(array $idealHalfPaisePerLine): array
+    {
+        $eligible = [];
+        foreach ($idealHalfPaisePerLine as $index => $idealHalf) {
+            if ($idealHalf > 0) {
+                $eligible[] = $index;
+            }
+        }
+
+        return $eligible;
+    }
+
+    /**
+     * Lines with a positive allocated half may absorb a downward invoice-level adjustment.
+     * Last positive-tax lines are preferred (reverse line order).
+     *
+     * @param  list<int>  $allocated
+     * @return list<int>
+     */
+    private static function decrementEligibleIndices(array $allocated): array
+    {
+        $eligible = [];
+        foreach (array_reverse(array_keys($allocated), true) as $index) {
+            if ($allocated[$index] > 0) {
+                $eligible[] = $index;
+            }
+        }
+
+        return $eligible;
     }
 
     /**

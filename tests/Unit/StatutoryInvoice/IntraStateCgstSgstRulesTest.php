@@ -126,4 +126,63 @@ class IntraStateCgstSgstRulesTest extends TestCase
         $this->assertSame(3791, IntraStateCgstSgstRules::moneyPaise(37.91));
         $this->assertSame(37.91, IntraStateCgstSgstRules::fromPaise(3791));
     }
+
+    public function test_inv_2767116_shape_skips_zero_tax_line_on_downward_adjustment(): void
+    {
+        $ideals = [
+            IntraStateCgstSgstRules::idealHalfFromTaxablePaise(42119, 18.0),
+            IntraStateCgstSgstRules::idealHalfFromTaxablePaise(8475, 18.0),
+            0,
+        ];
+        $headerHalf = IntraStateCgstSgstRules::headerHalfFromTotalTaxPaise(9106);
+        $allocated = IntraStateCgstSgstRules::allocateLineHalfPaise($headerHalf, $ideals);
+
+        $this->assertSame([3791, 762, 0], $allocated);
+        $this->assertGreaterThanOrEqual(0, min($allocated));
+        IntraStateCgstSgstRules::assertMintSnapshot(9106, $allocated);
+    }
+
+    public function test_zero_tax_line_before_taxable_lines_stays_zero_on_upward_adjustment(): void
+    {
+        $ideals = [0, 3806, 1525];
+        $headerHalf = IntraStateCgstSgstRules::headerHalfFromTotalTaxPaise(10663);
+        $allocated = IntraStateCgstSgstRules::allocateLineHalfPaise($headerHalf, $ideals);
+
+        $this->assertSame(0, $allocated[0]);
+        $this->assertSame([0, 3807, 1525], $allocated);
+        $this->assertSame($headerHalf, array_sum($allocated));
+        IntraStateCgstSgstRules::assertMintSnapshot(10663, $allocated);
+    }
+
+    public function test_upward_adjustment_targets_only_positive_ideal_lines(): void
+    {
+        $ideals = [3806, 1525];
+        $headerHalf = IntraStateCgstSgstRules::headerHalfFromTotalTaxPaise(10663);
+        $allocated = IntraStateCgstSgstRules::allocateLineHalfPaise($headerHalf, $ideals);
+
+        $this->assertSame([3807, 1525], $allocated);
+        $this->assertSame($headerHalf, array_sum($allocated));
+        IntraStateCgstSgstRules::assertMintSnapshot(10663, $allocated);
+    }
+
+    public function test_downward_adjustment_never_creates_negative_components(): void
+    {
+        $ideals = [3791, 763, 0];
+        $headerHalf = IntraStateCgstSgstRules::headerHalfFromTotalTaxPaise(9106);
+        $allocated = IntraStateCgstSgstRules::allocateLineHalfPaise($headerHalf, $ideals);
+
+        foreach ($allocated as $half) {
+            $this->assertGreaterThanOrEqual(0, $half);
+        }
+
+        $this->assertSame(0, $allocated[2]);
+        IntraStateCgstSgstRules::assertMintSnapshot(9106, $allocated);
+    }
+
+    public function test_impossible_downward_adjustment_fails_closed_at_mint_assertion(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        IntraStateCgstSgstRules::assertMintSnapshot(9106, IntraStateCgstSgstRules::allocateLineHalfPaise(4550, [0, 0, 0]));
+    }
 }

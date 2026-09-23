@@ -212,4 +212,20 @@ class GstSplitServiceTest extends TestCase
         $this->assertSame(4553, $headerHalfPaise);
         $this->assertSame(9106, $headerHalfPaise * 2);
     }
+
+    public function test_inv_2767116_shape_with_zero_tax_line_keeps_zero_line_at_zero(): void
+    {
+        $components = $this->split->splitIntraStateLines('27', 'Maharashtra', [
+            ['taxableValue' => 421.19, 'taxTotal' => 75.81, 'gstPercentage' => 18.0],
+            ['taxableValue' => 84.75, 'taxTotal' => 15.25, 'gstPercentage' => 18.0],
+            ['taxableValue' => 0.0, 'taxTotal' => 0.0, 'gstPercentage' => 18.0],
+        ], 1);
+
+        $this->assertSame(37.91, $components[0][0]);
+        $this->assertSame(37.91, $components[0][1]);
+        $this->assertSame(7.62, $components[1][0]);
+        $this->assertSame(7.62, $components[1][1]);
+        $this->assertSame(0.0, $components[2][0]);
+        $this->assertSame(0.0, $components[2][1]);
+    }
 }
