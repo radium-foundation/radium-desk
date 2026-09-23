@@ -219,6 +219,13 @@ class SimplePdfRenderer
             [$stream, , $closed] = $this->invoicePage($payload, $remaining, $page, true, $closing);
             $streams[] = $stream;
             $drewClosing = $drewClosing || $closed;
+            $page++;
+        }
+
+        if (! $drewClosing) {
+            [$stream, , $closed] = $this->invoicePage($payload, [], $page, true, $closing);
+            $streams[] = $stream;
+            $drewClosing = $drewClosing || $closed;
         }
 
         foreach ($this->annexurePageStreams($payload) as $annexure) {
@@ -1562,16 +1569,20 @@ class SimplePdfRenderer
         $offset = 0;
         $first = true;
         while ($offset < count($all)) {
-            $gridY = $first ? self::ANNEXURE_FIRST_PAGE_GRID_Y : self::ANNEXURE_CONTINUED_PAGE_GRID_Y;
-            $slice = array_slice($all, $offset);
-            $simOps = [];
-            [, $fit] = $this->renderNumberedSerialGrid($simOps, $slice, $offset + 1, $gridY, false);
-            if ($fit < 1) {
-                $fit = 1;
+            [$stream, $rendered] = $this->renderUngroupedAnnexurePage(
+                $payload,
+                array_slice($all, $offset),
+                $total,
+                $first,
+                $offset + 1,
+            );
+            if ($rendered < 1) {
+                throw new StatutoryInvoicePdfPresentationException(
+                    'Ungrouped annexure serial grid could not render any serial on an empty page.',
+                );
             }
-            $chunk = array_slice($slice, 0, $fit);
-            $streams[] = $this->annexurePage($payload, $chunk, $total, $first, $offset + 1);
-            $offset += $fit;
+            $streams[] = $stream;
+            $offset += $rendered;
             $first = false;
         }
 
@@ -1589,92 +1600,157 @@ class SimplePdfRenderer
         }
 
         $total = $this->annexureSerialTotal($payload);
-        $plannedPages = $this->planGroupedAnnexurePages($groups);
-        $streams = [];
+        /** @var list<array{label: string, serials: list<string>, offset: int}> $work */
+        $work = [];
+        foreach ($groups as $group) {
+            $work[] = [
+                'label' => $group['label'],
+                'serials' => $group['serials'],
+                'offset' => 0,
+            ];
+        }
 
-        foreach ($plannedPages as $index => $sections) {
-            $streams[] = $this->groupedAnnexurePageWithSections(
-                $payload,
-                $sections,
-                $total,
-                $index === 0,
-            );
+        $streams = [];
+        $firstAnnexurePage = true;
+
+        while ($this->annexureWorkRemaining($work)) {
+            $streams[] = $this->renderNextGroupedAnnexurePage($payload, $work, $total, $firstAnnexurePage);
+            $firstAnnexurePage = false;
         }
 
         return $streams;
     }
 
     /**
-     * Pack grouped annexure serials page-by-page using remaining vertical capacity.
-     *
-     * @param  list<array{label: string, serials: list<string>}>  $groups
-     * @return list<list<array{label: string|null, serials: list<string>, startNumber: int}>>
+     * @param  list<array{label: string, serials: list<string>, offset: int}>  $work
      */
-    private function planGroupedAnnexurePages(array $groups): array
+    private function annexureWorkRemaining(array $work): bool
     {
-        $pages = [];
-        $currentSections = [];
-        $firstAnnexurePage = true;
-
-        foreach ($groups as $group) {
-            $offset = 0;
-            $showLabel = true;
-
-            while ($offset < count($group['serials'])) {
-                $packed = false;
-
-                while (! $packed) {
-                    $cursorY = $this->annexureSectionsEndY(
-                        $this->annexureSerialGridStartY($firstAnnexurePage && $currentSections === []),
-                        $currentSections,
-                    );
-                    $labelReserve = $showLabel ? $this->annexureGroupLabelHeight() : 0.0;
-                    $remaining = array_slice($group['serials'], $offset);
-                    $simOps = [];
-                    [, $fit] = $this->renderNumberedSerialGrid(
-                        $simOps,
-                        $remaining,
-                        $offset + 1,
-                        $cursorY - $labelReserve,
-                        false,
-                    );
-
-                    if ($fit < 1) {
-                        if ($currentSections !== []) {
-                            $pages[] = $currentSections;
-                            $currentSections = [];
-                            $firstAnnexurePage = false;
-
-                            continue;
-                        }
-
-                        $fit = 1;
-                    }
-
-                    $currentSections[] = [
-                        'label' => $showLabel ? $group['label'] : null,
-                        'serials' => array_slice($remaining, 0, $fit),
-                        'startNumber' => $offset + 1,
-                    ];
-                    $offset += $fit;
-                    $showLabel = false;
-                    $packed = true;
-
-                    if ($offset < count($group['serials'])) {
-                        $pages[] = $currentSections;
-                        $currentSections = [];
-                        $firstAnnexurePage = false;
-                        $showLabel = true;
-                    }
-                }
+        foreach ($work as $item) {
+            if ($item['offset'] < count($item['serials'])) {
+                return true;
             }
         }
 
-        if ($currentSections !== []) {
-            $pages[] = $currentSections;
+        return false;
+    }
+
+    /**
+     * Render one grouped annexure page using actual grid capacity. Any serials
+     * that do not fit continue on the next annexure page with correct numbering.
+     *
+     * @param  list<array{label: string, serials: list<string>, offset: int}>  $work
+     */
+    private function renderNextGroupedAnnexurePage(
+        StatutoryInvoicePdfPayload $payload,
+        array &$work,
+        int $total,
+        bool $firstAnnexurePage,
+    ): string {
+        $ops = [];
+        $y = $this->beginGroupedAnnexurePage($ops, $payload, $total, $firstAnnexurePage);
+        $pageFull = false;
+
+        for ($groupIndex = 0; $groupIndex < count($work) && ! $pageFull; $groupIndex++) {
+            while ($work[$groupIndex]['offset'] < count($work[$groupIndex]['serials'])) {
+                $item = &$work[$groupIndex];
+                $remaining = array_slice($item['serials'], $item['offset']);
+                $showLabel = $item['offset'] === 0;
+
+                if ($showLabel) {
+                    if ($y - $this->annexureGroupLabelHeight() < self::CONTENT_FLOOR + 8) {
+                        $pageFull = true;
+                        break;
+                    }
+
+                    $ops[] = $this->text(
+                        self::MARGIN + 8,
+                        $y,
+                        $this->clip($this->customerFacingDescription($item['label']), self::CONTENT_RIGHT - self::MARGIN - 16, 8),
+                        8,
+                        true,
+                        0.22,
+                        0.22,
+                        0.22,
+                    );
+                    $y -= $this->annexureGroupLabelHeight();
+                }
+
+                [$y, $rendered] = $this->renderNumberedSerialGrid(
+                    $ops,
+                    $remaining,
+                    $item['offset'] + 1,
+                    $y,
+                    true,
+                );
+
+                if ($rendered < 1) {
+                    if ($item['offset'] === 0 && $showLabel) {
+                        throw new StatutoryInvoicePdfPresentationException(
+                            'Grouped annexure serial grid could not render any serial on an empty page.',
+                        );
+                    }
+
+                    $pageFull = true;
+                    break;
+                }
+
+                $item['offset'] += $rendered;
+                $y -= $this->annexureInterGroupGap();
+
+                if ($rendered < count($remaining)) {
+                    $pageFull = true;
+                    break;
+                }
+
+                break;
+            }
         }
 
-        return $pages;
+        $ops[] = $this->text(self::MARGIN, self::CONTENT_FLOOR - 6, 'Annexure to tax invoice '.$payload->invoiceNumber, 7, false, 0.4, 0.4, 0.4);
+
+        return implode('', $ops);
+    }
+
+    /**
+     * @param  list<string>  $ops
+     */
+    private function beginGroupedAnnexurePage(
+        array &$ops,
+        StatutoryInvoicePdfPayload $payload,
+        int $total,
+        bool $first,
+    ): float {
+        $y = 808.0;
+        $ops[] = $this->logoMark(self::MARGIN, $y);
+        $title = $first ? 'ANNEXURE A' : 'ANNEXURE A (continued)';
+        $ops[] = $this->text(self::MARGIN + 148, $y - 2, $title, 13, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->text(self::MARGIN + 148, $y - 16, 'Serial Numbers', 8, false, 0.38, 0.38, 0.38);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, $payload->invoiceNumber, 9, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y - 12, $this->invoiceDate($payload->issuedAt), 8, false, 0.35, 0.35, 0.35);
+        $y -= 40;
+        $ops[] = $this->accentLine(self::MARGIN, $y, self::CONTENT_RIGHT);
+        $y -= 14;
+
+        if ($first) {
+            $metaHeight = 44.0;
+            $metaBottom = $y - $metaHeight;
+            $ops[] = $this->card(self::MARGIN, $metaBottom, self::CONTENT_RIGHT - self::MARGIN, $metaHeight);
+            $order = $this->display($payload->orderId ?: $payload->sourceId);
+            $metaY = $y - 14;
+            foreach ([
+                ['Invoice', $payload->invoiceNumber],
+                ['Order / reference', $order],
+                ['Total serials', (string) $total],
+            ] as [$label, $value]) {
+                $ops[] = $this->text(self::MARGIN + 10, $metaY, $label, 7, true, 0.4, 0.4, 0.4);
+                $ops[] = $this->text(self::MARGIN + 118, $metaY, $this->clip((string) $value, 380, 8), 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+                $metaY -= 12;
+            }
+            $y = $metaBottom - 14;
+        }
+
+        return $y;
     }
 
     private function annexureSerialGridStartY(bool $firstAnnexurePage): float
@@ -1695,128 +1771,22 @@ class SimplePdfRenderer
     }
 
     /**
-     * @param  list<array{label: string|null, serials: list<string>, startNumber: int}>  $sections
+     * @param  list<string>  $serials
+     * @return array{0: string, 1: int}
      */
-    private function annexureSectionsEndY(float $gridStartY, array $sections): float
-    {
-        $y = $gridStartY;
-
-        foreach ($sections as $section) {
-            if ($section['label'] !== null) {
-                $y -= $this->annexureGroupLabelHeight();
-            }
-
-            $simOps = [];
-            [$y] = $this->renderNumberedSerialGrid($simOps, $section['serials'], $section['startNumber'], $y, false);
-            $y -= $this->annexureInterGroupGap();
-        }
-
-        return $y;
-    }
-
-    /**
-     * @param  list<array{label: string|null, serials: list<string>, startNumber: int}>  $sections
-     */
-    private function groupedAnnexurePageWithSections(
+    private function renderUngroupedAnnexurePage(
         StatutoryInvoicePdfPayload $payload,
-        array $sections,
+        array $serials,
         int $total,
         bool $first,
-    ): string {
+        int $startNumber,
+    ): array {
         $ops = [];
-        $y = 808.0;
-        $ops[] = $this->logoMark(self::MARGIN, $y);
-        $title = $first ? 'ANNEXURE A' : 'ANNEXURE A (continued)';
-        $ops[] = $this->text(self::MARGIN + 148, $y - 2, $title, 13, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-        $ops[] = $this->text(self::MARGIN + 148, $y - 16, 'Serial Numbers', 8, false, 0.38, 0.38, 0.38);
-        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, $payload->invoiceNumber, 9, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y - 12, $this->invoiceDate($payload->issuedAt), 8, false, 0.35, 0.35, 0.35);
-        $y -= 40;
-        $ops[] = $this->accentLine(self::MARGIN, $y, self::CONTENT_RIGHT);
-        $y -= 14;
-
-        if ($first) {
-            $metaHeight = 44.0;
-            $metaBottom = $y - $metaHeight;
-            $ops[] = $this->card(self::MARGIN, $metaBottom, self::CONTENT_RIGHT - self::MARGIN, $metaHeight);
-            $order = $this->display($payload->orderId ?: $payload->sourceId);
-            $metaY = $y - 14;
-            foreach ([
-                ['Invoice', $payload->invoiceNumber],
-                ['Order / reference', $order],
-                ['Total serials', (string) $total],
-            ] as [$label, $value]) {
-                $ops[] = $this->text(self::MARGIN + 10, $metaY, $label, 7, true, 0.4, 0.4, 0.4);
-                $ops[] = $this->text(self::MARGIN + 118, $metaY, $this->clip((string) $value, 380, 8), 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-                $metaY -= 12;
-            }
-            $y = $metaBottom - 14;
-        }
-
-        foreach ($sections as $section) {
-            if ($section['label'] !== null) {
-                $ops[] = $this->text(
-                    self::MARGIN + 8,
-                    $y,
-                    $this->clip($this->customerFacingDescription($section['label']), self::CONTENT_RIGHT - self::MARGIN - 16, 8),
-                    8,
-                    true,
-                    0.22,
-                    0.22,
-                    0.22,
-                );
-                $y -= $this->annexureGroupLabelHeight();
-            }
-
-            $y = $this->numberedSerialGrid($ops, $section['serials'], $section['startNumber'], $y);
-            $y -= $this->annexureInterGroupGap();
-        }
-
+        $y = $this->beginGroupedAnnexurePage($ops, $payload, $total, $first);
+        [, $rendered] = $this->renderNumberedSerialGrid($ops, $serials, $startNumber, $y, true);
         $ops[] = $this->text(self::MARGIN, self::CONTENT_FLOOR - 6, 'Annexure to tax invoice '.$payload->invoiceNumber, 7, false, 0.4, 0.4, 0.4);
 
-        return implode('', $ops);
-    }
-
-    /**
-     * @param  list<string>  $serials
-     */
-    private function annexurePage(StatutoryInvoicePdfPayload $payload, array $serials, int $total, bool $first, int $startNumber): string
-    {
-        $ops = [];
-        $y = 808.0;
-        $ops[] = $this->logoMark(self::MARGIN, $y);
-        $title = $first ? 'ANNEXURE A' : 'ANNEXURE A (continued)';
-        $ops[] = $this->text(self::MARGIN + 148, $y - 2, $title, 13, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-        $ops[] = $this->text(self::MARGIN + 148, $y - 16, 'Serial Numbers', 8, false, 0.38, 0.38, 0.38);
-        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y, $payload->invoiceNumber, 9, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-        $ops[] = $this->rightText(self::CONTENT_RIGHT, $y - 12, $this->invoiceDate($payload->issuedAt), 8, false, 0.35, 0.35, 0.35);
-        $y -= 40;
-        $ops[] = $this->accentLine(self::MARGIN, $y, self::CONTENT_RIGHT);
-        $y -= 14;
-
-        if ($first) {
-            $metaHeight = 44.0;
-            $metaBottom = $y - $metaHeight;
-            $ops[] = $this->card(self::MARGIN, $metaBottom, self::CONTENT_RIGHT - self::MARGIN, $metaHeight);
-            $order = $this->display($payload->orderId ?: $payload->sourceId);
-            $metaY = $y - 14;
-            foreach ([
-                ['Invoice', $payload->invoiceNumber],
-                ['Order / reference', $order],
-                ['Total serials', (string) $total],
-            ] as [$label, $value]) {
-                $ops[] = $this->text(self::MARGIN + 10, $metaY, $label, 7, true, 0.4, 0.4, 0.4);
-                $ops[] = $this->text(self::MARGIN + 118, $metaY, $this->clip((string) $value, 380, 8), 8, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-                $metaY -= 12;
-            }
-            $y = $metaBottom - 14;
-        }
-
-        $this->numberedSerialGrid($ops, $serials, $startNumber, $y);
-
-        $ops[] = $this->text(self::MARGIN, self::CONTENT_FLOOR - 6, 'Annexure to tax invoice '.$payload->invoiceNumber, 7, false, 0.4, 0.4, 0.4);
-
-        return implode('', $ops);
+        return [implode('', $ops), $rendered];
     }
 
     /**

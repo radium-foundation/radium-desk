@@ -21,6 +21,7 @@ class StatutoryDocumentService
         private readonly SimplePdfRenderer $renderer,
         private readonly StatutorySellerIdentity $seller,
         private readonly HardwareFulfilmentWorkflowService $hardwareWorkflow,
+        private readonly StatutoryInvoicePdfPresentationValidator $presentationValidator,
     ) {}
 
     public function generate(StatutoryInvoice $invoice): StatutoryInvoiceDocument
@@ -80,6 +81,7 @@ class StatutoryDocumentService
 
         try {
             $binary = $this->renderer->render($this->payloadFromInvoice($invoice));
+            $this->presentationValidator->validate($invoice, $binary);
             $path = 'statutory-invoices/'.$invoice->id.'.pdf';
             Storage::disk('local')->put($path, $binary);
 

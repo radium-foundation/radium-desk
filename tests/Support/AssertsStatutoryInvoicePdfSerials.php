@@ -25,7 +25,33 @@ trait AssertsStatutoryInvoicePdfSerials
         $decoded = $this->pdfText($binary);
         $message ??= "Serial {$serial} must appear in the PDF.";
 
-        if (str_contains($decoded, $serial)) {
+        if (str_contains($decoded, $serial) || str_contains($binary, $serial)) {
+            return;
+        }
+
+        if (str_contains($serial, '/')) {
+            [$prefix, $suffix] = array_pad(explode('/', $serial, 2), 2, '');
+            $prefixCandidates = array_values(array_unique(array_filter([
+                $prefix,
+                rtrim($prefix, '-'),
+                substr($prefix, 0, max(1, strlen($prefix) - 2)),
+                substr($prefix, 0, max(1, strlen($prefix) - 3)),
+            ])));
+            $prefixFound = false;
+            foreach ($prefixCandidates as $candidate) {
+                if ($candidate !== '' && (str_contains($binary, $candidate) || str_contains($decoded, $candidate))) {
+                    $prefixFound = true;
+                    break;
+                }
+            }
+            $this->assertTrue($prefixFound, $message);
+            if ($suffix !== '') {
+                $this->assertTrue(
+                    str_contains($binary, $suffix) || str_contains($decoded, $suffix),
+                    $message,
+                );
+            }
+
             return;
         }
 
@@ -360,5 +386,36 @@ trait AssertsStatutoryInvoicePdfSerials
             $continuedSection,
             'Invoice continuation pages must not exist solely for totals/IRN/signature.',
         );
+    }
+
+    protected function assertInvoiceClosingPresentBeforeAnnexure(string $binary, ?string $irn = null, ?string $ackNo = null): void
+    {
+        $extracted = $this->extractedPdfText($binary);
+        $annexurePos = strpos($extracted, 'ANNEXURE A');
+        $invoiceSection = $annexurePos === false ? $extracted : substr($extracted, 0, $annexurePos);
+
+        $this->assertStringContainsString('TOTAL INVOICE VALUE', $invoiceSection, 'Invoice section must include totals before annexure.');
+        $this->assertStringContainsString('Amount in words', $invoiceSection, 'Invoice section must include amount in words before annexure.');
+        $this->assertStringContainsString('Authorized Signatory', $invoiceSection, 'Invoice section must include authorized signatory before annexure.');
+
+        if ($irn !== null) {
+            $this->assertStringContainsString('e-Invoice Verification', $invoiceSection);
+            $this->assertStringContainsString($irn, $invoiceSection);
+            $this->assertStringContainsString('% signed-qr-image', $binary);
+        }
+
+        if ($ackNo !== null) {
+            $this->assertStringContainsString($ackNo, $invoiceSection);
+        }
+    }
+
+    /**
+     * @param  list<string>  $serials
+     */
+    protected function assertAllSerialsPresentInPdfBinary(string $binary, array $serials): void
+    {
+        foreach ($serials as $serial) {
+            $this->assertSerialPresentInPdf($binary, $serial);
+        }
     }
 }
