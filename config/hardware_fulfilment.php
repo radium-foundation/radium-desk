@@ -51,6 +51,20 @@ return [
                 'notes' => 'Mantra MFS110 USB replacement cable',
             ],
             [
+                'model_id' => 1420,
+                'channel_sku' => '1420',
+                'catalog_sku' => 'PIDMORUCBL',
+                'desk_sku' => 'RBMSOUSBCB',
+                'notes' => 'Morpho MSO USB replacement cable',
+            ],
+            [
+                'model_id' => 625,
+                'channel_sku' => '625',
+                'catalog_sku' => 'PMTMFS500Z',
+                'desk_sku' => 'RBMFS500FP',
+                'notes' => 'Mantra MFS500 LX fingerprint scanner',
+            ],
+            [
                 'model_id' => 340,
                 'channel_sku' => '340',
                 'catalog_sku' => 'PDLWM112MZ',
