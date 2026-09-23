@@ -208,7 +208,7 @@ class StatutoryDocumentServicePayloadTest extends TestCase
 
         $this->assertSame(10, $sale->serials->count());
         $this->assertStringContainsString('Serial Numbers', $text);
-        $this->assertStringNotContainsString('Complete serial-number list provided in Annexure A.', $text);
+        $this->assertStringNotContainsString('Complete list of Serial Numbers provided in Annexure A.', $text);
         $this->assertStringNotContainsString('ANNEXURE A', $text);
         foreach ($serials as $serial) {
             $this->assertStringContainsString($serial, $text);

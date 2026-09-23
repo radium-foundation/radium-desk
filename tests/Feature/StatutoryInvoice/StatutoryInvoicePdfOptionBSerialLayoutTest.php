@@ -23,7 +23,7 @@ class StatutoryInvoicePdfOptionBSerialLayoutTest extends TestCase
 
         $this->assertOptionBMainPageOnly($binary, $serials);
         $this->assertStringNotContainsString('ANNEXURE A', $text);
-        $this->assertStringNotContainsString('Complete serial-number list provided in Annexure A.', $text);
+        $this->assertStringNotContainsString(SimplePdfRenderer::ANNEXURE_NOTICE_TEXT, $text);
     }
 
     #[DataProvider('annexureCounts')]
@@ -35,7 +35,7 @@ class StatutoryInvoicePdfOptionBSerialLayoutTest extends TestCase
 
         $this->assertOptionBWithAnnexure($binary, $serials);
         $this->assertStringContainsString('ANNEXURE A', $text);
-        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $text);
+        $this->assertStringContainsString(SimplePdfRenderer::ANNEXURE_NOTICE_TEXT, $text);
         $this->assertStringContainsString('Total serials', $text);
         $this->assertStringContainsString((string) $count, $text);
     }
@@ -64,7 +64,7 @@ class StatutoryInvoicePdfOptionBSerialLayoutTest extends TestCase
         $binary = (new SimplePdfRenderer)->render($this->payload([], withIrn: false));
 
         $this->assertStringNotContainsString('ANNEXURE A', $binary);
-        $this->assertStringNotContainsString('Complete serial-number list provided in Annexure A.', $binary);
+        $this->assertStringNotContainsString(SimplePdfRenderer::ANNEXURE_NOTICE_TEXT, $binary);
     }
 
     /**
@@ -88,14 +88,12 @@ class StatutoryInvoicePdfOptionBSerialLayoutTest extends TestCase
         ];
     }
 
-    public function test_eleven_serials_fit_on_main_page_without_annexure_when_space_allows(): void
+    public function test_eleven_serials_force_annexure_with_zero_inline_on_page_one(): void
     {
         $serials = $this->productionSerialList(11);
         $binary = (new SimplePdfRenderer)->render($this->payload($serials, withIrn: true));
-        $text = $this->extractText($binary);
 
-        $this->assertOptionBMainPageOnly($binary, $serials);
-        $this->assertStringNotContainsString('ANNEXURE A', $text);
+        $this->assertOptionBWithAnnexure($binary, $serials);
     }
 
     /**

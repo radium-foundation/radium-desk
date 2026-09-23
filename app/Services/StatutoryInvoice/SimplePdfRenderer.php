@@ -7,9 +7,21 @@ use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
 
 class SimplePdfRenderer
 {
-    private const PAGE_WIDTH = 595.0;
+    /** A4 width in millimetres (ISO 216). */
+    public const PAGE_SIZE_A4_WIDTH_MM = 210.0;
 
-    private const PAGE_HEIGHT = 842.0;
+    /** A4 height in millimetres (ISO 216). */
+    public const PAGE_SIZE_A4_HEIGHT_MM = 297.0;
+
+    /** A4 width in PDF points (72 pt/in). */
+    public const PAGE_WIDTH_PT = 595.0;
+
+    /** A4 height in PDF points (72 pt/in). */
+    public const PAGE_HEIGHT_PT = 842.0;
+
+    private const PAGE_WIDTH = self::PAGE_WIDTH_PT;
+
+    private const PAGE_HEIGHT = self::PAGE_HEIGHT_PT;
 
     private const MARGIN = 36.0;
 
@@ -17,7 +29,22 @@ class SimplePdfRenderer
 
     private const FOOTER_Y = 28.0;
 
+    /** Bottom printable margin above the page-number strip. */
     private const CONTENT_FLOOR = 50.0;
+
+    /** Gap between the reserved serial region and the fixed Page-1 footer anchor. */
+    private const SERIAL_REGION_FOOTER_GAP = 6.0;
+
+    /** Gap between the product table and the reserved serial region. */
+    private const TABLE_SERIAL_GAP = 6.0;
+
+    /** Padding inside the Page-1 footer reservation. */
+    private const PAGE1_FOOTER_RESERVE_GAP = 8.0;
+
+    /** Height reserved for the Annexure notice on Page 1 when serials move to Annexure A. */
+    private const SERIAL_ANNEXURE_NOTICE_HEIGHT = 22.0;
+
+    public const ANNEXURE_NOTICE_TEXT = 'Complete list of Serial Numbers provided in Annexure A.';
 
     private const COL_NO = 42.0;
 
@@ -59,10 +86,22 @@ class SimplePdfRenderer
 
     private const NAVY_B = 0.373;
 
-    /** Maximum serial numbers shown on the main invoice page before Annexure A. */
-    public const MAIN_PAGE_SERIAL_LIMIT = 10;
+    /**
+     * Safety ceiling for inline serials on Page 1. Actual fit is determined by
+     * measured render height inside the reserved serial region.
+     */
+    public const MAX_INLINE_SERIALS = 10;
+
+    /** @deprecated Use MAX_INLINE_SERIALS */
+    public const MAIN_PAGE_SERIAL_LIMIT = self::MAX_INLINE_SERIALS;
 
     private const FIRST_PAGE_BODY_BUDGET = 400.0;
+
+    /** Top content Y for Page 1 (A4 printable area, 36 pt margin). */
+    private const PAGE1_CONTENT_TOP_Y = 808.0;
+
+    /** Logo baseline moved modestly upward to relieve header pressure. */
+    private const PAGE1_LOGO_TOP_Y = 812.0;
 
     private const SERIAL_COLUMNS = 4;
 
@@ -208,7 +247,7 @@ class SimplePdfRenderer
         $drewClosing = false;
 
         while ($remaining !== [] && $page <= 20) {
-            $includeClosing = $this->shouldIncludeClosingOnPage($remaining, $page, $closing, $payload) || $page >= 20;
+            $includeClosing = $page === 1 || $this->shouldIncludeClosingOnPage($remaining, $page, $closing, $payload) || $page >= 20;
             [$stream, $remaining, $closed] = $this->invoicePage($payload, $remaining, $page, $includeClosing, $closing);
             $streams[] = $stream;
             $drewClosing = $drewClosing || $closed;
@@ -220,12 +259,6 @@ class SimplePdfRenderer
             $streams[] = $stream;
             $drewClosing = $drewClosing || $closed;
             $page++;
-        }
-
-        if (! $drewClosing) {
-            [$stream, , $closed] = $this->invoicePage($payload, [], $page, true, $closing);
-            $streams[] = $stream;
-            $drewClosing = $drewClosing || $closed;
         }
 
         foreach ($this->annexurePageStreams($payload) as $annexure) {
@@ -312,7 +345,11 @@ class SimplePdfRenderer
         }
 
         $drewClosing = false;
-        if ($includeClosing && $rows === []) {
+        if ($first && $includeClosing) {
+            $closingY = $closingAnchor ?? ($y - 8.0);
+            $ops[] = $this->closingBlock($payload, $closingY);
+            $drewClosing = true;
+        } elseif ($includeClosing && $rows === []) {
             $closingY = $closingAnchor !== null
                 ? max($y - 8.0, $closingAnchor)
                 : ($y - 8.0);
@@ -325,7 +362,37 @@ class SimplePdfRenderer
 
     private function firstPageClosingAnchorY(float $closing): float
     {
-        return self::CONTENT_FLOOR + $closing + 8.0;
+        return self::CONTENT_FLOOR + $closing + self::PAGE1_FOOTER_RESERVE_GAP;
+    }
+
+    /**
+     * Vertical space available for the Page-1 serial region between the product
+     * table and the fixed footer anchor. Derived from A4 printable geometry.
+     */
+    private function mainPageSerialRegionHeight(StatutoryInvoicePdfPayload $payload): float
+    {
+        $rows = $this->lineRows($payload);
+        $closing = $this->closingHeight($payload);
+        $tableStart = $this->estimateFirstPageTableStartY($payload);
+        $footerAnchor = $this->firstPageClosingAnchorY($closing);
+        $rowHeight = 0.0;
+        foreach ($rows as $row) {
+            $rowHeight += $this->rowHeight($row);
+        }
+
+        $serialTop = $tableStart - $rowHeight - self::TABLE_SERIAL_GAP;
+
+        return max(0.0, $serialTop - $footerAnchor - self::SERIAL_REGION_FOOTER_GAP);
+    }
+
+    public static function pageWidthPoints(): float
+    {
+        return self::PAGE_WIDTH_PT;
+    }
+
+    public static function pageHeightPoints(): float
+    {
+        return self::PAGE_HEIGHT_PT;
     }
 
     private function estimateFirstPageTableStartY(StatutoryInvoicePdfPayload $payload): float
@@ -363,7 +430,7 @@ class SimplePdfRenderer
      */
     private function firstPageHeader(array &$ops, StatutoryInvoicePdfPayload $payload): float
     {
-        $y = 808.0;
+        $y = self::PAGE1_LOGO_TOP_Y;
         $ops[] = $this->logoMark(self::MARGIN, $y);
 
         $ops[] = $this->rightText(self::CONTENT_RIGHT, $y + 4, 'TAX INVOICE', 16, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
@@ -395,7 +462,7 @@ class SimplePdfRenderer
 
         $sellerRight = $cardX - 14;
         $sellerWidth = $sellerRight - self::MARGIN;
-        $sellerY = $y - self::LOGO_MAX_HEIGHT - 10;
+        $sellerY = $y - self::LOGO_MAX_HEIGHT - 6;
         $ops[] = $this->text(self::MARGIN, $sellerY, $payload->sellerLegalName, 10, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
         $sellerY -= 12;
         foreach (array_slice($this->wrapWidth($this->display($payload->sellerAddress), $sellerWidth, 8), 0, 2) as $addressLine) {
@@ -897,7 +964,7 @@ class SimplePdfRenderer
         }
 
         if ($page === 1) {
-            return $this->remainingRowsFitAboveClosingAnchor($rows, $payload, $closing);
+            return true;
         }
 
         return $rowHeight + $closing <= 560.0;
@@ -1227,23 +1294,19 @@ class SimplePdfRenderer
             return;
         }
 
-        $serialBudget = $this->mainPageSerialBudget($payload);
-        $completeHeight = $this->serialSummaryHeightForCount($total, false);
-        if ($completeHeight <= $serialBudget) {
-            $this->resolvedHasSerialAnnexure = false;
-            $this->resolvedFirstPageSerialCount = $total;
+        if ($total > self::MAX_INLINE_SERIALS) {
+            $this->resolvedHasSerialAnnexure = true;
+            $this->resolvedFirstPageSerialCount = 0;
 
             return;
         }
 
-        $previewCap = min($total, self::MAIN_PAGE_SERIAL_LIMIT);
-        for ($count = $previewCap; $count >= 1; $count--) {
-            if ($this->serialSummaryHeightForCount($count, true) <= $serialBudget) {
-                $this->resolvedHasSerialAnnexure = true;
-                $this->resolvedFirstPageSerialCount = $count;
+        $serialBudget = $this->mainPageSerialRegionHeight($payload);
+        if ($this->measureUngroupedInlineSerialBlockHeight($all) <= $serialBudget) {
+            $this->resolvedHasSerialAnnexure = false;
+            $this->resolvedFirstPageSerialCount = $total;
 
-                return;
-            }
+            return;
         }
 
         $this->resolvedHasSerialAnnexure = true;
@@ -1260,44 +1323,74 @@ class SimplePdfRenderer
             return;
         }
 
-        if ($this->groupedSerialSummaryHeightForGroups($groups, false) <= $this->mainPageSerialBudget($payload)) {
+        $total = 0;
+        foreach ($groups as $group) {
+            $total += count($group['serials']);
+        }
+
+        if ($total > self::MAX_INLINE_SERIALS) {
+            $this->resolvedHasSerialAnnexure = true;
+            $this->resolvedFirstPageSerialGroups = [];
+
+            return;
+        }
+
+        $serialBudget = $this->mainPageSerialRegionHeight($payload);
+        if ($this->measureGroupedInlineSerialBlockHeight($groups) <= $serialBudget) {
             $this->resolvedHasSerialAnnexure = false;
             $this->resolvedFirstPageSerialGroups = $groups;
 
             return;
         }
 
-        $previewGroups = [];
-        foreach ($groups as $group) {
-            $previewGroups[] = [
-                'label' => $group['label'],
-                'serials' => array_slice($group['serials'], 0, self::MAIN_PAGE_SERIAL_LIMIT),
-            ];
-        }
-
         $this->resolvedHasSerialAnnexure = true;
-        $this->resolvedFirstPageSerialGroups = $previewGroups;
+        $this->resolvedFirstPageSerialGroups = [];
     }
 
-    private function mainPageSerialBudget(StatutoryInvoicePdfPayload $payload): float
+    /**
+     * @param  list<string>  $serials
+     */
+    private function measureUngroupedInlineSerialBlockHeight(array $serials): float
     {
-        $rows = $this->lineRows($payload);
-        $closing = $this->closingHeight($payload);
-        $tableStart = $this->estimateFirstPageTableStartY($payload);
-        $closingAnchor = $this->firstPageClosingAnchorY($closing);
-        $allRowHeight = 0.0;
-        foreach ($rows as $row) {
-            $allRowHeight += $this->rowHeight($row);
+        if ($serials === []) {
+            return 0.0;
         }
 
-        $availableAboveClosing = $tableStart - $closingAnchor - $allRowHeight;
-        if ($availableAboveClosing > 0.0) {
-            return $availableAboveClosing;
+        $dummyOps = [];
+        $startY = 500.0;
+        $contentY = $startY - 14.0;
+        [$endY, $rendered] = $this->renderNumberedSerialGrid($dummyOps, $serials, 1, $contentY, false);
+        if ($rendered < count($serials)) {
+            return PHP_FLOAT_MAX;
         }
 
-        $partialRowHeight = $this->firstPageLineRowHeight($rows, false, 0.0);
+        return 18.0 + ($contentY - $endY) + 14.0;
+    }
 
-        return max(0.0, $tableStart - $partialRowHeight - 8.0);
+    /**
+     * @param  list<array{label: string, serials: list<string>}>  $groups
+     */
+    private function measureGroupedInlineSerialBlockHeight(array $groups): float
+    {
+        $dummyOps = [];
+        $startY = 500.0;
+        $y = $startY - 14.0;
+
+        foreach ($groups as $group) {
+            if ($group['serials'] === []) {
+                continue;
+            }
+
+            $y -= 12.0;
+            [$endY, $rendered] = $this->renderNumberedSerialGrid($dummyOps, $group['serials'], 1, $y, false);
+            if ($rendered < count($group['serials'])) {
+                return PHP_FLOAT_MAX;
+            }
+
+            $y = $endY - 6.0;
+        }
+
+        return 18.0 + ($startY - 14.0 - $y) + 14.0;
     }
 
     /**
@@ -1444,18 +1537,27 @@ class SimplePdfRenderer
         if ($this->hasGroupedSerials($payload)) {
             $groups = $this->firstPageSerialGroups($payload);
             if ($groups === []) {
-                return 0.0;
+                return $this->hasSerialAnnexure($payload)
+                    ? $this->annexureNoticeBlockHeight()
+                    : 0.0;
             }
 
-            return $this->groupedSerialSummaryHeightForGroups($groups, $this->hasSerialAnnexure($payload));
+            return $this->groupedSerialSummaryHeightForGroups($groups, false);
         }
 
         $count = $this->resolveFirstPageSerialCount($payload);
         if ($count === 0) {
-            return 0.0;
+            return $this->hasSerialAnnexure($payload)
+                ? $this->annexureNoticeBlockHeight()
+                : 0.0;
         }
 
-        return $this->serialSummaryHeightForCount($count, $this->hasSerialAnnexure($payload));
+        return $this->serialSummaryHeightForCount($count, false);
+    }
+
+    private function annexureNoticeBlockHeight(): float
+    {
+        return self::SERIAL_ANNEXURE_NOTICE_HEIGHT;
     }
 
     private function serialSummaryHeightForCount(int $count, bool $hasAnnexureRemainder): float
@@ -1484,22 +1586,19 @@ class SimplePdfRenderer
         }
 
         $first = $this->firstPageSerials($payload);
-        if ($first === []) {
+        if ($first === [] && ! $this->hasSerialAnnexure($payload)) {
             return $y;
+        }
+
+        if ($first === [] && $this->hasSerialAnnexure($payload)) {
+            return $this->annexureNoticeBlock($ops, $y);
         }
 
         $height = $this->serialSummaryHeight($payload);
         $ops[] = $this->card(self::MARGIN, $y - $height + 10, self::CONTENT_RIGHT - self::MARGIN, $height - 2);
         $ops[] = $this->text(self::MARGIN + 8, $y - 2, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-        if ($this->hasSerialAnnexure($payload)) {
-            $ops[] = $this->text(self::MARGIN + 92, $y - 2, '(Complete list in Annexure A)', 7, false, 0.4, 0.4, 0.4);
-        }
         $y -= 14;
         $y = $this->numberedSerialGrid($ops, $first, 1, $y);
-        if ($this->hasSerialAnnexure($payload)) {
-            $ops[] = $this->text(self::MARGIN + 8, $y - 2, 'Complete serial-number list provided in Annexure A.', 7, false, 0.32, 0.32, 0.32);
-            $y -= 13;
-        }
 
         return $y - 10;
     }
@@ -1510,16 +1609,17 @@ class SimplePdfRenderer
     private function groupedSerialSummaryBlock(array &$ops, StatutoryInvoicePdfPayload $payload, float $y): float
     {
         $groups = $this->firstPageSerialGroups($payload);
-        if ($groups === []) {
+        if ($groups === [] && ! $this->hasSerialAnnexure($payload)) {
             return $y;
+        }
+
+        if ($groups === [] && $this->hasSerialAnnexure($payload)) {
+            return $this->annexureNoticeBlock($ops, $y);
         }
 
         $height = $this->serialSummaryHeight($payload);
         $ops[] = $this->card(self::MARGIN, $y - $height + 10, self::CONTENT_RIGHT - self::MARGIN, $height - 2);
         $ops[] = $this->text(self::MARGIN + 8, $y - 2, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-        if ($this->hasSerialAnnexure($payload)) {
-            $ops[] = $this->text(self::MARGIN + 92, $y - 2, '(Complete list in Annexure A)', 7, false, 0.4, 0.4, 0.4);
-        }
         $y -= 14;
 
         foreach ($groups as $group) {
@@ -1542,12 +1642,20 @@ class SimplePdfRenderer
             $y -= 6;
         }
 
-        if ($this->hasSerialAnnexure($payload)) {
-            $ops[] = $this->text(self::MARGIN + 8, $y - 2, 'Complete serial-number list provided in Annexure A.', 7, false, 0.32, 0.32, 0.32);
-            $y -= 13;
-        }
-
         return $y - 10;
+    }
+
+    /**
+     * @param  list<string>  $ops
+     */
+    private function annexureNoticeBlock(array &$ops, float $y): float
+    {
+        $height = $this->annexureNoticeBlockHeight();
+        $ops[] = $this->card(self::MARGIN, $y - $height + 10, self::CONTENT_RIGHT - self::MARGIN, $height - 2);
+        $ops[] = $this->text(self::MARGIN + 8, $y - 2, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $ops[] = $this->text(self::MARGIN + 8, $y - 14, self::ANNEXURE_NOTICE_TEXT, 7, false, 0.32, 0.32, 0.32);
+
+        return $y - $height - 4;
     }
 
     /**

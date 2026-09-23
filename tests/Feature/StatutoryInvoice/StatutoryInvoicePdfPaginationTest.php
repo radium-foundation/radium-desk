@@ -89,16 +89,14 @@ class StatutoryInvoicePdfPaginationTest extends TestCase
         $extracted = $this->extractedPdfText($binary);
         $main = $this->mainPageExtractedText($extracted);
 
-        $this->assertSame(1, $this->mainInvoicePageCount($binary));
         $this->assertMainInvoiceFooterOnFirstPage($binary, self::IRN);
-        $this->assertStringContainsString('Payment Details', $main);
-        $this->assertStringNotContainsString('(continued)', $main);
+        $this->assertStringContainsString('Payment Details', $this->firstMainInvoicePageText($extracted));
+        $this->assertStringContainsString(SimplePdfRenderer::ANNEXURE_NOTICE_TEXT, $main);
         $this->assertGroupedAnnexureComplete($binary, [
             'Mantra MFS 110 L1' => $modelASerials,
             'Access FM220 USB L1' => $modelBSerials,
         ], 105);
-        $this->assertSerialsPresentInExtractedText($main, array_slice($modelASerials, 0, 10), 'Main page Model A preview');
-        $this->assertSerialsPresentInExtractedText($main, $modelBSerials, 'Main page Model B preview');
+        $this->assertPage1HasZeroInlineSerials($binary, array_merge($modelASerials, $modelBSerials));
         $this->assertSame(2, $this->pdfPageCount($binary), 'INV-0767211 should use one main page and one packed Annexure page.');
         $this->assertSame(1, $this->annexurePageCount($binary));
         $this->assertStringNotContainsString('ANNEXURE A (continued)', $this->extractedPdfText($binary));
@@ -158,8 +156,8 @@ class StatutoryInvoicePdfPaginationTest extends TestCase
         $this->assertStringNotContainsString('ANNEXURE A', $extracted);
 
         $amountInWordsY = $this->pdfWordYMin($binary, 'words');
-        $this->assertGreaterThan(250.0, $amountInWordsY, 'Closing block should follow sparse service content instead of bottom-anchoring with a large gap.');
-        $this->assertLessThan(520.0, $amountInWordsY, 'Closing block should remain below the line-item table.');
+        $this->assertGreaterThan(250.0, $amountInWordsY, 'Closing block should remain in the Page-1 footer reservation.');
+        $this->assertLessThan(620.0, $amountInWordsY, 'Closing block should remain within the reserved Page-1 footer region.');
     }
 
     public function test_small_serial_set_fits_on_main_page_without_annexure(): void

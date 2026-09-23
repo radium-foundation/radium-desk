@@ -17,23 +17,23 @@ class StatutoryInvoicePdfSerialCapacityTest extends TestCase
         $this->assertSame([], $this->annexureSerials($this->hardwarePayload(serialCount: 10, withIrn: true)));
     }
 
-    public function test_eleven_serials_fit_on_main_page_without_annexure_when_space_allows(): void
+    public function test_eleven_serials_force_annexure_with_zero_inline_on_page_one(): void
     {
         $payload = $this->hardwarePayload(serialCount: 11, withIrn: true);
         $capacity = $this->firstPageSerialCapacity($payload);
         $annexure = $this->annexureSerials($payload);
 
-        $this->assertSame(11, $capacity);
-        $this->assertSame([], $annexure);
+        $this->assertSame(0, $capacity);
+        $this->assertCount(11, $annexure);
     }
 
-    public function test_one_hundred_twenty_serials_keep_main_page_cap_and_full_annexure(): void
+    public function test_one_hundred_twenty_serials_move_entire_set_to_annexure(): void
     {
         $payload = $this->hardwarePayload(serialCount: 120, withIrn: true);
         $capacity = $this->firstPageSerialCapacity($payload);
         $annexure = $this->annexureSerials($payload);
 
-        $this->assertSame(SimplePdfRenderer::MAIN_PAGE_SERIAL_LIMIT, $capacity);
+        $this->assertSame(0, $capacity);
         $this->assertCount(120, $annexure);
         $this->assertSame('SN-001', $annexure[0]);
         $this->assertSame('SN-120', $annexure[119]);

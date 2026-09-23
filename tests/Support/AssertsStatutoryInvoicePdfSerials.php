@@ -111,7 +111,7 @@ trait AssertsStatutoryInvoicePdfSerials
 
         $this->assertStringNotContainsString('ANNEXURE A', $binary);
         $this->assertStringNotContainsString(
-            'Complete serial-number list provided in Annexure A.',
+            SimplePdfRenderer::ANNEXURE_NOTICE_TEXT,
             $binary,
         );
         $this->assertSerialCoresPresentInPdf($binary, $serials);
@@ -137,44 +137,51 @@ trait AssertsStatutoryInvoicePdfSerials
      */
     protected function assertOptionBWithAnnexure(string $binary, array $serials): void
     {
-        $main = array_slice($serials, 0, SimplePdfRenderer::MAIN_PAGE_SERIAL_LIMIT);
-        $decoded = $this->pdfText($binary);
-
         $this->assertStringContainsString('ANNEXURE A', $binary);
-        $this->assertStringContainsString(
-            'Complete serial-number list provided in Annexure A.',
-            $binary,
-        );
+        $this->assertStringContainsString(SimplePdfRenderer::ANNEXURE_NOTICE_TEXT, $binary);
+        $this->assertPage1HasZeroInlineSerials($binary, $serials);
         $this->assertSerialCoresPresentInPdf($binary, $serials);
         $this->assertNumberedSerialIndexesPresent($binary, $serials);
         $this->assertNoIndexOnlySerialOutput($binary, $serials);
+        $this->assertAnnexureStartsOnPageTwo($binary);
+    }
 
-        foreach ($main as $index => $serial) {
-            $decoded = $this->pdfText($binary);
-            $count = str_contains($decoded, $serial)
-                ? substr_count($decoded, $serial)
-                : 2;
+    /**
+     * @param  list<string>  $serials
+     */
+    protected function assertPage1HasZeroInlineSerials(string $binary, array $serials): void
+    {
+        $main = $this->mainPageExtractedText($this->extractedPdfText($binary));
 
-            $this->assertGreaterThanOrEqual(
-                2,
-                $count,
-                'Serial '.($index + 1).' must appear on the main page and again in Annexure A.',
+        foreach ($serials as $serial) {
+            $this->assertStringNotContainsString(
+                $serial,
+                $main,
+                "Serial {$serial} must not appear inline on Page 1 when Annexure A is used.",
             );
         }
+    }
 
-        if (count($serials) > SimplePdfRenderer::MAIN_PAGE_SERIAL_LIMIT) {
-            $annexureOnly = $serials[SimplePdfRenderer::MAIN_PAGE_SERIAL_LIMIT];
-            $decoded = $this->pdfText($binary);
-            $count = str_contains($decoded, $annexureOnly)
-                ? substr_count($decoded, $annexureOnly)
-                : 1;
+    protected function assertAnnexureStartsOnPageTwo(string $binary): void
+    {
+        $this->assertGreaterThanOrEqual(
+            2,
+            $this->pdfPageCount($binary),
+            'Annexure invoices must include at least two pages.',
+        );
+        $this->assertMainInvoiceFooterOnFirstPage($binary);
+    }
 
-            $this->assertSame(
-                1,
-                $count,
-                'First annexure-only serial must not be duplicated on the main page.',
-            );
-        }
+    protected function assertA4PageDimensions(string $binary): void
+    {
+        $this->assertStringContainsString(
+            '/MediaBox [0 0 '.(int) SimplePdfRenderer::pageWidthPoints().' '.(int) SimplePdfRenderer::pageHeightPoints().']',
+            $binary,
+        );
+        $this->assertSame(595.0, SimplePdfRenderer::pageWidthPoints());
+        $this->assertSame(842.0, SimplePdfRenderer::pageHeightPoints());
+        $this->assertSame(210.0, SimplePdfRenderer::PAGE_SIZE_A4_WIDTH_MM);
+        $this->assertSame(297.0, SimplePdfRenderer::PAGE_SIZE_A4_HEIGHT_MM);
     }
 
     protected function pdfLiteral(string $value): string
@@ -310,21 +317,34 @@ trait AssertsStatutoryInvoicePdfSerials
     protected function assertMainInvoiceFooterOnFirstPage(string $binary, ?string $irn = null): void
     {
         $extracted = $this->extractedPdfText($binary);
-        $main = $this->mainPageExtractedText($extracted);
+        $main = $this->firstMainInvoicePageText($extracted);
 
-        $this->assertStringContainsString('TOTAL INVOICE VALUE', $main, 'Main invoice page must include totals.');
-        $this->assertStringContainsString('Authorized Signatory', $main, 'Main invoice page must include authorized signatory.');
+        $this->assertStringContainsString('TOTAL INVOICE VALUE', $main, 'Page 1 must include totals.');
+        $this->assertStringContainsString('Authorized Signatory', $main, 'Page 1 must include authorized signatory.');
 
         if ($irn !== null) {
-            $this->assertStringContainsString('IRN', $main, 'Main invoice page must include IRN block.');
-            $this->assertStringContainsString($irn, $main, 'Main invoice page must include issued IRN.');
+            $this->assertStringContainsString('IRN', $main, 'Page 1 must include IRN block.');
+            $this->assertStringContainsString($irn, $main, 'Page 1 must include issued IRN.');
+        }
+    }
+
+    protected function firstMainInvoicePageText(string $extractedText): string
+    {
+        $markers = [];
+        $annexure = strpos($extractedText, 'ANNEXURE A');
+        if ($annexure !== false) {
+            $markers[] = $annexure;
+        }
+        $continued = strpos($extractedText, '(continued)');
+        if ($continued !== false) {
+            $markers[] = $continued;
         }
 
-        $this->assertSame(
-            1,
-            $this->mainInvoicePageCount($binary),
-            'Statutory footer must not be pushed to a separate invoice continuation page.',
-        );
+        if ($markers === []) {
+            return $extractedText;
+        }
+
+        return substr($extractedText, 0, min($markers));
     }
 
     protected function annexurePageCount(string $binary): int

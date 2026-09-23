@@ -113,7 +113,15 @@ class StatutoryInvoicePdfPos6746RegressionTest extends TestCase
 
         $this->assertStringContainsString('Morpho MSO 1300 E3 RD L1', $invoiceSection);
         $this->assertStringContainsString('TOTAL INVOICE VALUE', $invoiceSection);
-        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $invoiceSection);
+        $this->assertStringContainsString(SimplePdfRenderer::ANNEXURE_NOTICE_TEXT, $invoiceSection);
+        $this->assertPage1HasZeroInlineSerials($binary, array_merge(
+            $this->pos6746SerialGroups()['morpho'],
+            $this->pos6746SerialGroups()['gps'],
+            $this->pos6746SerialGroups()['mis'],
+            $this->pos6746SerialGroups()['mfs'],
+        ));
+        $this->assertAnnexureStartsOnPageTwo($binary);
+        $this->assertA4PageDimensions($binary);
     }
 
     public function test_pos_6746_shaped_annexure_includes_all_four_hundred_thirty_serials(): void

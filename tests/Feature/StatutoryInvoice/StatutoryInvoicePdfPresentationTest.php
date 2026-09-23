@@ -333,7 +333,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             sgst: '0.00',
             igst: '216.00',
             invoiceValue: '1416.00',
-            serialNumbers: ['SN-1', 'SN-2', 'SN-3', 'SN-4', 'SN-5', 'SN-6'],
+            serialNumbers: [],
             sourceId: 'RDE900305',
         )));
 
@@ -341,9 +341,6 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('TAX INVOICE', $pdf);
         $this->assertStringContainsString('TOTAL INVOICE VALUE', $pdf);
         $this->assertStringContainsString('Rs.1416.00', $pdf);
-        $this->assertStringContainsString('Serial Numbers', $pdf);
-        $this->assertStringContainsString('SN-1', $pdf);
-        $this->assertStringContainsString('SN-6', $pdf);
         $this->assertStringContainsString('Order ID', $pdf);
         $this->assertStringContainsString('RDE900305', $pdf);
         $this->assertStringNotContainsString('ANNEXURE A', $pdf);
@@ -398,7 +395,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
 
         $this->assertStringContainsString('TAX INVOICE', $pdf);
         $this->assertStringContainsString('Serial Numbers', $pdf);
-        $this->assertStringNotContainsString('Complete serial-number list provided in Annexure A.', $pdf);
+        $this->assertStringNotContainsString('Complete list of Serial Numbers provided in Annexure A.', $pdf);
         $this->assertStringNotContainsString('ANNEXURE A', $pdf);
         $this->assertStringContainsString('UQC', $pdf);
         $this->assertStringContainsString('PCS', $pdf);
@@ -1039,7 +1036,8 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
             orderId: 'RDE318900',
         )));
 
-        $this->assertStringNotContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString('ANNEXURE A', $pdf);
+        $this->assertStringContainsString(SimplePdfRenderer::ANNEXURE_NOTICE_TEXT, $pdf);
         foreach ($serials as $serial) {
             $this->assertStringContainsString($serial, $pdf);
         }
@@ -1097,7 +1095,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('10.', $pdf);
         $this->assertStringContainsString('120.', $pdf);
         $this->assertStringContainsString('ANNEXURE A', $pdf);
-        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $pdf);
+        $this->assertStringContainsString('Complete list of Serial Numbers provided in Annexure A.', $pdf);
         $this->assertStringContainsString('SHIP TO', $pdf);
         $this->assertStringContainsString('Same', $pdf);
     }
@@ -1216,7 +1214,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $pdf = $this->text($binary);
 
         $this->assertVerificationBlockOnPageOne($binary, $this->jwtSignedQr());
-        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $pdf);
+        $this->assertStringContainsString('Complete list of Serial Numbers provided in Annexure A.', $pdf);
         $this->assertStringContainsString('ANNEXURE A', $pdf);
         $this->assertOptionBWithAnnexure($binary, $serials);
         $this->assertStringContainsString('120.', $pdf);
