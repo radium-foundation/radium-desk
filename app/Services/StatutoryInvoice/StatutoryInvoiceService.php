@@ -351,7 +351,7 @@ class StatutoryInvoiceService
 
         if ($lines === []) {
             throw ValidationException::withMessages([
-                'commerce_order' => 'No billable statutory invoice lines remain after optional add-on suppression.',
+                'commerce_order' => StatutoryInvoiceCommerceBillableLines::NO_BILLABLE_LINES,
             ]);
         }
 

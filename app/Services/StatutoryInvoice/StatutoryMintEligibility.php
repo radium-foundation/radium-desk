@@ -23,6 +23,7 @@ class StatutoryMintEligibility
         private readonly StatutoryLocationSeries $locations,
         private readonly GstSplitService $gstSplit,
         private readonly HardwareCommerceStatutoryInvoiceGuard $hardwareCommerceInvoice,
+        private readonly StatutoryInvoiceCommerceBillableLines $billableLines,
     ) {}
 
     public function evaluateSale(InventorySale $sale): StatutoryMintEligibilityResult
@@ -163,7 +164,12 @@ class StatutoryMintEligibility
             $errors[] = 'Order has no invoice lines.';
         }
 
-        foreach ($order->items as $line) {
+        $billableItems = $this->billableLines->forOrder($order);
+        if ($order->items->isNotEmpty() && $billableItems->isEmpty()) {
+            $errors[] = StatutoryInvoiceCommerceBillableLines::NO_BILLABLE_LINES;
+        }
+
+        foreach ($billableItems as $line) {
             $description = trim((string) $line->description);
             $hsn = is_string($line->hsn_sac) ? trim($line->hsn_sac) : '';
             if ($description === '' || $hsn === '' || (int) $line->qty < 1
@@ -203,7 +209,7 @@ class StatutoryMintEligibility
         }
 
         $errors = [];
-        foreach ($order->items as $line) {
+        foreach ($this->billableLines->forOrder($order) as $line) {
             if ($line->gst_percentage === null || $line->taxable_value === null || $line->tax_total === null) {
                 continue;
             }
