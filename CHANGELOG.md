@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.124 — 2026-09-23 — RadiumBox hardware SKU mapping (RBP447/RBP449)
+
+- Add Owner-approved radiumbox.com `channel_sku_maps` seed configuration for `model_id` **625** (`PMTMFS500Z` → `RBMFS500FP`) and **1420** (`PIDMORUCBL` → `RBMSOUSBCB`).
+- Resolves **Product mapping required** for hardware fulfilment orders carrying these Box model IDs (e.g. RBP449, RBP447).
+- Production requires `php artisan desk:seed-radiumbox-hardware-sku-maps --apply` after deploy.
+- Regression: `SeedRadiumboxHardwareSkuMapsCommandTest`, `RadiumboxHardwareSkuMapResolutionTest`. Prompt **RadiumDesk-P-23-09-02**.
+- Rollback target: v4.0.123 / `5473288b`.
+
 ## 4.0.123 — 2026-09-23 — Hardware inclusive GST multi-qty reconciliation (RBP415)
 
 - Fix `HardwareInclusiveGstReconciler` to project invoice GST from authoritative line gross when stored taxable + tax exactly equals gross but exclusive identity drifts beyond one paisa after multi-qty accumulation (e.g. RBP415 qty 12 @ ₹3048).
