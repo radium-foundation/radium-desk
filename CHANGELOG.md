@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.123 — 2026-09-23 — Hardware inclusive GST multi-qty reconciliation (RBP415)
+
+- Fix `HardwareInclusiveGstReconciler` to project invoice GST from authoritative line gross when stored taxable + tax exactly equals gross but exclusive identity drifts beyond one paisa after multi-qty accumulation (e.g. RBP415 qty 12 @ ₹3048).
+- Preserves fail-closed behaviour when gross does not reconcile to stored taxable + tax; commerce rows are not rewritten.
+- Regression: `HardwareInclusiveGstReconcilerTest`, `HardwareInclusiveGstInvoiceTest` (RBP415 fixture). Prompt **RadiumDesk-P-23-09-01**.
+- Rollback target: v4.0.122 / `935ce1f6`.
+
 ## 4.0.122 — 2026-09-22 — CA Monthly Report invoice-level register
 
 - Redesign CA Monthly Report export from 27-column line-grain dump to a 21-column invoice-level accounting register with expandable XLSX line detail (9 detail columns).
