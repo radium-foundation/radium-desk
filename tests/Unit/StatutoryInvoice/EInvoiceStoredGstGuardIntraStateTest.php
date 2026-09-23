@@ -51,7 +51,39 @@ class EInvoiceStoredGstGuardIntraStateTest extends TestCase
         );
     }
 
-    public function test_multi_line_inv_0767278_shape_passes_with_equal_halves(): void
+    public function test_multi_line_inv_0767278_shape_passes_with_invoice_level_reconciliation(): void
+    {
+        $invoice = $this->invoice(
+            taxTotal: 91.06,
+            cgst: 45.53,
+            sgst: 45.53,
+            igst: 0.0,
+            taxable: 505.94,
+            invoiceValue: 597.0,
+            items: [
+                [
+                    'taxable_value' => 421.19,
+                    'tax_total' => 75.81,
+                    'cgst' => 37.91,
+                    'sgst' => 37.91,
+                    'igst' => 0.0,
+                    'line_total' => 497.0,
+                ],
+                [
+                    'taxable_value' => 84.75,
+                    'tax_total' => 15.25,
+                    'cgst' => 7.62,
+                    'sgst' => 7.62,
+                    'igst' => 0.0,
+                    'line_total' => 100.0,
+                ],
+            ],
+        );
+
+        $this->assertSame([], EInvoiceStoredGstGuard::missingReasons($invoice));
+    }
+
+    public function test_cumulative_per_line_drift_fails_guard(): void
     {
         $invoice = $this->invoice(
             taxTotal: 91.06,
@@ -80,7 +112,10 @@ class EInvoiceStoredGstGuardIntraStateTest extends TestCase
             ],
         );
 
-        $this->assertSame([], EInvoiceStoredGstGuard::missingReasons($invoice));
+        $this->assertContains(
+            IntraStateCgstSgstRules::GST_COMPONENTS_MISMATCH,
+            EInvoiceStoredGstGuard::missingReasons($invoice),
+        );
     }
 
     /**

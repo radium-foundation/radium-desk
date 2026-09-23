@@ -99,13 +99,21 @@ class IntraStateCgstSgstIssuanceTest extends TestCase
 
         $invoice = $this->invoices->issueFromCommerceOrder($order->fresh(['items']), $this->actor);
 
-        $this->assertSame(45.54, (float) $invoice->cgst);
-        $this->assertSame(45.54, (float) $invoice->sgst);
+        $this->assertSame('45.53', (string) $invoice->cgst);
+        $this->assertSame('45.53', (string) $invoice->sgst);
         $this->assertSame(91.06, (float) $invoice->tax_total);
         $this->assertSame(37.91, (float) $invoice->items[0]->cgst);
         $this->assertSame(37.91, (float) $invoice->items[0]->sgst);
-        $this->assertSame(7.63, (float) $invoice->items[1]->cgst);
-        $this->assertSame(7.63, (float) $invoice->items[1]->sgst);
+        $this->assertSame(7.62, (float) $invoice->items[1]->cgst);
+        $this->assertSame(7.62, (float) $invoice->items[1]->sgst);
+        $this->assertSame(
+            (string) $invoice->cgst,
+            number_format((float) $invoice->items->sum(fn ($item) => (float) $item->cgst), 2, '.', ''),
+        );
+        $this->assertSame(
+            (string) $invoice->sgst,
+            number_format((float) $invoice->items->sum(fn ($item) => (float) $item->sgst), 2, '.', ''),
+        );
         $this->assertSame([], EInvoiceStoredGstGuard::missingReasons($invoice));
     }
 

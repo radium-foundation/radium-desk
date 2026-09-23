@@ -11,8 +11,7 @@ use Illuminate\Validation\ValidationException;
  *
  * Intra-State vs inter-State follows IGST Act ss.7–8: seller GST state versus
  * place of supply. billing_state is not used. The stored tax_total is never
- * rewritten. Intra-state lines use equal CGST/SGST halves (NIC IRP 2227); odd-paise
- * tax may drift from component sum by 1 paisa. Used for commerce and POS lines.
+ * rewritten. Intra-state uses IntraStateCgstSgstRules (NIC IRP 2227/2234).
  */
 final class GstSplitService
 {
@@ -43,6 +42,101 @@ final class GstSplitService
         float $taxTotal,
         int $exclusivePaisaTolerance = 0,
     ): GstComponentSplit {
+        $this->assertLineInputs($sellerGstStateCode, $placeOfSupplyState, $gstPercentage, $taxableValue, $taxTotal, $exclusivePaisaTolerance);
+
+        $placeCode = GstStateCodes::codeForName(trim((string) $placeOfSupplyState));
+        $intraState = trim($sellerGstStateCode) === $placeCode;
+        $tax = $this->money($taxTotal);
+
+        if ($intraState) {
+            $taxPaise = IntraStateCgstSgstRules::moneyPaise($tax);
+            $taxablePaise = IntraStateCgstSgstRules::moneyPaise($taxableValue);
+            $ideal = IntraStateCgstSgstRules::idealHalfFromTaxablePaise($taxablePaise, (float) $gstPercentage);
+            $headerHalf = IntraStateCgstSgstRules::headerHalfFromTotalTaxPaise($taxPaise);
+            [$halfPaise] = IntraStateCgstSgstRules::allocateLineHalfPaise($headerHalf, [$ideal]);
+            IntraStateCgstSgstRules::assertMintSnapshot($taxPaise, [$halfPaise]);
+            $half = IntraStateCgstSgstRules::fromPaise($halfPaise);
+            $halfRate = (float) $gstPercentage / 2;
+
+            return new GstComponentSplit(
+                cgst: $half,
+                sgst: $half,
+                igst: 0.0,
+                cgstRate: $halfRate,
+                sgstRate: $halfRate,
+                igstRate: 0.0,
+                intraState: true,
+            );
+        }
+
+        return new GstComponentSplit(
+            cgst: 0.0,
+            sgst: 0.0,
+            igst: $tax,
+            cgstRate: 0.0,
+            sgstRate: 0.0,
+            igstRate: (float) $gstPercentage,
+            intraState: false,
+        );
+    }
+
+    /**
+     * @param  list<array{taxableValue: float, taxTotal: float, gstPercentage: float}>  $lines
+     * @return list<array{0: float, 1: float, 2: float}>
+     */
+    public function splitIntraStateLines(
+        string $sellerGstStateCode,
+        ?string $placeOfSupplyState,
+        array $lines,
+        int $exclusivePaisaTolerance = 0,
+    ): array {
+        if ($lines === []) {
+            return [];
+        }
+
+        $idealHalves = [];
+        $totalTaxPaise = 0;
+
+        foreach ($lines as $line) {
+            $this->assertLineInputs(
+                $sellerGstStateCode,
+                $placeOfSupplyState,
+                $line['gstPercentage'],
+                $line['taxableValue'],
+                $line['taxTotal'],
+                $exclusivePaisaTolerance,
+            );
+
+            $taxPaise = IntraStateCgstSgstRules::moneyPaise($line['taxTotal']);
+            $taxablePaise = IntraStateCgstSgstRules::moneyPaise($line['taxableValue']);
+            $idealHalves[] = IntraStateCgstSgstRules::idealHalfFromTaxablePaise(
+                $taxablePaise,
+                (float) $line['gstPercentage'],
+            );
+            $totalTaxPaise += $taxPaise;
+        }
+
+        $headerHalf = IntraStateCgstSgstRules::headerHalfFromTotalTaxPaise($totalTaxPaise);
+        $allocated = IntraStateCgstSgstRules::allocateLineHalfPaise($headerHalf, $idealHalves);
+        IntraStateCgstSgstRules::assertMintSnapshot($totalTaxPaise, $allocated);
+
+        $components = [];
+        foreach ($allocated as $halfPaise) {
+            $half = IntraStateCgstSgstRules::fromPaise($halfPaise);
+            $components[] = [$half, $half, 0.0];
+        }
+
+        return $components;
+    }
+
+    private function assertLineInputs(
+        string $sellerGstStateCode,
+        ?string $placeOfSupplyState,
+        ?float $gstPercentage,
+        float $taxableValue,
+        float $taxTotal,
+        int $exclusivePaisaTolerance,
+    ): void {
         if (! GstStateCodes::isKnownCode($sellerGstStateCode)) {
             throw ValidationException::withMessages([
                 'gst' => self::SELLER_STATE_UNSET,
@@ -56,8 +150,7 @@ final class GstSplitService
             ]);
         }
 
-        $placeCode = GstStateCodes::codeForName($place);
-        if ($placeCode === null) {
+        if (GstStateCodes::codeForName($place) === null) {
             throw ValidationException::withMessages([
                 'gst' => self::PLACE_OF_SUPPLY_UNRECOGNISED,
             ]);
@@ -93,47 +186,6 @@ final class GstSplitService
                 ]);
             }
         }
-
-        $intraState = trim($sellerGstStateCode) === $placeCode;
-
-        if ($intraState) {
-            [$cgst, $sgst] = IntraStateCgstSgstRules::equalHalves($tax);
-            $igst = 0.0;
-            $halfRate = $gstPercentage / 2;
-            $split = new GstComponentSplit(
-                cgst: $cgst,
-                sgst: $sgst,
-                igst: $igst,
-                cgstRate: $halfRate,
-                sgstRate: $halfRate,
-                igstRate: 0.0,
-                intraState: true,
-            );
-        } else {
-            $split = new GstComponentSplit(
-                cgst: 0.0,
-                sgst: 0.0,
-                igst: $tax,
-                cgstRate: 0.0,
-                sgstRate: 0.0,
-                igstRate: $gstPercentage,
-                intraState: false,
-            );
-        }
-
-        $componentSumPaise = IntraStateCgstSgstRules::paise($split->cgst + $split->sgst + $split->igst);
-        $taxPaise = IntraStateCgstSgstRules::paise($tax);
-        $allowedDrift = $split->intraState
-            ? IntraStateCgstSgstRules::componentSumDriftPaise($tax)
-            : 0;
-
-        if (abs($componentSumPaise - $taxPaise) > $allowedDrift) {
-            throw ValidationException::withMessages([
-                'gst' => self::COMPONENTS_MISMATCH,
-            ]);
-        }
-
-        return $split;
     }
 
     private function money(float $amount): float

@@ -192,4 +192,24 @@ class GstSplitServiceTest extends TestCase
             ));
         }
     }
+
+    public function test_multi_line_rd3300_shape_reconciles_without_cumulative_drift(): void
+    {
+        $components = $this->split->splitIntraStateLines('27', 'Maharashtra', [
+            ['taxableValue' => 421.19, 'taxTotal' => 75.81, 'gstPercentage' => 18.0],
+            ['taxableValue' => 84.75, 'taxTotal' => 15.25, 'gstPercentage' => 18.0],
+        ], 1);
+
+        $this->assertSame(37.91, $components[0][0]);
+        $this->assertSame(37.91, $components[0][1]);
+        $this->assertSame(7.62, $components[1][0]);
+        $this->assertSame(7.62, $components[1][1]);
+
+        $headerHalfPaise = array_sum(array_map(
+            fn (array $row): int => (int) round($row[0] * 100),
+            $components,
+        ));
+        $this->assertSame(4553, $headerHalfPaise);
+        $this->assertSame(9106, $headerHalfPaise * 2);
+    }
 }

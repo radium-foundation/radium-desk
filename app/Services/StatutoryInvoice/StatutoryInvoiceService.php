@@ -112,6 +112,7 @@ class StatutoryInvoiceService
                 }
 
                 $totals = $this->totals($request);
+                $this->assertIntraStateMintTotals($request, $totals);
                 $documentType = StatutoryInvoiceDocumentType::tryFrom((string) config('statutory_invoices.document_type', 'tax_invoice'))
                     ?? StatutoryInvoiceDocumentType::TaxInvoice;
 
@@ -768,15 +769,46 @@ class StatutoryInvoiceService
         }
 
         $sellerCode = $this->locations->gstStateCode($location);
+        $place = $request->placeOfSupplyState;
+        $tolerance = PublishSellingExclusiveGstTolerance::forMintRequest($request, $this->mintCommercialAt);
+        $placeCode = GstStateCodes::codeForName(is_string($place) ? trim($place) : '');
+        $intraState = $placeCode !== null && trim($sellerCode) === $placeCode;
+
+        if ($intraState) {
+            $splitInputs = [];
+            foreach ($request->lines as $line) {
+                $splitInputs[] = [
+                    'taxableValue' => $line->taxableValue,
+                    'taxTotal' => $line->taxTotal,
+                    'gstPercentage' => $line->gstPercentage,
+                ];
+            }
+
+            $components = $this->gstSplit->splitIntraStateLines(
+                $sellerCode,
+                $place,
+                $splitInputs,
+                $tolerance,
+            );
+
+            $lines = [];
+            foreach ($request->lines as $index => $line) {
+                [$cgst, $sgst, $igst] = $components[$index];
+                $lines[] = $line->withTaxComponents($cgst, $sgst, $igst);
+            }
+
+            return $request->withLines($lines);
+        }
+
         $lines = [];
         foreach ($request->lines as $line) {
             $split = $this->gstSplit->splitLine(
                 $sellerCode,
-                $request->placeOfSupplyState,
+                $place,
                 $line->gstPercentage,
                 $line->taxableValue,
                 $line->taxTotal,
-                PublishSellingExclusiveGstTolerance::forMintRequest($request, $this->mintCommercialAt),
+                $tolerance,
             );
             $lines[] = $line->withTaxComponents($split->cgst, $split->sgst, $split->igst);
         }
@@ -831,9 +863,9 @@ class StatutoryInvoiceService
         $taxable = 0.0;
         $tax = 0.0;
         $lineTotal = 0.0;
-        $cgst = 0.0;
-        $sgst = 0.0;
-        $igst = 0.0;
+        $cgstPaise = 0;
+        $sgstPaise = 0;
+        $igstPaise = 0;
         $hasCgst = false;
         $hasSgst = false;
         $hasIgst = false;
@@ -845,15 +877,15 @@ class StatutoryInvoiceService
             $lineTotal += $line->lineTotal;
             $maxLineGstRate = max($maxLineGstRate, (float) $line->gstPercentage);
             if ($line->cgst !== null) {
-                $cgst += $line->cgst;
+                $cgstPaise += IntraStateCgstSgstRules::moneyPaise((float) $line->cgst);
                 $hasCgst = true;
             }
             if ($line->sgst !== null) {
-                $sgst += $line->sgst;
+                $sgstPaise += IntraStateCgstSgstRules::moneyPaise((float) $line->sgst);
                 $hasSgst = true;
             }
             if ($line->igst !== null) {
-                $igst += $line->igst;
+                $igstPaise += IntraStateCgstSgstRules::moneyPaise((float) $line->igst);
                 $hasIgst = true;
             }
         }
@@ -867,25 +899,44 @@ class StatutoryInvoiceService
             $location = is_string($request->numberingLocation) ? trim($request->numberingLocation) : '';
             if ($location !== '' && ($hasCgst || $hasSgst || $hasIgst)) {
                 $sellerCode = $this->locations->gstStateCode($location);
-                $split = $this->gstSplit->splitLine(
-                    $sellerCode,
-                    $request->placeOfSupplyState,
-                    $maxLineGstRate,
-                    $shippingAmount,
-                    $shippingTax,
-                    PublishSellingExclusiveGstTolerance::forMintRequest($request, $this->mintCommercialAt),
-                );
-                if ($split->cgst > 0) {
-                    $cgst += $split->cgst;
+                $place = $request->placeOfSupplyState;
+                $placeCode = GstStateCodes::codeForName(is_string($place) ? trim($place) : '');
+                $intraState = $placeCode !== null && trim($sellerCode) === $placeCode;
+
+                if ($intraState) {
+                    $totalTaxPaise = IntraStateCgstSgstRules::moneyPaise(round($tax, 2));
+                    $targetHeaderHalf = IntraStateCgstSgstRules::headerHalfFromTotalTaxPaise($totalTaxPaise);
+                    $shippingHalfPaise = $targetHeaderHalf - $cgstPaise;
+                    if ($shippingHalfPaise < 0) {
+                        throw ValidationException::withMessages([
+                            'gst' => GstSplitService::COMPONENTS_MISMATCH,
+                        ]);
+                    }
+                    $cgstPaise += $shippingHalfPaise;
+                    $sgstPaise += $shippingHalfPaise;
                     $hasCgst = true;
-                }
-                if ($split->sgst > 0) {
-                    $sgst += $split->sgst;
                     $hasSgst = true;
-                }
-                if ($split->igst > 0) {
-                    $igst += $split->igst;
-                    $hasIgst = true;
+                } else {
+                    $split = $this->gstSplit->splitLine(
+                        $sellerCode,
+                        $place,
+                        $maxLineGstRate,
+                        $shippingAmount,
+                        $shippingTax,
+                        PublishSellingExclusiveGstTolerance::forMintRequest($request, $this->mintCommercialAt),
+                    );
+                    if ($split->cgst > 0) {
+                        $cgstPaise += IntraStateCgstSgstRules::moneyPaise($split->cgst);
+                        $hasCgst = true;
+                    }
+                    if ($split->sgst > 0) {
+                        $sgstPaise += IntraStateCgstSgstRules::moneyPaise($split->sgst);
+                        $hasSgst = true;
+                    }
+                    if ($split->igst > 0) {
+                        $igstPaise += IntraStateCgstSgstRules::moneyPaise($split->igst);
+                        $hasIgst = true;
+                    }
                 }
             }
         }
@@ -898,9 +949,9 @@ class StatutoryInvoiceService
             'tax_total' => round($tax, 2),
             'rounding' => $roundOff['rounding'],
             'invoice_value' => $roundOff['rounded'],
-            'cgst' => $hasCgst ? round($cgst, 2) : null,
-            'sgst' => $hasSgst ? round($sgst, 2) : null,
-            'igst' => $hasIgst ? round($igst, 2) : null,
+            'cgst' => $hasCgst ? IntraStateCgstSgstRules::fromPaise($cgstPaise) : null,
+            'sgst' => $hasSgst ? IntraStateCgstSgstRules::fromPaise($sgstPaise) : null,
+            'igst' => $hasIgst ? IntraStateCgstSgstRules::fromPaise($igstPaise) : null,
         ];
     }
 
@@ -1039,6 +1090,75 @@ class StatutoryInvoiceService
         $uqc = InventoryProduct::query()->where('sku', $sku)->value('uqc');
 
         return is_string($uqc) && trim($uqc) !== '' ? $uqc : null;
+    }
+
+    /**
+     * @param  array{tax_total: float, cgst: ?float, sgst: ?float, igst: ?float}  $totals
+     */
+    private function assertIntraStateMintTotals(StatutoryInvoiceMintRequest $request, array $totals): void
+    {
+        $headerCgst = $totals['cgst'];
+        $headerSgst = $totals['sgst'];
+        $headerIgst = $totals['igst'] ?? 0.0;
+
+        if (! IntraStateCgstSgstRules::isIntraStateLine(
+            $headerCgst !== null ? (float) $headerCgst : null,
+            $headerSgst !== null ? (float) $headerSgst : null,
+            $headerIgst !== null ? (float) $headerIgst : null,
+        )) {
+            return;
+        }
+
+        $lineHalves = [];
+        foreach ($request->lines as $line) {
+            if ($line->cgst === null) {
+                continue;
+            }
+            $lineHalves[] = IntraStateCgstSgstRules::moneyPaise((float) $line->cgst);
+        }
+
+        $totalTaxPaise = IntraStateCgstSgstRules::moneyPaise((float) $totals['tax_total']);
+        $headerCgstPaise = IntraStateCgstSgstRules::moneyPaise((float) $headerCgst);
+        $headerSgstPaise = IntraStateCgstSgstRules::moneyPaise((float) $headerSgst);
+        $lineCgstSum = array_sum($lineHalves);
+        $shippingAmount = round(max(0, $request->shippingAmount), 2);
+
+        if ($headerCgstPaise !== $headerSgstPaise) {
+            throw ValidationException::withMessages([
+                'gst' => IntraStateCgstSgstRules::INTRA_STATE_CGST_SGST_UNEQUAL,
+            ]);
+        }
+
+        $allowedDrift = IntraStateCgstSgstRules::maxInvoiceComponentDriftPaise($totalTaxPaise);
+        if (abs($headerCgstPaise + $headerSgstPaise - $totalTaxPaise) > $allowedDrift) {
+            throw ValidationException::withMessages([
+                'gst' => IntraStateCgstSgstRules::GST_COMPONENTS_MISMATCH,
+            ]);
+        }
+
+        if ($shippingAmount > 0) {
+            $targetHeaderHalf = IntraStateCgstSgstRules::headerHalfFromTotalTaxPaise($totalTaxPaise);
+            if ($headerCgstPaise !== $targetHeaderHalf || $headerSgstPaise !== $targetHeaderHalf) {
+                throw ValidationException::withMessages([
+                    'gst' => IntraStateCgstSgstRules::LINE_HEADER_GST_MISMATCH,
+                ]);
+            }
+            if ($headerCgstPaise < $lineCgstSum) {
+                throw ValidationException::withMessages([
+                    'gst' => IntraStateCgstSgstRules::LINE_HEADER_GST_MISMATCH,
+                ]);
+            }
+
+            return;
+        }
+
+        IntraStateCgstSgstRules::assertMintSnapshot($totalTaxPaise, $lineHalves);
+
+        if ($headerCgstPaise !== $lineCgstSum) {
+            throw ValidationException::withMessages([
+                'gst' => IntraStateCgstSgstRules::LINE_HEADER_GST_MISMATCH,
+            ]);
+        }
     }
 
     private function assertNoFinanceJournal(StatutoryInvoice $invoice): void
