@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.127 — 2026-09-23 — Statutory eligibility + intra-state CGST/SGST IRP compliance
+
+- Align statutory mint eligibility with billable commerce lines: require ≥1 line with `includesOnStatutoryInvoice()`; GST pre-check runs on billable lines only; four zero-billable support-only orders (RD3513756, RD2916, RD3162, RD7478) fail eligibility instead of mint.
+- Close intra-state B2B CGST/SGST multi-line drift: invoice-level `allocateLineHalfPaise` reconciles line ideals to authoritative `tax_total` (NIC IRP 2227/2234); header CGST == header SGST == sum(line halves); max 1-paise invoice-level drift (non-cumulative).
+- Fail-closed `EInvoiceStoredGstGuard` and pre-persist `assertIntraStateMintTotals` on stored statutory snapshots; IRP mapper remains read-only.
+- Preserves v4.0.126 RD Service 1-paisa tolerance, RBP415 hardware inclusive GST, IGST/inter-state, B2C, and all historical invoice/e-invoice snapshots. **No historical remediation.**
+- Regression: `StatutoryMintEligibilityBillableLinesTest`, `IntraStateCgstSgstRulesTest`, `GstSplitServiceTest`, `IntraStateCgstSgstIssuanceTest`, `EInvoiceStoredGstGuardIntraStateTest`, and related statutory suites (157/159 PASS; 2 pre-existing UQC). Prompts **RadiumDesk-P-23-09-12** through **P-23-09-14**.
+- Rollback target: v4.0.126 / `8ae150e4`.
+
 ## 4.0.126 — 2026-09-23 — rdservice.in RD Service 1-paisa GST tolerance
 
 - Allow exactly **1 paisa** exclusive GST identity tolerance for `rdservice_in` **RD*** service orders with commercial date on/after **2026-09-01**, via consolidated `PublishSellingExclusiveGstTolerance` (publish-minus-selling inclusive catalog splits).
