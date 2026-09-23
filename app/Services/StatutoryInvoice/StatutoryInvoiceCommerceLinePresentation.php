@@ -4,6 +4,7 @@ namespace App\Services\StatutoryInvoice;
 
 use App\Models\CommerceOrderItem;
 use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
+use Illuminate\Support\Carbon;
 
 /**
  * Statutory invoice line inclusion and description for commerce orders.
@@ -27,7 +28,7 @@ final class StatutoryInvoiceCommerceLinePresentation
         return ! $this->isUnselectedOptionalAddOn($item);
     }
 
-    public function invoiceDescription(CommerceOrderItem $item): string
+    public function invoiceDescription(CommerceOrderItem $item, ?Carbon $commercialAt = null): string
     {
         if ($item->shipping_line_kind === 'physical_merchandise') {
             return HardwareConfigurableVariantDisplay::invoiceDescription($item);
@@ -35,7 +36,7 @@ final class StatutoryInvoiceCommerceLinePresentation
 
         $description = trim((string) $item->description);
         if ($description !== '') {
-            return $description;
+            return RdServiceStatutoryDisplayName::normalizeInvoiceDescription($description, $commercialAt);
         }
 
         return HardwareConfigurableVariantDisplay::invoiceDescription($item);

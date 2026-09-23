@@ -308,6 +308,7 @@ class StatutoryInvoiceService
         $this->eligibility->assertOrderCanMint($order);
 
         $order->loadMissing('items');
+        $commercialAt = $this->eligibility->commercialDate($order);
         $catalogUqc = $this->catalogUqcByProductId($order->items->pluck('product_id')->all());
         $lines = [];
         $resolvedHsns = [];
@@ -322,7 +323,7 @@ class StatutoryInvoiceService
                 ? ($catalogUqc[$line->product_id] ?? null)
                 : null;
             $lines[] = new StatutoryInvoiceLineDraft(
-                description: $this->commerceLinePresentation->invoiceDescription($line),
+                description: $this->commerceLinePresentation->invoiceDescription($line, $commercialAt),
                 qty: (int) $line->qty,
                 unitPrice: (float) $line->unit_price,
                 gstPercentage: (float) $line->gst_percentage,

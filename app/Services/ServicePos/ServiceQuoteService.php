@@ -14,6 +14,7 @@ use App\Models\ServiceQuoteLine;
 use App\Models\User;
 use App\Services\ServiceOrderReferenceService;
 use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Services\StatutoryInvoice\RdServiceStatutoryDisplayName;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +23,7 @@ class ServiceQuoteService
     public function __construct(
         private readonly ServiceOrderReferenceService $serviceOrderReferences,
     ) {}
+
     /**
      * @param  list<array{
      *     service_item_id?: int|null,
@@ -245,7 +247,7 @@ class ServiceQuoteService
         $discount = round((float) ($lineInput['discount'] ?? 0), 2);
         $gstRate = round((float) ($lineInput['gst_rate'] ?? $item?->gst_rate ?? 0), 2);
         $sacCode = $lineInput['sac_code'] ?? $item?->sac_code;
-        $description = trim((string) ($lineInput['description'] ?? $item?->name ?? ''));
+        $description = trim((string) ($lineInput['description'] ?? RdServiceStatutoryDisplayName::catalogName($item) ?? ''));
         if ($description === '') {
             throw ValidationException::withMessages([
                 "lines.{$index}.description" => 'Line description is required.',

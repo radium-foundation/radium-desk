@@ -4,6 +4,8 @@ namespace Tests\Unit\StatutoryInvoice;
 
 use App\Models\CommerceOrderItem;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCommerceLinePresentation;
+use App\Services\StatutoryInvoice\StatutoryInvoiceScope;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class StatutoryInvoiceCommerceLinePresentationTest extends TestCase
@@ -39,8 +41,29 @@ class StatutoryInvoiceCommerceLinePresentationTest extends TestCase
         );
 
         $this->assertTrue($this->presentation->includesOnStatutoryInvoice($item));
-        $this->assertStringContainsString('1 Year Unlimited', $this->presentation->invoiceDescription($item));
-        $this->assertStringNotContainsString('regular', strtolower($this->presentation->invoiceDescription($item)));
+        $description = $this->presentation->invoiceDescription(
+            $item,
+            Carbon::parse(StatutoryInvoiceScope::STARTS_AT),
+        );
+        $this->assertSame('IT Consulting & Support Service - 1 Year Unlimited', $description);
+        $this->assertStringNotContainsString('SAC - 998313', $description);
+        $this->assertStringNotContainsString('regular', strtolower($description));
+    }
+
+    public function test_pre_september_commercial_date_preserves_legacy_service_description(): void
+    {
+        $legacy = 'Information technology (IT) consulting & support services (SAC - 998313) - 1 Year Unlimited';
+        $item = $this->item(
+            description: $legacy,
+            taxable: 507.63,
+            tax: 91.37,
+            total: 599.0,
+        );
+
+        $this->assertSame(
+            $legacy,
+            $this->presentation->invoiceDescription($item, Carbon::parse('2026-08-31 23:59:59')),
+        );
     }
 
     public function test_purchased_express_duration_support_remains_on_invoice(): void

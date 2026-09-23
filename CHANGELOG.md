@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.125 — 2026-09-23 — RD Service statutory display name (effective 2026-09-01)
+
+- Canonical RD service statutory line description **IT Consulting & Support Service** for SAC **998313**, applied only when commerce commercial date is on/after **2026-09-01** (`ordered_at` → `paid_at` → `received_at` via `StatutoryMintEligibility::commercialDate()`).
+- Strip embedded `(SAC - 998313)` from Item description at new-mint presentation only; SAC remains in the dedicated HSN/SAC column.
+- Service POS catalog display and quote defaults for `rd_service` + SAC 998313 unchanged.
+- Does not rewrite `commerce_order_items.description`, existing `statutory_invoice_items`, or stored PDF snapshots. Prompt **RadiumDesk-P-23-09-03**.
+- Rollback target: v4.0.124 / `1e283b93`.
+
 ## 4.0.124 — 2026-09-23 — RadiumBox hardware SKU mapping (RBP447/RBP449)
 
 - Add Owner-approved radiumbox.com `channel_sku_maps` seed configuration for `model_id` **625** (`PMTMFS500Z` → `RBMFS500FP`) and **1420** (`PIDMORUCBL` → `RBMSOUSBCB`).
