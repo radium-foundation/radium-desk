@@ -176,6 +176,7 @@ return [
     'service_sac' => [
         'rd_service' => [
             'sac' => '998313',
+            'display_name' => 'IT Consulting & Support Service',
             'is_servc' => 'Y',
             'uqc' => 'OTH',
             'legacy_sac_aliases' => [
@@ -192,6 +193,7 @@ return [
             'description_needles' => [
                 'rd service',
                 'rd technical support',
+                'it consulting & support service',
                 'information technology (it) consulting & support services',
                 'information technology (it) consulting and support services',
             ],

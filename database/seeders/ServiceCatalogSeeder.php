@@ -44,7 +44,7 @@ class ServiceCatalogSeeder extends Seeder
             ['code' => 'DEV-RD-1Y'],
             [
                 'category_id' => $rd->id,
-                'name' => 'RD Service (Dev Sample)',
+                'name' => 'IT Consulting & Support Service',
                 'description' => 'Synthetic one-year RD service for development testing.',
                 'duration_label' => '1 Year Unlimited',
                 'sac_code' => '998313',

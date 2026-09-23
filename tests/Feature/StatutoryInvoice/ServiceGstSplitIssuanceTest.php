@@ -346,9 +346,8 @@ class ServiceGstSplitIssuanceTest extends TestCase
         $document = StatutoryInvoiceDocument::query()->where('invoice_id', $invoice->id)->firstOrFail();
         $pdf = app(StatutoryDocumentService::class)->binary($document);
 
-        $this->assertStringContainsString('consulting', $pdf);
-        $this->assertStringContainsString('support', $pdf);
-        $this->assertStringContainsString('services', $pdf);
+        $this->assertStringContainsString('IT Consulting & Support Service', $pdf);
+        $this->assertStringNotContainsString('SAC - 998313', $pdf);
         $this->assertStringContainsString('HSN/SAC', $pdf);
         $this->assertStringContainsString('998313', $pdf);
         $this->assertStringContainsString('18.00%', $pdf);
@@ -368,7 +367,7 @@ class ServiceGstSplitIssuanceTest extends TestCase
             ->assertSee('18.00', false)
             ->assertSee('38.06', false)
             ->assertSee('0.00', false)
-            ->assertSee('Information technology (IT) consulting', false)
+            ->assertSee('IT Consulting &amp; Support Service', false)
             ->assertDontSee('not recorded', false);
     }
 

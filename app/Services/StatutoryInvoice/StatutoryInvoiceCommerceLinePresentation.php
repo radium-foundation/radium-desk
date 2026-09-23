@@ -35,7 +35,7 @@ final class StatutoryInvoiceCommerceLinePresentation
 
         $description = trim((string) $item->description);
         if ($description !== '') {
-            return $description;
+            return RdServiceStatutoryDisplayName::normalizeInvoiceDescription($description);
         }
 
         return HardwareConfigurableVariantDisplay::invoiceDescription($item);

@@ -147,7 +147,9 @@ class ServiceSacMappingTest extends TestCase
         $this->assertStringContainsString('998313', $pdf);
         $this->assertStringContainsString('998399', $pdf);
         $this->assertStringContainsString('AMC : 1 Year Standard', $pdf);
-        $this->assertStringContainsString('SAC - 998313', $pdf);
+        $this->assertStringContainsString('IT Consulting & Support Service', $pdf);
+        $this->assertStringNotContainsString('SAC - 998313', $pdf);
+        $this->assertSame('IT Consulting & Support Service - 1 Year Unlimited', $invoice->items[0]->description);
     }
 
     public function test_amc_invoice_line_stores_998313_and_does_not_rewrite_issued_rows(): void

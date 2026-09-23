@@ -39,8 +39,10 @@ class StatutoryInvoiceCommerceLinePresentationTest extends TestCase
         );
 
         $this->assertTrue($this->presentation->includesOnStatutoryInvoice($item));
-        $this->assertStringContainsString('1 Year Unlimited', $this->presentation->invoiceDescription($item));
-        $this->assertStringNotContainsString('regular', strtolower($this->presentation->invoiceDescription($item)));
+        $description = $this->presentation->invoiceDescription($item);
+        $this->assertSame('IT Consulting & Support Service - 1 Year Unlimited', $description);
+        $this->assertStringNotContainsString('SAC - 998313', $description);
+        $this->assertStringNotContainsString('regular', strtolower($description));
     }
 
     public function test_purchased_express_duration_support_remains_on_invoice(): void

@@ -10,6 +10,7 @@ use App\Models\ServiceItem;
 use App\Services\Inventory\PosStatutorySnapshot;
 use App\Services\ServicePos\ServiceQuoteService;
 use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Services\StatutoryInvoice\RdServiceStatutoryDisplayName;
 use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\ServicePos\ServiceAccess;
@@ -93,7 +94,7 @@ class CounterController extends Controller
             'items' => $items->map(fn (ServiceItem $item): array => [
                 'id' => $item->id,
                 'code' => $item->code,
-                'name' => $item->name,
+                'name' => RdServiceStatutoryDisplayName::catalogName($item) ?? $item->name,
                 'category' => $item->category?->name,
                 'sac_code' => $item->sac_code,
                 'gst_rate' => (float) $item->gst_rate,
