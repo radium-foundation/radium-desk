@@ -44,6 +44,11 @@ class SimplePdfRenderer
     /** Height reserved for the Annexure notice on Page 1 when serials move to Annexure A. */
     private const SERIAL_ANNEXURE_NOTICE_HEIGHT = 22.0;
 
+    /** Insets for the Annexure notice card text measured from the block top Y. */
+    private const SERIAL_ANNEXURE_NOTICE_TITLE_Y_OFFSET = 8.0;
+
+    private const SERIAL_ANNEXURE_NOTICE_DESC_Y_OFFSET = 14.0;
+
     public const ANNEXURE_NOTICE_TEXT = 'Complete list of Serial Numbers provided in Annexure A.';
 
     private const COL_NO = 42.0;
@@ -100,8 +105,8 @@ class SimplePdfRenderer
     /** Top content Y for Page 1 (A4 printable area, 36 pt margin). */
     private const PAGE1_CONTENT_TOP_Y = 808.0;
 
-    /** Logo baseline moved modestly upward to relieve header pressure. */
-    private const PAGE1_LOGO_TOP_Y = 812.0;
+    /** Logo top edge; nudged upward to balance the Page-1 header block. */
+    private const PAGE1_LOGO_TOP_Y = 816.0;
 
     private const SERIAL_COLUMNS = 4;
 
@@ -1651,9 +1656,28 @@ class SimplePdfRenderer
     private function annexureNoticeBlock(array &$ops, float $y): float
     {
         $height = $this->annexureNoticeBlockHeight();
-        $ops[] = $this->card(self::MARGIN, $y - $height + 10, self::CONTENT_RIGHT - self::MARGIN, $height - 2);
-        $ops[] = $this->text(self::MARGIN + 8, $y - 2, 'Serial Numbers', 7, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
-        $ops[] = $this->text(self::MARGIN + 8, $y - 14, self::ANNEXURE_NOTICE_TEXT, 7, false, 0.32, 0.32, 0.32);
+        $boxBottom = $y - $height;
+        $ops[] = $this->card(self::MARGIN, $boxBottom, self::CONTENT_RIGHT - self::MARGIN, $height);
+        $ops[] = $this->text(
+            self::MARGIN + 8,
+            $y - self::SERIAL_ANNEXURE_NOTICE_TITLE_Y_OFFSET,
+            'Serial Numbers',
+            7,
+            true,
+            self::NAVY_R,
+            self::NAVY_G,
+            self::NAVY_B,
+        );
+        $ops[] = $this->text(
+            self::MARGIN + 8,
+            $y - self::SERIAL_ANNEXURE_NOTICE_DESC_Y_OFFSET,
+            self::ANNEXURE_NOTICE_TEXT,
+            7,
+            false,
+            0.32,
+            0.32,
+            0.32,
+        );
 
         return $y - $height - 4;
     }
