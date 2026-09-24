@@ -34,6 +34,28 @@ class StatutoryInvoicePdfPage1LayoutTest extends TestCase
         $this->assertA4PageDimensions($binary);
     }
 
+    public function test_short_invoice_closing_follows_inline_serials_without_excessive_gap(): void
+    {
+        $serials = $this->shortSerialList(3);
+        $binary = $this->render($this->payload($serials, withIrn: false));
+
+        $this->assertOptionBMainPageOnly($binary, $serials);
+        $this->assertMainInvoiceFooterOnFirstPage($binary);
+        $this->assertStringContainsString(
+            'Whether tax is payable on reverse charge basis: No',
+            $this->mainPageExtractedText($this->extractedPdfText($binary)),
+        );
+        $this->assertStringContainsString('This is a computer-generated tax invoice.', $this->extractedPdfText($binary));
+
+        $lastSerialY = $this->pdfWordYMin($binary, '10950803');
+        $amountWordsY = $this->pdfWordYMin($binary, 'words');
+        $this->assertLessThan(
+            80.0,
+            $lastSerialY - $amountWordsY,
+            'Closing block should follow serials without a large blank gap.',
+        );
+    }
+
     public function test_ten_short_serials_render_inline_when_measured_block_fits(): void
     {
         $serials = $this->shortSerialList(10);
