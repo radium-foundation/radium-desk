@@ -6,6 +6,7 @@ use App\Enums\CustomerPaymentSource;
 use App\Enums\ServiceOrderPaymentStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceStatus;
+use App\Jobs\RegenerateStatutoryInvoicePdfAfterPaymentJob;
 use App\Models\CustomerPayment;
 use App\Models\InventoryCustomer;
 use App\Models\PaymentAllocation;
@@ -15,7 +16,9 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\StatutoryInvoice\StatutoryInvoicePaymentReconciliationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class ServicePaymentService
 {
@@ -167,7 +170,7 @@ class ServicePaymentService
             }
         }
 
-        return DB::transaction(function () use ($payment, $invoice, $amount, $actor, $idempotencyKey): PaymentAllocation {
+        $allocation = DB::transaction(function () use ($payment, $invoice, $amount, $actor, $idempotencyKey): PaymentAllocation {
             $payment = CustomerPayment::query()->lockForUpdate()->findOrFail($payment->id);
             $invoice = StatutoryInvoice::query()->lockForUpdate()->findOrFail($invoice->id);
 
@@ -221,6 +224,19 @@ class ServicePaymentService
 
             return $allocation;
         });
+
+        DB::afterCommit(function () use ($invoice): void {
+            try {
+                RegenerateStatutoryInvoicePdfAfterPaymentJob::dispatch($invoice->id);
+            } catch (Throwable $exception) {
+                Log::error('Failed to queue statutory invoice PDF regeneration after payment.', [
+                    'statutory_invoice_id' => $invoice->id,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        });
+
+        return $allocation;
     }
 
     public function outstandingForInvoice(StatutoryInvoice $invoice): float

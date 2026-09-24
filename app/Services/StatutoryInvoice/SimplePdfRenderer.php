@@ -1180,14 +1180,14 @@ class SimplePdfRenderer
     private function paymentColumns(StatutoryInvoicePdfPayload $payload): array
     {
         $cols = [];
-        $status = strtoupper(trim((string) ($payload->paymentStatus ?? '')));
+        $statusLabel = trim((string) ($payload->paymentStatus ?? ''));
         $method = trim((string) ($payload->paymentMethod ?? ''));
-        if ($status === '') {
-            $status = $method !== '' ? 'PAID' : '';
+        if ($statusLabel === '') {
+            $statusLabel = $method !== '' ? 'Paid' : '';
         }
-        $unpaid = $status === 'UNPAID';
-        if ($status !== '') {
-            $cols[] = ['Payment Status', $unpaid ? 'UNPAID' : 'Paid'];
+        $unpaid = strtoupper($statusLabel) === 'UNPAID';
+        if ($statusLabel !== '') {
+            $cols[] = ['Payment Status', $statusLabel];
         }
         if ($method !== '') {
             $cols[] = ['Mode of Payment', $this->display($method)];

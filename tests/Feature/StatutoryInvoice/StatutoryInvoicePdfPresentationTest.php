@@ -1473,6 +1473,89 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Round Off', $pdf);
     }
 
+    public function test_payment_status_renders_partially_paid_from_payload(): void
+    {
+        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-PARTIAL-1',
+            issuedAt: '2026-09-24 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '27AAICP1128M1Z7',
+            sellerAddress: 'G40, Harmony Mall, Link Road, Goregaon, Mumbai 400104',
+            sellerState: 'Maharashtra',
+            buyerName: 'Partial Payment Customer',
+            buyerGstin: null,
+            billingAddress: 'Bhiwandi',
+            placeOfSupply: 'Maharashtra',
+            lines: [[
+                'description' => 'Information technology services',
+                'hsnSac' => '998313',
+                'qty' => 1,
+                'unitPrice' => '100.00',
+                'taxableValue' => '100.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '9.00',
+                'sgst' => '9.00',
+                'igst' => '0.00',
+                'taxTotal' => '18.00',
+                'lineTotal' => '118.00',
+            ]],
+            taxableValue: '100.00',
+            gstRate: '18.00%',
+            taxTotal: '18.00',
+            cgst: '9.00',
+            sgst: '9.00',
+            igst: '0.00',
+            invoiceValue: '118.00',
+            paymentMethod: 'HDFC M',
+            paymentStatus: 'Partially Paid',
+            paymentReference: 'UTR-PARTIAL-1',
+        )));
+
+        $this->assertStringContainsString('Partially Paid', $pdf);
+    }
+
+    public function test_payment_status_renders_paid_from_payload(): void
+    {
+        $pdf = $this->text((new SimplePdfRenderer)->render(new StatutoryInvoicePdfPayload(
+            invoiceNumber: 'INV-PAID-1',
+            issuedAt: '2026-09-24 12:00:00',
+            sellerLegalName: 'Phil Technologies (P) Limited',
+            sellerGstin: '27AAICP1128M1Z7',
+            sellerAddress: 'G40, Harmony Mall, Link Road, Goregaon, Mumbai 400104',
+            sellerState: 'Maharashtra',
+            buyerName: 'Paid Customer',
+            buyerGstin: null,
+            billingAddress: 'Bhiwandi',
+            placeOfSupply: 'Maharashtra',
+            lines: [[
+                'description' => 'Information technology services',
+                'hsnSac' => '998313',
+                'qty' => 1,
+                'unitPrice' => '100.00',
+                'taxableValue' => '100.00',
+                'gstPercentage' => '18.00%',
+                'cgst' => '9.00',
+                'sgst' => '9.00',
+                'igst' => '0.00',
+                'taxTotal' => '18.00',
+                'lineTotal' => '118.00',
+            ]],
+            taxableValue: '100.00',
+            gstRate: '18.00%',
+            taxTotal: '18.00',
+            cgst: '9.00',
+            sgst: '9.00',
+            igst: '0.00',
+            invoiceValue: '118.00',
+            paymentMethod: 'Cash',
+            paymentStatus: 'Paid',
+        )));
+
+        $this->assertStringContainsString('Paid', $pdf);
+        $this->assertStringNotContainsString('Partially Paid', $pdf);
+        $this->assertStringNotContainsString('UNPAID', $pdf);
+    }
+
     public function test_b2c_single_page_omits_empty_ship_to_and_einvoice_block(): void
     {
         $binary = (new SimplePdfRenderer)->render($this->payload());
