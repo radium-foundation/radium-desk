@@ -108,6 +108,11 @@ class SimplePdfRenderer
     /** Logo top edge; nudged upward to balance the Page-1 header block. */
     private const PAGE1_LOGO_TOP_Y = 816.0;
 
+    /** Visible clearance between the rendered logo bottom and seller legal-name cap height. */
+    private const PAGE1_LOGO_TO_SELLER_GAP = 8.0;
+
+    private const PAGE1_SELLER_LEGAL_NAME_SIZE = 10;
+
     private const SERIAL_COLUMNS = 4;
 
     private const SERIAL_ROW_HEIGHT = 10.0;
@@ -400,6 +405,18 @@ class SimplePdfRenderer
         return self::PAGE_HEIGHT_PT;
     }
 
+    private function page1LogoBottomY(): float
+    {
+        return self::PAGE1_LOGO_TOP_Y - self::LOGO_MAX_HEIGHT;
+    }
+
+    private function page1SellerLegalNameBaselineY(): float
+    {
+        return $this->page1LogoBottomY()
+            - self::PAGE1_LOGO_TO_SELLER_GAP
+            - self::PAGE1_SELLER_LEGAL_NAME_SIZE;
+    }
+
     private function estimateFirstPageTableStartY(StatutoryInvoicePdfPayload $payload): float
     {
         $ops = [];
@@ -467,8 +484,17 @@ class SimplePdfRenderer
 
         $sellerRight = $cardX - 14;
         $sellerWidth = $sellerRight - self::MARGIN;
-        $sellerY = $y - self::LOGO_MAX_HEIGHT - 6;
-        $ops[] = $this->text(self::MARGIN, $sellerY, $payload->sellerLegalName, 10, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
+        $sellerY = $this->page1SellerLegalNameBaselineY();
+        $ops[] = $this->text(
+            self::MARGIN,
+            $sellerY,
+            $payload->sellerLegalName,
+            self::PAGE1_SELLER_LEGAL_NAME_SIZE,
+            true,
+            self::NAVY_R,
+            self::NAVY_G,
+            self::NAVY_B,
+        );
         $sellerY -= 12;
         foreach (array_slice($this->wrapWidth($this->display($payload->sellerAddress), $sellerWidth, 8), 0, 2) as $addressLine) {
             $ops[] = $this->text(self::MARGIN, $sellerY, $addressLine, 8, false, 0.22, 0.22, 0.22);

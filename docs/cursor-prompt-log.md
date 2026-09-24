@@ -180,5 +180,8 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-23-09-35 | 2026-09-23 | Presentation regeneration — INV-0767292 / id 6347 on v4.0.130-a4-layout @ `bfabb2cb` | Owner-approved `regeneratePresentation()` only. **No mint/IRP/deploy/other invoices.** |
 | RadiumDesk-P-23-09-36 | 2026-09-24 | Regression-lock A4 statutory PDF renderer @ `bfabb2cb` | Test-only contract hardening for Page-1 footer, measured serial fit, annexure completeness, and INV-0767292/POS-6746. **No deploy/regenerate/production changes.** |
 | RadiumDesk-P-23-09-37 | 2026-09-24 | Polish Serial Numbers notice box padding + logo lift | `SimplePdfRenderer` notice-card inset alignment and `PAGE1_LOGO_TOP_Y` nudge. **No deploy/regenerate/production changes.** |
+| RadiumDesk-P-23-09-38 | 2026-09-24 | Deploy P-23-09-37 polish @ `a3ec301a` to production | Surgical overlay `SimplePdfRenderer.php` only. **No invoice regenerate/IRP/DB changes.** |
+| RadiumDesk-P-23-09-39 | 2026-09-24 | Presentation regeneration — INV-0767292 / id 6347 on v4.0.131-polish-notice @ `a3ec301a` | Owner-approved `regeneratePresentation()` to verify notice-box + logo polish. **No mint/IRP/deploy/other invoices.** |
+| RadiumDesk-P-23-09-40 | 2026-09-24 | Logo-to-seller spacing correction (geometry-derived gap) | `PAGE1_LOGO_TO_SELLER_GAP` + `page1SellerLegalNameBaselineY()`. **No deploy/regenerate/production changes.** |
 
 Do not renumber or overwrite earlier rows. Append only.
