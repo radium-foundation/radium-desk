@@ -149,7 +149,15 @@
                     </div>
                 @endif
                 @if($paymentSummary->inventorySaleReference)
-                    <p class="mb-1"><strong>POS / sale reference:</strong> {{ $paymentSummary->inventorySaleReference }}</p>
+                    <p class="mb-1">
+                        <strong>POS / sale reference:</strong>
+                        @if($invoice->inventorySale && \App\Support\Inventory\PosAccess::allows(auth()->user()))
+                            <a href="{{ route('pos.sales.show', $invoice->inventorySale) }}">{{ $paymentSummary->inventorySaleReference }}</a>
+                            · <a href="{{ route('pos.sales.show', $invoice->inventorySale) }}" class="small">View POS Sale <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+                        @else
+                            {{ $paymentSummary->inventorySaleReference }}
+                        @endif
+                    </p>
                 @endif
                 <p class="mb-1">
                     Invoice value ₹{{ number_format($paymentSummary->invoiceValue, 2) }}

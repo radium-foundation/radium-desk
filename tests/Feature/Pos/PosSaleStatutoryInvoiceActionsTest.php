@@ -68,7 +68,7 @@ class PosSaleStatutoryInvoiceActionsTest extends TestCase
             ->assertOk()
             ->assertSee('GST tax invoice', false)
             ->assertSee($sale->statutoryInvoice->invoice_number, false)
-            ->assertSee('View invoice', false)
+            ->assertSee('View PDF', false)
             ->assertSee('Download PDF', false)
             ->assertSee('Share', false);
     }

@@ -61,6 +61,9 @@ final class PosSaleStatutoryInvoicePresenter
             'invoice_number' => (string) $invoice->invoice_number,
             'issued_at_label' => AppDateFormatter::date($invoice->issued_at),
             'status_label' => 'Issued',
+            'finance_show_url' => $user !== null && FinanceAccess::allowsInvoices($user)
+                ? route('finance.invoices.show', $invoice)
+                : null,
             'view_url' => $viewUrl,
             'download_url' => $downloadUrl,
             'share_url' => $viewUrl,

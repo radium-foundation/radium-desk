@@ -5,13 +5,17 @@
             <h2 class="h6 text-muted">GST tax invoice</h2>
             @if($presentation['minted'] ?? false)
                 <p class="mb-2">
+                    <span class="text-muted">Statutory invoice:</span>
                     <span class="fw-semibold">{{ $presentation['invoice_number'] }}</span>
                     @if(filled($presentation['issued_at_label'] ?? null))
                         <span class="text-muted">· {{ $presentation['issued_at_label'] }}</span>
                     @endif
+                    @if(filled($presentation['finance_show_url'] ?? null))
+                        · <a href="{{ $presentation['finance_show_url'] }}" class="small">View Invoice <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+                    @endif
                 </p>
                 <div class="d-flex flex-wrap gap-2 mb-3">
-                    <a class="btn btn-sm btn-outline-primary" href="{{ $presentation['view_url'] }}" target="_blank" rel="noopener">View invoice</a>
+                    <a class="btn btn-sm btn-outline-primary" href="{{ $presentation['view_url'] }}" target="_blank" rel="noopener">View PDF</a>
                     <a class="btn btn-sm btn-outline-secondary" href="{{ $presentation['download_url'] }}">Download PDF</a>
                     <button type="button"
                             class="btn btn-sm btn-outline-secondary"
