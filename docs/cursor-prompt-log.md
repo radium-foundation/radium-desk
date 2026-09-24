@@ -183,5 +183,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-23-09-38 | 2026-09-24 | Deploy P-23-09-37 polish @ `a3ec301a` to production | Surgical overlay `SimplePdfRenderer.php` only. **No invoice regenerate/IRP/DB changes.** |
 | RadiumDesk-P-23-09-39 | 2026-09-24 | Presentation regeneration — INV-0767292 / id 6347 on v4.0.131-polish-notice @ `a3ec301a` | Owner-approved `regeneratePresentation()` to verify notice-box + logo polish. **No mint/IRP/deploy/other invoices.** |
 | RadiumDesk-P-23-09-40 | 2026-09-24 | Logo-to-seller spacing correction (geometry-derived gap) | `PAGE1_LOGO_TO_SELLER_GAP` + `page1SellerLegalNameBaselineY()`. **No deploy/regenerate/production changes.** |
+| RadiumDesk-P-23-09-41 | 2026-09-24 | Review/validate/deploy P-23-09-26 service statutory invoice retry + reconciliation | Pre-deploy review @ branch `release/rdservice-in-gst-tolerance-v4.0.126` HEAD `894ee39e` (implementation commit `393c285e` unchanged for retry paths). Focused tests 75/75 PASS; regression 93/98 (3 pre-existing UQC/PDF). Surgical production overlay of P-23-09-26 files only — **no** `SimplePdfRenderer`/PDF layout deploy. Reconciliation dry-run counts reported; no forced production mint. |
 
 Do not renumber or overwrite earlier rows. Append only.
