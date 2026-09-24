@@ -99,6 +99,7 @@ class CustomerPaymentController extends Controller
 
         try {
             $this->payments->assertInvoiceSupportsPaymentRecording($invoice);
+            $this->payments->assertNormalPaymentRecordingAllowed($invoice);
 
             $payment = $this->payments->recordPayment(
                 customer: $customer,

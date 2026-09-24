@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Enums\EInvoiceRecordStatus;
+use App\Enums\PosHistoricalPaymentMethod;
 use App\Enums\StatutoryInvoiceDocumentStatus;
 use App\Enums\StatutoryInvoiceStatus;
 use App\Http\Controllers\Controller;
@@ -15,6 +16,7 @@ use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCreditNotePolicy;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
 use App\Services\StatutoryInvoice\StatutoryInvoicePaymentReadService;
+use App\Services\StatutoryInvoice\StatutoryInvoicePaymentReconciliationService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceRefundReviewService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Support\Finance\CsvDownload;
@@ -108,6 +110,7 @@ class StatutoryInvoiceController extends Controller
         }
 
         $paymentSummary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice);
+        $reconciliationService = app(StatutoryInvoicePaymentReconciliationService::class);
 
         return view('finance.invoices.show', [
             'invoice' => $invoice,
@@ -120,7 +123,12 @@ class StatutoryInvoiceController extends Controller
             'canRecordPayment' => FinanceAccess::allowsPaymentRecord(request()->user())
                 && $paymentSummary->allocationBacked
                 && $paymentSummary->amountOutstanding > 0
-                && $invoice->status !== StatutoryInvoiceStatus::Cancelled,
+                && $invoice->status !== StatutoryInvoiceStatus::Cancelled
+                && ! $paymentSummary->reconciliationRequired
+                && $reconciliationService->allowsAdditionalPaymentRecording($invoice),
+            'canBackfillPayment' => FinanceAccess::allowsPaymentBackfill(request()->user())
+                && $reconciliationService->allowsBackfill($invoice),
+            'backfillPaymentMethods' => PosHistoricalPaymentMethod::cases(),
         ]);
     }
 

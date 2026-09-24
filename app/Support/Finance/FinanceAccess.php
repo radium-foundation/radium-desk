@@ -65,4 +65,9 @@ final class FinanceAccess
     {
         return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_PAYMENTS_RECORD);
     }
+
+    public static function allowsPaymentBackfill(?User $user): bool
+    {
+        return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_PAYMENT_BACKFILL);
+    }
 }

@@ -13,6 +13,7 @@ final class StatutoryInvoicePaymentReadService
 {
     public function __construct(
         private readonly ServicePaymentService $payments,
+        private readonly StatutoryInvoicePaymentReconciliationService $reconciliation,
     ) {}
 
     public function usesAllocationBackedPaymentEvidence(StatutoryInvoice $invoice): bool
@@ -25,7 +26,7 @@ final class StatutoryInvoicePaymentReadService
 
     public function summary(StatutoryInvoice $invoice): StatutoryInvoicePaymentSummary
     {
-        $invoice->loadMissing('inventorySale');
+        $invoice->loadMissing(['inventorySale', 'paymentReconciliation.recorder']);
 
         $invoiceValue = round((float) $invoice->invoice_value, 2);
         $amountReceived = round((float) PaymentAllocation::query()
@@ -53,12 +54,17 @@ final class StatutoryInvoicePaymentReadService
                 'bank_name' => $payment?->bank_name,
                 'bank_branch' => $payment?->bank_branch,
                 'payment_date' => $payment?->payment_date?->toDateString(),
+                'source' => $payment?->source?->value ?? $payment?->source,
                 'recorded_by' => $payment?->recorder?->name,
                 'allocated_at' => $allocation->allocated_at?->toDateTimeString(),
             ];
         })->values()->all();
 
         $latestPayment = $paymentRows->first()?->payment;
+        $historicalPosInvoice = $this->reconciliation->isHistoricalPosInvoice($invoice);
+        $reconciliationStatus = $this->reconciliation->reconciliationStatus($invoice);
+        $reconciliationRecord = $invoice->paymentReconciliation;
+        $reconciliationRequired = $reconciliationStatus?->value === 'required';
 
         if (! $this->usesAllocationBackedPaymentEvidence($invoice)) {
             return new StatutoryInvoicePaymentSummary(
@@ -75,6 +81,10 @@ final class StatutoryInvoicePaymentReadService
                 inventorySaleId: $invoice->inventory_sale_id,
                 inventorySaleReference: $invoice->inventorySale?->sale_no,
                 payments: $payments,
+                reconciliationStatus: $reconciliationStatus,
+                reconciliationRequired: $reconciliationRequired,
+                historicalPosInvoice: $historicalPosInvoice,
+                reconciliationRecord: $reconciliationRecord,
             );
         }
 
@@ -94,6 +104,10 @@ final class StatutoryInvoicePaymentReadService
             inventorySaleId: $invoice->inventory_sale_id,
             inventorySaleReference: $invoice->inventorySale?->sale_no,
             payments: $payments,
+            reconciliationStatus: $reconciliationStatus,
+            reconciliationRequired: $reconciliationRequired,
+            historicalPosInvoice: $historicalPosInvoice,
+            reconciliationRecord: $reconciliationRecord,
         );
     }
 

@@ -43,6 +43,7 @@ use App\Http\Controllers\Finance\PaymentMethodController;
 use App\Http\Controllers\Finance\ReceivablesController;
 use App\Http\Controllers\Finance\SettingsController as FinanceSettingsController;
 use App\Http\Controllers\Finance\StatutoryInvoiceController;
+use App\Http\Controllers\Finance\StatutoryInvoicePaymentBackfillController;
 use App\Http\Controllers\Finance\StatutoryInvoiceIssueController;
 use App\Http\Controllers\Finance\VendorPaymentController;
 use App\Http\Controllers\GmailAdminActionsController;
@@ -446,6 +447,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('invoices/{invoice}/pdf', [StatutoryInvoiceController::class, 'download'])->name('invoices.pdf');
         Route::post('invoices/{invoice}/reevaluate-einvoice', [StatutoryInvoiceController::class, 'reevaluateEinvoice'])->name('invoices.reevaluate-einvoice');
         Route::post('invoices/{invoice}/cancel', [StatutoryInvoiceController::class, 'cancel'])->name('invoices.cancel');
+        Route::post('invoices/{invoice}/payment-backfill', [StatutoryInvoicePaymentBackfillController::class, 'store'])->name('invoices.payment-backfill');
         Route::get('invoices/{invoice}', [StatutoryInvoiceController::class, 'show'])->name('invoices.show');
 
         Route::prefix('settings')->name('settings.')->group(function () {

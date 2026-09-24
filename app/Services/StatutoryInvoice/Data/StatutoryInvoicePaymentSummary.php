@@ -2,7 +2,9 @@
 
 namespace App\Services\StatutoryInvoice\Data;
 
+use App\Enums\StatutoryInvoicePaymentReconciliationStatus;
 use App\Enums\StatutoryInvoicePaymentStatus;
+use App\Models\StatutoryInvoicePaymentReconciliation;
 
 final class StatutoryInvoicePaymentSummary
 {
@@ -25,6 +27,10 @@ final class StatutoryInvoicePaymentSummary
         public readonly ?int $inventorySaleId = null,
         public readonly ?string $inventorySaleReference = null,
         public readonly array $payments = [],
+        public readonly ?StatutoryInvoicePaymentReconciliationStatus $reconciliationStatus = null,
+        public readonly bool $reconciliationRequired = false,
+        public readonly bool $historicalPosInvoice = false,
+        public readonly ?StatutoryInvoicePaymentReconciliation $reconciliationRecord = null,
     ) {}
 
     public function wasPaid(): bool

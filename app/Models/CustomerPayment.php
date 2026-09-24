@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CustomerPaymentSource;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,6 +21,7 @@ class CustomerPayment extends Model
         'notes',
         'recorded_by',
         'idempotency_key',
+        'source',
     ];
 
     protected function casts(): array
@@ -27,6 +29,7 @@ class CustomerPayment extends Model
         return [
             'amount' => 'decimal:2',
             'payment_date' => 'date',
+            'source' => CustomerPaymentSource::class,
         ];
     }
 

@@ -78,6 +78,8 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_FINANCE_PAYMENTS_RECORD = 'finance.payments.record';
 
+    public const PERMISSION_FINANCE_INVOICES_PAYMENT_BACKFILL = 'finance.invoices.payment_backfill';
+
     public const PERMISSION_SERVICES_VIEW = 'services.view';
 
     public const PERMISSION_SERVICES_MANAGE = 'services.manage';
@@ -474,6 +476,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_FINANCE_INVOICES_ISSUE,
             self::PERMISSION_FINANCE_INVOICES_CANCEL,
             self::PERMISSION_FINANCE_PAYMENTS_RECORD,
+            self::PERMISSION_FINANCE_INVOICES_PAYMENT_BACKFILL,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
@@ -594,6 +597,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_FINANCE_INVOICES_ISSUE,
             self::PERMISSION_FINANCE_INVOICES_CANCEL,
             self::PERMISSION_FINANCE_PAYMENTS_RECORD,
+            self::PERMISSION_FINANCE_INVOICES_PAYMENT_BACKFILL,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
@@ -627,6 +631,7 @@ class RolePermissionSeeder extends Seeder
                 self::PERMISSION_SERVICE_POS_SELL,
                 self::PERMISSION_FINANCE_RECEIVABLES_VIEW,
                 self::PERMISSION_FINANCE_PAYMENTS_RECORD,
+                self::PERMISSION_FINANCE_INVOICES_PAYMENT_BACKFILL,
             ])
             ->merge(self::PURCHASING_ADMIN_PERMISSIONS)
             ->unique()

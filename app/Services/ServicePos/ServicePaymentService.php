@@ -2,6 +2,7 @@
 
 namespace App\Services\ServicePos;
 
+use App\Enums\CustomerPaymentSource;
 use App\Enums\ServiceOrderPaymentStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceStatus;
@@ -12,6 +13,7 @@ use App\Models\ServiceOrder;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\StatutoryInvoice\StatutoryInvoicePaymentReconciliationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -36,6 +38,8 @@ class ServicePaymentService
         ?string $idempotencyKey = null,
         ?string $bankName = null,
         ?string $bankBranch = null,
+        CustomerPaymentSource $source = CustomerPaymentSource::FinanceReceipt,
+        bool $skipGenericBankTransferValidation = false,
     ): CustomerPayment {
         $amount = round($amount, 2);
         if ($amount <= 0) {
@@ -55,7 +59,7 @@ class ServicePaymentService
         $bankName = $this->nullableString($bankName);
         $bankBranch = $this->nullableString($bankBranch);
 
-        $this->assertBankTransferFields($method, $bankName, $bankBranch, $reference);
+        $this->assertBankTransferFields($method, $bankName, $bankBranch, $reference, $skipGenericBankTransferValidation);
 
         $idempotencyKey = $idempotencyKey !== null && trim($idempotencyKey) !== ''
             ? trim($idempotencyKey)
@@ -92,6 +96,7 @@ class ServicePaymentService
             $idempotencyKey,
             $bankName,
             $bankBranch,
+            $source,
         ): CustomerPayment {
             $payment = CustomerPayment::query()->create([
                 'payment_number' => 'CP-TMP-'.strtoupper(bin2hex(random_bytes(4))),
@@ -105,6 +110,7 @@ class ServicePaymentService
                 'notes' => $notes,
                 'recorded_by' => $actor->id,
                 'idempotency_key' => $idempotencyKey,
+                'source' => $source,
             ]);
 
             $payment->update([
@@ -126,6 +132,7 @@ class ServicePaymentService
                     'bank_name' => $payment->bank_name,
                     'bank_branch' => $payment->bank_branch,
                     'payment_date' => $payment->payment_date?->toDateString(),
+                    'source' => $payment->source?->value ?? $payment->source,
                 ],
             );
 
@@ -277,13 +284,31 @@ class ServicePaymentService
         ]);
     }
 
+    public function assertNormalPaymentRecordingAllowed(StatutoryInvoice $invoice): void
+    {
+        $reconciliation = app(StatutoryInvoicePaymentReconciliationService::class);
+
+        if ($reconciliation->requiresReconciliation($invoice)) {
+            throw ValidationException::withMessages([
+                'invoice' => 'Historical payment reconciliation is required before Finance payment receipt can be recorded.',
+            ]);
+        }
+
+        if (! $reconciliation->allowsAdditionalPaymentRecording($invoice)) {
+            throw ValidationException::withMessages([
+                'invoice' => 'This invoice was locked as unpaid during historical payment reconciliation.',
+            ]);
+        }
+    }
+
     private function assertBankTransferFields(
         string $method,
         ?string $bankName,
         ?string $bankBranch,
         ?string $reference,
+        bool $skipGenericBankTransferValidation = false,
     ): void {
-        if (! $this->isBankTransferMethod($method)) {
+        if ($skipGenericBankTransferValidation || ! $this->isBankTransferMethod($method)) {
             return;
         }
 

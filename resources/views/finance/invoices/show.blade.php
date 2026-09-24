@@ -128,6 +128,29 @@
                     Invoice status and payment status are separate. POS checkout tender is not treated as Finance payment evidence until recorded here.
                 </p>
                 <p class="mb-1"><strong>Payment status:</strong> {{ $paymentSummary->status->label() }}</p>
+                @if($paymentSummary->reconciliationStatus)
+                    <p class="mb-1"><strong>Reconciliation:</strong> {{ $paymentSummary->reconciliationStatus->label() }}</p>
+                @endif
+                @if($paymentSummary->reconciliationRequired)
+                    <div class="alert alert-warning py-2 px-3 mb-2">
+                        <strong>Payment reconciliation required.</strong>
+                        Historical POS invoices from 1 September 2026 onward require Admin verification before Finance payment receipt is accepted.
+                    </div>
+                @endif
+                @if($paymentSummary->reconciliationRecord)
+                    <div class="alert alert-success py-2 px-3 mb-2">
+                        <strong>Payment reconciliation completed.</strong>
+                        @if($paymentSummary->reconciliationRecord->recorder)
+                            Recorded by {{ $paymentSummary->reconciliationRecord->recorder->name }}
+                        @endif
+                        @if($paymentSummary->reconciliationRecord->completed_at)
+                            on {{ $paymentSummary->reconciliationRecord->completed_at->timezone(config('app.timezone'))->format('d M Y H:i') }}.
+                        @endif
+                    </div>
+                @endif
+                @if($paymentSummary->inventorySaleReference)
+                    <p class="mb-1"><strong>POS / sale reference:</strong> {{ $paymentSummary->inventorySaleReference }}</p>
+                @endif
                 <p class="mb-1">
                     Invoice value ₹{{ number_format($paymentSummary->invoiceValue, 2) }}
                     · Received ₹{{ number_format($paymentSummary->amountReceived, 2) }}
@@ -157,6 +180,11 @@
                             </li>
                         @endforeach
                     </ul>
+                @endif
+                @if(!empty($canBackfillPayment))
+                    <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#paymentBackfillModal">
+                        Backfill payment
+                    </button>
                 @endif
                 @if(!empty($canRecordPayment))
                     <a href="{{ route('finance.payments.index', ['invoice_id' => $invoice->id]) }}" class="btn btn-sm btn-outline-primary">Record payment</a>
@@ -208,6 +236,14 @@
         · IGST {{ $invoice->igst !== null ? number_format((float) $invoice->igst, 2) : '—' }}
         · Invoice value {{ number_format((float) $invoice->invoice_value, 2) }}
     </p>
+
+    @if(!empty($canBackfillPayment))
+        @include('finance.invoices.partials.payment-backfill-modal', [
+            'invoice' => $invoice,
+            'paymentSummary' => $paymentSummary,
+            'backfillPaymentMethods' => $backfillPaymentMethods,
+        ])
+    @endif
 
     @if(!empty($canCancelInvoice))
         <div class="modal fade" id="cancelInvoiceModal" tabindex="-1" aria-labelledby="cancelInvoiceModalLabel" aria-hidden="true">
