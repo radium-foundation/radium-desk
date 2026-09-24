@@ -14,6 +14,7 @@ use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationEligibility;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCreditNotePolicy;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
+use App\Services\StatutoryInvoice\StatutoryInvoiceRefundReviewService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Support\Finance\CsvDownload;
 use App\Support\Finance\FinanceAccess;
@@ -97,6 +98,12 @@ class StatutoryInvoiceController extends Controller
             }
 
             $cancellationConsequences[] = $creditNotes->requirementSummary();
+            $cancellationConsequences[] = 'Customer payment is not refunded automatically. Finance must review and create a separate refund request when applicable.';
+        }
+
+        $refundReview = null;
+        if ($invoice->status === StatutoryInvoiceStatus::Cancelled) {
+            $refundReview = app(StatutoryInvoiceRefundReviewService::class)->snapshot($invoice);
         }
 
         return view('finance.invoices.show', [
@@ -104,6 +111,8 @@ class StatutoryInvoiceController extends Controller
             'canReevaluateEinvoice' => $canReevaluateEinvoice,
             'canCancelInvoice' => $canCancelInvoice,
             'cancellationConsequences' => $cancellationConsequences,
+            'refundReview' => $refundReview,
+            'canRequestRefund' => $refundReview?->allowsExplicitRefundRequest(request()->user()) ?? false,
         ]);
     }
 

@@ -55,6 +55,49 @@
                 </div>
             </div>
         @endif
+        @if(!empty($refundReview))
+            <div class="card shadow-sm mb-4">
+                <div class="card-body small">
+                    <h2 class="h6 mb-2">Refund status</h2>
+                    <p class="mb-2">
+                        Invoice cancellation does not refund customer money automatically.
+                        Refund execution remains in the existing approval workflow.
+                    </p>
+                    <p class="mb-1">
+                        <strong>Status:</strong> {{ $refundReview->status->label() }}
+                    </p>
+                    <p class="mb-1">{{ $refundReview->message }}</p>
+                    @if($refundReview->linkedOrderPublicId)
+                        <p class="mb-1"><strong>Linked order:</strong> {{ $refundReview->linkedOrderPublicId }}</p>
+                    @endif
+                    @if($refundReview->paymentMethod)
+                        <p class="mb-1"><strong>Payment method:</strong> {{ $refundReview->paymentMethod }}</p>
+                    @endif
+                    @if($refundReview->totalPaidAmount > 0 || $refundReview->maximumRefundable > 0)
+                        <p class="mb-1">
+                            Paid {{ number_format($refundReview->totalPaidAmount, 2) }}
+                            · Already refunded {{ number_format($refundReview->alreadyRefundedAmount, 2) }}
+                            · Remaining refundable {{ number_format($refundReview->maximumRefundable, 2) }}
+                        </p>
+                    @endif
+                    @if($refundReview->activeRefundReference)
+                        <p class="mb-1">
+                            <strong>Refund request:</strong>
+                            @if($refundReview->activeRefundRequestId)
+                                <a href="{{ route('refunds.show', $refundReview->activeRefundRequestId) }}">{{ $refundReview->activeRefundReference }}</a>
+                            @else
+                                {{ $refundReview->activeRefundReference }}
+                            @endif
+                        </p>
+                    @endif
+                    @if(!empty($canRequestRefund) && $refundReview->linkedOrderId)
+                        <a href="{{ route('refunds.create', ['order' => $refundReview->linkedOrderId]) }}" class="btn btn-sm btn-outline-primary mt-2">
+                            Request refund
+                        </a>
+                    @endif
+                </div>
+            </div>
+        @endif
     @endif
 
     <p>Buyer: {{ $invoice->buyer_name ?: '—' }} · GSTIN {{ $invoice->buyer_gstin ?: 'B2C' }}</p>

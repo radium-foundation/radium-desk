@@ -27,6 +27,7 @@ final class StatutoryInvoiceCancellationOrchestrator
         private readonly StatutoryInvoiceCreditNotePolicy $creditNotes,
         private readonly StatutoryInvoiceIrnCancellationService $irnCancellation,
         private readonly StatutoryInvoiceLinkedInventoryReversalService $inventoryReversal,
+        private readonly StatutoryInvoiceRefundReviewService $refundReview,
         private readonly StatutoryInvoiceService $invoices,
         private readonly AuditLogService $auditLogs,
     ) {}
@@ -120,6 +121,7 @@ final class StatutoryInvoiceCancellationOrchestrator
 
             $previousStatus = $locked->status->value;
             $cancelled = $this->invoices->cancel($locked, $actor, $reason);
+            $refundReview = $this->refundReview->snapshot($cancelled);
 
             $record = StatutoryInvoiceCancellation::query()->create([
                 'statutory_invoice_id' => $cancelled->id,
@@ -133,6 +135,7 @@ final class StatutoryInvoiceCancellationOrchestrator
                     'invoice_number' => $cancelled->invoice_number,
                     'previous_status' => $previousStatus,
                     'final_status' => $cancelled->status->value,
+                    'refund_review' => $refundReview->toAuditArray(),
                 ],
                 'completed_at' => now(),
             ]);
@@ -151,6 +154,7 @@ final class StatutoryInvoiceCancellationOrchestrator
                     'inventory_action' => $inventoryAction,
                     'credit_note_action' => $creditNoteAction,
                     'cancellation_record_id' => $record->id,
+                    'refund_review' => $refundReview->toAuditArray(),
                 ],
             );
 

@@ -13,6 +13,10 @@ use Illuminate\Support\Collection;
 
 class StatutoryInvoiceForIncidentResolver
 {
+    public function __construct(
+        private readonly StatutoryInvoiceLinkedOrderResolver $linkedOrders,
+    ) {}
+
     /**
      * @return Collection<int, StatutoryInvoice>
      */
@@ -69,7 +73,7 @@ class StatutoryInvoiceForIncidentResolver
             return null;
         }
 
-        $order = $this->orderForInvoice($invoice);
+        $order = $this->linkedOrders->resolve($invoice);
         if ($order === null) {
             return null;
         }
@@ -90,25 +94,5 @@ class StatutoryInvoiceForIncidentResolver
         }
 
         return $incident;
-    }
-
-    private function orderForInvoice(StatutoryInvoice $invoice): ?Order
-    {
-        if ($invoice->support_order_id !== null) {
-            $order = Order::query()->find($invoice->support_order_id);
-            if ($order instanceof Order) {
-                return $order;
-            }
-        }
-
-        $sourceId = trim((string) $invoice->source_id);
-        if ($sourceId === '' || (string) $invoice->source_type !== StatutoryInvoiceSourceType::CommerceOrder->value) {
-            return null;
-        }
-
-        return Order::query()
-            ->where('order_id', $sourceId)
-            ->orderByDesc('id')
-            ->first();
     }
 }
