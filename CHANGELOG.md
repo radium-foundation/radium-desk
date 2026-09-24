@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.0.134 — 2026-09-24 — Payment reconciliation and allocation-backed payment status
+
+- Add cancellation → refund review bridge (read-only/explicit; no automatic Wallet/OPM refund).
+- Add canonical `customer_payments` / `payment_allocations` evidence for Desk POS and Service POS with allocation-backed payment status on Finance and statutory PDFs.
+- Add historical POS payment reconciliation scope (Desk POS + Inventory Sale + issued from 2026-09-01) with Admin-only backfill workflow, audit/idempotency, and `finance.invoices.payment_backfill` permission.
+- Preserves `SimplePdfRenderer` layout (A4, serials, annexure, footer), cancellation orchestrator, Wallet/OPM refund executors, service statutory reconciliation, and protected invoices INV-0767292 (6347) / INV-0767294 (6397).
+- **No automatic historical backfill on deploy.** Admin backfill is explicit-only.
+- Regression: payment/backfill/cancellation/refund/PDF suites (152+ focused tests). Prompts **RadiumDesk-P-23-09-48** through **P-23-09-50**, **P-23-09-53**.
+- Rollback target: v4.0.133 / `2e436f9b`.
+
 ## 4.0.133 — 2026-09-24 — Statutory invoice cancellation orchestrator
 
 - Add `StatutoryInvoiceCancellationOrchestrator` as the canonical Finance/Admin cancellation entry point with idempotency, audit trail, IRN pre-check (fail-closed), and linked DeskPos inventory/finance reversal via `PosSaleService::cancelSale()`.
