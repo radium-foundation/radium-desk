@@ -172,13 +172,28 @@
                         <div class="card border-0 shadow-sm mb-3">
                             <div class="card-body">
                                 <h2 class="h5">Payment</h2>
-                                <div class="mb-2">
-                                    <label class="form-label" for="payment_method">Method</label>
-                                    <select name="payment_method" id="payment_method" class="form-select" required>
+                                <fieldset class="mb-3">
+                                    <legend class="form-label mb-2">Payment status</legend>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="payment_status" id="payment_status_paid" value="paid" @checked(old('payment_status', 'paid') === 'paid') required>
+                                        <label class="form-check-label" for="payment_status_paid">Paid</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="payment_status" id="payment_status_pending" value="pending" @checked(old('payment_status') === 'pending')>
+                                        <label class="form-check-label" for="payment_status_pending">Unpaid / Payment pending</label>
+                                    </div>
+                                    @error('payment_status')<div class="text-danger small">{{ $message }}</div>@enderror
+                                    <p class="small text-muted mb-0 mt-2">Choose unpaid when the customer has not paid yet. Expected method is optional and does not create a Finance payment.</p>
+                                </fieldset>
+                                <div class="mb-2" id="expected-payment-method-wrap">
+                                    <label class="form-label" for="payment_method" id="payment_method_label">Payment method</label>
+                                    <select name="payment_method" id="payment_method" class="form-select">
+                                        <option value="">Select method</option>
                                         @foreach($paymentMethods as $method)
                                             <option value="{{ $method }}" @selected(old('payment_method') === $method)>{{ $method }}</option>
                                         @endforeach
                                     </select>
+                                    @error('payment_method')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="mb-2" id="upi-receiving-account-wrap" hidden>
                                     <label class="form-label" for="receiving_bank_account_id">Receiving bank account</label>
@@ -282,19 +297,40 @@
                 const form = document.getElementById('pos-counter-form');
                 const completeButton = document.getElementById('pos-complete');
                 const paymentMethod = document.getElementById('payment_method');
+                const paymentMethodLabel = document.getElementById('payment_method_label');
+                const paymentStatusPaid = document.getElementById('payment_status_paid');
+                const paymentStatusPending = document.getElementById('payment_status_pending');
                 const upiAccountWrap = document.getElementById('upi-receiving-account-wrap');
                 const upiAccount = document.getElementById('receiving_bank_account_id');
                 const paymentReferenceWrap = document.getElementById('payment-reference-wrap');
 
+                function isPaymentPending() {
+                    return paymentStatusPending && paymentStatusPending.checked;
+                }
+
+                function syncPaymentStatus() {
+                    const pending = isPaymentPending();
+                    paymentMethod.required = !pending;
+                    paymentReferenceWrap.hidden = pending || (paymentMethod.value || '').toUpperCase() === 'UPI';
+                    upiAccountWrap.hidden = pending || (paymentMethod.value || '').toUpperCase() !== 'UPI';
+                    upiAccount.required = !pending && (paymentMethod.value || '').toUpperCase() === 'UPI';
+                    paymentMethodLabel.textContent = pending ? 'Expected payment method (optional)' : 'Payment method';
+                    completeButton.textContent = pending
+                        ? 'Complete sale (payment pending)'
+                        : ((paymentMethod.value || '').toUpperCase() === 'UPI' ? 'Create UPI QR' : 'Complete sale');
+                }
+
                 function syncPaymentMethod() {
-                    const isUpi = (paymentMethod.value || '').toUpperCase() === 'UPI';
-                    upiAccountWrap.hidden = !isUpi;
-                    upiAccount.required = isUpi;
-                    paymentReferenceWrap.hidden = isUpi;
-                    completeButton.textContent = isUpi ? 'Create UPI QR' : 'Complete sale';
+                    syncPaymentStatus();
+                }
+                if (paymentStatusPaid) {
+                    paymentStatusPaid.addEventListener('change', syncPaymentStatus);
+                }
+                if (paymentStatusPending) {
+                    paymentStatusPending.addEventListener('change', syncPaymentStatus);
                 }
                 paymentMethod.addEventListener('change', syncPaymentMethod);
-                syncPaymentMethod();
+                syncPaymentStatus();
 
                 const buyerGstin = document.getElementById('buyer_gstin');
                 const billingState = document.getElementById('billing_state');

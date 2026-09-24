@@ -11,6 +11,7 @@ use App\Enums\StatutoryInvoiceStatus;
 use App\Models\PaymentAllocation;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoicePaymentReconciliation;
+use App\Support\Inventory\PosSalePaymentState;
 use Illuminate\Support\Carbon;
 
 final class StatutoryInvoicePaymentReconciliationService
@@ -64,6 +65,10 @@ final class StatutoryInvoicePaymentReconciliationService
 
     public function reconciliationStatus(StatutoryInvoice $invoice): ?StatutoryInvoicePaymentReconciliationStatus
     {
+        if ($this->isForwardPaymentPendingPosInvoice($invoice)) {
+            return null;
+        }
+
         if (! $this->isHistoricalPosInvoice($invoice)) {
             return null;
         }
@@ -83,11 +88,19 @@ final class StatutoryInvoicePaymentReconciliationService
 
     public function requiresReconciliation(StatutoryInvoice $invoice): bool
     {
+        if ($this->isForwardPaymentPendingPosInvoice($invoice)) {
+            return false;
+        }
+
         return $this->reconciliationStatus($invoice) === StatutoryInvoicePaymentReconciliationStatus::Required;
     }
 
     public function allowsBackfill(StatutoryInvoice $invoice): bool
     {
+        if ($this->isForwardPaymentPendingPosInvoice($invoice)) {
+            return false;
+        }
+
         if ($invoice->status !== StatutoryInvoiceStatus::Issued) {
             return false;
         }
@@ -154,5 +167,34 @@ final class StatutoryInvoicePaymentReconciliationService
             number_format($amount, 2, '.', ''),
             $paymentDate,
         );
+    }
+
+    public function isForwardPaymentPendingPosInvoice(StatutoryInvoice $invoice): bool
+    {
+        if (! $this->isHistoricalPosInvoice($invoice)) {
+            return false;
+        }
+
+        if ($this->nullableString($invoice->payment_method) !== null) {
+            return false;
+        }
+
+        $sale = $invoice->inventorySale;
+        if ($sale === null) {
+            return false;
+        }
+
+        return PosSalePaymentState::isPaymentPending($sale);
+    }
+
+    private function nullableString(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+
+        return $trimmed !== '' ? $trimmed : null;
     }
 }

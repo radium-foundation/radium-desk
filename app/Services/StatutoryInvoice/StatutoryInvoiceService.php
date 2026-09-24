@@ -24,6 +24,7 @@ use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
 use App\Support\BusinessOrderId;
 use App\Support\Finance\GstStateCodes;
+use App\Support\Inventory\PosSalePaymentState;
 use App\Support\StatutoryInvoice\InvoiceRoundOff;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -273,8 +274,8 @@ class StatutoryInvoiceService
             billingAddress: $sale->billing_address,
             placeOfSupplyState: $sale->place_of_supply_state,
             discount: $headerDiscount,
-            paymentMethod: $sale->payment_method,
-            paymentReference: $sale->payment_reference,
+            paymentMethod: PosSalePaymentState::isPaymentPending($sale) ? null : $sale->payment_method,
+            paymentReference: PosSalePaymentState::isPaymentPending($sale) ? null : $sale->payment_reference,
             internalReceiptNumber: $sale->invoice_number,
             numberingLocation: $this->issuer->requireForProductBranch($sale->branch?->code),
             financialYearToken: $sale->completed_at !== null

@@ -31,6 +31,8 @@ final class StatutoryInvoicePaymentSummary
         public readonly bool $reconciliationRequired = false,
         public readonly bool $historicalPosInvoice = false,
         public readonly ?StatutoryInvoicePaymentReconciliation $reconciliationRecord = null,
+        public readonly bool $posPaymentPending = false,
+        public readonly ?string $posExpectedPaymentMethod = null,
     ) {}
 
     public function wasPaid(): bool

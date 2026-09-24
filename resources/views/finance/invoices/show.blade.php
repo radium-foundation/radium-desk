@@ -164,7 +164,12 @@
                     · Received ₹{{ number_format($paymentSummary->amountReceived, 2) }}
                     · Outstanding ₹{{ number_format($paymentSummary->amountOutstanding, 2) }}
                 </p>
-                @if($paymentSummary->posTenderMethod)
+                @if($paymentSummary->posPaymentPending)
+                    <p class="mb-1"><strong>POS payment state:</strong> Unpaid / Payment pending</p>
+                    @if($paymentSummary->posExpectedPaymentMethod)
+                        <p class="mb-1"><strong>Expected payment method:</strong> {{ $paymentSummary->posExpectedPaymentMethod }}</p>
+                    @endif
+                @elseif($paymentSummary->posTenderMethod)
                     <p class="mb-1"><strong>POS tender at checkout:</strong> {{ $paymentSummary->posTenderMethod }}@if($paymentSummary->posTenderReference) · {{ $paymentSummary->posTenderReference }}@endif</p>
                 @endif
                 @if($paymentSummary->latestPaymentMethod)

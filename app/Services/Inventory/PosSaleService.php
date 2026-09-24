@@ -20,6 +20,7 @@ use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\PosStatutoryInvoiceIssuer;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
 use App\Support\Inventory\InventorySerialNumber;
+use App\Support\Inventory\PosSalePaymentState;
 use App\Support\Inventory\PosRetailShippingGst;
 use App\Support\Inventory\PosSaleLineNormalizer;
 use App\Support\StatutoryInvoice\InvoiceRoundOff;
@@ -67,6 +68,7 @@ class PosSaleService
         ?InventoryReservation $reservation = null,
         ?string $idempotencyKey = null,
         array $statutory = [],
+        bool $paymentReceived = true,
     ): InventorySale {
         $this->statutoryAccounting->assertMustNotAutoIssueOnPosComplete();
         $this->lastStatutoryIssueWarning = null;
@@ -79,10 +81,16 @@ class PosSaleService
             ]);
         }
 
-        if (trim($paymentMethod) === '') {
-            throw ValidationException::withMessages([
-                'payment_method' => 'Select a payment method.',
-            ]);
+        if ($paymentReceived) {
+            if (trim($paymentMethod) === '') {
+                throw ValidationException::withMessages([
+                    'payment_method' => 'Select a payment method.',
+                ]);
+            }
+            $paymentReference = PosSalePaymentState::nullableTrim($paymentReference);
+            PosSalePaymentState::assertUsablePaymentReference($paymentReference);
+        } else {
+            $paymentMethod = PosSalePaymentState::nullableTrim($paymentMethod) ?? '';
         }
 
         if ($headerDiscount < 0) {
@@ -111,6 +119,7 @@ class PosSaleService
                 $reservation,
                 $idempotencyKey,
                 $statutory,
+                $paymentReceived,
             ): InventorySale {
                 if ($idempotencyKey !== null) {
                     // Do not lockForUpdate a missing unique key: InnoDB gap-locks the
@@ -150,6 +159,13 @@ class PosSaleService
                     $lockedBranch->code,
                 );
 
+                $paymentAttributes = $paymentReceived
+                    ? [
+                        'payment_method' => $paymentMethod !== '' ? $paymentMethod : null,
+                        'payment_reference' => $paymentReference,
+                    ]
+                    : PosSalePaymentState::pendingPaymentAttributes($paymentMethod !== '' ? $paymentMethod : null);
+
                 $sale = InventorySale::query()->create([
                     'sale_no' => 'POS-TMP-'.strtoupper(bin2hex(random_bytes(6))),
                     'idempotency_key' => $idempotencyKey,
@@ -164,8 +180,8 @@ class PosSaleService
                     'discount' => $headerDiscount,
                     'tax' => 0,
                     'total' => 0,
-                    'payment_method' => $paymentMethod,
-                    'payment_reference' => $paymentReference,
+                    'payment_method' => $paymentAttributes['payment_method'],
+                    'payment_reference' => $paymentAttributes['payment_reference'],
                     'finance_handoff_status' => InventoryFinanceHandoffStatus::Pending,
                     'notes' => $notes,
                     'created_by' => $actor->id,

@@ -16,6 +16,7 @@ use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\InventorySerialNumber;
 use App\Support\Inventory\PosAccess;
+use App\Support\Inventory\PosSalePaymentState;
 use App\Support\Inventory\PosSerialMatchEvaluator;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class CounterController extends Controller
@@ -95,7 +97,11 @@ class CounterController extends Controller
             'customer_name' => ['required', 'string', 'max:160'],
             'customer_phone' => ['required', 'string', 'max:20'],
             'customer_email' => ['nullable', 'email', 'max:160'],
-            'payment_method' => ['required', 'string', 'max:64'],
+            'payment_status' => ['nullable', Rule::in([
+                PosSalePaymentState::PAYMENT_STATUS_PAID,
+                PosSalePaymentState::PAYMENT_STATUS_PENDING,
+            ])],
+            'payment_method' => ['nullable', 'string', 'max:64'],
             'payment_reference' => ['nullable', 'string', 'max:128'],
             'receiving_bank_account_id' => ['nullable', 'integer', 'exists:finance_bank_accounts,id'],
             'discount' => ['nullable', 'numeric', 'min:0'],
@@ -121,6 +127,8 @@ class CounterController extends Controller
             'lines.*.unit_price' => ['nullable', 'numeric', 'min:0'],
             'lines.*.discount' => ['nullable', 'numeric', 'min:0'],
         ]);
+
+        $data['payment_status'] = $data['payment_status'] ?? PosSalePaymentState::PAYMENT_STATUS_PAID;
 
         $branch = InventoryBranchScope::requireBranchId($data['branch_id'], $request->user());
         $request->session()->put('pos.operating_branch_id', $branch->id);
@@ -163,7 +171,15 @@ class CounterController extends Controller
             'place_of_supply_state' => $data['place_of_supply_state'] ?? null,
         ];
 
-        if (strcasecmp(trim($data['payment_method']), 'UPI') === 0) {
+        if ($data['payment_status'] === PosSalePaymentState::PAYMENT_STATUS_PAID
+            && trim((string) ($data['payment_method'] ?? '')) === '') {
+            throw ValidationException::withMessages([
+                'payment_method' => 'Select a payment method for paid sales.',
+            ]);
+        }
+
+        if ($data['payment_status'] === PosSalePaymentState::PAYMENT_STATUS_PAID
+            && strcasecmp(trim((string) ($data['payment_method'] ?? '')), 'UPI') === 0) {
             $intent = $this->upiIntents->create(
                 branch: $branch,
                 customer: $customer,
@@ -181,21 +197,28 @@ class CounterController extends Controller
                 ->with('status', 'UPI payment created. The QR is an instruction only — it is not payment confirmation.');
         }
 
+        $paymentReceived = $data['payment_status'] === PosSalePaymentState::PAYMENT_STATUS_PAID;
+
         $sale = $this->sales->completeSale(
             branch: $branch,
             customer: $customer,
             lines: $lines,
-            paymentMethod: $data['payment_method'],
+            paymentMethod: (string) ($data['payment_method'] ?? ''),
             actor: $request->user(),
             headerDiscount: (float) ($data['discount'] ?? 0),
             shippingAmount: (float) ($data['shipping_amount'] ?? 0),
-            paymentReference: $data['payment_reference'] ?? null,
+            paymentReference: $paymentReceived ? ($data['payment_reference'] ?? null) : null,
             notes: $data['notes'] ?? null,
             idempotencyKey: $data['idempotency_key'] ?? null,
             statutory: $statutory,
+            paymentReceived: $paymentReceived,
         );
 
-        return redirect()->route('pos.sales.show', $sale)->with('status', 'Sale '.$sale->sale_no.' completed.');
+        $message = $paymentReceived
+            ? 'Sale '.$sale->sale_no.' completed.'
+            : 'Sale '.$sale->sale_no.' completed. Payment is pending — record the actual payment in Finance when received.';
+
+        return redirect()->route('pos.sales.show', $sale)->with('status', $message);
     }
 
     public function searchProducts(Request $request): JsonResponse

@@ -38,7 +38,16 @@
                         <div>{{ $sale->billing_address ?: 'No billing address captured' }}</div>
                         <div class="text-muted">Finance Hub issues the GST invoice later. This sale did not mint one.</div>
                     </div>
-                    <div class="mt-2 small text-muted">{{ $sale->branch?->name }} · {{ $sale->payment_method }}</div>
+                    <div class="mt-2 small text-muted">{{ $sale->branch?->name }}
+                        @if(\App\Support\Inventory\PosSalePaymentState::displaysAsPaymentPending($sale))
+                            · Payment pending
+                            @if($sale->payment_method)
+                                · Expected {{ $sale->payment_method }}
+                            @endif
+                        @else
+                            · {{ $sale->payment_method }}
+                        @endif
+                    </div>
                     @if($sale->upiIntent)
                         <div class="small mt-2">
                             UPI {{ $sale->upiIntent->public_ref }}
@@ -47,7 +56,7 @@
                                 · UTR {{ $sale->payment_reference }}
                             @endif
                         </div>
-                    @elseif($sale->payment_reference)
+                    @elseif($sale->payment_reference && ! \App\Support\Inventory\PosSalePaymentState::displaysAsPaymentPending($sale))
                         <div class="small text-muted">Ref {{ $sale->payment_reference }}</div>
                     @endif
                 </div>

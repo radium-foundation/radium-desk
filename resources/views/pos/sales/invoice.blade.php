@@ -72,7 +72,16 @@
         <div>Discount {{ number_format((float) $sale->discount, 2) }}</div>
         <div>Tax {{ number_format((float) $sale->tax, 2) }}</div>
         <div><strong>Total {{ number_format((float) $sale->total, 2) }}</strong></div>
-        <div class="muted">Paid by {{ $sale->payment_method }}</div>
+        <div class="muted">
+            @if(\App\Support\Inventory\PosSalePaymentState::displaysAsPaymentPending($sale))
+                Payment pending
+                @if($sale->payment_method)
+                    · Expected {{ $sale->payment_method }}
+                @endif
+            @else
+                Paid by {{ $sale->payment_method }}
+            @endif
+        </div>
         @if($sale->upiIntent)
             <div class="muted">
                 UPI {{ $sale->upiIntent->public_ref }}
@@ -81,7 +90,7 @@
                     · UTR {{ $sale->payment_reference }}
                 @endif
             </div>
-        @elseif($sale->payment_reference)
+        @elseif($sale->payment_reference && ! \App\Support\Inventory\PosSalePaymentState::displaysAsPaymentPending($sale))
             <div class="muted">Ref {{ $sale->payment_reference }}</div>
         @endif
     </div>

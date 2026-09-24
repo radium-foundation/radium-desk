@@ -6,6 +6,7 @@ use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoicePaymentStatus;
 use App\Models\PaymentAllocation;
 use App\Models\StatutoryInvoice;
+use App\Support\Inventory\PosSalePaymentState;
 use App\Services\ServicePos\ServicePaymentService;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePaymentSummary;
 
@@ -65,6 +66,15 @@ final class StatutoryInvoicePaymentReadService
         $reconciliationStatus = $this->reconciliation->reconciliationStatus($invoice);
         $reconciliationRecord = $invoice->paymentReconciliation;
         $reconciliationRequired = $reconciliationStatus?->value === 'required';
+        $posPaymentPending = PosSalePaymentState::isPaymentPending($invoice->inventorySale)
+            && $amountReceived <= 0.001;
+        $posExpectedPaymentMethod = $posPaymentPending
+            ? $this->nullableString($invoice->inventorySale?->payment_method)
+            : null;
+        $posTenderMethod = $this->nullableString($invoice->payment_method) ?? $posExpectedPaymentMethod;
+        $posTenderReference = $posPaymentPending
+            ? null
+            : $this->nullableString($invoice->payment_reference);
 
         if (! $this->usesAllocationBackedPaymentEvidence($invoice)) {
             return new StatutoryInvoicePaymentSummary(
@@ -73,8 +83,8 @@ final class StatutoryInvoicePaymentReadService
                 invoiceValue: $invoiceValue,
                 amountReceived: $amountReceived,
                 amountOutstanding: $amountOutstanding,
-                posTenderMethod: $this->nullableString($invoice->payment_method),
-                posTenderReference: $this->nullableString($invoice->payment_reference),
+                posTenderMethod: $posTenderMethod,
+                posTenderReference: $posTenderReference,
                 latestPaymentMethod: $this->nullableString($invoice->payment_method),
                 latestPaymentDate: $invoice->issued_at?->toDateString(),
                 latestReference: $this->nullableString($invoice->payment_reference),
@@ -85,6 +95,8 @@ final class StatutoryInvoicePaymentReadService
                 reconciliationRequired: $reconciliationRequired,
                 historicalPosInvoice: $historicalPosInvoice,
                 reconciliationRecord: $reconciliationRecord,
+                posPaymentPending: $posPaymentPending,
+                posExpectedPaymentMethod: $posExpectedPaymentMethod,
             );
         }
 
@@ -94,8 +106,8 @@ final class StatutoryInvoicePaymentReadService
             invoiceValue: $invoiceValue,
             amountReceived: $amountReceived,
             amountOutstanding: $amountOutstanding,
-            posTenderMethod: $this->nullableString($invoice->payment_method),
-            posTenderReference: $this->nullableString($invoice->payment_reference),
+            posTenderMethod: $posTenderMethod,
+            posTenderReference: $posTenderReference,
             latestPaymentMethod: $this->nullableString($latestPayment?->method),
             latestPaymentDate: $latestPayment?->payment_date?->toDateString(),
             latestBankName: $this->nullableString($latestPayment?->bank_name),
@@ -108,6 +120,8 @@ final class StatutoryInvoicePaymentReadService
             reconciliationRequired: $reconciliationRequired,
             historicalPosInvoice: $historicalPosInvoice,
             reconciliationRecord: $reconciliationRecord,
+            posPaymentPending: $posPaymentPending,
+            posExpectedPaymentMethod: $posExpectedPaymentMethod,
         );
     }
 
