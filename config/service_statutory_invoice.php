@@ -1,0 +1,35 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Service statutory invoice mint retry
+    |--------------------------------------------------------------------------
+    |
+    | Workflow triggers (reference assign, case close, customer-waiting auto-close)
+    | attempt immediate mint via StatutoryInvoiceService. On retryable failure the
+    | mint is enqueued to outbox_events (statutory.invoice.service_mint).
+    |
+    */
+    'mint_retry' => [
+        'enabled' => filter_var(env('SERVICE_STATUTORY_INVOICE_MINT_RETRY_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reconciliation safety net
+    |--------------------------------------------------------------------------
+    |
+    | Periodically scans workflow-completed online service commerce orders that
+    | are mint-eligible but still lack a statutory invoice, then attempts mint
+    | through the same idempotent issuance coordinator.
+    |
+    */
+    'reconciliation' => [
+        'enabled' => filter_var(env('SERVICE_STATUTORY_INVOICE_RECONCILIATION_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'schedule_interval_minutes' => max(5, (int) env('SERVICE_STATUTORY_INVOICE_RECONCILIATION_INTERVAL_MINUTES', 15)),
+        'batch_limit' => max(1, (int) env('SERVICE_STATUTORY_INVOICE_RECONCILIATION_BATCH_LIMIT', 100)),
+    ],
+
+];

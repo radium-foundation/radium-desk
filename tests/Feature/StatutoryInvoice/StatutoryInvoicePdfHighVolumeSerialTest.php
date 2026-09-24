@@ -31,7 +31,7 @@ class StatutoryInvoicePdfHighVolumeSerialTest extends TestCase
 
         $this->assertOptionBWithAnnexure($binary, $serials);
         $this->assertStringContainsString('ANNEXURE A', $text);
-        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $text);
+        $this->assertStringContainsString('Complete list of Serial Numbers provided in Annexure A.', $text);
         $this->assertGreaterThanOrEqual(2, $this->pdfPageCount($binary));
         $this->assertStringContainsString('Rs.11800.00', $text);
         $this->assertStringContainsString('Rs.1800.00', $text);

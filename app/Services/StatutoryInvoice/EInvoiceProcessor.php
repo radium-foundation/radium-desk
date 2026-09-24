@@ -502,8 +502,9 @@ class EInvoiceProcessor
     {
         try {
             $this->documents->finalizeAfterIrn($invoice->fresh(['items', 'eInvoiceRecord', 'document']) ?? $invoice);
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
             // IRN persistence must not roll back because PDF rewrite failed.
+            report($exception);
         }
     }
 

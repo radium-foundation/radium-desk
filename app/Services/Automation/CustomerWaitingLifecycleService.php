@@ -8,6 +8,7 @@ use App\Data\NotificationMessage;
 use App\Enums\IncidentStatus;
 use App\Enums\NotificationType;
 use App\Enums\ServiceCaseCloseExceptionReason;
+use App\Enums\StatutoryInvoice\ServiceStatutoryInvoiceMintTrigger;
 use App\Enums\WaitingReason;
 use App\Enums\WhatsAppTemplate;
 use App\Enums\WhatsAppTemplateTriggerSource;
@@ -297,7 +298,11 @@ TEXT;
             $order = $closed?->order;
             if ($order instanceof Order) {
                 app(ServiceStatutoryInvoiceIssuer::class)
-                    ->issueAfterWorkflowCommit($order, $actor);
+                    ->issueAfterWorkflowCommit(
+                        $order,
+                        $actor,
+                        ServiceStatutoryInvoiceMintTrigger::CustomerWaitingAutoClose,
+                    );
             }
 
             if ($shouldNotify) {

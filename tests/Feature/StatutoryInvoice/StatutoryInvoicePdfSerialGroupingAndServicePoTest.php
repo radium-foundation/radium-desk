@@ -121,9 +121,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
             'Mantra MFS 110 L1' => $modelASerials,
             'Access FM220 USB L1' => $modelBSerials,
         ], 105);
-        $this->assertSerialsPresentInExtractedText($main, array_slice($modelASerials, 0, 10), 'Main page Model A preview');
-        $this->assertSerialsPresentInExtractedText($main, $modelBSerials, 'Main page Model B preview');
-        $this->assertSerialsAbsentFromExtractedText($main, [$modelASerials[10]], 'Main page Model A annexure-only serial');
+        $this->assertStringContainsString(SimplePdfRenderer::ANNEXURE_NOTICE_TEXT, $main);
+        $this->assertPage1HasZeroInlineSerials($binary, array_merge($modelASerials, $modelBSerials));
     }
 
     public function test_multi_model_with_both_groups_under_ten_does_not_generate_annexure(): void
@@ -155,8 +154,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
             'Mantra MFS 110 L1' => $modelASerials,
             'Access FM220 USB L1' => $modelBSerials,
         ], 105);
-        $this->assertSerialsPresentInExtractedText($main, array_slice($modelASerials, 0, 10), 'Main page Model A preview');
-        $this->assertSerialsPresentInExtractedText($main, $modelBSerials, 'Main page Model B preview');
+        $this->assertStringContainsString(SimplePdfRenderer::ANNEXURE_NOTICE_TEXT, $main);
+        $this->assertPage1HasZeroInlineSerials($binary, array_merge($modelASerials, $modelBSerials));
         $this->assertMainInvoiceFooterOnFirstPage($binary);
     }
 

@@ -121,7 +121,7 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $invoice = $this->invoices->issueInvoice($fulfilment);
         $pdf = app(StatutoryDocumentService::class)->binary($invoice->document);
 
-        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $pdf);
+        $this->assertStringContainsString('Complete list of Serial Numbers provided in Annexure A.', $pdf);
         $this->assertStringContainsString('ANNEXURE A', $pdf);
         $this->assertStringContainsString($invoice->invoice_number, $pdf);
         $this->assertStringContainsString('Order ID', $pdf);
@@ -154,7 +154,7 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $invoice = $this->invoices->issueInvoice($fulfilment);
         $pdf = app(StatutoryDocumentService::class)->binary($invoice->document);
 
-        $this->assertStringContainsString('Complete serial-number list provided in Annexure A.', $pdf);
+        $this->assertStringContainsString('Complete list of Serial Numbers provided in Annexure A.', $pdf);
         $this->assertStringContainsString('Total serials', $pdf);
         $this->assertStringContainsString('200', $pdf);
         $this->assertMatchesRegularExpression('/\\/Count [2-9]\\d*/', $pdf);

@@ -26,6 +26,9 @@ use App\Services\Interakt\InteraktWebhookProcessorService;
 use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
 use App\Services\StatutoryInvoice\EInvoiceProcessor;
 use App\Services\StatutoryInvoice\EInvoiceRecoveryRequiredException;
+use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceMintOutboxWriter;
+use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceMintProcessor;
+use App\Services\StatutoryInvoice\ServiceStatutoryInvoicePermanentFailureException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -50,6 +53,7 @@ class OutboxProcessorService
         private readonly IncomingEmailProcessorService $incomingEmailProcessorService,
         private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
         private readonly EInvoiceProcessor $einvoiceProcessor,
+        private readonly ServiceStatutoryInvoiceMintProcessor $serviceStatutoryInvoiceMintProcessor,
         private readonly HardwareFulfilmentCallbackProcessor $hardwareFulfilmentCallbackProcessor,
     ) {}
 
@@ -194,6 +198,7 @@ class OutboxProcessorService
             BonvoiceWebhookOutboxWriter::EVENT_TYPE => $this->dispatchBonvoiceWebhookProcessing($event, $processedBeforeInBatch),
             IncomingEmailOutboxWriter::EVENT_TYPE => $this->dispatchIncomingEmailProcessing($event),
             EInvoiceOutboxWriter::EVENT_TYPE => $this->einvoiceProcessor->process($event),
+            ServiceStatutoryInvoiceMintOutboxWriter::EVENT_TYPE => $this->serviceStatutoryInvoiceMintProcessor->process($event),
             HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE => $this->hardwareFulfilmentCallbackProcessor->process($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
@@ -328,7 +333,8 @@ class OutboxProcessorService
         $attempts = $event->attempts;
         $message = $exception->getMessage();
 
-        if ($exception instanceof HardwareFulfilmentCallbackNonRetryableException) {
+        if ($exception instanceof HardwareFulfilmentCallbackNonRetryableException
+            || $exception instanceof ServiceStatutoryInvoicePermanentFailureException) {
             $event->update([
                 'status' => OutboxEventStatus::Failed,
                 'last_error' => $message,
