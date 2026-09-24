@@ -126,6 +126,35 @@ class PlatformIdentityTest extends TestCase
         $response->assertDontSee('<h1 class="h4 fw-bold text-primary mb-1">', false);
     }
 
+    public function test_login_page_does_not_expose_release_metadata(): void
+    {
+        $versionService = app(VersionService::class);
+        $changelogService = app(ChangelogService::class);
+        $changelogEntries = $changelogService->currentReleaseEntries();
+
+        $response = $this->get(route('login'));
+
+        $response->assertOk();
+        $response->assertDontSee('id="whatsNewModal"', false);
+        $response->assertDontSee("What's New", false);
+        $response->assertDontSee('data-bs-target="#whatsNewModal"', false);
+        $response->assertDontSee('app-version-footer', false);
+        $response->assertDontSee($versionService->applicationLabel(), false);
+        $response->assertDontSee('Build abc1234', false);
+        $response->assertDontSee(route('changelog.index'), false);
+
+        if ($changelogEntries !== []) {
+            $response->assertDontSee($changelogEntries[0]['title'], false);
+        }
+    }
+
+    public function test_changelog_page_redirects_guests_to_login(): void
+    {
+        $response = $this->get(route('changelog.index'));
+
+        $response->assertRedirect(route('login'));
+    }
+
     public function test_changelog_page_is_accessible_and_renders_entries(): void
     {
         $user = User::factory()->create([

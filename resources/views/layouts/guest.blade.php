@@ -30,11 +30,5 @@
             @yield('content')
         </div>
     </div>
-
-    @include('layouts.partials.whats-new-modal')
-
-    <div class="position-fixed bottom-0 start-0 end-0 text-center pb-3">
-        @include('layouts.partials.version-footer')
-    </div>
 </body>
 </html>
