@@ -129,7 +129,7 @@
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label" for="billing_address">Billing address</label>
-                                    <textarea name="billing_address" id="billing_address" class="form-control" rows="2" maxlength="1000">{{ old('billing_address') }}</textarea>
+                                    <textarea name="billing_address" id="billing_address" class="form-control" rows="2" maxlength="1000">{{ old('billing_address', $defaultBillingAddress) }}</textarea>
                                     @error('billing_address')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="mb-2">
@@ -157,7 +157,7 @@
                                     <select name="place_of_supply_state" id="place_of_supply_state" class="form-select">
                                         <option value="">Select state (required later for GST invoice)</option>
                                         @foreach($placeOfSupplyStates as $state)
-                                            <option value="{{ $state }}" @selected(old('place_of_supply_state') === $state)>{{ $state }}</option>
+                                            <option value="{{ $state }}" @selected(old('place_of_supply_state', $defaultPlaceOfSupplyState) === $state)>{{ $state }}</option>
                                         @endforeach
                                     </select>
                                     @error('place_of_supply_state')<div class="text-danger small">{{ $message }}</div>@enderror
@@ -172,44 +172,14 @@
                         <div class="card border-0 shadow-sm mb-3">
                             <div class="card-body">
                                 <h2 class="h5">Payment</h2>
-                                <fieldset class="mb-3">
-                                    <legend class="form-label mb-2">Payment status</legend>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="payment_status" id="payment_status_paid" value="paid" @checked(old('payment_status', 'paid') === 'paid') required>
-                                        <label class="form-check-label" for="payment_status_paid">Paid</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="payment_status" id="payment_status_pending" value="pending" @checked(old('payment_status') === 'pending')>
-                                        <label class="form-check-label" for="payment_status_pending">Unpaid / Payment pending</label>
-                                    </div>
-                                    @error('payment_status')<div class="text-danger small">{{ $message }}</div>@enderror
-                                    <p class="small text-muted mb-0 mt-2">Choose unpaid when the customer has not paid yet. Expected method is optional and does not create a Finance payment.</p>
-                                </fieldset>
-                                <div class="mb-2" id="expected-payment-method-wrap">
-                                    <label class="form-label" for="payment_method" id="payment_method_label">Payment method</label>
-                                    <select name="payment_method" id="payment_method" class="form-select">
-                                        <option value="">Select method</option>
-                                        @foreach($paymentMethods as $method)
-                                            <option value="{{ $method }}" @selected(old('payment_method') === $method)>{{ $method }}</option>
+                                <div class="mb-2">
+                                    <label class="form-label" for="payment_method">Payment method</label>
+                                    <select name="payment_method" id="payment_method" class="form-select" required>
+                                        @foreach($posPaymentMethods as $method)
+                                            <option value="{{ $method }}" @selected(old('payment_method', \App\Http\Controllers\Pos\CounterController::POS_PAYMENT_METHOD_UNPAID) === $method)>{{ $method }}</option>
                                         @endforeach
                                     </select>
                                     @error('payment_method')<div class="text-danger small">{{ $message }}</div>@enderror
-                                </div>
-                                <div class="mb-2" id="upi-receiving-account-wrap" hidden>
-                                    <label class="form-label" for="receiving_bank_account_id">Receiving bank account</label>
-                                    <select name="receiving_bank_account_id" id="receiving_bank_account_id" class="form-select">
-                                        <option value="">Select account</option>
-                                        @foreach($upiReceivingAccounts as $account)
-                                            <option value="{{ $account->id }}" @selected((string) old('receiving_bank_account_id') === (string) $account->id)>
-                                                {{ $account->bank_name }} · {{ $account->last_four }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                    <p class="small text-muted mb-0 mt-1">UPI creates an unpaid intent and a local QR. It does not complete the sale.</p>
-                                    @if($upiReceivingAccounts->isEmpty())
-                                        <p class="small text-danger mb-0">No UPI-enabled receiving accounts are configured yet.</p>
-                                    @endif
-                                    @error('receiving_bank_account_id')<div class="text-danger small">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="mb-2" id="payment-reference-wrap">
                                     <label class="form-label" for="payment_reference">Reference</label>
@@ -250,6 +220,24 @@
                     </div>
                 </div>
             </form>
+
+            <div class="modal fade" id="pos-unpaid-confirm-modal" tabindex="-1" aria-labelledby="pos-unpaid-confirm-modal-label" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title h5" id="pos-unpaid-confirm-modal-label">Payment not received</h2>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-0">This sale will be completed as Unpaid. No payment will be recorded.</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="pos-unpaid-confirm-submit">Complete as Unpaid</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         @endif
     @endif
 @endsection
@@ -297,40 +285,35 @@
                 const form = document.getElementById('pos-counter-form');
                 const completeButton = document.getElementById('pos-complete');
                 const paymentMethod = document.getElementById('payment_method');
-                const paymentMethodLabel = document.getElementById('payment_method_label');
-                const paymentStatusPaid = document.getElementById('payment_status_paid');
-                const paymentStatusPending = document.getElementById('payment_status_pending');
-                const upiAccountWrap = document.getElementById('upi-receiving-account-wrap');
-                const upiAccount = document.getElementById('receiving_bank_account_id');
                 const paymentReferenceWrap = document.getElementById('payment-reference-wrap');
+                const paymentReference = document.getElementById('payment_reference');
+                const unpaidConfirmModalEl = document.getElementById('pos-unpaid-confirm-modal');
+                const unpaidConfirmSubmit = document.getElementById('pos-unpaid-confirm-submit');
+                const paymentMethodUnpaidValue = @json(\App\Http\Controllers\Pos\CounterController::POS_PAYMENT_METHOD_UNPAID);
+                let unpaidSubmitConfirmed = false;
 
                 function isPaymentPending() {
-                    return paymentStatusPending && paymentStatusPending.checked;
-                }
-
-                function syncPaymentStatus() {
-                    const pending = isPaymentPending();
-                    paymentMethod.required = !pending;
-                    paymentReferenceWrap.hidden = pending || (paymentMethod.value || '').toUpperCase() === 'UPI';
-                    upiAccountWrap.hidden = pending || (paymentMethod.value || '').toUpperCase() !== 'UPI';
-                    upiAccount.required = !pending && (paymentMethod.value || '').toUpperCase() === 'UPI';
-                    paymentMethodLabel.textContent = pending ? 'Expected payment method (optional)' : 'Payment method';
-                    completeButton.textContent = pending
-                        ? 'Complete sale (payment pending)'
-                        : ((paymentMethod.value || '').toUpperCase() === 'UPI' ? 'Create UPI QR' : 'Complete sale');
+                    return paymentMethod && paymentMethod.value === paymentMethodUnpaidValue;
                 }
 
                 function syncPaymentMethod() {
-                    syncPaymentStatus();
+                    const pending = isPaymentPending();
+                    paymentReferenceWrap.hidden = pending;
+                    if (pending && paymentReference) {
+                        paymentReference.value = '';
+                    }
+                    if (completeButton) {
+                        completeButton.textContent = 'Complete sale';
+                    }
                 }
-                if (paymentStatusPaid) {
-                    paymentStatusPaid.addEventListener('change', syncPaymentStatus);
+
+                if (paymentMethod) {
+                    paymentMethod.addEventListener('change', function () {
+                        unpaidSubmitConfirmed = false;
+                        syncPaymentMethod();
+                    });
                 }
-                if (paymentStatusPending) {
-                    paymentStatusPending.addEventListener('change', syncPaymentStatus);
-                }
-                paymentMethod.addEventListener('change', syncPaymentMethod);
-                syncPaymentStatus();
+                syncPaymentMethod();
 
                 const buyerGstin = document.getElementById('buyer_gstin');
                 const billingState = document.getElementById('billing_state');
@@ -1003,11 +986,41 @@
                     }, true);
                 }
 
+                if (unpaidConfirmSubmit && unpaidConfirmModalEl) {
+                    unpaidConfirmSubmit.addEventListener('click', function () {
+                        unpaidSubmitConfirmed = true;
+                        const modal = window.bootstrap?.Modal.getInstance(unpaidConfirmModalEl);
+                        if (modal) {
+                            modal.hide();
+                        }
+                        if (typeof form.requestSubmit === 'function') {
+                            form.requestSubmit();
+                        } else {
+                            form.submit();
+                        }
+                    });
+                }
+
                 form.addEventListener('submit', function (event) {
                     syncFields();
                     if (!cart.length) {
                         event.preventDefault();
                         alert('Add at least one item to the cart.');
+                        return;
+                    }
+                    if (isPaymentPending() && !unpaidSubmitConfirmed) {
+                        event.preventDefault();
+                        submitting = false;
+                        form.dataset.submitting = '0';
+                        if (completeButton) {
+                            completeButton.disabled = false;
+                            completeButton.removeAttribute('aria-busy');
+                            completeButton.textContent = 'Complete sale';
+                        }
+                        const modal = window.bootstrap?.Modal.getOrCreateInstance(unpaidConfirmModalEl);
+                        if (modal) {
+                            modal.show();
+                        }
                         return;
                     }
                     if (submitting || form.dataset.submitting === '1') {

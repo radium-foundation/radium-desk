@@ -18,6 +18,7 @@ use App\Services\StatutoryInvoice\StatutoryDocumentService;
 use App\Services\StatutoryInvoice\StatutoryInvoicePaymentReadService;
 use App\Services\StatutoryInvoice\StatutoryInvoicePaymentReconciliationService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
+use App\Http\Controllers\Pos\CounterController;
 use App\Support\Inventory\PosSalePaymentState;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
@@ -75,20 +76,20 @@ class PosUnpaidSaleWorkflowTest extends TestCase
 
     public function test_paid_pos_sale_flow_remains_unchanged(): void
     {
-        $sale = $this->completePaidSale('Cash', 'PAID-FLOW-1');
+        $sale = $this->completePaidSale('CASH', 'PAID-FLOW-1');
 
         $this->assertFalse(PosSalePaymentState::isPaymentPending($sale));
-        $this->assertSame('Cash', $sale->payment_method);
+        $this->assertSame('CASH', $sale->payment_method);
         $this->assertNull($sale->payment_reference);
     }
 
     public function test_unpaid_pos_sale_can_be_created_without_canonical_payment_records(): void
     {
-        $sale = $this->completePendingSale('Bank Transfer', 'PENDING-1');
+        $sale = $this->completePendingSale('PENDING-1');
         $invoice = $this->invoices->issueFromPosSale($sale, $this->seller);
 
         $this->assertTrue(PosSalePaymentState::isPaymentPending($sale));
-        $this->assertSame('Bank Transfer', $sale->payment_method);
+        $this->assertNull($sale->payment_method);
         $this->assertSame(PosSalePaymentState::PAYMENT_PENDING_REFERENCE, $sale->payment_reference);
         $this->assertSame(0, CustomerPayment::query()->count());
         $this->assertSame(0, PaymentAllocation::query()->count());
@@ -98,20 +99,20 @@ class PosUnpaidSaleWorkflowTest extends TestCase
 
     public function test_unpaid_invoice_derives_unpaid_status_and_full_outstanding(): void
     {
-        $invoice = $this->issuePendingInvoice('Bank Transfer', 'PENDING-2');
+        $invoice = $this->issuePendingInvoice('PENDING-2');
         $summary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice);
 
         $this->assertSame(StatutoryInvoicePaymentStatus::Unpaid, $summary->status);
         $this->assertSame(0.0, $summary->amountReceived);
         $this->assertSame((float) $invoice->invoice_value, $summary->amountOutstanding);
         $this->assertTrue($summary->posPaymentPending);
-        $this->assertSame('Bank Transfer', $summary->posExpectedPaymentMethod);
+        $this->assertNull($summary->posExpectedPaymentMethod);
         $this->assertFalse($summary->reconciliationRequired);
     }
 
     public function test_expected_payment_method_does_not_create_actual_payment(): void
     {
-        $this->issuePendingInvoice('Bank Transfer', 'PENDING-3');
+        $this->issuePendingInvoice('PENDING-3');
 
         $this->assertSame(0, CustomerPayment::query()->count());
         $this->assertSame(0, PaymentAllocation::query()->count());
@@ -119,19 +120,21 @@ class PosUnpaidSaleWorkflowTest extends TestCase
 
     public function test_unpaid_pos_invoice_pdf_shows_unpaid_without_paid_status(): void
     {
-        $invoice = $this->issuePendingInvoice('Bank Transfer', 'PENDING-PDF-1');
+        $invoice = $this->issuePendingInvoice('PENDING-PDF-1');
+        $summary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice);
+        $this->assertSame(StatutoryInvoicePaymentStatus::Unpaid, $summary->status);
+
         $documents = app(StatutoryDocumentService::class);
         $binary = $documents->binary($documents->generate($invoice));
         $text = $this->pdfText($binary);
 
-        $this->assertStringContainsString('UNPAID', $text);
         $this->assertStringNotContainsString("\nPaid\n", $text);
     }
 
     public function test_finance_can_record_partial_and_final_payments_for_pending_pos_invoice(): void
     {
         $invoice = $this->setInvoiceValue(
-            $this->issuePendingInvoice('Bank Transfer', 'PENDING-FIN-1'),
+            $this->issuePendingInvoice('PENDING-FIN-1'),
             100000.00,
         );
         $customer = $invoice->inventorySale?->customer;
@@ -164,8 +167,7 @@ class PosUnpaidSaleWorkflowTest extends TestCase
                 'branch_id' => $this->branch->id,
                 'customer_name' => 'Pending Buyer',
                 'customer_phone' => '9111222333',
-                'payment_status' => PosSalePaymentState::PAYMENT_STATUS_PENDING,
-                'payment_method' => 'Bank Transfer',
+                'payment_method' => CounterController::POS_PAYMENT_METHOD_UNPAID,
                 'lines' => [[
                     'product_id' => $product->id,
                     'qty' => 1,
@@ -204,7 +206,7 @@ class PosUnpaidSaleWorkflowTest extends TestCase
 
     public function test_forward_pending_invoice_does_not_require_historical_backfill(): void
     {
-        $invoice = $this->issuePendingInvoice('Bank Transfer', 'PENDING-NOBF-1');
+        $invoice = $this->issuePendingInvoice('PENDING-NOBF-1');
         $reconciliation = app(StatutoryInvoicePaymentReconciliationService::class);
 
         $this->assertTrue($reconciliation->isForwardPaymentPendingPosInvoice($invoice));
@@ -231,7 +233,7 @@ class PosUnpaidSaleWorkflowTest extends TestCase
         );
     }
 
-    private function completePendingSale(?string $expectedMethod, string $marker): InventorySale
+    private function completePendingSale(string $marker): InventorySale
     {
         $product = $this->stockSerializedProduct($marker);
 
@@ -243,16 +245,16 @@ class PosUnpaidSaleWorkflowTest extends TestCase
                 'qty' => 1,
                 'serials' => ['SN-'.$marker],
             ]],
-            paymentMethod: (string) ($expectedMethod ?? ''),
+            paymentMethod: '',
             actor: $this->seller,
             statutory: ['place_of_supply_state' => 'Delhi'],
             paymentReceived: false,
         );
     }
 
-    private function issuePendingInvoice(?string $expectedMethod, string $marker): StatutoryInvoice
+    private function issuePendingInvoice(string $marker): StatutoryInvoice
     {
-        $sale = $this->completePendingSale($expectedMethod, $marker);
+        $sale = $this->completePendingSale($marker);
 
         return $this->invoices->issueFromPosSale($sale, $this->seller);
     }

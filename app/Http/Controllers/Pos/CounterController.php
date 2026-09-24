@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Pos;
 
 use App\Enums\InventorySerialStatus;
 use App\Http\Controllers\Controller;
-use App\Models\FinancePaymentMethod;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
@@ -12,6 +11,7 @@ use App\Models\InventoryStockBalance;
 use App\Services\Inventory\PosSaleService;
 use App\Services\Pos\PosUpiIntentService;
 use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Services\StatutoryInvoice\StatutoryLocationSeries;
 use App\Support\Finance\IndianStates;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\InventorySerialNumber;
@@ -30,6 +30,17 @@ use Illuminate\View\View;
 
 class CounterController extends Controller
 {
+    public const POS_PAYMENT_METHOD_UNPAID = 'Unpaid';
+
+    /** @var list<string> */
+    public const POS_COUNTER_PAYMENT_METHODS = [
+        self::POS_PAYMENT_METHOD_UNPAID,
+        'HDFC D',
+        'HDFC M',
+        'INDUS',
+        'CASH',
+    ];
+
     public function __construct(
         private readonly PosSaleService $sales,
         private readonly PosUpiIntentService $upiIntents,
@@ -55,7 +66,9 @@ class CounterController extends Controller
         return view('pos.counter.create', [
             'branches' => $branches,
             'operatingBranch' => $operatingBranch,
-            'paymentMethods' => $this->paymentMethods(),
+            'posPaymentMethods' => self::POS_COUNTER_PAYMENT_METHODS,
+            'defaultPlaceOfSupplyState' => $this->defaultPlaceOfSupplyForBranch($operatingBranch),
+            'defaultBillingAddress' => $this->defaultBillingAddressForBranch($operatingBranch),
             'needsBranchAssignment' => InventoryBranchScope::needsAssignment($user),
             'idempotencyKey' => old('idempotency_key', (string) Str::uuid()),
             'searchProductsUrl' => route('pos.products.search'),
@@ -129,6 +142,11 @@ class CounterController extends Controller
         ]);
 
         $data['payment_status'] = $data['payment_status'] ?? PosSalePaymentState::PAYMENT_STATUS_PAID;
+        $paymentMethodInput = trim((string) ($data['payment_method'] ?? ''));
+        if ($paymentMethodInput === self::POS_PAYMENT_METHOD_UNPAID) {
+            $data['payment_status'] = PosSalePaymentState::PAYMENT_STATUS_PENDING;
+            $paymentMethodInput = '';
+        }
 
         $branch = InventoryBranchScope::requireBranchId($data['branch_id'], $request->user());
         $request->session()->put('pos.operating_branch_id', $branch->id);
@@ -172,14 +190,14 @@ class CounterController extends Controller
         ];
 
         if ($data['payment_status'] === PosSalePaymentState::PAYMENT_STATUS_PAID
-            && trim((string) ($data['payment_method'] ?? '')) === '') {
+            && $paymentMethodInput === '') {
             throw ValidationException::withMessages([
                 'payment_method' => 'Select a payment method for paid sales.',
             ]);
         }
 
         if ($data['payment_status'] === PosSalePaymentState::PAYMENT_STATUS_PAID
-            && strcasecmp(trim((string) ($data['payment_method'] ?? '')), 'UPI') === 0) {
+            && strcasecmp($paymentMethodInput, 'UPI') === 0) {
             $intent = $this->upiIntents->create(
                 branch: $branch,
                 customer: $customer,
@@ -203,7 +221,7 @@ class CounterController extends Controller
             branch: $branch,
             customer: $customer,
             lines: $lines,
-            paymentMethod: (string) ($data['payment_method'] ?? ''),
+            paymentMethod: $paymentMethodInput,
             actor: $request->user(),
             headerDiscount: (float) ($data['discount'] ?? 0),
             shippingAmount: (float) ($data['shipping_amount'] ?? 0),
@@ -416,16 +434,35 @@ class CounterController extends Controller
         return null;
     }
 
-    /**
-     * @return list<string>
-     */
-    private function paymentMethods(): array
+    private function defaultPlaceOfSupplyForBranch(?InventoryBranch $branch): ?string
     {
-        $methods = FinancePaymentMethod::query()->where('is_active', true)->ordered()->pluck('name')->all();
-        if ($methods !== []) {
-            return $methods;
+        if ($branch === null) {
+            return null;
         }
 
-        return ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'];
+        $location = app(StatutoryLocationSeries::class)->resolveFromBranchCode($branch->code);
+        if ($location === null) {
+            return null;
+        }
+
+        $state = config('statutory_invoices.location_series.locations.'.$location.'.state');
+
+        return is_string($state) && trim($state) !== '' ? trim($state) : null;
+    }
+
+    private function defaultBillingAddressForBranch(?InventoryBranch $branch): ?string
+    {
+        if ($branch === null) {
+            return null;
+        }
+
+        $location = app(StatutoryLocationSeries::class)->resolveFromBranchCode($branch->code);
+        if ($location === null) {
+            return null;
+        }
+
+        $address = config('statutory_invoices.location_series.locations.'.$location.'.address');
+
+        return is_string($address) && trim($address) !== '' ? trim($address) : null;
     }
 }
