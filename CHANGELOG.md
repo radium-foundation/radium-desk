@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.0.133 — 2026-09-24 — Statutory invoice cancellation orchestrator
+
+- Add `StatutoryInvoiceCancellationOrchestrator` as the canonical Finance/Admin cancellation entry point with idempotency, audit trail, IRN pre-check (fail-closed), and linked DeskPos inventory/finance reversal via `PosSaleService::cancelSale()`.
+- Add Finance invoice show cancel UI (`finance.invoices.cancel` permission) with mandatory reason and confirmation.
+- Add additive migration `statutory_invoice_cancellations` for cancellation persistence/idempotency.
+- Credit-note minting intentionally **not** implemented (current-release policy §23.4). WhiteBooks IRP cancellation intentionally **not** implemented (fail-closed when submitted IRN exists).
+- Preserves v4.0.132 PDF layout (A4 footer, measured serials, annexure, logo spacing), service statutory retry/reconciliation, GST guards, POS/hardware cancellation paths, and INV-0767292 presentation.
+- Regression: `StatutoryInvoiceCancellationOrchestratorTest` (14), existing cancellation/statutory suites. Prompt **RadiumDesk-P-23-09-44** / **P-23-09-45**.
+- Rollback target: v4.0.132-logo-seller-gap / `894ee39e`.
+
 ## 4.0.128 — 2026-09-23 — Zero-tax-line-safe intra-state CGST/SGST allocation
 
 - Harden `IntraStateCgstSgstRules::allocateLineHalfPaise` so invoice-level ±1 paise adjustments apply only to eligible positive-tax lines; zero-tax/zero-value lines remain exactly zero and no CGST/SGST component can become negative.
