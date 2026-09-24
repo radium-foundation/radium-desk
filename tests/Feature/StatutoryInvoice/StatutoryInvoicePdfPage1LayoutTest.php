@@ -47,12 +47,18 @@ class StatutoryInvoicePdfPage1LayoutTest extends TestCase
         );
         $this->assertStringContainsString('This is a computer-generated tax invoice.', $this->extractedPdfText($binary));
 
-        $lastSerialY = $this->pdfWordYMin($binary, '10950803');
+        $serialBottomY = $this->pdfWordYMin($binary, '10950803');
         $amountWordsY = $this->pdfWordYMin($binary, 'words');
+        $gap = $amountWordsY - $serialBottomY;
         $this->assertLessThan(
-            80.0,
-            $lastSerialY - $amountWordsY,
+            45.0,
+            $gap,
             'Closing block should follow serials without a large blank gap.',
+        );
+        $this->assertGreaterThan(
+            10.0,
+            $gap,
+            'Closing block should retain a readable gap below serials.',
         );
     }
 
