@@ -120,6 +120,51 @@
         <p class="text-muted">POS internal receipt {{ $invoice->inventorySale->invoice_number }} (not a GST number)</p>
     @endif
 
+    @if(!empty($paymentSummary))
+        <div class="card shadow-sm mb-4">
+            <div class="card-body small">
+                <h2 class="h6 mb-2">Payment record</h2>
+                <p class="mb-2">
+                    Invoice status and payment status are separate. POS checkout tender is not treated as Finance payment evidence until recorded here.
+                </p>
+                <p class="mb-1"><strong>Payment status:</strong> {{ $paymentSummary->status->label() }}</p>
+                <p class="mb-1">
+                    Invoice value ₹{{ number_format($paymentSummary->invoiceValue, 2) }}
+                    · Received ₹{{ number_format($paymentSummary->amountReceived, 2) }}
+                    · Outstanding ₹{{ number_format($paymentSummary->amountOutstanding, 2) }}
+                </p>
+                @if($paymentSummary->posTenderMethod)
+                    <p class="mb-1"><strong>POS tender at checkout:</strong> {{ $paymentSummary->posTenderMethod }}@if($paymentSummary->posTenderReference) · {{ $paymentSummary->posTenderReference }}@endif</p>
+                @endif
+                @if($paymentSummary->latestPaymentMethod)
+                    <p class="mb-1"><strong>Latest Finance payment:</strong> {{ $paymentSummary->latestPaymentMethod }} on {{ $paymentSummary->latestPaymentDate ?: '—' }}</p>
+                @endif
+                @if($paymentSummary->latestBankName || $paymentSummary->latestBankBranch || $paymentSummary->latestReference)
+                    <p class="mb-1">
+                        @if($paymentSummary->latestBankName)<strong>Bank:</strong> {{ $paymentSummary->latestBankName }} @endif
+                        @if($paymentSummary->latestBankBranch)<strong>Branch:</strong> {{ $paymentSummary->latestBankBranch }} @endif
+                        @if($paymentSummary->latestReference)<strong>Reference:</strong> {{ $paymentSummary->latestReference }}@endif
+                    </p>
+                @endif
+                @if(!empty($paymentSummary->payments))
+                    <ul class="mb-2">
+                        @foreach($paymentSummary->payments as $payment)
+                            <li>
+                                {{ $payment['payment_number'] ?? 'Payment' }} · ₹{{ number_format((float) ($payment['amount'] ?? 0), 2) }}
+                                · {{ $payment['method'] ?? '—' }}
+                                @if(!empty($payment['payment_date'])) · {{ $payment['payment_date'] }}@endif
+                                @if(!empty($payment['reference'])) · ref {{ $payment['reference'] }}@endif
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+                @if(!empty($canRecordPayment))
+                    <a href="{{ route('finance.payments.index', ['invoice_id' => $invoice->id]) }}" class="btn btn-sm btn-outline-primary">Record payment</a>
+                @endif
+            </div>
+        </div>
+    @endif
+
     <div class="table-responsive">
         <table class="table table-sm">
             <thead>

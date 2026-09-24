@@ -11,6 +11,7 @@ use App\Models\InventorySale;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceDocument;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
+use App\Services\StatutoryInvoice\Data\StatutoryInvoicePaymentSummary;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -22,6 +23,7 @@ class StatutoryDocumentService
         private readonly StatutorySellerIdentity $seller,
         private readonly HardwareFulfilmentWorkflowService $hardwareWorkflow,
         private readonly StatutoryInvoicePdfPresentationValidator $presentationValidator,
+        private readonly StatutoryInvoicePaymentReadService $paymentEvidence,
     ) {}
 
     public function generate(StatutoryInvoice $invoice): StatutoryInvoiceDocument
@@ -158,6 +160,7 @@ class StatutoryDocumentService
         $serialGroups = $this->serialGroupsForInvoice($invoice, $fulfilment);
         $serials = $this->flattenSerialGroups($serialGroups);
         $commerce = $this->commercePresentation($invoice);
+        $paymentSummary = $this->paymentEvidence->summary($invoice);
 
         return new StatutoryInvoicePdfPayload(
             invoiceNumber: (string) $invoice->invoice_number,
@@ -187,8 +190,8 @@ class StatutoryDocumentService
             ackNo: $this->issuedAckNo($invoice),
             ackDate: $this->issuedAckDate($invoice),
             shippingAddress: $commerce['shipping'],
-            paymentMethod: $this->paymentMethodFor($invoice),
-            paymentStatus: $this->paymentMethodFor($invoice) !== null ? 'Paid' : null,
+            paymentMethod: $this->paymentMethodForPayload($invoice, $paymentSummary),
+            paymentStatus: $this->paymentStatusForPayload($paymentSummary),
             signedQr: $this->issuedSignedQr($invoice),
             sellerEmail: $this->nullableString(config('statutory_invoices.contact_email')),
             sellerPhone: $this->nullableString(config('statutory_invoices.contact_phone')),
@@ -196,7 +199,7 @@ class StatutoryDocumentService
             buyerEmail: $commerce['email'],
             discount: $this->optionalMoney($invoice->discount),
             rounding: $this->optionalMoney($invoice->rounding),
-            paymentReference: $this->nullableString($invoice->payment_reference),
+            paymentReference: $this->paymentReferenceForPayload($invoice, $paymentSummary),
             orderId: $this->nullableString($invoice->source_order_id) ?? $this->nullableString($invoice->source_id),
         );
     }
@@ -226,6 +229,37 @@ class StatutoryDocumentService
         $method = trim((string) ($invoice->payment_method ?? ''));
 
         return $method !== '' ? $method : null;
+    }
+
+    private function paymentStatusForPayload(StatutoryInvoicePaymentSummary $summary): ?string
+    {
+        return $summary->status->pdfLabel();
+    }
+
+    private function paymentMethodForPayload(
+        StatutoryInvoice $invoice,
+        StatutoryInvoicePaymentSummary $summary,
+    ): ?string {
+        if ($summary->allocationBacked) {
+            if ($summary->latestPaymentMethod !== null) {
+                return $summary->latestPaymentMethod;
+            }
+
+            return $summary->posTenderMethod;
+        }
+
+        return $this->paymentMethodFor($invoice);
+    }
+
+    private function paymentReferenceForPayload(
+        StatutoryInvoice $invoice,
+        StatutoryInvoicePaymentSummary $summary,
+    ): ?string {
+        if ($summary->allocationBacked && $summary->latestReference !== null) {
+            return $summary->latestReference;
+        }
+
+        return $this->nullableString($invoice->payment_reference);
     }
 
     private function issuedSignedQr(StatutoryInvoice $invoice): ?string

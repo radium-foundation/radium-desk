@@ -186,4 +186,9 @@ class StatutoryInvoice extends Model
     {
         return $this->hasOne(StatutoryInvoiceCancellation::class, 'statutory_invoice_id');
     }
+
+    public function paymentAllocations(): HasMany
+    {
+        return $this->hasMany(PaymentAllocation::class, 'statutory_invoice_id');
+    }
 }

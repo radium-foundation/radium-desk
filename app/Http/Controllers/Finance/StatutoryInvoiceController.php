@@ -14,6 +14,7 @@ use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationEligibility;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCreditNotePolicy;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
+use App\Services\StatutoryInvoice\StatutoryInvoicePaymentReadService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceRefundReviewService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Support\Finance\CsvDownload;
@@ -106,6 +107,8 @@ class StatutoryInvoiceController extends Controller
             $refundReview = app(StatutoryInvoiceRefundReviewService::class)->snapshot($invoice);
         }
 
+        $paymentSummary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice);
+
         return view('finance.invoices.show', [
             'invoice' => $invoice,
             'canReevaluateEinvoice' => $canReevaluateEinvoice,
@@ -113,6 +116,11 @@ class StatutoryInvoiceController extends Controller
             'cancellationConsequences' => $cancellationConsequences,
             'refundReview' => $refundReview,
             'canRequestRefund' => $refundReview?->allowsExplicitRefundRequest(request()->user()) ?? false,
+            'paymentSummary' => $paymentSummary,
+            'canRecordPayment' => FinanceAccess::allowsPaymentRecord(request()->user())
+                && $paymentSummary->allocationBacked
+                && $paymentSummary->amountOutstanding > 0
+                && $invoice->status !== StatutoryInvoiceStatus::Cancelled,
         ]);
     }
 

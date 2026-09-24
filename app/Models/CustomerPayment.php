@@ -14,6 +14,8 @@ class CustomerPayment extends Model
         'amount',
         'method',
         'reference',
+        'bank_name',
+        'bank_branch',
         'payment_date',
         'notes',
         'recorded_by',

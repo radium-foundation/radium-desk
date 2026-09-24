@@ -37,7 +37,11 @@ class CustomerPaymentController extends Controller
         $invoiceId = $request->integer('invoice_id');
         $selectedInvoice = $invoiceId > 0
             ? StatutoryInvoice::query()
-                ->where('channel', StatutoryInvoiceChannel::DeskService)
+                ->whereIn('channel', [
+                    StatutoryInvoiceChannel::DeskService,
+                    StatutoryInvoiceChannel::DeskPos,
+                ])
+                ->with('inventorySale.customer')
                 ->find($invoiceId)
             : null;
 
@@ -46,20 +50,26 @@ class CustomerPaymentController extends Controller
             : null;
 
         $selectedCustomerId = null;
-        if ($selectedInvoice !== null && $selectedInvoice->buyer_phone) {
-            $selectedCustomerId = InventoryCustomer::query()
-                ->where('phone', $selectedInvoice->buyer_phone)
-                ->value('id');
+        if ($selectedInvoice !== null) {
+            $selectedCustomerId = $selectedInvoice->inventorySale?->customer_id;
+            if ($selectedCustomerId === null && $selectedInvoice->buyer_phone) {
+                $selectedCustomerId = InventoryCustomer::query()
+                    ->where('phone', $selectedInvoice->buyer_phone)
+                    ->value('id');
+            }
         }
 
-        $serviceInvoices = StatutoryInvoice::query()
-            ->where('channel', StatutoryInvoiceChannel::DeskService)
+        $payableInvoices = StatutoryInvoice::query()
+            ->whereIn('channel', [
+                StatutoryInvoiceChannel::DeskService,
+                StatutoryInvoiceChannel::DeskPos,
+            ])
             ->orderByDesc('issued_at')
-            ->limit(50)
+            ->limit(100)
             ->get();
 
         return view('finance.payments.index', [
-            'serviceInvoices' => $serviceInvoices,
+            'payableInvoices' => $payableInvoices,
             'selectedInvoice' => $selectedInvoice,
             'selectedCustomerId' => $selectedCustomerId,
             'outstanding' => $outstanding,
@@ -77,6 +87,8 @@ class CustomerPaymentController extends Controller
             'amount' => ['required', 'numeric', 'min:0.01'],
             'method' => ['required', 'string', 'max:64'],
             'reference' => ['nullable', 'string', 'max:128'],
+            'bank_name' => ['nullable', 'string', 'max:120'],
+            'bank_branch' => ['nullable', 'string', 'max:120'],
             'payment_date' => ['required', 'date'],
             'notes' => ['nullable', 'string', 'max:500'],
             'idempotency_key' => ['nullable', 'string', 'max:120'],
@@ -86,6 +98,8 @@ class CustomerPaymentController extends Controller
         $invoice = StatutoryInvoice::query()->findOrFail($data['statutory_invoice_id']);
 
         try {
+            $this->payments->assertInvoiceSupportsPaymentRecording($invoice);
+
             $payment = $this->payments->recordPayment(
                 customer: $customer,
                 amount: (float) $data['amount'],
@@ -95,6 +109,8 @@ class CustomerPaymentController extends Controller
                 reference: $data['reference'] ?? null,
                 notes: $data['notes'] ?? null,
                 idempotencyKey: $data['idempotency_key'] ?? null,
+                bankName: $data['bank_name'] ?? null,
+                bankBranch: $data['bank_branch'] ?? null,
             );
 
             $this->payments->allocatePayment(

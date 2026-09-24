@@ -21,6 +21,7 @@ final class StatutoryInvoiceRefundReviewService
     public function __construct(
         private readonly StatutoryInvoiceLinkedOrderResolver $linkedOrders,
         private readonly RefundCalculationService $calculations,
+        private readonly StatutoryInvoicePaymentReadService $paymentEvidence,
     ) {}
 
     public function snapshot(StatutoryInvoice $invoice): StatutoryInvoiceRefundReviewSnapshot
@@ -36,9 +37,17 @@ final class StatutoryInvoiceRefundReviewService
         $order = $this->linkedOrders->resolve($invoice);
         if (! $order instanceof Order) {
             if ($invoice->inventory_sale_id !== null) {
+                $paymentSummary = $this->paymentEvidence->summary($invoice);
+                $paymentMessage = $paymentSummary->wasPaid()
+                    ? 'Recorded customer payment: ₹'.number_format($paymentSummary->amountReceived, 2)
+                    .($paymentSummary->latestPaymentMethod ? ' via '.$paymentSummary->latestPaymentMethod : '')
+                    .($paymentSummary->latestReference ? ' (ref '.$paymentSummary->latestReference.')' : '')
+                    .'. Customer cash/UPI/bank refunds remain manual operations after cancellation.'
+                    : 'No Finance payment receipt is recorded for this POS sale. POS tender at checkout is not treated as Finance payment evidence. Customer refunds remain manual operations after cancellation.';
+
                 return new StatutoryInvoiceRefundReviewSnapshot(
                     status: StatutoryInvoiceRefundReviewStatus::NotApplicable,
-                    message: 'Desk POS sales do not use the service refund workflow. Customer cash/UPI refunds remain manual operations after cancellation.',
+                    message: $paymentMessage,
                     posBoundary: true,
                 );
             }

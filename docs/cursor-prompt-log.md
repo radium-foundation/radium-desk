@@ -188,5 +188,6 @@ Authoritative numbering for `RadiumDesk-P-*` IDs remains in `docs/cursor-prompt-
 | RadiumDesk-P-23-09-46 | 2026-09-24 | Production UAT — statutory invoice cancellation lifecycle (disposable test invoice) | First controlled production cancellation UAT: synthetic POS sale → statutory invoice → Finance/Admin cancel → inventory/audit/idempotency verification. **No real customer invoices/IRNs.** |
 | RadiumDesk-P-23-09-47 | 2026-09-24 | Investigation: post-cancellation Wallet/OPM refund lifecycle | Verified invoice cancel ≠ wallet/OPM refund; documented matrix and orchestrator boundaries in `docs/desk-statutory-invoice-cancellation-refund-lifecycle-p-23-09-47.md`. **No code/production payment changes.** |
 | RadiumDesk-P-23-09-48 | 2026-09-24 | Implement cancellation → refund review bridge (no auto-refund) | Owner policy: cancel ≠ refund; derived refund-review state + Finance UI; reuse existing RefundRequest workflow. **No production deploy/payment mutations.** |
+| RadiumDesk-P-23-09-49 | 2026-09-24 | POS/office hardware canonical payment receipt record | Investigate payment model + POS 6746; canonical payment facts for Finance; cancellation/refund matching prep. **No production deploy/payment mutations.** |
 
 Do not renumber or overwrite earlier rows. Append only.

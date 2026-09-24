@@ -178,7 +178,7 @@ class StatutoryInvoiceCancellationRefundReviewTest extends TestCase
             ->assertOk()
             ->assertSee('Refund status', false)
             ->assertSee('Not applicable', false)
-            ->assertSee('manual operations', false)
+            ->assertSee('No Finance payment receipt is recorded for this POS sale', false)
             ->assertDontSee('Request refund', false);
     }
 
