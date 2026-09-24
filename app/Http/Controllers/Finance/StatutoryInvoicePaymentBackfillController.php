@@ -7,6 +7,7 @@ use App\Enums\StatutoryInvoicePaymentBackfillOutcome;
 use App\Http\Controllers\Controller;
 use App\Models\StatutoryInvoice;
 use App\Services\StatutoryInvoice\StatutoryInvoicePaymentBackfillService;
+use App\Services\StatutoryInvoice\StatutoryInvoicePaymentReadService;
 use App\Support\Finance\FinanceAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,7 +26,7 @@ class StatutoryInvoicePaymentBackfillController extends Controller
 
         $outcomes = array_map(
             fn (StatutoryInvoicePaymentBackfillOutcome $outcome): string => $outcome->value,
-            StatutoryInvoicePaymentBackfillOutcome::cases(),
+            StatutoryInvoicePaymentBackfillOutcome::submissionCases(),
         );
 
         $validated = $request->validate([
@@ -34,7 +35,7 @@ class StatutoryInvoicePaymentBackfillController extends Controller
             'payment_date' => ['nullable', 'date'],
             'payment_method' => ['nullable', Rule::in(array_map(
                 fn (PosHistoricalPaymentMethod $method): string => $method->value,
-                PosHistoricalPaymentMethod::cases(),
+                PosHistoricalPaymentMethod::backfillCases(),
             ))],
             'bank_name' => ['nullable', 'string', 'max:120'],
             'bank_branch' => ['nullable', 'string', 'max:120'],
@@ -49,10 +50,12 @@ class StatutoryInvoicePaymentBackfillController extends Controller
             return back()->withErrors($exception->errors())->withInput();
         }
 
-        $message = match ($record->outcome) {
-            StatutoryInvoicePaymentBackfillOutcome::Unpaid => 'Payment reconciliation completed. Invoice remains unpaid.',
-            StatutoryInvoicePaymentBackfillOutcome::PartiallyPaid => 'Payment reconciliation completed. Partial payment recorded.',
-            StatutoryInvoicePaymentBackfillOutcome::Paid => 'Payment reconciliation completed. Invoice marked paid.',
+        $summary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice->fresh());
+
+        $message = match (true) {
+            $record->outcome === StatutoryInvoicePaymentBackfillOutcome::Unpaid => 'Payment reconciliation completed. Invoice remains unpaid.',
+            $summary->status->value === 'paid' => 'Payment reconciliation completed. Invoice marked paid.',
+            default => 'Verified historical payment recorded. Invoice remains partially paid.',
         };
 
         return redirect()

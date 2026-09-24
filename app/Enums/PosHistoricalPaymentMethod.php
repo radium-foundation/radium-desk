@@ -40,6 +40,26 @@ enum PosHistoricalPaymentMethod: string
         );
     }
 
+    /**
+     * Methods allowed for the historical POS payment backfill workflow only.
+     *
+     * @return list<self>
+     */
+    public static function backfillCases(): array
+    {
+        return [
+            self::HdfcD,
+            self::HdfcM,
+            self::Indus,
+            self::Cash,
+        ];
+    }
+
+    public function isAllowedForHistoricalBackfill(): bool
+    {
+        return in_array($this, self::backfillCases(), true);
+    }
+
     public function requiresReference(): bool
     {
         return match ($this) {

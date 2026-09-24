@@ -2,6 +2,7 @@
 
 namespace App\Services\StatutoryInvoice;
 
+use App\Enums\PosHistoricalPaymentMethod;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoicePaymentBackfillOutcome;
 use App\Enums\StatutoryInvoicePaymentReconciliationStatus;
@@ -49,6 +50,11 @@ final class StatutoryInvoicePaymentReconciliationService
             ->sum('amount'), 2);
     }
 
+    public function outstandingAmount(StatutoryInvoice $invoice): float
+    {
+        return max(0, round((float) $invoice->invoice_value, 2) - $this->allocatedAmount($invoice));
+    }
+
     public function reconciliationRecord(StatutoryInvoice $invoice): ?StatutoryInvoicePaymentReconciliation
     {
         return StatutoryInvoicePaymentReconciliation::query()
@@ -62,11 +68,13 @@ final class StatutoryInvoicePaymentReconciliationService
             return null;
         }
 
-        if ($this->reconciliationRecord($invoice) !== null) {
-            return StatutoryInvoicePaymentReconciliationStatus::Completed;
-        }
+        $record = $this->reconciliationRecord($invoice);
+        if ($record !== null && $record->isLocked()) {
+            if ($record->outcome === StatutoryInvoicePaymentBackfillOutcome::PartiallyPaid
+                && $this->outstandingAmount($invoice) > 0.001) {
+                return StatutoryInvoicePaymentReconciliationStatus::Required;
+            }
 
-        if ($this->allocatedAmount($invoice) > 0) {
             return StatutoryInvoicePaymentReconciliationStatus::Completed;
         }
 
@@ -88,11 +96,21 @@ final class StatutoryInvoicePaymentReconciliationService
             return false;
         }
 
-        if ($this->reconciliationRecord($invoice) !== null) {
+        $record = $this->reconciliationRecord($invoice);
+        if ($record !== null && $record->isLocked()) {
+            if ($record->outcome === StatutoryInvoicePaymentBackfillOutcome::Unpaid) {
+                return true;
+            }
+
+            if ($record->outcome === StatutoryInvoicePaymentBackfillOutcome::PartiallyPaid
+                && $this->outstandingAmount($invoice) > 0.001) {
+                return true;
+            }
+
             return false;
         }
 
-        return $this->allocatedAmount($invoice) <= 0;
+        return $this->outstandingAmount($invoice) > 0.001 || $record === null;
     }
 
     public function allowsAdditionalPaymentRecording(StatutoryInvoice $invoice): bool
@@ -102,11 +120,39 @@ final class StatutoryInvoicePaymentReconciliationService
             return true;
         }
 
+        if (! $record->isLocked()) {
+            return true;
+        }
+
         return $record->outcome !== StatutoryInvoicePaymentBackfillOutcome::Unpaid;
     }
 
-    public function idempotencyKey(StatutoryInvoice $invoice): string
+    public function unpaidDecisionIdempotencyKey(StatutoryInvoice $invoice): string
     {
-        return 'historical-pos-backfill:'.$invoice->id;
+        return 'historical-pos-backfill:'.$invoice->id.':unpaid';
+    }
+
+    public function paymentInstallmentIdempotencyKey(
+        StatutoryInvoice $invoice,
+        string $paymentDate,
+        float $amount,
+        PosHistoricalPaymentMethod|string $method,
+        ?string $reference,
+    ): string {
+        $methodValue = $method instanceof PosHistoricalPaymentMethod
+            ? $method->value
+            : strtolower(trim($method));
+
+        $referencePart = $reference !== null && trim($reference) !== ''
+            ? trim($reference)
+            : 'cash:'.$methodValue;
+
+        return sprintf(
+            'historical-pos-backfill:%d:payment:%s:%s:%s',
+            $invoice->id,
+            $referencePart,
+            number_format($amount, 2, '.', ''),
+            $paymentDate,
+        );
     }
 }

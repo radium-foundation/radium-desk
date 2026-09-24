@@ -128,7 +128,7 @@ class StatutoryInvoiceController extends Controller
                 && $reconciliationService->allowsAdditionalPaymentRecording($invoice),
             'canBackfillPayment' => FinanceAccess::allowsPaymentBackfill(request()->user())
                 && $reconciliationService->allowsBackfill($invoice),
-            'backfillPaymentMethods' => PosHistoricalPaymentMethod::cases(),
+            'backfillPaymentMethods' => PosHistoricalPaymentMethod::backfillCases(),
         ]);
     }
 

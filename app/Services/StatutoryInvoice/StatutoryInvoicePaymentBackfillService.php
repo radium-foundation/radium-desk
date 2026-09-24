@@ -18,6 +18,8 @@ final class StatutoryInvoicePaymentBackfillService
 {
     public const EVENT_COMPLETED = 'statutory_invoice.payment_backfill.completed';
 
+    public const EVENT_UNPAID_SUPERSEDED = 'statutory_invoice.payment_backfill.unpaid_superseded';
+
     public function __construct(
         private readonly StatutoryInvoicePaymentReconciliationService $reconciliation,
         private readonly ServicePaymentService $payments,
@@ -46,23 +48,9 @@ final class StatutoryInvoicePaymentBackfillService
         }
 
         $outcome = StatutoryInvoicePaymentBackfillOutcome::tryFrom((string) ($input['outcome'] ?? ''));
-        if ($outcome === null) {
+        if ($outcome === null || ! in_array($outcome, StatutoryInvoicePaymentBackfillOutcome::submissionCases(), true)) {
             throw ValidationException::withMessages([
                 'outcome' => 'Select a valid payment status.',
-            ]);
-        }
-
-        $idempotencyKey = $this->reconciliation->idempotencyKey($invoice);
-        $existing = StatutoryInvoicePaymentReconciliation::query()
-            ->where('statutory_invoice_id', $invoice->id)
-            ->first();
-        if ($existing !== null) {
-            if ($existing->idempotency_key === $idempotencyKey) {
-                return $existing->load(['payment', 'allocation', 'recorder']);
-            }
-
-            throw ValidationException::withMessages([
-                'invoice' => 'Historical payment reconciliation was already completed for this invoice.',
             ]);
         }
 
@@ -73,9 +61,11 @@ final class StatutoryInvoicePaymentBackfillService
         }
 
         return match ($outcome) {
-            StatutoryInvoicePaymentBackfillOutcome::Unpaid => $this->completeUnpaid($invoice, $actor, $input, $idempotencyKey),
-            StatutoryInvoicePaymentBackfillOutcome::PartiallyPaid,
-            StatutoryInvoicePaymentBackfillOutcome::Paid => $this->completeWithPayment($invoice, $actor, $input, $outcome, $idempotencyKey),
+            StatutoryInvoicePaymentBackfillOutcome::Unpaid => $this->completeUnpaid($invoice, $actor, $input),
+            StatutoryInvoicePaymentBackfillOutcome::VerifiedPayment => $this->recordVerifiedPayment($invoice, $actor, $input),
+            default => throw ValidationException::withMessages([
+                'outcome' => 'Select a valid payment status.',
+            ]),
         };
     }
 
@@ -86,10 +76,49 @@ final class StatutoryInvoicePaymentBackfillService
         StatutoryInvoice $invoice,
         User $actor,
         array $input,
-        string $idempotencyKey,
     ): StatutoryInvoicePaymentReconciliation {
-        return DB::transaction(function () use ($invoice, $actor, $input, $idempotencyKey): StatutoryInvoicePaymentReconciliation {
+        $idempotencyKey = $this->reconciliation->unpaidDecisionIdempotencyKey($invoice);
+        $existing = StatutoryInvoicePaymentReconciliation::query()
+            ->where('statutory_invoice_id', $invoice->id)
+            ->first();
+        if ($existing !== null) {
+            if ($existing->idempotency_key === $idempotencyKey && $existing->outcome === StatutoryInvoicePaymentBackfillOutcome::Unpaid) {
+                return $existing->load(['recorder']);
+            }
+
+            if ($existing->isLocked() && $existing->outcome !== StatutoryInvoicePaymentBackfillOutcome::Unpaid) {
+                throw ValidationException::withMessages([
+                    'invoice' => 'Historical payment reconciliation was already completed for this invoice.',
+                ]);
+            }
+        }
+
+        if ($this->reconciliation->allocatedAmount($invoice) > 0) {
+            throw ValidationException::withMessages([
+                'invoice' => 'Verified payments already exist for this invoice. Record additional payments instead of marking it unpaid.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($invoice, $actor, $input, $idempotencyKey, $existing): StatutoryInvoicePaymentReconciliation {
             $this->lockInvoice($invoice);
+
+            if ($existing !== null && ! $existing->isLocked()) {
+                $existing->delete();
+            }
+
+            if (StatutoryInvoicePaymentReconciliation::query()->where('statutory_invoice_id', $invoice->id)->exists()) {
+                $record = StatutoryInvoicePaymentReconciliation::query()
+                    ->where('statutory_invoice_id', $invoice->id)
+                    ->firstOrFail();
+
+                if ($record->idempotency_key === $idempotencyKey) {
+                    return $record->load(['recorder']) ?? $record;
+                }
+
+                throw ValidationException::withMessages([
+                    'invoice' => 'Historical payment reconciliation was already completed for this invoice.',
+                ]);
+            }
 
             $record = StatutoryInvoicePaymentReconciliation::query()->create([
                 'statutory_invoice_id' => $invoice->id,
@@ -112,12 +141,10 @@ final class StatutoryInvoicePaymentBackfillService
     /**
      * @param  array<string, mixed>  $input
      */
-    private function completeWithPayment(
+    private function recordVerifiedPayment(
         StatutoryInvoice $invoice,
         User $actor,
         array $input,
-        StatutoryInvoicePaymentBackfillOutcome $outcome,
-        string $idempotencyKey,
     ): StatutoryInvoicePaymentReconciliation {
         $invoice->loadMissing('inventorySale.customer');
         $customer = $invoice->inventorySale?->customer;
@@ -128,18 +155,31 @@ final class StatutoryInvoicePaymentBackfillService
         }
 
         $method = PosHistoricalPaymentMethod::tryFrom((string) ($input['payment_method'] ?? ''));
-        if ($method === null) {
+        if ($method === null || ! $method->isAllowedForHistoricalBackfill()) {
             throw ValidationException::withMessages([
-                'payment_method' => 'Select a valid payment method.',
+                'payment_method' => 'Select a valid historical payment method.',
             ]);
         }
 
         $amount = round((float) ($input['amount'] ?? 0), 2);
         $invoiceValue = round((float) $invoice->invoice_value, 2);
+        $outstanding = $this->reconciliation->outstandingAmount($invoice);
         $paymentDate = trim((string) ($input['payment_date'] ?? ''));
         if ($paymentDate === '') {
             throw ValidationException::withMessages([
                 'payment_date' => 'Payment date is required.',
+            ]);
+        }
+
+        if ($amount <= 0) {
+            throw ValidationException::withMessages([
+                'amount' => 'Verified payment amount must be greater than zero.',
+            ]);
+        }
+
+        if ($amount - $outstanding > 0.001) {
+            throw ValidationException::withMessages([
+                'amount' => 'Verified payment cannot exceed the outstanding invoice balance.',
             ]);
         }
 
@@ -149,41 +189,48 @@ final class StatutoryInvoicePaymentBackfillService
 
         $this->assertMethodFields($method, $reference, $bankName, $bankBranch);
 
-        if ($outcome === StatutoryInvoicePaymentBackfillOutcome::Paid) {
-            if (abs($amount - $invoiceValue) > 0.001) {
-                throw ValidationException::withMessages([
-                    'amount' => 'Paid reconciliation requires the verified amount to equal the invoice value.',
-                ]);
-            }
-        } elseif ($outcome === StatutoryInvoicePaymentBackfillOutcome::PartiallyPaid) {
-            if ($amount <= 0 || $amount >= $invoiceValue) {
-                throw ValidationException::withMessages([
-                    'amount' => 'Partially paid reconciliation requires an amount greater than zero and less than the invoice value.',
-                ]);
-            }
-        }
-
-        if ($amount > $invoiceValue) {
-            throw ValidationException::withMessages([
-                'amount' => 'Verified payment cannot exceed the invoice value.',
-            ]);
-        }
+        $paymentIdempotencyKey = $this->reconciliation->paymentInstallmentIdempotencyKey(
+            invoice: $invoice,
+            paymentDate: $paymentDate,
+            amount: $amount,
+            method: $method,
+            reference: $reference,
+        );
 
         return DB::transaction(function () use (
             $invoice,
             $actor,
             $input,
-            $outcome,
-            $idempotencyKey,
             $customer,
             $method,
             $amount,
+            $invoiceValue,
             $paymentDate,
             $reference,
             $bankName,
             $bankBranch,
+            $paymentIdempotencyKey,
         ): StatutoryInvoicePaymentReconciliation {
             $this->lockInvoice($invoice);
+
+            $existing = StatutoryInvoicePaymentReconciliation::query()
+                ->where('statutory_invoice_id', $invoice->id)
+                ->first();
+
+            if ($existing !== null && $existing->isLocked()) {
+                if ($existing->outcome === StatutoryInvoicePaymentBackfillOutcome::Unpaid) {
+                    $this->auditUnpaidSuperseded($actor, $invoice, $existing);
+                    $existing->delete();
+                    $existing = null;
+                } elseif ($existing->outcome === StatutoryInvoicePaymentBackfillOutcome::PartiallyPaid
+                    && $this->reconciliation->outstandingAmount($invoice) > 0.001) {
+                    // Continue recording installments against the open partial reconciliation row.
+                } else {
+                    throw ValidationException::withMessages([
+                        'invoice' => 'Historical payment reconciliation was already completed for this invoice.',
+                    ]);
+                }
+            }
 
             $payment = $this->payments->recordPayment(
                 customer: $customer,
@@ -193,7 +240,7 @@ final class StatutoryInvoicePaymentBackfillService
                 actor: $actor,
                 reference: $reference,
                 notes: $this->nullableString($input['verification_remark'] ?? null),
-                idempotencyKey: 'payment:'.$idempotencyKey,
+                idempotencyKey: 'payment:'.$paymentIdempotencyKey,
                 bankName: $bankName,
                 bankBranch: $bankBranch,
                 source: CustomerPaymentSource::HistoricalPosBackfill,
@@ -205,13 +252,18 @@ final class StatutoryInvoicePaymentBackfillService
                 invoice: $invoice,
                 amount: $amount,
                 actor: $actor,
-                idempotencyKey: 'alloc:'.$idempotencyKey,
+                idempotencyKey: 'alloc:'.$paymentIdempotencyKey,
             );
 
-            $record = StatutoryInvoicePaymentReconciliation::query()->create([
-                'statutory_invoice_id' => $invoice->id,
-                'outcome' => $outcome,
-                'verified_amount' => $amount,
+            $newAllocated = $this->reconciliation->allocatedAmount($invoice);
+            $resolvedOutcome = abs($newAllocated - $invoiceValue) <= 0.001
+                ? StatutoryInvoicePaymentBackfillOutcome::Paid
+                : StatutoryInvoicePaymentBackfillOutcome::PartiallyPaid;
+            $isComplete = $resolvedOutcome === StatutoryInvoicePaymentBackfillOutcome::Paid;
+
+            $attributes = [
+                'outcome' => $resolvedOutcome,
+                'verified_amount' => $newAllocated,
                 'payment_method' => $method->label(),
                 'payment_date' => $paymentDate,
                 'bank_name' => $bankName,
@@ -222,26 +274,32 @@ final class StatutoryInvoicePaymentBackfillService
                 'customer_payment_id' => $payment->id,
                 'payment_allocation_id' => $allocation->id,
                 'recorded_by' => $actor->id,
-                'idempotency_key' => $idempotencyKey,
+                'idempotency_key' => $paymentIdempotencyKey,
                 'completed_at' => now(),
                 'locked_at' => now(),
-            ]);
+            ];
+
+            if ($existing !== null) {
+                $existing->fill($attributes);
+                $existing->save();
+                $record = $existing->fresh(['payment', 'allocation', 'recorder']) ?? $existing;
+            } else {
+                $record = StatutoryInvoicePaymentReconciliation::query()->create(array_merge(
+                    ['statutory_invoice_id' => $invoice->id],
+                    $attributes,
+                ));
+                $record = $record->fresh(['payment', 'allocation', 'recorder']) ?? $record;
+            }
 
             $this->auditCompleted($actor, $invoice, $record, $payment->id, $allocation->id);
 
-            return $record->fresh(['payment', 'allocation', 'recorder']) ?? $record;
+            return $record;
         });
     }
 
     private function lockInvoice(StatutoryInvoice $invoice): void
     {
         StatutoryInvoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
-
-        if (StatutoryInvoicePaymentReconciliation::query()->where('statutory_invoice_id', $invoice->id)->exists()) {
-            throw ValidationException::withMessages([
-                'invoice' => 'Historical payment reconciliation was already completed for this invoice.',
-            ]);
-        }
     }
 
     private function assertMethodFields(
@@ -295,6 +353,28 @@ final class StatutoryInvoicePaymentBackfillService
                 'source' => $record->source,
                 'customer_payment_id' => $paymentId,
                 'payment_allocation_id' => $allocationId,
+                'locked_at' => $record->locked_at?->toDateTimeString(),
+            ],
+        );
+    }
+
+    private function auditUnpaidSuperseded(
+        User $actor,
+        StatutoryInvoice $invoice,
+        StatutoryInvoicePaymentReconciliation $record,
+    ): void {
+        $this->auditLogs->log(
+            userId: $actor->id,
+            event: self::EVENT_UNPAID_SUPERSEDED,
+            auditable: $record,
+            oldValues: [
+                'statutory_invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'outcome' => $record->outcome->value,
+                'verification_remark' => $record->verification_remark,
+            ],
+            newValues: [
+                'reason' => 'Verified payment evidence superseded the prior unpaid reconciliation decision.',
             ],
         );
     }

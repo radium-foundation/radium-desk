@@ -8,7 +8,8 @@
             </div>
             <div class="modal-body">
                 <p class="small text-muted mb-3">
-                    One-time Admin reconciliation for historical POS invoice {{ $invoice->invoice_number }}.
+                    Historical POS invoice {{ $invoice->invoice_number }} reconciliation.
+                    Record each verified payment separately when an invoice was paid in installments.
                     POS checkout tender is not treated as payment proof.
                 </p>
                 <div class="row small mb-3">
@@ -22,16 +23,16 @@
                     <div class="col-md-6">
                         <p class="mb-1"><strong>Invoice date:</strong> {{ $invoice->issued_at?->timezone(config('app.timezone'))->format('d M Y') ?: '—' }}</p>
                         <p class="mb-1"><strong>Invoice amount:</strong> ₹{{ number_format($paymentSummary->invoiceValue, 2) }}</p>
-                        <p class="mb-0"><strong>Current payment state:</strong> {{ $paymentSummary->status->label() }}</p>
+                        <p class="mb-1"><strong>Received so far:</strong> ₹{{ number_format($paymentSummary->amountReceived, 2) }}</p>
+                        <p class="mb-0"><strong>Outstanding:</strong> ₹{{ number_format($paymentSummary->amountOutstanding, 2) }}</p>
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label for="backfill-outcome" class="form-label">Payment status</label>
+                    <label for="backfill-outcome" class="form-label">Reconciliation action</label>
                     <select id="backfill-outcome" name="outcome" class="form-select @error('outcome') is-invalid @enderror" required>
-                        <option value="">Select outcome</option>
-                        <option value="unpaid" @selected(old('outcome') === 'unpaid')>Unpaid</option>
-                        <option value="partially_paid" @selected(old('outcome') === 'partially_paid')>Partially Paid</option>
-                        <option value="paid" @selected(old('outcome') === 'paid')>Paid</option>
+                        <option value="">Select action</option>
+                        <option value="verified_payment" @selected(old('outcome') === 'verified_payment')>Record verified payment</option>
+                        <option value="unpaid" @selected(old('outcome') === 'unpaid')>Confirm unpaid (nothing received)</option>
                     </select>
                     @error('outcome')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -41,7 +42,7 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="backfill-amount" class="form-label">Amount received</label>
-                            <input type="number" step="0.01" min="0.01" id="backfill-amount" name="amount" class="form-control @error('amount') is-invalid @enderror" value="{{ old('amount') }}">
+                            <input type="number" step="0.01" min="0.01" max="{{ number_format($paymentSummary->amountOutstanding, 2, '.', '') }}" id="backfill-amount" name="amount" class="form-control @error('amount') is-invalid @enderror" value="{{ old('amount') }}">
                             @error('amount')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -65,14 +66,14 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
-                        <div class="col-md-6" id="backfill-bank-field">
+                        <div class="col-md-6 d-none" id="backfill-bank-field">
                             <label for="backfill-bank-name" class="form-label">Bank</label>
                             <input type="text" id="backfill-bank-name" name="bank_name" class="form-control @error('bank_name') is-invalid @enderror" value="{{ old('bank_name') }}">
                             @error('bank_name')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
-                        <div class="col-md-6" id="backfill-branch-field">
+                        <div class="col-md-6 d-none" id="backfill-branch-field">
                             <label for="backfill-bank-branch" class="form-label">Branch</label>
                             <input type="text" id="backfill-bank-branch" name="bank_branch" class="form-control @error('bank_branch') is-invalid @enderror" value="{{ old('bank_branch') }}">
                             @error('bank_branch')
@@ -121,29 +122,25 @@
         const bankField = document.getElementById('backfill-bank-field');
         const branchField = document.getElementById('backfill-branch-field');
         const referenceField = document.getElementById('backfill-reference-field');
-        const invoiceValue = {{ json_encode((float) $paymentSummary->invoiceValue) }};
+        const outstanding = {{ json_encode((float) $paymentSummary->amountOutstanding) }};
 
         function syncOutcome() {
             const value = outcome.value;
-            const needsPayment = value === 'partially_paid' || value === 'paid';
+            const needsPayment = value === 'verified_payment';
             paymentFields.classList.toggle('d-none', !needsPayment);
             amount.required = needsPayment;
             method.required = needsPayment;
             document.getElementById('backfill-payment-date').required = needsPayment;
-            if (value === 'paid') {
-                amount.value = invoiceValue.toFixed(2);
-                amount.readOnly = true;
-            } else {
-                amount.readOnly = false;
+            if (needsPayment && amount.value === '') {
+                amount.value = outstanding.toFixed(2);
             }
         }
 
         function syncMethod() {
             const value = method.value;
             const isCash = value === 'cash';
-            const isOtherBank = value === 'other_bank';
-            bankField.classList.toggle('d-none', isCash || !isOtherBank);
-            branchField.classList.toggle('d-none', isCash);
+            bankField.classList.add('d-none');
+            branchField.classList.add('d-none');
             referenceField.classList.toggle('d-none', isCash);
         }
 

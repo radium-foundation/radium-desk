@@ -111,8 +111,8 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
 
         $summary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice->fresh());
         $this->assertSame(StatutoryInvoicePaymentStatus::Paid, $summary->status);
-        $this->assertSame(StatutoryInvoicePaymentReconciliationStatus::Completed, $summary->reconciliationStatus);
-        $this->assertFalse($summary->reconciliationRequired);
+        $this->assertSame(StatutoryInvoicePaymentReconciliationStatus::Required, $summary->reconciliationStatus);
+        $this->assertTrue($summary->reconciliationRequired);
     }
 
     public function test_admin_can_access_backfill_route_with_permission(): void
@@ -152,14 +152,14 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
     {
         $invoice = $this->issueHistoricalPosInvoice('Bank Transfer', 'HIST-PART-1');
 
-        $record = $this->backfill->backfill($invoice, $this->admin, $this->paidPayload(
-            outcome: 'partially_paid',
+        $record = $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
             amount: 50.00,
             method: PosHistoricalPaymentMethod::Cash,
             reference: null,
         ));
 
         $this->assertSame(StatutoryInvoicePaymentBackfillOutcome::PartiallyPaid, $record->outcome);
+        $this->assertNotNull($record->locked_at);
         $this->assertSame(1, CustomerPayment::query()->count());
         $this->assertSame(1, PaymentAllocation::query()->count());
 
@@ -167,23 +167,35 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
         $this->assertSame(StatutoryInvoicePaymentStatus::PartiallyPaid, $summary->status);
         $this->assertSame(50.00, $summary->amountReceived);
         $this->assertSame(68.00, $summary->amountOutstanding);
+        $this->assertTrue($summary->reconciliationRequired);
     }
 
     public function test_backfill_paid_creates_full_payment_and_allocation(): void
     {
         $invoice = $this->issueHistoricalPosInvoice('UPI', 'HIST-PAID-1');
 
-        $record = $this->backfill->backfill($invoice, $this->admin, $this->paidPayload(
-            outcome: 'paid',
+        $record = $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
             amount: 118.00,
-            method: PosHistoricalPaymentMethod::UpiHdfc,
-            reference: 'UPI-HDFC-001',
+            method: PosHistoricalPaymentMethod::HdfcD,
+            reference: 'UTR-HDFC-D-001',
         ));
 
         $this->assertSame(StatutoryInvoicePaymentBackfillOutcome::Paid, $record->outcome);
+        $this->assertNotNull($record->locked_at);
         $summary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice->fresh());
         $this->assertSame(StatutoryInvoicePaymentStatus::Paid, $summary->status);
         $this->assertSame(118.00, $summary->amountReceived);
+        $this->assertFalse($summary->reconciliationRequired);
+    }
+
+    public function test_historical_backfill_method_list_contains_only_allowed_methods(): void
+    {
+        $labels = array_map(
+            fn (PosHistoricalPaymentMethod $method): string => $method->label(),
+            PosHistoricalPaymentMethod::backfillCases(),
+        );
+
+        $this->assertSame(['HDFC D', 'HDFC M', 'INDUS', 'CASH'], $labels);
     }
 
     #[DataProvider('supportedHistoricalPaymentMethodProvider')]
@@ -194,15 +206,12 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
     ): void {
         $invoice = $this->issueHistoricalPosInvoice('Bank Transfer', 'METHOD-'.$method->value);
 
-        $payload = $this->paidPayload(
-            outcome: 'paid',
+        $record = $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
             amount: 118.00,
             method: $method,
             reference: $reference,
             bankName: $bankName,
-        );
-
-        $record = $this->backfill->backfill($invoice, $this->admin, $payload);
+        ));
         $this->assertSame($method->label(), $record->payment_method);
     }
 
@@ -216,45 +225,53 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
             'HDFC M' => [PosHistoricalPaymentMethod::HdfcM, 'UTR-HDFC-M-001', null],
             'INDUS' => [PosHistoricalPaymentMethod::Indus, 'UTR-INDUS-001', null],
             'CASH' => [PosHistoricalPaymentMethod::Cash, null, null],
-            'UPI - HDFC' => [PosHistoricalPaymentMethod::UpiHdfc, 'UPI-HDFC-001', null],
-            'UPI - INDUS' => [PosHistoricalPaymentMethod::UpiIndus, 'UPI-INDUS-001', null],
-            'CARD' => [PosHistoricalPaymentMethod::Card, 'CARD-TXN-001', null],
         ];
     }
 
-    public function test_other_bank_requires_bank_and_reference(): void
-    {
-        $invoice = $this->issueHistoricalPosInvoice('Bank Transfer', 'OTHER-BANK-1');
+    #[DataProvider('unsupportedHistoricalPaymentMethodProvider')]
+    public function test_unsupported_historical_payment_methods_are_rejected_server_side(
+        PosHistoricalPaymentMethod $method,
+    ): void {
+        $invoice = $this->issueHistoricalPosInvoice('Bank Transfer', 'REJECT-'.$method->value);
 
         $this->expectException(ValidationException::class);
-        $this->backfill->backfill($invoice, $this->admin, $this->paidPayload(
-            outcome: 'paid',
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
             amount: 118.00,
-            method: PosHistoricalPaymentMethod::OtherBank,
-            reference: null,
-            bankName: null,
+            method: $method,
+            reference: 'REF-'.$method->value,
         ));
     }
 
-    public function test_other_upi_requires_reference(): void
+    /**
+     * @return array<string, array{0: PosHistoricalPaymentMethod}>
+     */
+    public static function unsupportedHistoricalPaymentMethodProvider(): array
     {
-        $invoice = $this->issueHistoricalPosInvoice('UPI', 'OTHER-UPI-1');
+        return [
+            'UPI - HDFC' => [PosHistoricalPaymentMethod::UpiHdfc],
+            'UPI - INDUS' => [PosHistoricalPaymentMethod::UpiIndus],
+            'CARD' => [PosHistoricalPaymentMethod::Card],
+            'OTHER BANK' => [PosHistoricalPaymentMethod::OtherBank],
+            'OTHER UPI' => [PosHistoricalPaymentMethod::OtherUpi],
+        ];
+    }
 
-        $this->expectException(ValidationException::class);
-        $this->backfill->backfill($invoice, $this->admin, $this->paidPayload(
-            outcome: 'paid',
-            amount: 118.00,
-            method: PosHistoricalPaymentMethod::OtherUpi,
-            reference: null,
-        ));
+    public function test_general_finance_payment_method_enum_remains_unrestricted(): void
+    {
+        $labels = PosHistoricalPaymentMethod::labels();
+
+        $this->assertContains('UPI - HDFC', $labels);
+        $this->assertContains('CARD', $labels);
+        $this->assertContains('OTHER BANK', $labels);
+        $this->assertContains('OTHER UPI', $labels);
+        $this->assertCount(count(PosHistoricalPaymentMethod::cases()), $labels);
     }
 
     public function test_payment_date_is_required_for_paid_backfill(): void
     {
         $invoice = $this->issueHistoricalPosInvoice('Cash', 'NO-DATE-1');
 
-        $payload = $this->paidPayload(
-            outcome: 'paid',
+        $payload = $this->verifiedPaymentPayload(
             amount: 118.00,
             method: PosHistoricalPaymentMethod::Cash,
         );
@@ -264,27 +281,51 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
         $this->backfill->backfill($invoice, $this->admin, $payload);
     }
 
+    public function test_non_cash_installment_without_reference_is_rejected(): void
+    {
+        $invoice = $this->issueHistoricalPosInvoice('Bank Transfer', 'NO-REF-1');
+
+        $this->expectException(ValidationException::class);
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
+            amount: 118.00,
+            method: PosHistoricalPaymentMethod::HdfcD,
+            reference: null,
+        ));
+    }
+
     public function test_amount_validation_rejects_over_allocation(): void
     {
         $invoice = $this->issueHistoricalPosInvoice('Cash', 'OVER-1');
 
         $this->expectException(ValidationException::class);
-        $this->backfill->backfill($invoice, $this->admin, $this->paidPayload(
-            outcome: 'paid',
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
             amount: 999.00,
             method: PosHistoricalPaymentMethod::Cash,
         ));
     }
 
-    public function test_second_backfill_is_blocked(): void
+    public function test_verified_payment_after_unpaid_supersedes_unpaid_decision(): void
     {
-        $invoice = $this->issueHistoricalPosInvoice('Cash', 'DUP-1');
-        $first = $this->backfill->backfill($invoice, $this->admin, $this->unpaidPayload());
-        $second = $this->backfill->backfill($invoice->fresh(), $this->admin, $this->paidPayload(
-            outcome: 'paid',
+        $invoice = $this->issueHistoricalPosInvoice('Cash', 'UNPAID-CORRECT-1');
+        $this->backfill->backfill($invoice, $this->admin, $this->unpaidPayload());
+
+        $record = $this->backfill->backfill($invoice->fresh(), $this->admin, $this->verifiedPaymentPayload(
             amount: 118.00,
             method: PosHistoricalPaymentMethod::Cash,
         ));
+
+        $this->assertSame(StatutoryInvoicePaymentBackfillOutcome::Paid, $record->outcome);
+        $this->assertSame(1, CustomerPayment::query()->count());
+        $this->assertSame(1, PaymentAllocation::query()->count());
+        $summary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice->fresh());
+        $this->assertSame(StatutoryInvoicePaymentStatus::Paid, $summary->status);
+    }
+
+    public function test_duplicate_unpaid_backfill_is_idempotent(): void
+    {
+        $invoice = $this->issueHistoricalPosInvoice('Cash', 'DUP-UNPAID-1');
+        $first = $this->backfill->backfill($invoice, $this->admin, $this->unpaidPayload());
+        $second = $this->backfill->backfill($invoice->fresh(), $this->admin, $this->unpaidPayload());
 
         $this->assertSame($first->id, $second->id);
         $this->assertSame(StatutoryInvoicePaymentBackfillOutcome::Unpaid, $second->outcome);
@@ -316,11 +357,10 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
     public function test_historical_backfill_source_is_recorded_on_payment(): void
     {
         $invoice = $this->issueHistoricalPosInvoice('UPI', 'SOURCE-1');
-        $this->backfill->backfill($invoice, $this->admin, $this->paidPayload(
-            outcome: 'paid',
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
             amount: 118.00,
-            method: PosHistoricalPaymentMethod::UpiHdfc,
-            reference: 'SRC-UPI-001',
+            method: PosHistoricalPaymentMethod::HdfcD,
+            reference: 'SRC-HDFC-001',
         ));
 
         $payment = CustomerPayment::query()->first();
@@ -349,8 +389,7 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
     {
         Http::fake();
         $invoice = $this->issueHistoricalPosInvoice('Cash', 'REFUND-READ-1');
-        $this->backfill->backfill($invoice, $this->admin, $this->paidPayload(
-            outcome: 'paid',
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
             amount: 118.00,
             method: PosHistoricalPaymentMethod::Cash,
         ));
@@ -403,8 +442,7 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
         $customer = $invoice->inventorySale?->customer;
         $this->assertNotNull($customer);
 
-        $this->backfill->backfill($invoice, $this->admin, $this->paidPayload(
-            outcome: 'paid',
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
             amount: 118.00,
             method: PosHistoricalPaymentMethod::Cash,
         ));
@@ -419,25 +457,18 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
         $customer = $invoice->inventorySale?->customer;
         $this->assertNotNull($customer);
 
-        $this->backfill->backfill($invoice, $this->admin, $this->paidPayload(
-            outcome: 'partially_paid',
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
             amount: 50.00,
             method: PosHistoricalPaymentMethod::Cash,
+            reference: null,
         ));
 
-        $payment = $this->payments->recordPayment(
-            customer: $customer,
+        $this->backfill->backfill($invoice->fresh(), $this->admin, $this->verifiedPaymentPayload(
             amount: 68.00,
-            method: 'Cash',
-            paymentDate: now(),
-            actor: $this->admin,
-        );
-        $this->payments->allocatePayment(
-            payment: $payment,
-            invoice: $invoice->fresh(),
-            amount: 68.00,
-            actor: $this->admin,
-        );
+            method: PosHistoricalPaymentMethod::Cash,
+            reference: null,
+            paymentDate: '2026-09-06',
+        ));
 
         $summary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice->fresh());
         $this->assertSame(StatutoryInvoicePaymentStatus::Paid, $summary->status);
@@ -454,16 +485,44 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
             ->assertSee('Backfill payment', false);
     }
 
-    public function test_invoice_show_hides_backfill_after_completion(): void
+    public function test_invoice_show_keeps_backfill_open_after_partial_payment(): void
+    {
+        $invoice = $this->issueHistoricalPosInvoice('Cash', 'UI-PART-1');
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
+            amount: 50.00,
+            method: PosHistoricalPaymentMethod::Cash,
+        ));
+
+        $this->actingAs($this->admin)
+            ->get(route('finance.invoices.show', $invoice->fresh()))
+            ->assertOk()
+            ->assertSee('Backfill payment', false);
+    }
+
+    public function test_invoice_show_hides_backfill_after_full_payment_completion(): void
     {
         $invoice = $this->issueHistoricalPosInvoice('Cash', 'UI-DONE-1');
-        $this->backfill->backfill($invoice, $this->admin, $this->unpaidPayload());
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
+            amount: 118.00,
+            method: PosHistoricalPaymentMethod::Cash,
+        ));
 
         $this->actingAs($this->admin)
             ->get(route('finance.invoices.show', $invoice))
             ->assertOk()
             ->assertSee('Payment reconciliation completed', false)
             ->assertDontSee('Backfill payment', false);
+    }
+
+    public function test_invoice_show_keeps_backfill_after_unpaid_decision_for_correction(): void
+    {
+        $invoice = $this->issueHistoricalPosInvoice('Cash', 'UI-UNPAID-1');
+        $this->backfill->backfill($invoice, $this->admin, $this->unpaidPayload());
+
+        $this->actingAs($this->admin)
+            ->get(route('finance.invoices.show', $invoice->fresh()))
+            ->assertOk()
+            ->assertSee('Backfill payment', false);
     }
 
     public function test_pre_september_pos_invoice_does_not_require_reconciliation(): void
@@ -476,6 +535,132 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
         $summary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice->fresh());
         $this->assertNull($summary->reconciliationStatus);
         $this->assertFalse($summary->reconciliationRequired);
+    }
+
+    public function test_two_partial_payments_remain_partially_paid_with_correct_outstanding(): void
+    {
+        $invoice = $this->setInvoiceValue($this->issueHistoricalPosInvoice('Bank Transfer', 'MULTI-2'), 100000.00);
+
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
+            amount: 30000.00,
+            method: PosHistoricalPaymentMethod::HdfcD,
+            reference: 'UTR-30000-1',
+            paymentDate: '2026-09-05',
+        ));
+
+        $this->backfill->backfill($invoice->fresh(), $this->admin, $this->verifiedPaymentPayload(
+            amount: 20000.00,
+            method: PosHistoricalPaymentMethod::HdfcM,
+            reference: 'UTR-20000-2',
+            paymentDate: '2026-09-06',
+        ));
+
+        $summary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice->fresh());
+        $this->assertSame(StatutoryInvoicePaymentStatus::PartiallyPaid, $summary->status);
+        $this->assertSame(50000.00, $summary->amountReceived);
+        $this->assertSame(50000.00, $summary->amountOutstanding);
+        $this->assertSame(2, CustomerPayment::query()->count());
+        $this->assertSame(2, PaymentAllocation::query()->count());
+        $this->assertTrue($summary->reconciliationRequired);
+    }
+
+    public function test_three_installments_complete_invoice_to_paid(): void
+    {
+        $invoice = $this->setInvoiceValue($this->issueHistoricalPosInvoice('Bank Transfer', 'MULTI-3'), 100000.00);
+
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
+            amount: 30000.00,
+            method: PosHistoricalPaymentMethod::HdfcD,
+            reference: 'UTR-30K',
+            paymentDate: '2026-09-05',
+        ));
+        $this->backfill->backfill($invoice->fresh(), $this->admin, $this->verifiedPaymentPayload(
+            amount: 40000.00,
+            method: PosHistoricalPaymentMethod::HdfcM,
+            reference: 'UTR-40K',
+            paymentDate: '2026-09-06',
+        ));
+        $record = $this->backfill->backfill($invoice->fresh(), $this->admin, $this->verifiedPaymentPayload(
+            amount: 30000.00,
+            method: PosHistoricalPaymentMethod::Indus,
+            reference: 'UTR-30K-2',
+            paymentDate: '2026-09-07',
+        ));
+
+        $summary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice->fresh());
+        $this->assertSame(StatutoryInvoicePaymentBackfillOutcome::Paid, $record->outcome);
+        $this->assertNotNull($record->locked_at);
+        $this->assertSame(StatutoryInvoicePaymentStatus::Paid, $summary->status);
+        $this->assertSame(100000.00, $summary->amountReceived);
+        $this->assertSame(0.0, $summary->amountOutstanding);
+        $this->assertSame(3, CustomerPayment::query()->count());
+        $this->assertSame(3, PaymentAllocation::query()->count());
+        $this->assertFalse($summary->reconciliationRequired);
+    }
+
+    public function test_cash_installment_works_without_reference(): void
+    {
+        $invoice = $this->issueHistoricalPosInvoice('Cash', 'CASH-INST-1');
+
+        $record = $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
+            amount: 50.00,
+            method: PosHistoricalPaymentMethod::Cash,
+            reference: null,
+        ));
+
+        $this->assertSame(StatutoryInvoicePaymentBackfillOutcome::PartiallyPaid, $record->outcome);
+        $this->assertNull($record->reference);
+    }
+
+    public function test_duplicate_reference_is_rejected_for_second_payment(): void
+    {
+        $invoice = $this->setInvoiceValue($this->issueHistoricalPosInvoice('Bank Transfer', 'DUP-REF-1'), 100000.00);
+
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
+            amount: 30000.00,
+            method: PosHistoricalPaymentMethod::HdfcD,
+            reference: 'SHARED-UTR-1',
+        ));
+
+        $this->expectException(ValidationException::class);
+        $this->backfill->backfill($invoice->fresh(), $this->admin, $this->verifiedPaymentPayload(
+            amount: 20000.00,
+            method: PosHistoricalPaymentMethod::HdfcM,
+            reference: 'SHARED-UTR-1',
+            paymentDate: '2026-09-06',
+        ));
+    }
+
+    public function test_completed_backfill_blocks_further_payment_submissions(): void
+    {
+        $invoice = $this->issueHistoricalPosInvoice('Cash', 'LOCK-PAID-1');
+        $this->backfill->backfill($invoice, $this->admin, $this->verifiedPaymentPayload(
+            amount: 118.00,
+            method: PosHistoricalPaymentMethod::Cash,
+        ));
+
+        $this->expectException(ValidationException::class);
+        $this->backfill->backfill($invoice->fresh(), $this->admin, $this->verifiedPaymentPayload(
+            amount: 1.00,
+            method: PosHistoricalPaymentMethod::Cash,
+            paymentDate: '2026-09-06',
+        ));
+    }
+
+    public function test_invoice_show_backfill_modal_lists_only_allowed_methods(): void
+    {
+        $invoice = $this->issueHistoricalPosInvoice('Bank Transfer', 'UI-METHODS-1');
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('finance.invoices.show', $invoice))
+            ->assertOk();
+
+        $response->assertSee('HDFC D', false);
+        $response->assertSee('HDFC M', false);
+        $response->assertSee('INDUS', false);
+        $response->assertSee('CASH', false);
+        $response->assertDontSee('UPI - HDFC', false);
+        $response->assertDontSee('OTHER BANK', false);
     }
 
     private function issueHistoricalPosInvoice(string $paymentMethod, string $marker): StatutoryInvoice
@@ -537,24 +722,33 @@ class StatutoryInvoicePaymentBackfillTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function paidPayload(
-        string $outcome,
+    private function verifiedPaymentPayload(
         float $amount,
         PosHistoricalPaymentMethod $method,
         ?string $reference = 'REF-001',
         ?string $bankName = null,
+        string $paymentDate = '2026-09-05',
     ): array {
         return [
-            'outcome' => $outcome,
+            'outcome' => 'verified_payment',
             'amount' => $amount,
-            'payment_date' => '2026-09-05',
+            'payment_date' => $paymentDate,
             'payment_method' => $method->value,
             'bank_name' => $bankName,
-            'bank_branch' => $method === PosHistoricalPaymentMethod::OtherBank ? 'Main Branch' : null,
+            'bank_branch' => null,
             'reference' => $reference,
             'confirm' => '1',
             'verification_remark' => 'Verified historical payment.',
         ];
+    }
+
+    private function setInvoiceValue(StatutoryInvoice $invoice, float $value): StatutoryInvoice
+    {
+        DB::table('statutory_invoices')->where('id', $invoice->id)->update([
+            'invoice_value' => $value,
+        ]);
+
+        return $invoice->fresh(['inventorySale.customer']) ?? $invoice;
     }
 
     private function recordNormalPayment(
