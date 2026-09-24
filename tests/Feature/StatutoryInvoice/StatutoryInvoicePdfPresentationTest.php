@@ -89,7 +89,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertStringContainsString('Place of Supply Maharashtra', $pdf);
         $this->assertStringContainsString('CIN: U72300DL2015PTC280283', $pdf);
         $this->assertStringContainsString('Tax Rate', $pdf);
-        $this->assertStringContainsString('consulting', $pdf);
+        $this->assertStringContainsString('Consulting', $pdf);
         $this->assertStringContainsString('HSN/SAC', $pdf);
         $this->assertStringContainsString('998313', $pdf);
         $this->assertStringNotContainsString('998314', $pdf);

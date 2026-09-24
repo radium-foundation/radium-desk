@@ -95,9 +95,10 @@ class StatutoryDocumentServicePayloadTest extends TestCase
         $this->assertSame('PCS', $invoice->items->first()?->uqc);
         $this->assertStringContainsString('TAX INVOICE', $text);
         $this->assertStringContainsString($invoice->invoice_number, $text);
+        $this->assertStringContainsString('UNPAID', $text);
         $this->assertStringContainsString('UPI', $text);
-        $this->assertStringContainsString('UPI-REF-B2C', $text);
         $this->assertStringContainsString('Mode of Payment', $text);
+        $this->assertStringNotContainsString('UPI-REF-B2C', $text);
         $this->assertStringContainsString('SN-B2C-001', $text);
         $this->assertStringContainsString('PCS', $text);
         $this->assertStringContainsString('CIN: U72300DL2015PTC280283', $text);
@@ -131,8 +132,10 @@ class StatutoryDocumentServicePayloadTest extends TestCase
         $this->assertNotSame(EInvoiceRecordStatus::Submitted->value, $record->status);
         $this->assertNull($record->irn);
         $this->assertStringContainsString('07AAAAA0000A1Z5', $text);
+        $this->assertStringContainsString('UNPAID', $text);
         $this->assertStringContainsString('Cash', $text);
-        $this->assertStringContainsString('CASH-001', $text);
+        $this->assertStringContainsString('Mode of Payment', $text);
+        $this->assertStringNotContainsString('CASH-001', $text);
         $this->assertStringContainsString('SN-B2B-PENDING', $text);
         $this->assertStringNotContainsString('e-Invoice Verification', $text);
         $this->assertStringNotContainsString('% signed-qr-image', $binary);
@@ -176,8 +179,10 @@ class StatutoryDocumentServicePayloadTest extends TestCase
         $this->assertStringNotContainsString(self::JWT, $binary);
         $this->assertStringContainsString('PCS', $text);
         $this->assertStringContainsString('SN-B2B-IRN', $text);
+        $this->assertStringContainsString('UNPAID', $text);
         $this->assertStringContainsString('UPI', $text);
-        $this->assertStringContainsString('UPI-IRN-009', $text);
+        $this->assertStringContainsString('Mode of Payment', $text);
+        $this->assertStringNotContainsString('UPI-IRN-009', $text);
         $this->assertStringContainsString('CIN: U72300DL2015PTC280283', $text);
         $this->assertStringContainsString('/Logo Do', $binary);
         $this->assertStringContainsString('Whether tax is payable on reverse charge basis: No', $text);

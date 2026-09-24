@@ -239,6 +239,9 @@ class ServicePosFoundationTest extends TestCase
             'Bank Transfer',
             now(),
             $this->actor,
+            reference: 'NEFT-SVC-PART-001',
+            bankName: 'HDFC Bank',
+            bankBranch: 'Connaught Place',
             idempotencyKey: 'pay-a',
         );
 

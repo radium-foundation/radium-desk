@@ -177,7 +177,12 @@ class StatutoryInvoicePdfPos6746RegressionTest extends TestCase
             'MIS100' => $groups['mis'],
             'MFS 110' => $groups['mfs'],
         ], 430);
-        $this->assertAnnexureContainsCompleteSerialPopulation($binary, $allSerials);
+        $this->assertGroupedAnnexureContainsCompleteSerialPopulation($binary, [
+            $groups['morpho'],
+            $groups['gps'],
+            $groups['mis'],
+            $groups['mfs'],
+        ], $allSerials);
         $this->assertNoDuplicateSerialsInPdf($binary, $allSerials);
         $this->assertNoOrphanedBlankPages($binary);
         $this->assertStringContainsString('INV-0767292', $this->firstMainInvoicePageText($this->extractedPdfText($binary)));

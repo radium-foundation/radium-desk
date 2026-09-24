@@ -230,6 +230,36 @@ trait AssertsStatutoryInvoicePdfSerials
     }
 
     /**
+     * @param  array<string, list<string>>  $groups
+     * @param  list<string>  $allSerials
+     */
+    protected function assertGroupedAnnexureContainsCompleteSerialPopulation(
+        string $binary,
+        array $groups,
+        array $allSerials,
+    ): void {
+        $extracted = $this->extractedPdfText($binary);
+        $annexure = $this->annexureExtractedText($extracted);
+
+        $this->assertStringContainsString('ANNEXURE A', $extracted);
+        $this->assertGreaterThanOrEqual(2, $this->pdfPageCount($binary));
+        $this->assertAllSerialsPresentInPdfBinary($binary, $allSerials);
+
+        foreach ($groups as $serials) {
+            if ($serials === []) {
+                continue;
+            }
+
+            $this->assertNumberedSerialIndexesPresent($binary, $serials);
+            $this->assertNoIndexOnlySerialOutput($binary, $serials);
+        }
+
+        foreach ($allSerials as $serial) {
+            $this->assertSerialPresentInPdf($binary, $serial, "Annexure must contain serial {$serial}.");
+        }
+    }
+
+    /**
      * @param  list<string>  $serials
      */
     protected function assertAnnexureContainsCompleteSerialPopulation(string $binary, array $serials): void
