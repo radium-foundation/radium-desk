@@ -4,6 +4,7 @@ namespace Tests\Support;
 
 use App\Contracts\StatutoryInvoice\EInvoiceGateway;
 use App\Models\StatutoryInvoice;
+use App\Services\StatutoryInvoice\Data\EInvoiceCancelResult;
 use App\Services\StatutoryInvoice\Data\EInvoiceIrnPayload;
 use App\Services\StatutoryInvoice\Data\EInvoiceSubmitResult;
 
@@ -12,6 +13,16 @@ final class FakeEInvoiceGateway implements EInvoiceGateway
     public int $submitCount = 0;
 
     public int $fetchCount = 0;
+
+    public int $cancelCount = 0;
+
+    /** @var list<int> */
+    public array $cancelledInvoiceIds = [];
+
+    /** @var list<EInvoiceCancelResult> */
+    private array $cancelQueue = [];
+
+    private ?EInvoiceCancelResult $cancelDefault = null;
 
     /** @var list<int> */
     public array $submittedInvoiceIds = [];
@@ -74,6 +85,20 @@ final class FakeEInvoiceGateway implements EInvoiceGateway
         return $this;
     }
 
+    public function queueCancel(EInvoiceCancelResult $result): self
+    {
+        $this->cancelQueue[] = $result;
+
+        return $this;
+    }
+
+    public function withCancelDefault(EInvoiceCancelResult $result): self
+    {
+        $this->cancelDefault = $result;
+
+        return $this;
+    }
+
     public function crashOnSubmit(bool $crash = true): self
     {
         $this->crashOnSubmit = $crash;
@@ -127,8 +152,29 @@ final class FakeEInvoiceGateway implements EInvoiceGateway
         return $this->fetchDefault;
     }
 
-    public function cancel(StatutoryInvoice $invoice, string $reason): void
+    public function cancel(StatutoryInvoice $invoice, string $reason): EInvoiceCancelResult
     {
-        // Cancellation is unsupported in this foundation.
+        $this->cancelCount++;
+        $this->cancelledInvoiceIds[] = $invoice->id;
+
+        if ($this->cancelQueue !== []) {
+            return array_shift($this->cancelQueue);
+        }
+
+        if ($this->cancelDefault !== null) {
+            return $this->cancelDefault;
+        }
+
+        $invoice->loadMissing('eInvoiceRecord');
+        if ($invoice->eInvoiceRecord?->hasIssuedIrn()) {
+            return EInvoiceCancelResult::success(
+                provider: $this->provider(),
+                irn: $invoice->eInvoiceRecord->irn,
+                payload: ['reason' => $reason],
+                correlationId: 'fake-cancel-'.$invoice->id,
+            );
+        }
+
+        return EInvoiceCancelResult::notRequired($this->provider());
     }
 }

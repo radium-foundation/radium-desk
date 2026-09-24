@@ -181,4 +181,9 @@ class StatutoryInvoice extends Model
     {
         return $this->belongsTo(User::class, 'cancelled_by');
     }
+
+    public function cancellation(): HasOne
+    {
+        return $this->hasOne(StatutoryInvoiceCancellation::class, 'statutory_invoice_id');
+    }
 }

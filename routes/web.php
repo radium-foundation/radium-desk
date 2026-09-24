@@ -445,6 +445,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('invoices', [StatutoryInvoiceController::class, 'index'])->name('invoices.index');
         Route::get('invoices/{invoice}/pdf', [StatutoryInvoiceController::class, 'download'])->name('invoices.pdf');
         Route::post('invoices/{invoice}/reevaluate-einvoice', [StatutoryInvoiceController::class, 'reevaluateEinvoice'])->name('invoices.reevaluate-einvoice');
+        Route::post('invoices/{invoice}/cancel', [StatutoryInvoiceController::class, 'cancel'])->name('invoices.cancel');
         Route::get('invoices/{invoice}', [StatutoryInvoiceController::class, 'show'])->name('invoices.show');
 
         Route::prefix('settings')->name('settings.')->group(function () {

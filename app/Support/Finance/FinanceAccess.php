@@ -41,6 +41,11 @@ final class FinanceAccess
         return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE);
     }
 
+    public static function allowsInvoiceCancel(?User $user): bool
+    {
+        return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_CANCEL);
+    }
+
     public static function allowsReportExport(?User $user): bool
     {
         if ($user === null) {

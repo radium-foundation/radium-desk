@@ -4,6 +4,7 @@ namespace App\Services\StatutoryInvoice;
 
 use App\Contracts\StatutoryInvoice\EInvoiceGateway;
 use App\Models\StatutoryInvoice;
+use App\Services\StatutoryInvoice\Data\EInvoiceCancelResult;
 use App\Services\StatutoryInvoice\Data\EInvoiceIrnPayload;
 use App\Services\StatutoryInvoice\Data\EInvoiceSubmitResult;
 
@@ -28,8 +29,15 @@ final class NullEInvoiceGateway implements EInvoiceGateway
         return EInvoiceSubmitResult::skipped($this->provider(), ['reason' => 'null_gateway']);
     }
 
-    public function cancel(StatutoryInvoice $invoice, string $reason): void
+    public function cancel(StatutoryInvoice $invoice, string $reason): EInvoiceCancelResult
     {
-        // No remote IRN to cancel.
+        $invoice->loadMissing('eInvoiceRecord');
+        if ($invoice->eInvoiceRecord?->hasIssuedIrn()) {
+            return EInvoiceCancelResult::providerNotImplemented($this->provider(), [
+                'reason' => 'null_gateway_cannot_cancel_submitted_irn',
+            ]);
+        }
+
+        return EInvoiceCancelResult::notRequired($this->provider());
     }
 }

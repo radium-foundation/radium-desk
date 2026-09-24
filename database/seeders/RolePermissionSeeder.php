@@ -68,6 +68,8 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_FINANCE_INVOICES_ISSUE = 'finance.invoices.issue';
 
+    public const PERMISSION_FINANCE_INVOICES_CANCEL = 'finance.invoices.cancel';
+
     public const PERMISSION_FINANCE_REPORTS_EXPORT = 'finance.reports.export';
 
     public const PERMISSION_FINANCE_WALLET_VIEW = 'finance.wallet.view';
@@ -470,6 +472,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_FINANCE_VIEW,
             self::PERMISSION_FINANCE_INVOICES_ISSUE,
+            self::PERMISSION_FINANCE_INVOICES_CANCEL,
             self::PERMISSION_FINANCE_PAYMENTS_RECORD,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
@@ -527,6 +530,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
             self::PERMISSION_FINANCE_VIEW,
             self::PERMISSION_FINANCE_INVOICES_ISSUE,
+            self::PERMISSION_FINANCE_INVOICES_CANCEL,
             self::PERMISSION_FINANCE_PAYMENTS_RECORD,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
@@ -588,6 +592,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_WORKFORCE_PAYROLL_REOPEN,
             self::PERMISSION_FINANCE_VIEW,
             self::PERMISSION_FINANCE_INVOICES_ISSUE,
+            self::PERMISSION_FINANCE_INVOICES_CANCEL,
             self::PERMISSION_FINANCE_PAYMENTS_RECORD,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,

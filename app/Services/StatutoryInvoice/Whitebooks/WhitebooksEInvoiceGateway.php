@@ -4,6 +4,7 @@ namespace App\Services\StatutoryInvoice\Whitebooks;
 
 use App\Contracts\StatutoryInvoice\EInvoiceGateway;
 use App\Models\StatutoryInvoice;
+use App\Services\StatutoryInvoice\Data\EInvoiceCancelResult;
 use App\Services\StatutoryInvoice\Data\EInvoiceIrnPayload;
 use App\Services\StatutoryInvoice\Data\EInvoiceSubmitResult;
 use Illuminate\Http\Client\ConnectionException;
@@ -91,9 +92,12 @@ final class WhitebooksEInvoiceGateway implements EInvoiceGateway
         return $this->getIrnByDocument($account, $token, $lookup);
     }
 
-    public function cancel(StatutoryInvoice $invoice, string $reason): void
+    public function cancel(StatutoryInvoice $invoice, string $reason): EInvoiceCancelResult
     {
-        // First release does not cancel IRN.
+        return EInvoiceCancelResult::providerNotImplemented($this->provider(), [
+            'reason' => 'whitebooks_irn_cancel_not_verified',
+            'message' => 'WhiteBooks IRN cancellation API is not verified in this release.',
+        ]);
     }
 
     private function fetchAuthFailure(EInvoiceSubmitResult $auth): EInvoiceSubmitResult

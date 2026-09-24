@@ -4,18 +4,22 @@ namespace App\Http\Controllers\Finance;
 
 use App\Enums\EInvoiceRecordStatus;
 use App\Enums\StatutoryInvoiceDocumentStatus;
+use App\Enums\StatutoryInvoiceStatus;
 use App\Http\Controllers\Controller;
 use App\Models\StatutoryInvoice;
 use App\ReadModels\Finance\StatutoryInvoiceRegisterReadModel;
 use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
 use App\Services\StatutoryInvoice\StatutoryDocumentService;
+use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationEligibility;
+use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
+use App\Services\StatutoryInvoice\StatutoryInvoiceCreditNotePolicy;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
-use Database\Seeders\RolePermissionSeeder;
 use App\Support\Finance\CsvDownload;
 use App\Support\Finance\FinanceAccess;
 use App\Support\Finance\ReportPeriod;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -67,7 +71,7 @@ class StatutoryInvoiceController extends Controller
 
     public function show(StatutoryInvoice $invoice): View
     {
-        $invoice->load(['items', 'branch', 'inventorySale', 'issuedBy', 'cancelledBy', 'document', 'eInvoiceRecord']);
+        $invoice->load(['items', 'branch', 'inventorySale', 'issuedBy', 'cancelledBy', 'document', 'eInvoiceRecord', 'cancellation']);
 
         $eInvoiceRecord = $invoice->eInvoiceRecord;
         $canReevaluateEinvoice = FinanceAccess::allowsInvoiceIssue(request()->user())
@@ -76,10 +80,56 @@ class StatutoryInvoiceController extends Controller
             && $eInvoiceRecord->status === EInvoiceRecordStatus::Skipped->value
             && ! $eInvoiceRecord->hasIssuedIrn();
 
+        $canCancelInvoice = FinanceAccess::allowsInvoiceCancel(request()->user())
+            && $invoice->status === StatutoryInvoiceStatus::Issued;
+
+        $cancellationConsequences = [];
+        if ($canCancelInvoice) {
+            $eligibility = app(StatutoryInvoiceCancellationEligibility::class);
+            $creditNotes = app(StatutoryInvoiceCreditNotePolicy::class);
+
+            if ($eligibility->irnCancellationRequired($invoice)) {
+                $cancellationConsequences[] = 'A submitted IRN must be cancelled before the statutory invoice can be cancelled.';
+            }
+
+            if ($eligibility->inventoryReversalApplicable($invoice)) {
+                $cancellationConsequences[] = 'Linked POS inventory and the posted POS finance journal will be reversed.';
+            }
+
+            $cancellationConsequences[] = $creditNotes->requirementSummary();
+        }
+
         return view('finance.invoices.show', [
             'invoice' => $invoice,
             'canReevaluateEinvoice' => $canReevaluateEinvoice,
+            'canCancelInvoice' => $canCancelInvoice,
+            'cancellationConsequences' => $cancellationConsequences,
         ]);
+    }
+
+    public function cancel(Request $request, StatutoryInvoice $invoice): RedirectResponse
+    {
+        abort_unless(FinanceAccess::allowsInvoiceCancel($request->user()), 403);
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'min:3', 'max:2000'],
+            'confirm' => ['accepted'],
+        ]);
+
+        $result = app(StatutoryInvoiceCancellationOrchestrator::class)->cancel(
+            invoice: $invoice,
+            actor: $request->user(),
+            reason: $validated['reason'],
+            idempotencyKey: StatutoryInvoiceCancellationOrchestrator::DEFAULT_IDEMPOTENCY_PREFIX.$invoice->id,
+        );
+
+        $message = $result->idempotent
+            ? 'This statutory invoice was already cancelled.'
+            : 'Statutory invoice cancelled successfully.';
+
+        return redirect()
+            ->route('finance.invoices.show', $invoice)
+            ->with('status', $message);
     }
 
     public function reevaluateEinvoice(Request $request, StatutoryInvoice $invoice): RedirectResponse
