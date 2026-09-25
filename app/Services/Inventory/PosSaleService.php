@@ -16,6 +16,7 @@ use App\Models\InventorySale;
 use App\Models\User;
 use App\Services\Finance\PosSaleJournalService;
 use App\Services\ProductPosReferenceService;
+use App\Services\Pos\PosCustomerIdentityResolver;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\PosStatutoryInvoiceIssuer;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
@@ -41,6 +42,7 @@ class PosSaleService
         private readonly PosStatutorySnapshot $statutorySnapshot,
         private readonly PosStatutoryInvoiceIssuer $posInvoices,
         private readonly ProductPosReferenceService $productPosReferences,
+        private readonly PosCustomerIdentityResolver $customerIdentity,
     ) {}
 
     /**
@@ -69,6 +71,7 @@ class PosSaleService
         ?string $idempotencyKey = null,
         array $statutory = [],
         bool $paymentReceived = true,
+        ?string $customerIdentityResolution = null,
     ): InventorySale {
         $this->statutoryAccounting->assertMustNotAutoIssueOnPosComplete();
         $this->lastStatutoryIssueWarning = null;
@@ -120,6 +123,7 @@ class PosSaleService
                 $idempotencyKey,
                 $statutory,
                 $paymentReceived,
+                $customerIdentityResolution,
             ): InventorySale {
                 if ($idempotencyKey !== null) {
                     // Do not lockForUpdate a missing unique key: InnoDB gap-locks the
@@ -151,7 +155,8 @@ class PosSaleService
                     $this->stock->lockSerialByNumber($number);
                 }
 
-                $inventoryCustomer = $this->findOrCreateCustomer($customer);
+                $inventoryCustomer = $this->findOrCreateCustomer($customer, $customerIdentityResolution);
+                $saleBuyerName = $this->customerIdentity->saleBuyerName($customer);
 
                 $snapshot = $this->statutorySnapshot->capture(
                     $inventoryCustomer->gstin,
@@ -171,6 +176,7 @@ class PosSaleService
                     'idempotency_key' => $idempotencyKey,
                     'branch_id' => $lockedBranch->id,
                     'customer_id' => $inventoryCustomer->id,
+                    'buyer_name' => $saleBuyerName,
                     'buyer_gstin' => $snapshot['buyer_gstin'],
                     'billing_address' => $snapshot['billing_address'],
                     'billing_address_structured' => $snapshot['billing_address_structured'],
@@ -598,7 +604,25 @@ class PosSaleService
     /**
      * @param  array{name?: string, phone?: string, email?: string|null, gstin?: string|null}  $customer
      */
-    public function findOrCreateCustomer(array $customer): InventoryCustomer
+    /**
+     * @param  array{name?: string, phone?: string, email?: string|null, gstin?: string|null}  $customer
+     */
+    public function assertCustomerIdentityAllowed(array $customer, ?string $identityResolution = null): void
+    {
+        $phone = preg_replace('/\s+/', '', (string) ($customer['phone'] ?? '')) ?? '';
+        if ($phone === '') {
+            return;
+        }
+
+        $existing = InventoryCustomer::query()->where('phone', $phone)->first();
+        if ($existing === null) {
+            return;
+        }
+
+        $this->customerIdentity->requireResolutionIfConflict($existing, $customer, $identityResolution);
+    }
+
+    public function findOrCreateCustomer(array $customer, ?string $identityResolution = null): InventoryCustomer
     {
         $phone = preg_replace('/\s+/', '', (string) ($customer['phone'] ?? '')) ?? '';
         $name = trim((string) ($customer['name'] ?? ''));
@@ -612,9 +636,8 @@ class PosSaleService
         $existing = InventoryCustomer::query()->where('phone', $phone)->first();
         if ($existing !== null) {
             $locked = InventoryCustomer::query()->lockForUpdate()->find($existing->id) ?? $existing;
-            $locked->fill($this->customerIdentityUpdates($customer, $locked))->save();
 
-            return $locked;
+            return $this->customerIdentity->resolveExistingCustomer($locked, $customer, $identityResolution);
         }
 
         try {
@@ -627,32 +650,10 @@ class PosSaleService
         } catch (UniqueConstraintViolationException $exception) {
             $locked = InventoryCustomer::query()->where('phone', $phone)->lockForUpdate()->first();
             if ($locked !== null) {
-                $locked->fill($this->customerIdentityUpdates($customer, $locked))->save();
-
-                return $locked;
+                return $this->customerIdentity->resolveExistingCustomer($locked, $customer, $identityResolution);
             }
 
             throw $exception;
         }
-    }
-
-    /**
-     * POS may snapshot a B2C sale without GSTIN. That must not wipe a master GSTIN.
-     *
-     * @param  array{name?: string, phone?: string, email?: string|null, gstin?: string|null}  $customer
-     * @return array<string, mixed>
-     */
-    private function customerIdentityUpdates(array $customer, InventoryCustomer $existing): array
-    {
-        $updates = [
-            'name' => trim((string) ($customer['name'] ?? $existing->name)),
-            'email' => array_key_exists('email', $customer) ? ($customer['email'] ?? $existing->email) : $existing->email,
-        ];
-        $gstin = BuyerGstin::normalize(isset($customer['gstin']) && is_string($customer['gstin']) ? $customer['gstin'] : null);
-        if ($gstin !== null) {
-            $updates['gstin'] = $gstin;
-        }
-
-        return $updates;
     }
 }

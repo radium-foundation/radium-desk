@@ -64,6 +64,7 @@ class PosUpiIntentService
         ?string $notes = null,
         ?string $saleIdempotencyKey = null,
         array $statutory = [],
+        ?string $customerIdentityResolution = null,
     ): PosPaymentIntent {
         if (! $branch->is_active) {
             throw ValidationException::withMessages([
@@ -84,6 +85,8 @@ class PosUpiIntentService
             : 'upi-intent:'.(string) Str::uuid();
 
         $lines = PosSaleLineNormalizer::normalize($lines);
+
+        $this->sales->assertCustomerIdentityAllowed($customer, $customerIdentityResolution);
 
         $existing = PosPaymentIntent::query()
             ->where('sale_idempotency_key', $saleIdempotencyKey)
@@ -129,6 +132,7 @@ class PosUpiIntentService
             $phone,
             $minutes,
             $statutory,
+            $customerIdentityResolution,
         ): PosPaymentIntent {
             $reservation = $this->stock->reserveForCart(
                 $branch,
@@ -159,7 +163,9 @@ class PosUpiIntentService
                         'name' => $name,
                         'phone' => $phone,
                         'email' => $customer['email'] ?? null,
+                        'gstin' => $customer['gstin'] ?? null,
                     ],
+                    'customer_identity_resolution' => $customerIdentityResolution,
                     'lines' => $lines,
                     'discount' => $headerDiscount,
                     'shipping_amount' => $shippingAmount,

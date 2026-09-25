@@ -129,6 +129,9 @@ class PosUpiVerificationService
                     reservation: $reservation,
                     idempotencyKey: $locked->sale_idempotency_key,
                     statutory: is_array($payload['statutory'] ?? null) ? $payload['statutory'] : [],
+                    customerIdentityResolution: is_string($payload['customer_identity_resolution'] ?? null)
+                        ? $payload['customer_identity_resolution']
+                        : null,
                 );
 
                 if (PosUpiUriBuilder::formatAmount($sale->total) !== $expected) {

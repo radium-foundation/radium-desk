@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\InventoryFinanceHandoffStatus;
 use App\Enums\InventorySaleStatus;
+use App\Support\Inventory\InventorySaleBuyerIdentity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,6 +18,7 @@ class InventorySale extends Model
         'statutory_invoice_id',
         'branch_id',
         'customer_id',
+        'buyer_name',
         'buyer_gstin',
         'billing_address',
         'billing_address_structured',
@@ -99,5 +101,15 @@ class InventorySale extends Model
     public function upiIntent(): BelongsTo
     {
         return $this->belongsTo(PosPaymentIntent::class, 'upi_intent_id');
+    }
+
+    public function buyerNameForStatutory(): ?string
+    {
+        return InventorySaleBuyerIdentity::nameForStatutory($this);
+    }
+
+    public function displayBuyerName(): string
+    {
+        return InventorySaleBuyerIdentity::displayName($this);
     }
 }

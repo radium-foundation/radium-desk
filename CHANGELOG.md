@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.0.135 — 2026-09-25 — POS customer identity conflict handling
+
+- Block silent legal-identity overwrite when an existing customer phone matches a different company name or GSTIN at POS checkout.
+- Require explicit `sale_only` or `update_master` resolution before completing a conflicting sale.
+- Snapshot `buyer_name` on `inventory_sales` for sale-time buyer identity; historical POS views use statutory fallback when `buyer_name` is absent (INV-076769 regression).
+- Preserves v4.0.134 POS unpaid/payment-pending workflow, payment reconciliation, statutory invoice generation, and PDF layout.
+- Additive migration only: nullable `inventory_sales.buyer_name`.
+- Regression: `PosCustomerIdentityTest` (12), resolver unit tests, POS unpaid workflow suites.
+- Rollback target: v4.0.134 / `a9e90519`.
+
 ## 4.0.134 — 2026-09-24 — Payment reconciliation and allocation-backed payment status
 
 - Add cancellation → refund review bridge (read-only/explicit; no automatic Wallet/OPM refund).

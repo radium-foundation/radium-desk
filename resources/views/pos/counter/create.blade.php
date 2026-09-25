@@ -108,6 +108,7 @@
                         <div class="card border-0 shadow-sm mb-3">
                             <div class="card-body">
                                 <h2 class="h5">Customer</h2>
+                                @include('pos.partials.customer-identity-conflict')
                                 <div class="mb-2">
                                     <label class="form-label" for="customer_phone">Phone</label>
                                     <input type="text" name="customer_phone" id="customer_phone" class="form-control" required value="{{ old('customer_phone') }}" autocomplete="off">
