@@ -14,6 +14,7 @@ use App\Models\Incident;
 use App\Models\InvoiceSequenceAllocation;
 use App\Models\Order;
 use App\Models\OutboxEvent;
+use App\Models\ServiceStatutoryGstMismatchException;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
@@ -135,13 +136,12 @@ class ServiceStatutoryInvoiceReconciliationBacklogTest extends TestCase
 
         $this->assertSame(0, StatutoryInvoice::query()->where('source_id', 'RD3518600')->count());
         $this->assertSame(1, StatutoryInvoice::query()->where('source_id', 'RD3518601')->count());
-        $this->assertGreaterThanOrEqual(2, $result->attempted);
-        $failedOutbox = OutboxEvent::query()
-            ->where('event_type', ServiceStatutoryInvoiceMintOutboxWriter::EVENT_TYPE)
-            ->where('status', OutboxEventStatus::Failed)
+        $this->assertGreaterThanOrEqual(1, $result->skipped);
+        $exception = ServiceStatutoryGstMismatchException::query()
+            ->whereHas('commerceOrder', fn ($query) => $query->where('source_id', 'RD3518600'))
             ->first();
-        $this->assertNotNull($failedOutbox);
-        $this->assertStringContainsString('buyer_pin_gstin_state_mismatch', (string) $failedOutbox->last_error);
+        $this->assertNotNull($exception);
+        $this->assertSame('buyer_pin_gstin_state_mismatch', $exception->validation_reason);
     }
 
     public function test_remediated_b2b_order_becomes_retryable_on_next_reconciliation_run(): void

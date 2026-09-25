@@ -14,6 +14,7 @@ use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\CommercialServiceRestorationController;
 use App\Http\Controllers\CompanyHolidayController;
 use App\Http\Controllers\ConversationWorkspaceController;
+use App\Http\Controllers\Customer360\Customer360GstMismatchController;
 use App\Http\Controllers\Customer360\Customer360InvoiceController;
 use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\DashboardActivityController;
@@ -43,8 +44,8 @@ use App\Http\Controllers\Finance\PaymentMethodController;
 use App\Http\Controllers\Finance\ReceivablesController;
 use App\Http\Controllers\Finance\SettingsController as FinanceSettingsController;
 use App\Http\Controllers\Finance\StatutoryInvoiceController;
-use App\Http\Controllers\Finance\StatutoryInvoicePaymentBackfillController;
 use App\Http\Controllers\Finance\StatutoryInvoiceIssueController;
+use App\Http\Controllers\Finance\StatutoryInvoicePaymentBackfillController;
 use App\Http\Controllers\Finance\VendorPaymentController;
 use App\Http\Controllers\GmailAdminActionsController;
 use App\Http\Controllers\HistoricalOrderController;
@@ -209,6 +210,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.customer-360.invoices.email');
     Route::post('dashboard/service-cases/{incident}/invoices/{invoice}/whatsapp', [Customer360InvoiceController::class, 'whatsapp'])
         ->name('dashboard.service-cases.customer-360.invoices.whatsapp');
+    Route::post('dashboard/service-cases/{incident}/customer-360/gst-mismatch/correction', [Customer360GstMismatchController::class, 'storeCorrection'])
+        ->name('dashboard.service-cases.customer-360.gst-mismatch.correction');
     Route::get('dashboard/incoming-email-messages/{incomingEmailMessage}/content', [IncomingEmailContentController::class, 'show'])
         ->name('dashboard.incoming-email-messages.content');
     Route::get('dashboard/incoming-email-messages/{incomingEmailMessage}/reply-context', [IncomingEmailContentController::class, 'replyContext'])

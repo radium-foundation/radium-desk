@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Finance;
 
 use App\Enums\InventorySaleStatus;
 use App\Enums\ServiceOrderStatus;
+use App\Enums\StatutoryInvoice\ServiceStatutoryGstMismatchStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CommerceOrder;
 use App\Models\InventorySale;
 use App\Models\ServiceOrder;
+use App\Models\ServiceStatutoryGstMismatchException;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Services\StatutoryInvoice\StatutoryMintEligibility;
 use App\Support\Finance\FinanceAccess;
@@ -64,10 +66,18 @@ class StatutoryInvoiceIssueController extends Controller
             ->limit(50)
             ->get();
 
+        $gstMismatchExceptions = ServiceStatutoryGstMismatchException::query()
+            ->with(['commerceOrder', 'statutoryInvoice'])
+            ->whereIn('status', ServiceStatutoryGstMismatchStatus::openValues())
+            ->orderBy('response_deadline_at')
+            ->limit(100)
+            ->get();
+
         return view('finance.invoices.pending', [
             'sales' => $sales,
             'orders' => $orders,
             'serviceOrders' => $serviceOrders,
+            'gstMismatchExceptions' => $gstMismatchExceptions,
             'canIssue' => FinanceAccess::allowsInvoiceIssue(request()->user()),
         ]);
     }

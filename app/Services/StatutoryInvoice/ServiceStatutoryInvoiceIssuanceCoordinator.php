@@ -4,6 +4,7 @@ namespace App\Services\StatutoryInvoice;
 
 use App\Enums\OutboxEventStatus;
 use App\Enums\StatutoryInvoice\ServiceStatutoryInvoiceMintTrigger;
+use App\Models\CommerceOrder;
 use App\Models\Order;
 use App\Models\OutboxEvent;
 use App\Models\User;
@@ -19,6 +20,7 @@ final class ServiceStatutoryInvoiceIssuanceCoordinator
         private readonly StatutoryInvoiceService $invoices,
         private readonly ServiceStatutoryInvoiceMintOutboxWriter $outboxWriter,
         private readonly ServiceStatutoryInvoiceMintFailureClassifier $classifier,
+        private readonly ServiceStatutoryGstMismatchExceptionService $gstMismatchExceptions,
     ) {}
 
     public function attempt(
@@ -47,6 +49,7 @@ final class ServiceStatutoryInvoiceIssuanceCoordinator
                     $classified->getMessage(),
                     $actor?->id,
                 );
+                $this->openGstMismatchExceptionIfApplicable($order, $classified->getMessage());
 
                 return;
             }
@@ -86,6 +89,21 @@ final class ServiceStatutoryInvoiceIssuanceCoordinator
             'processed_at' => now(),
             'last_error' => null,
         ]);
+    }
+
+    private function openGstMismatchExceptionIfApplicable(Order $order, string $errorMessage): void
+    {
+        $commerce = CommerceOrder::query()
+            ->where('support_order_id', $order->id)
+            ->orWhere('source_id', $order->order_id)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($commerce === null) {
+            return;
+        }
+
+        $this->gstMismatchExceptions->openFromMintFailure($order, $commerce, $errorMessage);
     }
 
     private function logResult(

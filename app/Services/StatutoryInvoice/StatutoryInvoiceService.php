@@ -291,8 +291,25 @@ class StatutoryInvoiceService
         return $invoice->load(['items', 'allocation', 'document']);
     }
 
-    public function issueFromCommerceOrder(CommerceOrder $order, ?User $actor = null): StatutoryInvoice
-    {
+    public function issueB2cGstVerificationFallbackFromSupportOrder(
+        Order $order,
+        ?User $actor = null,
+        ?string $fallbackReason = null,
+    ): StatutoryInvoice {
+        $commerce = $this->commerceOrderForSupportOrder($order);
+
+        if ($commerce->support_order_id === null) {
+            $commerce->forceFill(['support_order_id' => $order->id])->save();
+        }
+
+        return $this->issueFromCommerceOrder($commerce->fresh(['items']) ?? $commerce, $actor, b2cGstVerificationFallback: true);
+    }
+
+    public function issueFromCommerceOrder(
+        CommerceOrder $order,
+        ?User $actor = null,
+        bool $b2cGstVerificationFallback = false,
+    ): StatutoryInvoice {
         $existing = $this->findBySource(
             $order->channel,
             StatutoryInvoiceSourceType::CommerceOrder,
@@ -370,7 +387,7 @@ class StatutoryInvoiceService
                 sellerName: null,
                 buyerName: $order->customer_name,
                 buyerPhone: $order->customer_phone,
-                buyerGstin: BuyerGstin::normalize($order->buyer_gstin),
+                buyerGstin: $b2cGstVerificationFallback ? null : BuyerGstin::normalize($order->buyer_gstin),
                 billingAddress: $order->billing_address,
                 placeOfSupplyState: $order->place_of_supply_state,
                 discount: (float) ($order->discount ?? 0),
@@ -379,7 +396,7 @@ class StatutoryInvoiceService
                 supportOrderId: $this->resolveSupportOrderId($order),
                 numberingLocation: $this->issuer->requireForCommerceOrder(
                     $order->branch_code,
-                    $order->buyer_gstin,
+                    $b2cGstVerificationFallback ? null : $order->buyer_gstin,
                     $order->billing_state,
                     $resolvedHsns,
                 ),
