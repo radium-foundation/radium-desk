@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 class ReconcileServiceStatutoryInvoicesCommand extends Command
 {
     protected $signature = 'desk:reconcile-service-statutory-invoices
-                            {--limit= : Maximum commerce orders to scan this run}
+                            {--limit= : Maximum mint attempts this run (defaults to reconciliation batch_limit)}
                             {--dry-run : Report candidates without attempting mint}';
 
     public function handle(ServiceStatutoryInvoiceReconciliationService $reconciliation): int

@@ -29,7 +29,10 @@ return [
     'reconciliation' => [
         'enabled' => filter_var(env('SERVICE_STATUTORY_INVOICE_RECONCILIATION_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
         'schedule_interval_minutes' => max(5, (int) env('SERVICE_STATUTORY_INVOICE_RECONCILIATION_INTERVAL_MINUTES', 15)),
+        // Maximum mint attempts per scheduler run (not a row-scan cap).
         'batch_limit' => max(1, (int) env('SERVICE_STATUTORY_INVOICE_RECONCILIATION_BATCH_LIMIT', 100)),
+        // Safety cap on candidate rows scanned when the uninvoiced backlog is large.
+        'max_scan_per_run' => max(100, (int) env('SERVICE_STATUTORY_INVOICE_RECONCILIATION_MAX_SCAN', 10_000)),
     ],
 
 ];

@@ -27,7 +27,8 @@ final class ServiceStatutoryInvoiceReconciliationService
 
     public function reconcile(?int $limit = null, bool $dryRun = false): ServiceStatutoryInvoiceReconciliationResult
     {
-        $limit ??= max(1, (int) config('service_statutory_invoice.reconciliation.batch_limit', 100));
+        $attemptLimit = $limit ?? max(1, (int) config('service_statutory_invoice.reconciliation.batch_limit', 100));
+        $maxScan = max($attemptLimit, (int) config('service_statutory_invoice.reconciliation.max_scan_per_run', 10_000));
         $scanned = 0;
         $attempted = 0;
         $skipped = 0;
@@ -37,7 +38,11 @@ final class ServiceStatutoryInvoiceReconciliationService
 
         $actor = $this->automationIdentity->systemUser();
 
-        foreach ($this->candidateQuery()->limit($limit)->cursor() as $commerce) {
+        foreach ($this->candidateQuery()->cursor() as $commerce) {
+            if ($scanned >= $maxScan) {
+                break;
+            }
+
             $scanned++;
 
             if ($this->hardwareGuard->requiresHardwareSerialPath($commerce)) {
@@ -70,6 +75,10 @@ final class ServiceStatutoryInvoiceReconciliationService
                 $ineligible++;
 
                 continue;
+            }
+
+            if ($attempted >= $attemptLimit) {
+                break;
             }
 
             if ($dryRun) {
@@ -116,7 +125,37 @@ final class ServiceStatutoryInvoiceReconciliationService
                 StatutoryInvoiceChannel::RdServiceNet->value,
                 StatutoryInvoiceChannel::RadiumBoxCom->value,
             ])
+            ->whereDoesntHave('hardwareFulfilment')
+            ->where(function (Builder $query): void {
+                $this->applyOnlineServiceSourceIdFilter($query);
+            })
             ->orderBy('id');
+    }
+
+    /**
+     * Narrow reconciliation to online service source ids so hardware/product rows
+     * that have a separate fulfilment invoice path do not occupy scan budget.
+     */
+    private function applyOnlineServiceSourceIdFilter(Builder $query): void
+    {
+        $query->where(function (Builder $service) {
+            $service->where(function (Builder $rd) {
+                $rd->where('source_id', 'like', 'RD%')
+                    ->where('source_id', 'not like', 'RDP%')
+                    ->where('source_id', 'not like', 'RDE%')
+                    ->where('source_id', 'not like', 'RIN%');
+            })->orWhere(function (Builder $rn) {
+                $rn->where('source_id', 'like', 'RN%')
+                    ->where('source_id', 'not like', 'RNP%');
+            })->orWhere(function (Builder $ra) {
+                $ra->where('source_id', 'like', 'RA%');
+            })->orWhere(function (Builder $rb) {
+                $rb->where('source_id', 'like', 'RB%')
+                    ->where('source_id', 'not like', 'RBP%')
+                    ->where('source_id', 'not like', 'RDE%')
+                    ->where('source_id', 'not like', 'RBX%');
+            });
+        });
     }
 
     private function isOnlineServiceCommerceOrder(CommerceOrder $commerce): bool

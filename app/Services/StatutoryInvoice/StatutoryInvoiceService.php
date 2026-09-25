@@ -630,6 +630,7 @@ class StatutoryInvoiceService
             throw ValidationException::withMessages([
                 'support_order' => match ($channel) {
                     StatutoryInvoiceChannel::RadiumBoxCom => 'No radiumbox.com service commerce order is linked to this Desk order.',
+                    StatutoryInvoiceChannel::RdServiceNet => 'No rdservice.net commerce order is linked to this Desk order.',
                     default => 'No rdservice.in commerce order is linked to this Desk order.',
                 },
             ]);
@@ -642,6 +643,13 @@ class StatutoryInvoiceService
     {
         if (BusinessOrderId::isRadiumBoxService($sourceId)) {
             return StatutoryInvoiceChannel::RadiumBoxCom;
+        }
+
+        $parsed = BusinessOrderId::parse($sourceId);
+        if ($parsed !== null
+            && $parsed['owner'] === 'rdservice.net'
+            && $parsed['kind'] === 'service') {
+            return StatutoryInvoiceChannel::RdServiceNet;
         }
 
         return StatutoryInvoiceChannel::RdServiceIn;
