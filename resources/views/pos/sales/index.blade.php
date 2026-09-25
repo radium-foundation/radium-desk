@@ -58,7 +58,7 @@
                         <tr>
                             <td><a href="{{ route('pos.sales.show', $sale) }}">{{ $sale->sale_no }}</a></td>
                             <td>{{ $sale->statutoryInvoice?->invoice_number ?: '—' }}</td>
-                            <td>{{ $sale->customer?->name }} · {{ $sale->customer?->phone }}</td>
+                            <td>{{ $sale->displayBuyerName() }} · {{ $sale->customer?->phone }}</td>
                             <td>{{ $sale->branch?->code }}</td>
                             <td>{{ number_format((float) $sale->total, 2) }}</td>
                             <td>{{ $sale->status->label() }}</td>

@@ -46,7 +46,7 @@
                                     <div class="small text-muted">Receipt {{ $sale->invoice_number }}</div>
                                 </td>
                                 <td>{{ $sale->branch?->code }}</td>
-                                <td>{{ $sale->customer?->name ?: '—' }}</td>
+                                <td>{{ $sale->displayBuyerName() }}</td>
                                 <td>{{ $sale->place_of_supply_state ?: '—' }}</td>
                                 <td class="small">
                                     <div class="fw-semibold">{{ $eligibility->staffSummary() }}</div>

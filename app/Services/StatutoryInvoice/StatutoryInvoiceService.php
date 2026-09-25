@@ -267,7 +267,7 @@ class StatutoryInvoiceService
             branchId: $sale->branch_id,
             sellerGstin: null,
             sellerName: null,
-            buyerName: $sale->customer?->name,
+            buyerName: $sale->buyerNameForStatutory(),
             buyerPhone: $sale->customer?->phone,
             buyerGstin: BuyerGstin::normalize($sale->buyer_gstin),
             billingAddress: $sale->billing_address,

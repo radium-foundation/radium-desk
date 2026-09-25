@@ -27,7 +27,7 @@
         @if($sale->branch?->gstin)<br>GSTIN {{ $sale->branch->gstin }}@endif
     </p>
     <p>
-        Bill to: {{ $sale->customer?->name }}<br>
+        Bill to: {{ $sale->displayBuyerName() }}<br>
         {{ $sale->customer?->phone }}
         @if($sale->customer?->email)<br>{{ $sale->customer->email }}@endif
         @if($sale->buyer_gstin)<br>Buyer GSTIN {{ $sale->buyer_gstin }}@endif

@@ -10,6 +10,7 @@ use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
 use App\Models\InventoryStockBalance;
 use App\Services\Inventory\PosSaleService;
+use App\Services\Pos\PosCustomerIdentityResolver;
 use App\Services\Pos\PosUpiIntentService;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Support\Finance\IndianStates;
@@ -74,7 +75,7 @@ class CounterController extends Controller
                     'place_of_supply_state' => 'place_of_supply_state',
                 ],
                 searchInputIds: ['customer_phone', 'customer_name', 'customer_email'],
-                selectedMessage: 'Existing POS customer selected. Sale snapshot fields stay on this sale.',
+                selectedMessage: 'Existing POS customer selected. Legal identity for this sale is stored on the sale; the customer master is not changed unless you confirm an update.',
                 noResultsMessage: 'No matching POS customers. A new customer will be created on complete.',
             ),
             'upiReceivingAccounts' => $this->upiIntents->enabledReceivingAccounts(),
@@ -113,6 +114,10 @@ class CounterController extends Controller
             'billing_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
             'billing_pincode' => ['nullable', 'string', 'max:6'],
             'place_of_supply_state' => ['nullable', 'string', 'max:64', Rule::in(IndianStates::names())],
+            'customer_identity_resolution' => ['nullable', 'string', Rule::in([
+                PosCustomerIdentityResolver::RESOLUTION_SALE_ONLY,
+                PosCustomerIdentityResolver::RESOLUTION_UPDATE_MASTER,
+            ])],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'exists:inventory_products,id'],
             'lines.*.variant_id' => ['nullable', 'exists:inventory_product_variants,id'],
@@ -175,6 +180,7 @@ class CounterController extends Controller
                 notes: $data['notes'] ?? null,
                 saleIdempotencyKey: $data['idempotency_key'] ?? null,
                 statutory: $statutory,
+                customerIdentityResolution: $data['customer_identity_resolution'] ?? null,
             );
 
             return redirect()->route('pos.upi.intents.show', $intent)
@@ -193,6 +199,7 @@ class CounterController extends Controller
             notes: $data['notes'] ?? null,
             idempotencyKey: $data['idempotency_key'] ?? null,
             statutory: $statutory,
+            customerIdentityResolution: $data['customer_identity_resolution'] ?? null,
         );
 
         return redirect()->route('pos.sales.show', $sale)->with('status', 'Sale '.$sale->sale_no.' completed.');
