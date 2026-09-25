@@ -181,11 +181,24 @@ class FinanceHubHardwareSerialGateTest extends TestCase
         $fulfilment = $this->readyFulfilment('RDE901405', 'DELHI-RETAIL', 1);
         $this->stockAt('DELHI-RETAIL', ['SN-HUB-405']);
 
-        $first = $this->allocation->allocateSerials($fulfilment, ['SN-HUB-405'], $this->actor);
-        $second = $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-HUB-405'], $this->actor);
-
-        $this->assertSame($first->statutory_invoice_id, $second->statutory_invoice_id);
+        $allocated = $this->allocation->allocateSerials($fulfilment, ['SN-HUB-405'], $this->actor);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->state);
+        $this->assertNotNull($allocated->statutory_invoice_id);
         $this->assertSame(1, StatutoryInvoice::query()->count());
+
+        $replayIssue = $this->invoices->issueFromCommerceOrder(
+            $allocated->commerceOrder->fresh(['items']),
+            $this->actor,
+        );
+        $this->assertSame($allocated->statutory_invoice_id, $replayIssue->id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+
+        try {
+            $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-HUB-405'], $this->actor);
+            $this->fail('Serial re-allocation after invoice issuance must fail closed.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('serials', $exception->errors());
+        }
     }
 
     public function test_finance_hub_retry_before_serials_does_not_mint(): void
@@ -248,13 +261,24 @@ class FinanceHubHardwareSerialGateTest extends TestCase
         }
 
         $allocated = $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-HUB-408'], $this->actor);
-        $fromHub = $this->invoices->issueFromCommerceOrder($allocated->commerceOrder, $this->actor);
-        $fromHardware = app(HardwareFulfilmentInvoiceService::class)->issueInvoice($allocated->fresh(), $this->actor);
-        $replayAllocate = $this->allocation->allocateSerials($allocated->fresh(), ['SN-HUB-408'], $this->actor);
+        $this->assertNotNull($allocated->statutory_invoice_id);
 
+        $fromHub = $this->invoices->issueFromCommerceOrder(
+            $allocated->commerceOrder->fresh(['items']),
+            $this->actor,
+        );
+        $fromHardware = app(HardwareFulfilmentInvoiceService::class)->issueInvoice($allocated->fresh(), $this->actor);
+
+        $this->assertSame($allocated->statutory_invoice_id, $fromHub->id);
         $this->assertSame($fromHub->id, $fromHardware->id);
-        $this->assertSame($fromHub->id, $replayAllocate->statutory_invoice_id);
         $this->assertSame(1, StatutoryInvoice::query()->count());
+
+        try {
+            $this->allocation->allocateSerials($allocated->fresh(), ['SN-HUB-408'], $this->actor);
+            $this->fail('Serial re-allocation after invoice issuance must fail closed.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('serials', $exception->errors());
+        }
         $this->assertSame(1, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
         $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->fresh()->state);
         $this->assertSame('statutory:radiumbox_com:commerce_order:RDE901408', $fromHub->idempotency_key);
