@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.0.136 — 2026-09-25 — Service statutory invoice reconciliation backlog fix
+
+- Fix reconciliation starvation caused by a static first-100 candidate row limit: scan the full online-service candidate set with a mint-attempt budget instead of capping the query at 100 rows.
+- Narrow reconciliation candidates at SQL level to online service source ids and exclude `hardware_fulfilment` rows so hardware/non-service backlog does not consume scan budget.
+- Clarify `batch_limit` as maximum mint attempts per scheduler run; add `max_scan_per_run` safety bound (default 10,000).
+- Resolve rdservice.net RA/RN service orders to the correct commerce channel when minting via support-order reconciliation.
+- Preserve B2B GSTIN/state validation, hardware serial immutability, Finance manual issue, IRN/idempotency, and v4.0.135 customer identity behavior.
+- **No migration.** Code and config only. Does not auto-remediate B2B GSTIN/state mismatches (e.g. RD993, RD2304).
+- Regression: `ServiceStatutoryInvoiceReconciliationBacklogTest` (13), statutory mint retry, Finance manual issue, customer identity, issuance, and hardware serial gate suites.
+- Rollback target: v4.0.135 / `74bfbaa5`.
+
 ## 4.0.135 — 2026-09-25 — POS customer identity conflict handling
 
 - Block silent legal-identity overwrite when an existing customer phone matches a different company name or GSTIN at POS checkout.
