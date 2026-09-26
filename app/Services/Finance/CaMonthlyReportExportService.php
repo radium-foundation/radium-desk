@@ -10,7 +10,9 @@ use App\Jobs\GenerateCaMonthlyReportExportJob;
 use App\Jobs\SendCaMonthlyReportExportEmailJob;
 use App\Models\CaMonthlyReportExport;
 use App\Models\User;
+use App\Services\AuditLogService;
 use App\Support\Finance\ReportPeriod;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -23,6 +25,7 @@ final class CaMonthlyReportExportService
         private readonly CaMonthlyReportExportStorage $storage,
         private readonly CaMonthlyReportExportGenerator $generator,
         private readonly CaMonthlyReportExportThreshold $threshold,
+        private readonly AuditLogService $auditLogService,
     ) {}
 
     public function requestFromHttp(Request $request, User $user, CaMonthlyReportExportFormat $format, ?string $emailRecipient = null): CaMonthlyReportExport
@@ -140,9 +143,59 @@ final class CaMonthlyReportExportService
         abort_unless($this->storage->exists($export), 404, 'Export file is unavailable.');
     }
 
-    public function markDownloaded(CaMonthlyReportExport $export): void
+    public function markDownloaded(CaMonthlyReportExport $export, ?User $actor = null, string $channel = 'authenticated'): void
     {
+        $this->recordDownloadResponseInitiated($export, $actor, $channel);
+    }
+
+    public function recordDownloadResponseInitiated(
+        CaMonthlyReportExport $export,
+        ?User $actor = null,
+        string $channel = 'authenticated',
+    ): bool {
+        if ($export->status !== CaMonthlyReportExportStatus::Ready) {
+            return false;
+        }
+
+        if ($export->downloaded_at !== null) {
+            return false;
+        }
+
         $export->forceFill(['downloaded_at' => now()])->save();
+
+        $actorId = $actor?->id ?? $export->user_id;
+
+        $this->auditLogService->log(
+            $actorId,
+            'ca_monthly_report.download_response_initiated',
+            $export,
+            null,
+            [
+                'report_type' => $export->reportTypeLabel(),
+                'format' => $export->format->value,
+                'date_from' => $export->date_from->toDateString(),
+                'date_to' => $export->date_to->toDateString(),
+                'row_count' => $export->row_count,
+                'export_id' => $export->id,
+                'generation_duration_ms' => $export->generationDurationMs(),
+                'status' => 'download_response_initiated',
+                'channel' => $channel,
+            ],
+        );
+
+        return true;
+    }
+
+    public function paginatedDownloadHistory(int $page = 1): LengthAwarePaginator
+    {
+        $days = max(1, (int) config('ca_monthly_report.download_history_days', 90));
+        $perPage = max(5, (int) config('ca_monthly_report.download_history_per_page', 15));
+
+        return CaMonthlyReportExport::query()
+            ->with(['user:id,name,email'])
+            ->where('created_at', '>=', now()->subDays($days))
+            ->orderByDesc('id')
+            ->paginate($perPage, ['*'], 'download_history_page', $page);
     }
 
     public function resolveDeliveryMode(CaMonthlyReportExport $export): CaMonthlyReportEmailDeliveryMode

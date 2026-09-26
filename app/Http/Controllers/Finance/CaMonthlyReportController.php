@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Enums\CaMonthlyReportExportFormat;
+use App\Enums\CaMonthlyReportExportStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CaMonthlyReportExport;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
-use App\Services\Finance\CaMonthlyReportExportGenerator;
 use App\Services\Finance\CaMonthlyReportExportService;
 use App\Services\Finance\CaMonthlyReportExportStorage;
 use App\Services\Finance\CaMonthlyReportExportThreshold;
@@ -17,7 +17,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CaMonthlyReportController extends Controller
 {
@@ -45,6 +44,7 @@ class CaMonthlyReportController extends Controller
         $filters = $period->filters();
         $user = $request->user();
         $showPreflight = FinanceAccess::allowsPreflightSummary($user);
+        $showDownloadHistory = FinanceAccess::allowsDownloadHistory($user);
         $requiresAsyncExport = $this->exportThreshold->requiresAsync($request);
 
         return view('finance.reports.ca-monthly', [
@@ -52,6 +52,7 @@ class CaMonthlyReportController extends Controller
             'headers' => $this->readModel->headers(),
             'invoiceGroups' => $this->readModel->paginateInvoiceGroups($request),
             'showPreflight' => $showPreflight,
+            'showDownloadHistory' => $showDownloadHistory,
             'canExport' => FinanceAccess::allowsReportExport($user),
             'dateBasis' => CaMonthlyReportDefinition::AUTHORITATIVE_DATE_COLUMN,
             'estimatedExportLines' => $this->readModel->countExportLines($request),
@@ -61,6 +62,27 @@ class CaMonthlyReportController extends Controller
                 ? $this->exportService->recentExportsForUser($user)
                 : collect(),
             'activeExportId' => session('ca_export_id'),
+        ]);
+    }
+
+    public function downloadHistory(Request $request)
+    {
+        abort_unless(FinanceAccess::allowsDownloadHistory($request->user()), 403);
+
+        $history = $this->exportService->paginatedDownloadHistory(
+            max(1, (int) $request->query('download_history_page', 1)),
+        );
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'html' => view('finance.reports.partials.ca-monthly-download-history', [
+                    'history' => $history,
+                ])->render(),
+            ]);
+        }
+
+        return view('finance.reports.partials.ca-monthly-download-history', [
+            'history' => $history,
         ]);
     }
 
@@ -106,22 +128,29 @@ class CaMonthlyReportController extends Controller
                 ->with('status', 'CA report export queued. Download will be available when generation completes.');
         }
 
-        $path = $this->exportStorage->temporaryLocalPath(CaMonthlyReportExportFormat::Xlsx);
-
-        app(CaMonthlyReportExportGenerator::class)->generateToPath(
+        $export = $this->exportService->requestFromHttp(
             $request,
+            $request->user(),
             CaMonthlyReportExportFormat::Xlsx,
-            $path,
         );
 
+        if ($export->status === CaMonthlyReportExportStatus::Failed) {
+            return redirect()
+                ->route('finance.reports.ca-monthly.index', $request->query())
+                ->with('status', 'CA report export failed: '.($export->failure_message ?? 'Unknown error'));
+        }
+
+        $this->exportService->authorizeDownload($export, $request->user());
+        $this->exportService->recordDownloadResponseInitiated($export, $request->user());
+
         return response()->download(
-            $path,
-            'ca-monthly-report-'.$this->stamp().'.xlsx',
+            $this->exportStorage->absolutePath($export),
+            $export->downloadFilename(),
             ['Content-Type' => CaMonthlyReportExportFormat::Xlsx->mimeType()],
-        )->deleteFileAfterSend(true);
+        );
     }
 
-    public function exportCsv(Request $request): StreamedResponse|RedirectResponse
+    public function exportCsv(Request $request): BinaryFileResponse|RedirectResponse
     {
         abort_unless(FinanceAccess::allowsReportExport($request->user()), 403);
 
@@ -138,20 +167,26 @@ class CaMonthlyReportController extends Controller
                 ->with('status', 'CA report export queued. Download will be available when generation completes.');
         }
 
-        return response()->streamDownload(function () use ($request): void {
-            $handle = fopen('php://output', 'w');
-            if ($handle === false) {
-                return;
-            }
+        $export = $this->exportService->requestFromHttp(
+            $request,
+            $request->user(),
+            CaMonthlyReportExportFormat::Csv,
+        );
 
-            fputcsv($handle, $this->readModel->headers());
-            $this->readModel->streamExportRows($request, function (array $row) use ($handle): void {
-                fputcsv($handle, $row);
-            });
-            fclose($handle);
-        }, 'ca-monthly-report-'.$this->stamp().'.csv', [
-            'Content-Type' => CaMonthlyReportExportFormat::Csv->mimeType(),
-        ]);
+        if ($export->status === CaMonthlyReportExportStatus::Failed) {
+            return redirect()
+                ->route('finance.reports.ca-monthly.index', $request->query())
+                ->with('status', 'CA report export failed: '.($export->failure_message ?? 'Unknown error'));
+        }
+
+        $this->exportService->authorizeDownload($export, $request->user());
+        $this->exportService->recordDownloadResponseInitiated($export, $request->user());
+
+        return response()->download(
+            $this->exportStorage->absolutePath($export),
+            $export->downloadFilename(),
+            ['Content-Type' => CaMonthlyReportExportFormat::Csv->mimeType()],
+        );
     }
 
     public function queueExport(Request $request): RedirectResponse
@@ -209,7 +244,7 @@ class CaMonthlyReportController extends Controller
     {
         abort_unless(FinanceAccess::allowsReportExport($request->user()), 403);
         $this->exportService->authorizeDownload($export, $request->user());
-        $this->exportService->markDownloaded($export);
+        $this->exportService->recordDownloadResponseInitiated($export, $request->user());
 
         return response()->download(
             $this->exportStorage->absolutePath($export),
@@ -227,6 +262,12 @@ class CaMonthlyReportController extends Controller
         abort_if($export->isExpired(), 410, 'This export has expired.');
         abort_unless($export->isDownloadable(), 404);
         abort_unless($this->exportStorage->exists($export), 404);
+
+        $this->exportService->recordDownloadResponseInitiated(
+            $export,
+            $export->user,
+            'signed_link',
+        );
 
         return response()->download(
             $this->exportStorage->absolutePath($export),
@@ -249,11 +290,6 @@ class CaMonthlyReportController extends Controller
         return redirect()
             ->route('finance.reports.ca-monthly.index', $request->only(['date_from', 'date_to']))
             ->with('status', 'Email delivery queued for export #'.$export->id.'.');
-    }
-
-    private function stamp(): string
-    {
-        return now()->timezone((string) config('app.timezone'))->format('Ymd-His');
     }
 
     private function requestWithDefaultPeriod(Request $request): Request

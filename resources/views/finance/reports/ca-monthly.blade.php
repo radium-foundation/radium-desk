@@ -46,6 +46,21 @@
         </div>
     </div>
 
+    @if ($showDownloadHistory ?? false)
+        <div id="ca-monthly-download-history-root" class="mb-3" data-download-history-url="{{ route('finance.reports.ca-monthly.download-history', request()->query()) }}">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6 mb-1">Report Download History</h2>
+                    <p class="small text-muted mb-2">Super Admin audit of CA Monthly report exports and downloads.</p>
+                    <div class="d-flex align-items-center gap-2 text-muted small" id="ca-monthly-download-history-loading">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span>Loading download history…</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     @if ($showPreflight)
         <div id="ca-monthly-preflight-root" class="mb-3" data-preflight-url="{{ route('finance.reports.ca-monthly.preflight', request()->query()) }}">
             <div class="card border-0 shadow-sm">
@@ -422,6 +437,27 @@
                         setExportControlsEnabled(!exportInProgress);
                     });
             }
+
+            @if ($showDownloadHistory ?? false)
+            const downloadHistoryRoot = document.getElementById('ca-monthly-download-history-root');
+            if (downloadHistoryRoot) {
+                const downloadHistoryUrl = downloadHistoryRoot.dataset.downloadHistoryUrl;
+                fetch(downloadHistoryUrl, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then((response) => response.ok ? response.json() : null)
+                    .then((payload) => {
+                        if (!payload?.html) {
+                            return;
+                        }
+
+                        downloadHistoryRoot.innerHTML = payload.html;
+                    })
+                    .catch(() => {
+                        downloadHistoryRoot.innerHTML = '<div class="alert alert-warning small mb-0">Download history could not be loaded. Refresh the page or contact support.</div>';
+                    });
+            }
+            @endif
 
             const exportsRoot = document.getElementById('ca-monthly-exports');
             const pollExportRow = (row) => {

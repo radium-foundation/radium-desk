@@ -77,4 +77,18 @@ return [
 
     'invoice_chunk_size' => (int) env('CA_MONTHLY_REPORT_INVOICE_CHUNK_SIZE', 25),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Super Admin download history window
+    |--------------------------------------------------------------------------
+    |
+    | Operational metadata only. No retention cleanup job is scheduled; exports
+    | remain until pruned by PruneCaMonthlyReportExportsCommand per retention_hours.
+    |
+    */
+
+    'download_history_days' => (int) env('CA_MONTHLY_REPORT_DOWNLOAD_HISTORY_DAYS', 90),
+
+    'download_history_per_page' => (int) env('CA_MONTHLY_REPORT_DOWNLOAD_HISTORY_PER_PAGE', 15),
+
 ];

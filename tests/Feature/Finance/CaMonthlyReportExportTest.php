@@ -82,8 +82,12 @@ class CaMonthlyReportExportTest extends TestCase
             ->get(route('finance.reports.ca-monthly.export.csv', self::RANGE));
 
         $response->assertOk();
-        $this->assertStringContainsString('INV-EINV-1', $response->streamedContent());
-        $this->assertStringContainsString('Service', $response->streamedContent());
+        $export = CaMonthlyReportExport::query()->where('user_id', $user->id)->first();
+        $this->assertNotNull($export);
+        $this->assertNotNull($export->downloaded_at);
+        $artifact = Storage::disk('local')->get((string) $export->storage_path);
+        $this->assertStringContainsString('INV-EINV-1', $artifact);
+        $this->assertStringContainsString('Service', $artifact);
     }
 
     public function test_large_export_is_queued_instead_of_blocking_request(): void

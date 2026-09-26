@@ -58,6 +58,11 @@ final class FinanceAccess
 
     public static function allowsPreflightSummary(?User $user): bool
     {
+        return self::allowsDownloadHistory($user);
+    }
+
+    public static function allowsDownloadHistory(?User $user): bool
+    {
         if ($user === null) {
             return false;
         }

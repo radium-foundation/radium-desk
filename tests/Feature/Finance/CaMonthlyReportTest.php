@@ -3,11 +3,14 @@
 namespace Tests\Feature\Finance;
 
 use App\Enums\CaMonthlyReportExportFormat;
+use App\Enums\CaMonthlyReportExportStatus;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceSourceType;
 use App\Enums\StatutoryInvoiceStatus;
+use App\Models\AuditLog;
+use App\Models\CaMonthlyReportExport;
 use App\Models\CommerceOrder;
 use App\Models\CommerceOrderItem;
 use App\Models\CustomerPayment;
@@ -21,9 +24,11 @@ use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use App\Reports\CaMonthly\CaMonthlyReportOrderType;
 use App\Services\Finance\CaMonthlyReportExportGenerator;
+use App\Services\Finance\CaMonthlyReportExportService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Tests\Support\CreatesStatutoryInvoicesForEinvoice;
 use Tests\TestCase;
 use ZipArchive;
@@ -43,6 +48,8 @@ class CaMonthlyReportTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        Storage::fake('local');
+        config(['ca_monthly_report.sync_max_lines' => 500]);
     }
 
     public function test_admin_can_preview_ca_monthly_report_for_requested_range(): void
@@ -937,6 +944,237 @@ class CaMonthlyReportTest extends TestCase
             ->assertSee('Invoice preview', false)
             ->assertSee('Invoice No.', false)
             ->assertSee('Date of Invoice', false);
+    }
+
+    public function test_superadmin_sees_download_history_placeholder_on_index(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk()
+            ->assertSee('ca-monthly-download-history-root', false)
+            ->assertSee('Loading download history', false)
+            ->assertDontSee('id="ca-monthly-download-history"', false);
+    }
+
+    public function test_admin_does_not_see_download_history_on_index(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk()
+            ->assertDontSee('ca-monthly-download-history-root', false)
+            ->assertDontSee('Report Download History', false);
+    }
+
+    public function test_admin_cannot_access_download_history_endpoint(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($user)
+            ->getJson(route('finance.reports.ca-monthly.download-history', self::RANGE))
+            ->assertForbidden();
+    }
+
+    public function test_superadmin_download_history_lists_export_activity(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $superAdmin = User::factory()->create([
+            'is_active' => true,
+            'name' => 'Super Auditor',
+            'email' => 'super-auditor@example.com',
+        ]);
+        $superAdmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $admin = User::factory()->create([
+            'is_active' => true,
+            'name' => 'Finance Admin',
+            'email' => 'finance-admin@example.com',
+        ]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $export = app(CaMonthlyReportExportService::class)->requestFromHttp(
+            $this->request(),
+            $admin,
+            CaMonthlyReportExportFormat::Xlsx,
+        );
+
+        $this->actingAs($superAdmin)
+            ->getJson(route('finance.reports.ca-monthly.download-history', self::RANGE))
+            ->assertOk()
+            ->assertJsonStructure(['html']);
+
+        $html = (string) $this->actingAs($superAdmin)
+            ->getJson(route('finance.reports.ca-monthly.download-history', self::RANGE))
+            ->json('html');
+
+        $this->assertStringContainsString('Finance Admin', $html);
+        $this->assertStringContainsString('finance-admin@example.com', $html);
+        $this->assertStringContainsString('2026-09-01 to 2026-09-21', $html);
+        $this->assertStringContainsString('XLSX', $html);
+        $this->assertStringContainsString('#'.$export->id, $html);
+    }
+
+    public function test_successful_download_creates_single_audit_record(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create([
+            'is_active' => true,
+            'name' => 'Finance Downloader',
+            'email' => 'downloader@example.com',
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $export = app(CaMonthlyReportExportService::class)->requestFromHttp(
+            $this->request(),
+            $user,
+            CaMonthlyReportExportFormat::Csv,
+        );
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.exports.download', $export))
+            ->assertOk();
+
+        $export->refresh();
+        $this->assertNotNull($export->downloaded_at);
+
+        $this->assertSame(1, AuditLog::query()
+            ->where('event', 'ca_monthly_report.download_response_initiated')
+            ->where('auditable_type', $export->getMorphClass())
+            ->where('auditable_id', $export->id)
+            ->count());
+
+        $audit = AuditLog::query()
+            ->where('event', 'ca_monthly_report.download_response_initiated')
+            ->where('auditable_id', $export->id)
+            ->first();
+
+        $this->assertNotNull($audit);
+        $this->assertSame($user->id, $audit->user_id);
+        $this->assertSame('CA Monthly Report', $audit->new_values['report_type']);
+        $this->assertSame('csv', $audit->new_values['format']);
+        $this->assertSame('2026-09-01', $audit->new_values['date_from']);
+        $this->assertSame('2026-09-21', $audit->new_values['date_to']);
+        $this->assertSame($export->id, $audit->new_values['export_id']);
+        $this->assertSame('download_response_initiated', $audit->new_values['status']);
+        $this->assertArrayNotHasKey('download_url', $audit->new_values ?? []);
+        $this->assertArrayNotHasKey('token', $audit->new_values ?? []);
+    }
+
+    public function test_repeated_download_does_not_create_duplicate_audit_records(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $export = app(CaMonthlyReportExportService::class)->requestFromHttp(
+            $this->request(),
+            $user,
+            CaMonthlyReportExportFormat::Csv,
+        );
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.exports.download', $export))
+            ->assertOk();
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.exports.download', $export))
+            ->assertOk();
+
+        $this->assertSame(1, AuditLog::query()
+            ->where('event', 'ca_monthly_report.download_response_initiated')
+            ->where('auditable_id', $export->id)
+            ->count());
+    }
+
+    public function test_failed_export_does_not_create_download_audit_record(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $export = CaMonthlyReportExport::query()->create([
+            'user_id' => $user->id,
+            'status' => CaMonthlyReportExportStatus::Failed,
+            'format' => CaMonthlyReportExportFormat::Csv,
+            'date_from' => self::RANGE['date_from'],
+            'date_to' => self::RANGE['date_to'],
+            'storage_disk' => 'local',
+            'idempotency_key' => hash('sha256', 'failed-export'),
+            'failure_message' => 'Generation failed',
+            'completed_at' => now(),
+            'expires_at' => now()->addDay(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.exports.download', $export))
+            ->assertNotFound();
+
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => 'ca_monthly_report.download_response_initiated',
+            'auditable_id' => $export->id,
+        ]);
+    }
+
+    public function test_sync_quick_download_creates_export_and_download_audit_record(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true, 'email' => 'quick@example.com']);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.export.xlsx', self::RANGE))
+            ->assertOk();
+
+        $export = CaMonthlyReportExport::query()->where('user_id', $user->id)->first();
+        $this->assertNotNull($export);
+        $this->assertSame(CaMonthlyReportExportStatus::Ready, $export->status);
+        $this->assertNotNull($export->downloaded_at);
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'ca_monthly_report.download_response_initiated',
+            'auditable_id' => $export->id,
+            'user_id' => $user->id,
+        ]);
+        Storage::disk('local')->assertExists((string) $export->storage_path);
+    }
+
+    public function test_export_status_polling_does_not_create_download_audit_records(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $export = app(CaMonthlyReportExportService::class)->requestFromHttp(
+            $this->request(),
+            $user,
+            CaMonthlyReportExportFormat::Csv,
+        );
+
+        $this->actingAs($user)
+            ->getJson(route('finance.reports.ca-monthly.exports.show', $export))
+            ->assertOk()
+            ->assertJsonPath('status', 'ready');
+
+        $this->actingAs($user)
+            ->getJson(route('finance.reports.ca-monthly.exports.show', $export))
+            ->assertOk();
+
+        $this->assertSame(0, AuditLog::query()
+            ->where('event', 'ca_monthly_report.download_response_initiated')
+            ->count());
     }
 
     public function test_agent_cannot_access_ca_monthly_report(): void

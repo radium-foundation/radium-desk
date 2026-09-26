@@ -94,4 +94,47 @@ class CaMonthlyReportExport extends Model
             $this->format->extension(),
         );
     }
+
+    public function reportTypeLabel(): string
+    {
+        return 'CA Monthly Report';
+    }
+
+    public function generationDurationMs(): ?int
+    {
+        if ($this->processing_started_at === null || $this->completed_at === null) {
+            return null;
+        }
+
+        return (int) $this->processing_started_at->diffInMilliseconds($this->completed_at);
+    }
+
+    public function generationDurationLabel(): string
+    {
+        $durationMs = $this->generationDurationMs();
+
+        if ($durationMs === null) {
+            return '—';
+        }
+
+        if ($durationMs < 1000) {
+            return $durationMs.' ms';
+        }
+
+        return number_format($durationMs / 1000, 1).' s';
+    }
+
+    public function downloadHistoryStatusLabel(): string
+    {
+        if ($this->downloaded_at !== null) {
+            return 'Download response initiated';
+        }
+
+        return $this->status->label();
+    }
+
+    public function downloadHistoryTimestamp(): ?Carbon
+    {
+        return $this->downloaded_at ?? $this->completed_at ?? $this->created_at;
+    }
 }
