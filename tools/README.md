@@ -156,6 +156,8 @@ deskd                # or: ./tools/desk deploy
 
 Do not edit `storage/app/private/release.json` manually — it is written by `release:snapshot` during deploy.
 
+**Release identity on KVM:** `storage/app/private/release.json` is the only authoritative deployed release manifest. `storage/app/deployed-commit.txt` is a deprecated legacy production-only file (not in Git, not synced, not recreated). Do not use it for version checks. KVM deploy removes it if present.
+
 **Release checklist:** CHANGELOG updated → version reviewed → commit → tag → push main → push tag → `deskd` → verify `release.json`, What's New, and footer version/build.
 
 ---

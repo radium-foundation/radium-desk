@@ -279,6 +279,28 @@ run_remote_post_sync() {
     kvm_restart_supervisor_worker
 }
 
+# Deprecated production-only marker; never synced or recreated by KVM deploy.
+LEGACY_DEPLOYED_COMMIT_RELATIVE="storage/app/deployed-commit.txt"
+
+remove_legacy_deployed_commit_marker() {
+    local remote_path="${REMOTE_PROJECT}/${LEGACY_DEPLOYED_COMMIT_RELATIVE}"
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        return 0
+    fi
+
+    print_warning "Checking for deprecated legacy release marker (${LEGACY_DEPLOYED_COMMIT_RELATIVE})..."
+
+    if ! ssh_exec "test -f '$remote_path'"; then
+        print_success "No legacy deployed-commit.txt marker (release identity: storage/app/private/release.json)"
+        return 0
+    fi
+
+    print_warning "Removing deprecated ${LEGACY_DEPLOYED_COMMIT_RELATIVE} (authoritative release identity is storage/app/private/release.json)"
+    ssh_exec "rm -f '$remote_path'"
+    print_success "Legacy deployed-commit.txt removed"
+}
+
 main() {
     cd "$PROJECT_ROOT"
 
@@ -312,6 +334,7 @@ main() {
     sync_kvm_public_build "$PROJECT_ROOT"
     fix_remote_ownership
     run_remote_post_sync
+    remove_legacy_deployed_commit_marker
 
     if ! kvm_health_check; then
         print_error "Deployment completed but KVM health check failed"

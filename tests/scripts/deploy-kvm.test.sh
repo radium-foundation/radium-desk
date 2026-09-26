@@ -169,4 +169,31 @@ echo "$OWNERSHIP_BLOCK" | grep -q '\-prune' \
 
 pass "fix_remote_ownership skips excluded Supervisor logs and node_modules"
 
+# --- legacy deployed-commit.txt deprecation (P-25-09-44) ---
+
+grep -q 'remove_legacy_deployed_commit_marker' "$SCRIPT" \
+    || fail "must remove legacy deployed-commit.txt marker after post-sync"
+grep -q 'storage/app/deployed-commit.txt' "$SCRIPT" \
+    || fail "must reference legacy deployed-commit.txt path for cleanup"
+grep -q 'remove_legacy_deployed_commit_marker' "$SCRIPT" \
+    && grep -q 'run_remote_post_sync' "$SCRIPT" \
+    || fail "must call legacy marker cleanup near post-sync"
+
+LEGACY_CLEANUP_BLOCK="$(awk '/^remove_legacy_deployed_commit_marker\(\)/,/^}/' "$SCRIPT")"
+[[ -n "$LEGACY_CLEANUP_BLOCK" ]] || fail "could not extract remove_legacy_deployed_commit_marker from deploy-kvm.sh"
+echo "$LEGACY_CLEANUP_BLOCK" | grep -q "rm -f" \
+    || fail "legacy marker cleanup must remove file with rm -f"
+echo "$LEGACY_CLEANUP_BLOCK" | grep -q 'release.json' \
+    || fail "legacy marker cleanup must reference release.json as authoritative"
+if echo "$LEGACY_CLEANUP_BLOCK" | grep -qE 'echo.*deployed-commit|file_put_contents|>.*deployed-commit'; then
+    fail "must not write or recreate deployed-commit.txt"
+fi
+
+RSYNC_FILTER_TEXT="$(extract_rsync_filters | tr '\n' ' ')"
+if [[ "$RSYNC_FILTER_TEXT" == *"deployed-commit"* ]]; then
+    fail "must not rsync deployed-commit.txt"
+fi
+
+pass "legacy deployed-commit.txt deprecation guard present"
+
 echo "All deploy-kvm static checks passed."

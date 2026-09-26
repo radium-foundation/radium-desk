@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.144 — 2026-09-26 — Deprecate legacy deployed-commit release marker
+
+- **Release identity:** Document that `storage/app/private/release.json` is the sole authoritative deployed release manifest on KVM. `storage/app/deployed-commit.txt` is deprecated legacy metadata and must not be used by operators.
+- **KVM deploy:** Post-deploy cleanup removes orphaned `storage/app/deployed-commit.txt` if present (does not sync or recreate it).
+- Rollback target: v4.0.143 / `fdf5e57f`.
+- Prompt **RadiumDesk-P-25-09-44**.
+
 ## 4.0.143 — 2026-09-26 — CA Monthly header-discount reconciliation
 
 - **CA Monthly preflight:** Invoice-grain reconciliation now subtracts statutory header `discount` from the identity check (`taxable − discount + shipping + IGST + CGST + SGST + rounding = invoice_value`). Fixes false non-reconciling preflight for POS invoices such as INV-076768 where header discount bridges line gross to invoice total. Reporting/export 22-column contract unchanged; no statutory invoice mutations.

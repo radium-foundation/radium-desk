@@ -29,6 +29,15 @@ Before any release, verify:
 
 If any mismatch exists, **stop and explain the mismatch**.
 
+## Deployed release identity (KVM)
+
+| File | Status |
+|------|--------|
+| `storage/app/private/release.json` | **Authoritative** deployed release manifest (version, tag, build, deployed_at). Written by `php artisan release:snapshot` during deploy and synced to production by `desk deploy`. Consumed by `VersionService`, What's New, footer, and backup tooling. |
+| `storage/app/deployed-commit.txt` | **Deprecated legacy** production-only marker. Not tracked in Git, not written by application code, and **not** synced by KVM deploy. Operators must **not** use it to identify the deployed release. KVM deploy removes it if present so it cannot mislead post-deploy checks. |
+
+To verify production release identity, read `storage/app/private/release.json` (or the in-app version footer / What's New).
+
 ## Final Release Checklist
 
 Before every release, confirm:
@@ -92,5 +101,6 @@ No four-part versions unless explicitly requested.
 | Version detection | Latest semver Git tag (`GitReleaseInspector`) |
 | Deploy snapshot | `php artisan release:snapshot` → `storage/app/private/release.json` |
 | UI | `ChangelogService` + `VersionService` |
+| Legacy marker (deprecated) | `storage/app/deployed-commit.txt` — do not use |
 
 Deploy runs `release:snapshot` automatically via `./tools/desk deploy` (`deskd`).
