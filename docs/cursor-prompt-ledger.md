@@ -250,5 +250,5 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-25-09-37 | 2026-09-26 | Release prep v4.0.141 CA Monthly XLSX Excel compatibility | Tag **v4.0.141**; **141** CA Monthly tests PASS. **Not deployed.** |
 | RadiumDesk-P-25-09-39 | 2026-09-26 | Production deploy v4.0.141 @ `2bb2e8c7` | KVM deploy; CA export 7332 rows, package validator 0 errors; GST 28/28 unchanged; INV-076768 unchanged. Rollback: v4.0.140/`adda4806`. |
 | RadiumDesk-P-25-09-42 | 2026-09-26 | Permanent AST300 zero-value statutory invoice prevention + deploy @ `1851472a` | KVM deploy; historical 9 unchanged; 0 zero-value rdservice_in. Rollback: v4.0.141/`2bb2e8c7`. |
-| RadiumDesk-P-25-09-43 | 2026-09-26 | CA Monthly header-discount reconciliation fix | Preflight formula includes header discount; **148** CA Monthly tests PASS. **Not deployed.** |
+| RadiumDesk-P-25-09-43 | 2026-09-26 | CA Monthly header-discount reconciliation fix + deploy v4.0.143 | Preflight formula includes header discount; tag **v4.0.143** @ `fdf5e57f`; production `release.json` **4.0.143/fdf5e57f**; INV-076768 reconciled **0.00**; Sep 2026 non-reconciling **0**. |
 Do not renumber or overwrite earlier rows. Append only.
