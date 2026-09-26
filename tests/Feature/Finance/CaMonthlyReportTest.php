@@ -647,6 +647,44 @@ class CaMonthlyReportTest extends TestCase
         $this->assertSame('CN-2026-0001', $row[2]);
     }
 
+    public function test_original_invoice_and_linked_credit_note_net_to_zero_without_double_counting(): void
+    {
+        $original = $this->makeTaxInvoice([
+            'issued_at' => '2026-09-10 10:00:00',
+            'invoice_number' => 'INV-CA-PAIR-1',
+            'buyer_gstin' => '07AAAAA0000A1Z5',
+        ]);
+
+        $creditNote = $this->makeTaxInvoice([
+            'issued_at' => '2026-09-12 10:00:00',
+            'document_type' => StatutoryInvoiceDocumentType::CreditNote,
+            'invoice_number' => 'CN-CA-PAIR-1',
+            'original_statutory_invoice_id' => $original->id,
+            'buyer_gstin' => '07AAAAA0000A1Z5',
+        ]);
+
+        $readModel = app(CaMonthlyStatutoryLineReadModel::class);
+        $preflight = $readModel->preflight($this->request());
+        $rows = $readModel->exportRows($this->request());
+
+        $this->assertCount(2, $rows);
+        $this->assertSame(1, $preflight->creditNoteCount);
+        $this->assertSame('0.00', $preflight->taxableAmountTotal);
+        $this->assertSame('0.00', $preflight->totalAmountTotal);
+        $this->assertSame('INV-CA-PAIR-1', $rows[0][2]);
+        $this->assertSame('CN-CA-PAIR-1', $rows[1][2]);
+        $this->assertSame('Issued', $rows[0][3]);
+        $this->assertSame('Credit Note', $rows[1][3]);
+        $this->assertSame('118.00', $rows[0][18]);
+        $this->assertSame('118.00', $rows[1][18]);
+        $this->assertCount(22, $rows[0]);
+        $this->assertCount(22, $rows[1]);
+        $this->assertNotEmpty($rows[0][21]);
+        $this->assertNotEmpty($rows[1][21]);
+        $this->assertSame(CaMonthlyReportDefinition::HEADERS[21], 'Payment Channel');
+        $this->assertSame($original->id, $creditNote->original_statutory_invoice_id);
+    }
+
     public function test_commerce_physical_merchandise_line_kind_classifies_hardware(): void
     {
         $invoice = $this->makeTaxInvoice([
