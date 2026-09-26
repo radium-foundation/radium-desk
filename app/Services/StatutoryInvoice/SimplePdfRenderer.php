@@ -356,7 +356,9 @@ class SimplePdfRenderer
 
         $drewClosing = false;
         if ($first && $includeClosing) {
-            $closingY = $closingAnchor ?? ($y - 8.0);
+            $closingY = $closingAnchor !== null
+                ? max($closingAnchor, $y - self::TABLE_SERIAL_GAP)
+                : ($y - 8.0);
             $ops[] = $this->closingBlock($payload, $closingY);
             $drewClosing = true;
         } elseif ($includeClosing && $rows === []) {
