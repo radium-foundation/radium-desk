@@ -249,5 +249,5 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-25-09-34 | 2026-09-26 | CA Monthly Excel Desktop compatibility investigation gate | Export #11 unreadable in Excel; OOXML package root cause; cancellation read-only clean. **Not deployed.** |
 | RadiumDesk-P-25-09-37 | 2026-09-26 | Release prep v4.0.141 CA Monthly XLSX Excel compatibility | Tag **v4.0.141**; **141** CA Monthly tests PASS. **Not deployed.** |
 | RadiumDesk-P-25-09-39 | 2026-09-26 | Production deploy v4.0.141 @ `2bb2e8c7` | KVM deploy; CA export 7332 rows, package validator 0 errors; GST 28/28 unchanged; INV-076768 unchanged. Rollback: v4.0.140/`adda4806`. |
-| RadiumDesk-P-25-09-42 | 2026-09-26 | Permanent AST300 zero-value statutory invoice prevention | `RdServiceInAst300CommerceSnapshotService` + ingest guard; **14** AST300 tests. Tag **v4.0.142**. **Not deployed.** |
+| RadiumDesk-P-25-09-42 | 2026-09-26 | Permanent AST300 zero-value statutory invoice prevention + deploy @ `1851472a` | KVM deploy; historical 9 unchanged; 0 zero-value rdservice_in. Rollback: v4.0.141/`2bb2e8c7`. |
 Do not renumber or overwrite earlier rows. Append only.
