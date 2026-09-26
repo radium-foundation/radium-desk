@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.143 — 2026-09-26 — CA Monthly header-discount reconciliation
+
+- **CA Monthly preflight:** Invoice-grain reconciliation now subtracts statutory header `discount` from the identity check (`taxable − discount + shipping + IGST + CGST + SGST + rounding = invoice_value`). Fixes false non-reconciling preflight for POS invoices such as INV-076768 where header discount bridges line gross to invoice total. Reporting/export 22-column contract unchanged; no statutory invoice mutations.
+- Regression: CA Monthly suite (**148** tests incl. header-discount and rounding preflight cases); 22-column Payment Channel contract preserved.
+- Rollback target: v4.0.142 / `1851472a`.
+- Prompt **RadiumDesk-P-25-09-43**.
+
 ## 4.0.142 — 2026-09-26 — AST300 rdservice.in zero-value statutory invoice prevention
 
 - **Root cause fix:** AST300 L1 paid rdservice.in renewals with Cashfree evidence but support-only commerce ingest (`RD Technical Support — included` at ₹0) now repair into an authoritative billable service line before statutory mint, using existing inclusive GST (`GstSplitService`) and product metadata (`rd_service_name`, serial, AST300 identity).

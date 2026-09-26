@@ -18,6 +18,7 @@ final class CaMonthlyReportInvoiceExportRow
         public readonly float $cgst,
         public readonly float $sgst,
         public readonly float $shortExcess,
+        public readonly float $headerDiscount,
         public readonly float $invoiceTotal,
     ) {}
 }

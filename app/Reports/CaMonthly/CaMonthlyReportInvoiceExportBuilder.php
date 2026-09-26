@@ -98,6 +98,7 @@ final class CaMonthlyReportInvoiceExportBuilder
         $cgst = round((float) ($invoice->cgst ?? 0), 2);
         $sgst = round((float) ($invoice->sgst ?? 0), 2);
         $shortExcess = round((float) $invoice->rounding, 2);
+        $headerDiscount = round((float) ($invoice->discount ?? 0), 2);
         $invoiceTotal = round((float) $invoice->invoice_value, 2);
 
         $parentCells = [
@@ -135,6 +136,7 @@ final class CaMonthlyReportInvoiceExportBuilder
             cgst: $cgst,
             sgst: $sgst,
             shortExcess: $shortExcess,
+            headerDiscount: $headerDiscount,
             invoiceTotal: $invoiceTotal,
         );
     }

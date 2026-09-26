@@ -748,6 +748,65 @@ class CaMonthlyReportTest extends TestCase
         $this->assertSame([], $preflight->nonReconcilingInvoices);
     }
 
+    public function test_header_discount_invoice_reconciles_in_preflight(): void
+    {
+        $this->makeTaxInvoice([
+            'issued_at' => '2026-09-11 17:39:03',
+            'invoice_number' => 'INV-076768-STYLE',
+            'channel' => StatutoryInvoiceChannel::DeskPos,
+            'taxable_value' => '9017.82',
+            'discount' => '0.03',
+            'tax_total' => '1623.21',
+            'igst' => '1623.21',
+            'cgst' => '0.00',
+            'sgst' => '0.00',
+            'rounding' => '0.00',
+            'invoice_value' => '10641.00',
+            'payment_method' => 'Bank Transfer',
+        ], [
+            'taxable_value' => '9017.82',
+            'tax_total' => '1623.21',
+            'igst' => '1623.21',
+            'cgst' => '0.00',
+            'sgst' => '0.00',
+            'line_total' => '10641.03',
+        ]);
+
+        $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
+
+        $this->assertSame(0, $preflight->nonReconcilingLineCount);
+        $this->assertSame([], $preflight->nonReconcilingInvoices);
+        $this->assertCount(22, CaMonthlyReportDefinition::HEADERS);
+    }
+
+    public function test_rounding_only_invoice_still_reconciles_in_preflight(): void
+    {
+        $this->makeTaxInvoice([
+            'issued_at' => '2026-09-10 10:00:00',
+            'invoice_number' => 'INV-0767224-STYLE',
+            'taxable_value' => '14158.50',
+            'discount' => '0.00',
+            'tax_total' => '2548.53',
+            'igst' => '2548.53',
+            'cgst' => '0.00',
+            'sgst' => '0.00',
+            'rounding' => '-0.03',
+            'invoice_value' => '16707.00',
+        ], [
+            'taxable_value' => '14158.50',
+            'tax_total' => '2548.53',
+            'igst' => '2548.53',
+            'cgst' => '0.00',
+            'sgst' => '0.00',
+            'line_total' => '16707.03',
+        ]);
+
+        $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
+
+        $this->assertSame(0, $preflight->nonReconcilingLineCount);
+        $this->assertSame([], $preflight->nonReconcilingInvoices);
+    }
+
     public function test_xlsx_with_special_characters_produces_valid_sheet_xml(): void
     {
         $this->makeTaxInvoice([

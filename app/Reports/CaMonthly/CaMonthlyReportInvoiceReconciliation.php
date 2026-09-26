@@ -20,6 +20,7 @@ final class CaMonthlyReportInvoiceReconciliation
     {
         return round(
             $row->taxableAmount
+            - $row->headerDiscount
             + $row->shippingAmount
             + $row->igst
             + $row->cgst
@@ -46,6 +47,7 @@ final class CaMonthlyReportInvoiceReconciliation
      *     cgst: string,
      *     sgst: string,
      *     short_excess: string,
+     *     header_discount: string,
      * }
      */
     public function diagnostic(CaMonthlyReportInvoiceExportRow $row): array
@@ -61,6 +63,7 @@ final class CaMonthlyReportInvoiceReconciliation
             'cgst' => $this->money($row->cgst),
             'sgst' => $this->money($row->sgst),
             'short_excess' => $this->money($row->shortExcess),
+            'header_discount' => $this->money($row->headerDiscount),
         ];
     }
 
