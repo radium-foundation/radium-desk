@@ -9,22 +9,29 @@ use App\Models\StatutoryInvoiceCancellation;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\StatutoryInvoice\Data\EInvoiceCancelResult;
+use App\Services\StatutoryInvoice\Data\StatutoryCancellationPolicyResult;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceCancellationResult;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Canonical Finance/Admin statutory invoice cancellation entry point.
+ * Canonical statutory invoice cancellation entry point for Finance, POS, and
+ * controlled fulfilment workflows.
  */
 final class StatutoryInvoiceCancellationOrchestrator
 {
     public const EVENT_CANCELLED = 'statutory_invoice.cancelled';
 
+    public const EVENT_ADJUSTED = 'statutory_invoice.cancellation_adjusted';
+
     public const DEFAULT_IDEMPOTENCY_PREFIX = 'statutory-invoice-cancel:';
 
     public function __construct(
         private readonly StatutoryInvoiceCancellationEligibility $eligibility,
+        private readonly StatutoryInvoiceCancellationPolicyService $policy,
         private readonly StatutoryInvoiceCreditNotePolicy $creditNotes,
+        private readonly StatutoryInvoiceCreditNoteService $creditNoteService,
+        private readonly StatutoryInvoiceEwbCancellationService $ewbCancellation,
         private readonly StatutoryInvoiceIrnCancellationService $irnCancellation,
         private readonly StatutoryInvoiceLinkedInventoryReversalService $inventoryReversal,
         private readonly StatutoryInvoiceRefundReviewService $refundReview,
@@ -59,7 +66,7 @@ final class StatutoryInvoiceCancellationOrchestrator
         if ($existingRecord !== null) {
             if ($existingRecord->idempotency_key !== $idempotencyKey) {
                 throw ValidationException::withMessages([
-                    'invoice' => 'This statutory invoice was already cancelled.',
+                    'invoice' => 'This statutory invoice was already cancelled or adjusted.',
                 ]);
             }
 
@@ -84,16 +91,19 @@ final class StatutoryInvoiceCancellationOrchestrator
 
         $this->eligibility->assertCanCancel($invoice);
 
+        $policy = $this->policy->evaluate($invoice);
         $creditNoteAction = $this->creditNotes->actionForCancellation($invoice);
-        if (($creditNoteAction['status'] ?? '') === 'blocked_requirements_not_met') {
+
+        if ($policy->requiresCreditNote() && ! $this->creditNotes->canMint()) {
             throw ValidationException::withMessages([
-                'credit_note' => (string) ($creditNoteAction['message'] ?? 'Credit note requirements are not met.'),
+                'credit_note' => 'A credit note is required for this cancellation but credit-note minting is not enabled.',
             ]);
         }
 
-        $irnAction = $this->resolveIrnAction($invoice, $reason);
+        $ewbAction = $this->ewbCancellation->cancelIfApplicable($invoice, $reason);
+        $irnAction = $this->resolveIrnAction($invoice, $reason, $policy);
 
-        return DB::transaction(function () use ($invoice, $actor, $reason, $idempotencyKey, $irnAction, $creditNoteAction): StatutoryInvoiceCancellationResult {
+        return DB::transaction(function () use ($invoice, $actor, $reason, $idempotencyKey, $policy, $irnAction, $ewbAction, $creditNoteAction): StatutoryInvoiceCancellationResult {
             $locked = StatutoryInvoice::query()
                 ->whereKey($invoice->id)
                 ->lockForUpdate()
@@ -118,13 +128,29 @@ final class StatutoryInvoiceCancellationOrchestrator
             $this->eligibility->assertCanCancel($locked);
 
             $inventoryAction = $this->inventoryReversal->reverseIfRequired($locked, $actor, $reason);
-
             $previousStatus = $locked->status->value;
-            $cancelled = $this->invoices->cancel($locked, $actor, $reason);
-            $refundReview = $this->refundReview->snapshot($cancelled);
+            $refundReview = null;
+
+            if ($policy->requiresCreditNote()) {
+                $creditNoteAction = $this->creditNoteService->issueForCancellation(
+                    original: $locked,
+                    actor: $actor,
+                    reason: $reason,
+                    idempotencyKey: $this->creditNoteService->idempotencyKeyFor($locked),
+                );
+                $resultInvoice = $locked->fresh(['items', 'inventorySale', 'eInvoiceRecord', 'cancelledBy']) ?? $locked;
+                $refundReview = $this->refundReview->snapshot($resultInvoice);
+                $event = self::EVENT_ADJUSTED;
+                $finalStatus = $resultInvoice->status->value;
+            } else {
+                $resultInvoice = $this->invoices->cancel($locked, $actor, $reason);
+                $refundReview = $this->refundReview->snapshot($resultInvoice);
+                $event = self::EVENT_CANCELLED;
+                $finalStatus = $resultInvoice->status->value;
+            }
 
             $record = StatutoryInvoiceCancellation::query()->create([
-                'statutory_invoice_id' => $cancelled->id,
+                'statutory_invoice_id' => $locked->id,
                 'idempotency_key' => $idempotencyKey,
                 'actor_id' => $actor->id,
                 'reason' => $reason,
@@ -132,9 +158,11 @@ final class StatutoryInvoiceCancellationOrchestrator
                 'inventory_action' => $inventoryAction,
                 'credit_note_action' => $creditNoteAction,
                 'result_summary' => [
-                    'invoice_number' => $cancelled->invoice_number,
+                    'invoice_number' => $locked->invoice_number,
                     'previous_status' => $previousStatus,
-                    'final_status' => $cancelled->status->value,
+                    'final_status' => $finalStatus,
+                    'workflow' => $policy->workflow->value,
+                    'ewb_action' => $ewbAction,
                     'refund_review' => $refundReview->toAuditArray(),
                 ],
                 'completed_at' => now(),
@@ -142,14 +170,16 @@ final class StatutoryInvoiceCancellationOrchestrator
 
             $this->auditLogs->log(
                 userId: $actor->id,
-                event: self::EVENT_CANCELLED,
-                auditable: $cancelled,
+                event: $event,
+                auditable: $resultInvoice,
                 oldValues: [
                     'status' => $previousStatus,
                 ],
                 newValues: [
-                    'status' => $cancelled->status->value,
+                    'status' => $finalStatus,
                     'cancel_reason' => $reason,
+                    'workflow' => $policy->workflow->value,
+                    'ewb_action' => $ewbAction,
                     'irn_action' => $irnAction,
                     'inventory_action' => $inventoryAction,
                     'credit_note_action' => $creditNoteAction,
@@ -159,7 +189,7 @@ final class StatutoryInvoiceCancellationOrchestrator
             );
 
             return StatutoryInvoiceCancellationResult::completed(
-                invoice: $cancelled->fresh(['items', 'inventorySale', 'eInvoiceRecord', 'cancelledBy']) ?? $cancelled,
+                invoice: $resultInvoice->fresh(['items', 'inventorySale', 'eInvoiceRecord', 'cancelledBy']) ?? $resultInvoice,
                 irnAction: $irnAction,
                 inventoryAction: $inventoryAction,
                 creditNoteAction: $creditNoteAction,
@@ -171,13 +201,15 @@ final class StatutoryInvoiceCancellationOrchestrator
     /**
      * @return array<string, mixed>
      */
-    private function resolveIrnAction(StatutoryInvoice $invoice, string $reason): array
-    {
-        if (! $this->eligibility->irnCancellationRequired($invoice)) {
-            return [
-                'status' => 'not_required',
-                'message' => 'No submitted IRN requires cancellation.',
-            ];
+    private function resolveIrnAction(
+        StatutoryInvoice $invoice,
+        string $reason,
+        StatutoryCancellationPolicyResult $policy,
+    ): array {
+        if (! $policy->requiresIrnCancellation()) {
+            return $this->irnActionFromPolicy($policy, [
+                'message' => $policy->summary,
+            ]);
         }
 
         $result = $this->irnCancellation->cancelIfRequired($invoice, $reason);
@@ -193,6 +225,21 @@ final class StatutoryInvoiceCancellationOrchestrator
     }
 
     /**
+     * @param  array<string, mixed>  $extra
+     * @return array<string, mixed>
+     */
+    private function irnActionFromPolicy(StatutoryCancellationPolicyResult $policy, array $extra = []): array
+    {
+        return array_merge([
+            'status' => $policy->irnDecision->value,
+            'workflow' => $policy->workflow->value,
+            'irn_age_hours' => $policy->irnAgeHours,
+            'has_submitted_irn' => $policy->hasSubmittedIrn,
+            'is_b2b' => $policy->isB2b,
+        ], $extra);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function irnActionFromResult(EInvoiceCancelResult $result): array
@@ -204,6 +251,7 @@ final class StatutoryInvoiceCancellationOrchestrator
             EInvoiceCancelOutcome::ProviderNotImplemented => 'IRN cancellation is not implemented for the configured e-invoice provider.',
             EInvoiceCancelOutcome::TemporaryFailure => 'IRN cancellation failed temporarily. Retry later without duplicating local cancellation.',
             EInvoiceCancelOutcome::PermanentFailure => 'IRN cancellation failed permanently.',
+            EInvoiceCancelOutcome::Unknown => 'IRN cancellation result is ambiguous and requires manual review.',
         };
 
         return [

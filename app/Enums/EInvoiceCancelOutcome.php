@@ -10,4 +10,5 @@ enum EInvoiceCancelOutcome: string
     case TemporaryFailure = 'temporary_failure';
     case PermanentFailure = 'permanent_failure';
     case ProviderNotImplemented = 'provider_not_implemented';
+    case Unknown = 'unknown';
 }

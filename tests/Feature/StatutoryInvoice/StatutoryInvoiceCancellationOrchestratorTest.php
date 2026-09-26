@@ -21,7 +21,6 @@ use App\Services\StatutoryInvoice\Data\EInvoiceCancelResult;
 use App\Services\StatutoryInvoice\Data\EInvoiceSubmitResult;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
-use App\Services\StatutoryInvoice\Whitebooks\WhitebooksEInvoiceGateway;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,7 +94,7 @@ class StatutoryInvoiceCancellationOrchestratorTest extends TestCase
         $this->assertFalse($result->idempotent);
         $this->assertSame(StatutoryInvoiceStatus::Cancelled, $result->invoice->status);
         $this->assertSame('INV-07671', $result->invoice->invoice_number);
-        $this->assertSame('not_required_current_release', $result->creditNoteAction['status']);
+        $this->assertSame('not_required', $result->creditNoteAction['status']);
     }
 
     public function test_unauthorized_user_cannot_cancel_via_http(): void
@@ -177,13 +176,14 @@ class StatutoryInvoiceCancellationOrchestratorTest extends TestCase
         $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
         $this->app->instance(EInvoiceGateway::class, $fake);
 
-        $invoice = $this->issuePosInvoice('CANCEL-TEST-7');
+        $invoice = $this->issuePosB2bInvoice('CANCEL-TEST-7');
         EInvoiceRecord::query()->updateOrCreate(
             ['invoice_id' => $invoice->id],
             [
                 'provider' => 'fake',
                 'irn' => str_repeat('a', 64),
                 'ack_no' => 'ACK-1',
+                'ack_date' => now(),
                 'status' => EInvoiceRecordStatus::Submitted->value,
             ],
         );
@@ -206,13 +206,14 @@ class StatutoryInvoiceCancellationOrchestratorTest extends TestCase
         $fake->queueCancel(EInvoiceCancelResult::permanentFailure('fake', ['reason' => 'simulated_failure']));
         $this->app->instance(EInvoiceGateway::class, $fake);
 
-        $invoice = $this->issuePosInvoice('CANCEL-TEST-8');
+        $invoice = $this->issuePosB2bInvoice('CANCEL-TEST-8');
         EInvoiceRecord::query()->updateOrCreate(
             ['invoice_id' => $invoice->id],
             [
                 'provider' => 'fake',
                 'irn' => str_repeat('b', 64),
                 'ack_no' => 'ACK-2',
+                'ack_date' => now(),
                 'status' => EInvoiceRecordStatus::Submitted->value,
             ],
         );
@@ -257,13 +258,14 @@ class StatutoryInvoiceCancellationOrchestratorTest extends TestCase
         $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
         $this->app->instance(EInvoiceGateway::class, $fake);
 
-        $invoice = $this->issuePosInvoice('CANCEL-TEST-10', serial: 'CANCEL-SERIAL-002');
+        $invoice = $this->issuePosB2bInvoice('CANCEL-TEST-10', serial: 'CANCEL-SERIAL-002');
         EInvoiceRecord::query()->updateOrCreate(
             ['invoice_id' => $invoice->id],
             [
                 'provider' => 'fake',
                 'irn' => str_repeat('c', 64),
                 'ack_no' => 'ACK-3',
+                'ack_date' => now(),
                 'status' => EInvoiceRecordStatus::Submitted->value,
             ],
         );
@@ -339,17 +341,22 @@ class StatutoryInvoiceCancellationOrchestratorTest extends TestCase
         $this->assertSame(StatutoryInvoiceStatus::Issued, $invoice->fresh()->status);
     }
 
-    public function test_whitebooks_provider_blocks_cancellation_when_irn_is_submitted(): void
+    public function test_whitebooks_provider_blocks_cancellation_when_irn_cancel_fails_within_window(): void
     {
-        $this->app->instance(EInvoiceGateway::class, app(WhitebooksEInvoiceGateway::class));
+        $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
+        $fake->queueCancel(EInvoiceCancelResult::providerNotImplemented('fake', [
+            'reason' => 'whitebooks_irn_cancel_not_verified',
+        ]));
+        $this->app->instance(EInvoiceGateway::class, $fake);
 
-        $invoice = $this->issuePosInvoice('CANCEL-TEST-14');
+        $invoice = $this->issuePosB2bInvoice('CANCEL-TEST-14');
         EInvoiceRecord::query()->updateOrCreate(
             ['invoice_id' => $invoice->id],
             [
-                'provider' => 'whitebooks',
+                'provider' => 'fake',
                 'irn' => str_repeat('d', 64),
                 'ack_no' => 'ACK-4',
+                'ack_date' => now(),
                 'status' => EInvoiceRecordStatus::Submitted->value,
             ],
         );
@@ -370,6 +377,11 @@ class StatutoryInvoiceCancellationOrchestratorTest extends TestCase
 
     private function issuePosInvoice(string $marker, ?string $serial = 'HUB-SERIAL-1'): StatutoryInvoice
     {
+        return $this->issuePosB2bInvoice($marker, $serial, b2b: false);
+    }
+
+    private function issuePosB2bInvoice(string $marker, ?string $serial = 'HUB-SERIAL-1', bool $b2b = true): StatutoryInvoice
+    {
         $product = InventoryProduct::query()->create([
             'sku' => 'MFS110-'.$marker,
             'name' => 'Mantra MFS110 '.$marker,
@@ -381,6 +393,18 @@ class StatutoryInvoiceCancellationOrchestratorTest extends TestCase
         ]);
         $this->stock->stockInSerialized($product, $this->branch, [$serial], $this->admin);
 
+        $statutory = [
+            'place_of_supply_state' => 'Delhi',
+        ];
+        if ($b2b) {
+            $statutory['buyer_gstin'] = '07AABCU9603R1ZM';
+            $statutory['buyer_name'] = 'B2B Cancellation Customer';
+            $statutory['billing_address'] = '1 Test Street, Delhi 110019';
+            $statutory['billing_city'] = 'Delhi';
+            $statutory['billing_state'] = 'Delhi';
+            $statutory['billing_pincode'] = '110019';
+        }
+
         $sale = $this->sales->completeSale(
             branch: $this->branch,
             customer: ['name' => 'Cancellation Test Customer', 'phone' => '9000001234'],
@@ -391,9 +415,7 @@ class StatutoryInvoiceCancellationOrchestratorTest extends TestCase
             ]],
             paymentMethod: 'Cash',
             actor: $this->admin,
-            statutory: [
-                'place_of_supply_state' => 'Delhi',
-            ],
+            statutory: $statutory,
         );
 
         return $this->invoices->issueFromPosSale($sale, $this->admin);

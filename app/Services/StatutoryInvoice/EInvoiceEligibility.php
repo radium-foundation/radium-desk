@@ -23,8 +23,21 @@ class EInvoiceEligibility
             return new EInvoiceEligibilityResult(false, 'invalid_invoice_status');
         }
 
-        if ($invoice->document_type !== StatutoryInvoiceDocumentType::TaxInvoice) {
+        if (! in_array($invoice->document_type, [
+            StatutoryInvoiceDocumentType::TaxInvoice,
+            StatutoryInvoiceDocumentType::CreditNote,
+        ], true)) {
             return new EInvoiceEligibilityResult(false, 'unsupported_document_type');
+        }
+
+        if ($invoice->document_type === StatutoryInvoiceDocumentType::CreditNote) {
+            $invoice->loadMissing('originalStatutoryInvoice.eInvoiceRecord');
+            if ($invoice->original_statutory_invoice_id === null || $invoice->originalStatutoryInvoice === null) {
+                return new EInvoiceEligibilityResult(false, 'missing_original_invoice_link');
+            }
+            if (! $invoice->originalStatutoryInvoice->eInvoiceRecord?->hasIssuedIrn()) {
+                return new EInvoiceEligibilityResult(false, 'missing_original_invoice_irn');
+            }
         }
 
         if (! StatutoryInvoiceScope::contains($invoice->issued_at)) {

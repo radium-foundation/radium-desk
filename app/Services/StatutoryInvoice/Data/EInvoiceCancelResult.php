@@ -81,4 +81,14 @@ final class EInvoiceCancelResult
             payload: $payload,
         );
     }
+
+    public static function unknown(string $provider, mixed $payload = null, ?string $correlationId = null): self
+    {
+        return new self(
+            provider: $provider,
+            outcome: EInvoiceCancelOutcome::Unknown,
+            payload: $payload,
+            correlationId: $correlationId,
+        );
+    }
 }

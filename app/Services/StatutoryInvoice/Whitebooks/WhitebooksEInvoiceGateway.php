@@ -29,6 +29,8 @@ final class WhitebooksEInvoiceGateway implements EInvoiceGateway
 
     public const GET_IRN_PATH = '/einvoice/type/GETIRNBYDOCDETAILS/version/V1_03';
 
+    public const CANCEL_PATH = '/einvoice/type/CANCEL/version/V1_03';
+
     public function __construct(
         private readonly WhitebooksCredentialResolver $credentials,
         private readonly WhitebooksNicPayloadFactory $nic,
@@ -94,10 +96,126 @@ final class WhitebooksEInvoiceGateway implements EInvoiceGateway
 
     public function cancel(StatutoryInvoice $invoice, string $reason): EInvoiceCancelResult
     {
-        return EInvoiceCancelResult::providerNotImplemented($this->provider(), [
-            'reason' => 'whitebooks_irn_cancel_not_verified',
-            'message' => 'WhiteBooks IRN cancellation API is not verified in this release.',
-        ]);
+        $invoice->loadMissing('eInvoiceRecord');
+        $irn = is_string($invoice->eInvoiceRecord?->irn) ? trim($invoice->eInvoiceRecord->irn) : '';
+        if ($irn === '') {
+            return EInvoiceCancelResult::notRequired($this->provider(), [
+                'reason' => 'no_issued_irn',
+            ]);
+        }
+
+        $account = $this->credentials->forInvoice($invoice);
+        if ($account === null) {
+            return EInvoiceCancelResult::permanentFailure(
+                $this->provider(),
+                ['reason' => 'missing_issuer_credentials', 'gaps' => $this->credentials->missingReasons($invoice)],
+            );
+        }
+
+        $body = $this->nic->cancelBody($irn, $reason);
+        if ($body === null) {
+            return EInvoiceCancelResult::permanentFailure($this->provider(), [
+                'reason' => 'missing_cancel_body',
+            ]);
+        }
+
+        $token = $this->authenticate($account);
+        if ($token instanceof EInvoiceSubmitResult) {
+            return $this->cancelAuthFailure($token);
+        }
+
+        return $this->cancelIrn($account, $token, $body, $irn);
+    }
+
+    private function cancelAuthFailure(EInvoiceSubmitResult $auth): EInvoiceCancelResult
+    {
+        if ($auth->outcome->value === 'temporary_failure') {
+            return EInvoiceCancelResult::temporaryFailure(
+                $this->provider(),
+                ['reason' => 'authenticate_failed', 'detail' => $auth->payload],
+                $auth->correlationId,
+            );
+        }
+
+        return EInvoiceCancelResult::permanentFailure(
+            $this->provider(),
+            ['reason' => 'authenticate_failed', 'detail' => $auth->payload],
+            $auth->correlationId,
+        );
+    }
+
+    /**
+     * @param  array{Irn: string, CnlRsn: string, CnlRem: string}  $body
+     */
+    private function cancelIrn(WhitebooksCredentialSet $account, string $token, array $body, string $irn): EInvoiceCancelResult
+    {
+        try {
+            $response = $this->client()
+                ->withHeaders($this->signedHeaders($account, $token))
+                ->post($account->baseUrl.self::CANCEL_PATH.'?email='.rawurlencode($account->email), $body);
+        } catch (ConnectionException) {
+            return EInvoiceCancelResult::unknown(
+                $this->provider(),
+                ['reason' => 'cancel_timeout', 'irn' => $irn],
+            );
+        } catch (Throwable) {
+            return EInvoiceCancelResult::unknown(
+                $this->provider(),
+                ['reason' => 'cancel_transport_error', 'irn' => $irn],
+            );
+        }
+
+        $classified = $this->classifyCancelHttp($response, $irn);
+        if ($classified !== null) {
+            return $classified;
+        }
+
+        $json = $response->json();
+        if (! is_array($json)) {
+            return EInvoiceCancelResult::unknown(
+                $this->provider(),
+                ['reason' => 'malformed_cancel_response', 'http_status' => $response->status(), 'irn' => $irn],
+            );
+        }
+
+        return $this->responses->mapCancel($json);
+    }
+
+    private function classifyCancelHttp(Response $response, string $irn): ?EInvoiceCancelResult
+    {
+        $status = $response->status();
+        if ($status === 401 || $status === 403) {
+            return EInvoiceCancelResult::permanentFailure(
+                $this->provider(),
+                ['reason' => 'cancel_unauthorized', 'http_status' => $status, 'irn' => $irn],
+            );
+        }
+        if ($status === 429) {
+            return EInvoiceCancelResult::unknown(
+                $this->provider(),
+                ['reason' => 'cancel_rate_limited', 'http_status' => $status, 'irn' => $irn],
+            );
+        }
+        if ($status >= 500) {
+            return EInvoiceCancelResult::unknown(
+                $this->provider(),
+                ['reason' => 'cancel_provider_5xx', 'http_status' => $status, 'irn' => $irn],
+            );
+        }
+        if ($status >= 400) {
+            return EInvoiceCancelResult::permanentFailure(
+                $this->provider(),
+                ['reason' => 'cancel_validation_error', 'http_status' => $status, 'irn' => $irn],
+            );
+        }
+        if ($status < 200 || $status >= 300) {
+            return EInvoiceCancelResult::permanentFailure(
+                $this->provider(),
+                ['reason' => 'cancel_unexpected_status', 'http_status' => $status, 'irn' => $irn],
+            );
+        }
+
+        return null;
     }
 
     private function fetchAuthFailure(EInvoiceSubmitResult $auth): EInvoiceSubmitResult

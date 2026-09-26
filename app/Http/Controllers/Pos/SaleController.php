@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Pos;
 
+use App\Enums\StatutoryInvoiceStatus;
 use App\Http\Controllers\Controller;
 use App\Models\InventorySale;
 use App\Services\Inventory\PosSaleService;
 use App\Services\Pos\PosSaleStatutoryInvoicePresenter;
+use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\PosAccess;
 use Database\Seeders\RolePermissionSeeder;
@@ -98,7 +100,18 @@ class SaleController extends Controller
             'reason' => ['required', 'string', 'max:500'],
         ]);
 
-        $this->sales->cancelSale($sale, $request->user(), $data['reason']);
+        $sale->loadMissing('statutoryInvoice');
+        $invoice = $sale->statutoryInvoice;
+        if ($invoice !== null && $invoice->status === StatutoryInvoiceStatus::Issued) {
+            app(StatutoryInvoiceCancellationOrchestrator::class)->cancel(
+                invoice: $invoice->fresh(['items', 'eInvoiceRecord', 'inventorySale']),
+                actor: $request->user(),
+                reason: $data['reason'],
+                idempotencyKey: StatutoryInvoiceCancellationOrchestrator::DEFAULT_IDEMPOTENCY_PREFIX.'pos-sale:'.$sale->id,
+            );
+        } else {
+            $this->sales->cancelSale($sale, $request->user(), $data['reason']);
+        }
 
         return redirect()->route('pos.sales.show', $sale)->with('status', 'Sale cancelled and stock restored.');
     }

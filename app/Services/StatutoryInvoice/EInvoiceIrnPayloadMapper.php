@@ -84,9 +84,35 @@ class EInvoiceIrnPayloadMapper
         }
 
         $documentType = $invoice->document_type;
-        $irpType = $documentType === StatutoryInvoiceDocumentType::TaxInvoice ? 'INV' : null;
+        $irpType = match ($documentType) {
+            StatutoryInvoiceDocumentType::TaxInvoice => 'INV',
+            StatutoryInvoiceDocumentType::CreditNote => 'CRN',
+            default => null,
+        };
         if ($irpType === null) {
             $gaps[] = 'unsupported_document_type';
+        }
+
+        $references = null;
+        if ($documentType === StatutoryInvoiceDocumentType::CreditNote) {
+            $invoice->loadMissing('originalStatutoryInvoice.eInvoiceRecord');
+            $original = $invoice->originalStatutoryInvoice;
+            $originalNumber = is_string($original?->invoice_number) ? trim($original->invoice_number) : '';
+            $originalDate = $original?->issued_at?->format('d/m/Y');
+            $originalIrn = is_string($original?->eInvoiceRecord?->irn) ? trim($original->eInvoiceRecord->irn) : '';
+            if ($originalNumber === '' || $originalDate === null) {
+                $gaps[] = 'missing_original_invoice_reference';
+            }
+            if ($originalIrn === '') {
+                $gaps[] = 'missing_original_invoice_irn';
+            }
+            $references = [
+                'prec_doc' => [
+                    'number' => $originalNumber === '' ? null : $originalNumber,
+                    'date' => $originalDate,
+                    'irn' => $originalIrn === '' ? null : $originalIrn,
+                ],
+            ];
         }
 
         $gaps = array_values(array_unique($gaps));
@@ -111,6 +137,7 @@ class EInvoiceIrnPayloadMapper
                 'invoice_value' => $this->storedDecimal($invoice->invoice_value),
             ],
             gaps: $gaps,
+            references: $references,
         );
     }
 

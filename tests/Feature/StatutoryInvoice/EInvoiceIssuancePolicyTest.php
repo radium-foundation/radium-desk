@@ -131,7 +131,7 @@ class EInvoiceIssuancePolicyTest extends TestCase
         $historical = $this->makeHardwareTaxInvoice(['issued_at' => '2026-08-31 10:00:00']);
 
         $this->assertSame('invoice_cancelled', app(EInvoiceEligibility::class)->evaluate($cancelled)->reason);
-        $this->assertSame('unsupported_document_type', app(EInvoiceEligibility::class)->evaluate($credit)->reason);
+        $this->assertSame('missing_original_invoice_link', app(EInvoiceEligibility::class)->evaluate($credit)->reason);
         $this->assertSame('outside_invoice_scope', app(EInvoiceEligibility::class)->evaluate($historical)->reason);
     }
 

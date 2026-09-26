@@ -96,7 +96,7 @@ class EInvoiceEligibilityAndMapperTest extends TestCase
         $this->assertSame('incomplete_gst', $decision->reason);
     }
 
-    public function test_credit_note_is_unsupported(): void
+    public function test_credit_note_without_original_link_is_ineligible(): void
     {
         $invoice = $this->makeTaxInvoice([
             'document_type' => StatutoryInvoiceDocumentType::CreditNote,
@@ -105,7 +105,7 @@ class EInvoiceEligibilityAndMapperTest extends TestCase
         $decision = app(EInvoiceEligibility::class)->evaluate($invoice);
 
         $this->assertFalse($decision->eligible);
-        $this->assertSame('unsupported_document_type', $decision->reason);
+        $this->assertSame('missing_original_invoice_link', $decision->reason);
     }
 
     public function test_debit_note_is_unsupported(): void

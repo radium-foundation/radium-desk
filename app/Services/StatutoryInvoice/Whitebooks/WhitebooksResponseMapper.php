@@ -2,6 +2,7 @@
 
 namespace App\Services\StatutoryInvoice\Whitebooks;
 
+use App\Services\StatutoryInvoice\Data\EInvoiceCancelResult;
 use App\Services\StatutoryInvoice\Data\EInvoiceSubmitResult;
 use App\Services\StatutoryInvoice\EInvoiceIrnGuard;
 
@@ -100,6 +101,47 @@ final class WhitebooksResponseMapper
     }
 
     /**
+     * @param  array<string, mixed>  $body
+     */
+    public function mapCancel(array $body, ?string $correlationId = null): EInvoiceCancelResult
+    {
+        if ($this->statusCdIsZero($body)) {
+            return EInvoiceCancelResult::permanentFailure(
+                'whitebooks',
+                $this->safeFailurePayload($body, 'cancel_rejected'),
+                $correlationId,
+            );
+        }
+
+        $data = $this->data($body);
+        $cancelDate = $this->string($data['CancelDate'] ?? $data['CancelDt'] ?? null);
+        $status = $this->string($data['Status'] ?? null);
+        if ($cancelDate !== null || in_array($status, ['CNL', 'CAN', 'Cancelled'], true)) {
+            return EInvoiceCancelResult::success(
+                'whitebooks',
+                $this->string($data['Irn'] ?? null),
+                $this->safeSuccessPayload($data, $body),
+                $correlationId ?? $this->string($data['AckNo'] ?? null),
+            );
+        }
+
+        if ($this->string($data['Irn'] ?? null) !== null && $this->statusCdIsOne($body)) {
+            return EInvoiceCancelResult::success(
+                'whitebooks',
+                $this->string($data['Irn'] ?? null),
+                $this->safeSuccessPayload($data, $body),
+                $correlationId ?? $this->string($data['AckNo'] ?? null),
+            );
+        }
+
+        return EInvoiceCancelResult::unknown(
+            'whitebooks',
+            $this->safeFailurePayload($body, 'ambiguous_cancel_response'),
+            $correlationId,
+        );
+    }
+
+    /**
      * P-196 production Get-IRN: HTTP 200, status_cd=0, status_desc errorCode 2154.
      * HTTP 404 is not this signal.
      *
@@ -129,12 +171,22 @@ final class WhitebooksResponseMapper
      */
     private function statusCdIsZero(array $body): bool
     {
+        return $this->statusCdEquals($body, 0);
+    }
+
+    private function statusCdIsOne(array $body): bool
+    {
+        return $this->statusCdEquals($body, 1);
+    }
+
+    private function statusCdEquals(array $body, int $expected): bool
+    {
         $code = $body['status_cd'] ?? null;
         if (is_int($code) || is_float($code)) {
-            return (int) $code === 0;
+            return (int) $code === $expected;
         }
         if (is_string($code)) {
-            return trim($code) === '0';
+            return trim($code) === (string) $expected;
         }
 
         return false;

@@ -9,4 +9,5 @@ enum StatutoryInvoiceSourceType: string
     case CommerceOrder = 'commerce_order';
     case ServiceOrder = 'service_order';
     case External = 'external';
+    case CancellationAdjustment = 'cancellation_adjustment';
 }

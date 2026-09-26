@@ -237,13 +237,14 @@ class CaMonthlyStatutoryLineReadModel
 
                     $includeInTotals = $invoice->status !== StatutoryInvoiceStatus::Cancelled;
                     if ($includeInTotals) {
-                        $taxableTotal += $exportRow->taxableAmount;
-                        $shippingTotal += $exportRow->shippingAmount;
-                        $igstTotal += $exportRow->igst;
-                        $cgstTotal += $exportRow->cgst;
-                        $sgstTotal += $exportRow->sgst;
-                        $shortExcessTotal += $exportRow->shortExcess;
-                        $totalAmountTotal += $exportRow->invoiceTotal;
+                        $amountMultiplier = $invoice->document_type === StatutoryInvoiceDocumentType::CreditNote ? -1 : 1;
+                        $taxableTotal += $exportRow->taxableAmount * $amountMultiplier;
+                        $shippingTotal += $exportRow->shippingAmount * $amountMultiplier;
+                        $igstTotal += $exportRow->igst * $amountMultiplier;
+                        $cgstTotal += $exportRow->cgst * $amountMultiplier;
+                        $sgstTotal += $exportRow->sgst * $amountMultiplier;
+                        $shortExcessTotal += $exportRow->shortExcess * $amountMultiplier;
+                        $totalAmountTotal += $exportRow->invoiceTotal * $amountMultiplier;
                     } else {
                         $cancelledExcludedFromTotalsCount++;
                     }

@@ -252,4 +252,5 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-25-09-42 | 2026-09-26 | Permanent AST300 zero-value statutory invoice prevention + deploy @ `1851472a` | KVM deploy; historical 9 unchanged; 0 zero-value rdservice_in. Rollback: v4.0.141/`2bb2e8c7`. |
 | RadiumDesk-P-25-09-44 | 2026-09-26 | Deprecate legacy deployed-commit.txt + deploy v4.0.144 | `release.json` authoritative; legacy marker deleted; deploy guard added. Tag **v4.0.144** @ `d0323e79`. |
 | RadiumDesk-P-25-09-43 | 2026-09-26 | CA Monthly header-discount reconciliation fix + deploy v4.0.143 | Preflight formula includes header discount; tag **v4.0.143** @ `fdf5e57f`; production `release.json` **4.0.143/fdf5e57f**; INV-076768 reconciled **0.00**; Sep 2026 non-reconciling **0**. |
+| RadiumDesk-P-25-09-47 | 2026-09-26 | Unified statutory cancellation workflow (B2B IRN window + credit note) | Policy/orchestrator; WhiteBooks CANCEL; credit note foundation; POS + historical duplicate routing. **Not deployed.** INV-0767138 unchanged. |
 Do not renumber or overwrite earlier rows. Append only.
