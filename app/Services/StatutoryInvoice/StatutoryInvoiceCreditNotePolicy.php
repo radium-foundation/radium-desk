@@ -2,30 +2,28 @@
 
 namespace App\Services\StatutoryInvoice;
 
+use App\Enums\StatutoryCancellationWorkflow;
 use App\Models\StatutoryInvoice;
 
-/**
- * Current-release credit-note policy.
- *
- * Target architecture (rd-central-finance-invoice-architecture.md §11) requires a
- * GST credit note after post-issue cancellation. Current release §23.4 explicitly
- * states credit notes are not issued; cancel keeps the tax-invoice number only.
- */
 final class StatutoryInvoiceCreditNotePolicy
 {
+    public function __construct(
+        private readonly StatutoryInvoiceCancellationPolicyService $policy,
+    ) {}
+
     public function canMint(): bool
     {
-        return false;
+        return true;
     }
 
     public function isRequiredForCancellation(StatutoryInvoice $invoice): bool
     {
-        return false;
+        return $this->policy->evaluate($invoice)->requiresCreditNote();
     }
 
     public function requirementSummary(): string
     {
-        return 'Credit notes are not issued in the current release; statutory cancellation keeps the original tax-invoice number only.';
+        return 'B2B invoices with IRN older than the statutory cancellation window require a GST credit note; the original invoice remains active.';
     }
 
     /**
@@ -33,16 +31,25 @@ final class StatutoryInvoiceCreditNotePolicy
      */
     public function actionForCancellation(StatutoryInvoice $invoice): array
     {
-        if ($this->isRequiredForCancellation($invoice) && ! $this->canMint()) {
+        $evaluation = $this->policy->evaluate($invoice);
+
+        if ($evaluation->workflow === StatutoryCancellationWorkflow::B2bBeyondWindowCreditNote) {
             return [
-                'status' => 'blocked_requirements_not_met',
-                'message' => 'A credit note is required for this cancellation but credit-note minting is not implemented.',
+                'status' => 'required',
+                'message' => $evaluation->summary ?? $this->requirementSummary(),
+            ];
+        }
+
+        if ($evaluation->workflow === StatutoryCancellationWorkflow::B2cAdjustmentPending) {
+            return [
+                'status' => 'b2c_adjustment_pending',
+                'message' => 'B2C GST adjustment workflow is not fully implemented; policy decision is recorded explicitly.',
             ];
         }
 
         return [
-            'status' => 'not_required_current_release',
-            'message' => $this->requirementSummary(),
+            'status' => 'not_required',
+            'message' => 'No credit note is required for this cancellation path.',
         ];
     }
 }

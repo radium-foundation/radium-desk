@@ -16,7 +16,7 @@ use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\Inventory\InventoryStockService;
-use App\Services\StatutoryInvoice\StatutoryInvoiceService;
+use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -45,7 +45,7 @@ final class HardwareHistoricalDuplicateFulfilmentCancellationService
     public function __construct(
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly InventoryStockService $stock,
-        private readonly StatutoryInvoiceService $invoices,
+        private readonly StatutoryInvoiceCancellationOrchestrator $statutoryCancellation,
     ) {}
 
     /**
@@ -101,11 +101,13 @@ final class HardwareHistoricalDuplicateFulfilmentCancellationService
             $branch = $this->requireFulfilmentBranch($locked);
             $releasedSerials = $this->releaseAllocatedSerials($locked, $branch, $actor);
 
-            $cancelledInvoice = $this->invoices->cancel(
-                $invoice,
-                $actor,
-                $this->invoiceCancelReason($reason, $historicalAdminInvoiceReference, $support),
+            $cancellationResult = $this->statutoryCancellation->cancel(
+                invoice: $invoice->fresh(['items', 'eInvoiceRecord', 'inventorySale']),
+                actor: $actor,
+                reason: $this->invoiceCancelReason($reason, $historicalAdminInvoiceReference, $support),
+                idempotencyKey: StatutoryInvoiceCancellationOrchestrator::DEFAULT_IDEMPOTENCY_PREFIX.'historical:'.$invoice->id,
             );
+            $cancelledInvoice = $cancellationResult->invoice;
 
             $metadata = is_array($locked->metadata) ? $locked->metadata : [];
             $metadata['historical_duplicate_cancellation'] = [

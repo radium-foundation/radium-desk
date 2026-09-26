@@ -159,7 +159,7 @@ class EInvoiceEligibilitySafetyTest extends TestCase
         $this->assertSame(0, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
         $this->assertSame(0, $fake->submitCount);
         $this->assertSame(
-            'unsupported_document_type',
+            'missing_original_invoice_link',
             EInvoiceRecord::query()->where('invoice_id', $invoice->id)->value('response_payload')['skip_reason'] ?? null,
         );
         Http::assertNothingSent();

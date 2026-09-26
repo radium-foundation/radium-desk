@@ -2,14 +2,18 @@
 
 namespace Tests\Feature\HardwareFulfilment;
 
+use App\Contracts\StatutoryInvoice\EInvoiceGateway;
+use App\Enums\EInvoiceRecordStatus;
 use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareWorkspaceFilter;
 use App\Enums\InventorySerialStatus;
 use App\Enums\StatutoryInvoiceChannel;
+use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceStatus;
 use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
+use App\Models\EInvoiceRecord;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentEvent;
 use App\Models\InventoryBranch;
@@ -28,6 +32,8 @@ use App\Services\HardwareFulfilment\HardwareHistoricalDuplicateFulfilmentCancell
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use App\Services\Inventory\InventoryStockService;
+use App\Services\StatutoryInvoice\Data\EInvoiceCancelResult;
+use App\Services\StatutoryInvoice\Data\EInvoiceSubmitResult;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
@@ -35,6 +41,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Tests\Feature\HardwareFulfilment\Support\SelectsHardwareTestCourier;
+use Tests\Support\FakeEInvoiceGateway;
 use Tests\TestCase;
 
 class HardwareHistoricalDuplicateFulfilmentCancellationTest extends TestCase
@@ -230,6 +237,100 @@ class HardwareHistoricalDuplicateFulfilmentCancellationTest extends TestCase
         app(HardwareShipmentEligibility::class)->require($fresh);
     }
 
+    public function test_b2b_submitted_irn_within_window_cancels_irn_and_invoice_without_credit_note(): void
+    {
+        $fake = FakeEInvoiceGateway::succeeding();
+        $this->app->instance(EInvoiceGateway::class, $fake);
+
+        $fulfilment = $this->duplicateScenario(
+            sourceId: 'RDE-HIST-IRN-24H',
+            historicalCompletedAt: '2026-09-05 13:55:58',
+            historicalTransactionId: 'Bluedart 77167070912',
+        );
+        $invoice = $fulfilment->statutoryInvoice;
+        $this->assertNotNull($invoice);
+        $this->attachSubmittedIrn($invoice, '2026-09-18 10:00:00');
+
+        app(HardwareHistoricalDuplicateFulfilmentCancellationService::class)->cancel(
+            $fulfilment,
+            $this->admin,
+            'Owner-approved duplicate Desk fulfilment cancellation.',
+            'historical-duplicate-cancel:RDE-HIST-IRN-24H',
+            'IND671904',
+        );
+
+        $freshInvoice = $invoice->fresh(['eInvoiceRecord']);
+        $this->assertSame(StatutoryInvoiceStatus::Cancelled, $freshInvoice?->status);
+        $this->assertSame(1, $fake->cancelCount);
+        $this->assertTrue((bool) data_get($freshInvoice?->eInvoiceRecord?->response_payload, 'irn_cancelled'));
+        $this->assertSame(0, StatutoryInvoice::query()
+            ->where('document_type', StatutoryInvoiceDocumentType::CreditNote)
+            ->where('original_statutory_invoice_id', $invoice->id)
+            ->count());
+    }
+
+    public function test_b2b_submitted_irn_beyond_window_keeps_invoice_active_and_issues_credit_note(): void
+    {
+        $fulfilment = $this->duplicateScenario(
+            sourceId: 'RDE-HIST-IRN-OLD',
+            historicalCompletedAt: '2026-09-05 13:55:58',
+            historicalTransactionId: 'Bluedart 77167070912',
+        );
+        $invoice = $fulfilment->statutoryInvoice;
+        $this->assertNotNull($invoice);
+        $this->attachSubmittedIrn($invoice, '2026-09-15 10:00:00');
+
+        app(HardwareHistoricalDuplicateFulfilmentCancellationService::class)->cancel(
+            $fulfilment,
+            $this->admin,
+            'Owner-approved duplicate Desk fulfilment cancellation.',
+            'historical-duplicate-cancel:RDE-HIST-IRN-OLD',
+            'IND671904',
+        );
+
+        $freshInvoice = $invoice->fresh(['eInvoiceRecord']);
+        $this->assertSame(StatutoryInvoiceStatus::Issued, $freshInvoice?->status);
+        $this->assertNull($freshInvoice?->cancelled_at);
+        $this->assertFalse((bool) data_get($freshInvoice?->eInvoiceRecord?->response_payload, 'irn_cancelled'));
+        $this->assertSame(1, StatutoryInvoice::query()
+            ->where('document_type', StatutoryInvoiceDocumentType::CreditNote)
+            ->where('original_statutory_invoice_id', $invoice->id)
+            ->count());
+    }
+
+    public function test_b2b_submitted_irn_provider_failure_blocks_local_cancellation_without_credit_note(): void
+    {
+        $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
+        $fake->queueCancel(EInvoiceCancelResult::unknown('fake', ['reason' => 'provider_unavailable']));
+        $this->app->instance(EInvoiceGateway::class, $fake);
+
+        $fulfilment = $this->duplicateScenario(
+            sourceId: 'RDE-HIST-IRN-FAIL',
+            historicalCompletedAt: '2026-09-05 13:55:58',
+            historicalTransactionId: 'Bluedart 77167070912',
+        );
+        $invoice = $fulfilment->statutoryInvoice;
+        $this->assertNotNull($invoice);
+        $this->attachSubmittedIrn($invoice, '2026-09-18 10:00:00');
+
+        $this->expectException(ValidationException::class);
+        app(HardwareHistoricalDuplicateFulfilmentCancellationService::class)->cancel(
+            $fulfilment,
+            $this->admin,
+            'Owner-approved duplicate Desk fulfilment cancellation.',
+            'historical-duplicate-cancel:RDE-HIST-IRN-FAIL',
+            'IND671904',
+        );
+
+        $freshInvoice = $invoice->fresh(['eInvoiceRecord']);
+        $this->assertSame(StatutoryInvoiceStatus::Issued, $freshInvoice?->status);
+        $this->assertFalse((bool) data_get($freshInvoice?->eInvoiceRecord?->response_payload, 'irn_cancelled'));
+        $this->assertSame(0, StatutoryInvoice::query()
+            ->where('document_type', StatutoryInvoiceDocumentType::CreditNote)
+            ->where('original_statutory_invoice_id', $invoice->id)
+            ->count());
+    }
+
     public function test_invoice_cancel_is_idempotent_via_statutory_service(): void
     {
         $fulfilment = $this->duplicateScenario(
@@ -336,6 +437,20 @@ class HardwareHistoricalDuplicateFulfilmentCancellationTest extends TestCase
         $fulfilment->forceFill(['support_order_id' => $support->id])->save();
 
         return $fulfilment->fresh(['commerceOrder.items', 'statutoryInvoice', 'shipment', 'serials.inventorySerial.product', 'supportOrder']);
+    }
+
+    private function attachSubmittedIrn(StatutoryInvoice $invoice, string $ackDate): void
+    {
+        EInvoiceRecord::query()->updateOrCreate(
+            ['invoice_id' => $invoice->id],
+            [
+                'provider' => 'fake',
+                'irn' => str_repeat('f', 64),
+                'ack_no' => 'ACK-HIST-DUP',
+                'ack_date' => Carbon::parse($ackDate),
+                'status' => EInvoiceRecordStatus::Submitted->value,
+            ],
+        );
     }
 
     private function ingestHardware(string $sourceId, int $supportOrderId): HardwareFulfilment

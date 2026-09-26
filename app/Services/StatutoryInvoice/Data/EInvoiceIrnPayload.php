@@ -11,6 +11,7 @@ final class EInvoiceIrnPayload
      * @param  list<array<string, mixed>>  $items
      * @param  array<string, mixed>  $values
      * @param  list<string>  $gaps
+     * @param  array<string, mixed>|null  $references
      */
     public function __construct(
         public readonly string $supplyType,
@@ -20,6 +21,7 @@ final class EInvoiceIrnPayload
         public readonly array $items,
         public readonly array $values,
         public readonly array $gaps,
+        public readonly ?array $references = null,
     ) {}
 
     public function isSubmittable(): bool
@@ -49,6 +51,7 @@ final class EInvoiceIrnPayload
             items: $items,
             values: $this->values,
             gaps: array_values(array_diff($this->gaps, $removeGaps)),
+            references: $this->references,
         );
     }
 
@@ -65,6 +68,7 @@ final class EInvoiceIrnPayload
             'items' => $this->items,
             'values' => $this->values,
             'gaps' => $this->gaps,
+            'references' => $this->references,
         ];
     }
 }

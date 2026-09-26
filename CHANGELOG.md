@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.0.145 — 2026-09-27 — Statutory cancellation workflow and credit note foundation
+
+- **Unified cancellation orchestrator:** Canonical policy-driven statutory cancellation for Finance, POS, and historical duplicate fulfilment paths with idempotency and audit trail.
+- **B2B IRN &lt;24h:** EWB stub → IRN cancellation (fail-closed) → original invoice **Cancelled**; no credit note.
+- **B2B IRN &gt;24h:** Original invoice remains **Issued**; GST credit note issued and linked; CN IRN queued; CA Monthly nets credit-note amounts.
+- **B2C:** Local invoice cancellation without IRN workflow.
+- **Historical duplicate protection:** Hardware historical duplicate cancellation routes through the orchestrator; regression coverage for IRN age and provider-failure paths.
+- **Credit note foundation:** `original_statutory_invoice_id` migration + DB unique constraint (one CN per original); application idempotency and race handling.
+- **WhiteBooks CANCEL adapter:** `POST /einvoice/type/CANCEL/version/V1_03` integration (code-derived; **live contract not verified**).
+- **CN IRN payload:** CRN mapper, `RefDtls`, and eligibility fixtures (**live CRN GENERATE not verified**).
+- **Migrations:** `2026_09_26_220000_add_original_statutory_invoice_id_to_statutory_invoices`, `2026_09_26_230000_add_unique_credit_note_original_statutory_invoice_id`.
+- **Provider configuration unchanged by this release:** `STATUTORY_EINVOICE_PROVIDER` remains `none` until a separate operational gate enables WhiteBooks. With provider `none`, B2B IRN-required cancellations fail closed (no local cancel).
+- Regression: statutory cancellation gate suite (**195** tests), CA Monthly paired original+CN netting, WhiteBooks CANCEL `Http::fake` coverage, historical duplicate IRN regressions.
+- Rollback target: v4.0.144 / `d0323e79`.
+- Prompts **RadiumDesk-P-25-09-47** through **P-25-09-51**.
+
 ## 4.0.144 — 2026-09-26 — Deprecate legacy deployed-commit release marker
 
 - **Release identity:** Document that `storage/app/private/release.json` is the sole authoritative deployed release manifest on KVM. `storage/app/deployed-commit.txt` is deprecated legacy metadata and must not be used by operators.

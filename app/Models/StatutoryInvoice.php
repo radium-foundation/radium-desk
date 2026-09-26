@@ -27,6 +27,7 @@ class StatutoryInvoice extends Model
         'idempotency_key',
         'inventory_sale_id',
         'support_order_id',
+        'original_statutory_invoice_id',
         'branch_id',
         'seller_gstin',
         'seller_name',
@@ -66,6 +67,7 @@ class StatutoryInvoice extends Model
         'idempotency_key',
         'inventory_sale_id',
         'support_order_id',
+        'original_statutory_invoice_id',
         'branch_id',
         'seller_gstin',
         'seller_name',
@@ -185,6 +187,17 @@ class StatutoryInvoice extends Model
     public function cancellation(): HasOne
     {
         return $this->hasOne(StatutoryInvoiceCancellation::class, 'statutory_invoice_id');
+    }
+
+    public function originalStatutoryInvoice(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'original_statutory_invoice_id');
+    }
+
+    public function creditNotes(): HasMany
+    {
+        return $this->hasMany(self::class, 'original_statutory_invoice_id')
+            ->where('document_type', StatutoryInvoiceDocumentType::CreditNote);
     }
 
     public function paymentAllocations(): HasMany

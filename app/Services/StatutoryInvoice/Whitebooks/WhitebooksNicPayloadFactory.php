@@ -86,6 +86,69 @@ final class WhitebooksNicPayloadFactory
                 'RndOffAmt' => (float) ($payload->values['rounding'] ?? 0),
                 'TotInvVal' => (float) ($payload->values['invoice_value'] ?? 0),
             ],
+            ...$this->referenceDetails($payload),
+        ];
+    }
+
+    /**
+     * @return array{Irn: string, CnlRsn: string, CnlRem: string}|null
+     */
+    public function cancelBody(string $irn, string $reason): ?array
+    {
+        $irn = trim($irn);
+        if ($irn === '') {
+            return null;
+        }
+
+        $remark = trim($reason);
+        if ($remark === '') {
+            $remark = 'Statutory invoice cancellation';
+        }
+        if (strlen($remark) > 100) {
+            $remark = substr($remark, 0, 100);
+        }
+
+        return [
+            'Irn' => $irn,
+            'CnlRsn' => (string) config('statutory_invoices.einvoice.irn_cancel_reason_code', '3'),
+            'CnlRem' => $remark,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function referenceDetails(EInvoiceIrnPayload $payload): array
+    {
+        $references = $payload->references;
+        if (! is_array($references)) {
+            return [];
+        }
+
+        $precDoc = $references['prec_doc'] ?? null;
+        if (! is_array($precDoc)) {
+            return [];
+        }
+
+        $number = trim((string) ($precDoc['number'] ?? ''));
+        $date = trim((string) ($precDoc['date'] ?? ''));
+        if ($number === '' || $date === '') {
+            return [];
+        }
+
+        $entry = [
+            'InvNo' => $number,
+            'InvDt' => $date,
+        ];
+        $irn = trim((string) ($precDoc['irn'] ?? ''));
+        if ($irn !== '') {
+            $entry['Irn'] = $irn;
+        }
+
+        return [
+            'RefDtls' => [
+                'PrecDocDtls' => [$entry],
+            ],
         ];
     }
 

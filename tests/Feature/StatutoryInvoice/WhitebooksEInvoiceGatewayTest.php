@@ -3,10 +3,12 @@
 namespace Tests\Feature\StatutoryInvoice;
 
 use App\Contracts\StatutoryInvoice\EInvoiceGateway;
+use App\Enums\EInvoiceCancelOutcome;
 use App\Enums\EInvoiceRecordStatus;
 use App\Enums\EInvoiceSubmitOutcome;
 use App\Models\EInvoiceRecord;
 use App\Models\OutboxEvent;
+use App\Models\StatutoryInvoice;
 use App\Services\StatutoryInvoice\Data\EInvoiceIrnPayload;
 use App\Services\StatutoryInvoice\EInvoiceIrnPayloadMapper;
 use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
@@ -750,6 +752,206 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
         $this->assertInstanceOf(NullEInvoiceGateway::class, app(EInvoiceGateway::class));
     }
 
+    public function test_cancel_success_with_cancel_date_returns_success(): void
+    {
+        $this->fakeAuthAndCancel($this->successCancelBody());
+        $invoice = $this->invoiceWithSubmittedIrn();
+        $result = $this->gateway()->cancel($invoice, 'Within-window statutory cancellation');
+
+        $this->assertSame(EInvoiceCancelOutcome::Success, $result->outcome);
+        $this->assertTrue($result->succeeded());
+        $this->assertSame(self::IRN, $result->irn);
+        $this->assertAuthenticateThenCancel();
+        $this->assertSecretsAbsent($result);
+    }
+
+    public function test_cancel_success_with_status_cnl_variant_returns_success(): void
+    {
+        $this->fakeAuthAndCancel([
+            'status_cd' => '1',
+            'status_desc' => 'GSTR request succeeds',
+            'data' => ['Irn' => self::IRN, 'Status' => 'CNL'],
+        ]);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Provider idempotent cancel');
+
+        $this->assertSame(EInvoiceCancelOutcome::Success, $result->outcome);
+        $this->assertTrue($result->succeeded());
+    }
+
+    public function test_cancel_success_with_cancel_dt_variant_returns_success(): void
+    {
+        $this->fakeAuthAndCancel([
+            'status_cd' => '1',
+            'status_desc' => 'GSTR request succeeds',
+            'data' => ['Irn' => self::IRN, 'CancelDt' => '26-09-2026 12:00:00'],
+        ]);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'CancelDt variant');
+
+        $this->assertSame(EInvoiceCancelOutcome::Success, $result->outcome);
+        $this->assertTrue($result->succeeded());
+    }
+
+    public function test_cancel_success_with_status_cd_one_and_irn_only_returns_success(): void
+    {
+        $this->fakeAuthAndCancel([
+            'status_cd' => '1',
+            'status_desc' => 'GSTR request succeeds',
+            'data' => ['Irn' => self::IRN],
+        ]);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Irn-only success variant');
+
+        $this->assertSame(EInvoiceCancelOutcome::Success, $result->outcome);
+        $this->assertTrue($result->succeeded());
+    }
+
+    public function test_cancel_provider_rejection_is_permanent_failure(): void
+    {
+        $this->fakeAuthAndCancel([
+            'status_cd' => '0',
+            'status_desc' => json_encode([['errorCode' => '9999', 'errorMessage' => 'Cancellation rejected']]),
+        ]);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Rejected');
+
+        $this->assertSame(EInvoiceCancelOutcome::PermanentFailure, $result->outcome);
+        $this->assertFalse($result->succeeded());
+    }
+
+    public function test_cancel_http_400_is_permanent_failure(): void
+    {
+        $this->fakeAuthAndCancel(['status_cd' => '0', 'status_desc' => 'Bad request'], 400);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Validation');
+
+        $this->assertSame(EInvoiceCancelOutcome::PermanentFailure, $result->outcome);
+        $this->assertSame('cancel_validation_error', $result->payload['reason'] ?? null);
+        $this->assertFalse($result->succeeded());
+    }
+
+    public function test_cancel_http_401_is_permanent_failure(): void
+    {
+        $this->fakeAuthAndCancel(['message' => 'unauthorized'], 401);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Auth failure');
+
+        $this->assertSame(EInvoiceCancelOutcome::PermanentFailure, $result->outcome);
+        $this->assertSame('cancel_unauthorized', $result->payload['reason'] ?? null);
+        $this->assertFalse($result->succeeded());
+    }
+
+    public function test_cancel_http_403_is_permanent_failure(): void
+    {
+        $this->fakeAuthAndCancel(['message' => 'forbidden'], 403);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Auth failure');
+
+        $this->assertSame(EInvoiceCancelOutcome::PermanentFailure, $result->outcome);
+        $this->assertSame('cancel_unauthorized', $result->payload['reason'] ?? null);
+        $this->assertFalse($result->succeeded());
+    }
+
+    public function test_cancel_timeout_is_unknown(): void
+    {
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), 'authenticate')) {
+                return Http::response(['data' => ['AuthToken' => self::TOKEN]], 200);
+            }
+            if (str_contains($request->url(), 'CANCEL')) {
+                throw new ConnectionException('cURL error 28');
+            }
+
+            $this->fail('Unexpected HTTP request during cancel timeout test.');
+        });
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Timeout');
+
+        $this->assertSame(EInvoiceCancelOutcome::Unknown, $result->outcome);
+        $this->assertSame('cancel_timeout', $result->payload['reason'] ?? null);
+        $this->assertFalse($result->succeeded());
+    }
+
+    public function test_cancel_http_429_is_unknown(): void
+    {
+        $this->fakeAuthAndCancel(['message' => 'rate limited'], 429);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Rate limit');
+
+        $this->assertSame(EInvoiceCancelOutcome::Unknown, $result->outcome);
+        $this->assertSame('cancel_rate_limited', $result->payload['reason'] ?? null);
+        $this->assertFalse($result->succeeded());
+    }
+
+    public function test_cancel_http_5xx_is_unknown(): void
+    {
+        $this->fakeAuthAndCancel(['message' => 'server error'], 503);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Provider down');
+
+        $this->assertSame(EInvoiceCancelOutcome::Unknown, $result->outcome);
+        $this->assertSame('cancel_provider_5xx', $result->payload['reason'] ?? null);
+        $this->assertFalse($result->succeeded());
+    }
+
+    public function test_cancel_malformed_json_response_is_unknown(): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
+            'https://api.whitebooks.in/einvoice/type/CANCEL/*' => Http::response('not-json', 200, ['Content-Type' => 'text/plain']),
+        ]);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Malformed');
+
+        $this->assertSame(EInvoiceCancelOutcome::Unknown, $result->outcome);
+        $this->assertSame('malformed_cancel_response', $result->payload['reason'] ?? null);
+        $this->assertFalse($result->succeeded());
+    }
+
+    public function test_cancel_ambiguous_http_200_without_success_fields_is_unknown(): void
+    {
+        $this->fakeAuthAndCancel(['status_cd' => '1', 'status_desc' => 'ok', 'data' => []]);
+        $result = $this->gateway()->cancel($this->invoiceWithSubmittedIrn(), 'Ambiguous');
+
+        $this->assertSame(EInvoiceCancelOutcome::Unknown, $result->outcome);
+        $this->assertSame('ambiguous_cancel_response', $result->payload['reason'] ?? null);
+        $this->assertFalse($result->succeeded());
+    }
+
+    public function test_cancel_request_uses_verified_authentication_and_body_shape(): void
+    {
+        config(['statutory_invoices.einvoice.irn_cancel_reason_code' => '3']);
+        Http::fake([
+            'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
+            'https://api.whitebooks.in/einvoice/type/CANCEL/*' => Http::response($this->successCancelBody(), 200),
+        ]);
+        $invoice = $this->invoiceWithSubmittedIrn();
+        $this->gateway()->cancel($invoice, 'Deterministic cancel remark');
+
+        Http::assertSent(function ($request): bool {
+            if (! str_contains($request->url(), 'CANCEL')) {
+                return false;
+            }
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+            $header = fn (string $name): string => (string) ($request->header($name)[0] ?? '');
+            $body = $request->data();
+
+            return $request->method() === 'POST'
+                && str_contains($request->url(), '/einvoice/type/CANCEL/version/V1_03')
+                && ($query['email'] ?? null) === 'einvoice-test@example.test'
+                && ($body['Irn'] ?? null) === self::IRN
+                && ($body['CnlRsn'] ?? null) === '3'
+                && ($body['CnlRem'] ?? null) === 'Deterministic cancel remark'
+                && $header('ip_address') === '203.0.113.10'
+                && $header('client_id') === 'wb-test-client'
+                && $header('client_secret') === self::SECRET
+                && $header('username') === 'delhi-gst-user'
+                && $header('auth-token') === self::TOKEN
+                && $header('gstin') === '07AAICP1128M1Z9';
+        });
+        Http::assertSentCount(2);
+    }
+
+    public function test_cancel_without_irn_is_not_required(): void
+    {
+        $invoice = $this->makeTaxInvoice();
+        $result = $this->gateway()->cancel($invoice, 'No IRN');
+
+        $this->assertSame(EInvoiceCancelOutcome::NotRequired, $result->outcome);
+        $this->assertTrue($result->succeeded());
+        Http::assertNothingSent();
+    }
+
     public function test_processor_persists_whitebooks_success_fields(): void
     {
         $this->fakeAuthAndGenerate($this->successGenerateBody());
@@ -816,6 +1018,47 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
             'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
             'https://api.whitebooks.in/einvoice/type/GENERATE/*' => Http::response($generateBody, $generateStatus),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $cancelBody
+     */
+    private function fakeAuthAndCancel(array $cancelBody, int $cancelStatus = 200): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/einvoice/authenticate*' => Http::response(['data' => ['AuthToken' => self::TOKEN]], 200),
+            'https://api.whitebooks.in/einvoice/type/CANCEL/*' => Http::response($cancelBody, $cancelStatus),
+        ]);
+    }
+
+    private function invoiceWithSubmittedIrn(): StatutoryInvoice
+    {
+        $invoice = $this->makeHardwareTaxInvoice();
+        EInvoiceRecord::query()->create([
+            'invoice_id' => $invoice->id,
+            'provider' => 'whitebooks',
+            'irn' => self::IRN,
+            'ack_no' => '112345678901234',
+            'ack_date' => '2026-09-10 10:15:00',
+            'status' => EInvoiceRecordStatus::Submitted->value,
+        ]);
+
+        return $invoice->fresh(['eInvoiceRecord']) ?? $invoice;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function successCancelBody(): array
+    {
+        return [
+            'status_cd' => '1',
+            'status_desc' => 'GSTR request succeeds',
+            'data' => [
+                'Irn' => self::IRN,
+                'CancelDate' => '26-09-2026 12:00:00',
+            ],
+        ];
     }
 
     /**
@@ -914,6 +1157,19 @@ class WhitebooksEInvoiceGatewayTest extends TestCase
         $this->assertStringNotContainsString('/oauth/token', implode(' ', $urls));
         $this->assertStringNotContainsString('generate-irn', implode(' ', $urls));
         $this->assertStringNotContainsString('media.radiumbox.com', implode(' ', $urls));
+    }
+
+    private function assertAuthenticateThenCancel(): void
+    {
+        $urls = [];
+        Http::assertSent(function ($request) use (&$urls): bool {
+            $urls[] = $request->url();
+
+            return true;
+        });
+        $this->assertCount(2, $urls);
+        $this->assertStringContainsString('/einvoice/authenticate', $urls[0]);
+        $this->assertStringContainsString('/einvoice/type/CANCEL/version/V1_03', $urls[1]);
     }
 
     private function assertSecretsAbsent(mixed $result): void

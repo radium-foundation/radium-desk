@@ -152,6 +152,9 @@ return [
         'gsp_email' => env('STATUTORY_EINVOICE_GSP_EMAIL'),
         'gsp_ip_address' => env('STATUTORY_EINVOICE_GSP_IP_ADDRESS'),
         'timeout_seconds' => (int) env('STATUTORY_EINVOICE_GSP_TIMEOUT_SECONDS', 30),
+        'irn_cancellation_window_hours' => (int) env('STATUTORY_EINVOICE_IRN_CANCELLATION_WINDOW_HOURS', 24),
+        // NIC cancellation reason: 1 duplicate, 2 data-entry mistake, 3 order cancelled, 4 others.
+        'irn_cancel_reason_code' => env('STATUTORY_EINVOICE_IRN_CANCEL_REASON_CODE', '3'),
         'issuers' => [
             'delhi' => [
                 'gst_username' => env('STATUTORY_EINVOICE_DELHI_GST_USERNAME'),
