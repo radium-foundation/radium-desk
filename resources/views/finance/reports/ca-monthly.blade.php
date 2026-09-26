@@ -244,7 +244,8 @@
                             <th scope="col" class="text-nowrap text-end d-none d-lg-table-cell">Shipping</th>
                             <th scope="col" class="text-nowrap text-end d-none d-lg-table-cell">Tax</th>
                             <th scope="col" class="text-nowrap text-end">Total</th>
-                            <th scope="col" class="text-nowrap d-none d-xl-table-cell">Payment</th>
+                            <th scope="col" class="text-nowrap d-none d-xl-table-cell">Channel</th>
+                            <th scope="col" class="text-nowrap d-none d-xxl-table-cell">Method</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -269,7 +270,8 @@
                                     <td class="text-end d-none d-lg-table-cell">{{ $group->shippingAmount !== '' ? $group->shippingAmount : '—' }}</td>
                                     <td class="text-end d-none d-lg-table-cell">{{ $group->taxAmount !== '' ? $group->taxAmount : '—' }}</td>
                                     <td class="text-end">{{ $group->totalAmount }}</td>
-                                    <td class="d-none d-xl-table-cell">{{ $group->paymentMode !== '' ? $group->paymentMode : '—' }}</td>
+                                    <td class="d-none d-xl-table-cell">{{ $group->paymentChannel !== '' ? $group->paymentChannel : '—' }}</td>
+                                    <td class="d-none d-xxl-table-cell">{{ $group->paymentMode !== '' ? $group->paymentMode : '—' }}</td>
                                 </tr>
                                 @foreach ($group->children as $child)
                                     <tr
@@ -288,7 +290,7 @@
                                             {{ $lineTax !== [] ? implode(' / ', $lineTax) : '—' }}
                                         </td>
                                         <td class="text-end small">{{ $child->lineTotal !== '' ? $child->lineTotal : '—' }}</td>
-                                        <td class="small text-muted d-none d-xl-table-cell">Qty {{ $child->quantity }} · {{ $child->hsnSac !== '' ? $child->hsnSac : '—' }}</td>
+                                        <td class="small text-muted d-none d-xl-table-cell" colspan="2">Qty {{ $child->quantity }} · {{ $child->hsnSac !== '' ? $child->hsnSac : '—' }}</td>
                                     </tr>
                                 @endforeach
                             @else
@@ -307,12 +309,13 @@
                                     <td class="text-end d-none d-lg-table-cell">{{ $group->shippingAmount !== '' ? $group->shippingAmount : '—' }}</td>
                                     <td class="text-end d-none d-lg-table-cell">{{ $group->taxAmount !== '' ? $group->taxAmount : '—' }}</td>
                                     <td class="text-end">{{ $group->totalAmount }}</td>
-                                    <td class="d-none d-xl-table-cell">{{ $group->paymentMode !== '' ? $group->paymentMode : '—' }}</td>
+                                    <td class="d-none d-xl-table-cell">{{ $group->paymentChannel !== '' ? $group->paymentChannel : '—' }}</td>
+                                    <td class="d-none d-xxl-table-cell">{{ $group->paymentMode !== '' ? $group->paymentMode : '—' }}</td>
                                 </tr>
                             @endif
                         @empty
                             <tr>
-                                <td colspan="10" class="text-muted p-3">No statutory invoices for the selected date range.</td>
+                                <td colspan="11" class="text-muted p-3">No statutory invoices for the selected date range.</td>
                             </tr>
                         @endforelse
                     </tbody>

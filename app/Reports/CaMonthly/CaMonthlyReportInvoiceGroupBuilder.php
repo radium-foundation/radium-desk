@@ -3,7 +3,6 @@
 namespace App\Reports\CaMonthly;
 
 use App\Models\StatutoryInvoice;
-use App\Models\StatutoryInvoiceItem;
 use Illuminate\Support\Collection;
 
 final class CaMonthlyReportInvoiceGroupBuilder
@@ -63,13 +62,15 @@ final class CaMonthlyReportInvoiceGroupBuilder
                 invoiceNumber: (string) $invoice->invoice_number,
                 issuedDate: $exportRow->parentCells[1],
                 buyerName: (string) ($invoice->buyer_name ?? ''),
-                orderType: $exportRow->parentCells[4],
-                taxableAmount: $exportRow->parentCells[11],
-                shippingAmount: $exportRow->parentCells[12],
+                orderType: $exportRow->parentCells[5],
+                taxableAmount: $exportRow->parentCells[12],
+                shippingAmount: $exportRow->parentCells[13],
                 taxAmount: $taxAmount !== 0.0 ? number_format($taxAmount, 2, '.', '') : '',
-                totalAmount: $exportRow->parentCells[17],
-                paymentMode: $exportRow->parentCells[20],
-                status: $invoice->status->label(),
+                totalAmount: $exportRow->parentCells[18],
+                paymentChannel: $exportRow->parentCells[21],
+                paymentMode: $exportRow->parentCells[22],
+                paymentReference: $exportRow->parentCells[23],
+                status: $exportRow->parentCells[3],
                 documentType: $invoice->document_type->label(),
                 expandable: $exportRow->expandable,
                 children: $children,

@@ -125,12 +125,23 @@ class CaMonthlyStatutoryLineReadModel
         $period = ReportPeriod::fromRequest($request);
 
         return new CaMonthlyReportWorkbookMeta(
-            periodFrom: $period->from ?? '',
-            periodTo: $period->to ?? '',
+            periodFrom: $this->formatReportingPeriodDate($period->from),
+            periodTo: $this->formatReportingPeriodDate($period->to),
             generatedAt: Carbon::now()
                 ->timezone((string) config('app.timezone'))
                 ->format('Y-m-d H:i:s T'),
         );
+    }
+
+    private function formatReportingPeriodDate(?string $isoDate): string
+    {
+        if ($this->nullableString($isoDate) === null) {
+            return '';
+        }
+
+        return Carbon::parse((string) $isoDate)
+            ->timezone((string) config('app.timezone'))
+            ->format('d-M-Y');
     }
 
     public function preflight(Request $request): CaMonthlyReportPreflight
@@ -155,6 +166,9 @@ class CaMonthlyStatutoryLineReadModel
         $unclassifiedOrdertypeLineCount = 0;
         $exportableLineCount = 0;
         $excludedZeroValueLineCount = 0;
+        $missingBranchInvoiceCount = 0;
+        $unclassifiedPaymentChannelCount = 0;
+        $cancelledExcludedFromTotalsCount = 0;
 
         $taxableTotal = 0.0;
         $shippingTotal = 0.0;
@@ -190,6 +204,9 @@ class CaMonthlyStatutoryLineReadModel
                 &$unclassifiedOrdertypeLineCount,
                 &$exportableLineCount,
                 &$excludedZeroValueLineCount,
+                &$missingBranchInvoiceCount,
+                &$unclassifiedPaymentChannelCount,
+                &$cancelledExcludedFromTotalsCount,
                 &$taxableTotal,
                 &$shippingTotal,
                 &$igstTotal,
@@ -209,13 +226,27 @@ class CaMonthlyStatutoryLineReadModel
                     }
 
                     $invoiceIds[$invoice->id] = true;
-                    $taxableTotal += $exportRow->taxableAmount;
-                    $shippingTotal += $exportRow->shippingAmount;
-                    $igstTotal += $exportRow->igst;
-                    $cgstTotal += $exportRow->cgst;
-                    $sgstTotal += $exportRow->sgst;
-                    $shortExcessTotal += $exportRow->shortExcess;
-                    $totalAmountTotal += $exportRow->invoiceTotal;
+
+                    if ($this->nullableString($exportRow->parentCells[0] ?? null) === null) {
+                        $missingBranchInvoiceCount++;
+                    }
+
+                    if ($this->nullableString($exportRow->parentCells[21] ?? null) === null) {
+                        $unclassifiedPaymentChannelCount++;
+                    }
+
+                    $includeInTotals = $invoice->status !== StatutoryInvoiceStatus::Cancelled;
+                    if ($includeInTotals) {
+                        $taxableTotal += $exportRow->taxableAmount;
+                        $shippingTotal += $exportRow->shippingAmount;
+                        $igstTotal += $exportRow->igst;
+                        $cgstTotal += $exportRow->cgst;
+                        $sgstTotal += $exportRow->sgst;
+                        $shortExcessTotal += $exportRow->shortExcess;
+                        $totalAmountTotal += $exportRow->invoiceTotal;
+                    } else {
+                        $cancelledExcludedFromTotalsCount++;
+                    }
 
                     if (! $this->invoiceReconciliation->isReconciled($exportRow)) {
                         $nonReconcilingLineCount++;
@@ -315,6 +346,9 @@ class CaMonthlyStatutoryLineReadModel
             unclassifiedOrdertypeLineCount: $unclassifiedOrdertypeLineCount,
             discountLineCount: $discountLineCount,
             nonReconcilingLineCount: $nonReconcilingLineCount,
+            missingBranchInvoiceCount: $missingBranchInvoiceCount,
+            unclassifiedPaymentChannelCount: $unclassifiedPaymentChannelCount,
+            cancelledExcludedFromTotalsCount: $cancelledExcludedFromTotalsCount,
             taxableAmountTotal: $this->money($taxableTotal),
             shippingAmountTotal: $this->money($shippingTotal),
             igstTotal: $this->money($igstTotal),

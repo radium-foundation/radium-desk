@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.0.139 — 2026-09-26 — CA Monthly reporting corrections (branch, status, payment channel, goods)
+
+- **CA Monthly export contract (24 columns):** Branch normalization (`radium_delhi` / `DELHI-RETAIL` → `Delhi`; blank when no authoritative source); **Status** (Issued / Cancelled / Credit Note); Order Type **Goods** for POS hardware; **Payment Channel** (`CF`, `HDFC M`, `HDFC D`, `Cash`, `Unpaid`, `Partial Paid`) with Payment Method and Payment Reference retained for reconciliation.
+- **Reporting period:** Filter remains `statutory_invoices.issued_at`; XLSX subtitle displays `Reporting period (invoice issue date): DD-MMM-YYYY to DD-MMM-YYYY`.
+- **Cancelled invoices:** Included at invoice grain with original values and Status = Cancelled; excluded from summary totals only.
+- Preserves exact statutory invoice amounts (no cosmetic rounding); does not modify statutory financial records, product/category master data, or production v4.0.138 behavior.
+- **No migration.** Reporting layer, views, docs, and tests only.
+- Regression: CA Monthly suite (**114** tests incl. corrections + payment channel), statutory reconciliation/GST/identity protected suites unchanged vs v4.0.138 baseline.
+- Rollback target: v4.0.138 / `24542963`.
+- Prompts **RadiumDesk-P-25-09-25** through **P-25-09-29**.
+
 ## 4.0.138 — 2026-09-26 — CA Monthly Report preflight, export hardening, and Super Admin download audit
 
 - **CA Monthly Report (Gate 1):** Super Admin-only async preflight endpoint; ordinary Admin page load skips the full preflight scan; non-reconciling invoice diagnostics preserved (not suppressed); download readiness gating until preflight/export complete; XLSX cell XML sanitization (`CaMonthlyReportXmlCellEncoder`) and DOM validation before packaging.

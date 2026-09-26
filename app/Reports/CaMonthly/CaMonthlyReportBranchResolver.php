@@ -59,7 +59,7 @@ final class CaMonthlyReportBranchResolver
         $fromRelation = $this->nullableString($invoice->branch?->name)
             ?? $this->nullableString($invoice->branch?->code);
         if ($fromRelation !== null) {
-            return $fromRelation;
+            return CaMonthlyReportBranchDisplayNormalizer::normalize($fromRelation);
         }
 
         $sale = $invoice->inventorySale;
@@ -67,7 +67,7 @@ final class CaMonthlyReportBranchResolver
             $saleBranch = $this->nullableString($sale->branch?->name)
                 ?? $this->nullableString($sale->branch?->code);
             if ($saleBranch !== null) {
-                return $saleBranch;
+                return CaMonthlyReportBranchDisplayNormalizer::normalize($saleBranch);
             }
         }
 
@@ -75,12 +75,14 @@ final class CaMonthlyReportBranchResolver
         if ($commerceCode !== null) {
             $mapped = $branchesByCode[strtoupper($commerceCode)] ?? null;
             if ($mapped instanceof InventoryBranch) {
-                return $this->nullableString($mapped->name)
+                $resolved = $this->nullableString($mapped->name)
                     ?? $this->nullableString($mapped->code)
                     ?? '';
+
+                return CaMonthlyReportBranchDisplayNormalizer::normalize($resolved);
             }
 
-            return $commerceCode;
+            return CaMonthlyReportBranchDisplayNormalizer::normalize($commerceCode);
         }
 
         return '';

@@ -4,7 +4,7 @@ namespace App\Reports\CaMonthly;
 
 final class CaMonthlyReportOrderType
 {
-    public const HARDWARE = 'Hardware';
+    public const HARDWARE = 'Goods';
 
     public const SERVICE = 'Service';
 

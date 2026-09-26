@@ -2,21 +2,19 @@
 
 namespace Tests\Feature\Finance;
 
+use App\Enums\CaMonthlyReportExportFormat;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceSourceType;
-use App\Enums\StatutoryInvoiceStatus;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilmentPaymentEvidence;
 use App\Models\InventoryBranch;
 use App\Models\Order;
 use App\Models\StatutoryInvoiceItem;
-use App\Models\User;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use App\Reports\CaMonthly\CaMonthlyReportOrderType;
 use App\Services\Finance\CaMonthlyReportExportGenerator;
-use App\Enums\CaMonthlyReportExportFormat;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -47,11 +45,13 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $headers = CaMonthlyReportDefinition::HEADERS;
 
-        $this->assertCount(21, $headers);
-        $this->assertNotContains('Status', $headers);
+        $this->assertCount(24, $headers);
+        $this->assertContains('Status', $headers);
         $this->assertNotContains('Document Type', $headers);
         $this->assertContains('Invoice Total', $headers);
-        $this->assertContains('Payment Mode', $headers);
+        $this->assertContains('Payment Channel', $headers);
+        $this->assertContains('Payment Method', $headers);
+        $this->assertContains('Payment Reference', $headers);
     }
 
     public function test_single_product_invoice_exports_one_parent_row(): void
@@ -61,8 +61,8 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
 
         $this->assertCount(1, $rows);
-        $this->assertCount(21, $rows[0]);
-        $this->assertSame(CaMonthlyReportOrderType::SERVICE, $rows[0][4]);
+        $this->assertCount(24, $rows[0]);
+        $this->assertSame(CaMonthlyReportOrderType::SERVICE, $rows[0][5]);
     }
 
     public function test_multi_product_invoice_exports_one_parent_row_with_expandable_detail(): void
@@ -149,9 +149,9 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('669.47', $row[11]);
-        $this->assertSame('789.98', $row[17]);
-        $this->assertNotSame($row[11], $row[17]);
+        $this->assertSame('669.47', $row[12]);
+        $this->assertSame('789.98', $row[18]);
+        $this->assertNotSame($row[12], $row[18]);
     }
 
     public function test_rb297_payment_mode_prefers_support_order_transaction_over_invoice_snapshot(): void
@@ -178,7 +178,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('Card', $row[20]);
+        $this->assertSame('Card', $row[22]);
     }
 
     public function test_branch_resolves_from_commerce_order_branch_code_when_invoice_branch_is_missing(): void
@@ -226,7 +226,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('Delhi Retail', $row[0]);
+        $this->assertSame('Delhi', $row[0]);
     }
 
     public function test_hardware_payment_evidence_overrides_cashfree_provider_snapshot(): void
@@ -247,7 +247,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('Net Banking', $row[20]);
+        $this->assertSame('Net Banking', $row[22]);
     }
 
     public function test_xlsx_workbook_has_grouped_child_rows_and_summary(): void
@@ -284,7 +284,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
         $this->assertStringContainsString('hidden="1"', $xml);
         $this->assertStringContainsString('CA Monthly Report', $xml);
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $this->readXlsxRow($path, 3));
-        $this->assertSame('118.00', $this->readXlsxRow($path, 4)[17]);
+        $this->assertSame('118.00', $this->readXlsxRow($path, 4)[18]);
 
         @unlink($path);
     }

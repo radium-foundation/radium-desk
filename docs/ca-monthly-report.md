@@ -2,11 +2,13 @@
 
 **Prompts:** `RadiumDesk-P-21-09-07` (original contract), `RadiumDesk-P-21-09-23` (export hardening v4.0.105), `radiumbox.com-P-22-09-09` (invoice-level register redesign), `RadiumDesk-P-22-09-28` (documentation alignment)
 
-**Template version:** `CaMonthlyReportDefinition::TEMPLATE_VERSION` = `2026-09-22`
+**Template version:** `CaMonthlyReportDefinition::TEMPLATE_VERSION` = `2026-09-27`
 
 ## Period filter
 
-- **Date of Invoice:** `statutory_invoices.issued_at`
+- **Date of Invoice:** `statutory_invoices.issued_at` — this is the authoritative period filter and the **Invoice Date** column value.
+- The XLSX/CSV subtitle reads `Reporting period (invoice issue date): {from} to {to} | Generated: {timestamp}`.
+- **Generated** is export time only; it is not the accounting period.
 - Supports monthly / arbitrary inclusive date ranges from the Finance report UI.
 
 ## Export grain
@@ -16,7 +18,7 @@
 - **CSV** contains **parent invoice rows only** (no child line detail).
 - `countExportLines()`, sync/async thresholds, and `row_count` on export artifacts count **invoices**, not line items.
 
-## Parent invoice columns (21)
+## Parent invoice columns (24)
 
 Exact order from `CaMonthlyReportDefinition::HEADERS`:
 
@@ -25,29 +27,36 @@ Exact order from `CaMonthlyReportDefinition::HEADERS`:
 | 1 | Branch |
 | 2 | Invoice Date |
 | 3 | Invoice No. |
-| 4 | Order ID |
-| 5 | Order Type |
-| 6 | Customer Name |
-| 7 | GSTIN |
-| 8 | State |
-| 9 | Place of Supply |
-| 10 | eWay Bill |
-| 11 | HSN/SAC |
-| 12 | Taxable Amount |
-| 13 | Shipping |
-| 14 | IGST |
-| 15 | CGST |
-| 16 | SGST |
-| 17 | Short/Excess |
-| 18 | Invoice Total |
-| 19 | IRN Number |
-| 20 | Acknowledgement |
-| 21 | Payment Mode |
+| 4 | Status |
+| 5 | Order ID |
+| 6 | Order Type |
+| 7 | Customer Name |
+| 8 | GSTIN |
+| 9 | State |
+| 10 | Place of Supply |
+| 11 | eWay Bill |
+| 12 | HSN/SAC |
+| 13 | Taxable Amount |
+| 14 | Shipping |
+| 15 | IGST |
+| 16 | CGST |
+| 17 | SGST |
+| 18 | Short/Excess |
+| 19 | Invoice Total |
+| 20 | IRN Number |
+| 21 | Acknowledgement |
+| 22 | Payment Channel |
+| 23 | Payment Method |
+| 24 | Payment Reference |
 
-### Removed from export
+### Not exported
 
-- **Status** — not exported.
-- **Document Type** — not exported.
+- **Document Type** — not exported (credit notes remain included by `document_type`).
+
+### Status column
+
+- `Issued` / `Cancelled` / `Credit Note` (from `CaMonthlyReportStatusDisplay`).
+- Cancelled invoices remain in the register with original invoice values; summary revenue totals exclude cancelled rows.
 
 ## Expandable detail columns (9)
 
@@ -109,15 +118,17 @@ Resolution order (first non-empty wins):
 2. Linked `inventory_sale` branch name or code (POS)
 3. Related `commerce_orders.branch_code` → `InventoryBranch` lookup by code (falls back to raw `branch_code` when no branch row exists)
 
-**No inference** from customer state, GSTIN, place of supply, or other indirect fields. Branch is blank when no authoritative source exists.
+CA-facing display passes through `CaMonthlyReportBranchDisplayNormalizer` (e.g. `radium_delhi` / `DELHI-RETAIL` / `Delhi Retail` → `Delhi`).
+
+**No inference** from customer state, GSTIN, place of supply, or other indirect fields. Branch is blank when no authoritative source exists (e.g. commerce `branch_code` is null).
 
 ## Order Type
 
 | Label | Rule |
 |-------|------|
-| Hardware | Invoice contains hardware lines only |
+| Goods | Invoice contains physical goods / hardware lines only |
 | Service | Invoice contains service lines only (including multiple service lines) |
-| Bundled | Invoice contains **both** hardware and service lines |
+| Bundled | Invoice contains **both** goods and service lines |
 
 Classification priority:
 
@@ -126,7 +137,27 @@ Classification priority:
 3. Desk Service channel / service order source
 4. SAC `99xxxx` vs goods HSN fallback
 
-## Payment Mode
+## Payment Channel, Method, and Reference
+
+### Payment Channel (CA-facing normalized channel)
+
+Resolver: `CaMonthlyReportPaymentChannelResolver::resolvePaymentChannelDisplay()`.
+
+Owner-approved normalized channels:
+
+| Channel | When used |
+|---------|-----------|
+| `CF` | Cashfree gateway evidence only (`cashfree_payment_id`, or `payment_method`/snapshot explicitly `cashfree`) — **never inferred from UPI/Card alone** |
+| `HDFC M` | Direct POS/settlement method `HDFC M` |
+| `HDFC D` | Direct POS/settlement method `HDFC D` |
+| `Cash` | Direct cash settlement |
+| `Unpaid` | No payment evidence (including POS payment-pending sales with no allocation) |
+| `Partial Paid` | Verified collected amount is greater than zero but less than invoice total |
+| *(blank)* | Payment evidence exists but cannot be safely mapped to the six channels above (preflight warning) |
+
+Gateway/provider, instrument, and reference remain in **Payment Method** / **Payment Reference**.
+
+### Payment Method (instrument)
 
 Resolver: `CaMonthlyReportPaymentEvidenceResolver::resolvePaymentModeDisplay()`.
 
@@ -138,7 +169,13 @@ Resolution order (first non-empty, normalized label wins):
 4. `PaymentAllocation` → linked `CustomerPayment.method`
 5. `statutory_invoices.payment_method` (invoice snapshot)
 
-**Payment providers are not payment instruments.** Provider aliases such as `cashfree`, `payu`, and `razorpay` are filtered and do not appear as Payment Mode. Unknown/unavailable remains blank rather than mislabeled.
+**Payment providers are not payment instruments.** Provider aliases such as `cashfree`, `payu`, and `razorpay` are filtered and do not appear as Payment Method. A Cashfree-backed UPI transaction therefore exports **Channel = Cashfree**, **Method = UPI**.
+
+### Payment Reference
+
+Resolver: `CaMonthlyReportPaymentChannelResolver::resolvePaymentReferenceDisplay()`.
+
+Resolution order: invoice snapshot → commerce order → support `transaction_id` → verified hardware/support `cashfree_payment_id` → inventory sale reference. Internal POS pending marker `__PAYMENT_PENDING__` is not exported.
 
 Preflight still summarizes cancelled payment-evidence categories for CA review.
 

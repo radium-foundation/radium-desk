@@ -105,12 +105,15 @@ final class CaMonthlyReportXlsxStreamWriter
         $this->writeRowXml($this->sheetHandle, $this->currentRowNumber, $row->parentCells, 0, false);
 
         $this->parentRowCount++;
-        $this->taxableTotal += $row->taxableAmount;
-        $this->shippingTotal += $row->shippingAmount;
-        $this->igstTotal += $row->igst;
-        $this->cgstTotal += $row->cgst;
-        $this->sgstTotal += $row->sgst;
-        $this->invoiceGrandTotal += $row->invoiceTotal;
+
+        if (($row->parentCells[3] ?? '') !== 'Cancelled') {
+            $this->taxableTotal += $row->taxableAmount;
+            $this->shippingTotal += $row->shippingAmount;
+            $this->igstTotal += $row->igst;
+            $this->cgstTotal += $row->cgst;
+            $this->sgstTotal += $row->sgst;
+            $this->invoiceGrandTotal += $row->invoiceTotal;
+        }
 
         if (! $row->expandable) {
             return;
@@ -234,7 +237,7 @@ XML);
         $period = array_fill(0, count(CaMonthlyReportDefinition::HEADERS), '');
         if ($meta !== null) {
             $period[0] = sprintf(
-                'Reporting period: %s to %s | Generated: %s',
+                'Reporting period (invoice issue date): %s to %s | Generated: %s',
                 $meta->periodFrom,
                 $meta->periodTo,
                 $meta->generatedAt,
@@ -249,13 +252,13 @@ XML);
     private function summaryLabelRow(): array
     {
         $row = array_fill(0, count(CaMonthlyReportDefinition::HEADERS), '');
-        $row[10] = 'Summary';
-        $row[11] = 'Taxable total';
-        $row[12] = 'Shipping total';
-        $row[13] = 'IGST total';
-        $row[14] = 'CGST total';
-        $row[15] = 'SGST total';
-        $row[17] = 'Invoice grand total';
+        $row[11] = 'Summary';
+        $row[12] = 'Taxable total';
+        $row[13] = 'Shipping total';
+        $row[14] = 'IGST total';
+        $row[15] = 'CGST total';
+        $row[16] = 'SGST total';
+        $row[18] = 'Invoice grand total';
 
         return $row;
     }
@@ -266,13 +269,13 @@ XML);
     private function summaryTotalsRow(): array
     {
         $row = array_fill(0, count(CaMonthlyReportDefinition::HEADERS), '');
-        $row[10] = (string) $this->parentRowCount.' invoices';
-        $row[11] = $this->money($this->taxableTotal);
-        $row[12] = $this->shippingTotal !== 0.0 ? $this->money($this->shippingTotal) : '';
-        $row[13] = $this->igstTotal !== 0.0 ? $this->money($this->igstTotal) : '';
-        $row[14] = $this->cgstTotal !== 0.0 ? $this->money($this->cgstTotal) : '';
-        $row[15] = $this->sgstTotal !== 0.0 ? $this->money($this->sgstTotal) : '';
-        $row[17] = $this->money($this->invoiceGrandTotal);
+        $row[11] = (string) $this->parentRowCount.' invoices';
+        $row[12] = $this->money($this->taxableTotal);
+        $row[13] = $this->shippingTotal !== 0.0 ? $this->money($this->shippingTotal) : '';
+        $row[14] = $this->igstTotal !== 0.0 ? $this->money($this->igstTotal) : '';
+        $row[15] = $this->cgstTotal !== 0.0 ? $this->money($this->cgstTotal) : '';
+        $row[16] = $this->sgstTotal !== 0.0 ? $this->money($this->sgstTotal) : '';
+        $row[18] = $this->money($this->invoiceGrandTotal);
 
         return $row;
     }

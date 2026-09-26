@@ -29,6 +29,9 @@ final class CaMonthlyReportPreflight
         public readonly int $unclassifiedOrdertypeLineCount,
         public readonly int $discountLineCount,
         public readonly int $nonReconcilingLineCount,
+        public readonly int $missingBranchInvoiceCount,
+        public readonly int $unclassifiedPaymentChannelCount,
+        public readonly int $cancelledExcludedFromTotalsCount,
         public readonly string $taxableAmountTotal,
         public readonly string $shippingAmountTotal,
         public readonly string $igstTotal,
@@ -55,6 +58,18 @@ final class CaMonthlyReportPreflight
             $warnings[] = $this->cancelledIncludedCount.' cancelled invoice(s) are included with original invoice values preserved.';
         }
 
+        if ($this->cancelledExcludedFromTotalsCount > 0) {
+            $warnings[] = $this->cancelledExcludedFromTotalsCount.' cancelled invoice(s) are excluded from summary revenue totals.';
+        }
+
+        if ($this->missingBranchInvoiceCount > 0) {
+            $warnings[] = $this->missingBranchInvoiceCount.' invoice(s) have no authoritative branch on file (Branch column is blank).';
+        }
+
+        if ($this->unclassifiedPaymentChannelCount > 0) {
+            $warnings[] = $this->unclassifiedPaymentChannelCount.' invoice(s) have payment evidence that could not be classified into CF / HDFC M / HDFC D / Cash / Unpaid / Partial Paid.';
+        }
+
         if ($this->cancelledIncludedViaPaymentReferenceCount > 0) {
             $warnings[] = $this->cancelledIncludedViaPaymentReferenceCount.' cancelled invoice(s) have payment reference evidence on file.';
         }
@@ -76,7 +91,7 @@ final class CaMonthlyReportPreflight
         }
 
         if ($this->unclassifiedOrderCount > 0) {
-            $warnings[] = $this->unclassifiedOrderCount.' invoice(s) could not be authoritatively classified as Hardware, Service, or Bundled.';
+            $warnings[] = $this->unclassifiedOrderCount.' invoice(s) could not be authoritatively classified as Goods, Service, or Bundled.';
         }
 
         if ($this->missingOrderDateCount > 0) {
@@ -119,7 +134,7 @@ final class CaMonthlyReportPreflight
             $warnings[] = $this->nonReconcilingLineCount.' line(s) do not reconcile: Total Amount ≠ Taxable Amount + Shipping + GST + Short/Excess.';
         }
 
-        $warnings[] = 'Period filter uses Date of Invoice (statutory_invoices.issued_at).';
+        $warnings[] = 'Period filter uses invoice issue date (statutory_invoices.issued_at). Invoice Date column exports issued_at; Generated timestamp is export time only.';
 
         return $warnings;
     }
