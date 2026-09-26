@@ -95,6 +95,53 @@ class ChannelOrderIngestTest extends TestCase
         $this->assertSame(0, CommerceOrder::query()->count());
     }
 
+    public function test_paid_rdservice_in_support_only_payload_is_rejected(): void
+    {
+        $payload = $this->payload('RD-SUPPORT-ONLY');
+        $payload['lines'] = [[
+            'description' => 'RD Technical Support — included',
+            'sku' => 'RD-SUPPORT',
+            'qty' => 1,
+            'unit_price' => 0,
+            'hsn_sac' => '998313',
+            'gst_percentage' => 18,
+            'taxable_value' => 0,
+            'tax_total' => 0,
+            'line_total' => 0,
+        ]];
+
+        $this->signedPost($payload)
+            ->assertStatus(422)
+            ->assertJsonPath('status', 'rejected');
+
+        $this->assertSame(0, CommerceOrder::query()->count());
+    }
+
+    public function test_unpaid_support_only_rdservice_in_payload_is_accepted_but_not_invoice_eligible(): void
+    {
+        $payload = $this->payload('RD-SUPPORT-UNPAID');
+        $payload['payment_status'] = 'pending';
+        $payload['lines'] = [[
+            'description' => 'RD Technical Support — included',
+            'sku' => 'RD-SUPPORT',
+            'qty' => 1,
+            'unit_price' => 0,
+            'hsn_sac' => '998313',
+            'gst_percentage' => 18,
+            'taxable_value' => 0,
+            'tax_total' => 0,
+            'line_total' => 0,
+        ]];
+
+        $this->signedPost($payload)
+            ->assertCreated()
+            ->assertJsonPath('accepted', true);
+
+        $order = CommerceOrder::query()->firstOrFail();
+        $this->assertFalse((bool) $order->invoice_eligible);
+        $this->assertStringContainsString('payment is not paid', (string) $order->status_reason);
+    }
+
     public function test_missing_customer_identity_is_rejected(): void
     {
         $payload = $this->payload();

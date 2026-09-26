@@ -59,6 +59,7 @@ class StatutoryInvoiceService
         private readonly PlaceOfSupplyResolver $placeOfSupply,
         private readonly EInvoiceInputReadiness $inputReadiness,
         private readonly RadiumBoxServiceCommerceSnapshotService $radiumBoxServiceCommerce,
+        private readonly RdServiceInAst300CommerceSnapshotService $rdServiceInAst300Commerce,
         private readonly StatutoryInvoiceCommerceLinePresentation $commerceLinePresentation,
         private readonly StatutorySupplyKindResolver $supplyKinds,
         private readonly ServiceStatutoryGstB2bClassification $serviceGstClassification,
@@ -427,6 +428,11 @@ class StatutoryInvoiceService
                 'support_order' => 'The commerce order is already linked to a different Desk order.',
             ]);
         }
+
+        $commerce = $this->rdServiceInAst300Commerce->repairSupportOnlyCommerceIfNeeded(
+            $commerce->fresh(['items']) ?? $commerce,
+            $order,
+        );
 
         return $this->issueFromCommerceOrder($commerce->fresh(['items']) ?? $commerce, $actor);
     }

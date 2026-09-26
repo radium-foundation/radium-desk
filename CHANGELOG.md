@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.0.142 — 2026-09-26 — AST300 rdservice.in zero-value statutory invoice prevention
+
+- **Root cause fix:** AST300 L1 paid rdservice.in renewals with Cashfree evidence but support-only commerce ingest (`RD Technical Support — included` at ₹0) now repair into an authoritative billable service line before statutory mint, using existing inclusive GST (`GstSplitService`) and product metadata (`rd_service_name`, serial, AST300 identity).
+- **Ingest guard:** Paid rdservice.in channel ingest rejects support-only zero-value payloads at validation; unpaid support-only payloads remain accepted but not invoice-eligible.
+- **Mint protection preserved:** `NO_BILLABLE_LINES` gate unchanged — included-only orders stay ineligible; repaired paid AST300 orders become eligible only after billable commerce lines exist.
+- **Idempotent:** Repeated ingest/repair/mint does not duplicate billable lines, statutory invoices, or companion support rows; commerce orders already linked to a statutory invoice are not repaired.
+- **No migration.** Does not alter the nine historical corrected invoices (P-25-09-41), payment records, or customer identity.
+- Regression: new `RdServiceInAst300CommerceSnapshotTest` (**14** scenarios), channel ingest guard tests, statutory mint/GST/hardware/RadiumBox protected suites, CA Monthly export channel checks; Pint + build PASS.
+- Rollback target: v4.0.141 / `2bb2e8c7`.
+- Prompt **RadiumDesk-P-25-09-42**.
+
 ## 4.0.141 — 2026-09-26 — CA Monthly XLSX Excel Desktop compatibility
 
 - **Excel Desktop fix:** CA Monthly XLSX export now packages a complete OOXML workbook for Microsoft Excel Desktop — adds minimal `xl/styles.xml`, workbook `bookViews`, worksheet `dimension`, valid `pageSetup`, and correct content-type/relationship wiring. Fixes production export unreadable-content failure on full-period workbooks (e.g. export #11, 7264 invoice rows).

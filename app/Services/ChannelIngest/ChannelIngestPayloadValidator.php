@@ -15,7 +15,8 @@ use Illuminate\Validation\Validator;
 class ChannelIngestPayloadValidator
 {
     public function __construct(
-        private readonly HardwareHandoffTenderContract $tenders = new HardwareHandoffTenderContract,
+        private readonly HardwareHandoffTenderContract $tenders,
+        private readonly ChannelIngestBillableLinePolicy $billableLines,
     ) {}
 
     /**
@@ -222,6 +223,37 @@ class ChannelIngestPayloadValidator
                     'billing_address.state',
                     'Billing state must be a recognised Indian state or union territory. Values are not invented from address text.',
                 );
+            }
+
+            $paymentStatus = strtolower(trim((string) Arr::get($validator->getData(), 'payment_status', '')));
+            $channel = (string) Arr::get($validator->getData(), 'channel', '');
+            if ($paymentStatus === 'paid' && $channel === StatutoryInvoiceChannel::RdServiceIn->value) {
+                $lines = Arr::get($validator->getData(), 'lines', []);
+                $drafts = [];
+                if (is_array($lines)) {
+                    foreach ($lines as $line) {
+                        if (! is_array($line)) {
+                            continue;
+                        }
+                        $drafts[] = new ChannelOrderLineDraft(
+                            description: (string) ($line['description'] ?? ''),
+                            qty: (int) ($line['qty'] ?? 1),
+                            unitPrice: (float) ($line['unit_price'] ?? 0),
+                            hsnSac: isset($line['hsn_sac']) ? (string) $line['hsn_sac'] : null,
+                            taxableValue: isset($line['taxable_value']) ? (float) $line['taxable_value'] : null,
+                            taxTotal: isset($line['tax_total']) ? (float) $line['tax_total'] : null,
+                            lineTotal: isset($line['line_total']) ? (float) $line['line_total'] : null,
+                            shippingLineKind: isset($line['shipping_line_kind']) ? (string) $line['shipping_line_kind'] : null,
+                        );
+                    }
+                }
+
+                if (! $this->billableLines->hasExportableBillableLine($drafts)) {
+                    $validator->errors()->add(
+                        'lines',
+                        'Paid rdservice.in ingest must include at least one billable statutory invoice line. Support-only zero-value lines are not accepted.',
+                    );
+                }
             }
         });
     }

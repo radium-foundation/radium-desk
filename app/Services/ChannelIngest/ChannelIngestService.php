@@ -36,6 +36,7 @@ class ChannelIngestService
         private readonly StatutoryInvoiceNumberingService $numbering,
         private readonly StatutoryInvoiceAccountingPolicy $accounting,
         private readonly ServiceSacResolver $serviceSac,
+        private readonly ChannelIngestBillableLinePolicy $billableLines,
         private readonly HardwareHandoffTenderContract $tenders = new HardwareHandoffTenderContract,
         private readonly HardwareRinIngestContract $rinHardware = new HardwareRinIngestContract,
     ) {}
@@ -327,6 +328,12 @@ class ChannelIngestService
                 $hasDiscountLines = true;
                 $discount += $line->discount;
             }
+        }
+
+        if ($request->paymentStatus === 'paid'
+            && $request->channel === StatutoryInvoiceChannel::RdServiceIn
+            && ! $this->billableLines->hasExportableBillableLine($request->lines)) {
+            $missing[] = 'no billable statutory invoice lines after optional add-on suppression';
         }
 
         $missing = array_values(array_unique($missing));
