@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.137 — 2026-09-26 — Service statutory GST B2B/B2C issuance rule
+
+- At service statutory mint, classify paid orders with valid GSTIN and consistent billing state as B2B; invalid, incomplete, or state-mismatched GSTIN issues immediate B2C via the existing mint path (no customer verification workflow).
+- Customer 360 shows a concise note on issued GST-based B2C invoices (`GSTIN invalid`, `GSTIN incomplete`, or `GSTIN/state mismatch`).
+- Preserves v4.0.136 service statutory reconciliation backlog fix, hardware serial immutability, Finance manual issue, IRN/idempotency, and checkout/payment behavior.
+- **No migration.** Code and tests only. Does not auto-remediate historical B2B GSTIN/state mismatches (e.g. RD993, RD2304, RD3646, RD4070, RD6277).
+- Regression: `ServiceStatutoryInvoiceReconciliationBacklogTest` (13), `ServiceStatutoryGstB2bB2cIssuanceTest` (6), `ServiceStatutoryIssuanceTest` (31). Prompts **RadiumDesk-P-25-09-15** through **P-25-09-17**.
+- Rollback target: v4.0.136 / `b35e8ca8`.
+
 ## 4.0.136 — 2026-09-25 — Service statutory invoice reconciliation backlog fix
 
 - Fix reconciliation starvation caused by a static first-100 candidate row limit: scan the full online-service candidate set with a mint-attempt budget instead of capping the query at 100 rows.
