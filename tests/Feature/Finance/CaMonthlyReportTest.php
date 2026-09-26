@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Finance;
 
+use App\Enums\CaMonthlyReportExportFormat;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
@@ -16,12 +17,10 @@ use App\Models\InventoryCustomer;
 use App\Models\PaymentAllocation;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
-use App\Enums\CaMonthlyReportExportFormat;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use App\Reports\CaMonthly\CaMonthlyReportOrderType;
 use App\Services\Finance\CaMonthlyReportExportGenerator;
-use App\Support\Finance\CaMonthlyReportXlsxWriter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -74,9 +73,42 @@ class CaMonthlyReportTest extends TestCase
             ->assertSee('CA Monthly Report')
             ->assertSee($invoice->invoice_number)
             ->assertSee('RD Service')
-            ->assertSee('Preflight summary')
+            ->assertDontSee('Preflight summary')
+            ->assertDontSee('id="ca-monthly-preflight-root"', false)
             ->assertSee('Invoice preview')
+            ->assertSee('Export report')
+            ->assertSee('Export Report')
             ->assertDontSee('data-invoice-id=', false);
+    }
+
+    public function test_superadmin_sees_preflight_summary_via_async_endpoint(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk()
+            ->assertSee('ca-monthly-preflight-root', false)
+            ->assertSee('Running preflight validation', false);
+
+        $this->actingAs($user)
+            ->getJson(route('finance.reports.ca-monthly.preflight', self::RANGE))
+            ->assertOk()
+            ->assertJsonPath('invoice_count', 1)
+            ->assertJsonStructure(['html', 'non_reconciling_line_count']);
+    }
+
+    public function test_admin_cannot_access_preflight_endpoint(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($user)
+            ->getJson(route('finance.reports.ca-monthly.preflight', self::RANGE))
+            ->assertForbidden();
     }
 
     public function test_date_range_is_inclusive_on_start_and_end_boundaries(): void
@@ -667,7 +699,7 @@ class CaMonthlyReportTest extends TestCase
 
     public function test_non_reconciling_lines_are_reported_in_preflight(): void
     {
-        $this->makeTaxInvoice([
+        $invoice = $this->makeTaxInvoice([
             'issued_at' => '2026-09-10 10:00:00',
             'invoice_value' => '120.00',
         ]);
@@ -680,6 +712,108 @@ class CaMonthlyReportTest extends TestCase
                 fn (string $warning): bool => str_contains($warning, 'do not reconcile')
             )
         );
+        $this->assertCount(1, $preflight->nonReconcilingInvoices);
+        $this->assertSame($invoice->invoice_number, $preflight->nonReconcilingInvoices[0]['invoice_number']);
+        $this->assertSame('-2.00', $preflight->nonReconcilingInvoices[0]['delta']);
+    }
+
+    public function test_reconciled_invoice_with_shipping_passes_preflight(): void
+    {
+        $this->makeTaxInvoice([
+            'issued_at' => '2026-09-10 10:00:00',
+            'shipping_amount' => '25.00',
+            'tax_total' => '22.50',
+            'cgst' => '11.25',
+            'sgst' => '11.25',
+            'invoice_value' => '147.50',
+        ], [
+            'tax_total' => '18.00',
+            'cgst' => '9.00',
+            'sgst' => '9.00',
+            'line_total' => '118.00',
+        ]);
+
+        $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
+
+        $this->assertSame(0, $preflight->nonReconcilingLineCount);
+        $this->assertSame([], $preflight->nonReconcilingInvoices);
+    }
+
+    public function test_xlsx_with_special_characters_produces_valid_sheet_xml(): void
+    {
+        $this->makeTaxInvoice([
+            'issued_at' => '2026-09-10 10:00:00',
+            'buyer_name' => 'Acme <beta> & "quote"'."\x00\x1F",
+        ], [
+            'description' => 'Service & Support <included>'."\x7F",
+        ]);
+
+        $path = storage_path('app/tmp/ca-monthly-special-chars.xlsx');
+        app(CaMonthlyReportExportGenerator::class)->generateToPath(
+            $this->request(),
+            CaMonthlyReportExportFormat::Xlsx,
+            $path,
+        );
+
+        $zip = new ZipArchive;
+        $zip->open($path);
+        $xml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        $this->assertNotFalse($xml);
+        $this->assertNotFalse(simplexml_load_string((string) $xml));
+        $this->assertStringContainsString('Acme &lt;beta&gt; &amp;', (string) $xml);
+        $this->assertStringNotContainsString('<beta>', (string) $xml);
+
+        @unlink($path);
+    }
+
+    public function test_admin_quick_download_is_available_for_sync_threshold_period(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $response = $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk();
+
+        $this->assertStringContainsString('id="ca-monthly-quick-download"', $response->getContent());
+        $this->assertStringNotContainsString('id="ca-monthly-quick-download" aria-disabled="true"', $response->getContent());
+    }
+
+    public function test_index_marks_quick_download_disabled_until_preflight_completes_for_superadmin(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $response = $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk();
+
+        $this->assertStringContainsString('id="ca-monthly-preflight-root"', $response->getContent());
+        $this->assertStringContainsString('id="ca-monthly-quick-download"', $response->getContent());
+        $this->assertStringContainsString('aria-disabled="true"', $response->getContent());
+    }
+
+    public function test_index_disables_quick_download_when_async_threshold_exceeded(): void
+    {
+        config(['ca_monthly_report.sync_max_lines' => 1]);
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+        $this->makeTaxInvoice(['issued_at' => '2026-09-11 10:00:00']);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $response = $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
+            ->assertOk();
+
+        $this->assertStringContainsString('id="ca-monthly-async-hint"', $response->getContent());
+        $this->assertStringContainsString('aria-disabled="true"', $response->getContent());
     }
 
     public function test_preflight_processes_large_ranges_in_invoice_chunks_without_loading_every_line_at_once(): void
@@ -729,21 +863,24 @@ class CaMonthlyReportTest extends TestCase
             ->assertSee('Reporting period', false);
     }
 
-    public function test_preflight_summary_and_full_metrics_sections_render(): void
+    public function test_preflight_summary_and_full_metrics_sections_render_for_superadmin(): void
     {
         $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
 
         $user = User::factory()->create(['is_active' => true]);
-        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $user->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
-        $this->actingAs($user)
-            ->get(route('finance.reports.ca-monthly.index', self::RANGE))
-            ->assertOk()
-            ->assertSee('Preflight summary', false)
-            ->assertSee('Full preflight metrics', false)
-            ->assertSee('Statutory invoices:', false)
-            ->assertSee('Lines not reconciling:', false)
-            ->assertSee('Informational', false);
+        $response = $this->actingAs($user)
+            ->getJson(route('finance.reports.ca-monthly.preflight', self::RANGE))
+            ->assertOk();
+
+        $html = (string) $response->json('html');
+
+        $this->assertStringContainsString('Preflight summary', $html);
+        $this->assertStringContainsString('Full preflight metrics', $html);
+        $this->assertStringContainsString('Statutory invoices:', $html);
+        $this->assertStringContainsString('Lines not reconciling:', $html);
+        $this->assertStringContainsString('Informational', $html);
     }
 
     public function test_export_report_controls_include_format_email_and_user_facing_labels(): void
@@ -819,7 +956,7 @@ class CaMonthlyReportTest extends TestCase
         $path = storage_path('app/tmp/ca-monthly-writer-test.xlsx');
         app(CaMonthlyReportExportGenerator::class)->generateToPath(
             $this->request(),
-            \App\Enums\CaMonthlyReportExportFormat::Xlsx,
+            CaMonthlyReportExportFormat::Xlsx,
             $path,
         );
 

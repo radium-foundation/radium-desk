@@ -120,6 +120,44 @@
             </div>
         @endif
 
+        @if ($preflight->nonReconcilingInvoices !== [])
+            <details class="mb-2">
+                <summary class="small fw-semibold text-muted">Non-reconciling invoice detail ({{ count($preflight->nonReconcilingInvoices) }})</summary>
+                <div class="table-responsive mt-2">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Invoice</th>
+                                <th class="text-end">Taxable</th>
+                                <th class="text-end">Shipping</th>
+                                <th class="text-end">GST</th>
+                                <th class="text-end">Short/Excess</th>
+                                <th class="text-end">Calculated</th>
+                                <th class="text-end">Invoice total</th>
+                                <th class="text-end">Delta</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($preflight->nonReconcilingInvoices as $invoice)
+                                <tr>
+                                    <td class="fw-medium">{{ $invoice['invoice_number'] }}</td>
+                                    <td class="text-end">{{ $invoice['taxable_amount'] }}</td>
+                                    <td class="text-end">{{ $invoice['shipping_amount'] }}</td>
+                                    <td class="text-end">
+                                        {{ collect([$invoice['igst'], $invoice['cgst'], $invoice['sgst']])->filter(fn ($value) => $value !== '0.00' && $value !== '')->implode(' / ') }}
+                                    </td>
+                                    <td class="text-end">{{ $invoice['short_excess'] }}</td>
+                                    <td class="text-end">{{ $invoice['calculated_total'] }}</td>
+                                    <td class="text-end">{{ $invoice['invoice_total'] }}</td>
+                                    <td class="text-end text-danger">{{ $invoice['delta'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        @endif
+
         @if ($validationMessages->isNotEmpty())
             <details class="mb-2">
                 <summary class="small fw-semibold text-muted">Validation notes ({{ $validationMessages->count() }})</summary>

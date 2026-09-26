@@ -9,6 +9,7 @@
             : 'Select a reporting period';
         $xlsxExportUrl = route('finance.reports.ca-monthly.export.xlsx', request()->query());
         $csvExportUrl = route('finance.reports.ca-monthly.export.csv', request()->query());
+        $quickDownloadDisabled = ($showPreflight ?? false) || ($requiresAsyncExport ?? false);
     @endphp
 
     <div class="mb-4">
@@ -45,7 +46,20 @@
         </div>
     </div>
 
-    @include('finance.reports.partials.ca-monthly-preflight', ['preflight' => $preflight])
+    @if ($showPreflight)
+        <div id="ca-monthly-preflight-root" class="mb-3" data-preflight-url="{{ route('finance.reports.ca-monthly.preflight', request()->query()) }}">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6 mb-1">Preflight summary</h2>
+                    <p class="small text-muted mb-2">Validation and totals for the selected reporting period.</p>
+                    <div class="d-flex align-items-center gap-2 text-muted small" id="ca-monthly-preflight-loading">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span>Running preflight validation…</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     @if (session('status'))
         <div class="alert alert-info py-2 small">{{ session('status') }}</div>
@@ -57,9 +71,14 @@
                 <h2 class="h6 mb-1">Export report</h2>
                 <p class="small text-muted mb-3">
                     Choose Excel or CSV. Optional email delivery is available.
-                    Estimated {{ number_format($estimatedExportLines) }} export line(s);
-                    reports above {{ number_format($asyncExportThreshold) }} lines are prepared in the background.
+                    Estimated {{ number_format($estimatedExportLines) }} invoice(s);
+                    reports above {{ number_format($asyncExportThreshold) }} invoices are prepared in the background.
                 </p>
+
+                <div class="alert alert-secondary py-2 small d-none" id="ca-monthly-export-processing" role="status">
+                    <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                    <span id="ca-monthly-export-processing-text">Preparing export…</span>
+                </div>
 
                 <form method="post" action="{{ route('finance.reports.ca-monthly.exports.store') }}" class="row g-3 align-items-end" id="ca-monthly-export-form">
                     @csrf
@@ -77,10 +96,21 @@
                         <input type="email" id="email_recipient" name="email_recipient" value="{{ auth()->user()?->email }}" class="form-control" placeholder="finance@example.com" autocomplete="email">
                     </div>
                     <div class="col-12 col-md-4 d-flex flex-wrap gap-2">
-                        <button type="submit" class="btn btn-primary">Export Report</button>
-                        <a href="{{ $xlsxExportUrl }}" class="btn btn-outline-secondary ca-monthly-quick-download" data-format="xlsx" id="ca-monthly-quick-download">Download now</a>
+                        <button type="submit" class="btn btn-primary" id="ca-monthly-export-submit">Export Report</button>
+                        <a
+                            href="{{ $xlsxExportUrl }}"
+                            class="btn btn-outline-secondary ca-monthly-quick-download @if($quickDownloadDisabled) disabled @endif"
+                            data-format="xlsx"
+                            id="ca-monthly-quick-download"
+                            @if($quickDownloadDisabled) aria-disabled="true" tabindex="-1" @endif
+                        >Download now</a>
                     </div>
                 </form>
+                @if ($requiresAsyncExport)
+                    <p class="small text-muted mb-0 mt-2" id="ca-monthly-async-hint">
+                        This period exceeds the synchronous threshold. Use <strong>Export Report</strong>; download becomes available when background generation completes.
+                    </p>
+                @endif
             </div>
         </div>
 
@@ -302,9 +332,53 @@
         (() => {
             const formatSelect = document.getElementById('export_format');
             const quickDownload = document.getElementById('ca-monthly-quick-download');
+            const exportSubmit = document.getElementById('ca-monthly-export-submit');
+            const processingBanner = document.getElementById('ca-monthly-export-processing');
+            const processingText = document.getElementById('ca-monthly-export-processing-text');
+            const requiresAsyncExport = @json($requiresAsyncExport);
+            const showPreflight = @json($showPreflight);
+            const activeExportId = @json($activeExportId);
+            let preflightComplete = !showPreflight;
+            let exportInProgress = false;
             const exportUrls = {
                 xlsx: @json($xlsxExportUrl),
                 csv: @json($csvExportUrl),
+            };
+
+            const setQuickDownloadEnabled = (enabled) => {
+                if (!quickDownload) {
+                    return;
+                }
+
+                if (enabled && !requiresAsyncExport && !exportInProgress && preflightComplete) {
+                    quickDownload.classList.remove('disabled');
+                    quickDownload.removeAttribute('aria-disabled');
+                    quickDownload.removeAttribute('tabindex');
+                    return;
+                }
+
+                quickDownload.classList.add('disabled');
+                quickDownload.setAttribute('aria-disabled', 'true');
+                quickDownload.setAttribute('tabindex', '-1');
+            };
+
+            const setExportControlsEnabled = (enabled) => {
+                if (exportSubmit) {
+                    exportSubmit.disabled = !enabled;
+                }
+
+                setQuickDownloadEnabled(enabled);
+            };
+
+            const setProcessingState = (active, message = 'Preparing export…') => {
+                exportInProgress = active;
+                if (processingBanner) {
+                    processingBanner.classList.toggle('d-none', !active);
+                }
+                if (processingText) {
+                    processingText.textContent = message;
+                }
+                setExportControlsEnabled(!active && preflightComplete);
             };
 
             const syncQuickDownload = () => {
@@ -320,44 +394,109 @@
             formatSelect?.addEventListener('change', syncQuickDownload);
             syncQuickDownload();
 
+            const preflightRoot = document.getElementById('ca-monthly-preflight-root');
+            if (!preflightRoot) {
+                setExportControlsEnabled(!exportInProgress);
+            } else {
+                setExportControlsEnabled(false);
+            }
+
+            if (preflightRoot) {
+                const preflightUrl = preflightRoot.dataset.preflightUrl;
+                fetch(preflightUrl, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then((response) => response.ok ? response.json() : null)
+                    .then((payload) => {
+                        if (!payload?.html) {
+                            return;
+                        }
+
+                        preflightRoot.innerHTML = payload.html;
+                        preflightComplete = true;
+                        setExportControlsEnabled(!exportInProgress);
+                    })
+                    .catch(() => {
+                        preflightRoot.innerHTML = '<div class="alert alert-warning small mb-0">Preflight validation could not be loaded. Refresh the page or contact support.</div>';
+                        preflightComplete = true;
+                        setExportControlsEnabled(!exportInProgress);
+                    });
+            }
+
             const exportsRoot = document.getElementById('ca-monthly-exports');
+            const pollExportRow = (row) => {
+                const exportId = row.dataset.exportId;
+                fetch(`{{ url('/finance/reports/ca-monthly/exports') }}/${exportId}`, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then((response) => response.ok ? response.json() : null)
+                    .then((payload) => {
+                        if (!payload) {
+                            return;
+                        }
+
+                        const wasPending = ['queued', 'processing'].includes(row.dataset.exportStatus);
+                        row.dataset.exportStatus = payload.status;
+                        const statusLabel = row.querySelector('.export-status-label');
+                        if (statusLabel) {
+                            statusLabel.textContent = payload.status_label;
+                        }
+
+                        const rowCount = row.querySelector('.export-row-count');
+                        if (rowCount && payload.row_count !== null) {
+                            rowCount.textContent = payload.row_count;
+                        }
+
+                        if (payload.download_url && !row.querySelector('a[href="' + payload.download_url + '"]')) {
+                            const cell = row.querySelector('td:last-child');
+                            if (cell) {
+                                cell.innerHTML = `<a href="${payload.download_url}" class="btn btn-sm btn-outline-primary">Download</a>`;
+                            }
+                        }
+
+                        if (wasPending && payload.status === 'ready') {
+                            setProcessingState(false);
+                        }
+
+                        if (wasPending && payload.status === 'failed') {
+                            setProcessingState(false);
+                        }
+                    });
+            };
+
             if (exportsRoot) {
                 const poll = () => {
-                    exportsRoot.querySelectorAll('[data-export-status="queued"], [data-export-status="processing"]').forEach((row) => {
-                        const exportId = row.dataset.exportId;
-                        fetch(`{{ url('/finance/reports/ca-monthly/exports') }}/${exportId}`, {
-                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                        })
-                            .then((response) => response.ok ? response.json() : null)
-                            .then((payload) => {
-                                if (!payload) {
-                                    return;
-                                }
+                    const pendingRows = exportsRoot.querySelectorAll('[data-export-status="queued"], [data-export-status="processing"]');
+                    if (pendingRows.length > 0) {
+                        setProcessingState(true, `Background export in progress (${pendingRows.length} active)…`);
+                    }
 
-                                row.dataset.exportStatus = payload.status;
-                                const statusLabel = row.querySelector('.export-status-label');
-                                if (statusLabel) {
-                                    statusLabel.textContent = payload.status_label;
-                                }
-
-                                const rowCount = row.querySelector('.export-row-count');
-                                if (rowCount && payload.row_count !== null) {
-                                    rowCount.textContent = payload.row_count;
-                                }
-
-                                if (payload.download_url && !row.querySelector('a[href="' + payload.download_url + '"]')) {
-                                    const cell = row.querySelector('td:last-child');
-                                    if (cell) {
-                                        cell.innerHTML = `<a href="${payload.download_url}" class="btn btn-sm btn-outline-primary">Download</a>`;
-                                    }
-                                }
-                            });
-                    });
+                    pendingRows.forEach(pollExportRow);
                 };
 
                 window.setInterval(poll, 5000);
                 poll();
             }
+
+            if (activeExportId && exportsRoot) {
+                const activeRow = exportsRoot.querySelector(`[data-export-id="${activeExportId}"]`);
+                if (activeRow && ['queued', 'processing'].includes(activeRow.dataset.exportStatus)) {
+                    setProcessingState(true, 'Background export in progress…');
+                    pollExportRow(activeRow);
+                }
+            }
+
+            document.getElementById('ca-monthly-export-form')?.addEventListener('submit', () => {
+                setProcessingState(true, requiresAsyncExport
+                    ? 'Export queued. Download will appear in Recent exports when generation completes.'
+                    : 'Generating export…');
+            });
+
+            quickDownload?.addEventListener('click', (event) => {
+                if (quickDownload.classList.contains('disabled')) {
+                    event.preventDefault();
+                }
+            });
 
             const root = document.getElementById('ca-monthly-report');
             if (!root) {

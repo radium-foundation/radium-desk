@@ -437,6 +437,7 @@ Route::middleware(['auth', 'active'])->group(function () {
             ->withoutMiddleware(['auth', 'active'])
             ->name('reports.ca-monthly.exports.download.signed');
         Route::post('reports/ca-monthly/exports/{export}/email', [CaMonthlyReportController::class, 'emailExport'])->name('reports.ca-monthly.exports.email');
+        Route::get('reports/ca-monthly/preflight', [CaMonthlyReportController::class, 'preflight'])->name('reports.ca-monthly.preflight');
         Route::get('reports/ca-monthly', [CaMonthlyReportController::class, 'index'])->name('reports.ca-monthly.index');
         Route::get('invoices/export', [StatutoryInvoiceController::class, 'export'])->name('invoices.export');
         Route::get('invoices/commerce-orders/{order}', [StatutoryInvoiceIssueController::class, 'show'])->name('invoices.commerce-orders.show');

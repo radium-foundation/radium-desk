@@ -44,20 +44,48 @@ class CaMonthlyReportController extends Controller
         $period = ReportPeriod::fromRequest($request);
         $filters = $period->filters();
         $user = $request->user();
-        $preflight = $this->readModel->preflight($request);
+        $showPreflight = FinanceAccess::allowsPreflightSummary($user);
+        $requiresAsyncExport = $this->exportThreshold->requiresAsync($request);
 
         return view('finance.reports.ca-monthly', [
             'filters' => $filters,
             'headers' => $this->readModel->headers(),
             'invoiceGroups' => $this->readModel->paginateInvoiceGroups($request),
-            'preflight' => $preflight,
+            'showPreflight' => $showPreflight,
             'canExport' => FinanceAccess::allowsReportExport($user),
             'dateBasis' => CaMonthlyReportDefinition::AUTHORITATIVE_DATE_COLUMN,
-            'estimatedExportLines' => $preflight->lineCount,
+            'estimatedExportLines' => $this->readModel->countExportLines($request),
             'asyncExportThreshold' => (int) config('ca_monthly_report.sync_max_lines', 500),
+            'requiresAsyncExport' => $requiresAsyncExport,
             'recentExports' => $user !== null
                 ? $this->exportService->recentExportsForUser($user)
                 : collect(),
+            'activeExportId' => session('ca_export_id'),
+        ]);
+    }
+
+    public function preflight(Request $request)
+    {
+        abort_unless(FinanceAccess::allowsPreflightSummary($request->user()), 403);
+
+        $request = $this->requestWithDefaultPeriod($request);
+        $preflight = $this->readModel->preflight($request);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'html' => view('finance.reports.partials.ca-monthly-preflight', [
+                    'preflight' => $preflight,
+                ])->render(),
+                'invoice_count' => $preflight->invoiceCount,
+                'line_count' => $preflight->lineCount,
+                'non_reconciling_line_count' => $preflight->nonReconcilingLineCount,
+                'ready_to_export' => $preflight->nonReconcilingLineCount === 0
+                    || $preflight->lineCount > 0,
+            ]);
+        }
+
+        return view('finance.reports.partials.ca-monthly-preflight', [
+            'preflight' => $preflight,
         ]);
     }
 

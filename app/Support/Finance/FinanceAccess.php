@@ -56,6 +56,15 @@ final class FinanceAccess
             || $user->can(RolePermissionSeeder::PERMISSION_FINANCE_INVOICES_ISSUE);
     }
 
+    public static function allowsPreflightSummary(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+    }
+
     public static function allowsReceivables(?User $user): bool
     {
         return self::allowsPermission($user, RolePermissionSeeder::PERMISSION_FINANCE_RECEIVABLES_VIEW);

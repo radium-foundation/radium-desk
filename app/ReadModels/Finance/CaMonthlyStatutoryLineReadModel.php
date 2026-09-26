@@ -10,6 +10,7 @@ use App\Reports\CaMonthly\CaMonthlyReportInvoiceExportBuilder;
 use App\Reports\CaMonthly\CaMonthlyReportInvoiceExportRow;
 use App\Reports\CaMonthly\CaMonthlyReportInvoiceGroup;
 use App\Reports\CaMonthly\CaMonthlyReportInvoiceGroupBuilder;
+use App\Reports\CaMonthly\CaMonthlyReportInvoiceReconciliation;
 use App\Reports\CaMonthly\CaMonthlyReportLineValuePolicy;
 use App\Reports\CaMonthly\CaMonthlyReportOrderContextResolver;
 use App\Reports\CaMonthly\CaMonthlyReportOrderType;
@@ -34,6 +35,7 @@ class CaMonthlyStatutoryLineReadModel
         private readonly CaMonthlyReportInvoiceGroupBuilder $groupBuilder,
         private readonly CaMonthlyReportLineValuePolicy $lineValuePolicy,
         private readonly CaMonthlyReportPaymentEvidenceResolver $paymentEvidenceResolver,
+        private readonly CaMonthlyReportInvoiceReconciliation $invoiceReconciliation,
     ) {}
 
     /**
@@ -148,6 +150,7 @@ class CaMonthlyStatutoryLineReadModel
         $missingStateInvoiceIds = [];
         $discountLineCount = 0;
         $nonReconcilingLineCount = 0;
+        $nonReconcilingInvoices = [];
         $shippingInvoiceCount = 0;
         $unclassifiedOrdertypeLineCount = 0;
         $exportableLineCount = 0;
@@ -182,6 +185,7 @@ class CaMonthlyStatutoryLineReadModel
                 &$missingStateInvoiceIds,
                 &$discountLineCount,
                 &$nonReconcilingLineCount,
+                &$nonReconcilingInvoices,
                 &$shippingInvoiceCount,
                 &$unclassifiedOrdertypeLineCount,
                 &$exportableLineCount,
@@ -213,17 +217,9 @@ class CaMonthlyStatutoryLineReadModel
                     $shortExcessTotal += $exportRow->shortExcess;
                     $totalAmountTotal += $exportRow->invoiceTotal;
 
-                    $calculated = round(
-                        $exportRow->taxableAmount
-                        + $exportRow->shippingAmount
-                        + $exportRow->igst
-                        + $exportRow->cgst
-                        + $exportRow->sgst
-                        + $exportRow->shortExcess,
-                        2,
-                    );
-                    if (abs($calculated - $exportRow->invoiceTotal) > 0.01) {
+                    if (! $this->invoiceReconciliation->isReconciled($exportRow)) {
                         $nonReconcilingLineCount++;
+                        $nonReconcilingInvoices[] = $this->invoiceReconciliation->diagnostic($exportRow);
                     }
 
                     foreach ($invoice->items as $item) {
@@ -326,6 +322,7 @@ class CaMonthlyStatutoryLineReadModel
             sgstTotal: $this->money($sgstTotal),
             shortExcessTotal: $this->money($shortExcessTotal),
             totalAmountTotal: $this->money($totalAmountTotal),
+            nonReconcilingInvoices: $nonReconcilingInvoices,
         );
     }
 

@@ -36,6 +36,8 @@ final class CaMonthlyReportPreflight
         public readonly string $sgstTotal,
         public readonly string $shortExcessTotal,
         public readonly string $totalAmountTotal,
+        /** @var list<array{invoice_number: string, calculated_total: string, invoice_total: string, delta: string, taxable_amount: string, shipping_amount: string, igst: string, cgst: string, sgst: string, short_excess: string}> */
+        public readonly array $nonReconcilingInvoices = [],
     ) {}
 
     /**

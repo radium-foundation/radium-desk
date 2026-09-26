@@ -13,6 +13,8 @@ use ZipArchive;
  */
 final class CaMonthlyReportXlsxStreamWriter
 {
+    private readonly CaMonthlyReportXmlCellEncoder $cellEncoder;
+
     private ?string $tmpdir = null;
 
     private ?string $sheetPath = null;
@@ -37,6 +39,11 @@ final class CaMonthlyReportXlsxStreamWriter
     private float $invoiceGrandTotal = 0.0;
 
     private string $outputPath = '';
+
+    public function __construct(?CaMonthlyReportXmlCellEncoder $cellEncoder = null)
+    {
+        $this->cellEncoder = $cellEncoder ?? new CaMonthlyReportXmlCellEncoder;
+    }
 
     /**
      * @param  list<string>  $headers
@@ -161,6 +168,8 @@ final class CaMonthlyReportXlsxStreamWriter
         fwrite($this->sheetHandle, '</worksheet>');
         fclose($this->sheetHandle);
         $this->sheetHandle = null;
+
+        $this->assertWorksheetXmlIsValid($this->sheetPath);
 
         $zip = new ZipArchive;
         if ($zip->open($this->outputPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
@@ -327,20 +336,42 @@ XML);
             }
 
             $ref = $this->columnLetter($colIndex).$rowNumber;
-            if (is_numeric($value) && preg_match('/^-?\d+(\.\d+)?$/', (string) $value) === 1) {
-                fwrite($handle, '<c r="'.$ref.'"><v>'.htmlspecialchars((string) $value, ENT_XML1).'</v></c>');
+            $numericValue = $this->cellEncoder->numericCellValue($value);
+            if ($numericValue !== null) {
+                fwrite($handle, '<c r="'.$ref.'"><v>'.$numericValue.'</v></c>');
 
                 continue;
             }
 
-            fwrite(
-                $handle,
-                '<c r="'.$ref.'" t="inlineStr"><is><t>'
-                .htmlspecialchars((string) $value, ENT_XML1)
-                .'</t></is></c>',
-            );
+            $inlineString = $this->cellEncoder->inlineStringXml($value);
+            if ($inlineString === '') {
+                continue;
+            }
+
+            fwrite($handle, '<c r="'.$ref.'" t="inlineStr">'.$inlineString.'</c>');
         }
         fwrite($handle, '</row>');
+    }
+
+    private function assertWorksheetXmlIsValid(string $sheetPath): void
+    {
+        $xml = file_get_contents($sheetPath);
+        if ($xml === false || $xml === '') {
+            throw new \RuntimeException('CA monthly report worksheet XML is empty.');
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        $document = new \DOMDocument;
+        $loaded = $document->loadXML($xml, LIBXML_NONET);
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if ($loaded !== true) {
+            $message = $errors[0]->message ?? 'unknown XML parse error';
+
+            throw new \RuntimeException('CA monthly report worksheet XML is invalid: '.$message);
+        }
     }
 
     private function columnLetter(int $index): string
