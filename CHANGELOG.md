@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.0.138 — 2026-09-26 — CA Monthly Report preflight, export hardening, and Super Admin download audit
+
+- **CA Monthly Report (Gate 1):** Super Admin-only async preflight endpoint; ordinary Admin page load skips the full preflight scan; non-reconciling invoice diagnostics preserved (not suppressed); download readiness gating until preflight/export complete; XLSX cell XML sanitization (`CaMonthlyReportXmlCellEncoder`) and DOM validation before packaging.
+- **CA Monthly Report (Gate 2):** Super Admin-only paginated **Report Download History**; sync quick downloads create `ca_monthly_report_exports` records; `audit_logs` event `ca_monthly_report.download_response_initiated` records user identity, timestamp, reporting period, format, row count, export ID, generation duration, and status without duplicate polling noise or false positives on failed exports.
+- **Login security:** Hide What's New modal and version footer from unauthenticated guest layout (`guest.blade.php`); regression in `PlatformIdentityTest`.
+- Preserves v4.0.137 service statutory GST B2B/B2C issuance rule, reconciliation backlog fix, customer identity protection, sale-time buyer snapshot, IRN/idempotency, Finance manual invoice, and checkout/payment behavior.
+- **No migration.** Code, views, routes, config, and tests only.
+- Regression: `CaMonthlyReportTest` + export/reconciliation/XML encoder suites (**91** focused CA Monthly tests), `PlatformIdentityTest` login metadata gate, protected statutory/GST/identity suites unchanged vs v4.0.137 baseline.
+- Rollback target: v4.0.137 / `bea9a28f` (application); production overlay rollback restores pre-overlay backup `p-25-09-22-ca-monthly-20260926T071705Z`.
+- Prompts **RadiumDesk-P-25-09-21** through **P-25-09-23**.
+
 ## 4.0.137 — 2026-09-26 — Service statutory GST B2B/B2C issuance rule
 
 - At service statutory mint, classify paid orders with valid GSTIN and consistent billing state as B2B; invalid, incomplete, or state-mismatched GSTIN issues immediate B2C via the existing mint path (no customer verification workflow).
