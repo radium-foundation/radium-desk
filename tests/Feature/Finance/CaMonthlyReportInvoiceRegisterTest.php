@@ -10,10 +10,13 @@ use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilmentPaymentEvidence;
 use App\Models\InventoryBranch;
 use App\Models\Order;
+use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use App\Reports\CaMonthly\CaMonthlyReportOrderType;
+use App\Reports\CaMonthly\CaMonthlyReportPaymentChannelResolver;
+use App\Reports\CaMonthly\CaMonthlyReportPaymentEvidenceResolver;
 use App\Services\Finance\CaMonthlyReportExportGenerator;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -45,13 +48,13 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $headers = CaMonthlyReportDefinition::HEADERS;
 
-        $this->assertCount(24, $headers);
+        $this->assertCount(22, $headers);
         $this->assertContains('Status', $headers);
         $this->assertNotContains('Document Type', $headers);
         $this->assertContains('Invoice Total', $headers);
         $this->assertContains('Payment Channel', $headers);
-        $this->assertContains('Payment Method', $headers);
-        $this->assertContains('Payment Reference', $headers);
+        $this->assertNotContains('Payment Method', $headers);
+        $this->assertNotContains('Payment Reference', $headers);
     }
 
     public function test_single_product_invoice_exports_one_parent_row(): void
@@ -61,7 +64,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
 
         $this->assertCount(1, $rows);
-        $this->assertCount(24, $rows[0]);
+        $this->assertCount(22, $rows[0]);
         $this->assertSame(CaMonthlyReportOrderType::SERVICE, $rows[0][5]);
     }
 
@@ -176,9 +179,15 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
             'payment_method' => 'UPI',
         ]);
 
-        $row = $this->firstRow();
+        $invoice = StatutoryInvoice::query()->where('source_id', 'RB297')->firstOrFail();
+        $evidenceResolver = app(CaMonthlyReportPaymentEvidenceResolver::class);
+        $supportMethods = $evidenceResolver->supportOrderPaymentMethodsForInvoices(collect([$invoice]));
 
-        $this->assertSame('Card', $row[22]);
+        $this->assertSame(
+            'Card',
+            $evidenceResolver->resolvePaymentModeDisplay($invoice, null, null, null, $supportMethods[$invoice->id] ?? null),
+        );
+        $this->assertCount(22, $this->firstRow());
     }
 
     public function test_branch_resolves_from_commerce_order_branch_code_when_invoice_branch_is_missing(): void
@@ -247,7 +256,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('Net Banking', $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
     }
 
     public function test_xlsx_workbook_has_grouped_child_rows_and_summary(): void

@@ -34,10 +34,7 @@ final class CaMonthlyReportInvoiceExportBuilder
 
         $orderContexts = $this->orderContextResolver->resolveForInvoices($invoices);
         $orderTypes = $this->orderTypeResolver->resolveForInvoices($invoices);
-        $allocationPaymentMethods = $this->paymentEvidenceResolver->allocationPaymentMethodsForInvoices($invoices);
         $allocationTotals = $this->paymentEvidenceResolver->allocationTotalsForInvoices($invoices);
-        $hardwarePaymentMethods = $this->paymentEvidenceResolver->hardwarePaymentMethodsForInvoices($invoices);
-        $supportOrderPaymentMethods = $this->paymentEvidenceResolver->supportOrderPaymentMethodsForInvoices($invoices);
         $supportOrders = $this->paymentChannelResolver->supportOrdersForInvoices($invoices);
         $hardwareEvidence = $this->paymentChannelResolver->hardwareEvidenceForInvoices($invoices);
         $commerceOrders = $this->branchResolver->commerceOrdersForInvoices($invoices);
@@ -50,11 +47,8 @@ final class CaMonthlyReportInvoiceExportBuilder
                 $orderContexts[$invoice->id] ?? new CaMonthlyReportOrderContext(null, null),
                 (string) ($orderTypes[$invoice->id] ?? ''),
                 $branches[$invoice->id] ?? '',
-                $allocationPaymentMethods[$invoice->id] ?? null,
                 $allocationTotals[$invoice->id] ?? 0.0,
                 $commerceOrders[$invoice->id] ?? null,
-                $hardwarePaymentMethods[$invoice->id] ?? null,
-                $supportOrderPaymentMethods[$invoice->id] ?? null,
                 $supportOrders[$invoice->id] ?? null,
                 $hardwareEvidence[$invoice->id] ?? null,
             );
@@ -68,11 +62,8 @@ final class CaMonthlyReportInvoiceExportBuilder
         CaMonthlyReportOrderContext $orderContext,
         string $orderType,
         string $branch,
-        ?string $allocationPaymentMethod,
         float $allocationTotal,
         ?CommerceOrder $commerceOrder,
-        ?string $hardwarePaymentMethod,
-        ?string $supportOrderPaymentMethod,
         ?Order $supportOrder,
         ?HardwareFulfilmentPaymentEvidence $hardwareEvidenceRecord,
     ): CaMonthlyReportInvoiceExportRow {
@@ -93,28 +84,12 @@ final class CaMonthlyReportInvoiceExportBuilder
             );
         }
 
-        $paymentMode = $this->paymentEvidenceResolver->resolvePaymentModeDisplay(
-            $invoice,
-            $allocationPaymentMethod,
-            $commerceOrder,
-            $hardwarePaymentMethod,
-            $supportOrderPaymentMethod,
-        );
-
         $paymentChannel = $this->paymentChannelResolver->resolvePaymentChannelDisplay(
             $invoice,
             $commerceOrder,
             $supportOrder,
             $hardwareEvidenceRecord,
             $allocationTotal,
-            $invoice->inventorySale,
-        );
-
-        $paymentReference = $this->paymentChannelResolver->resolvePaymentReferenceDisplay(
-            $invoice,
-            $commerceOrder,
-            $supportOrder,
-            $hardwareEvidenceRecord,
             $invoice->inventorySale,
         );
 
@@ -148,8 +123,6 @@ final class CaMonthlyReportInvoiceExportBuilder
             (string) ($invoice->eInvoiceRecord?->irn ?? ''),
             (string) ($invoice->eInvoiceRecord?->ack_no ?? ''),
             $paymentChannel,
-            $paymentMode,
-            $paymentReference,
         ];
 
         return new CaMonthlyReportInvoiceExportRow(

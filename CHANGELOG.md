@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.140 — 2026-09-26 — CA Monthly Partial Paid tolerance and payment column simplification
+
+- **Partial Paid rule:** Inclusive ₹1.00 tolerance — differences at or below ₹1.00 are treated as fully paid; actual channel (CF / HDFC M / HDFC D / Cash) retained when determinable. Fixes INV-67642, INV-67643, and INV-67506 (₹0.01 difference → **CF**, not Partial Paid).
+- **CA export contract (22 columns):** Payment Channel only; Payment Method and Payment Reference removed from CA-facing XLSX/preview (underlying data and internal resolvers unchanged).
+- **No migration.** Reporting layer, views, docs, and tests only.
+- Regression: CA Monthly suite (**131** tests), statutory cancellation/GST/reconciliation/identity protected suites unchanged vs v4.0.139 baseline.
+- Rollback target: v4.0.139 / `061970bc`.
+- Prompts **RadiumDesk-P-25-09-31** through **P-25-09-32**.
+
 ## 4.0.139 — 2026-09-26 — CA Monthly reporting corrections (branch, status, payment channel, goods)
 
 - **CA Monthly export contract (24 columns):** Branch normalization (`radium_delhi` / `DELHI-RETAIL` → `Delhi`; blank when no authoritative source); **Status** (Issued / Cancelled / Credit Note); Order Type **Goods** for POS hardware; **Payment Channel** (`CF`, `HDFC M`, `HDFC D`, `Cash`, `Unpaid`, `Partial Paid`) with Payment Method and Payment Reference retained for reconciliation.

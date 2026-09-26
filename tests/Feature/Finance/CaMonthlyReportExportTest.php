@@ -67,7 +67,7 @@ class CaMonthlyReportExportTest extends TestCase
         });
 
         $this->assertCount(1, $rows);
-        $this->assertCount(24, $rows[0]);
+        $this->assertCount(22, $rows[0]);
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, CaMonthlyReportDefinition::HEADERS);
         $this->assertSame('118.00', $rows[0][18]);
     }

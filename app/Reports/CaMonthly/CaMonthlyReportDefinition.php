@@ -28,7 +28,7 @@ final class CaMonthlyReportDefinition
 
     public const SHEET_NAME = 'CA Monthly Report';
 
-    public const TEMPLATE_VERSION = '2026-09-27';
+    public const TEMPLATE_VERSION = '2026-09-26';
 
     /**
      * Invoice-level CA register columns (parent rows).
@@ -58,8 +58,6 @@ final class CaMonthlyReportDefinition
         'IRN Number',
         'Acknowledgement',
         'Payment Channel',
-        'Payment Method',
-        'Payment Reference',
     ];
 
     /**

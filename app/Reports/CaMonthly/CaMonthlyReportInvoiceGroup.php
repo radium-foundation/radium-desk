@@ -20,8 +20,6 @@ final class CaMonthlyReportInvoiceGroup
         public readonly string $taxAmount,
         public readonly string $totalAmount,
         public readonly string $paymentChannel,
-        public readonly string $paymentMode,
-        public readonly string $paymentReference,
         public readonly string $status,
         public readonly string $documentType,
         public readonly bool $expandable,

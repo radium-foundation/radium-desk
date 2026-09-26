@@ -207,7 +207,7 @@ class CaMonthlyReportCorrectionsTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertSame('UPI', $row[22]);
+        $this->assertCount(22, $row);
     }
 
     public function test_upi_without_cashfree_evidence_leaves_payment_channel_unclassified(): void
@@ -233,11 +233,10 @@ class CaMonthlyReportCorrectionsTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame('', $row[21]);
-        $this->assertSame('UPI', $row[22]);
         $this->assertSame(1, $preflight->unclassifiedPaymentChannelCount);
     }
 
-    public function test_partial_paid_when_verified_payment_is_less_than_invoice_total(): void
+    public function test_one_paisa_difference_within_tolerance_exports_cf_not_partial_paid(): void
     {
         $supportOrder = Order::query()->create([
             'order_id' => 'RD-PARTIAL-67506',
@@ -264,7 +263,7 @@ class CaMonthlyReportCorrectionsTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_PARTIAL_PAID, $row[21]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
         $this->assertSame('599.01', $row[18]);
     }
 
@@ -309,7 +308,10 @@ class CaMonthlyReportCorrectionsTest extends TestCase
     public function test_export_contract_includes_status_column(): void
     {
         $this->assertContains('Status', CaMonthlyReportDefinition::HEADERS);
-        $this->assertCount(24, CaMonthlyReportDefinition::HEADERS);
+        $this->assertContains('Payment Channel', CaMonthlyReportDefinition::HEADERS);
+        $this->assertNotContains('Payment Method', CaMonthlyReportDefinition::HEADERS);
+        $this->assertNotContains('Payment Reference', CaMonthlyReportDefinition::HEADERS);
+        $this->assertCount(22, CaMonthlyReportDefinition::HEADERS);
     }
 
     public function test_workbook_meta_formats_reporting_period_as_dd_mmm_yyyy(): void

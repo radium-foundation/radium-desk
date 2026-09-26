@@ -13,6 +13,12 @@ use App\Support\Inventory\PosSalePaymentState;
  */
 final class CaMonthlyReportPaidAmountResolver
 {
+    /**
+     * Inclusive tolerance for CA reporting: differences at or below this amount
+     * are treated as fully paid (not Partial Paid).
+     */
+    public const PARTIAL_PAID_TOLERANCE = 1.00;
+
     public function resolveVerifiedPaidAmount(
         StatutoryInvoice $invoice,
         ?CommerceOrder $commerceOrder = null,
@@ -56,6 +62,11 @@ final class CaMonthlyReportPaidAmountResolver
         return min($amounts);
     }
 
+    public function paymentDifference(float $verifiedPaidAmount, float $invoiceValue): float
+    {
+        return round(abs(round($invoiceValue, 2) - round($verifiedPaidAmount, 2)), 2);
+    }
+
     public function isPartiallyPaid(float $verifiedPaidAmount, float $invoiceValue): bool
     {
         $invoiceValue = round($invoiceValue, 2);
@@ -65,7 +76,7 @@ final class CaMonthlyReportPaidAmountResolver
             return false;
         }
 
-        return $verifiedPaidAmount < $invoiceValue - 0.009;
+        return $this->paymentDifference($verifiedPaidAmount, $invoiceValue) > self::PARTIAL_PAID_TOLERANCE;
     }
 
     private function commerceOrderReportsPayment(CommerceOrder $commerceOrder): bool

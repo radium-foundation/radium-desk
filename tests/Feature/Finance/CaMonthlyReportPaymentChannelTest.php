@@ -12,6 +12,7 @@ use App\Models\InventoryBranch;
 use App\Models\InventorySale;
 use App\Models\Order;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
+use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use App\Reports\CaMonthly\CaMonthlyReportPaymentChannelResolver;
 use App\Support\Inventory\PosSalePaymentState;
 use Database\Seeders\RolePermissionSeeder;
@@ -37,7 +38,7 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    public function test_cashfree_gateway_with_upi_instrument_exports_channel_and_method_separately(): void
+    public function test_cashfree_gateway_with_upi_instrument_exports_cf_channel_only(): void
     {
         $supportOrder = Order::query()->create([
             'order_id' => 'RD-CH-UPI',
@@ -61,8 +62,9 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertSame('UPI', $row[22]);
-        $this->assertSame('RD-CH-UPI', $row[23]);
+        $this->assertCount(22, $row);
+        $this->assertNotContains('Payment Method', CaMonthlyReportDefinition::HEADERS);
+        $this->assertNotContains('Payment Reference', CaMonthlyReportDefinition::HEADERS);
     }
 
     public function test_cashfree_gateway_with_card_instrument(): void
@@ -87,7 +89,6 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertSame('Card', $row[22]);
     }
 
     public function test_cashfree_gateway_with_net_banking_instrument(): void
@@ -109,8 +110,6 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertSame('Net Banking', $row[22]);
-        $this->assertSame('cf_pay_nb_1', $row[23]);
     }
 
     public function test_cashfree_gateway_with_wallet_instrument(): void
@@ -135,7 +134,6 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertSame('Wallet', $row[22]);
     }
 
     public function test_hdfc_m_direct_channel(): void
@@ -149,8 +147,6 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_M, $row[21]);
-        $this->assertSame('Hdfc M', $row[22]);
-        $this->assertSame('UTR-HDFC-M-1', $row[23]);
     }
 
     public function test_hdfc_d_direct_channel(): void
@@ -164,7 +160,6 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_D, $row[21]);
-        $this->assertSame('Hdfc D', $row[22]);
     }
 
     public function test_cash_direct_channel(): void
@@ -178,7 +173,6 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CASH, $row[21]);
-        $this->assertSame('Cash', $row[22]);
     }
 
     public function test_indus_payment_evidence_is_not_mapped_to_a_primary_channel(): void
@@ -193,11 +187,10 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame('', $row[21]);
-        $this->assertSame('Indus', $row[22]);
         $this->assertSame(1, $preflight->unclassifiedPaymentChannelCount);
     }
 
-    public function test_unpaid_pos_sale_exports_unpaid_channel_without_internal_marker_reference(): void
+    public function test_unpaid_pos_sale_exports_unpaid_channel(): void
     {
         $branch = InventoryBranch::query()->create([
             'code' => 'DELHI-RETAIL',
@@ -234,8 +227,6 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_UNPAID, $row[21]);
-        $this->assertSame('', $row[22]);
-        $this->assertSame('', $row[23]);
     }
 
     public function test_upi_without_cashfree_evidence_is_not_mapped_to_cf(): void
@@ -260,7 +251,6 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame('', $row[21]);
-        $this->assertSame('UPI', $row[22]);
         $this->assertNotSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
     }
 
@@ -306,7 +296,6 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertSame('', $row[22]);
     }
 
     /**

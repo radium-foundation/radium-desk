@@ -13,7 +13,7 @@ use App\Support\Inventory\PosSalePaymentState;
  * CA-facing normalized payment channel for statutory invoice register exports.
  *
  * Primary channel vocabulary: CF, HDFC M, HDFC D, Cash, Unpaid, Partial Paid.
- * Underlying instrument/provider/reference remain in Payment Method / Payment Reference.
+ * Underlying instrument/provider/reference remain in source data for internal reconciliation.
  */
 final class CaMonthlyReportPaymentChannelResolver
 {

@@ -2,7 +2,7 @@
 
 **Prompts:** `RadiumDesk-P-21-09-07` (original contract), `RadiumDesk-P-21-09-23` (export hardening v4.0.105), `radiumbox.com-P-22-09-09` (invoice-level register redesign), `RadiumDesk-P-22-09-28` (documentation alignment)
 
-**Template version:** `CaMonthlyReportDefinition::TEMPLATE_VERSION` = `2026-09-27`
+**Template version:** `CaMonthlyReportDefinition::TEMPLATE_VERSION` = `2026-09-26`
 
 ## Period filter
 
@@ -18,7 +18,7 @@
 - **CSV** contains **parent invoice rows only** (no child line detail).
 - `countExportLines()`, sync/async thresholds, and `row_count` on export artifacts count **invoices**, not line items.
 
-## Parent invoice columns (24)
+## Parent invoice columns (22)
 
 Exact order from `CaMonthlyReportDefinition::HEADERS`:
 
@@ -46,8 +46,6 @@ Exact order from `CaMonthlyReportDefinition::HEADERS`:
 | 20 | IRN Number |
 | 21 | Acknowledgement |
 | 22 | Payment Channel |
-| 23 | Payment Method |
-| 24 | Payment Reference |
 
 ### Not exported
 
@@ -137,9 +135,9 @@ Classification priority:
 3. Desk Service channel / service order source
 4. SAC `99xxxx` vs goods HSN fallback
 
-## Payment Channel, Method, and Reference
+## Payment Channel (CA-facing)
 
-### Payment Channel (CA-facing normalized channel)
+### Payment Channel
 
 Resolver: `CaMonthlyReportPaymentChannelResolver::resolvePaymentChannelDisplay()`.
 
@@ -151,15 +149,18 @@ Owner-approved normalized channels:
 | `HDFC M` | Direct POS/settlement method `HDFC M` |
 | `HDFC D` | Direct POS/settlement method `HDFC D` |
 | `Cash` | Direct cash settlement |
-| `Unpaid` | No payment evidence (including POS payment-pending sales with no allocation) |
-| `Partial Paid` | Verified collected amount is greater than zero but less than invoice total |
+| `Unpaid` | Verified paid amount = 0 |
+| `Partial Paid` | Verified paid amount > 0 and absolute invoice/paid difference **> ₹1.00** (inclusive tolerance) |
 | *(blank)* | Payment evidence exists but cannot be safely mapped to the six channels above (preflight warning) |
 
-Gateway/provider, instrument, and reference remain in **Payment Method** / **Payment Reference**.
+When the difference is **≤ ₹1.00**, the invoice is treated as fully paid for CA reporting and the actual channel (CF / HDFC M / HDFC D / Cash) is retained when determinable.
 
-### Payment Method (instrument)
+### Internal payment evidence (not exported)
 
-Resolver: `CaMonthlyReportPaymentEvidenceResolver::resolvePaymentModeDisplay()`.
+Instrument and reference resolvers remain available for reconciliation/debugging but are **not** CA-facing export columns:
+
+- `CaMonthlyReportPaymentEvidenceResolver::resolvePaymentModeDisplay()`
+- `CaMonthlyReportPaymentChannelResolver::resolvePaymentReferenceDisplay()`
 
 Resolution order (first non-empty, normalized label wins):
 
@@ -169,13 +170,7 @@ Resolution order (first non-empty, normalized label wins):
 4. `PaymentAllocation` → linked `CustomerPayment.method`
 5. `statutory_invoices.payment_method` (invoice snapshot)
 
-**Payment providers are not payment instruments.** Provider aliases such as `cashfree`, `payu`, and `razorpay` are filtered and do not appear as Payment Method. A Cashfree-backed UPI transaction therefore exports **Channel = Cashfree**, **Method = UPI**.
-
-### Payment Reference
-
-Resolver: `CaMonthlyReportPaymentChannelResolver::resolvePaymentReferenceDisplay()`.
-
-Resolution order: invoice snapshot → commerce order → support `transaction_id` → verified hardware/support `cashfree_payment_id` → inventory sale reference. Internal POS pending marker `__PAYMENT_PENDING__` is not exported.
+**Payment providers are not payment instruments.** Provider aliases such as `cashfree`, `payu`, and `razorpay` are filtered from instrument resolution. A Cashfree-backed UPI transaction therefore exports **Channel = CF** only.
 
 Preflight still summarizes cancelled payment-evidence categories for CA review.
 

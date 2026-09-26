@@ -68,8 +68,6 @@ final class CaMonthlyReportInvoiceGroupBuilder
                 taxAmount: $taxAmount !== 0.0 ? number_format($taxAmount, 2, '.', '') : '',
                 totalAmount: $exportRow->parentCells[18],
                 paymentChannel: $exportRow->parentCells[21],
-                paymentMode: $exportRow->parentCells[22],
-                paymentReference: $exportRow->parentCells[23],
                 status: $exportRow->parentCells[3],
                 documentType: $invoice->document_type->label(),
                 expandable: $exportRow->expandable,

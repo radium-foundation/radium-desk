@@ -192,10 +192,10 @@ class CaMonthlyReportTest extends TestCase
         $firstDataRow = $this->readXlsxRow($path, 4);
 
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $headers);
-        $this->assertCount(24, $headers);
+        $this->assertCount(22, $headers);
         $this->assertSame('998313', $firstDataRow[11]);
         $this->assertSame('118.00', $firstDataRow[18]);
-        $this->assertCount(24, app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0]);
+        $this->assertCount(22, app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0]);
     }
 
     public function test_service_ordertype_is_resolved_from_sac_code(): void
@@ -512,7 +512,8 @@ class CaMonthlyReportTest extends TestCase
 
         $this->assertSame(1, $preflight->cancelledIncludedCount);
         $this->assertSame(1, $preflight->cancelledIncludedViaPaymentReferenceCount);
-        $this->assertSame('UPI', $row[22]);
+        $this->assertSame('Cancelled', $row[3]);
+        $this->assertCount(22, $row);
     }
 
     public function test_cancelled_pos_invoice_with_payment_snapshot_is_included(): void
@@ -579,7 +580,8 @@ class CaMonthlyReportTest extends TestCase
         $this->assertCount(1, $readModel->exportRows($this->request()));
         $this->assertSame(1, $preflight->cancelledIncludedCount);
         $this->assertSame(1, $preflight->cancelledIncludedViaPaymentAllocationCount);
-        $this->assertSame('Bank Transfer', $row[22]);
+        $this->assertSame('Cancelled', $row[3]);
+        $this->assertCount(22, $row);
     }
 
     public function test_cancelled_service_pos_invoice_without_allocation_is_still_included(): void
