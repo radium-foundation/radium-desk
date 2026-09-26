@@ -4,6 +4,7 @@ namespace App\Services\StatutoryInvoice;
 
 use App\Enums\CommerceOrderStatus;
 use App\Enums\InventorySaleStatus;
+use App\Enums\StatutorySupplyKind;
 use App\Models\CommerceOrder;
 use App\Models\InventorySale;
 use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
@@ -24,6 +25,8 @@ class StatutoryMintEligibility
         private readonly GstSplitService $gstSplit,
         private readonly HardwareCommerceStatutoryInvoiceGuard $hardwareCommerceInvoice,
         private readonly StatutoryInvoiceCommerceBillableLines $billableLines,
+        private readonly StatutorySupplyKindResolver $supplyKinds,
+        private readonly ServiceStatutoryGstB2bClassification $serviceGstClassification,
     ) {}
 
     public function evaluateSale(InventorySale $sale): StatutoryMintEligibilityResult
@@ -122,11 +125,24 @@ class StatutoryMintEligibility
         $hardwarePath = $this->hardwareCommerceInvoice->requiresHardwareSerialPath($order);
         $hsnSacs = $order->items->pluck('hsn_sac')->all();
         $issuerError = null;
+        $issuerBuyerGstin = BuyerGstin::normalize($order->buyer_gstin);
 
+        $serviceGstDecision = null;
         if (! $hardwarePath) {
+            try {
+                if ($this->supplyKinds->requireFromLines($hsnSacs) === StatutorySupplyKind::Service) {
+                    $serviceGstDecision = $this->serviceGstClassification->resolveForServiceOrder($order);
+                }
+            } catch (ValidationException) {
+                $serviceGstDecision = null;
+            }
+
+            $issuerBuyerGstin = $serviceGstDecision !== null
+                ? $serviceGstDecision->buyerGstinForMint
+                : BuyerGstin::normalize($order->buyer_gstin);
             $issuerError = $this->issuer->errorForCommerceOrder(
                 $order->branch_code,
-                $order->buyer_gstin,
+                $issuerBuyerGstin,
                 $order->billing_state,
                 $hsnSacs,
             );
@@ -136,7 +152,7 @@ class StatutoryMintEligibility
                 $sellerError = $this->seller->errorForLocation(
                     $this->issuer->requireForCommerceOrder(
                         $order->branch_code,
-                        $order->buyer_gstin,
+                        $issuerBuyerGstin,
                         $order->billing_state,
                         $hsnSacs,
                     ),
@@ -155,7 +171,13 @@ class StatutoryMintEligibility
         }
 
         $buyerGstin = BuyerGstin::normalize($order->buyer_gstin);
-        if ($order->buyer_gstin !== null && trim((string) $order->buyer_gstin) !== '' && ! BuyerGstin::isValid($buyerGstin)) {
+        $allowsServiceB2cDowngrade = $serviceGstDecision?->requiresB2cDowngrade() === true;
+        if (
+            ! $allowsServiceB2cDowngrade
+            && $order->buyer_gstin !== null
+            && trim((string) $order->buyer_gstin) !== ''
+            && ! BuyerGstin::isValid($buyerGstin)
+        ) {
             $errors[] = 'Buyer GSTIN is present but is not a valid 15-character GSTIN.';
         }
 
@@ -183,7 +205,7 @@ class StatutoryMintEligibility
         if ($hardwarePath) {
             $errors = array_merge($errors, $this->hardwareCommerceInvoice->blockingErrors($order));
         } elseif ($issuerError === null && $place !== '' && GstStateCodes::codeForName($place) !== null) {
-            $errors = array_merge($errors, $this->serviceGstSplitErrors($order, $place, $hsnSacs));
+            $errors = array_merge($errors, $this->serviceGstSplitErrors($order, $place, $hsnSacs, $issuerBuyerGstin));
         }
 
         return new StatutoryMintEligibilityResult($errors === [], array_values(array_unique($errors)));
@@ -193,13 +215,13 @@ class StatutoryMintEligibility
      * @param  list<mixed>  $hsnSacs
      * @return list<string>
      */
-    private function serviceGstSplitErrors(CommerceOrder $order, string $place, array $hsnSacs): array
+    private function serviceGstSplitErrors(CommerceOrder $order, string $place, array $hsnSacs, ?string $buyerGstinForIssuer): array
     {
         try {
             $sellerCode = $this->locations->gstStateCode(
                 $this->issuer->requireForCommerceOrder(
                     $order->branch_code,
-                    $order->buyer_gstin,
+                    $buyerGstinForIssuer,
                     $order->billing_state,
                     $hsnSacs,
                 ),

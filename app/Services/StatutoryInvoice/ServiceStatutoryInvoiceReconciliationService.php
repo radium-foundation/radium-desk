@@ -23,8 +23,6 @@ final class ServiceStatutoryInvoiceReconciliationService
         private readonly ServiceStatutoryInvoiceIssuanceCoordinator $coordinator,
         private readonly AutomationIdentityService $automationIdentity,
         private readonly HardwareCommerceStatutoryInvoiceGuard $hardwareGuard,
-        private readonly ServiceStatutoryGstMismatchDetector $gstMismatchDetector,
-        private readonly ServiceStatutoryGstMismatchExceptionService $gstMismatchExceptions,
     ) {}
 
     public function reconcile(?int $limit = null, bool $dryRun = false): ServiceStatutoryInvoiceReconciliationResult
@@ -75,24 +73,6 @@ final class ServiceStatutoryInvoiceReconciliationService
             $decision = $this->eligibility->evaluateOrder($commerce);
             if (! $decision->eligible) {
                 $ineligible++;
-
-                continue;
-            }
-
-            $gstException = $this->gstMismatchExceptions->findForCommerceOrder($commerce);
-            if ($this->gstMismatchExceptions->shouldSkipMintAttempt($gstException, $commerce)) {
-                $skipped++;
-
-                continue;
-            }
-
-            if ($this->gstMismatchDetector->detectForCommerceOrder($commerce) !== null) {
-                $this->gstMismatchExceptions->openFromMintFailure(
-                    $supportOrder,
-                    $commerce,
-                    ServiceStatutoryGstMismatchDetector::REASON_BUYER_PIN_GSTIN_STATE_MISMATCH,
-                );
-                $skipped++;
 
                 continue;
             }

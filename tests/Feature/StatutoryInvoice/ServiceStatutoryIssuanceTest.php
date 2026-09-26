@@ -129,7 +129,7 @@ class ServiceStatutoryIssuanceTest extends TestCase
             $this->actor,
         );
         $b2b = $this->invoices->issueFromCommerceOrder(
-            $this->commerceOrder('RD-MH-B2B', buyerGstin: '27AAAAA0000A1Z5', billingState: 'Delhi'),
+            $this->commerceOrder('RD-MH-B2B', buyerGstin: '27AAAAA0000A1Z5', billingState: 'Maharashtra', placeOfSupply: 'Maharashtra'),
             $this->actor,
         );
 
@@ -142,7 +142,7 @@ class ServiceStatutoryIssuanceTest extends TestCase
     public function test_non_maharashtra_b2b_selects_delhi_b2b_inv_07671(): void
     {
         $invoice = $this->invoices->issueFromCommerceOrder(
-            $this->commerceOrder('RD-DL-B2B', buyerGstin: '07AAAAA0000A1Z5', billingState: 'Maharashtra'),
+            $this->commerceOrder('RD-DL-B2B', buyerGstin: '07AAAAA0000A1Z5', billingState: 'Delhi', placeOfSupply: 'Delhi'),
             $this->actor,
         );
 
@@ -150,19 +150,14 @@ class ServiceStatutoryIssuanceTest extends TestCase
         $this->assertSame($this->configuredSellerGstin('delhi'), $invoice->seller_gstin);
     }
 
-    public function test_invalid_non_empty_gstin_fails_closed_without_invoice(): void
+    public function test_invalid_non_empty_gstin_issues_b2c_service_invoice(): void
     {
         $order = $this->commerceOrder('RD-BAD-GSTIN', buyerGstin: '27-NOT-A-GSTIN', billingState: 'Maharashtra');
 
-        try {
-            $this->invoices->issueFromCommerceOrder($order, $this->actor);
-            $this->fail('Expected invalid GSTIN to fail closed.');
-        } catch (ValidationException $exception) {
-            $this->assertNotEmpty($exception->errors());
-        }
+        $invoice = $this->invoices->issueFromCommerceOrder($order, $this->actor);
 
-        $this->assertSame(0, StatutoryInvoice::query()->count());
-        $this->assertSame(0, InvoiceSequenceAllocation::query()->count());
+        $this->assertNull($invoice->buyer_gstin);
+        $this->assertSame('27-NOT-A-GSTIN', $order->fresh()->buyer_gstin);
     }
 
     public function test_missing_b2c_billing_state_fails_closed_without_invoice(): void
@@ -196,19 +191,20 @@ class ServiceStatutoryIssuanceTest extends TestCase
         $this->assertSame(0, StatutoryInvoice::query()->count());
     }
 
-    public function test_b2b_issuer_follows_gstin_not_billing_state(): void
+    public function test_gstin_billing_state_mismatch_issues_b2c_service_invoice(): void
     {
-        $this->assertSame(
-            StatutoryLocationSeries::MUMBAI,
-            $this->issuer->require(StatutorySupplyKind::Service, 'DELHI-RETAIL', '27AAAAA0000A1Z5', 'Karnataka'),
-        );
-
         $invoice = $this->invoices->issueFromCommerceOrder(
-            $this->commerceOrder('RD-GSTIN-WINS', buyerGstin: '27AAAAA0000A1Z5', billingState: 'Karnataka'),
+            $this->commerceOrder('RD-GSTIN-MISMATCH', buyerGstin: '27AAAAA0000A1Z5', billingState: 'Karnataka', placeOfSupply: 'Karnataka'),
             $this->actor,
         );
 
-        $this->assertSame('INV-27671', $invoice->invoice_number);
+        $this->assertNull($invoice->buyer_gstin);
+        $this->assertSame(
+            StatutoryLocationSeries::DELHI_B2C,
+            $invoice->allocation?->sequence?->gstin_scope
+                ? substr((string) $invoice->allocation->sequence->gstin_scope, strlen('location:'))
+                : null,
+        );
     }
 
     public function test_place_of_supply_cannot_substitute_for_missing_b2c_billing_state(): void
@@ -568,7 +564,7 @@ class ServiceStatutoryIssuanceTest extends TestCase
             $this->actor,
         );
         $delhiB2b = $this->invoices->issueFromCommerceOrder(
-            $this->commerceOrder('RD-ISO-B2B', buyerGstin: '29AAAAA0000A1Z5'),
+            $this->commerceOrder('RD-ISO-B2B', buyerGstin: '29AAAAA0000A1Z5', billingState: 'Karnataka', placeOfSupply: 'Karnataka'),
             $this->actor,
         );
         $mumbai = $this->invoices->issueFromCommerceOrder(

@@ -2,6 +2,7 @@
 
 namespace App\Services\StatutoryInvoice;
 
+use App\Data\StatutoryInvoice\ServiceStatutoryGstIssuanceDecision;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\EInvoiceRecordStatus;
 use App\Enums\ServiceOrderStatus;
@@ -9,6 +10,7 @@ use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceSourceType;
 use App\Enums\StatutoryInvoiceStatus;
+use App\Enums\StatutorySupplyKind;
 use App\Models\CommerceOrder;
 use App\Models\EInvoiceRecord;
 use App\Models\FinanceJournal;
@@ -58,6 +60,8 @@ class StatutoryInvoiceService
         private readonly EInvoiceInputReadiness $inputReadiness,
         private readonly RadiumBoxServiceCommerceSnapshotService $radiumBoxServiceCommerce,
         private readonly StatutoryInvoiceCommerceLinePresentation $commerceLinePresentation,
+        private readonly StatutorySupplyKindResolver $supplyKinds,
+        private readonly ServiceStatutoryGstB2bClassification $serviceGstClassification,
     ) {}
 
     public function findBySource(
@@ -291,25 +295,8 @@ class StatutoryInvoiceService
         return $invoice->load(['items', 'allocation', 'document']);
     }
 
-    public function issueB2cGstVerificationFallbackFromSupportOrder(
-        Order $order,
-        ?User $actor = null,
-        ?string $fallbackReason = null,
-    ): StatutoryInvoice {
-        $commerce = $this->commerceOrderForSupportOrder($order);
-
-        if ($commerce->support_order_id === null) {
-            $commerce->forceFill(['support_order_id' => $order->id])->save();
-        }
-
-        return $this->issueFromCommerceOrder($commerce->fresh(['items']) ?? $commerce, $actor, b2cGstVerificationFallback: true);
-    }
-
-    public function issueFromCommerceOrder(
-        CommerceOrder $order,
-        ?User $actor = null,
-        bool $b2cGstVerificationFallback = false,
-    ): StatutoryInvoice {
+    public function issueFromCommerceOrder(CommerceOrder $order, ?User $actor = null): StatutoryInvoice
+    {
         $existing = $this->findBySource(
             $order->channel,
             StatutoryInvoiceSourceType::CommerceOrder,
@@ -375,6 +362,8 @@ class StatutoryInvoiceService
         }
 
         $this->mintCommercialAt = $this->eligibility->commercialDate($order);
+        $gstDecision = $this->serviceGstIssuanceDecision($order, $resolvedHsns);
+        $buyerGstinForMint = $gstDecision->buyerGstinForMint;
 
         try {
             $invoice = $this->mint(new StatutoryInvoiceMintRequest(
@@ -387,7 +376,7 @@ class StatutoryInvoiceService
                 sellerName: null,
                 buyerName: $order->customer_name,
                 buyerPhone: $order->customer_phone,
-                buyerGstin: $b2cGstVerificationFallback ? null : BuyerGstin::normalize($order->buyer_gstin),
+                buyerGstin: $buyerGstinForMint,
                 billingAddress: $order->billing_address,
                 placeOfSupplyState: $order->place_of_supply_state,
                 discount: (float) ($order->discount ?? 0),
@@ -396,7 +385,7 @@ class StatutoryInvoiceService
                 supportOrderId: $this->resolveSupportOrderId($order),
                 numberingLocation: $this->issuer->requireForCommerceOrder(
                     $order->branch_code,
-                    $b2cGstVerificationFallback ? null : $order->buyer_gstin,
+                    $buyerGstinForMint,
                     $order->billing_state,
                     $resolvedHsns,
                 ),
@@ -1020,6 +1009,22 @@ class StatutoryInvoiceService
         }
 
         return $request->withPlaceOfSupplySnapshot($pos->state, $pos->stateCode, $pos->source);
+    }
+
+    /**
+     * @param  list<string|null>  $resolvedHsns
+     */
+    private function serviceGstIssuanceDecision(CommerceOrder $order, array $resolvedHsns): ServiceStatutoryGstIssuanceDecision
+    {
+        if ($this->supplyKinds->requireFromLines($resolvedHsns) !== StatutorySupplyKind::Service) {
+            return new ServiceStatutoryGstIssuanceDecision(
+                issueAsB2b: BuyerGstin::isValid(BuyerGstin::normalize($order->buyer_gstin)),
+                buyerGstinForMint: BuyerGstin::normalize($order->buyer_gstin),
+                b2cDowngradeCode: null,
+            );
+        }
+
+        return $this->serviceGstClassification->resolveForServiceOrder($order);
     }
 
     private function assertB2bInputReadinessForMint(StatutoryInvoiceMintRequest $request): void

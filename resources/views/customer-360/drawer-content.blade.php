@@ -128,9 +128,6 @@
         @include('customer-360.partials.historical-invoice', [
             'historicalInvoice' => $historicalInvoice ?? null,
         ])
-        @include('customer-360.partials.gst-mismatch-exception', [
-            'gstMismatchException' => $gstMismatchException ?? null,
-        ])
         @include('customer-360.partials.statutory-invoice', [
             'statutoryInvoices' => $statutoryInvoices ?? [],
         ])

@@ -27,7 +27,6 @@ use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\ConversationWorkspace\ConversationWorkspaceModeResolver;
 use App\Services\ConversationWorkspace\ConversationWorkspaceSessionService;
 use App\Services\Customer360\Customer360ActionVisibilityService;
-use App\Services\Customer360\Customer360GstMismatchExceptionPresenter;
 use App\Services\Customer360\Customer360RecentCommunicationService;
 use App\Services\Customer360\Customer360StatutoryInvoicePresenter;
 use App\Services\Customer360\Intelligence\CaseIntelligenceEngine;
@@ -130,8 +129,6 @@ class Customer360Service
             $user instanceof User ? $user : null,
         );
         $data['statutoryInvoices'] = app(Customer360StatutoryInvoicePresenter::class)
-            ->forIncident($incident, $user instanceof User ? $user : null);
-        $data['gstMismatchException'] = app(Customer360GstMismatchExceptionPresenter::class)
             ->forIncident($incident, $user instanceof User ? $user : null);
 
         return $data;

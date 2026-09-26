@@ -20,6 +20,9 @@
                     <dd>{{ $invoice['status_label'] }}</dd>
                 </div>
             </dl>
+            @if(filled($invoice['service_b2c_note'] ?? null))
+                <p class="small text-muted mb-2" role="status">{{ $invoice['service_b2c_note'] }}</p>
+            @endif
             <div class="c360-statutory-invoice-actions">
                 <a class="btn btn-sm btn-outline-primary"
                    href="{{ $invoice['view_url'] }}"

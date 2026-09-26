@@ -5,6 +5,7 @@ namespace App\Services\Customer360;
 use App\Enums\EInvoiceRecordStatus;
 use App\Enums\StatutoryInvoiceStatus;
 use App\Enums\WhatsAppTemplate;
+use App\Models\CommerceOrder;
 use App\Models\EInvoiceRecord;
 use App\Models\Incident;
 use App\Models\StatutoryInvoice;
@@ -16,6 +17,7 @@ use App\Services\StatutoryInvoice\EInvoiceEligibility;
 use App\Services\StatutoryInvoice\EInvoiceInputReadiness;
 use App\Services\StatutoryInvoice\EInvoiceIrnGuard;
 use App\Services\StatutoryInvoice\EInvoiceProviderSubmissionBlocker;
+use App\Services\StatutoryInvoice\ServiceStatutoryGstB2bClassification;
 use App\Services\StatutoryInvoice\StatutoryInvoiceForIncidentResolver;
 use App\Support\AppDateFormatter;
 
@@ -49,6 +51,7 @@ class Customer360StatutoryInvoicePresenter
         private readonly EInvoiceInputReadiness $readiness,
         private readonly EInvoiceAgentPresentation $agentPresentation,
         private readonly EInvoiceProviderSubmissionBlocker $providerBlocker,
+        private readonly ServiceStatutoryGstB2bClassification $serviceGstClassification,
     ) {}
 
     /**
@@ -89,6 +92,7 @@ class Customer360StatutoryInvoicePresenter
             'issued_at_label' => AppDateFormatter::date($invoice->issued_at),
             'invoice_value' => number_format((float) $invoice->invoice_value, 2, '.', ''),
             'status_label' => $this->invoiceStatusLabel($invoice),
+            'service_b2c_note' => $this->serviceB2cIssuanceNote($incident, $invoice),
             'view_url' => $viewUrl,
             'download_url' => route('dashboard.service-cases.customer-360.invoices.download', [
                 'incident' => $incident,
@@ -244,6 +248,31 @@ class Customer360StatutoryInvoicePresenter
         }
 
         return self::SAFE_REASONS[$reason] ?? null;
+    }
+
+    private function serviceB2cIssuanceNote(Incident $incident, StatutoryInvoice $invoice): ?string
+    {
+        $sourceId = trim((string) ($incident->order?->order_id ?? ''));
+        if ($sourceId === '') {
+            return null;
+        }
+
+        $commerce = CommerceOrder::query()
+            ->where(function ($query) use ($sourceId): void {
+                $query->where('source_id', $sourceId)
+                    ->orWhere('source_order_id', $sourceId);
+            })
+            ->orderByDesc('id')
+            ->first();
+
+        if ($commerce === null) {
+            return null;
+        }
+
+        return $this->serviceGstClassification->c360NoteForIssuedInvoice(
+            $commerce,
+            $invoice->buyer_gstin,
+        );
     }
 
     private function nullableTrim(mixed $value): ?string

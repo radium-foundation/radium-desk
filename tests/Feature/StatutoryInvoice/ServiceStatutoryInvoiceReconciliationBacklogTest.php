@@ -14,7 +14,6 @@ use App\Models\Incident;
 use App\Models\InvoiceSequenceAllocation;
 use App\Models\Order;
 use App\Models\OutboxEvent;
-use App\Models\ServiceStatutoryGstMismatchException;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
@@ -124,7 +123,7 @@ class ServiceStatutoryInvoiceReconciliationBacklogTest extends TestCase
         $this->assertNull($invoice->buyer_gstin);
     }
 
-    public function test_b2b_gstin_state_mismatch_still_blocks_mint_without_weakening_validation(): void
+    public function test_b2b_gstin_state_mismatch_issues_b2c_invoice_without_blocking_backlog(): void
     {
         $this->seedHardwareBacklog(105);
         [$blocked] = $this->deskOrderWithCommerce('RD3518600', b2b: true, billingState: 'Delhi', buyerGstin: '09AAJFV1437D1Z7');
@@ -134,23 +133,29 @@ class ServiceStatutoryInvoiceReconciliationBacklogTest extends TestCase
 
         $result = app(ServiceStatutoryInvoiceReconciliationService::class)->reconcile(limit: 5);
 
-        $this->assertSame(0, StatutoryInvoice::query()->where('source_id', 'RD3518600')->count());
+        $mismatchInvoice = StatutoryInvoice::query()->where('source_id', 'RD3518600')->first();
+        $this->assertNotNull($mismatchInvoice);
+        $this->assertNull($mismatchInvoice->buyer_gstin);
         $this->assertSame(1, StatutoryInvoice::query()->where('source_id', 'RD3518601')->count());
-        $this->assertGreaterThanOrEqual(1, $result->skipped);
-        $exception = ServiceStatutoryGstMismatchException::query()
-            ->whereHas('commerceOrder', fn ($query) => $query->where('source_id', 'RD3518600'))
-            ->first();
-        $this->assertNotNull($exception);
-        $this->assertSame('buyer_pin_gstin_state_mismatch', $exception->validation_reason);
+        $this->assertGreaterThanOrEqual(2, $result->attempted);
+        $this->assertSame(
+            0,
+            OutboxEvent::query()
+                ->where('event_type', ServiceStatutoryInvoiceMintOutboxWriter::EVENT_TYPE)
+                ->where('status', OutboxEventStatus::Failed)
+                ->count(),
+        );
     }
 
-    public function test_remediated_b2b_order_becomes_retryable_on_next_reconciliation_run(): void
+    public function test_gst_mismatch_b2c_invoice_is_not_reissued_after_commerce_remediation(): void
     {
         [$order] = $this->deskOrderWithCommerce('RD3518700', b2b: true, billingState: 'Delhi', buyerGstin: '09AAJFV1437D1Z7');
         $order->update(['transaction_id' => 'TXN-REMEDIATE', 'completed_at' => now()]);
 
         app(ServiceStatutoryInvoiceReconciliationService::class)->reconcile(limit: 5);
-        $this->assertSame(0, StatutoryInvoice::query()->where('source_id', 'RD3518700')->count());
+        $invoice = StatutoryInvoice::query()->where('source_id', 'RD3518700')->first();
+        $this->assertNotNull($invoice);
+        $this->assertNull($invoice->buyer_gstin);
 
         CommerceOrder::query()->where('source_id', 'RD3518700')->update([
             'billing_state' => 'Uttar Pradesh',
@@ -164,6 +169,7 @@ class ServiceStatutoryInvoiceReconciliationBacklogTest extends TestCase
 
         app(ServiceStatutoryInvoiceReconciliationService::class)->reconcile(limit: 5);
         $this->assertSame(1, StatutoryInvoice::query()->where('source_id', 'RD3518700')->count());
+        $this->assertNull(StatutoryInvoice::query()->where('source_id', 'RD3518700')->value('buyer_gstin'));
     }
 
     public function test_reconciliation_skips_already_invoiced_order_in_backlog(): void

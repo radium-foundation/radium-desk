@@ -114,49 +114,6 @@
         </div>
     </div>
 
-    <div class="card mb-4">
-        <div class="card-body">
-            <h2 class="h6">GST mismatch — statutory invoice pending</h2>
-            <p class="small text-muted">Paid orders blocked by GSTIN/state validation. Customer verification and 72-hour fallback workflow.</p>
-            <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Order</th>
-                            <th>Status</th>
-                            <th>GSTIN</th>
-                            <th>Billing state</th>
-                            <th>Email sent</th>
-                            <th>Deadline</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($gstMismatchExceptions as $exception)
-                            <tr>
-                                <td>
-                                    @if($exception->commerceOrder)
-                                        <a href="{{ route('finance.invoices.commerce-orders.show', $exception->commerceOrder) }}">
-                                            {{ $exception->commerceOrder->source_id }}
-                                        </a>
-                                    @else
-                                        —
-                                    @endif
-                                </td>
-                                <td>{{ $exception->status->label() }}</td>
-                                <td class="small">{{ $exception->original_buyer_gstin }}</td>
-                                <td class="small">{{ $exception->original_billing_state }}</td>
-                                <td class="small">{{ $exception->customer_email_sent_at?->format('Y-m-d H:i') ?? '—' }}</td>
-                                <td class="small">{{ $exception->response_deadline_at?->format('Y-m-d H:i') }}</td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="6" class="text-muted">No open GST mismatch exceptions.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
     <div class="card">
         <div class="card-body">
             <h2 class="h6">Channel orders</h2>
