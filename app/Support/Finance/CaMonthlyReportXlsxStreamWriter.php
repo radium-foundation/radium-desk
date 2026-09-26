@@ -159,20 +159,23 @@ final class CaMonthlyReportXlsxStreamWriter
             $this->writeRowXml($this->sheetHandle, $this->currentRowNumber, $this->summaryTotalsRow(), 0, false);
         }
 
-        fwrite($this->sheetHandle, '</sheetData>');
-
         $lastColumn = $this->columnLetter(count(CaMonthlyReportDefinition::HEADERS) - 1);
+        fwrite($this->sheetHandle, '</sheetData>');
         fwrite(
             $this->sheetHandle,
             '<autoFilter ref="A'.CaMonthlyReportDefinition::HEADER_ROW.':'.$lastColumn.CaMonthlyReportDefinition::HEADER_ROW.'"/>',
         );
-        fwrite($this->sheetHandle, '<pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>');
+        fwrite($this->sheetHandle, '<pageSetup orientation="landscape" fitToPage="1" fitToWidth="1"/>');
         fwrite($this->sheetHandle, '<printOptions horizontalCentered="1"/>');
         fwrite($this->sheetHandle, '</worksheet>');
         fclose($this->sheetHandle);
         $this->sheetHandle = null;
 
+        $dimensionRef = 'A1:'.$lastColumn.$this->currentRowNumber;
+        $this->injectWorksheetDimension($this->sheetPath, $dimensionRef);
         $this->assertWorksheetXmlIsValid($this->sheetPath);
+
+        $stylesXml = $this->minimalStylesXml();
 
         $zip = new ZipArchive;
         if ($zip->open($this->outputPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
@@ -185,6 +188,7 @@ final class CaMonthlyReportXlsxStreamWriter
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 </Types>
 XML);
@@ -198,14 +202,21 @@ XML);
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>
 XML);
         $zip->addFromString('xl/workbook.xml', sprintf(
-            '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="%s" sheetId="1" r:id="rId1"/></sheets></workbook>',
+            '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><workbookPr/><bookViews><workbookView/></bookViews><sheets><sheet name="%s" sheetId="1" r:id="rId1"/></sheets></workbook>',
             htmlspecialchars(CaMonthlyReportDefinition::SHEET_NAME, ENT_XML1),
         ));
+        $zip->addFromString('xl/styles.xml', $stylesXml);
         $zip->addFile($this->sheetPath, 'xl/worksheets/sheet1.xml');
         $zip->close();
+
+        $packageErrors = (new CaMonthlyReportXlsxPackageValidator)->validate($this->outputPath);
+        if ($packageErrors !== []) {
+            throw new \RuntimeException('CA monthly report workbook failed Excel package validation: '.implode(' ', $packageErrors));
+        }
 
         $this->removeTempdir();
     }
@@ -356,6 +367,30 @@ XML);
         fwrite($handle, '</row>');
     }
 
+    private function injectWorksheetDimension(string $sheetPath, string $dimensionRef): void
+    {
+        $xml = file_get_contents($sheetPath);
+        if ($xml === false || $xml === '') {
+            throw new \RuntimeException('CA monthly report worksheet XML is empty.');
+        }
+
+        $dimension = '<dimension ref="'.$dimensionRef.'"/>';
+        if (str_contains($xml, '<dimension ')) {
+            $xml = preg_replace('/<dimension ref="[^"]*"\/>/', $dimension, $xml, 1) ?? $xml;
+        } else {
+            $needle = '</cols><sheetData>';
+            $replacement = '</cols>'.$dimension.'<sheetData>';
+            if (! str_contains($xml, $needle)) {
+                throw new \RuntimeException('Could not inject worksheet dimension reference.');
+            }
+            $xml = str_replace($needle, $replacement, $xml);
+        }
+
+        if (file_put_contents($sheetPath, $xml) === false) {
+            throw new \RuntimeException('Could not update worksheet dimension reference.');
+        }
+    }
+
     private function assertWorksheetXmlIsValid(string $sheetPath): void
     {
         $xml = file_get_contents($sheetPath);
@@ -393,6 +428,21 @@ XML);
     private function money(float $value): string
     {
         return number_format($value, 2, '.', '');
+    }
+
+    private function minimalStylesXml(): string
+    {
+        return <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="1"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font></fonts>
+  <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>
+XML;
     }
 
     private function removeTempdir(): void

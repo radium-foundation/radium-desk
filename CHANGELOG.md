@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.0.141 — 2026-09-26 — CA Monthly XLSX Excel Desktop compatibility
+
+- **Excel Desktop fix:** CA Monthly XLSX export now packages a complete OOXML workbook for Microsoft Excel Desktop — adds minimal `xl/styles.xml`, workbook `bookViews`, worksheet `dimension`, valid `pageSetup`, and correct content-type/relationship wiring. Fixes production export unreadable-content failure on full-period workbooks (e.g. export #11, 7264 invoice rows).
+- **Package validation:** New `CaMonthlyReportXlsxPackageValidator` runs after every XLSX write; generation fails fast if Excel-required parts are missing.
+- **Contract preserved:** 22-column CA Monthly register unchanged (Payment Channel only; no Payment Method / Payment Reference). Reporting period subtitle, payment-channel logic, cancelled-invoice inclusion/exclusion, and all statutory row values unchanged.
+- **No migration.** XLSX writer, validator, tests, and docs only.
+- Regression: CA Monthly suite (**141** tests incl. XLSX compatibility), payment channel / Partial Paid tolerance / cancellation / GST / identity protected suites unchanged vs v4.0.140 baseline.
+- Rollback target: v4.0.140 / `adda4806`.
+- Prompts **RadiumDesk-P-25-09-34** through **P-25-09-36**.
+
 ## 4.0.140 — 2026-09-26 — CA Monthly Partial Paid tolerance and payment column simplification
 
 - **Partial Paid rule:** Inclusive ₹1.00 tolerance — differences at or below ₹1.00 are treated as fully paid; actual channel (CF / HDFC M / HDFC D / Cash) retained when determinable. Fixes INV-67642, INV-67643, and INV-67506 (₹0.01 difference → **CF**, not Partial Paid).

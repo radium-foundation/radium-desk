@@ -246,4 +246,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-25-09-30 | 2026-09-26 | Production deploy v4.0.139 CA Monthly reporting corrections @ `061970bc` | KVM `desk deploy --yes`; post `release.json` **4.0.139/061970bc**; export #9 verified; data counts unchanged. Rollback: v4.0.138/`24542963`. |
 | RadiumDesk-P-25-09-32 | 2026-09-26 | Release prep v4.0.140 Partial Paid tolerance + 22-column CA contract | Tag **v4.0.140**; **131** CA Monthly tests PASS. **Not deployed.** |
 | RadiumDesk-P-25-09-33 | 2026-09-26 | Production deploy v4.0.140 @ `adda4806` | KVM deploy; INV-67642/67643/67506 → CF; export #10 verified. Rollback: v4.0.139/`061970bc`. |
+| RadiumDesk-P-25-09-34 | 2026-09-26 | CA Monthly Excel Desktop compatibility investigation gate | Export #11 unreadable in Excel; OOXML package root cause; cancellation read-only clean. **Not deployed.** |
+| RadiumDesk-P-25-09-37 | 2026-09-26 | Release prep v4.0.141 CA Monthly XLSX Excel compatibility | Tag **v4.0.141**; **141** CA Monthly tests PASS. **Not deployed.** |
 Do not renumber or overwrite earlier rows. Append only.
