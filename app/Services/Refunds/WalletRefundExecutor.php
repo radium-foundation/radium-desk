@@ -52,7 +52,7 @@ class WalletRefundExecutor implements RefundExecutor
         }
 
         throw ValidationException::withMessages([
-            'refund' => 'No wallet credit destination exists for this order source.',
+            'refund' => $this->destinations->unsupportedAutomatedWalletCreditMessage($orderId),
         ]);
     }
 

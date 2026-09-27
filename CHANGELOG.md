@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.0.147 — 2026-09-27 — rdservice.net wallet-approval guard
+
+- **Refund approval guard:** `WalletRefundDestinationResolver` rejects `approved_refund_method=wallet` for `rdservice.net` orders (RN/RA/RNP) at review time with a clear validation error; Cashfree and other supported payout methods remain available.
+- **Execution fail-closed preserved:** No `RdServiceNetWalletRefundClient`; unsupported wallet execution returns an explicit message that no automated wallet-credit destination is configured and the refund must use a supported payout method.
+- **Supported wallet routing unchanged:** `rdservice.in` → `RdServiceInWalletRefundClient`; `radiumbox.com` → `RadiumBoxWalletRefundClient`.
+- **No migration.** Does not execute, approve, delete, or mutate REF-67329, REF-67347, or any production refund records.
+- Regression: `WalletRefundRdServiceNetApprovalGuardTest`, wallet destination resolver, and wallet execution suites (**32** focused guard tests PASS).
+- Rollback target: v4.0.146 / `fbb696bd`.
+- Prompt **RadiumDesk-P-25-09-63**.
+
 ## 4.0.146 — 2026-09-27 — Credit note billing-address inheritance
 
 - **Credit note IRN readiness:** `StatutoryBillingStructuredResolver` resolves authoritative structured billing from the original invoice’s commerce/POS/service sources when minting a >24h B2B credit note; fail-closed if IRN-complete billing cannot be snapshotted (prevents `missing_buyer_pin` / `missing_buyer_loc` skips on `CancellationAdjustment` credit notes).

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Data\Refunds\RefundCalculationResult;
 use App\Enums\ApprovedRefundMethod;
+use App\Enums\BusinessHoldType;
 use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\RefundDeductionProfile;
 use App\Enums\RefundDifferenceReason;
@@ -15,6 +16,7 @@ use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\Operations\TeamMemberActivityService;
 use App\Services\Refunds\RefundExecutorResolver;
+use App\Services\Refunds\WalletRefundDestinationResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -32,6 +34,7 @@ class RefundRequestService
         private readonly RefundCaseCloseService $caseCloseService,
         private readonly BusinessHoldService $businessHoldService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
+        private readonly WalletRefundDestinationResolver $walletRefundDestinations,
     ) {}
 
     /**
@@ -173,6 +176,10 @@ class RefundRequestService
             $order = Order::query()->lockForUpdate()->findOrFail($locked->order_id);
 
             $method = ApprovedRefundMethod::from((string) $data['approved_refund_method']);
+
+            if ($method === ApprovedRefundMethod::Wallet) {
+                $this->walletRefundDestinations->assertWalletApprovalAllowed($order->order_id);
+            }
 
             $calculation = $this->calculationService->calculate($order, [
                 'deduction_profile_key' => $data['deduction_profile_key']
@@ -349,7 +356,7 @@ class RefundRequestService
                 incident: $updated->incident,
                 actor: $user,
                 source: 'refund_rejected',
-                type: \App\Enums\BusinessHoldType::Refund,
+                type: BusinessHoldType::Refund,
             );
 
             $this->businessHoldService->restoreToRequestingAgentAfterRefundRejected($updated, $user);
