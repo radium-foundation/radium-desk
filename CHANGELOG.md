@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.151 — 2026-09-27 — Full refund statutory adjustment (feature-flagged OFF)
+
+- **Post-refund statutory adjustment (v1):** On `RefundCompleted`, enqueue asynchronous statutory adjustment for **completed full refunds only** via `refund_statutory_adjustments` + outbox → `RefundStatutoryAdjustmentService` → existing `StatutoryInvoiceCancellationOrchestrator`.
+- **Eligibility guards:** Requires linked issued tax invoice, cumulative full-refundable amount, idempotent skips for partial refunds, POS boundary, already-cancelled invoices, and existing credit notes.
+- **Refund safety:** Refund completion remains financially successful even if statutory processing fails; IRN/CN work is outside the refund transaction.
+- **Feature flag OFF by default:** `refunds.statutory_adjustment.enabled` / `REFUNDS_STATUTORY_ADJUSTMENT_ENABLED` defaults to `false`. **Not production-enabled in this release.**
+- **Migration:** additive `refund_statutory_adjustments` table only.
+- **Excluded:** partial-refund automatic CNs, POS automatic adjustment, historical September backfill, live WhiteBooks/NIC verification.
+- Regression: `OrderStatutoryInvoiceResolverTest`, `RefundStatutoryAdjustmentTest`, refund/statutory/CN suites (**105** focused tests PASS).
+- Rollback target: v4.0.150 / `10ffad34`.
+- Prompt **RadiumDesk-P-25-09-79**, release gate **P-25-09-80**.
+
 ## 4.0.150 — 2026-09-27 — Refund reference and execution ID separation
 
 - **System-generated refund references:** Canonical `reference_no` remains allocated by `RefundReferenceService`; create requests reject manual `reference_no` overrides.
