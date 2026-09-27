@@ -6,19 +6,20 @@ use App\Enums\ApprovedRefundMethod;
 use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\RefundDeductionProfile;
 use App\Enums\RefundDifferenceReason;
-use App\Enums\RefundStatus;
+use App\Enums\RefundRevokeCustomerOutcome;
 use App\Http\Requests\ApproveRefundRequestRequest;
 use App\Http\Requests\CompleteRefundRequestRequest;
 use App\Http\Requests\RejectRefundRequestRequest;
+use App\Http\Requests\RerouteRefundExecutionMethodRequest;
 use App\Http\Requests\RevokeRefundRequestRequest;
 use App\Http\Requests\StoreRefundRequestRequest;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
-use App\Models\User;
 use App\Services\RefundCalculationService;
 use App\Services\RefundProfileRegistry;
 use App\Services\RefundRequestService;
+use App\Services\Refunds\RefundExecutionMethodRerouteService;
 use App\Services\Refunds\RefundListingQuery;
 use App\Services\Refunds\RefundRevokeService;
 use App\Services\RemarkTimelineService;
@@ -36,6 +37,7 @@ class RefundRequestController extends Controller
         private readonly RefundProfileRegistry $profileRegistry,
         private readonly RefundListingQuery $refundListingQuery,
         private readonly RefundRevokeService $refundRevokeService,
+        private readonly RefundExecutionMethodRerouteService $refundExecutionMethodRerouteService,
     ) {
         $this->authorizeResource(RefundRequest::class, 'refund', [
             'except' => ['edit', 'update'],
@@ -124,7 +126,8 @@ class RefundRequestController extends Controller
             'differenceReasons' => RefundDifferenceReason::cases(),
             'deductionProfiles' => RefundDeductionProfile::cases(),
             'canRevokeRefund' => $this->refundRevokeService->canRevoke($refund),
-            'revokeOutcomes' => \App\Enums\RefundRevokeCustomerOutcome::cases(),
+            'canRerouteExecutionMethod' => $this->refundExecutionMethodRerouteService->canReroute($refund),
+            'revokeOutcomes' => RefundRevokeCustomerOutcome::cases(),
         ]);
     }
 
@@ -256,5 +259,23 @@ class RefundRequestController extends Controller
         return redirect()
             ->route('refunds.show', $refund)
             ->with('status', 'refund-revoked');
+    }
+
+    public function rerouteExecutionMethod(
+        RerouteRefundExecutionMethodRequest $request,
+        RefundRequest $refund,
+    ): RedirectResponse {
+        $this->authorize('rerouteExecutionMethod', $refund);
+
+        $this->refundExecutionMethodRerouteService->reroute(
+            refund: $refund,
+            actor: $request->user(),
+            reason: $request->string('reroute_reason')->trim()->toString(),
+            request: $request,
+        );
+
+        return redirect()
+            ->route('refunds.show', $refund)
+            ->with('status', 'refund-execution-method-rerouted');
     }
 }
