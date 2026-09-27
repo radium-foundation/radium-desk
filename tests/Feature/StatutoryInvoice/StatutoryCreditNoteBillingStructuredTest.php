@@ -5,6 +5,8 @@ namespace Tests\Feature\StatutoryInvoice;
 use App\Contracts\StatutoryInvoice\EInvoiceGateway;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\EInvoiceRecordStatus;
+use App\Enums\ServiceOrderPaymentStatus;
+use App\Enums\ServiceOrderStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceSourceType;
@@ -12,8 +14,10 @@ use App\Enums\StatutoryInvoiceStatus;
 use App\Models\CommerceOrder;
 use App\Models\EInvoiceRecord;
 use App\Models\InventoryBranch;
+use App\Models\InventoryCustomer;
 use App\Models\InventorySale;
 use App\Models\OutboxEvent;
+use App\Models\ServiceOrder;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
@@ -22,13 +26,13 @@ use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
 use App\Services\StatutoryInvoice\EInvoiceProcessor;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCreditNoteService;
-use Tests\Support\FakeEInvoiceGateway;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Tests\Support\FakeEInvoiceGateway;
 use Tests\TestCase;
 
 class StatutoryCreditNoteBillingStructuredTest extends TestCase
@@ -79,6 +83,30 @@ class StatutoryCreditNoteBillingStructuredTest extends TestCase
         $this->assertTrue($payload->isSubmittable(), implode(', ', $payload->gaps));
         $this->assertSame('768201', $payload->buyer['pin']);
         $this->assertSame('Jharsuguda', $payload->buyer['location']);
+    }
+
+    public function test_service_order_structured_billing_is_snapshotted_on_credit_note_when_higher_precedence_unavailable(): void
+    {
+        $orderNumber = 'SVC-CN-BILLING-'.uniqid();
+        $serviceStructured = $this->coimbatoreStructured();
+        $original = $this->createServiceOrderOriginal($orderNumber, [
+            'billing_address_structured' => [
+                'line1' => 'Partial invoice snapshot only',
+                'city' => 'Coimbatore',
+            ],
+        ]);
+        $this->createServiceOrder($original, $orderNumber, $serviceStructured);
+        $this->attachSubmittedIrn($original);
+
+        $creditNote = $this->issueCreditNote($original);
+
+        $this->assertSame($serviceStructured, $creditNote->billing_address_structured);
+        $payload = app(EInvoiceIrnPayloadMapper::class)->map($creditNote->fresh(['items', 'originalStatutoryInvoice.eInvoiceRecord']));
+        $this->assertTrue($payload->isSubmittable(), implode(', ', $payload->gaps));
+        $this->assertNotContains('missing_buyer_pin', $payload->gaps);
+        $this->assertNotContains('missing_buyer_loc', $payload->gaps);
+        $this->assertSame('641107', $payload->buyer['pin']);
+        $this->assertSame('Coimbatore', $payload->buyer['location']);
     }
 
     public function test_pos_sale_structured_billing_is_snapshotted_on_credit_note(): void
@@ -343,6 +371,88 @@ class StatutoryCreditNoteBillingStructuredTest extends TestCase
         return $original->fresh(['items']) ?? $original;
     }
 
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function createServiceOrderOriginal(string $orderNumber, array $overrides = []): StatutoryInvoice
+    {
+        $original = StatutoryInvoice::query()->create(array_merge([
+            'invoice_number' => 'INV-CN-SVC-'.uniqid(),
+            'document_type' => StatutoryInvoiceDocumentType::TaxInvoice,
+            'status' => StatutoryInvoiceStatus::Issued,
+            'channel' => StatutoryInvoiceChannel::DeskService,
+            'source_type' => StatutoryInvoiceSourceType::ServiceOrder->value,
+            'source_id' => $orderNumber,
+            'idempotency_key' => 'statutory:cn-service:'.uniqid(),
+            'seller_gstin' => '07AAICP1128M1Z9',
+            'seller_name' => 'Phil Technologies (P) Limited',
+            'buyer_name' => 'Sundrop Brands Limited',
+            'buyer_gstin' => '33AABCS1429B1Z5',
+            'billing_address' => 'SF NO. 384/9A CODEA PARK ROAD, COIMBATORE - 641107',
+            'place_of_supply_state' => 'Tamil Nadu',
+            'place_of_supply_state_code' => '33',
+            'place_of_supply_source' => 'transaction_billing_address',
+            'taxable_value' => 50000.00,
+            'tax_total' => 9000.00,
+            'igst' => 9000.00,
+            'cgst' => 0.00,
+            'sgst' => 0.00,
+            'rounding' => 0.00,
+            'invoice_value' => 59000.00,
+            'issued_at' => now()->subDays(10),
+        ], $overrides));
+        $this->createLineItem($original, [
+            'sku' => 'RBSMARKETS',
+            'description' => 'Secondary Freight Reverse Auction',
+            'hsn_sac' => '998311',
+            'taxable_value' => 50000.00,
+            'tax_total' => 9000.00,
+            'igst' => 9000.00,
+            'cgst' => 0.00,
+            'sgst' => 0.00,
+            'line_total' => 59000.00,
+            'uqc' => 'NOS',
+        ]);
+
+        return $original->fresh(['items']) ?? $original;
+    }
+
+    /**
+     * @param  array<string, mixed>  $structured
+     */
+    private function createServiceOrder(StatutoryInvoice $original, string $orderNumber, array $structured): ServiceOrder
+    {
+        $customer = InventoryCustomer::query()->create([
+            'name' => $original->buyer_name,
+            'phone' => '9704890618',
+            'gstin' => $original->buyer_gstin,
+        ]);
+        $branch = $this->inventoryBranch();
+
+        return ServiceOrder::query()->create([
+            'order_number' => $orderNumber,
+            'customer_id' => $customer->id,
+            'branch_id' => $branch->id,
+            'buyer_name' => $original->buyer_name,
+            'buyer_phone' => $customer->phone,
+            'buyer_gstin' => $original->buyer_gstin,
+            'billing_address' => $original->billing_address,
+            'billing_address_structured' => $structured,
+            'billing_state' => 'Tamil Nadu',
+            'place_of_supply_state' => $original->place_of_supply_state,
+            'status' => ServiceOrderStatus::Invoiced,
+            'payment_status' => ServiceOrderPaymentStatus::Paid,
+            'subtotal' => 50000.00,
+            'tax_total' => 9000.00,
+            'discount' => 0.00,
+            'total' => 59000.00,
+            'statutory_invoice_id' => $original->id,
+            'idempotency_key' => 'statutory:service-order:'.$original->id,
+            'created_by' => $this->admin->id,
+            'invoiced_at' => $original->issued_at,
+        ]);
+    }
+
     private function createPosOriginal(InventorySale $sale): StatutoryInvoice
     {
         $original = StatutoryInvoice::query()->create([
@@ -465,6 +575,19 @@ class StatutoryCreditNoteBillingStructuredTest extends TestCase
             'city' => 'Jharsuguda',
             'state' => 'Odisha',
             'pincode' => '768201',
+        ];
+    }
+
+    /**
+     * @return array{line1: string, city: string, state: string, pincode: string}
+     */
+    private function coimbatoreStructured(): array
+    {
+        return [
+            'line1' => 'SF NO. 384/9A CODEA PARK ROAD',
+            'city' => 'Coimbatore',
+            'state' => 'Tamil Nadu',
+            'pincode' => '641107',
         ];
     }
 
