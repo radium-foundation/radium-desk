@@ -38,7 +38,10 @@
                 <div class="card-body">
                     <dl class="row mb-0">
                         <dt class="col-sm-4 text-muted">Reference</dt>
-                        <dd class="col-sm-8 fw-semibold">{{ $refund->reference_no }}</dd>
+                        <dd class="col-sm-8 fw-semibold">
+                            {{ $refund->reference_no }}
+                            <span class="text-muted fw-normal small">(system-assigned)</span>
+                        </dd>
 
                         <dt class="col-sm-4 text-muted">Status</dt>
                         <dd class="col-sm-8">@include('refunds.partials.status-badge', ['status' => $refund->status])</dd>

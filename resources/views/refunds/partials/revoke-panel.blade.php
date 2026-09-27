@@ -26,8 +26,16 @@
             <dd class="col-sm-7">₹{{ number_format($refund->displayAmount(), 2) }}</dd>
             <dt class="col-sm-5 text-muted">Refund Method</dt>
             <dd class="col-sm-7">{{ $refund->approved_refund_method?->label() ?? '—' }}</dd>
-            <dt class="col-sm-5 text-muted">Wallet Transaction</dt>
-            <dd class="col-sm-7">{{ $refund->effectiveTransactionId() ?: ($refund->execution_reference_no ?: '—') }}</dd>
+            <dt class="col-sm-5 text-muted">Wallet Transaction ID</dt>
+            <dd class="col-sm-7">{{ $refund->effectiveTransactionId() ?: '—' }}</dd>
+            <dt class="col-sm-5 text-muted">External Payout Reference</dt>
+            <dd class="col-sm-7">
+                @if($refund->execution_reference_no && strcasecmp((string) $refund->execution_reference_no, (string) $refund->reference_no) !== 0)
+                    {{ $refund->execution_reference_no }}
+                @else
+                    —
+                @endif
+            </dd>
             <dt class="col-sm-5 text-muted">Current Status</dt>
             <dd class="col-sm-7">@include('refunds.partials.status-badge', ['status' => $refund->status])</dd>
         </dl>

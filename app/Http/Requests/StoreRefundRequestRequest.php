@@ -34,4 +34,16 @@ class StoreRefundRequestRequest extends FormRequest
     {
         $this->mergeRefundRequestDefaults();
     }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator): void {
+            if ($this->filled('reference_no')) {
+                $validator->errors()->add(
+                    'reference_no',
+                    'Refund reference is assigned automatically when the request is submitted.',
+                );
+            }
+        });
+    }
 }

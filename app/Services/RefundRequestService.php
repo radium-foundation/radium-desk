@@ -15,6 +15,7 @@ use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\Operations\TeamMemberActivityService;
+use App\Services\Refunds\RefundExecutionInputGuard;
 use App\Services\Refunds\RefundExecutorResolver;
 use App\Services\Refunds\WalletRefundDestinationResolver;
 use Illuminate\Http\Request;
@@ -393,6 +394,8 @@ class RefundRequestService
                     'refund' => 'Only refunds pending execution can be completed.',
                 ]);
             }
+
+            $data = RefundExecutionInputGuard::sanitizeForCompletion($locked, $data);
 
             $execution = $this->executorResolver->execute($locked, $user, [
                 'reference_number' => $data['execution_reference_no'] ?? null,

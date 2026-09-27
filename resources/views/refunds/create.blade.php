@@ -12,7 +12,8 @@
         </nav>
         <h1 class="h3 mb-1">Create Refund Request</h1>
         <p class="text-muted mb-0">
-            Reference number will be assigned automatically (e.g. REF-{{ now()->format('Y') }}-000001).
+            The Desk refund reference will be assigned automatically on submit
+            (next: <strong>{{ $nextRefundReferencePreview ?? 'REF-…' }}</strong>).
         </p>
     </div>
 
