@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.0.150 — 2026-09-27 — Refund reference and execution ID separation
+
+- **System-generated refund references:** Canonical `reference_no` remains allocated by `RefundReferenceService`; create requests reject manual `reference_no` overrides.
+- **Execution input guards:** `RefundExecutionInputGuard` blocks Desk `REF-*` values from being submitted as `execution_reference_no` or `execution_transaction_id` on manual completion.
+- **Wallet execution:** Manual execution reference/transaction inputs are stripped for wallet-approved refunds; provider-generated wallet transaction IDs and payout references remain authoritative.
+- **UI clarity:** Execute and revoke panels distinguish Desk refund reference, wallet transaction ID, and external payout reference.
+- **No migration.** No wallet/Cashfree executor changes. Historical refund records unchanged.
+- Regression: `RefundExecutionReferenceGuardTest` + focused refund/wallet/revoke suites (**60** focused tests PASS).
+- Rollback target: v4.0.149 / `aa1cb053`.
+- Prompt **RadiumDesk-P-25-09-71**.
+
 ## 4.0.149 — 2026-09-27 — Cashfree refund GET lookup
 
 - **Read-only PG API:** `CashfreeApiClient::getOrderRefunds()` and `getRefund()` add GET-only refund lookup for Cashfree orders; shared list parsing with existing payment lookup; `isPgApiConfigured()` separates PG API credentials from webhook HMAC config.
