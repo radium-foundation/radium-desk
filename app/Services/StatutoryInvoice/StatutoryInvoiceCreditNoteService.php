@@ -8,6 +8,7 @@ use App\Enums\StatutoryInvoiceStatus;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
+use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -20,6 +21,7 @@ final class StatutoryInvoiceCreditNoteService
         private readonly StatutoryInvoiceNumberingService $numbering,
         private readonly StatutorySellerIdentity $sellers,
         private readonly StatutoryInvoiceService $invoices,
+        private readonly StatutoryBillingStructuredResolver $billingStructured,
     ) {}
 
     /**
@@ -85,6 +87,15 @@ final class StatutoryInvoiceCreditNoteService
                 location: $location,
             );
 
+            $resolvedBillingStructured = $this->billingStructured->resolveForInvoice($lockedOriginal);
+            if ($resolvedBillingStructured === null || ! StatutoryBillingStructured::isCompleteForIrn($resolvedBillingStructured)) {
+                $missing = $this->billingStructured->missingIrnFieldLabels($lockedOriginal);
+                throw ValidationException::withMessages([
+                    'credit_note' => 'Authoritative structured billing address is unavailable or incomplete for credit note IRN'
+                        .($missing === [] ? '.' : ': '.implode(', ', $missing)),
+                ]);
+            }
+
             try {
                 $creditNote = StatutoryInvoice::query()->create([
                     'invoice_number' => $allocation->allocated_number,
@@ -106,7 +117,7 @@ final class StatutoryInvoiceCreditNoteService
                     'buyer_phone' => $lockedOriginal->buyer_phone,
                     'buyer_gstin' => $lockedOriginal->buyer_gstin,
                     'billing_address' => $lockedOriginal->billing_address,
-                    'billing_address_structured' => $lockedOriginal->billing_address_structured,
+                    'billing_address_structured' => $resolvedBillingStructured,
                     'place_of_supply_state' => $lockedOriginal->place_of_supply_state,
                     'place_of_supply_state_code' => $lockedOriginal->place_of_supply_state_code,
                     'place_of_supply_source' => $lockedOriginal->place_of_supply_source,

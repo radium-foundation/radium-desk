@@ -473,6 +473,13 @@ class HardwareHistoricalDuplicateFulfilmentCancellationTest extends TestCase
             ],
             'seller_gstin' => '07AAICP1128M1Z9',
             'place_of_supply_state' => 'Odisha',
+            'billing_address' => [
+                'line1' => 'Ekatali,Siria Bagicha',
+                'city' => 'Jharsuguda',
+                'state' => 'Odisha',
+                'pincode' => '768201',
+                'country' => 'India',
+            ],
             'shipping_address' => [
                 'line1' => 'Ekatali,Siria Bagicha',
                 'city' => 'Jharsuguda',
