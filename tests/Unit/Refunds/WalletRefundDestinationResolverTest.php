@@ -33,10 +33,21 @@ class WalletRefundDestinationResolverTest extends TestCase
         $resolver = new WalletRefundDestinationResolver;
 
         foreach (['RA3506948', 'RN1', 'RNP1'] as $orderId) {
-            $this->assertSame('rdservice.net', $resolver->owner($orderId));
+            $this->assertSame(WalletRefundDestinationResolver::RDSERVICE_NET, $resolver->owner($orderId));
+            $this->assertTrue($resolver->isRdServiceNet($orderId));
             $this->assertFalse($resolver->isRdServiceIn($orderId));
             $this->assertFalse($resolver->isRadiumBox($orderId));
+            $this->assertFalse($resolver->supportsAutomatedWalletCredit($orderId));
         }
+    }
+
+    public function test_supported_wallet_destinations_remain_rdservice_in_and_radiumbox(): void
+    {
+        $resolver = new WalletRefundDestinationResolver;
+
+        $this->assertTrue($resolver->supportsAutomatedWalletCredit('RD3437407'));
+        $this->assertTrue($resolver->supportsAutomatedWalletCredit('RB403'));
+        $this->assertFalse($resolver->supportsAutomatedWalletCredit('RN92'));
     }
 
     public function test_unknown_prefix_has_no_wallet_owner(): void

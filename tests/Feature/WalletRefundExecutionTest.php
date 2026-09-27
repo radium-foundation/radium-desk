@@ -411,7 +411,26 @@ class WalletRefundExecutionTest extends TestCase
 
         $this->actingAs($ops)
             ->post(route('refunds.complete', $refund), [])
-            ->assertSessionHasErrors('refund');
+            ->assertSessionHasErrors([
+                'refund' => 'No automated wallet-credit destination is configured for this order source orders. Approve this refund using Cashfree or another supported payout method instead.',
+            ]);
+
+        $refund->refresh();
+        $this->assertSame(RefundStatus::PendingExecution, $refund->status);
+        Http::assertNothingSent();
+    }
+
+    public function test_rdservice_net_wallet_execution_fails_closed_without_http_calls(): void
+    {
+        Http::fake();
+
+        [$ops, $refund] = $this->pendingWalletRefundFixture('RN92', '579.00', 'REF-67329');
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [])
+            ->assertSessionHasErrors([
+                'refund' => 'No automated wallet-credit destination is configured for rdservice.net orders. Approve this refund using Cashfree or another supported payout method instead.',
+            ]);
 
         $refund->refresh();
         $this->assertSame(RefundStatus::PendingExecution, $refund->status);
