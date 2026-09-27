@@ -131,6 +131,12 @@ class StatutoryCreditNoteIdempotencyTest extends TestCase
             'buyer_name' => 'Buyer Industries',
             'buyer_gstin' => '07AAAAA0000A1Z5',
             'billing_address' => '1 Test Street, Delhi',
+            'billing_address_structured' => [
+                'line1' => '1 Test Street',
+                'city' => 'New Delhi',
+                'state' => 'Delhi',
+                'pincode' => '110001',
+            ],
             'place_of_supply_state' => 'Delhi',
             'taxable_value' => 100.00,
             'discount' => 0.00,

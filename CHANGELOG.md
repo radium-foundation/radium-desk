@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.146 — 2026-09-27 — Credit note billing-address inheritance
+
+- **Credit note IRN readiness:** `StatutoryBillingStructuredResolver` resolves authoritative structured billing from the original invoice’s commerce/POS/service sources when minting a >24h B2B credit note; fail-closed if IRN-complete billing cannot be snapshotted (prevents `missing_buyer_pin` / `missing_buyer_loc` skips on `CancellationAdjustment` credit notes).
+- Regression: commerce fallback (INV-0767138 pattern), POS sale fallback, idempotency, outbox submit path, hardware historical duplicate beyond-window CN.
+- Prompt **RadiumDesk-P-25-09-59**.
+
 ## 4.0.145 — 2026-09-27 — Statutory cancellation workflow and credit note foundation
 
 - **Unified cancellation orchestrator:** Canonical policy-driven statutory cancellation for Finance, POS, and historical duplicate fulfilment paths with idempotency and audit trail.
