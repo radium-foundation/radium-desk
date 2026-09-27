@@ -31,6 +31,10 @@ return [
         'other' => 'Other',
     ],
 
+    'statutory_adjustment' => [
+        'enabled' => (bool) env('REFUNDS_STATUTORY_ADJUSTMENT_ENABLED', false),
+    ],
+
     'profiles' => [
         'full_refund' => [
             'label' => 'Full Refund',

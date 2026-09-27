@@ -105,6 +105,40 @@
                 </div>
             </div>
 
+            @if($refund->statutoryAdjustment)
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white py-3">
+                        <h2 class="h6 mb-0">Statutory Adjustment</h2>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4 text-muted">Status</dt>
+                            <dd class="col-sm-8 text-capitalize">{{ str_replace('_', ' ', $refund->statutoryAdjustment->status->value) }}</dd>
+
+                            @if($refund->statutoryAdjustment->statutoryInvoice)
+                                <dt class="col-sm-4 text-muted">Invoice</dt>
+                                <dd class="col-sm-8">{{ $refund->statutoryAdjustment->statutoryInvoice->invoice_number }}</dd>
+                            @endif
+
+                            @if($refund->statutoryAdjustment->skip_reason)
+                                <dt class="col-sm-4 text-muted">Skip Reason</dt>
+                                <dd class="col-sm-8">{{ str_replace('_', ' ', $refund->statutoryAdjustment->skip_reason) }}</dd>
+                            @endif
+
+                            @if($refund->statutoryAdjustment->failure_reason)
+                                <dt class="col-sm-4 text-muted">Failure</dt>
+                                <dd class="col-sm-8">{{ $refund->statutoryAdjustment->failure_reason }}</dd>
+                            @endif
+
+                            @if($refund->statutoryAdjustment->processed_at)
+                                <dt class="col-sm-4 text-muted">Processed</dt>
+                                <dd class="col-sm-8">{{ display_app_datetime_24($refund->statutoryAdjustment->processed_at) }}</dd>
+                            @endif
+                        </dl>
+                    </div>
+                </div>
+            @endif
+
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white py-3">
                     <h2 class="h6 mb-0">Related Order</h2>

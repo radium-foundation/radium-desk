@@ -107,7 +107,7 @@ class RefundRequestController extends Controller
 
     public function show(RefundRequest $refund): View
     {
-        $refund->load(['order', 'incident', 'requester', 'reviewer', 'executor']);
+        $refund->load(['order', 'incident', 'requester', 'reviewer', 'executor', 'statutoryAdjustment.statutoryInvoice']);
 
         $calculation = $refund->order instanceof Order
             ? $this->calculationService->calculate($refund->order, [
