@@ -142,7 +142,7 @@ Inspection date: **2026-09-27**. Paths under `/Users/ravi/RadiumWebsites/`.
 | Attribute | Value | Status |
 |-----------|-------|--------|
 | **Path** | `/Users/ravi/RadiumWebsites/rdserviceonline.in` | VERIFIED |
-| **Remote** | `git@github.com:radium-foundation/radiumsign.com.git` → **should be** `rdserviceonline.in` | VERIFIED remote from git |
+| **Remote** | `git@github.com:radium-foundation/rdserviceonline.in.git` | VERIFIED |
 | **Branch** | `main` | VERIFIED |
 | **HEAD SHA** | `0af0cb2b8f6b047f481275ea16060cbdcf6e4f46` | VERIFIED |
 | **Worktree** | Clean | VERIFIED |
