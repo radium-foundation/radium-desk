@@ -10,12 +10,17 @@ class CashfreeApiClient
 {
     public function isConfigured(): bool
     {
+        return $this->isPgApiConfigured();
+    }
+
+    public function isPgApiConfigured(): bool
+    {
         return $this->appId() !== '' && $this->apiSecret() !== '';
     }
 
     public function assertConfigured(): void
     {
-        if (! $this->isConfigured()) {
+        if (! $this->isPgApiConfigured()) {
             throw new CashfreeApiException(
                 'Cashfree PG API credentials are not configured (CASHFREE_APP_ID / CASHFREE_API_SECRET).',
             );
@@ -35,7 +40,32 @@ class CashfreeApiClient
      */
     public function getOrderPayments(string $orderId): array
     {
-        $payload = $this->getJson('/orders/'.$orderId.'/payments');
+        return $this->getList('/orders/'.$orderId.'/payments', $orderId, 'payments', ['payments', 'data']);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function getOrderRefunds(string $orderId): array
+    {
+        return $this->getList('/orders/'.$orderId.'/refunds', $orderId, 'refunds', ['refunds', 'data']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getRefund(string $orderId, string $refundId): array
+    {
+        return $this->getJson('/orders/'.$orderId.'/refunds/'.$refundId);
+    }
+
+    /**
+     * @param  list<string>  $nestedKeys
+     * @return list<array<string, mixed>>
+     */
+    private function getList(string $path, string $orderId, string $resourceLabel, array $nestedKeys): array
+    {
+        $payload = $this->getJson($path);
 
         if ($payload === []) {
             return [];
@@ -47,7 +77,7 @@ class CashfreeApiClient
             return array_values(array_filter($payload, 'is_array'));
         }
 
-        foreach (['payments', 'data'] as $key) {
+        foreach ($nestedKeys as $key) {
             $nested = $payload[$key] ?? null;
 
             if (is_array($nested) && array_is_list($nested)) {
@@ -57,7 +87,7 @@ class CashfreeApiClient
         }
 
         throw new CashfreeApiException(
-            'Cashfree payments response for '.$orderId.' was not a payment list.',
+            'Cashfree '.$resourceLabel.' response for '.$orderId.' was not a '.$resourceLabel.' list.',
         );
     }
 

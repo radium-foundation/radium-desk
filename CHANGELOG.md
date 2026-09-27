@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.149 — 2026-09-27 — Cashfree refund GET lookup
+
+- **Read-only PG API:** `CashfreeApiClient::getOrderRefunds()` and `getRefund()` add GET-only refund lookup for Cashfree orders; shared list parsing with existing payment lookup; `isPgApiConfigured()` separates PG API credentials from webhook HMAC config.
+- **No refund execution:** No POST/PUT/PATCH/DELETE provider calls; no Desk refund mutations.
+- Regression: `CashfreeApiClientRefundLookupTest` + existing Cashfree config tests (**20** focused tests PASS).
+- Rollback target: v4.0.148 / `4340a93b`.
+- Prompt **RadiumDesk-P-25-09-61**.
+
 ## 4.0.148 — 2026-09-27 — Refund execution-method re-route
 
 - **Controlled re-route:** `RefundExecutionMethodRerouteService` adds an explicit audited action to move `pending_execution` wallet-approved refunds to `approved_refund_method=cashfree` when no automated wallet destination exists for the order source (e.g. legacy `rdservice.net` rows like REF-67329).
