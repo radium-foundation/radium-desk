@@ -18,6 +18,7 @@ use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Services\RefundCalculationService;
 use App\Services\RefundProfileRegistry;
+use App\Services\RefundReferenceService;
 use App\Services\RefundRequestService;
 use App\Services\Refunds\RefundExecutionMethodRerouteService;
 use App\Services\Refunds\RefundListingQuery;
@@ -77,6 +78,8 @@ class RefundRequestController extends Controller
             $calculation = $this->calculationService->calculate($selectedOrder);
         }
 
+        $nextRefundReference = app(RefundReferenceService::class)->peekNext();
+
         return view('refunds.create', [
             'refund' => new RefundRequest,
             'selectedOrder' => $selectedOrder,
@@ -85,6 +88,7 @@ class RefundRequestController extends Controller
             'profiles' => $this->profileRegistry->all(),
             'preferredMethods' => CustomerPreferredRefundMethod::cases(),
             'differenceReasons' => RefundDifferenceReason::cases(),
+            'nextRefundReferencePreview' => 'REF-'.$nextRefundReference,
         ]);
     }
 
