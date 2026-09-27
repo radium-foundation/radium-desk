@@ -3,10 +3,14 @@
 namespace App\Services\Outbox;
 
 use App\Enums\OutboxEventStatus;
+use App\Enums\RefundStatutoryAdjustmentStatus;
+use App\Exceptions\Refunds\RefundStatutoryAdjustmentPermanentFailureException;
+use App\Exceptions\Refunds\RefundStatutoryAdjustmentRetryableException;
 use App\Models\BonvoiceWebhookLog;
 use App\Models\IncomingEmailMessage;
 use App\Models\InteraktWebhookLog;
 use App\Models\OutboxEvent;
+use App\Models\RefundStatutoryAdjustment;
 use App\Services\Bonvoice\BonvoiceIncomingCallLatency;
 use App\Services\Bonvoice\BonvoiceWebhookOutboxWriter;
 use App\Services\Bonvoice\BonvoiceWebhookProcessorService;
@@ -23,6 +27,8 @@ use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\Interakt\InteraktOutboundProcessorService;
 use App\Services\Interakt\InteraktWebhookOutboxWriter;
 use App\Services\Interakt\InteraktWebhookProcessorService;
+use App\Services\Refunds\RefundStatutoryAdjustmentOutboxWriter;
+use App\Services\Refunds\RefundStatutoryAdjustmentProcessor;
 use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
 use App\Services\StatutoryInvoice\EInvoiceProcessor;
 use App\Services\StatutoryInvoice\EInvoiceRecoveryRequiredException;
@@ -54,6 +60,7 @@ class OutboxProcessorService
         private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
         private readonly EInvoiceProcessor $einvoiceProcessor,
         private readonly ServiceStatutoryInvoiceMintProcessor $serviceStatutoryInvoiceMintProcessor,
+        private readonly RefundStatutoryAdjustmentProcessor $refundStatutoryAdjustmentProcessor,
         private readonly HardwareFulfilmentCallbackProcessor $hardwareFulfilmentCallbackProcessor,
     ) {}
 
@@ -199,6 +206,7 @@ class OutboxProcessorService
             IncomingEmailOutboxWriter::EVENT_TYPE => $this->dispatchIncomingEmailProcessing($event),
             EInvoiceOutboxWriter::EVENT_TYPE => $this->einvoiceProcessor->process($event),
             ServiceStatutoryInvoiceMintOutboxWriter::EVENT_TYPE => $this->serviceStatutoryInvoiceMintProcessor->process($event),
+            RefundStatutoryAdjustmentOutboxWriter::EVENT_TYPE => $this->refundStatutoryAdjustmentProcessor->process($event),
             HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE => $this->hardwareFulfilmentCallbackProcessor->process($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
@@ -334,9 +342,33 @@ class OutboxProcessorService
         $message = $exception->getMessage();
 
         if ($exception instanceof HardwareFulfilmentCallbackNonRetryableException
-            || $exception instanceof ServiceStatutoryInvoicePermanentFailureException) {
+            || $exception instanceof ServiceStatutoryInvoicePermanentFailureException
+            || $exception instanceof RefundStatutoryAdjustmentPermanentFailureException) {
+            $this->markRefundStatutoryAdjustmentTerminalFailure($event, $message, manual: true);
             $event->update([
                 'status' => OutboxEventStatus::Failed,
+                'last_error' => $message,
+            ]);
+
+            return;
+        }
+
+        if ($exception instanceof RefundStatutoryAdjustmentRetryableException) {
+            $manual = $attempts >= self::MAX_ATTEMPTS;
+            $this->markRefundStatutoryAdjustmentTerminalFailure($event, $message, manual: $manual);
+
+            if ($manual) {
+                $event->update([
+                    'status' => OutboxEventStatus::Failed,
+                    'last_error' => $message,
+                ]);
+
+                return;
+            }
+
+            $event->update([
+                'status' => OutboxEventStatus::Pending,
+                'available_at' => $this->nextAvailableAt(max(1, $attempts)),
                 'last_error' => $message,
             ]);
 
@@ -374,5 +406,28 @@ class OutboxProcessorService
         $index = max(0, min($attempts - 1, count(self::BACKOFF_SECONDS) - 1));
 
         return now()->addSeconds(self::BACKOFF_SECONDS[$index]);
+    }
+
+    private function markRefundStatutoryAdjustmentTerminalFailure(OutboxEvent $event, string $message, bool $manual): void
+    {
+        if ($event->event_type !== RefundStatutoryAdjustmentOutboxWriter::EVENT_TYPE) {
+            return;
+        }
+
+        $payload = $event->payload ?? [];
+        $adjustmentId = (int) ($payload['refund_statutory_adjustment_id'] ?? 0);
+
+        if ($adjustmentId <= 0) {
+            return;
+        }
+
+        RefundStatutoryAdjustment::query()
+            ->whereKey($adjustmentId)
+            ->update([
+                'status' => $manual
+                    ? RefundStatutoryAdjustmentStatus::FailedManual
+                    : RefundStatutoryAdjustmentStatus::FailedRetryable,
+                'failure_reason' => $message,
+            ]);
     }
 }

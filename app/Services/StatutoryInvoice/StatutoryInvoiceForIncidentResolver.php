@@ -27,6 +27,14 @@ class StatutoryInvoiceForIncidentResolver
             return collect();
         }
 
+        return $this->forOrder($order);
+    }
+
+    /**
+     * @return Collection<int, StatutoryInvoice>
+     */
+    public function forOrder(Order $order): Collection
+    {
         $sourceId = trim((string) $order->order_id);
 
         return StatutoryInvoice::query()

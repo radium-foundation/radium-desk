@@ -10,6 +10,7 @@ use App\Enums\RefundRevokeCustomerOutcome;
 use App\Enums\RefundStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -120,6 +121,11 @@ class RefundRequest extends Model
     public function remarks(): MorphMany
     {
         return $this->morphMany(Remark::class, 'remarkable');
+    }
+
+    public function statutoryAdjustment(): HasOne
+    {
+        return $this->hasOne(RefundStatutoryAdjustment::class, 'refund_request_id');
     }
 
     public function displayAmount(): float

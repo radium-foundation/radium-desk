@@ -19,6 +19,7 @@ use App\Events\Finance\RefundCompleted;
 use App\Events\Inventory\InventorySaleCompleted;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Listeners\BroadcastNotificationCreated;
+use App\Listeners\Finance\EnqueueRefundStatutoryAdjustment;
 use App\Listeners\Finance\PostOrderPaidJournal;
 use App\Listeners\Finance\PostPosSaleJournal;
 use App\Listeners\Finance\PostRefundCompletedJournal;
@@ -357,6 +358,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(OrderPaid::class, CorrelateHardwareCashfreePayment::class);
         Event::listen(OrderPaid::class, ConfirmRadiumBoxPaymentOnOrderPaid::class);
         Event::listen(RefundCompleted::class, PostRefundCompletedJournal::class);
+        Event::listen(RefundCompleted::class, EnqueueRefundStatutoryAdjustment::class);
         Event::listen(InventorySaleCompleted::class, PostPosSaleJournal::class);
         Event::listen([
             ScheduledTaskStarting::class,
