@@ -298,6 +298,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('refunds/{refund}/reject', [RefundRequestController::class, 'reject'])->name('refunds.reject');
     Route::post('refunds/{refund}/complete', [RefundRequestController::class, 'complete'])->name('refunds.complete');
     Route::post('refunds/{refund}/revoke', [RefundRequestController::class, 'revoke'])->name('refunds.revoke');
+    Route::post('refunds/{refund}/reroute-execution-method', [RefundRequestController::class, 'rerouteExecutionMethod'])
+        ->name('refunds.reroute-execution-method');
     Route::resource('refunds', RefundRequestController::class)->except(['edit', 'update']);
 
     Route::prefix('cash-book')->name('cash-book.')->group(function () {

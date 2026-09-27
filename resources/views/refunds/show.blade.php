@@ -241,6 +241,12 @@
                 @endif
             @endcan
 
+            @can('rerouteExecutionMethod', $refund)
+                @if($canRerouteExecutionMethod ?? false)
+                    @include('refunds.partials.reroute-execution-panel', ['refund' => $refund])
+                @endif
+            @endcan
+
             @can('execute', $refund)
                 @if($refund->status === \App\Enums\RefundStatus::PendingExecution)
                     @include('refunds.partials.execute-panel')

@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.148 — 2026-09-27 — Refund execution-method re-route
+
+- **Controlled re-route:** `RefundExecutionMethodRerouteService` adds an explicit audited action to move `pending_execution` wallet-approved refunds to `approved_refund_method=cashfree` when no automated wallet destination exists for the order source (e.g. legacy `rdservice.net` rows like REF-67329).
+- **Permission:** `refunds.reroute_execution_method` granted to admin, operations_admin, and superadmin only; dedicated ops panel on refund show. No provider/API calls during re-route.
+- **Safety:** Requires original payment evidence; idempotent when already Cashfree; amount/order/payment state unchanged; audit event `refund.execution_method_rerouted` records previous/new method, operator, reason, order/refund references, and original payment reference.
+- **Post re-route:** `RefundExecutorResolver` selects `ManualRefundExecutor` for Cashfree completion (manual UTR/txn attestation; no Cashfree API).
+- **Preserved:** v4.0.147 `rdservice.net` wallet approval guard and supported wallet routing for `rdservice.in` / `radiumbox.com`.
+- **No migration.** Seeder adds permission only.
+- Regression: `RefundExecutionMethodRerouteTest` + wallet guard suites (**22** focused reroute/guard tests PASS).
+- Rollback target: v4.0.147 / `3c9fa39e`.
+- Prompt **RadiumDesk-P-25-09-65**.
+
 ## 4.0.147 — 2026-09-27 — rdservice.net wallet-approval guard
 
 - **Refund approval guard:** `WalletRefundDestinationResolver` rejects `approved_refund_method=wallet` for `rdservice.net` orders (RN/RA/RNP) at review time with a clear validation error; Cashfree and other supported payout methods remain available.

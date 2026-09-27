@@ -106,6 +106,9 @@ class RolePermissionSeeder extends Seeder
     /** Revoke a completed wallet refund (reverse wallet + restore service). */
     public const PERMISSION_REFUNDS_REVOKE = 'refunds.revoke';
 
+    /** Re-route a pending_execution wallet refund to Cashfree when wallet credit is unsupported. */
+    public const PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD = 'refunds.reroute_execution_method';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -485,6 +488,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_REFUNDS_REVOKE,
+            self::PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD,
             self::PERMISSION_HARDWARE_FULFILMENT_CANCEL_HISTORICAL_DUPLICATE,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
             ...self::PURCHASING_ADMIN_PERMISSIONS,
@@ -542,6 +546,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_REFUNDS_REVOKE,
+            self::PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
             ...self::PURCHASING_ADMIN_PERMISSIONS,
         ],
@@ -607,6 +612,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_REFUNDS_REVOKE,
+            self::PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD,
             self::PERMISSION_BACKUPS_VIEW,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
             ...self::PURCHASING_ADMIN_PERMISSIONS,

@@ -37,6 +37,11 @@ class RefundRequestPolicy
         return $user->can('refunds.revoke');
     }
 
+    public function rerouteExecutionMethod(User $user, RefundRequest $refundRequest): bool
+    {
+        return $user->can('refunds.reroute_execution_method');
+    }
+
     public function delete(User $user, RefundRequest $refundRequest): bool
     {
         return $user->can('refunds.delete');
