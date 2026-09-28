@@ -160,6 +160,18 @@ final class AccountLinkController
                     ];
                 }
 
+                if ($link->verification_method !== null
+                    && $link->verification_method !== ''
+                    && $link->verification_method !== $validated['verification_method']) {
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'error' => 'verification_method_mismatch',
+                            'message' => 'Verification method does not match the pending link.',
+                        ],
+                    ];
+                }
+
                 try {
                     $confirmed = $this->accountLinks->confirmLink(
                         $link,

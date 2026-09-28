@@ -320,6 +320,29 @@ class CentralWalletApiTest extends TestCase
         ])->assertNotFound();
     }
 
+    public function test_confirm_rejects_verification_method_mismatch(): void
+    {
+        $cwid = $this->createWallet();
+
+        $create = $this->authenticatedAs('radiumbox.com')->postJson('/api/central-wallet/v1/account-links', [
+            'idempotency_key' => 'link-method-mismatch',
+            'central_wallet_id' => $cwid,
+            'site_code' => 'radiumbox.com',
+            'local_user_id' => '505',
+            'created_by' => 'service:test',
+            'verification_method' => 'm2_dual_otp',
+        ])->assertCreated();
+
+        $linkId = (int) $create->json('link_id');
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/confirm", [
+            'idempotency_key' => 'confirm-method-mismatch',
+            'verification_method' => 'm3_ops',
+            'actor_id' => 'customer:505',
+        ])->assertStatus(422)
+            ->assertJsonPath('error', 'verification_method_mismatch');
+    }
+
     public function test_confirm_rejects_revoked_link(): void
     {
         $cwid = $this->createWallet();
