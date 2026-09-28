@@ -330,12 +330,18 @@
                         Not attached
                     @endif
                 </dd>
+                <dt>Method</dt>
+                <dd>{{ $shipment->shippingMethodLabel ?? $shipment->provider }}</dd>
                 <dt>Shipment</dt>
                 <dd>{{ $shipment->status }}</dd>
                 <dt>Courier</dt>
                 <dd>{{ $shipment->courier ?? 'Not selected' }}</dd>
                 <dt>AWB</dt>
                 <dd>{{ $shipment->awb ?? 'Not assigned' }}</dd>
+                @if($shipment->trackingUrl)
+                    <dt>Tracking URL</dt>
+                    <dd><a href="{{ $shipment->trackingUrl }}" target="_blank" rel="noopener noreferrer">{{ $shipment->trackingUrl }}</a></dd>
+                @endif
             </dl>
 
             @if($shipment->providerRejection)
@@ -374,6 +380,70 @@
             @endif
         </div>
 
+        @if($shipment->isExternalShipping)
+            <div class="hf-alloc-card mb-3" id="hardware-external-shipment">
+                <p class="text-muted small text-uppercase fw-semibold mb-2">External shipment</p>
+                @if($shipment->canRecordExternalShipment)
+                    <form method="POST"
+                          action="{{ route('inventory.hardware-fulfilments.external-shipment.store', $fulfilment) }}"
+                          enctype="multipart/form-data"
+                          id="hardware-show-external-shipment-form"
+                          class="mt-3">
+                        @csrf
+                        @include('inventory.hardware-fulfilments.fragments.external-shipment-form-fields', [
+                            'formIdPrefix' => 'hardware-show-external',
+                        ])
+                        <button type="submit" class="btn btn-primary mt-3">Record Shipment</button>
+                    </form>
+                @else
+                    <dl class="hf-alloc-confirm mb-0">
+                        <dt>Courier</dt>
+                        <dd>{{ $shipment->courier ?? '—' }}</dd>
+                        <dt>AWB</dt>
+                        <dd>{{ $shipment->awb ?? '—' }}</dd>
+                        @if($shipment->trackingUrl)
+                            <dt>Tracking URL</dt>
+                            <dd><a href="{{ $shipment->trackingUrl }}" target="_blank" rel="noopener noreferrer">{{ $shipment->trackingUrl }}</a></dd>
+                        @endif
+                    </dl>
+                    @if($shipment->canUploadExternalLabel)
+                        <form method="POST" action="{{ route('inventory.hardware-fulfilments.external-label.store', $fulfilment) }}" enctype="multipart/form-data" class="mt-3">
+                            @csrf
+                            <label class="form-label" for="hardware-show-external-label">Upload label (optional)</label>
+                            <input class="form-control mb-2" id="hardware-show-external-label" type="file" name="document" accept="application/pdf,image/jpeg,image/png">
+                            <button type="submit" class="btn btn-outline-primary btn-sm">Upload Label</button>
+                        </form>
+                    @endif
+                    @if($shipment->canDownloadExternalLabel)
+                        <p class="mt-3 mb-0">
+                            <a href="{{ route('inventory.hardware-fulfilments.external-label.download', $fulfilment) }}">Download External Label</a>
+                        </p>
+                    @endif
+                    @if($shipment->canUploadExternalManifest)
+                        <form method="POST" action="{{ route('inventory.hardware-fulfilments.external-manifest.store', $fulfilment) }}" enctype="multipart/form-data" class="mt-3">
+                            @csrf
+                            <label class="form-label" for="hardware-show-external-manifest">Upload manifest (optional)</label>
+                            <input class="form-control mb-2" id="hardware-show-external-manifest" type="file" name="document" accept="application/pdf,image/jpeg,image/png">
+                            <button type="submit" class="btn btn-outline-primary btn-sm">Upload Manifest</button>
+                        </form>
+                    @endif
+                    @if($shipment->canDownloadExternalManifest)
+                        <p class="mt-3 mb-0">
+                            <a href="{{ route('inventory.hardware-fulfilments.external-manifest.download', $fulfilment) }}">Download External Manifest</a>
+                        </p>
+                    @endif
+                    @if($shipment->canExternalDispatch)
+                        <form method="POST" action="{{ route('inventory.hardware-fulfilments.external-dispatch.store', $fulfilment) }}" class="mt-3">
+                            @csrf
+                            <p class="text-muted small mb-2">Marks this external shipment dispatched after package photo evidence is recorded.</p>
+                            <button type="submit" class="btn btn-primary">Mark Dispatched</button>
+                        </form>
+                    @endif
+                @endif
+            </div>
+        @endif
+
+        @if(!$shipment->isExternalShipping)
         <div class="hf-alloc-card mb-3" id="hardware-courier">
             <p class="text-muted small text-uppercase fw-semibold mb-2">Courier</p>
             @if($shipment->recommendationNote !== '')
@@ -550,6 +620,9 @@
             @endif
         </div>
 
+        @endif
+
+        @if(!$shipment->isExternalShipping)
         <div class="hf-alloc-card mb-3" id="hardware-manifest-pickup">
             <p class="text-muted small text-uppercase fw-semibold mb-2">Manifest / Pickup</p>
             <dl class="hf-alloc-confirm mb-0">
@@ -605,6 +678,7 @@
                 </form>
             @endif
         </div>
+        @endif
 
         <div class="hf-alloc-card mb-3" id="hardware-shipment-details">
             <details>

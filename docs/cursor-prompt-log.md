@@ -312,3 +312,8 @@ Release/deploy v4.0.154 AST300 hardware SKU mapping. See completion report.
 ## RadiumDesk-P-25-09-107
 
 Release/deploy v4.0.155 GraceExpired validation-failure shift-admin fallback. Owner-authorized KVM deploy gate. Prompt **RadiumDesk-P-25-09-106** implementation.
+
+| RadiumDesk-P-25-09-108 | 2026-09-28 | Read-only investigation: RBP552 pickup PIN 110020 vs 110019 + non-Shiprocket fallback | Production v4.0.156 @ `c7ec5c5e`. RBP552/HF1044: Desk sends `pickup_postcode=110019`; Shiprocket serviceability error references **110020** for both 110019 and 110020 requests. No Trackon/India Post/manual AWB path. **No code/data/deploy/Shiprocket mutations.** |
+| RadiumDesk-P-25-09-109 | 2026-09-28 | Read-only follow-up: RADDELHI API 110019 vs serviceability error 110020 | Shiprocket `GET /settings/company/pickup` confirms RADDELHI `pin_code=110019`. Raw serviceability HTTP 200 body `{status:404, message:\"...110020...841437\"}` when Desk sends `pickup_postcode=110019`. **No mutations.** |
+| RadiumDesk-P-25-09-110 | 2026-09-28 | Architecture design: Manual / External Courier shipping path | Read-only design for generic external/manual courier when Shiprocket unavailable. Preserve Shiprocket workflow. Options A/B + RBP552 acceptance. **No implementation.** |
+| RadiumDesk-P-25-09-111 | 2026-09-28 | Implement Manual / External Courier shipping path (Option A+) | Feature branch implementation: external shipment service, schema, UI, tests. **No deploy.** |

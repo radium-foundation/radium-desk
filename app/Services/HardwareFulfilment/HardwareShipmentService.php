@@ -60,6 +60,7 @@ class HardwareShipmentService
                 $this->snapshots->attachIfEligible($locked, $actor);
 
                 $ready = $this->eligibility->require($locked);
+                $this->assertShiprocketShippingMethod($locked);
                 $this->assertProviderCallable();
 
                 $courier = $existing === null
@@ -178,6 +179,7 @@ class HardwareShipmentService
 
     public function assignAwb(HardwareFulfilment $fulfilment, ?User $actor = null): Shipment
     {
+        $this->assertShiprocketShippingMethod($fulfilment);
         $this->assertNotFrozen($fulfilment);
 
         $existing = $this->existingShipment($fulfilment);
@@ -974,6 +976,15 @@ class HardwareShipmentService
         if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
             throw ValidationException::withMessages([
                 'fulfilment' => 'Frozen pending hardware orders cannot be shipped.',
+            ]);
+        }
+    }
+
+    private function assertShiprocketShippingMethod(HardwareFulfilment $fulfilment): void
+    {
+        if ($fulfilment->usesExternalShipping()) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Shiprocket shipment actions are not available for external shipments.',
             ]);
         }
     }

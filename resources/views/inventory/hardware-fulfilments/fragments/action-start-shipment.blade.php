@@ -27,7 +27,13 @@
     <div class="alert alert-warning py-2 px-3 small mb-2" role="alert">{{ $prepError }}</div>
 @endif
 
-@if($ready->canAttachSnapshot)
+@if($ready->canChooseShippingMethod)
+    @include('inventory.hardware-fulfilments.fragments.action-shipping-method')
+@endif
+
+@if($ready->isExternalShipping)
+    @include('inventory.hardware-fulfilments.fragments.action-external-shipment')
+@elseif($ready->canAttachSnapshot)
     <form method="POST"
           action="{{ route('inventory.hardware-fulfilments.parcel-snapshot.store', $fulfilment) }}"
           data-hardware-action-form

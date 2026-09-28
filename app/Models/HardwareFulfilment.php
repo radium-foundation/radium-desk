@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\HardwareFulfilmentShippingMethod;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
 use Illuminate\Database\Eloquent\Model;
@@ -55,6 +56,9 @@ class HardwareFulfilment extends Model
         'selected_courier_at',
         'selected_courier_by_user_id',
         'ready_for_pickup_at',
+        'shipping_method',
+        'external_courier_code',
+        'external_notes',
     ];
 
     protected function casts(): array
@@ -81,6 +85,7 @@ class HardwareFulfilment extends Model
             'courier_options_expires_at' => 'datetime',
             'selected_courier_at' => 'datetime',
             'ready_for_pickup_at' => 'datetime',
+            'shipping_method' => HardwareFulfilmentShippingMethod::class,
         ];
     }
 
@@ -137,5 +142,30 @@ class HardwareFulfilment extends Model
     public function statutoryInvoice(): BelongsTo
     {
         return $this->belongsTo(StatutoryInvoice::class, 'statutory_invoice_id');
+    }
+
+    public function resolvedShippingMethod(): HardwareFulfilmentShippingMethod
+    {
+        if ($this->shipping_method instanceof HardwareFulfilmentShippingMethod) {
+            return $this->shipping_method;
+        }
+
+        if ($this->relationLoaded('shipment') && $this->shipment?->isExternal()) {
+            return HardwareFulfilmentShippingMethod::External;
+        }
+
+        if ($this->shipment_id !== null) {
+            $shipment = $this->shipment ?? Shipment::query()->find($this->shipment_id);
+            if ($shipment?->isExternal()) {
+                return HardwareFulfilmentShippingMethod::External;
+            }
+        }
+
+        return HardwareFulfilmentShippingMethod::Shiprocket;
+    }
+
+    public function usesExternalShipping(): bool
+    {
+        return $this->resolvedShippingMethod() === HardwareFulfilmentShippingMethod::External;
     }
 }

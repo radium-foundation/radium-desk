@@ -372,10 +372,34 @@ const bindCourierChangeToggle = (root) => {
     });
 };
 
+const bindExternalCourierForm = (root) => {
+    root.querySelectorAll('[data-hardware-external-courier-code]').forEach((select) => {
+        if (select.dataset.hardwareExternalCourierBound === '1') {
+            return;
+        }
+        select.dataset.hardwareExternalCourierBound = '1';
+        const form = select.closest('form');
+        const otherWrap = form?.querySelector('[data-hardware-external-other-wrap]');
+        const otherInput = form?.querySelector('[data-hardware-external-other-wrap] input[name="courier_name"]');
+        const sync = () => {
+            const isOther = select.value === 'other';
+            if (otherWrap) {
+                otherWrap.classList.toggle('d-none', !isOther);
+            }
+            if (otherInput) {
+                otherInput.required = isOther;
+            }
+        };
+        select.addEventListener('change', sync);
+        sync();
+    });
+};
+
 export const bindHardwareActionForms = (root) => {
     bindSerialPickers(root);
     bindMeasuredParcelForms(root);
     bindCourierChangeToggle(root);
+    bindExternalCourierForm(root);
     root.querySelectorAll('[data-hardware-action-form]').forEach((form) => {
         form.addEventListener('submit', (event) => {
             event.preventDefault();
