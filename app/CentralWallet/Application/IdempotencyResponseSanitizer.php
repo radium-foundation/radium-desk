@@ -14,6 +14,7 @@ final class IdempotencyResponseSanitizer
         'api_key',
         'card_number',
         'cvv',
+        'ceremony_verification_ref',
     ];
 
     /**

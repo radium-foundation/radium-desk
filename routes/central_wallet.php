@@ -1,6 +1,7 @@
 <?php
 
 use App\CentralWallet\Infrastructure\Http\Controllers\AccountLinkController;
+use App\CentralWallet\Infrastructure\Http\Controllers\CeremonyCompleteController;
 use App\CentralWallet\Infrastructure\Http\Controllers\HealthController;
 use App\CentralWallet\Infrastructure\Http\Controllers\LedgerEntryController;
 use App\CentralWallet\Infrastructure\Http\Controllers\ReservationController;
@@ -28,6 +29,9 @@ Route::post('/account-links/{link_id}/confirm', [AccountLinkController::class, '
     ->whereNumber('link_id')
     ->name('central-wallet.account-links.confirm');
 Route::get('/account-links', [AccountLinkController::class, 'index'])->name('central-wallet.account-links.index');
+
+Route::post('/ceremony/complete', [CeremonyCompleteController::class, 'store'])
+    ->name('central-wallet.ceremony.complete');
 
 Route::post('/wallet-reservations', [ReservationController::class, 'store'])
     ->name('central-wallet.wallet-reservations.store');
