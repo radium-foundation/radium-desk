@@ -141,6 +141,14 @@ final class AccountLinkService
             ->first();
     }
 
+    public function findByIdForSite(int $linkId, string $siteCode): ?CentralWalletAccountLink
+    {
+        return CentralWalletAccountLink::query()
+            ->whereKey($linkId)
+            ->where('site_code', $siteCode)
+            ->first();
+    }
+
     /**
      * @param  array<string, mixed>  $metadata
      */

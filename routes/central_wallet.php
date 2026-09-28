@@ -24,6 +24,9 @@ Route::get('/ledger-entries/{ledger_entry_id}', [LedgerEntryController::class, '
     ->name('central-wallet.ledger-entries.show');
 
 Route::post('/account-links', [AccountLinkController::class, 'store'])->name('central-wallet.account-links.store');
+Route::post('/account-links/{link_id}/confirm', [AccountLinkController::class, 'confirm'])
+    ->whereNumber('link_id')
+    ->name('central-wallet.account-links.confirm');
 Route::get('/account-links', [AccountLinkController::class, 'index'])->name('central-wallet.account-links.index');
 
 Route::post('/wallet-reservations', [ReservationController::class, 'store'])
