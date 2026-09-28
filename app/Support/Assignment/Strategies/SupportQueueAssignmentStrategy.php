@@ -7,6 +7,7 @@ use App\Enums\Assignment\AssignmentCapability;
 use App\Enums\Assignment\AssignmentQueue;
 use App\Enums\Assignment\AssignmentTrigger;
 use App\Models\Incident;
+use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\ServiceCaseAssignmentService;
 use App\Support\Assignment\AssignmentCapabilityResolver;
@@ -42,15 +43,70 @@ class SupportQueueAssignmentStrategy implements AssignmentStrategy
             );
         }
 
-        if ($request->trigger === AssignmentTrigger::OnCreate
-            || $request->trigger === AssignmentTrigger::GraceExpired) {
+        if ($request->trigger === AssignmentTrigger::OnCreate) {
             return $this->assignmentService->assignViaRoundRobinAfterGracePeriod(
                 incident: $incident,
                 actor: $request->actor,
             );
         }
 
+        if ($request->trigger === AssignmentTrigger::GraceExpired) {
+            return $this->assignGraceExpiredWithValidationFailureFallback($request, $incident);
+        }
+
         return $this->assignUnassignedIntake($request, $incident);
+    }
+
+    private function assignGraceExpiredWithValidationFailureFallback(
+        AssignmentRequest $request,
+        Incident $incident,
+    ): Incident {
+        $at = $request->at ?? now();
+        $actor = $request->actor;
+
+        $incident = $this->assignmentService->assignViaRoundRobinAfterGracePeriod(
+            incident: $incident,
+            actor: $actor,
+            logUnassignedWhenEmpty: false,
+        );
+
+        if ($incident->assigned_to_user_id !== null) {
+            return $incident;
+        }
+
+        if (config('universal_assignment.remove_shift_admin_fallback', false)) {
+            return $this->assignmentService->logUnassignedAfterGracePeriod($incident, $actor);
+        }
+
+        if ($this->capabilityResolver->isWithinSupportHours($at)) {
+            return $this->assignCapabilityFallback(
+                incident: $incident,
+                actor: $actor,
+                at: $at,
+                capability: AssignmentCapability::ReadyQueueAdmin,
+                auditEvent: 'assignment.grace_expired_validation_failed_fallback',
+                auditContext: [
+                    'assignment_method' => $request->trigger->value,
+                    'assignment_override' => true,
+                    'override_reason' => 'grace_expired_validation_failed_shift_admin',
+                    'reason' => 'no_active_support_agents',
+                ],
+            );
+        }
+
+        return $this->assignCapabilityFallback(
+            incident: $incident,
+            actor: $actor,
+            at: $at,
+            capability: AssignmentCapability::AfterHoursSupport,
+            auditEvent: 'assignment.grace_expired_validation_failed_fallback',
+            auditContext: [
+                'assignment_method' => $request->trigger->value,
+                'assignment_override' => true,
+                'override_reason' => 'grace_expired_validation_failed_after_hours_shift_admin',
+                'reason' => 'no_active_support_agents',
+            ],
+        );
     }
 
     private function assignUnassignedIntake(AssignmentRequest $request, Incident $incident): Incident
@@ -111,7 +167,7 @@ class SupportQueueAssignmentStrategy implements AssignmentStrategy
      */
     private function assignCapabilityFallback(
         Incident $incident,
-        \App\Models\User $actor,
+        User $actor,
         Carbon $at,
         AssignmentCapability $capability,
         string $auditEvent,

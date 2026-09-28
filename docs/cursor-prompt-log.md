@@ -308,3 +308,7 @@ Fix RBP556 AST300 hardware product mapping (`model_id` 1412 → `RBAST300L1`). C
 ## RadiumDesk-P-25-09-105
 
 Release/deploy v4.0.154 AST300 hardware SKU mapping. See completion report.
+
+## RadiumDesk-P-25-09-107
+
+Release/deploy v4.0.155 GraceExpired validation-failure shift-admin fallback. Owner-authorized KVM deploy gate. Prompt **RadiumDesk-P-25-09-106** implementation.

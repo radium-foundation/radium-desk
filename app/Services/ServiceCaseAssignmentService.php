@@ -163,8 +163,11 @@ class ServiceCaseAssignmentService
         );
     }
 
-    public function assignViaRoundRobinAfterGracePeriod(Incident $incident, User $actor): Incident
-    {
+    public function assignViaRoundRobinAfterGracePeriod(
+        Incident $incident,
+        User $actor,
+        bool $logUnassignedWhenEmpty = true,
+    ): Incident {
         $incident = $incident->fresh(['assignee', 'order']);
 
         if ($incident->assigned_to_user_id !== null) {
@@ -198,7 +201,11 @@ class ServiceCaseAssignmentService
         $assignee = $this->resolveAgentRoundRobin(null, $incident->order);
 
         if ($assignee === null) {
-            return $this->logUnassignedAfterGracePeriod($incident, $actor);
+            if ($logUnassignedWhenEmpty) {
+                return $this->logUnassignedAfterGracePeriod($incident, $actor);
+            }
+
+            return $incident->fresh(['assignee']);
         }
 
         return $this->applyAssignment(
@@ -294,7 +301,7 @@ class ServiceCaseAssignmentService
         return $incident->fresh(['assignee', 'order']);
     }
 
-    private function logUnassignedAfterGracePeriod(Incident $incident, User $actor): Incident
+    public function logUnassignedAfterGracePeriod(Incident $incident, User $actor): Incident
     {
         $incident = $this->clearAutomationPending($incident, $actor);
 

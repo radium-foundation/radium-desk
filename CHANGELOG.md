@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.155 — 2026-09-28 — GraceExpired validation-failure shift-admin fallback
+
+- **Assignment:** When automation grace expires with serial validation failure and Support round-robin has no eligible agents, assign the configured shift-admin fallback (`ReadyQueueAdmin` / `AfterHoursSupport`) instead of leaving the case permanently unassigned.
+- Reuses the existing capability fallback resolver and `assignment.day_shift_admin_user_id` configuration; does not weaken serial validation or normal Support workforce eligibility rules.
+- Audit event: `assignment.grace_expired_validation_failed_fallback` with override reasons `grace_expired_validation_failed_shift_admin` / `grace_expired_validation_failed_after_hours_shift_admin`.
+- **Preserved:** Validation-success Ready Queue path, validation-failure Support RR when agents are available, intake/missed-call fallback, and safe unassigned behavior when fallback is disabled.
+- Regression: `GraceExpiredValidationFailedAssignmentFallbackTest` (**8/8**), assignment regression suite (**41/41**), `SerialValidationTest` (**4/4**) PASS. Prompt **RadiumDesk-P-25-09-106**.
+- Rollback target: v4.0.153 / `cca1a6e2` (production pre-release) or v4.0.154 / `fe1acd9b` (includes AST300 SKU mapping only).
+
 ## 4.0.154 — 2026-09-28 — RadiumBox hardware SKU mapping (RBP556 AST300 L1)
 
 - Add Owner-approved radiumbox.com `channel_sku_maps` seed configuration for `model_id` **1412** (`PAAST300L1` → `RBAST300L1`).
