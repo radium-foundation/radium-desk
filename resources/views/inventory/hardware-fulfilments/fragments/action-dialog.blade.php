@@ -17,6 +17,8 @@
         'Request Pickup' => 'Request pickup for the labeled shipment.',
         'Generate Manifest' => 'Generate the pickup manifest for this shipment.',
         'Upload Package Photo' => 'Add package photo evidence. This does not block operations.',
+        'Record External Shipment' => 'Record shipment details for a courier outside the Shiprocket workflow.',
+        'Mark Dispatched' => 'Mark this external shipment as dispatched after package photo is recorded.',
     ];
     $icons = [
         'Ready for Fulfilment' => '✅',
@@ -35,6 +37,8 @@
         'Request Pickup' => '📦',
         'Generate Manifest' => '📋',
         'Upload Package Photo' => '📷',
+        'Record External Shipment' => '🚚',
+        'Mark Dispatched' => '📦',
     ];
     $shipmentActions = [
         'Get Courier Options',
@@ -219,6 +223,11 @@
                     ])
                 @elseif($action === 'Upload Package Photo')
                     @include('inventory.hardware-fulfilments.fragments.action-package-photo')
+                @elseif(in_array($action, ['Record External Shipment', 'Mark Dispatched'], true))
+                    @include('inventory.hardware-fulfilments.fragments.action-start-shipment', [
+                        'showUrl' => $showUrl ?? null,
+                        'prepError' => $prepError ?? null,
+                    ])
                 @else
                     <x-c360.section-card title="Next action">
                         <p class="small mb-0">Open Fulfilment to continue this order.</p>

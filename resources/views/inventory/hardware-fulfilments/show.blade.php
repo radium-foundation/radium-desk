@@ -392,6 +392,7 @@
                         @csrf
                         @include('inventory.hardware-fulfilments.fragments.external-shipment-form-fields', [
                             'formIdPrefix' => 'hardware-show-external',
+                            'ready' => $shipment,
                         ])
                         <button type="submit" class="btn btn-primary mt-3">Record Shipment</button>
                     </form>
