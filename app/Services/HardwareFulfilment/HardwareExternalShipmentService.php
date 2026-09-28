@@ -6,6 +6,7 @@ use App\Enums\HardwareFulfilmentShippingMethod;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\ShipmentStatus;
 use App\Models\HardwareFulfilment;
+use App\Models\HardwareFulfilmentEvent;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
 use App\Models\User;
@@ -68,14 +69,7 @@ class HardwareExternalShipmentService
                 'shipping_method' => $method->value,
             ])->save();
 
-            $this->recordShipmentEvent(
-                $this->existingShipment($locked),
-                'external_method_selected',
-                [
-                    'shipping_method' => $method->value,
-                    'actor_id' => $actor?->id,
-                ],
-            );
+            $this->recordMethodSelectedAudit($locked, $method->value, $actor);
 
             return $locked->fresh() ?? $locked;
         });
@@ -122,6 +116,7 @@ class HardwareExternalShipmentService
             }
 
             $ready = $this->eligibility->quoteInputs($locked);
+            $methodWasExternal = $locked->resolvedShippingMethod() === HardwareFulfilmentShippingMethod::External;
 
             $locked->forceFill([
                 'shipping_method' => HardwareFulfilmentShippingMethod::External->value,
@@ -176,6 +171,10 @@ class HardwareExternalShipmentService
                         'awb' => $awb,
                     ],
                 );
+            }
+
+            if (! $methodWasExternal) {
+                $this->recordMethodSelectedAudit($fresh, HardwareFulfilmentShippingMethod::External->value, $actor, $shipment->fresh());
             }
 
             $this->recordShipmentEvent($shipment->fresh(), 'external_courier_selected', [
@@ -594,6 +593,35 @@ class HardwareExternalShipmentService
                 'fulfilment' => 'Frozen pending hardware orders cannot be shipped.',
             ]);
         }
+    }
+
+    private function recordMethodSelectedAudit(
+        HardwareFulfilment $fulfilment,
+        string $shippingMethod,
+        ?User $actor,
+        ?Shipment $shipment = null,
+    ): void {
+        $this->recordShipmentEvent($shipment, 'external_method_selected', [
+            'shipping_method' => $shippingMethod,
+            'actor_id' => $actor?->id,
+        ]);
+
+        if ($shipment !== null) {
+            return;
+        }
+
+        HardwareFulfilmentEvent::query()->create([
+            'hardware_fulfilment_id' => $fulfilment->id,
+            'from_state' => $fulfilment->state,
+            'to_state' => $fulfilment->state,
+            'actor_type' => $actor !== null ? 'user' : 'system',
+            'actor_id' => $actor?->id,
+            'payload' => [
+                'reason' => 'external_method_selected',
+                'shipping_method' => $shippingMethod,
+            ],
+            'created_at' => now(),
+        ]);
     }
 
     /**

@@ -9,17 +9,21 @@ use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\ChannelSkuMap;
 use App\Models\HardwareFulfilment;
+use App\Models\HardwareFulfilmentEvent;
 use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventoryUserBranch;
 use App\Models\ShipmentEvent;
 use App\Models\User;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
+use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\HardwareExternalShipmentService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
+use App\Services\HardwareFulfilment\HardwareShipmentCourierOptionsService;
+use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Services\Inventory\InventoryStockService;
 use Database\Seeders\RolePermissionSeeder;
@@ -124,7 +128,13 @@ class HardwareExternalShipmentTest extends TestCase
             ShipmentEvent::query()
                 ->where('shipment_id', $shipment->id)
                 ->where('source', 'external')
-                ->whereIn('activity', ['external_awb_recorded', 'external_courier_selected'])
+                ->whereIn('activity', ['external_awb_recorded', 'external_courier_selected', 'external_method_selected'])
+                ->exists(),
+        );
+        $this->assertTrue(
+            HardwareFulfilmentEvent::query()
+                ->where('hardware_fulfilment_id', $fulfilment->id)
+                ->where('payload->reason', 'external_method_selected')
                 ->exists(),
         );
     }
@@ -183,6 +193,97 @@ class HardwareExternalShipmentTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $this->external->recordShipment($fulfilment, 'other', null, 'OTH-100', null, null, $this->actor);
+    }
+
+    public function test_other_courier_accepts_display_name(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE901008', 'DELHI-RETAIL');
+
+        $shipment = $this->external->recordShipment(
+            $fulfilment,
+            'other',
+            'Regional Express',
+            'OTH-200',
+            null,
+            null,
+            $this->actor,
+        );
+
+        $this->assertSame('Regional Express', $shipment->courier_name);
+        $this->assertSame('other', $fulfilment->fresh()->external_courier_code);
+    }
+
+    public function test_rbp552_acceptance_external_path_when_shiprocket_unavailable(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RBP552', 'DELHI-RETAIL', pincode: '841437');
+        $this->fake->nextCourierListMode = 'rejected';
+
+        try {
+            app(HardwareShipmentCourierOptionsService::class)->fetch($fulfilment, $this->actor);
+            $this->fail('Expected Shiprocket courier options to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('shipping', $exception->errors());
+        }
+
+        $eligibility = app(HardwareShipmentEligibility::class);
+        $ready = $eligibility->inspect($fulfilment);
+        $this->assertTrue($ready->canChooseShippingMethod);
+        $this->assertFalse($ready->isExternalShipping);
+
+        $this->external->selectShippingMethod(
+            $fulfilment,
+            HardwareFulfilmentShippingMethod::External,
+            $this->actor,
+        );
+        $fulfilment = $fulfilment->fresh();
+
+        $ready = $eligibility->inspect($fulfilment);
+        $classifier = app(HardwareFulfilmentOperationalClassifier::class);
+        $row = $classifier->fromFulfilment($fulfilment, $ready);
+
+        $this->assertTrue($ready->isExternalShipping);
+        $this->assertTrue($ready->canRecordExternalShipment);
+        $this->assertSame('External', $ready->provider);
+        $this->assertStringContainsString('External', $row->operatorStatus());
+        $this->assertSame('Record External Shipment', $row->nextAction);
+
+        $shipment = $this->external->recordShipment(
+            $fulfilment,
+            'trackon',
+            null,
+            'TRK-RBP552-ACCEPT2',
+            null,
+            null,
+            $this->actor,
+        );
+
+        $fulfilment = $fulfilment->fresh(['shipment']);
+        $ready = $eligibility->inspect($fulfilment);
+        $row = $classifier->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertGreaterThan(0, $this->fake->courierLists);
+        $this->assertSame('external', $shipment->provider);
+        $this->assertNull($shipment->external_order_id);
+        $this->assertNull($shipment->external_shipment_id);
+        $this->assertNull($shipment->courier_id);
+        $this->assertSame(HardwareFulfilmentState::AwbAssigned, $fulfilment->state);
+        $this->assertSame('EXTERNAL AWB ASSIGNED', $row->fulfilmentStatus);
+        $this->assertStringContainsString('External', $row->operatorStatus());
+
+        app(HardwareFulfilmentPackageEvidenceService::class)->attach(
+            $fulfilment,
+            HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel,
+            UploadedFile::fake()->image('package.jpg'),
+            $this->actor,
+        );
+
+        $updated = $this->external->dispatch($fulfilment->fresh(['shipment']), $this->actor);
+
+        $this->assertSame(HardwareFulfilmentState::Shipped, $updated->state);
+        $this->assertSame('external', $updated->shipment?->provider);
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertSame(0, $this->fake->awbs);
     }
 
     public function test_tracking_url_must_be_https(): void

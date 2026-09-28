@@ -180,7 +180,9 @@ final class HardwareFulfilmentOperationalClassifier
                 ? $catalog['quantity']
                 : ($ready->quantity !== null ? (string) $ready->quantity : '—'),
             payment: $ready->payment,
-            fulfilmentStatus: strtoupper(str_replace('_', ' ', $fulfilment->state?->value ?? 'unknown')),
+            fulfilmentStatus: $ready->isExternalShipping
+                ? $this->externalFulfilmentStatusLabel($fulfilment)
+                : strtoupper(str_replace('_', ' ', $fulfilment->state?->value ?? 'unknown')),
             serialStatus: $ready->serials !== [] ? implode(', ', $ready->serials) : 'Not allocated',
             invoiceStatus: $ready->invoice ?: 'None',
             shipmentStatus: $ready->status,
@@ -423,6 +425,17 @@ final class HardwareFulfilmentOperationalClassifier
     /**
      * @return array{0: HardwareFulfilmentOperationalStage, 1: string, 2: ?string, 3: string}
      */
+    private function externalFulfilmentStatusLabel(HardwareFulfilment $fulfilment): string
+    {
+        return match ($fulfilment->state) {
+            HardwareFulfilmentState::ShipmentCreated => 'EXTERNAL SHIPMENT RECORDED',
+            HardwareFulfilmentState::AwbAssigned => 'EXTERNAL AWB ASSIGNED',
+            HardwareFulfilmentState::Shipped,
+            HardwareFulfilmentState::Synced => 'EXTERNAL SHIPPED',
+            default => 'EXTERNAL '.strtoupper(str_replace('_', ' ', $fulfilment->state?->value ?? 'unknown')),
+        };
+    }
+
     private function externalStageAndAction(
         HardwareFulfilment $fulfilment,
         HardwareShipmentReadiness $ready,

@@ -372,7 +372,7 @@ const bindCourierChangeToggle = (root) => {
     });
 };
 
-const bindExternalCourierForm = (root) => {
+export const bindExternalCourierForm = (root) => {
     root.querySelectorAll('[data-hardware-external-courier-code]').forEach((select) => {
         if (select.dataset.hardwareExternalCourierBound === '1') {
             return;
@@ -842,6 +842,7 @@ export const openDialog = async (url) => {
 export const initHardwareActionDialog = (options = {}) => {
     showToast = options.showToast ?? showToast;
     bindMeasuredParcelForms(document);
+    bindExternalCourierForm(document);
     initHardwareSerialSummaries();
 
     document.addEventListener('click', (event) => {
