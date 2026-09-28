@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.153 — 2026-09-28 — Central Wallet M2 account-link confirm API (inert; flags OFF)
+
+- **M2 Desk confirm endpoint:** `POST /api/central-wallet/v1/account-links/{link_id}/confirm` binds Box-verified OTP ceremony to Desk-authoritative account-link confirmation.
+- **Verification method binding:** Rejects confirm when `verification_method` does not match the pending link (fail-closed).
+- **Owner-approved M2 definition:** authenticated RadiumBox session + explicit Connect Wallet intent + single Interakt WhatsApp OTP + server-side verification + Desk confirm — **no second OTP channel**.
+- **Feature flags OFF by default:** `CENTRAL_WALLET_ENABLED`, `CENTRAL_WALLET_API_ENABLED`, and `CENTRAL_WALLET_RECONCILIATION_ENABLED` remain `false`. No account linking enablement in this release.
+- **No activation in this release:** No deploy, production migrations, shadow projection, reconciliation runs, or customer-visible Central Wallet behavior.
+- **Preserved:** v4.0.152 Central Wallet foundation, existing `users_wallet` ledger, Desk wallet refund credit/reversal, statutory refund adjustment (flagged OFF), rd-orders, and Cashfree-only checkout behavior unchanged.
+- Regression: Central Wallet API **17/17**, wallet refund execution **16/16**, broader Central Wallet|WalletRefund filter **100/100** PASS; Pint on changed files PASS.
+- Rollback target: v4.0.152 / `e4f115bc`.
+- Prompt **RadiumDesk-P-25-09-101** (isolated release branch construction gate).
+
 ## 4.0.152 — 2026-09-28 — Central Wallet Phase 1 foundation (inert; flags OFF)
 
 - **Central Wallet hub (Desk):** Phase 1 foundation module under `app/CentralWallet/` — UUID v4 CWID, account links, append-only ledger, 90-day idempotency, audit events, reconciliation scaffold, and integration API v1 routes.
