@@ -64,6 +64,22 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
         $this->assertNotSame('Product mapping required', $row->operatorStatus());
     }
 
+    public function test_rbp556_resolves_ast300_model_id_to_rbast300l1(): void
+    {
+        $product = app(HardwareSkuMapService::class)->requireProduct(
+            StatutoryInvoiceChannel::RadiumBoxCom,
+            1412,
+        );
+
+        $this->assertSame('RBAST300L1', $product->sku);
+        $this->assertTrue($product->is_serialized);
+
+        $row = $this->classifyReadyFulfilment('RBP556', 1412, $product->is_serialized);
+
+        $this->assertSame('Allocate Serial', $row->nextAction);
+        $this->assertNotSame('Product mapping required', $row->operatorStatus());
+    }
+
     public function test_unmapped_model_id_still_shows_product_mapping_required(): void
     {
         $row = $this->classifyReadyFulfilment('RBP999', 99999, true);
@@ -191,6 +207,7 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
             ['RBBIOC600C', 1749, true],
             ['RBMFSTYPEC', 1409, false],
             ['RBMFSUSBCB', 1410, false],
+            ['RBAST300L1', 1412, true],
             ['RBMSOUSBCB', 1420, false],
             ['RBMFS500FP', 625, true],
             ['RBWM112MZ', 340, false],

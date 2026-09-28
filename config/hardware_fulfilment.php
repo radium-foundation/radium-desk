@@ -51,6 +51,13 @@ return [
                 'notes' => 'Mantra MFS110 USB replacement cable',
             ],
             [
+                'model_id' => 1412,
+                'channel_sku' => '1412',
+                'catalog_sku' => 'PAAST300L1',
+                'desk_sku' => 'RBAST300L1',
+                'notes' => 'Access AST300 L1 Single Fingerprint Biometric Scanner',
+            ],
+            [
                 'model_id' => 1420,
                 'channel_sku' => '1420',
                 'catalog_sku' => 'PIDMORUCBL',
