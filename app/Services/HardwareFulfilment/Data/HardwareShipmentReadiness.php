@@ -81,6 +81,20 @@ final class HardwareShipmentReadiness
         public readonly ?string $recommendedCourierLabel = null,
         public readonly bool $orchestrationAutoSelectEnabled = false,
         public readonly bool $canReconcileCourierReassignment = false,
+        public readonly bool $isExternalShipping = false,
+        public readonly ?string $shippingMethod = null,
+        public readonly ?string $shippingMethodLabel = null,
+        public readonly bool $canChooseShippingMethod = false,
+        public readonly bool $canRecordExternalShipment = false,
+        public readonly bool $canUploadExternalLabel = false,
+        public readonly bool $canUploadExternalManifest = false,
+        public readonly bool $canExternalDispatch = false,
+        public readonly bool $canDownloadExternalLabel = false,
+        public readonly bool $canDownloadExternalManifest = false,
+        public readonly ?string $trackingUrl = null,
+        public readonly ?string $externalNotes = null,
+        public readonly ?string $externalCourierCode = null,
+        public readonly array $externalCourierCatalog = [],
     ) {}
 
     public function packagePhotoRecorded(): bool

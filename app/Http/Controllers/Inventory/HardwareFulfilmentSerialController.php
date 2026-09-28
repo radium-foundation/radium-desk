@@ -21,7 +21,11 @@ use App\Http\Requests\Inventory\IssueHardwareFulfilmentInvoiceRequest;
 use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyForPickupRequest;
 use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyRequest;
 use App\Http\Requests\Inventory\OpenHardwareFulfilmentRequest;
+use App\Http\Requests\Inventory\DispatchHardwareExternalShipmentRequest;
+use App\Http\Requests\Inventory\RecordHardwareExternalShipmentRequest;
 use App\Http\Requests\Inventory\ReconcileHardwareFulfilmentAwbRequest;
+use App\Http\Requests\Inventory\SelectHardwareFulfilmentShippingMethodRequest;
+use App\Http\Requests\Inventory\UploadHardwareExternalShipmentDocumentRequest;
 use App\Http\Requests\Inventory\ReconcileHardwareFulfilmentCourierReassignmentRequest;
 use App\Http\Requests\Inventory\RequestHardwareFulfilmentPickupRequest;
 use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
@@ -50,6 +54,8 @@ use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentCourierOptionsService;
 use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
+use App\Enums\HardwareFulfilmentShippingMethod;
+use App\Services\HardwareFulfilment\HardwareExternalShipmentService;
 use App\Services\HardwareFulfilment\HardwareShipmentOrchestrationService;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
@@ -81,18 +87,19 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentWorkflowService $workflow,
         private readonly HardwareFulfilmentIsolatedWorkflowService $isolated,
         private readonly HardwareShipmentOrchestrationService $orchestration,
+        private readonly HardwareExternalShipmentService $externalShipments,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allows($request->user()), 403);
 
             return $next($request);
-        })->except(['downloadLabel', 'downloadManifest']);
+        })->except(['downloadLabel', 'downloadManifest', 'downloadExternalLabel', 'downloadExternalManifest']);
 
         $this->middleware(function ($request, $next) {
             abort_unless(HardwareFulfilmentAccess::allowsDocumentDownload($request->user()), 403);
 
             return $next($request);
-        })->only(['downloadLabel', 'downloadManifest']);
+        })->only(['downloadLabel', 'downloadManifest', 'downloadExternalLabel', 'downloadExternalManifest']);
     }
 
     public function index(Request $request): View
@@ -740,6 +747,98 @@ class HardwareFulfilmentSerialController extends Controller
         $this->documents->markReadyForPickup($fulfilment, $request->user());
 
         return $this->mutationResponse($request, $fulfilment, 'Fulfilment marked ready for pickup.');
+    }
+
+    public function storeShippingMethod(
+        SelectHardwareFulfilmentShippingMethodRequest $request,
+        HardwareFulfilment $fulfilment,
+    ): RedirectResponse|JsonResponse {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $method = HardwareFulfilmentShippingMethod::from($request->validated('shipping_method'));
+        $this->externalShipments->selectShippingMethod($fulfilment, $method, $request->user());
+
+        return $this->mutationResponse($request, $fulfilment, 'Shipping method recorded.');
+    }
+
+    public function storeExternalShipment(
+        RecordHardwareExternalShipmentRequest $request,
+        HardwareFulfilment $fulfilment,
+    ): RedirectResponse|JsonResponse {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $validated = $request->validated();
+        $this->externalShipments->recordShipment(
+            $fulfilment,
+            (string) $validated['courier_code'],
+            $validated['courier_name'] ?? null,
+            (string) $validated['awb'],
+            $validated['tracking_url'] ?? null,
+            $validated['notes'] ?? null,
+            $request->user(),
+        );
+
+        $fresh = $fulfilment->fresh() ?? $fulfilment;
+        if ($request->hasFile('label')) {
+            $this->externalShipments->uploadLabel($fresh, $request->file('label'), $request->user());
+        }
+        if ($request->hasFile('manifest')) {
+            $this->externalShipments->uploadManifest($fresh, $request->file('manifest'), $request->user());
+        }
+
+        return $this->mutationResponse($request, $fulfilment, 'External shipment recorded.');
+    }
+
+    public function storeExternalLabel(
+        UploadHardwareExternalShipmentDocumentRequest $request,
+        HardwareFulfilment $fulfilment,
+    ): RedirectResponse|JsonResponse {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->externalShipments->uploadLabel($fulfilment, $request->file('document'), $request->user());
+
+        return $this->mutationResponse($request, $fulfilment, 'External label uploaded.');
+    }
+
+    public function storeExternalManifest(
+        UploadHardwareExternalShipmentDocumentRequest $request,
+        HardwareFulfilment $fulfilment,
+    ): RedirectResponse|JsonResponse {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->externalShipments->uploadManifest($fulfilment, $request->file('document'), $request->user());
+
+        return $this->mutationResponse($request, $fulfilment, 'External manifest uploaded.');
+    }
+
+    public function downloadExternalLabel(Request $request, HardwareFulfilment $fulfilment): StreamedResponse
+    {
+        $this->assertCanDownloadFulfilmentDocuments($request, $fulfilment);
+        $document = $this->externalShipments->downloadLabel($fulfilment);
+        abort_unless(Storage::disk($document['disk'])->exists($document['path']), 404);
+
+        return Storage::disk($document['disk'])->response(
+            $document['path'],
+            $document['filename'],
+        );
+    }
+
+    public function downloadExternalManifest(Request $request, HardwareFulfilment $fulfilment): StreamedResponse
+    {
+        $this->assertCanDownloadFulfilmentDocuments($request, $fulfilment);
+        $document = $this->externalShipments->downloadManifest($fulfilment);
+        abort_unless(Storage::disk($document['disk'])->exists($document['path']), 404);
+
+        return Storage::disk($document['disk'])->response(
+            $document['path'],
+            $document['filename'],
+        );
+    }
+
+    public function storeExternalDispatch(
+        DispatchHardwareExternalShipmentRequest $request,
+        HardwareFulfilment $fulfilment,
+    ): RedirectResponse|JsonResponse {
+        $this->assertCanOperateFulfilment($request, $fulfilment);
+        $this->externalShipments->dispatch($fulfilment, $request->user());
+
+        return $this->mutationResponse($request, $fulfilment, 'External shipment dispatched.');
     }
 
     private function mutationResponse(Request $request, HardwareFulfilment $fulfilment, string $status): RedirectResponse|JsonResponse

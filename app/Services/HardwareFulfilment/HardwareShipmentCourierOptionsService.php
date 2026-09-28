@@ -34,6 +34,11 @@ class HardwareShipmentCourierOptionsService
     public function fetch(HardwareFulfilment $fulfilment, ?User $actor = null): array
     {
         $this->assertNotFrozen($fulfilment);
+        if ($fulfilment->usesExternalShipping()) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Shiprocket courier options are not available for external shipments.',
+            ]);
+        }
         $this->assertProviderCallable();
 
         try {

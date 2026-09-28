@@ -4,7 +4,9 @@ namespace App\Services\HardwareFulfilment;
 
 use App\Contracts\Shipping\ShiprocketGateway;
 use App\Enums\HardwareFulfilmentPackageEvidenceKind;
+use App\Enums\HardwareFulfilmentShippingMethod;
 use App\Enums\HardwareFulfilmentState;
+use App\Support\HardwareFulfilment\ExternalCourierCatalog;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
@@ -259,6 +261,10 @@ class HardwareShipmentEligibility
             return $this->cancelledHistoricalDuplicateReadiness($fulfilment);
         }
 
+        if ($fulfilment->usesExternalShipping()) {
+            return $this->inspectExternal($fulfilment);
+        }
+
         $fulfilment->loadMissing([
             'commerceOrder.items',
             'serials.inventorySerial.branch',
@@ -420,6 +426,10 @@ class HardwareShipmentEligibility
             $blockers = $this->prependUnique($blockers, 'Courier selection required');
         }
 
+        $canChooseShippingMethod = $fulfilment->state === HardwareFulfilmentState::InvoiceIssued
+            && ! filled($shipment?->awb)
+            && ! filled($fulfilment->awb);
+
         $catalog = $this->snapshots->catalogPackaging($fulfilment);
         $country = $this->countries->resolvedCountry($fulfilment);
         $awbReady = $alreadyCreated
@@ -563,6 +573,155 @@ class HardwareShipmentEligibility
             recommendedCourierLabel: $recommendedCourierLabel,
             orchestrationAutoSelectEnabled: $orchestrationAutoSelectEnabled,
             canReconcileCourierReassignment: $canReconcileCourierReassignment,
+            canChooseShippingMethod: $canChooseShippingMethod,
+            shippingMethod: HardwareFulfilmentShippingMethod::Shiprocket->value,
+            shippingMethodLabel: HardwareFulfilmentShippingMethod::Shiprocket->label(),
+            externalCourierCatalog: ExternalCourierCatalog::options(),
+        );
+    }
+
+    private function inspectExternal(HardwareFulfilment $fulfilment): HardwareShipmentReadiness
+    {
+        $fulfilment->loadMissing([
+            'commerceOrder.items',
+            'serials.inventorySerial.branch',
+            'fulfilmentBranch',
+            'shipment',
+            'packageEvidences',
+        ]);
+
+        $order = $fulfilment->commerceOrder;
+        $shipment = $this->existingShipment($fulfilment);
+        $blockers = [];
+        $externalService = app(HardwareExternalShipmentService::class);
+
+        if (HardwareFulfilmentEligibility::isFrozenForFulfilment((string) $fulfilment->source_id, $fulfilment->commerceOrder)) {
+            $blockers[] = 'Frozen pending hardware orders cannot be shipped.';
+        }
+
+        if ($order === null) {
+            $blockers[] = 'Hardware fulfilment is missing its commerce order.';
+        } elseif (! $this->isPaid($fulfilment, $order)) {
+            $blockers[] = 'Payment not verified';
+        }
+
+        $serials = $order === null ? [] : $this->allocatedSerials($fulfilment);
+        $stockCommitted = $order !== null
+            && app(HardwarePhysicalStockCommitment::class)->isStockCommitted($fulfilment, $order);
+        $awbRecorded = filled($shipment?->awb) || filled($fulfilment->awb);
+        if (! $stockCommitted && ! $awbRecorded) {
+            $blockers[] = 'Serial allocation required';
+        }
+
+        $invoice = $this->linkedInvoice($fulfilment, $order);
+        if (($invoice === null || ! filled($invoice->invoice_number)) && ! $awbRecorded) {
+            $blockers[] = 'Invoice required';
+        }
+
+        $shipping = null;
+        $parcel = null;
+        $parcelSource = 'unavailable';
+        if ($order !== null) {
+            try {
+                $shipping = $this->requireShippingAddress($order, $fulfilment);
+            } catch (ValidationException) {
+                $blockers[] = 'Shipping address incomplete';
+            }
+
+            try {
+                [$parcel, $parcelSource] = $this->requireParcel($order, $fulfilment);
+            } catch (ValidationException) {
+                $blockers[] = 'Parcel packaging not attached';
+            }
+        }
+
+        $branch = $fulfilment->fulfilmentBranch;
+        $pickup = null;
+        if ($branch !== null) {
+            try {
+                $pickup = $this->pickups->requireForBranch($branch);
+            } catch (ValidationException) {
+                if ($branch->is_active && in_array($branch->code, ['DELHI-RETAIL', 'MUMBAI'], true)) {
+                    $blockers[] = 'Pickup location is not configured';
+                } else {
+                    $blockers[] = 'Pickup branch unknown';
+                }
+            }
+        }
+
+        $blockers = array_values(array_unique($blockers));
+        $notTerminal = ! in_array($fulfilment->state, [
+            HardwareFulfilmentState::Shipped,
+            HardwareFulfilmentState::Synced,
+        ], true);
+        $beforeLabel = $this->packageEvidence($fulfilment, HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel);
+        $labelApplied = $this->packageEvidence($fulfilment, HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied);
+        $packagePhotoRecorded = $beforeLabel !== null || $labelApplied !== null;
+        $canChooseShippingMethod = $fulfilment->state === HardwareFulfilmentState::InvoiceIssued
+            && ! $externalService->methodLocked($fulfilment);
+        $localReady = $blockers === []
+            && $fulfilment->state === HardwareFulfilmentState::InvoiceIssued;
+        $canRecordExternalShipment = $localReady && ! $awbRecorded;
+        $canUploadExternalLabel = $awbRecorded
+            && $notTerminal
+            && $fulfilment->state === HardwareFulfilmentState::AwbAssigned;
+        $canUploadExternalManifest = $canUploadExternalLabel;
+        $canExternalDispatch = $awbRecorded
+            && $notTerminal
+            && $fulfilment->state === HardwareFulfilmentState::AwbAssigned
+            && $packagePhotoRecorded;
+        $courierName = trim((string) ($shipment?->courier_name ?: $fulfilment->selected_courier_name ?: ''));
+        $status = $awbRecorded
+            ? ($fulfilment->state === HardwareFulfilmentState::AwbAssigned ? 'External (AWB assigned)' : 'External (Shipped)')
+            : 'External (Awaiting AWB)';
+
+        return new HardwareShipmentReadiness(
+            canCreate: false,
+            blockers: $blockers,
+            status: $status,
+            pickupBranch: $branch?->code,
+            pickupLocation: $pickup,
+            shipTo: $this->formatShipTo($shipping),
+            parcel: $this->formatParcel($parcel),
+            invoice: $invoice?->invoice_number,
+            serials: $serials,
+            order: $order?->order_no ?? $fulfilment->source_id,
+            product: $this->productLabel($order),
+            alreadyCreated: $awbRecorded,
+            provider: 'External',
+            actionLabel: 'Record External Shipment',
+            parcelSource: $parcelSource,
+            payment: ($order !== null && $this->isPaid($fulfilment, $order)) ? 'Paid' : 'Not verified',
+            awb: $shipment?->awb ?: $fulfilment->awb,
+            shipmentId: $shipment?->id,
+            shipmentNo: $shipment?->shipment_no ?: $fulfilment->shipment_no,
+            courier: $courierName !== '' ? $courierName : null,
+            customer: $order !== null ? trim((string) $order->customer_name) : null,
+            phone: $order !== null ? trim((string) $order->customer_phone) : null,
+            email: $order !== null ? trim((string) $order->customer_email) : null,
+            quantity: $order !== null ? $this->requiredPhysicalQty($order) : null,
+            invoiceId: $invoice?->id,
+            canUploadPackageBeforeLabel: $notTerminal,
+            canUploadPackageLabelApplied: $awbRecorded && $notTerminal,
+            packageBeforeLabelRecorded: $beforeLabel !== null,
+            packageLabelAppliedRecorded: $labelApplied !== null,
+            packageBeforeLabelId: $beforeLabel?->id,
+            packageLabelAppliedId: $labelApplied?->id,
+            stockCommitted: $stockCommitted,
+            isExternalShipping: true,
+            shippingMethod: HardwareFulfilmentShippingMethod::External->value,
+            shippingMethodLabel: HardwareFulfilmentShippingMethod::External->label(),
+            canChooseShippingMethod: $canChooseShippingMethod,
+            canRecordExternalShipment: $canRecordExternalShipment,
+            canUploadExternalLabel: $canUploadExternalLabel,
+            canUploadExternalManifest: $canUploadExternalManifest,
+            canExternalDispatch: $canExternalDispatch,
+            canDownloadExternalLabel: $shipment?->hasUploadedLabel() ?? false,
+            canDownloadExternalManifest: $shipment?->hasUploadedManifest() ?? false,
+            trackingUrl: filled($shipment?->tracking_url) ? (string) $shipment->tracking_url : null,
+            externalNotes: filled($fulfilment->external_notes) ? (string) $fulfilment->external_notes : null,
+            externalCourierCode: filled($fulfilment->external_courier_code) ? (string) $fulfilment->external_courier_code : null,
+            externalCourierCatalog: ExternalCourierCatalog::options(),
         );
     }
 

@@ -245,7 +245,9 @@ class HardwareShipmentBulkDocumentsService
 
         $shipment = $this->boundShipment($fulfilment);
         if ($shipment === null) {
-            return 'No bound provider shipment.';
+            return $fulfilment->usesExternalShipping()
+                ? 'External shipments are excluded from Shiprocket bulk documents.'
+                : 'No bound provider shipment.';
         }
 
         if ($fulfilment->state !== HardwareFulfilmentState::AwbAssigned) {
@@ -273,7 +275,7 @@ class HardwareShipmentBulkDocumentsService
             $shipment = Shipment::query()->where('hardware_fulfilment_id', $fulfilment->id)->first();
         }
 
-        if ($shipment === null || ! $shipment->isBound()) {
+        if ($shipment === null || ! $shipment->isBound() || $shipment->isExternal()) {
             return null;
         }
 

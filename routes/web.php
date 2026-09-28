@@ -570,6 +570,13 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('hardware-fulfilments/{fulfilment}/package-evidence', [InventoryHardwareFulfilmentSerialController::class, 'storePackageEvidence'])->name('hardware-fulfilments.package-evidence.store');
         Route::get('hardware-fulfilments/{fulfilment}/package-evidence/{evidence}', [InventoryHardwareFulfilmentSerialController::class, 'showPackageEvidence'])->name('hardware-fulfilments.package-evidence.show');
         Route::post('hardware-fulfilments/{fulfilment}/ready-for-pickup', [InventoryHardwareFulfilmentSerialController::class, 'storeReadyForPickup'])->name('hardware-fulfilments.ready-for-pickup.store');
+        Route::post('hardware-fulfilments/{fulfilment}/shipping-method', [InventoryHardwareFulfilmentSerialController::class, 'storeShippingMethod'])->name('hardware-fulfilments.shipping-method.store');
+        Route::post('hardware-fulfilments/{fulfilment}/external-shipment', [InventoryHardwareFulfilmentSerialController::class, 'storeExternalShipment'])->name('hardware-fulfilments.external-shipment.store');
+        Route::post('hardware-fulfilments/{fulfilment}/external-label', [InventoryHardwareFulfilmentSerialController::class, 'storeExternalLabel'])->name('hardware-fulfilments.external-label.store');
+        Route::post('hardware-fulfilments/{fulfilment}/external-manifest', [InventoryHardwareFulfilmentSerialController::class, 'storeExternalManifest'])->name('hardware-fulfilments.external-manifest.store');
+        Route::get('hardware-fulfilments/{fulfilment}/external-label', [InventoryHardwareFulfilmentSerialController::class, 'downloadExternalLabel'])->name('hardware-fulfilments.external-label.download');
+        Route::get('hardware-fulfilments/{fulfilment}/external-manifest', [InventoryHardwareFulfilmentSerialController::class, 'downloadExternalManifest'])->name('hardware-fulfilments.external-manifest.download');
+        Route::post('hardware-fulfilments/{fulfilment}/external-dispatch', [InventoryHardwareFulfilmentSerialController::class, 'storeExternalDispatch'])->name('hardware-fulfilments.external-dispatch.store');
 
         Route::get('movements', [InventoryMovementController::class, 'index'])->name('movements.index');
 

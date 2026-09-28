@@ -3,6 +3,7 @@
 namespace App\Services\HardwareFulfilment;
 
 use App\Enums\HardwareFulfilmentSerialStatus;
+use App\Enums\HardwareFulfilmentShippingMethod;
 use App\Enums\HardwareFulfilmentState;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentEvent;
@@ -144,19 +145,36 @@ class HardwareFulfilmentWorkflowService
         }
 
         $awb = trim((string) $locked->awb);
-        $providerAwb = trim((string) $locked->provider_awb);
         $shipmentAwb = trim((string) ($locked->shipment?->awb ?? ''));
+        $isExternal = $locked->usesExternalShipping()
+            || $locked->shipment?->isExternal() === true;
 
-        if ($awb === '' || $providerAwb === '' || $shipmentAwb === '') {
-            throw ValidationException::withMessages([
-                'shipping' => 'SHIPPED requires verified provider AWB evidence. A shipment request is not enough.',
-            ]);
-        }
+        if ($isExternal) {
+            if ($awb === '' || $shipmentAwb === '') {
+                throw ValidationException::withMessages([
+                    'shipping' => 'SHIPPED requires a recorded external AWB.',
+                ]);
+            }
 
-        if ($awb !== $providerAwb || $awb !== $shipmentAwb) {
-            throw ValidationException::withMessages([
-                'shipping' => 'SHIPPED requires the fulfilment AWB to match the provider shipment AWB.',
-            ]);
+            if ($awb !== $shipmentAwb) {
+                throw ValidationException::withMessages([
+                    'shipping' => 'SHIPPED requires the fulfilment AWB to match the external shipment AWB.',
+                ]);
+            }
+        } else {
+            $providerAwb = trim((string) $locked->provider_awb);
+
+            if ($awb === '' || $providerAwb === '' || $shipmentAwb === '') {
+                throw ValidationException::withMessages([
+                    'shipping' => 'SHIPPED requires verified provider AWB evidence. A shipment request is not enough.',
+                ]);
+            }
+
+            if ($awb !== $providerAwb || $awb !== $shipmentAwb) {
+                throw ValidationException::withMessages([
+                    'shipping' => 'SHIPPED requires the fulfilment AWB to match the provider shipment AWB.',
+                ]);
+            }
         }
 
         if ($actorType === 'user') {

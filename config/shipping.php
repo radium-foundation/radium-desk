@@ -102,4 +102,18 @@ return [
     */
     'http_enabled' => filter_var(env('SHIPROCKET_HTTP_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
+    /*
+    | Manual / external courier catalog for hardware fulfilments shipped outside
+    | the Shiprocket provider workflow. Keys are persisted on fulfilments; values
+    | are operator-facing labels. No API integration is implied.
+    */
+    'external_couriers' => [
+        'trackon' => 'Trackon',
+        'india_post' => 'India Post',
+        'dtdc' => 'DTDC',
+        'delhivery' => 'Delhivery',
+        'blue_dart' => 'Blue Dart',
+        'other' => 'Other',
+    ],
+
 ];

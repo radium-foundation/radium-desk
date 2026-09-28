@@ -41,6 +41,14 @@ class Shipment extends Model
         'provider_track_status',
         'provider_track_normalized',
         'provider_tracked_at',
+        'tracking_url',
+        'label_disk',
+        'label_path',
+        'label_source',
+        'manifest_disk',
+        'manifest_path',
+        'dispatched_at',
+        'dispatched_by_user_id',
     ];
 
     protected function casts(): array
@@ -56,6 +64,7 @@ class Shipment extends Model
             'manifest_generated_at' => 'datetime',
             'last_reconciled_at' => 'datetime',
             'provider_tracked_at' => 'datetime',
+            'dispatched_at' => 'datetime',
         ];
     }
 
@@ -77,5 +86,20 @@ class Shipment extends Model
     public function isBound(): bool
     {
         return filled($this->external_order_id) && filled($this->external_shipment_id);
+    }
+
+    public function isExternal(): bool
+    {
+        return strtolower(trim((string) $this->provider)) === 'external';
+    }
+
+    public function hasUploadedLabel(): bool
+    {
+        return filled($this->label_path) && filled($this->label_disk);
+    }
+
+    public function hasUploadedManifest(): bool
+    {
+        return filled($this->manifest_path) && filled($this->manifest_disk);
     }
 }

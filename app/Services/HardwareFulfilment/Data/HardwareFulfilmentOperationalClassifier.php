@@ -180,7 +180,9 @@ final class HardwareFulfilmentOperationalClassifier
                 ? $catalog['quantity']
                 : ($ready->quantity !== null ? (string) $ready->quantity : '—'),
             payment: $ready->payment,
-            fulfilmentStatus: strtoupper(str_replace('_', ' ', $fulfilment->state?->value ?? 'unknown')),
+            fulfilmentStatus: $ready->isExternalShipping
+                ? $this->externalFulfilmentStatusLabel($fulfilment)
+                : strtoupper(str_replace('_', ' ', $fulfilment->state?->value ?? 'unknown')),
             serialStatus: $ready->serials !== [] ? implode(', ', $ready->serials) : 'Not allocated',
             invoiceStatus: $ready->invoice ?: 'None',
             shipmentStatus: $ready->status,
@@ -341,6 +343,10 @@ final class HardwareFulfilmentOperationalClassifier
             return [HardwareFulfilmentOperationalStage::AwaitingInvoice, 'Issue Invoice', 'hardware-invoice', 'Awaiting Invoice'];
         }
 
+        if ($ready->isExternalShipping) {
+            return $this->externalStageAndAction($fulfilment, $ready);
+        }
+
         if (! $ready->alreadyCreated) {
             [$label, $anchor] = $this->shipmentPrepAction($ready);
 
@@ -416,6 +422,72 @@ final class HardwareFulfilmentOperationalClassifier
      *
      * @return array{0: string, 1: string}
      */
+    /**
+     * @return array{0: HardwareFulfilmentOperationalStage, 1: string, 2: ?string, 3: string}
+     */
+    private function externalFulfilmentStatusLabel(HardwareFulfilment $fulfilment): string
+    {
+        return match ($fulfilment->state) {
+            HardwareFulfilmentState::ShipmentCreated => 'EXTERNAL SHIPMENT RECORDED',
+            HardwareFulfilmentState::AwbAssigned => 'EXTERNAL AWB ASSIGNED',
+            HardwareFulfilmentState::Shipped,
+            HardwareFulfilmentState::Synced => 'EXTERNAL SHIPPED',
+            default => 'EXTERNAL '.strtoupper(str_replace('_', ' ', $fulfilment->state?->value ?? 'unknown')),
+        };
+    }
+
+    private function externalStageAndAction(
+        HardwareFulfilment $fulfilment,
+        HardwareShipmentReadiness $ready,
+    ): array {
+        if (in_array($fulfilment->state, [HardwareFulfilmentState::Shipped, HardwareFulfilmentState::Synced], true)) {
+            if (! $ready->packagePhotoRecorded()) {
+                return [
+                    HardwareFulfilmentOperationalStage::Completed,
+                    'Upload Package Photo',
+                    'hardware-package-evidence',
+                    'External — Shipped',
+                ];
+            }
+
+            return [HardwareFulfilmentOperationalStage::Completed, 'Completed', null, 'External — Shipped'];
+        }
+
+        if ($ready->canRecordExternalShipment) {
+            return [
+                HardwareFulfilmentOperationalStage::ReadyForShipment,
+                'Record External Shipment',
+                'hardware-external-shipment',
+                'External — Awaiting Shipment',
+            ];
+        }
+
+        if ($ready->canExternalDispatch) {
+            return [
+                HardwareFulfilmentOperationalStage::ReadyForPickup,
+                'Mark Dispatched',
+                'hardware-external-dispatch',
+                'External — Ready to Dispatch',
+            ];
+        }
+
+        if ($ready->alreadyCreated && ! $ready->packagePhotoRecorded()) {
+            return [
+                HardwareFulfilmentOperationalStage::LabelPackingPending,
+                'Upload Package Photo',
+                'hardware-package-evidence',
+                'External — Awaiting Package Photo',
+            ];
+        }
+
+        return [
+            HardwareFulfilmentOperationalStage::ReadyForShipment,
+            'Start Shipment',
+            'hardware-external-shipment',
+            'External — Awaiting Shipment',
+        ];
+    }
+
     private function shipmentPrepAction(HardwareShipmentReadiness $ready): array
     {
         if ($ready->canAttachMeasuredParcel) {
