@@ -578,6 +578,13 @@
             @elseif($shipment->pickupStatus === 'Requested')
                 <p class="mt-3 mb-0" id="hardware-pickup-requested-status">Pickup Requested</p>
             @endif
+            @if($shipment->canReconcileCourierReassignment)
+                <form method="POST" action="{{ route('inventory.hardware-fulfilments.courier-reassignment-reconcile.store', $fulfilment) }}" id="hardware-courier-reassignment-reconcile-form" class="mt-3">
+                    @csrf
+                    <p class="text-muted small mb-2">Use when Shiprocket reassigned this shipment to a new courier or AWB in Admin. Desk will align local AWB/courier, clear the stale label, and refresh provider tracking. Regenerate the label afterward.</p>
+                    <button type="submit" class="btn btn-outline-warning" id="hardware-courier-reassignment-reconcile-submit">Reconcile Courier Reassignment</button>
+                </form>
+            @endif
             @if($shipment->canGenerateManifest)
                 <form method="POST" action="{{ route('inventory.hardware-fulfilments.manifest.store', $fulfilment) }}" id="hardware-manifest-form" class="mt-3">
                     @csrf

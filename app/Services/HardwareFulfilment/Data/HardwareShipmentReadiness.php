@@ -80,6 +80,7 @@ final class HardwareShipmentReadiness
         public readonly bool $canShipAndGenerateLabel = false,
         public readonly ?string $recommendedCourierLabel = null,
         public readonly bool $orchestrationAutoSelectEnabled = false,
+        public readonly bool $canReconcileCourierReassignment = false,
     ) {}
 
     public function packagePhotoRecorded(): bool
