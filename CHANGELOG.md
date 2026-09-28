@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.156 — 2026-09-28 — Shiprocket courier reassignment reconciliation (RBP611)
+
+- **Reconcile Courier Reassignment:** When Shiprocket Admin reassigns a bound AWB shipment to a new courier/AWB, Desk can realign local shipment state from provider search without calling assign, pickup, label, or manifest APIs.
+- **Audit trail:** Prior AWB, courier, and label URL are preserved in `shipment_events` (`source=reconcile`, `activity=awb_reassigned`); stale labels are cleared; `pickup_requested_at` is retained.
+- **Safety:** Verifies `external_shipment_id` and `external_order_id`; idempotent when already aligned; refuses when manifest exists or identity mismatches. Existing AWB bind/reconcile overwrite guards unchanged.
+- Regression: `HardwareFulfilmentP5ShipmentTest` reconcile filter (**9/9** PASS). Prompt **RadiumDesk-P-25-09-110**.
+- Rollback target: v4.0.155 / `d5ffc924`.
+
 ## 4.0.155 — 2026-09-28 — GraceExpired validation-failure shift-admin fallback
 
 - **Assignment:** When automation grace expires with serial validation failure and Support round-robin has no eligible agents, assign the configured shift-admin fallback (`ReadyQueueAdmin` / `AfterHoursSupport`) instead of leaving the case permanently unassigned.
