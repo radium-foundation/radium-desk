@@ -10,14 +10,17 @@ use App\Models\Shipment;
 use App\Models\ShipmentEvent;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwareAwbReconcileOutcome;
+use App\Services\HardwareFulfilment\Data\HardwareCourierReassignmentReconcileOutcome;
 use App\Services\Shipping\Data\ShiprocketAwbResult;
 use App\Services\Shipping\Data\ShiprocketCreateOrderResult;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
+use App\Services\Shipping\Data\ShiprocketTrackResult;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\Shipping\ShiprocketAwbAssignmentRejection;
 use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
 use App\Services\Shipping\ShiprocketRetryableException;
+use App\Services\Shipping\ShiprocketTrackingNormalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -294,6 +297,106 @@ class HardwareShipmentService
         );
     }
 
+    public function reconcileCourierReassignmentFromProviderSearch(
+        HardwareFulfilment $fulfilment,
+        ?User $actor = null,
+    ): HardwareCourierReassignmentReconcileOutcome {
+        $this->assertNotFrozen($fulfilment);
+        $this->assertProviderCallable();
+
+        try {
+            $resolved = DB::transaction(function () use ($fulfilment, $actor): array {
+                $locked = HardwareFulfilment::query()
+                    ->whereKey($fulfilment->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $this->assertNotFrozen($locked);
+
+                $shipment = $this->existingShipment($locked);
+                if ($shipment === null || ! $shipment->isBound()) {
+                    throw ValidationException::withMessages([
+                        'shipping' => 'Courier reassignment reconcile requires a created provider shipment.',
+                    ]);
+                }
+
+                if (! filled($shipment->awb)) {
+                    throw ValidationException::withMessages([
+                        'shipping' => 'Courier reassignment reconcile requires a bound AWB. Use AWB reconciliation first.',
+                    ]);
+                }
+
+                if ($locked->state !== HardwareFulfilmentState::AwbAssigned) {
+                    throw ValidationException::withMessages([
+                        'state' => 'Courier reassignment reconcile requires AWB_ASSIGNED.',
+                    ]);
+                }
+
+                if (filled($shipment->manifest_url) || filled($shipment->manifest_id)) {
+                    throw ValidationException::withMessages([
+                        'shipping' => 'Courier reassignment reconcile is not supported after a manifest has been generated.',
+                    ]);
+                }
+
+                $found = $this->searchForExisting($shipment);
+                if ($found->retryable) {
+                    throw new ShiprocketRetryableException(
+                        $found->error ?? 'Shiprocket search is retryable.',
+                    );
+                }
+
+                if (! $found->found || ! filled($found->awb)) {
+                    throw ValidationException::withMessages([
+                        'shipping' => 'Shiprocket search did not return an AWB for this shipment.',
+                    ]);
+                }
+
+                $this->assertSearchIdentity($locked, $shipment, $found);
+
+                $providerAwb = trim((string) $found->awb);
+                $providerCourierId = trim((string) ($found->courierId ?? ''));
+                $localAwb = trim((string) $shipment->awb);
+                $localCourierId = trim((string) ($shipment->courier_id ?? ''));
+
+                if ($providerAwb === $localAwb
+                    && ($providerCourierId === '' || $providerCourierId === $localCourierId)) {
+                    return [
+                        'shipment' => $shipment,
+                        'alreadyAligned' => true,
+                        'reconciled' => false,
+                    ];
+                }
+
+                if (Shipment::query()
+                    ->where('awb', $providerAwb)
+                    ->whereKeyNot($shipment->id)
+                    ->exists()) {
+                    throw ValidationException::withMessages([
+                        'shipping' => 'Shiprocket returned an AWB that is already bound to another Desk shipment.',
+                    ]);
+                }
+
+                $this->applyCourierReassignmentFromProviderSearch($locked, $shipment, $found, $actor);
+
+                return [
+                    'shipment' => $shipment->fresh() ?? $shipment,
+                    'alreadyAligned' => false,
+                    'reconciled' => true,
+                ];
+            });
+        } catch (ShiprocketRetryableException $exception) {
+            throw ValidationException::withMessages([
+                'shipping' => $exception->getMessage().' Retry courier reassignment reconcile after Shiprocket is reachable.',
+            ]);
+        }
+
+        return new HardwareCourierReassignmentReconcileOutcome(
+            shipment: $resolved['shipment'],
+            alreadyAligned: $resolved['alreadyAligned'],
+            reconciled: $resolved['reconciled'],
+        );
+    }
+
     /**
      * @param  array{courier_id: string, courier_name: string|null}  $courier
      * @return array{shipment?: Shipment, retryable?: string, rejected?: string, result?: ShiprocketAwbResult}
@@ -514,6 +617,87 @@ class HardwareShipmentService
         }
 
         return $shipment->fresh() ?? $shipment;
+    }
+
+    private function applyCourierReassignmentFromProviderSearch(
+        HardwareFulfilment $fulfilment,
+        Shipment $shipment,
+        ShiprocketSearchResult $found,
+        ?User $actor,
+    ): void {
+        $newAwb = trim((string) $found->awb);
+        if ($newAwb === '') {
+            throw ValidationException::withMessages([
+                'shipping' => 'Shiprocket search did not return an AWB for this shipment.',
+            ]);
+        }
+
+        $previousAwb = trim((string) $shipment->awb);
+        $previousCourierId = trim((string) $shipment->courier_id);
+        $previousCourierName = $shipment->courier_name;
+        $previousLabelUrl = $shipment->label_url;
+        $courierId = trim((string) ($found->courierId ?? ''));
+        $courierName = $found->courierName;
+
+        $track = $this->providerTrackForAwb($newAwb);
+        $normalized = ShiprocketTrackingNormalizer::normalize($track);
+
+        $shipment->forceFill([
+            'status' => ShipmentStatus::AwbAssigned,
+            'awb' => $newAwb,
+            'courier_id' => $courierId !== '' ? $courierId : $shipment->courier_id,
+            'courier_name' => $courierName ?? $shipment->courier_name,
+            'label_url' => null,
+            'label_fetched_at' => null,
+            'provider_track_status' => $normalized['provider_track_status'],
+            'provider_track_normalized' => $normalized['normalized']->value,
+            'provider_tracked_at' => now(),
+            'failure_class' => null,
+            'last_error' => null,
+            'last_reconciled_at' => now(),
+        ])->save();
+
+        $fulfilment->forceFill([
+            'awb' => $newAwb,
+            'provider_awb' => $newAwb,
+            'selected_courier_id' => $courierId !== '' ? $courierId : $fulfilment->selected_courier_id,
+            'selected_courier_name' => $courierName ?? $fulfilment->selected_courier_name,
+            'selected_courier_at' => now(),
+            'selected_courier_by_user_id' => $actor?->id,
+        ])->save();
+
+        ShipmentEvent::query()->create([
+            'shipment_id' => $shipment->id,
+            'source' => 'reconcile',
+            'activity' => 'awb_reassigned',
+            'awb' => $newAwb,
+            'external_order_id' => $shipment->external_order_id,
+            'external_shipment_id' => $shipment->external_shipment_id,
+            'payload' => [
+                'reason' => 'provider_courier_reassignment_reconcile',
+                'previous_awb' => $previousAwb !== '' ? $previousAwb : null,
+                'previous_courier_id' => $previousCourierId !== '' ? $previousCourierId : null,
+                'previous_courier_name' => $previousCourierName,
+                'previous_label_url' => $previousLabelUrl,
+                'reconciled_awb' => $newAwb,
+                'reconciled_courier_id' => $courierId !== '' ? $courierId : null,
+                'reconciled_courier_name' => $courierName,
+                'provider_status' => $found->status,
+                'provider_track_status' => $normalized['provider_track_status'],
+                'provider_track_normalized' => $normalized['normalized']->value,
+            ],
+        ]);
+    }
+
+    private function providerTrackForAwb(string $awb): ShiprocketTrackResult
+    {
+        try {
+            return $this->gateway->trackByAwb($awb);
+        } catch (ShiprocketRetryableException $exception) {
+            throw ValidationException::withMessages([
+                'shipping' => $exception->getMessage().' Retry courier reassignment reconcile after Shiprocket is reachable.',
+            ]);
+        }
     }
 
     private function bindAwbFromProviderSearch(

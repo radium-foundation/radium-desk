@@ -473,6 +473,12 @@ class HardwareShipmentEligibility
                 ? $recommendedName.' ('.$recommendedId.')'
                 : ($recommendedName !== '' ? $recommendedName : $recommendedId);
         }
+        $canReconcileCourierReassignment = $awbReady
+            && $notTerminal
+            && $this->providerReady()
+            && filled($shipment?->external_shipment_id)
+            && $manifestUrl === null
+            && $manifestId === null;
         $canConfirmRecommendedCourier = $notTerminal
             && $this->providerReady()
             && $parcelReadyForOrchestration
@@ -556,6 +562,7 @@ class HardwareShipmentEligibility
             canShipAndGenerateLabel: $canShipAndGenerateLabel,
             recommendedCourierLabel: $recommendedCourierLabel,
             orchestrationAutoSelectEnabled: $orchestrationAutoSelectEnabled,
+            canReconcileCourierReassignment: $canReconcileCourierReassignment,
         );
     }
 

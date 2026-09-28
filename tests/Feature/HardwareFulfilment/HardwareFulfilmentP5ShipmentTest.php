@@ -20,16 +20,16 @@ use App\Models\Shipment;
 use App\Models\ShipmentEvent;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
-use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
-use App\Services\Shipping\Data\ShiprocketSearchResult;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
 use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackOutboxWriter;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
+use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Services\Inventory\InventoryStockService;
+use App\Services\Shipping\Data\ShiprocketSearchResult;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -1029,6 +1029,124 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         $this->assertSame('Pickup Generated', $outcome->shipment->provider_track_status);
         $this->assertSame('pickup_queued', $outcome->shipment->provider_track_normalized);
         $this->assertSame(0, $this->fake->pickups);
+    }
+
+    public function test_courier_reassignment_reconcile_updates_awb_courier_and_clears_label(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE960010', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh());
+        $shipment = Shipment::query()->firstOrFail();
+        $previousAwb = (string) $assigned->awb;
+
+        app(HardwareShipmentDocumentsService::class)->generateLabel($fulfilment->fresh(['shipment']), $this->actor);
+        $this->assertNotNull($shipment->fresh()->label_url);
+
+        $this->fake->seedAwb(
+            (string) $shipment->external_shipment_id,
+            '1091403541960',
+            '10',
+            'Delhivery Air',
+        );
+        $this->fake->trackByAwbQueue = [
+            FakeShiprocketGateway::pickupGeneratedTrack('1091403541960', '10', 'Delhivery Air'),
+        ];
+
+        $searchesBefore = $this->fake->searches;
+        $outcome = $this->shipments->reconcileCourierReassignmentFromProviderSearch(
+            $fulfilment->fresh(['shipment']),
+            $this->actor,
+        );
+
+        $this->assertTrue($outcome->reconciled);
+        $this->assertFalse($outcome->alreadyAligned);
+        $this->assertSame($searchesBefore + 1, $this->fake->searches);
+        $this->assertSame(1, $this->fake->awbs);
+
+        $shipment = $shipment->fresh();
+        $this->assertSame('1091403541960', $shipment->awb);
+        $this->assertSame('10', $shipment->courier_id);
+        $this->assertSame('Delhivery Air', $shipment->courier_name);
+        $this->assertNull($shipment->label_url);
+        $this->assertNull($shipment->label_fetched_at);
+        $this->assertSame('Pickup Generated', $shipment->provider_track_status);
+        $this->assertSame('pickup_queued', $shipment->provider_track_normalized);
+
+        $freshFulfilment = $fulfilment->fresh();
+        $this->assertSame('1091403541960', $freshFulfilment->awb);
+        $this->assertSame('1091403541960', $freshFulfilment->provider_awb);
+        $this->assertSame('10', $freshFulfilment->selected_courier_id);
+        $this->assertSame('Delhivery Air', $freshFulfilment->selected_courier_name);
+
+        $event = ShipmentEvent::query()
+            ->where('shipment_id', $shipment->id)
+            ->where('source', 'reconcile')
+            ->where('activity', 'awb_reassigned')
+            ->first();
+        $this->assertNotNull($event);
+        $this->assertSame($previousAwb, $event->payload['previous_awb'] ?? null);
+        $this->assertSame('1091403541960', $event->payload['reconciled_awb'] ?? null);
+    }
+
+    public function test_courier_reassignment_reconcile_is_idempotent_when_already_aligned(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE960011', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $this->shipments->assignAwb($fulfilment->fresh());
+        $shipment = Shipment::query()->firstOrFail();
+
+        $this->fake->seedAwb(
+            (string) $shipment->external_shipment_id,
+            (string) $shipment->awb,
+            (string) $shipment->courier_id,
+            (string) $shipment->courier_name,
+        );
+
+        $outcome = $this->shipments->reconcileCourierReassignmentFromProviderSearch(
+            $fulfilment->fresh(['shipment']),
+            $this->actor,
+        );
+
+        $this->assertTrue($outcome->alreadyAligned);
+        $this->assertFalse($outcome->reconciled);
+        $this->assertSame(
+            0,
+            ShipmentEvent::query()
+                ->where('shipment_id', $shipment->id)
+                ->where('activity', 'awb_reassigned')
+                ->count(),
+        );
+    }
+
+    public function test_courier_reassignment_reconcile_refuses_when_manifest_exists(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE960012', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $this->shipments->assignAwb($fulfilment->fresh());
+        $shipment = Shipment::query()->firstOrFail();
+        $shipment->forceFill([
+            'manifest_url' => 'https://provider.test/manifests/RDE960012.pdf',
+        ])->save();
+
+        $this->fake->seedAwb(
+            (string) $shipment->external_shipment_id,
+            '1091403541961',
+            '10',
+            'Delhivery Air',
+        );
+
+        try {
+            $this->shipments->reconcileCourierReassignmentFromProviderSearch(
+                $fulfilment->fresh(['shipment']),
+                $this->actor,
+            );
+            $this->fail('Manifested shipments must not be courier-reassignment reconciled.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                'manifest',
+                strtolower(implode(' ', $exception->errors()['shipping'] ?? [])),
+            );
+        }
     }
 
     public function test_frozen_pending_orders_are_not_shipped(): void
