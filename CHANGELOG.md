@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.154 — 2026-09-28 — RadiumBox hardware SKU mapping (RBP556 AST300 L1)
+
+- Add Owner-approved radiumbox.com `channel_sku_maps` seed configuration for `model_id` **1412** (`PAAST300L1` → `RBAST300L1`).
+- Resolves **Product mapping required** for hardware fulfilment order RBP556 and other Box orders carrying AST300 L1 `model_id` 1412.
+- Production requires `php artisan desk:seed-radiumbox-hardware-sku-maps --apply` after deploy (separate Owner gate).
+- Regression: `SeedRadiumboxHardwareSkuMapsCommandTest`, `RadiumboxHardwareSkuMapResolutionTest` (**12/12** PASS). Prompt **RadiumDesk-P-25-09-104**.
+- Rollback target: v4.0.153 / `cca1a6e2`.
+
 ## 4.0.153 — 2026-09-28 — Central Wallet M2 account-link confirm API (inert; flags OFF)
 
 - **M2 Desk confirm endpoint:** `POST /api/central-wallet/v1/account-links/{link_id}/confirm` binds Box-verified OTP ceremony to Desk-authoritative account-link confirmation.

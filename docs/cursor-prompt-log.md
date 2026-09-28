@@ -304,3 +304,7 @@ Do not renumber or overwrite earlier rows. Append only.
 ## RadiumDesk-P-25-09-104
 
 Fix RBP556 AST300 hardware product mapping (`model_id` 1412 → `RBAST300L1`). Companion `radiumbox.com-P-28-09-29`. Config seed + `RadiumboxHardwareSkuMapResolutionTest` / `SeedRadiumboxHardwareSkuMapsCommandTest` regression (**12/12** PASS). Pint PASS. **Not deployed. Production `desk:seed-radiumbox-hardware-sku-maps --apply` not run.**
+
+## RadiumDesk-P-25-09-105
+
+Release/deploy v4.0.154 AST300 hardware SKU mapping. See completion report.
