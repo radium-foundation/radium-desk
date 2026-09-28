@@ -5,6 +5,8 @@ namespace App\CentralWallet\Infrastructure\Http\Controllers;
 use App\CentralWallet\Application\AccountLinkService;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Domain\Cwid;
+use App\CentralWallet\Domain\Enums\AccountLinkStatus;
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -103,5 +105,100 @@ final class AccountLinkController
                 'linked_at' => $link->linked_at?->toIso8601String(),
             ],
         ]);
+    }
+
+    public function confirm(Request $request, int $linkId): JsonResponse
+    {
+        $validated = $request->validate([
+            'idempotency_key' => ['required', 'string', 'max:128'],
+            'verification_method' => ['required', 'string', 'max:64'],
+            'actor_id' => ['required', 'string', 'max:128'],
+        ]);
+
+        $callerSite = trim((string) $request->header('X-Site-Code', ''));
+        if ($callerSite === '') {
+            $callerSite = (string) $request->attributes->get('central_wallet_caller_id');
+        }
+
+        $link = $this->accountLinks->findByIdForSite($linkId, $callerSite);
+        if ($link === null) {
+            return response()->json([
+                'error' => 'not_found',
+                'message' => 'Account link not found for caller site.',
+            ], 404);
+        }
+
+        $callerId = (string) $request->attributes->get('central_wallet_caller_id');
+        $correlationId = (string) $request->attributes->get('central_wallet_correlation_id');
+        $requestHash = hash('sha256', json_encode(array_merge($validated, ['link_id' => $linkId]), JSON_THROW_ON_ERROR));
+
+        $result = $this->idempotency->execute(
+            $callerId,
+            $validated['idempotency_key'],
+            $requestHash,
+            function () use ($link, $validated, $correlationId): array {
+                if ($link->status === AccountLinkStatus::Active) {
+                    return [
+                        'status' => 200,
+                        'body' => $this->serializeLink($link->fresh()),
+                        'resource_type' => 'account_link',
+                        'resource_id' => (string) $link->id,
+                    ];
+                }
+
+                if ($link->status === AccountLinkStatus::Revoked) {
+                    return [
+                        'status' => 409,
+                        'body' => ['error' => 'link_revoked', 'message' => 'Revoked links cannot be confirmed.'],
+                    ];
+                }
+
+                if ($link->status !== AccountLinkStatus::PendingVerification) {
+                    return [
+                        'status' => 409,
+                        'body' => ['error' => 'invalid_link_state', 'message' => 'Only pending links can be confirmed.'],
+                    ];
+                }
+
+                try {
+                    $confirmed = $this->accountLinks->confirmLink(
+                        $link,
+                        $validated['verification_method'],
+                        $validated['actor_id'],
+                        $correlationId,
+                    );
+                } catch (RuntimeException $exception) {
+                    return [
+                        'status' => 409,
+                        'body' => ['error' => 'link_conflict', 'message' => $exception->getMessage()],
+                    ];
+                }
+
+                return [
+                    'status' => 200,
+                    'body' => $this->serializeLink($confirmed),
+                    'resource_type' => 'account_link',
+                    'resource_id' => (string) $confirmed->id,
+                ];
+            },
+        );
+
+        return response()->json($result['body'], $result['status']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeLink(CentralWalletAccountLink $link): array
+    {
+        return [
+            'link_id' => $link->id,
+            'central_wallet_id' => $link->central_wallet_id,
+            'site_code' => $link->site_code,
+            'local_user_id' => $link->local_user_id,
+            'status' => $link->status->value,
+            'verification_method' => $link->verification_method,
+            'linked_at' => $link->linked_at?->toIso8601String(),
+        ];
     }
 }

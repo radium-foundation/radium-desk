@@ -259,6 +259,106 @@ class CentralWalletApiTest extends TestCase
         $this->assertGreaterThan(0, CentralWalletAuditEvent::query()->where('event_type', 'wallet.created')->count());
     }
 
+    public function test_confirm_pending_account_link_activates_link_for_caller_site(): void
+    {
+        $cwid = $this->createWallet();
+
+        $create = $this->authenticatedAs('radiumbox.com')->postJson('/api/central-wallet/v1/account-links', [
+            'idempotency_key' => 'link-confirm-1',
+            'central_wallet_id' => $cwid,
+            'site_code' => 'radiumbox.com',
+            'local_user_id' => '501',
+            'created_by' => 'service:radiumbox',
+            'verification_method' => 'm2_dual_otp',
+        ])->assertCreated();
+
+        $linkId = (int) $create->json('link_id');
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/confirm", [
+            'idempotency_key' => 'confirm-1',
+            'verification_method' => 'm2_dual_otp',
+            'actor_id' => 'customer:501',
+        ])
+            ->assertOk()
+            ->assertJsonPath('status', AccountLinkStatus::Active->value)
+            ->assertJsonPath('verification_method', 'm2_dual_otp');
+
+        $this->authenticatedAs('radiumbox.com')->getJson('/api/central-wallet/v1/account-links?site_code=radiumbox.com&local_user_id=501')
+            ->assertOk()
+            ->assertJsonPath('link.central_wallet_id', $cwid)
+            ->assertJsonPath('link.status', AccountLinkStatus::Active->value);
+    }
+
+    public function test_confirm_is_idempotent_for_active_link(): void
+    {
+        $cwid = $this->createWallet();
+        $linkId = $this->createPendingLink('radiumbox.com', '502', $cwid);
+
+        $payload = [
+            'idempotency_key' => 'confirm-idem',
+            'verification_method' => 'm2_dual_otp',
+            'actor_id' => 'customer:502',
+        ];
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/confirm", $payload)
+            ->assertOk();
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/confirm", $payload)
+            ->assertOk()
+            ->assertJsonPath('status', AccountLinkStatus::Active->value);
+    }
+
+    public function test_confirm_rejects_cross_site_link(): void
+    {
+        $cwid = $this->createWallet();
+        $linkId = $this->createPendingLink('radiumbox.com', '503', $cwid);
+
+        $this->authenticatedAs('rdservice.in')->postJson("/api/central-wallet/v1/account-links/{$linkId}/confirm", [
+            'idempotency_key' => 'confirm-cross',
+            'verification_method' => 'm2_dual_otp',
+            'actor_id' => 'customer:503',
+        ])->assertNotFound();
+    }
+
+    public function test_confirm_rejects_revoked_link(): void
+    {
+        $cwid = $this->createWallet();
+        $linkId = $this->createPendingLink('radiumbox.com', '504', $cwid);
+
+        DB::table('central_wallet_account_links')->where('id', $linkId)->update([
+            'status' => AccountLinkStatus::Revoked->value,
+            'revoked_at' => now(),
+        ]);
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/confirm", [
+            'idempotency_key' => 'confirm-revoked',
+            'verification_method' => 'm2_dual_otp',
+            'actor_id' => 'customer:504',
+        ])->assertStatus(409)
+            ->assertJsonPath('error', 'link_revoked');
+    }
+
+    private function createPendingLink(string $siteCode, string $localUserId, string $cwid): int
+    {
+        $response = $this->authenticatedAs($siteCode)->postJson('/api/central-wallet/v1/account-links', [
+            'idempotency_key' => 'link-'.uniqid('', true),
+            'central_wallet_id' => $cwid,
+            'site_code' => $siteCode,
+            'local_user_id' => $localUserId,
+            'created_by' => 'service:test',
+        ])->assertCreated();
+
+        return (int) $response->json('link_id');
+    }
+
+    private function authenticatedAs(string $siteCode): self
+    {
+        return $this->withHeaders([
+            'Authorization' => 'Bearer '.self::TOKEN,
+            'X-Site-Code' => $siteCode,
+        ]);
+    }
+
     private function createWallet(): string
     {
         $response = $this->authenticated()->postJson('/api/central-wallet/v1/wallets', [
