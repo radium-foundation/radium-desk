@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.152 — 2026-09-28 — Central Wallet Phase 1 foundation (inert; flags OFF)
+
+- **Central Wallet hub (Desk):** Phase 1 foundation module under `app/CentralWallet/` — UUID v4 CWID, account links, append-only ledger, 90-day idempotency, audit events, reconciliation scaffold, and integration API v1 routes.
+- **Desk-R4.a read API:** Read-only `GET` ledger query endpoints with caller isolation (`source_system === X-Site-Code`), keyset pagination, and filters for RadiumBox shadow reconciliation.
+- **Feature flags OFF by default:** `CENTRAL_WALLET_ENABLED`, `CENTRAL_WALLET_API_ENABLED`, and `CENTRAL_WALLET_RECONCILIATION_ENABLED` default to `false`. API middleware is fail-closed (503) while disabled; scheduled reconciliation and idempotency purge jobs are gated off.
+- **No activation in this release:** No wallet balance migration, account auto-linking, shadow projection, reconciliation runs, spoke checkout wiring, or customer-visible Central Wallet behavior.
+- **Migrations (additive):** `central_wallet_*` foundation tables (7 tables) + ledger read indexes. **Not production-run in this release gate.**
+- **Preserved:** Existing `users_wallet` ledger, Desk wallet refund credit/reversal, idempotency, authentication, rd-orders, and Cashfree-only checkout behavior unchanged.
+- Regression: Central Wallet **47/47**, R4.a read API **13/13**, wallet/refund regression **48/48** (`--filter=WalletRefund`) PASS; Pint + `npm run build` PASS.
+- Rollback target: v4.0.151 / `7d565746`.
+- Prompt **RadiumDesk-P-25-09-97** (merge + release-prep gate).
+
 ## 4.0.151 — 2026-09-27 — Full refund statutory adjustment (feature-flagged OFF)
 
 - **Post-refund statutory adjustment (v1):** On `RefundCompleted`, enqueue asynchronous statutory adjustment for **completed full refunds only** via `refund_statutory_adjustments` + outbox → `RefundStatutoryAdjustmentService` → existing `StatutoryInvoiceCancellationOrchestrator`.
