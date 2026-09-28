@@ -1,6 +1,7 @@
 <?php
 
 use App\Providers\AppServiceProvider;
+use App\Providers\CentralWalletServiceProvider;
 use App\Providers\ExecutiveMetricsServiceProvider;
 use App\Providers\InfrastructureServiceProvider;
 use App\Providers\PlatformDashboardServiceProvider;
@@ -10,4 +11,5 @@ return [
     InfrastructureServiceProvider::class,
     ExecutiveMetricsServiceProvider::class,
     PlatformDashboardServiceProvider::class,
+    CentralWalletServiceProvider::class,
 ];

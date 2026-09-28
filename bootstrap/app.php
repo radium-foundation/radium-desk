@@ -1,5 +1,10 @@
 <?php
 
+use App\CentralWallet\Infrastructure\Http\Middleware\AssignCentralWalletCorrelationId;
+use App\CentralWallet\Infrastructure\Http\Middleware\AuthenticateCentralWalletIntegration;
+use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletApiEnabled;
+use App\CentralWallet\Infrastructure\Jobs\PurgeExpiredIdempotencyRecordsJob;
+use App\CentralWallet\Infrastructure\Jobs\ReconciliationDailyJob;
 use App\Enums\QueueWorkerMode;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\TrackTeamMemberActivity;
@@ -30,6 +35,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
+            'central_wallet.enabled' => EnsureCentralWalletApiEnabled::class,
+            'central_wallet.auth' => AuthenticateCentralWalletIntegration::class,
+            'central_wallet.correlation' => AssignCentralWalletCorrelationId::class,
         ]);
 
         $middleware->appendToGroup('web', TrackTeamMemberActivity::class);
@@ -273,6 +281,18 @@ return Application::configure(basePath: dirname(__DIR__))
             ->dailyAt('03:30')
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ca-monthly-report-prune-exports.log'));
+
+        $schedule->job(new ReconciliationDailyJob)
+            ->dailyAt((string) config('central_wallet.reconciliation.daily_schedule', '02:30'))
+            ->when(fn (): bool => (bool) config('central_wallet.reconciliation.enabled', false))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/central-wallet-reconciliation.log'));
+
+        $schedule->job(new PurgeExpiredIdempotencyRecordsJob)
+            ->dailyAt('03:00')
+            ->when(fn (): bool => (bool) config('central_wallet.enabled', false))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/central-wallet-idempotency-purge.log'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
