@@ -6,6 +6,7 @@ use App\CentralWallet\Application\AccountLinkService;
 use App\CentralWallet\Application\AuditEventRecorder;
 use App\CentralWallet\Application\CentralWalletService;
 use App\CentralWallet\Application\IdempotencyService;
+use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
 use Illuminate\Support\Facades\Route;
@@ -21,6 +22,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CentralWalletService::class);
         $this->app->singleton(AccountLinkService::class);
         $this->app->singleton(LedgerService::class);
+        $this->app->singleton(LedgerEntryReadService::class);
     }
 
     public function boot(): void

@@ -291,3 +291,6 @@ Do not renumber or overwrite earlier rows. Append only.
 | RadiumDesk-P-25-09-87 | 2026-09-28 | Implement Central Wallet Phase 1 foundation | Desk module, migrations, API v1, tests. Flags default OFF. Not committed. |
 | RadiumDesk-P-25-09-88 | 2026-09-28 | Phase 1 review — idempotency replay + security | Full replay body, race-safe placeholder insert, security/idempotency tests. Not committed. |
 | RadiumDesk-P-25-09-89 | 2026-09-28 | Phase 1 pre-commit gate + commit | Final validation and single Phase 1 foundation commit. Not pushed. |
+| RadiumDesk-P-25-09-90 | 2026-09-28 | Push Phase 1 foundation commit | Push `23e270aa` to origin. No deploy/production. |
+| RadiumDesk-P-25-09-91 | 2026-09-28 | Desk-R4.a — Read-only ledger query API design | Resolves RadiumBox R4 dependency @ `23e270aa`. Proposes `GET /ledger-entries/{id}`, wallet-scoped list, caller-scoped collection; `source_system === caller_id` isolation; keyset pagination; index recommendations; snapshot comparison. **No code/migration/prod/commit/push.** |
+| RadiumDesk-P-25-09-92 | 2026-09-28 | Desk-R4.a — Implement read-only ledger API | Three `GET` endpoints, caller-scoped queries, keyset pagination, filters, index migration created (not production). 13 read tests + 47 CW + 69 wallet refund + Pint PASS. Committed locally; not pushed. |

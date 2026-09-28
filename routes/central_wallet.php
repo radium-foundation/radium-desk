@@ -2,6 +2,7 @@
 
 use App\CentralWallet\Infrastructure\Http\Controllers\AccountLinkController;
 use App\CentralWallet\Infrastructure\Http\Controllers\HealthController;
+use App\CentralWallet\Infrastructure\Http\Controllers\LedgerEntryController;
 use App\CentralWallet\Infrastructure\Http\Controllers\ReservationController;
 use App\CentralWallet\Infrastructure\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
@@ -13,6 +14,14 @@ Route::get('/wallets/{cwid}', [WalletController::class, 'show'])->name('central-
 Route::get('/wallets/{cwid}/balance', [WalletController::class, 'balance'])->name('central-wallet.wallets.balance');
 Route::post('/wallets/{cwid}/ledger-entries', [WalletController::class, 'appendLedgerEntry'])
     ->name('central-wallet.wallets.ledger-entries.store');
+Route::get('/wallets/{cwid}/ledger-entries', [LedgerEntryController::class, 'indexForWallet'])
+    ->name('central-wallet.wallets.ledger-entries.index');
+
+Route::get('/ledger-entries', [LedgerEntryController::class, 'index'])
+    ->name('central-wallet.ledger-entries.index');
+Route::get('/ledger-entries/{ledger_entry_id}', [LedgerEntryController::class, 'show'])
+    ->whereNumber('ledger_entry_id')
+    ->name('central-wallet.ledger-entries.show');
 
 Route::post('/account-links', [AccountLinkController::class, 'store'])->name('central-wallet.account-links.store');
 Route::get('/account-links', [AccountLinkController::class, 'index'])->name('central-wallet.account-links.index');
