@@ -312,3 +312,9 @@ Release/deploy v4.0.154 AST300 hardware SKU mapping. See completion report.
 ## RadiumDesk-P-25-09-107
 
 Release/deploy v4.0.155 GraceExpired validation-failure shift-admin fallback. Owner-authorized KVM deploy gate. Prompt **RadiumDesk-P-25-09-106** implementation.
+
+---
+
+## RadiumDesk-P-25-09-116
+
+Prepare Central Wallet ceremony complete API release v4.0.158 (source only). Cherry-picked `97e9be5a` + `7726c40e` onto production `c7ec5c5e`; excludes automation hotfix `584aa06c`. Tag `v4.0.158` on `release/central-wallet-ceremony-v4.0.158`. CeremonyCompleteTest **19/19** + CW/wallet-refund regression **73/73** PASS; Pint PASS. **Not deployed.**
