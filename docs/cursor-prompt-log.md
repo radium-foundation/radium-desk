@@ -332,3 +332,7 @@ Prepare Central Wallet ceremony complete API release v4.0.158 (source only). Che
 ## RadiumDesk-P-25-09-122
 
 Merge Central Wallet ceremony release to main as **v4.0.159**. Merge `release/central-wallet-ceremony-v4.0.158` into `main`; tag `v4.0.159` on main HEAD. Preserves `v4.0.158` @ `8ebabab1`. **Pushed; not deployed.**
+
+## RadiumDesk-P-25-09-124
+
+Release v4.0.160: Central Wallet ceremony migration MariaDB compatibility fix (`5bc574c3`). Idempotent STORED generated-column partial unique indexes for MariaDB 11.8.8; resumes partial production state from failed v4.0.159 deploy. **Push + tag only — no deploy/production migration/signing secret/OTP/CWID.**

@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.160 — 2026-09-29 — Central Wallet ceremony migration MariaDB compatibility fix
+
+- **Migration fix:** `2026_09_28_150000_create_central_wallet_ceremony_tables` now uses idempotent table/index creation and MariaDB-compatible STORED generated columns for partial unique active-link constraints (replaces unsupported functional `IF()` unique indexes that failed on MariaDB 11.8.8).
+- **Production resume:** Safe to re-run on partial state where ceremony tables already exist but migration remained Pending after v4.0.159 deploy attempt.
+- **Invariants preserved:** One active account link per `(site_code, local_user_id)` and per `(site_code, central_wallet_id)`; multiple inactive links permitted.
+- **Unchanged:** Ceremony complete API, M2 confirm, ledger, wallet refund, and already-applied `2026_09_28_120000_add_hardware_external_shipping` migration.
+- Regression: `CentralWalletCeremonyMigrationTest` (**6/6**), `CentralWalletCeremonyCompleteTest`, Central Wallet API/ledger, and `WalletRefundExecutionTest` (**79/79** PASS). Prompt **RadiumDesk-P-25-09-124**.
+- Rollback target: v4.0.156 / `c7ec5c5e` (pre-ceremony production baseline).
+
 ## 4.0.159 — 2026-09-29 — Central Wallet ceremony complete API on mainline
 
 - **Mainline integration:** Merge `release/central-wallet-ceremony-v4.0.158` (reviewed @ `8ebabab1` / tag `v4.0.158`) into `main` for deploy-ready Central Wallet automatic linking.
