@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.159 — 2026-09-29 — Central Wallet ceremony complete API on mainline
+
+- **Mainline integration:** Merge `release/central-wallet-ceremony-v4.0.158` (reviewed @ `8ebabab1` / tag `v4.0.158`) into `main` for deploy-ready Central Wallet automatic linking.
+- **Ceremony complete endpoint:** `POST /api/central-wallet/v1/ceremony/complete` atomically validates Box-signed ceremony proof, resolves or creates CWID by `(site_code, local_user_id)`, and creates an active account link in one transaction.
+- **Proof validation:** Per-site HMAC-SHA256 ceremony verification ref with 5-minute TTL, single-use JTI consumption, and `verified_phone_e164_hash` as evidence only (not identity).
+- **Identity model:** Ceremony identity keyed by site-local account (`site_code` + `local_user_id`); phone hash is verification evidence, not the primary identity key.
+- **Migration:** `2026_09_28_150000_create_central_wallet_ceremony_tables` adds `central_wallet_ceremony_identities` and `central_wallet_ceremony_proof_consumptions` (additive; no changes to existing CW tables).
+- **Config support:** `CENTRAL_WALLET_CEREMONY_SIGNING_SECRET_RADIUMBOX_COM` and `CENTRAL_WALLET_CEREMONY_SIGNING_SECRET_RDSERVICE_IN` (env-only; not provisioned in this release).
+- **Preserved:** Existing M2 confirm API, ledger read/write APIs, wallet refund orchestration, and unrelated Desk functionality unchanged.
+- Regression: `CentralWalletCeremonyCompleteTest` (**19/19** PASS) plus Central Wallet, wallet refund, and ledger regression suites. Prompt **RadiumDesk-P-25-09-122**.
+- Rollback target: v4.0.156 / `c7ec5c5e`.
+
 ## 4.0.158 — 2026-09-29 — Central Wallet ceremony complete API (automatic linking)
 
 - **Ceremony complete endpoint:** `POST /api/central-wallet/v1/ceremony/complete` atomically validates Box-signed ceremony proof, resolves or creates CWID by `(site_code, local_user_id)`, and creates an active account link in one transaction.

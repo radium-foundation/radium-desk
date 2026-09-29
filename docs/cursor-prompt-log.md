@@ -326,3 +326,9 @@ Release/deploy v4.0.155 GraceExpired validation-failure shift-admin fallback. Ow
 ## RadiumDesk-P-25-09-116
 
 Prepare Central Wallet ceremony complete API release v4.0.158 (source only). Cherry-picked `97e9be5a` + `7726c40e` onto production `c7ec5c5e`; excludes automation hotfix `584aa06c`. Tag `v4.0.158` on `release/central-wallet-ceremony-v4.0.158`. CeremonyCompleteTest **19/19** + CW/wallet-refund regression **73/73** PASS; Pint PASS. **Not deployed.**
+
+---
+
+## RadiumDesk-P-25-09-122
+
+Merge Central Wallet ceremony release to main as **v4.0.159**. Merge `release/central-wallet-ceremony-v4.0.158` into `main`; tag `v4.0.159` on main HEAD. Preserves `v4.0.158` @ `8ebabab1`. **Pushed; not deployed.**
