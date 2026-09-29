@@ -23,6 +23,8 @@ class CentralWalletCeremonyMigrationTest extends TestCase
 
     public function test_migration_completes_from_partial_production_state(): void
     {
+        $this->simulatePartialProductionAccountLinkIndexes();
+
         Schema::dropIfExists('central_wallet_ceremony_proof_consumptions');
         Schema::dropIfExists('central_wallet_ceremony_identities');
         DB::table('migrations')->where('migration', '2026_09_28_150000_create_central_wallet_ceremony_tables')->delete();
@@ -55,6 +57,47 @@ class CentralWalletCeremonyMigrationTest extends TestCase
 
         $this->assertTrue($this->indexExists('central_wallet_account_links', 'cw_account_links_site_user_active_uq'));
         $this->assertTrue($this->indexExists('central_wallet_account_links', 'cw_account_links_site_wallet_active_uq'));
+
+        $driver = Schema::getConnection()->getDriverName();
+        if (in_array($driver, ['mysql', 'mariadb'], true)) {
+            $this->assertTrue(Schema::hasColumn('central_wallet_account_links', 'active_site_user_uniq_key'));
+            $this->assertTrue(Schema::hasColumn('central_wallet_account_links', 'active_site_wallet_uniq_key'));
+        }
+    }
+
+    public function test_different_site_codes_remain_independent_for_active_links(): void
+    {
+        $wallet = (string) Str::uuid();
+
+        DB::table('central_wallets')->insert([
+            'id' => $wallet,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('central_wallet_account_links')->insert([
+            [
+                'central_wallet_id' => $wallet,
+                'site_code' => 'radiumbox.com',
+                'local_user_id' => '42',
+                'status' => 'active',
+                'created_by' => 'test',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'central_wallet_id' => $wallet,
+                'site_code' => 'other.site',
+                'local_user_id' => '42',
+                'status' => 'active',
+                'created_by' => 'test',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->assertSame(2, DB::table('central_wallet_account_links')->where('status', 'active')->count());
     }
 
     public function test_only_one_active_link_per_site_and_local_user_is_enforced(): void
@@ -178,6 +221,41 @@ class CentralWalletCeremonyMigrationTest extends TestCase
         $this->assertFalse(Schema::hasTable('central_wallet_ceremony_identities'));
         $this->assertFalse(Schema::hasTable('central_wallet_ceremony_proof_consumptions'));
         $this->assertFalse($this->indexExists('central_wallet_account_links', 'cw_account_links_site_user_active_uq'));
+        $this->assertFalse($this->indexExists('central_wallet_account_links', 'cw_account_links_site_wallet_active_uq'));
+    }
+
+    private function simulatePartialProductionAccountLinkIndexes(): void
+    {
+        $driver = Schema::getConnection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            if ($this->indexExists('central_wallet_account_links', 'cw_account_links_site_wallet_active_uq')) {
+                DB::statement('DROP INDEX cw_account_links_site_wallet_active_uq');
+            }
+
+            $this->assertTrue($this->indexExists('central_wallet_account_links', 'cw_account_links_site_user_active_uq'));
+            $this->assertFalse($this->indexExists('central_wallet_account_links', 'cw_account_links_site_wallet_active_uq'));
+
+            return;
+        }
+
+        if (! in_array($driver, ['mysql', 'mariadb'], true)) {
+            return;
+        }
+
+        if ($this->indexExists('central_wallet_account_links', 'cw_account_links_site_wallet_active_uq')) {
+            DB::statement('DROP INDEX cw_account_links_site_wallet_active_uq ON central_wallet_account_links');
+        }
+
+        if (Schema::hasColumn('central_wallet_account_links', 'active_site_wallet_uniq_key')) {
+            Schema::table('central_wallet_account_links', function ($table): void {
+                $table->dropColumn('active_site_wallet_uniq_key');
+            });
+        }
+
+        $this->assertTrue(Schema::hasColumn('central_wallet_account_links', 'active_site_user_uniq_key'));
+        $this->assertTrue($this->indexExists('central_wallet_account_links', 'cw_account_links_site_user_active_uq'));
+        $this->assertFalse(Schema::hasColumn('central_wallet_account_links', 'active_site_wallet_uniq_key'));
         $this->assertFalse($this->indexExists('central_wallet_account_links', 'cw_account_links_site_wallet_active_uq'));
     }
 

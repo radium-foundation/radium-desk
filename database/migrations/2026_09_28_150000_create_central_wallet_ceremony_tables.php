@@ -131,7 +131,7 @@ return new class extends Migration
                 "ALTER TABLE central_wallet_account_links
                     ADD COLUMN active_site_wallet_uniq_key VARCHAR(200)
                     GENERATED ALWAYS AS (
-                        CASE WHEN status = 'active' THEN CONCAT(site_code, CHAR(1), central_wallet_id) ELSE NULL END
+                        CASE WHEN status = 'active' THEN CONCAT(site_code, CHAR(1), RTRIM(central_wallet_id)) ELSE NULL END
                     ) STORED"
             );
         }
