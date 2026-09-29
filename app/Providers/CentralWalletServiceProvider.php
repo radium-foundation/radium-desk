@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\CentralWallet\Application\AccountLinkService;
 use App\CentralWallet\Application\AuditEventRecorder;
 use App\CentralWallet\Application\CentralWalletService;
+use App\CentralWallet\Application\CeremonyCompleteService;
+use App\CentralWallet\Application\CeremonyVerificationProofValidator;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
@@ -21,6 +23,8 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(IdempotencyService::class);
         $this->app->singleton(CentralWalletService::class);
         $this->app->singleton(AccountLinkService::class);
+        $this->app->singleton(CeremonyVerificationProofValidator::class);
+        $this->app->singleton(CeremonyCompleteService::class);
         $this->app->singleton(LedgerService::class);
         $this->app->singleton(LedgerEntryReadService::class);
     }

@@ -71,6 +71,61 @@ final class AccountLinkService
         });
     }
 
+    public function createConfirmedLink(
+        string $centralWalletId,
+        string $siteCode,
+        string $localUserId,
+        string $createdBy,
+        string $verificationMethod,
+        string $actorId,
+        ?string $correlationId = null,
+    ): CentralWalletAccountLink {
+        $this->guardIdentityFields($siteCode, $localUserId, []);
+
+        Cwid::fromString($centralWalletId);
+
+        return DB::transaction(function () use (
+            $centralWalletId,
+            $siteCode,
+            $localUserId,
+            $createdBy,
+            $verificationMethod,
+            $actorId,
+            $correlationId,
+        ): CentralWalletAccountLink {
+            $this->assertNoActiveLink($siteCode, $localUserId);
+            $this->assertNoActiveSiteLinkForWallet($centralWalletId, $siteCode);
+
+            $link = CentralWalletAccountLink::query()->create([
+                'central_wallet_id' => $centralWalletId,
+                'site_code' => $siteCode,
+                'local_user_id' => $localUserId,
+                'status' => AccountLinkStatus::Active,
+                'verification_method' => $verificationMethod,
+                'created_by' => $createdBy,
+                'linked_at' => now(),
+                'metadata' => [],
+            ]);
+
+            $this->auditEvents->record(
+                eventType: 'link.confirmed',
+                centralWalletId: $centralWalletId,
+                actorType: AuditActorType::Customer,
+                actorId: $actorId,
+                correlationId: $correlationId,
+                payload: [
+                    'site_code' => $siteCode,
+                    'local_user_id' => $localUserId,
+                    'link_id' => $link->id,
+                    'verification_method' => $verificationMethod,
+                    'via' => 'ceremony_complete',
+                ],
+            );
+
+            return $link->fresh();
+        });
+    }
+
     public function confirmLink(
         CentralWalletAccountLink $link,
         string $verificationMethod,

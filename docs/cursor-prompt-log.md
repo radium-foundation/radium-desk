@@ -320,3 +320,9 @@ Release/deploy v4.0.155 GraceExpired validation-failure shift-admin fallback. Ow
 | RadiumDesk-P-25-09-112 | 2026-09-28 | Final review + targeted fixes: External / Manual Courier | Pre-merge review on `feature/external-courier-shipping`. Fixes: show-page Other courier toggle, external classifier status labels, `external_method_selected` audit before shipment. RBP552 acceptance extended. P5 `test_shipment_is_blocked_before_invoice` pre-existing on base. **No merge/deploy.** |
 | RadiumDesk-P-25-09-113 | 2026-09-28 | Browser smoke + merge prep: External / Manual Courier | Local smoke on fulfilment show page (Other courier toggle). Fixes: show-page `$ready` partial pass, action-dialog external shipment actions. Tests re-run. **No merge/deploy/production mutation.** |
 | RadiumDesk-P-25-09-114 | 2026-09-28 | Merge external/manual courier shipping to main | Merge `feature/external-courier-shipping` @ `53adbb4a` into `main` @ `c7ec5c5e`. ExternalShipmentTest 10/10, classifier 26/26, Pint PASS. P5 pre-existing failure unchanged. **No tag/deploy/production/Shiprocket mutation.** |
+
+---
+
+## RadiumDesk-P-25-09-116
+
+Prepare Central Wallet ceremony complete API release v4.0.158 (source only). Cherry-picked `97e9be5a` + `7726c40e` onto production `c7ec5c5e`; excludes automation hotfix `584aa06c`. Tag `v4.0.158` on `release/central-wallet-ceremony-v4.0.158`. CeremonyCompleteTest **19/19** + CW/wallet-refund regression **73/73** PASS; Pint PASS. **Not deployed.**
