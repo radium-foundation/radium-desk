@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.161 — 2026-09-29 — Central Wallet ceremony wallet uniqueness MariaDB 11.8.8 fix
+
+- **Migration fix:** `active_site_wallet_uniq_key` STORED generated column now wraps `central_wallet_id` with `RTRIM()` so MariaDB 11.8.8 accepts the wallet active-link uniqueness index (`CHAR(36)` in `CONCAT()` previously failed with error 1901).
+- **Production resume:** Idempotent against current partial state where `active_site_user_uniq_key` and `cw_account_links_site_user_active_uq` already exist but wallet column/index are absent after the failed v4.0.160 deploy attempt.
+- **Invariants preserved:** One active account link per `(site_code, local_user_id)` and per `(site_code, central_wallet_id)`; multiple inactive links permitted; different site codes remain independent.
+- **Unchanged:** Ceremony complete API, M2 confirm, ledger, wallet refund, hardware shipping migration, and existing site-user generated column/index.
+- Regression: `CentralWalletCeremonyMigrationTest` (**8/8**), `CentralWalletCeremonyMariaDbMigrationTest` (**5/5** on MariaDB 11.8.8), full Central Wallet regression (**85/85** PASS). Prompt **RadiumDesk-P-25-09-127**.
+- Rollback target: v4.0.160 / `c0057afc`.
+
 ## 4.0.160 — 2026-09-29 — Central Wallet ceremony migration MariaDB compatibility fix
 
 - **Migration fix:** `2026_09_28_150000_create_central_wallet_ceremony_tables` now uses idempotent table/index creation and MariaDB-compatible STORED generated columns for partial unique active-link constraints (replaces unsupported functional `IF()` unique indexes that failed on MariaDB 11.8.8).
