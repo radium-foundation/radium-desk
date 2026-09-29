@@ -12,8 +12,9 @@ return new class extends Migration
         Schema::create('central_wallet_ceremony_identities', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('site_code', 64);
-            $table->char('phone_e164_hash', 64);
+            $table->string('local_user_id', 64);
             $table->uuid('central_wallet_id')->nullable();
+            $table->char('verified_phone_e164_hash', 64);
             $table->timestamp('first_verified_at');
             $table->timestamps();
 
@@ -22,7 +23,7 @@ return new class extends Migration
                 ->on('central_wallets')
                 ->nullOnDelete();
 
-            $table->unique(['site_code', 'phone_e164_hash'], 'cw_ceremony_identities_site_phone_uq');
+            $table->unique(['site_code', 'local_user_id'], 'cw_ceremony_identities_site_user_uq');
             $table->index('central_wallet_id', 'cw_ceremony_identities_wallet_idx');
         });
 

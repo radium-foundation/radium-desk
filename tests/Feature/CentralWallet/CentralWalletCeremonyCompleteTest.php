@@ -66,7 +66,8 @@ class CentralWalletCeremonyCompleteTest extends TestCase
 
         $this->assertDatabaseHas('central_wallet_ceremony_identities', [
             'site_code' => self::SITE,
-            'phone_e164_hash' => $phoneHash,
+            'local_user_id' => '3',
+            'verified_phone_e164_hash' => $phoneHash,
             'central_wallet_id' => $cwid,
         ]);
 
@@ -81,7 +82,7 @@ class CentralWalletCeremonyCompleteTest extends TestCase
         ]);
     }
 
-    public function test_wallet_resolution_reuses_existing_ceremony_identity(): void
+    public function test_same_local_account_resolves_established_wallet_after_revoked_link(): void
     {
         $phoneHash = hash('sha256', '+919111111111');
         $firstProof = $this->issueProof('10', (string) Str::uuid(), $phoneHash);
@@ -95,13 +96,66 @@ class CentralWalletCeremonyCompleteTest extends TestCase
                 'revoked_at' => now(),
             ]);
 
-        $secondProof = $this->issueProof('11', (string) Str::uuid(), $phoneHash);
-        $this->complete('idem-resolve-2', '11', $secondProof)
+        $secondProof = $this->issueProof('10', (string) Str::uuid(), $phoneHash);
+        $this->complete('idem-resolve-2', '10', $secondProof)
             ->assertCreated()
             ->assertJsonPath('central_wallet_id', $cwid)
             ->assertJsonPath('provision_action', 'resolved_existing');
 
         $this->assertSame(1, CentralWalletCeremonyIdentity::query()->count());
+        $this->assertDatabaseHas('central_wallet_ceremony_identities', [
+            'site_code' => self::SITE,
+            'local_user_id' => '10',
+            'central_wallet_id' => $cwid,
+        ]);
+    }
+
+    public function test_different_local_user_with_same_phone_hash_cannot_resolve_wallet(): void
+    {
+        $phoneHash = hash('sha256', '+919101010101');
+        $firstProof = $this->issueProof('60', (string) Str::uuid(), $phoneHash);
+        $first = $this->complete('idem-phone-1', '60', $firstProof)->assertCreated();
+        $firstCwid = (string) $first->json('central_wallet_id');
+
+        $secondProof = $this->issueProof('61', (string) Str::uuid(), $phoneHash);
+        $second = $this->complete('idem-phone-2', '61', $secondProof)->assertCreated();
+        $secondCwid = (string) $second->json('central_wallet_id');
+
+        $this->assertNotSame($firstCwid, $secondCwid);
+        $this->assertSame(2, CentralWalletCeremonyIdentity::query()->count());
+        $this->assertDatabaseHas('central_wallet_ceremony_identities', [
+            'local_user_id' => '60',
+            'central_wallet_id' => $firstCwid,
+            'verified_phone_e164_hash' => $phoneHash,
+        ]);
+        $this->assertDatabaseHas('central_wallet_ceremony_identities', [
+            'local_user_id' => '61',
+            'central_wallet_id' => $secondCwid,
+            'verified_phone_e164_hash' => $phoneHash,
+        ]);
+    }
+
+    public function test_phone_hash_alone_cannot_resolve_wallet_for_different_local_user(): void
+    {
+        $phoneHash = hash('sha256', '+919121212121');
+        $first = $this->complete(
+            'idem-evidence-1',
+            '70',
+            $this->issueProof('70', (string) Str::uuid(), $phoneHash),
+        )->assertCreated();
+        $firstCwid = (string) $first->json('central_wallet_id');
+
+        CentralWalletCeremonyIdentity::query()
+            ->where('local_user_id', '70')
+            ->update(['verified_phone_e164_hash' => hash('sha256', '+919999999999')]);
+
+        $second = $this->complete(
+            'idem-evidence-2',
+            '71',
+            $this->issueProof('71', (string) Str::uuid(), $phoneHash),
+        )->assertCreated();
+
+        $this->assertNotSame($firstCwid, (string) $second->json('central_wallet_id'));
     }
 
     public function test_rejects_invalid_signature(): void
@@ -213,7 +267,8 @@ class CentralWalletCeremonyCompleteTest extends TestCase
         CentralWalletCeremonyIdentity::query()->create([
             'id' => (string) Str::uuid(),
             'site_code' => self::SITE,
-            'phone_e164_hash' => hash('sha256', '+919080808080'),
+            'local_user_id' => '31',
+            'verified_phone_e164_hash' => hash('sha256', '+919080808080'),
             'central_wallet_id' => $cwid,
             'first_verified_at' => now(),
         ]);
@@ -238,7 +293,8 @@ class CentralWalletCeremonyCompleteTest extends TestCase
         CentralWalletCeremonyIdentity::query()->create([
             'id' => (string) Str::uuid(),
             'site_code' => self::SITE,
-            'phone_e164_hash' => hash('sha256', '+919060606060'),
+            'local_user_id' => '41',
+            'verified_phone_e164_hash' => hash('sha256', '+919060606060'),
             'central_wallet_id' => DB::table('central_wallets')->value('id'),
             'first_verified_at' => now(),
         ]);
@@ -284,7 +340,7 @@ class CentralWalletCeremonyCompleteTest extends TestCase
         ])->assertCreated();
 
         $this->assertDatabaseMissing('central_wallet_ceremony_identities', [
-            'phone_e164_hash' => hash('sha256', 'user@example.com'),
+            'verified_phone_e164_hash' => hash('sha256', 'user@example.com'),
         ]);
     }
 

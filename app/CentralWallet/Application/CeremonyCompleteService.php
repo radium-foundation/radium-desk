@@ -117,7 +117,7 @@ final class CeremonyCompleteService
 
                 $identity = CentralWalletCeremonyIdentity::query()
                     ->where('site_code', $siteCode)
-                    ->where('phone_e164_hash', $proof->verifiedPhoneE164Hash)
+                    ->where('local_user_id', $localUserId)
                     ->lockForUpdate()
                     ->first();
 
@@ -161,30 +161,18 @@ final class CeremonyCompleteService
                         correlationId: $correlationId,
                         payload: [
                             'site_code' => $siteCode,
+                            'local_user_id' => $localUserId,
                             'ceremony_attempt_id' => $proof->ceremonyAttemptId,
                         ],
                     );
 
-                    if ($identity === null) {
-                        $identity = CentralWalletCeremonyIdentity::query()->create([
-                            'id' => (string) Str::uuid(),
-                            'site_code' => $siteCode,
-                            'phone_e164_hash' => $proof->verifiedPhoneE164Hash,
-                            'central_wallet_id' => $centralWalletId,
-                            'first_verified_at' => now(),
-                        ]);
-                    } else {
-                        $identity->central_wallet_id = $centralWalletId;
-                        $identity->save();
-                    }
-                } elseif ($identity === null) {
-                    CentralWalletCeremonyIdentity::query()->create([
-                        'id' => (string) Str::uuid(),
-                        'site_code' => $siteCode,
-                        'phone_e164_hash' => $proof->verifiedPhoneE164Hash,
-                        'central_wallet_id' => $centralWalletId,
-                        'first_verified_at' => now(),
-                    ]);
+                    $this->upsertCeremonyIdentity(
+                        identity: $identity,
+                        siteCode: $siteCode,
+                        localUserId: $localUserId,
+                        centralWalletId: $centralWalletId,
+                        verifiedPhoneE164Hash: $proof->verifiedPhoneE164Hash,
+                    );
                 } else {
                     $this->auditEvents->record(
                         eventType: 'ceremony.wallet_resolved',
@@ -194,9 +182,18 @@ final class CeremonyCompleteService
                         correlationId: $correlationId,
                         payload: [
                             'site_code' => $siteCode,
+                            'local_user_id' => $localUserId,
                             'ceremony_attempt_id' => $proof->ceremonyAttemptId,
                             'provision_action' => 'resolved_existing',
                         ],
+                    );
+
+                    $this->upsertCeremonyIdentity(
+                        identity: $identity,
+                        siteCode: $siteCode,
+                        localUserId: $localUserId,
+                        centralWalletId: $centralWalletId,
+                        verifiedPhoneE164Hash: $proof->verifiedPhoneE164Hash,
                     );
                 }
 
@@ -254,6 +251,31 @@ final class CeremonyCompleteService
                 message: $exception->getMessage(),
             );
         }
+    }
+
+    private function upsertCeremonyIdentity(
+        ?CentralWalletCeremonyIdentity $identity,
+        string $siteCode,
+        string $localUserId,
+        string $centralWalletId,
+        string $verifiedPhoneE164Hash,
+    ): CentralWalletCeremonyIdentity {
+        if ($identity === null) {
+            return CentralWalletCeremonyIdentity::query()->create([
+                'id' => (string) Str::uuid(),
+                'site_code' => $siteCode,
+                'local_user_id' => $localUserId,
+                'central_wallet_id' => $centralWalletId,
+                'verified_phone_e164_hash' => $verifiedPhoneE164Hash,
+                'first_verified_at' => now(),
+            ]);
+        }
+
+        $identity->central_wallet_id = $centralWalletId;
+        $identity->verified_phone_e164_hash = $verifiedPhoneE164Hash;
+        $identity->save();
+
+        return $identity->fresh();
     }
 
     private function consumeProof(CeremonyVerificationProof $proof): void

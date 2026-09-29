@@ -14,8 +14,9 @@ class CentralWalletCeremonyIdentity extends Model
     protected $fillable = [
         'id',
         'site_code',
-        'phone_e164_hash',
+        'local_user_id',
         'central_wallet_id',
+        'verified_phone_e164_hash',
         'first_verified_at',
     ];
 
