@@ -202,6 +202,15 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/watchdog-critical-alerts.log'));
 
+        $schedule->command('host:monitor-load')
+            ->cron(sprintf(
+                '1-59/%d * * * *',
+                max(1, (int) config('host_load_watchdog.schedule_interval_minutes', 2)),
+            ))
+            ->when(fn (): bool => (bool) config('host_load_watchdog.enabled', false))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/host-load-watchdog.log'));
+
         $schedule->command('team-telegram:send-daily-briefings')
             ->everyFifteenMinutes()
             ->when(fn (): bool => (bool) config('team_telegram.enabled', true))

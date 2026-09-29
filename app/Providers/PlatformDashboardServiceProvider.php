@@ -27,6 +27,7 @@ use App\Services\Platform\PlatformCardRegistry;
 use App\Services\Platform\PlatformHealthRegistry;
 use App\Services\Platform\PlatformSectionRegistry;
 use App\Services\Platform\Alerts\Contributors\ExecutiveSnapshotAlertContributor;
+use App\Services\Platform\Alerts\Contributors\HostLoadAlertContributor;
 use App\Services\Platform\Alerts\Contributors\IntegrationHealthAlertContributor;
 use App\Services\Platform\Alerts\Contributors\PlatformHealthAlertContributor;
 use App\Services\Platform\Alerts\PlatformAlertAggregator;
@@ -154,6 +155,7 @@ class PlatformDashboardServiceProvider extends ServiceProvider
             PlatformHealthAlertContributor::class,
             IntegrationHealthAlertContributor::class,
             ExecutiveSnapshotAlertContributor::class,
+            HostLoadAlertContributor::class,
         ];
     }
 

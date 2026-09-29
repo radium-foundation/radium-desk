@@ -312,3 +312,19 @@ Release/deploy v4.0.154 AST300 hardware SKU mapping. See completion report.
 ## RadiumDesk-P-25-09-107
 
 Release/deploy v4.0.155 GraceExpired validation-failure shift-admin fallback. Owner-authorized KVM deploy gate. Prompt **RadiumDesk-P-25-09-106** implementation.
+
+## RadiumDesk-P-25-09-117
+
+Design production-safe CPU/load monitoring, Telegram + RadiumDesk notification, and controlled automatic remediation (detect → classify → alert → optional allowlisted remediate → verify → audit). Inspection/design only; references prior KVM8 MariaDB cross-DB investigation incident. **No implementation/deploy/production mutation.**
+
+## RadiumDesk-P-25-09-118
+
+Implement Phase 1 Host CPU/Load Watchdog (alert-only): `HostLoadWatchdogService`, `host:monitor-load`, file-backed `HostLoadIncidentStore`, `WatchdogCriticalAlertGate` dedupe, Telegram via `IraCommunicationService`/`CriticalSystemAlert`, Platform alert contributor. Feature flag `HOST_LOAD_WATCHDOG_ENABLED=false` default. **No auto-remediation. No push/tag/deploy/production config.**
+
+## RadiumDesk-P-25-09-119
+
+Isolate Phase 1 Host Load Watchdog onto `feature/host-load-watchdog-phase1` from verified production baseline **v4.0.156 / `c7ec5c5e`**. Excludes automation-snapshot hotfix, Central Wallet, and External Courier changes. Validation only. **No push/tag/deploy/production mutation.**
+
+## RadiumDesk-P-25-09-120
+
+Finalize, commit, and push Phase 1 Host Load Watchdog on `feature/host-load-watchdog-phase1` from `c7ec5c5e`. Alert-only; feature OFF by default. **Push branch only — no tag/merge/deploy/production config.**
