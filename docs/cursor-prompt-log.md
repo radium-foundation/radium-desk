@@ -384,3 +384,9 @@ Provisional read-only Central Wallet identity resolution and trusted financial a
 ## RadiumDesk-P-30-09-19
 
 Stage 1 documentation update (Desk = financial SSOT; radiumbox.com Stage 1 spending scope). Register missing `ProvisionalIdentityResolveService`, `TrustedFinancialAuthorizationGate`, and provisional-identity middleware in `CentralWalletServiceProvider`. **No deploy/flag enable/financial mutation.**
+
+---
+
+## RadiumDesk-P-30-09-20
+
+Stage 1 real-customer population export (read-only): `central-wallet:stage1-population-export` + `Stage1PopulationExportService`; hashed credentials only; cutoff `2026-07-15 00:00:00` IST. Doc: `docs/central-wallet-stage1-real-customer-population.md`. **No production query/mutation/deploy.**
