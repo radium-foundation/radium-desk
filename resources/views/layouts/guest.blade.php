@@ -16,10 +16,10 @@
         <div class="auth-card">
             <div class="text-center mb-4">
                 @php($branding = app(\App\Services\BrandingService::class))
-                @if($branding->hasIcon())
-                    <img src="{{ $branding->iconUrl() }}" alt="{{ $branding->companyName() }}" class="guest-brand-logo guest-brand-icon mb-2">
-                @elseif($branding->hasLogo())
+                @if($branding->hasLogo())
                     <img src="{{ $branding->logoUrl() }}" alt="{{ $branding->companyName() }}" class="guest-brand-logo mb-2">
+                @elseif($branding->hasIcon())
+                    <img src="{{ $branding->iconUrl() }}" alt="{{ $branding->companyName() }}" class="guest-brand-logo mb-2">
                 @else
                     <i class="bi bi-headset text-primary fs-2 d-block mb-2" aria-hidden="true"></i>
                     <h1 class="h4 fw-bold text-primary mb-1">{{ $branding->appName() }}</h1>

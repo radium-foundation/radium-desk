@@ -142,15 +142,11 @@ html.sidebar-expanded .app-sidebar .brand-mark-icon {
 .guest-brand-logo {
     width: auto;
     height: auto;
-    max-width: 200px;
+    max-width: 196px;
     object-fit: contain;
     margin-inline: auto;
     display: block;
     border: none;
-}
-
-.guest-brand-icon {
-    max-height: 72px;
 }
 
 .app-version-footer {
