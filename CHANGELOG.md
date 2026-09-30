@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.167 — 2026-09-30 — Central Wallet reservation lifecycle foundation (additive, flag OFF)
+
+- **Reservation foundation:** State machine, `ReservationService`, API routes/controllers, expiry job, source-system security, and reversal linkage for Central Wallet holds (reserve → commit/release/expire).
+- **Migrations (additive only):** `central_wallet_reservations` table with wallet/state/expiry indexes; `original_ledger_entry_id` reversal-linkage column on `central_wallet_ledger_entries`. No balance backfill, no historical wallet migration.
+- **Feature flag:** `CENTRAL_WALLET_RESERVATIONS_ENABLED` remains **false** in production — reservation endpoints gated; no operational reservation activity.
+- **Preserved:** Existing ledger debit/credit, wallet refund, ceremony, M2, cross-site linking, and balance-migration infrastructure unchanged. No RadiumBox or rdservice.in changes.
+- Regression: `CentralWalletReservationTest` and Central Wallet suite **127** tests (**123** pass / **4** skip). Prompt **RadiumDesk-P-30-09-11**.
+- Rollback target: v4.0.166 / `6b1ee86d`.
+
 ## 4.0.166 — 2026-09-30 — Login page rectangular logo
 
 - **Login:** Guest layout now uses canonical transparent rectangular `brand/logo.png` (196px max-width, Invoice-aligned) instead of compact `brand/icon.svg`.
