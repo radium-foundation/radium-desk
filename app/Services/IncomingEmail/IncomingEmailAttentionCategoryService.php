@@ -141,6 +141,7 @@ class IncomingEmailAttentionCategoryService
 
         return Order::query()
             ->whereIn('customer_email', $candidates)
+            ->distinct()
             ->pluck('customer_email');
     }
 }

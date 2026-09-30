@@ -9,8 +9,8 @@ use App\Enums\IncidentStatus;
 use App\Enums\OrderIdentityValidationFailureGroup;
 use App\Enums\OrderIdentityValidationRecommendation;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
-use App\Enums\ServiceCaseAutomationStatus;
 use App\Enums\SerialValidationStatus;
+use App\Enums\ServiceCaseAutomationStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -345,14 +345,7 @@ class AutomationOperationsValidationCollector
 
     private function radiumBoxSyncLabel(Order $order): string
     {
-        $status = $this->syncStore->status($order->id, $order);
-
-        return match ($status) {
-            RadiumBoxEnrichmentSyncStatus::NotSynced => 'Not Synced',
-            RadiumBoxEnrichmentSyncStatus::Pending => 'Pending',
-            RadiumBoxEnrichmentSyncStatus::Synced => 'Synced',
-            RadiumBoxEnrichmentSyncStatus::Failed => 'Failed',
-        };
+        return $this->syncStore->status($order->id, $order)->label();
     }
 
     private function primaryActiveIncident(Order $order): ?Incident
