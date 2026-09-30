@@ -13,11 +13,15 @@ use App\CentralWallet\Application\Contracts\WalletMigrationSpokeClient;
 use App\CentralWallet\Application\CrossSiteCeremonyCohortEligibility;
 use App\CentralWallet\Application\CrossSiteCeremonyResolver;
 use App\CentralWallet\Application\IdempotencyService;
+use App\CentralWallet\Application\IntegrationSourceSystemResolver;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
 use App\CentralWallet\Application\NullWalletMigrationSpokeClient;
+use App\CentralWallet\Application\ReservationService;
+use App\CentralWallet\Application\ReservationStateMachine;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
 use App\CentralWallet\Infrastructure\Http\HttpWalletMigrationSpokeClient;
+use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletReservationsEnabled;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -35,6 +39,9 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CrossSiteCeremonyResolver::class);
         $this->app->singleton(CeremonyCompleteService::class);
         $this->app->singleton(LedgerService::class);
+        $this->app->singleton(IntegrationSourceSystemResolver::class);
+        $this->app->singleton(ReservationStateMachine::class);
+        $this->app->singleton(ReservationService::class);
         $this->app->singleton(LedgerEntryReadService::class);
         $this->app->singleton(BalanceMigrationStateMachine::class);
         $this->app->singleton(BalanceMigrationCutoverService::class);
@@ -65,6 +72,8 @@ final class CentralWalletServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Route::aliasMiddleware('central_wallet.reservations', EnsureCentralWalletReservationsEnabled::class);
+
         Route::middleware([
             'api',
             'central_wallet.correlation',
