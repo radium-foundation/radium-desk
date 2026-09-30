@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.165 — 2026-09-30 — Desk branding logo fixes
+
+- **Email:** Outgoing notification headers use email-safe `brand/logo.png` instead of `brand/icon.svg` (SVG blocked by many mail clients).
+- **Login:** Transparent compact `icon.svg` on the guest login card.
+- **Sidebar:** Expanded state shows rectangular `logo.png` on a white brand header; collapsed state keeps compact `icon.svg`. Removed CSS `brightness(0) invert(1)` filter that rendered an unreadable white blob.
+- **Preserved:** Authentication flow, sidebar expand/collapse, email master layout, canonical logo assets. No migrations.
+- Regression: branding/email/platform identity tests PASS. Prompt **RadiumDesk-P-30-09-05**.
+- Rollback target: v4.0.164 / `48d14d49`.
+
 ## 4.0.164 — 2026-09-30 — Incoming email OOM + automation sync label hotfix
 
 - **Incoming email OOM:** `IncomingEmailAttentionCategoryService::knownCustomerEmails()` now uses database-side `DISTINCT` before `pluck('customer_email')`, so repeat customer orders no longer materialize one PHP string per order row (verified 128MB production OOM on dashboard email-intake KPI path).
