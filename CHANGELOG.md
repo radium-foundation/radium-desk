@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.0.162 — 2026-09-30 — Central Wallet account-link revoke API
+
+- **Revoke endpoint:** `POST /api/central-wallet/v1/account-links/{link_id}/revoke` exposes `AccountLinkService::revokeLink` through the established Central Wallet API boundary.
+- **Authorization:** Bearer integration token plus caller `X-Site-Code`; `local_user_id` in request body must match the link row; cross-site and cross-user revoke rejected.
+- **Idempotency:** Uses existing idempotency service; already-revoked links return **200** without duplicate audit events.
+- **Preserved:** CWID, Central Wallet ledger, ceremony identity, M2 confirm, ceremony complete, balance, and wallet refund flows unchanged. No migration.
+- Regression: `CentralWalletApiTest` (**24/24** PASS), Central Wallet feature suite (**76** tests, **72** passed, **4** skipped), `AccountLinkServiceTest` (**2/2** PASS). Prompt **RadiumDesk-P-28-09-02**.
+- Rollback target: v4.0.161 / `cfafd2e9`.
+
 ## 4.0.161 — 2026-09-29 — Central Wallet ceremony wallet uniqueness MariaDB 11.8.8 fix
 
 - **Migration fix:** `active_site_wallet_uniq_key` STORED generated column now wraps `central_wallet_id` with `RTRIM()` so MariaDB 11.8.8 accepts the wallet active-link uniqueness index (`CHAR(36)` in `CONCAT()` previously failed with error 1901).
