@@ -6,6 +6,7 @@ use App\CentralWallet\Infrastructure\Http\Controllers\CeremonyCompleteController
 use App\CentralWallet\Infrastructure\Http\Controllers\CustomerIdentityController;
 use App\CentralWallet\Infrastructure\Http\Controllers\HealthController;
 use App\CentralWallet\Infrastructure\Http\Controllers\LedgerEntryController;
+use App\CentralWallet\Infrastructure\Http\Controllers\ProvisionalIdentityController;
 use App\CentralWallet\Infrastructure\Http\Controllers\ReservationController;
 use App\CentralWallet\Infrastructure\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
@@ -41,6 +42,11 @@ Route::post('/ceremony/complete', [CeremonyCompleteController::class, 'store'])
 Route::middleware('central_wallet.customer_identity')->group(function (): void {
     Route::post('/customer-identity/resolve', [CustomerIdentityController::class, 'resolve'])
         ->name('central-wallet.customer-identity.resolve');
+});
+
+Route::middleware('central_wallet.provisional_identity')->group(function (): void {
+    Route::post('/customer-identity/provisional-resolve', [ProvisionalIdentityController::class, 'resolve'])
+        ->name('central-wallet.customer-identity.provisional-resolve');
 });
 
 Route::middleware('central_wallet.reservations')->group(function (): void {

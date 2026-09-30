@@ -4,6 +4,7 @@ namespace App\CentralWallet\Infrastructure\Http\Controllers;
 
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\ReservationService;
+use App\CentralWallet\Application\TrustedFinancialAuthorizationGate;
 use App\CentralWallet\Domain\Cwid;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletReservation;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +16,7 @@ final class ReservationController
     public function __construct(
         private readonly ReservationService $reservations,
         private readonly IdempotencyService $idempotency,
+        private readonly TrustedFinancialAuthorizationGate $financialAuthorization,
     ) {}
 
     public function store(Request $request): JsonResponse
@@ -26,7 +28,24 @@ final class ReservationController
             'business_reference' => ['required', 'string', 'max:191'],
             'source_reference' => ['nullable', 'string', 'max:191'],
             'metadata' => ['nullable', 'array'],
+            'local_user_id' => ['nullable', 'string', 'max:64'],
         ]);
+
+        $siteCode = trim((string) $request->header('X-Site-Code', ''));
+        if ($siteCode === '') {
+            $siteCode = $callerId = (string) $request->attributes->get('central_wallet_caller_id');
+        } else {
+            $callerId = (string) $request->attributes->get('central_wallet_caller_id');
+        }
+
+        $authorizationError = $this->financialAuthorization->authorizeReservation(
+            siteCode: $siteCode,
+            centralWalletId: $validated['central_wallet_id'],
+            localUserId: $validated['local_user_id'] ?? null,
+        );
+        if ($authorizationError !== null) {
+            return response()->json(['error' => $authorizationError], 403);
+        }
 
         try {
             Cwid::fromString($validated['central_wallet_id']);

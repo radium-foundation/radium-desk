@@ -135,4 +135,9 @@ return [
         'verified_mobile_enabled' => filter_var(env('CENTRAL_WALLET_CUSTOMER_IDENTITY_VERIFIED_MOBILE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
+    'provisional_identity' => [
+        'enabled' => filter_var(env('CENTRAL_WALLET_PROVISIONAL_IDENTITY_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'financial_gate_enabled' => filter_var(env('CENTRAL_WALLET_PROVISIONAL_FINANCIAL_GATE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
 ];

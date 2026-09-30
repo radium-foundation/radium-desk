@@ -372,3 +372,9 @@ Fix Central Wallet reservation commit spendable-balance double-count (P-30-09-07
 ## RadiumDesk-P-30-09-09
 
 Create clean Central Wallet reservation integration branch `feat/central-wallet-reservations` from `origin/main` @ `6b1ee86d`. Cherry-picked `0c69ab3b` (foundation) and `6657a2d2` (commit-balance fix); excluded unrelated hotfix branding commits. Ledger conflict on second cherry-pick resolved. CW suite **127** (**123** pass / **4** skip); Pint PASS. Pushed new branch only. **No main merge/deploy; flag OFF.**
+
+---
+
+## RadiumDesk-P-30-09-18
+
+Provisional read-only Central Wallet identity resolution and trusted financial authorization gate. `POST /customer-identity/provisional-resolve` returns balance only (no CWID/Customer ID). Reservation create requires trusted active account link when financial gate enabled. `CentralWalletProvisionalIdentityTest` **6/6** PASS. **No deploy/flag enable/financial mutation.**

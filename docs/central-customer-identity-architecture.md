@@ -8,6 +8,31 @@
 - **OTP is not wallet redemption authorization.** OTP establishes or re-establishes trusted identity only when required.
 - **Email/mobile string equality alone is not sufficient** for cross-site identity.
 
+## Identity states
+
+### Trusted identity
+
+Verified Google subject or verified email credential resolves Desk Customer ID → CWID. Normal Central Wallet balance display and checkout/reservation authorization are permitted (subject to existing gates).
+
+### Provisional identity
+
+Authenticated spoke users with **unverified email** may receive a **read-only provisional balance** when Desk finds **exactly one** existing customer with a matching **verified_email** credential hash. This is informational only.
+
+Provisional matching rule (unambiguous):
+
+1. Spoke sends normalized email with `email_verified=false`.
+2. Desk hashes email identically to verified_email credentials.
+3. Exactly **one** `verified_email` credential match → provisional balance returned.
+4. Zero matches → unresolved (no balance).
+5. Conflicting active site link to a different CWID → ambiguous (fail closed).
+6. Existing trusted active link → use trusted path instead.
+
+Provisional responses **never** include CWID or Desk Customer ID. Financial mutation endpoints require a trusted active account link (`trusted_google`, `verified_email`, `m2_dual_otp`, `m2_whatsapp_otp`).
+
+### Unresolved identity
+
+Ambiguous, unmatched, or disabled states return no balance. No guessing, no auto-linking.
+
 ## Identity model
 
 ```
