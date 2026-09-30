@@ -360,3 +360,9 @@ Validation-only browser/UI verification of logo changes @ `d9acf7d3`. Login PASS
 ## RadiumDesk-P-30-09-05
 
 Fix expanded-sidebar logo invert defect: remove CSS invert filter; present canonical `logo.png` on white expanded brand header. **Not pushed/deployed.**
+
+---
+
+## RadiumDesk-P-30-09-08
+
+Fix Central Wallet reservation commit spendable-balance double-count (P-30-09-07 review blocker). `LedgerService::spendableBalanceForDebit()` excludes the committing reservation's own ACTIVE hold when `reservation_id` is set on a debit; validates reservation eligibility fail-closed. Added regression tests: >50% commit, multi-reservation commit, insufficient ledger after other holds, commit-vs-expiry sequencing. Central Wallet feature suite **127** tests (**123** pass / **4** skip MariaDB ceremony). Pint PASS. **Not pushed/deployed. `CENTRAL_WALLET_RESERVATIONS_ENABLED` remains OFF.**

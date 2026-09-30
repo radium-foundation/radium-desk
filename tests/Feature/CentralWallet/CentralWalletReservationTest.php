@@ -3,12 +3,15 @@
 namespace Tests\Feature\CentralWallet;
 
 use App\CentralWallet\Application\ReservationService;
+use App\CentralWallet\Domain\Enums\LedgerEntryStatus;
+use App\CentralWallet\Domain\Enums\LedgerEntryType;
 use App\CentralWallet\Domain\Enums\ReservationState;
 use App\CentralWallet\Infrastructure\Jobs\ExpireActiveReservationsJob;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletReservation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class CentralWalletReservationTest extends TestCase
@@ -335,6 +338,135 @@ class CentralWalletReservationTest extends TestCase
 
         $this->authenticatedAs('rdservice.in')->getJson("/api/central-wallet/v1/wallet-reservations/{$reservationId}")
             ->assertForbidden();
+    }
+
+    public function test_commit_succeeds_for_reservation_over_half_ledger_balance(): void
+    {
+        $cwid = $this->fundWallet('100.00');
+        $reservationId = (string) $this->reserve($cwid, '60.00', 'reserve-over-half', 'order:HALF1')->json('reservation_id');
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/wallet-reservations/{$reservationId}/commit", [
+            'idempotency_key' => 'commit-over-half',
+        ])
+            ->assertOk()
+            ->assertJsonPath('state', ReservationState::Committed->value);
+
+        $debit = CentralWalletLedgerEntry::query()->where('entry_type', LedgerEntryType::Debit)->first();
+        $this->assertNotNull($debit);
+        $this->assertSame('60.00', (string) $debit->amount);
+        $this->assertSame($reservationId, $debit->reservation_id);
+        $this->assertSame(1, CentralWalletLedgerEntry::query()->where('entry_type', LedgerEntryType::Debit)->count());
+    }
+
+    public function test_commit_one_of_multiple_active_reservations_leaves_other_hold_intact(): void
+    {
+        $cwid = $this->fundWallet('100.00');
+        $firstReservationId = (string) $this->reserve($cwid, '40.00', 'reserve-multi-a', 'order:MULTI-A')->json('reservation_id');
+        $secondReservationId = (string) $this->reserve($cwid, '40.00', 'reserve-multi-b', 'order:MULTI-B')->json('reservation_id');
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/wallet-reservations/{$firstReservationId}/commit", [
+            'idempotency_key' => 'commit-multi-a',
+        ])
+            ->assertOk()
+            ->assertJsonPath('state', ReservationState::Committed->value);
+
+        $this->authenticatedAs('radiumbox.com')->getJson("/api/central-wallet/v1/wallets/{$cwid}/balance")
+            ->assertOk()
+            ->assertJsonPath('ledger_balance', '60.00')
+            ->assertJsonPath('reserved_balance', '40.00')
+            ->assertJsonPath('available_balance', '20.00');
+
+        $this->assertDatabaseHas('central_wallet_reservations', [
+            'id' => $secondReservationId,
+            'state' => ReservationState::Active->value,
+        ]);
+        $this->assertSame(1, CentralWalletLedgerEntry::query()->where('entry_type', LedgerEntryType::Debit)->count());
+    }
+
+    public function test_commit_fails_when_ledger_funds_insufficient_after_other_active_reservations(): void
+    {
+        $cwid = $this->fundWallet('100.00');
+        $firstReservationId = (string) $this->reserve($cwid, '50.00', 'reserve-insufficient-a', 'order:INSUF-A')->json('reservation_id');
+        $this->reserve($cwid, '40.00', 'reserve-insufficient-b', 'order:INSUF-B')->assertCreated();
+
+        CentralWalletLedgerEntry::query()->create([
+            'central_wallet_id' => $cwid,
+            'entry_type' => LedgerEntryType::Debit,
+            'amount' => '15.00',
+            'currency' => 'INR',
+            'status' => LedgerEntryStatus::Posted,
+            'source_system' => 'radiumbox.com',
+            'correlation_id' => (string) Str::uuid(),
+            'posted_at' => now(),
+        ]);
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/wallet-reservations/{$firstReservationId}/commit", [
+            'idempotency_key' => 'commit-insufficient',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'reservation_commit_failed');
+
+        $this->assertDatabaseHas('central_wallet_reservations', [
+            'id' => $firstReservationId,
+            'state' => ReservationState::Active->value,
+        ]);
+        $this->assertSame(0, CentralWalletLedgerEntry::query()
+            ->where('entry_type', LedgerEntryType::Debit)
+            ->whereNotNull('reservation_id')
+            ->count());
+    }
+
+    public function test_expiry_before_commit_prevents_debit_and_terminal_state_remains_expired(): void
+    {
+        $cwid = $this->fundWallet('60.00');
+        $reservationId = (string) $this->reserve($cwid, '20.00', 'reserve-expire-race', 'order:EXPRACE')->json('reservation_id');
+
+        CentralWalletReservation::query()->where('id', $reservationId)->update([
+            'expires_at' => now()->subMinute(),
+        ]);
+
+        (new ExpireActiveReservationsJob)->handle(app(ReservationService::class));
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/wallet-reservations/{$reservationId}/commit", [
+            'idempotency_key' => 'commit-after-expiry',
+        ])
+            ->assertStatus(422);
+
+        $this->assertDatabaseHas('central_wallet_reservations', [
+            'id' => $reservationId,
+            'state' => ReservationState::Expired->value,
+        ]);
+        $this->assertSame(0, CentralWalletLedgerEntry::query()->where('entry_type', LedgerEntryType::Debit)->count());
+
+        (new ExpireActiveReservationsJob)->handle(app(ReservationService::class));
+
+        $this->assertDatabaseHas('central_wallet_reservations', [
+            'id' => $reservationId,
+            'state' => ReservationState::Expired->value,
+        ]);
+        $this->assertSame(0, CentralWalletLedgerEntry::query()->where('entry_type', LedgerEntryType::Debit)->count());
+    }
+
+    public function test_commit_before_expiry_job_prevents_subsequent_expiry_transition(): void
+    {
+        $cwid = $this->fundWallet('60.00');
+        $reservationId = (string) $this->reserve($cwid, '20.00', 'reserve-commit-before-expire', 'order:COMMEXP')->json('reservation_id');
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/wallet-reservations/{$reservationId}/commit", [
+            'idempotency_key' => 'commit-before-expire',
+        ])->assertOk();
+
+        CentralWalletReservation::query()->where('id', $reservationId)->update([
+            'expires_at' => now()->subMinute(),
+        ]);
+
+        (new ExpireActiveReservationsJob)->handle(app(ReservationService::class));
+
+        $this->assertDatabaseHas('central_wallet_reservations', [
+            'id' => $reservationId,
+            'state' => ReservationState::Committed->value,
+        ]);
+        $this->assertSame(1, CentralWalletLedgerEntry::query()->where('entry_type', LedgerEntryType::Debit)->count());
     }
 
     private function fundWallet(string $amount): string

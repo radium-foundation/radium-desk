@@ -65,7 +65,12 @@ final class LedgerService
             }
 
             if ($entryType === LedgerEntryType::Debit) {
-                $spendable = $this->spendableBalance($centralWalletId);
+                $spendable = $this->spendableBalanceForDebit(
+                    $centralWalletId,
+                    $amount,
+                    $reservationId,
+                );
+
                 if (bccomp($spendable, $amount, 2) < 0) {
                     throw new InvalidArgumentException('Insufficient available balance.');
                 }
@@ -176,5 +181,32 @@ final class LedgerService
             ->sum('amount');
 
         return bcadd($reserved, '0', 2);
+    }
+
+    /**
+     * Spendable balance for a debit. When committing an ACTIVE reservation, the hold being
+     * converted must not count against itself (it already reserved these funds).
+     */
+    private function spendableBalanceForDebit(
+        string $centralWalletId,
+        string $amount,
+        ?string $reservationId,
+    ): string {
+        if ($reservationId === null) {
+            return $this->spendableBalance($centralWalletId);
+        }
+
+        $reservation = CentralWalletReservation::query()->find($reservationId);
+        if (
+            $reservation === null
+            || $reservation->central_wallet_id !== $centralWalletId
+            || $reservation->state !== ReservationState::Active
+            || $reservation->isExpiredByTime()
+            || bccomp((string) $reservation->amount, $amount, 2) !== 0
+        ) {
+            throw new InvalidArgumentException('Reservation is not eligible for commit debit.');
+        }
+
+        return bcadd($this->spendableBalance($centralWalletId), (string) $reservation->amount, 2);
     }
 }
