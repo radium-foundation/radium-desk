@@ -347,4 +347,16 @@ Isolate verified OOM DISTINCT + automation enum-label fixes onto `hotfix/incomin
 
 ## RadiumDesk-P-30-09-02
 
-Investigate and correct Radium branding/logo behavior in outgoing emails and Desk authentication/navigation UI. Investigation-first: verify email logo reference, login page branding, and authenticated sidebar expanded/collapsed logos. **Not committed/pushed/deployed.**
+Investigate and correct Radium branding/logo behavior in outgoing emails and Desk authentication/navigation UI. Investigation-first: verify email logo reference, login page branding, and authenticated sidebar expanded/collapsed logos. Committed `d9acf7d3`. **Not pushed/deployed.**
+
+---
+
+## RadiumDesk-P-30-09-03
+
+Validation-only browser/UI verification of logo changes @ `d9acf7d3`. Login PASS; collapsed/expand/email PASS; expanded sidebar FAIL (invert blob). **Validation only — no code/deploy/push.**
+
+---
+
+## RadiumDesk-P-30-09-05
+
+Fix expanded-sidebar logo invert defect: remove CSS invert filter; present canonical `logo.png` on white expanded brand header. **Not pushed/deployed.**
