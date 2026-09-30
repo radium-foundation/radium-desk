@@ -361,6 +361,156 @@ class CentralWalletApiTest extends TestCase
             ->assertJsonPath('error', 'link_revoked');
     }
 
+    public function test_revoke_active_link_preserves_cwid_and_writes_audit(): void
+    {
+        $cwid = $this->createWallet();
+        $linkId = $this->createActiveLink('radiumbox.com', '601', $cwid);
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/revoke", [
+            'idempotency_key' => 'revoke-601',
+            'local_user_id' => '601',
+            'actor_id' => 'customer:601',
+        ])->assertOk()
+            ->assertJsonPath('status', AccountLinkStatus::Revoked->value)
+            ->assertJsonPath('central_wallet_id', $cwid);
+
+        $this->assertDatabaseHas('central_wallet_account_links', [
+            'id' => $linkId,
+            'status' => AccountLinkStatus::Revoked->value,
+            'central_wallet_id' => $cwid,
+        ]);
+
+        $this->assertDatabaseHas('central_wallet_audit_events', [
+            'event_type' => 'link.revoked',
+            'central_wallet_id' => $cwid,
+        ]);
+
+        $this->assertDatabaseHas('central_wallets', [
+            'id' => $cwid,
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_revoke_is_idempotent_for_already_revoked_link(): void
+    {
+        $cwid = $this->createWallet();
+        $linkId = $this->createActiveLink('radiumbox.com', '602', $cwid);
+
+        $payload = [
+            'idempotency_key' => 'revoke-602',
+            'local_user_id' => '602',
+            'actor_id' => 'customer:602',
+        ];
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/revoke", $payload)
+            ->assertOk();
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/revoke", [
+            'idempotency_key' => 'revoke-602-repeat',
+            'local_user_id' => '602',
+            'actor_id' => 'customer:602',
+        ])->assertOk()
+            ->assertJsonPath('status', AccountLinkStatus::Revoked->value);
+
+        $this->assertSame(
+            1,
+            CentralWalletAuditEvent::query()->where('event_type', 'link.revoked')->where('central_wallet_id', $cwid)->count(),
+        );
+    }
+
+    public function test_revoke_rejects_wrong_local_user(): void
+    {
+        $cwid = $this->createWallet();
+        $linkId = $this->createActiveLink('radiumbox.com', '603', $cwid);
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/revoke", [
+            'idempotency_key' => 'revoke-wrong-user',
+            'local_user_id' => '999',
+            'actor_id' => 'customer:999',
+        ])->assertForbidden()
+            ->assertJsonPath('error', 'forbidden');
+    }
+
+    public function test_revoke_rejects_cross_site_link(): void
+    {
+        $cwid = $this->createWallet();
+        $linkId = $this->createActiveLink('radiumbox.com', '604', $cwid);
+
+        $this->authenticatedAs('rdservice.in')->postJson("/api/central-wallet/v1/account-links/{$linkId}/revoke", [
+            'idempotency_key' => 'revoke-cross-site',
+            'local_user_id' => '604',
+            'actor_id' => 'customer:604',
+        ])->assertNotFound();
+    }
+
+    public function test_revoke_rejects_pending_link(): void
+    {
+        $cwid = $this->createWallet();
+        $linkId = $this->createPendingLink('radiumbox.com', '605', $cwid);
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/revoke", [
+            'idempotency_key' => 'revoke-pending',
+            'local_user_id' => '605',
+            'actor_id' => 'customer:605',
+        ])->assertStatus(409)
+            ->assertJsonPath('error', 'invalid_link_state');
+    }
+
+    public function test_revoke_requires_authentication(): void
+    {
+        $cwid = $this->createWallet();
+        $linkId = $this->createActiveLink('radiumbox.com', '606', $cwid);
+
+        $this->withToken('invalid-integration-token')->postJson("/api/central-wallet/v1/account-links/{$linkId}/revoke", [
+            'idempotency_key' => 'revoke-unauth',
+            'local_user_id' => '606',
+            'actor_id' => 'customer:606',
+        ])->assertUnauthorized();
+    }
+
+    public function test_revoked_link_allows_new_active_link_for_same_user_and_cwid(): void
+    {
+        $cwid = $this->createWallet();
+        $linkId = $this->createActiveLink('radiumbox.com', '607', $cwid);
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$linkId}/revoke", [
+            'idempotency_key' => 'revoke-607',
+            'local_user_id' => '607',
+            'actor_id' => 'customer:607',
+        ])->assertOk();
+
+        $replacement = $this->authenticatedAs('radiumbox.com')->postJson('/api/central-wallet/v1/account-links', [
+            'idempotency_key' => 'link-607-replacement',
+            'central_wallet_id' => $cwid,
+            'site_code' => 'radiumbox.com',
+            'local_user_id' => '607',
+            'created_by' => 'service:test',
+            'verification_method' => 'm2_dual_otp',
+        ])->assertCreated();
+
+        $replacementId = (int) $replacement->json('link_id');
+
+        $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/account-links/{$replacementId}/confirm", [
+            'idempotency_key' => 'confirm-607-replacement',
+            'verification_method' => 'm2_dual_otp',
+            'actor_id' => 'customer:607',
+        ])->assertOk()
+            ->assertJsonPath('central_wallet_id', $cwid);
+    }
+
+    private function createActiveLink(string $siteCode, string $localUserId, string $cwid): int
+    {
+        $linkId = $this->createPendingLink($siteCode, $localUserId, $cwid);
+
+        DB::table('central_wallet_account_links')->where('id', $linkId)->update([
+            'status' => AccountLinkStatus::Active->value,
+            'linked_at' => now(),
+            'verification_method' => 'm2_dual_otp',
+        ]);
+
+        return $linkId;
+    }
+
     private function createPendingLink(string $siteCode, string $localUserId, string $cwid): int
     {
         $response = $this->authenticatedAs($siteCode)->postJson('/api/central-wallet/v1/account-links', [

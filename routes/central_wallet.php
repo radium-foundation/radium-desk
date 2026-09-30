@@ -28,6 +28,9 @@ Route::post('/account-links', [AccountLinkController::class, 'store'])->name('ce
 Route::post('/account-links/{link_id}/confirm', [AccountLinkController::class, 'confirm'])
     ->whereNumber('link_id')
     ->name('central-wallet.account-links.confirm');
+Route::post('/account-links/{link_id}/revoke', [AccountLinkController::class, 'revoke'])
+    ->whereNumber('link_id')
+    ->name('central-wallet.account-links.revoke');
 Route::get('/account-links', [AccountLinkController::class, 'index'])->name('central-wallet.account-links.index');
 
 Route::post('/ceremony/complete', [CeremonyCompleteController::class, 'store'])
