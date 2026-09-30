@@ -12,6 +12,8 @@ final class FakeWalletMigrationSpokeClient implements WalletMigrationSpokeClient
 
     public bool $unavailable = false;
 
+    public bool $reconciliationShouldFail = false;
+
     /** @var list<array<string, mixed>> */
     public array $lockCalls = [];
 
@@ -87,5 +89,45 @@ final class FakeWalletMigrationSpokeClient implements WalletMigrationSpokeClient
         }
 
         return ['status' => 201, 'body' => ['wallet_transaction_id' => '9001']];
+    }
+
+    public function getMigrationStatus(
+        string $migrationOperationId,
+        string $sourceSiteCode,
+        string $sourceLocalUserId,
+        int $sourceUsersWalletId,
+        string $amount,
+        string $sourceBusinessReference,
+    ): array {
+        return [
+            'status' => 200,
+            'body' => [
+                'migration_operation_id' => $migrationOperationId,
+                'lock_status' => 'retired',
+                'source_retired' => true,
+            ],
+        ];
+    }
+
+    public function verifyReconciliation(
+        string $migrationOperationId,
+        string $sourceSiteCode,
+        string $sourceLocalUserId,
+        int $sourceUsersWalletId,
+        string $amount,
+        string $sourceBusinessReference,
+        string $retirementReference,
+    ): array {
+        if ($this->reconciliationShouldFail) {
+            return ['status' => 409, 'body' => ['verified' => false]];
+        }
+
+        return [
+            'status' => 200,
+            'body' => [
+                'verified' => true,
+                'migration_operation_id' => $migrationOperationId,
+            ],
+        ];
     }
 }

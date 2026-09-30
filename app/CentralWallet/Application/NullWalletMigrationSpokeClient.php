@@ -48,4 +48,33 @@ final class NullWalletMigrationSpokeClient implements WalletMigrationSpokeClient
             'body' => ['error' => 'migration_spoke_unavailable'],
         ];
     }
+
+    public function getMigrationStatus(
+        string $migrationOperationId,
+        string $sourceSiteCode,
+        string $sourceLocalUserId,
+        int $sourceUsersWalletId,
+        string $amount,
+        string $sourceBusinessReference,
+    ): array {
+        return [
+            'status' => 503,
+            'body' => ['error' => 'migration_spoke_unavailable'],
+        ];
+    }
+
+    public function verifyReconciliation(
+        string $migrationOperationId,
+        string $sourceSiteCode,
+        string $sourceLocalUserId,
+        int $sourceUsersWalletId,
+        string $amount,
+        string $sourceBusinessReference,
+        string $retirementReference,
+    ): array {
+        return [
+            'status' => 503,
+            'body' => ['error' => 'migration_spoke_unavailable'],
+        ];
+    }
 }

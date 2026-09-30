@@ -151,6 +151,17 @@ class BalanceMigrationCutoverTest extends TestCase
             ->assertJsonPath('error', 'destination_wallet_not_found');
     }
 
+    public function test_reconciliation_failure_blocks_terminal_state(): void
+    {
+        $this->spoke->reconciliationShouldFail = true;
+        $cwid = $this->createWallet();
+
+        $this->authenticated()->postJson('/api/central-wallet/v1/balance-migrations/execute', $this->payload($cwid))
+            ->assertStatus(502)
+            ->assertJsonPath('error', 'source_reconciliation_failed')
+            ->assertJsonPath('migration_status', BalanceMigrationStatus::SourceRetired->value);
+    }
+
     public function test_ledger_credit_metadata_preserves_provenance(): void
     {
         $cwid = $this->createWallet();

@@ -37,4 +37,29 @@ interface WalletMigrationSpokeClient
         string $sourceBusinessReference,
         string $retirementIdempotencyKey,
     ): array;
+
+    /**
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function getMigrationStatus(
+        string $migrationOperationId,
+        string $sourceSiteCode,
+        string $sourceLocalUserId,
+        int $sourceUsersWalletId,
+        string $amount,
+        string $sourceBusinessReference,
+    ): array;
+
+    /**
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function verifyReconciliation(
+        string $migrationOperationId,
+        string $sourceSiteCode,
+        string $sourceLocalUserId,
+        int $sourceUsersWalletId,
+        string $amount,
+        string $sourceBusinessReference,
+        string $retirementReference,
+    ): array;
 }

@@ -22,6 +22,7 @@ final class CeremonyCompleteController
             'local_user_id' => ['required', 'string', 'max:64'],
             'ceremony_verification_ref' => ['required', 'string', 'max:4096'],
             'verification_method' => ['nullable', 'string', 'max:64'],
+            'cross_site_link_authorization_ref' => ['nullable', 'string', 'max:128'],
         ]);
 
         $callerSite = trim((string) $request->header('X-Site-Code', ''));
@@ -40,6 +41,7 @@ final class CeremonyCompleteController
             'local_user_id' => $validated['local_user_id'],
             'ceremony_verification_ref' => $validated['ceremony_verification_ref'],
             'verification_method' => $validated['verification_method'] ?? null,
+            'cross_site_link_authorization_ref' => $validated['cross_site_link_authorization_ref'] ?? null,
         ], JSON_THROW_ON_ERROR));
 
         $result = $this->idempotency->execute(
@@ -53,6 +55,7 @@ final class CeremonyCompleteController
                     ceremonyVerificationRef: $validated['ceremony_verification_ref'],
                     verificationMethod: $validated['verification_method'] ?? null,
                     correlationId: $correlationId !== '' ? $correlationId : null,
+                    crossSiteLinkAuthorizationRef: $validated['cross_site_link_authorization_ref'] ?? null,
                 );
             },
         );

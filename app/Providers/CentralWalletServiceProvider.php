@@ -10,11 +10,13 @@ use App\CentralWallet\Application\CentralWalletService;
 use App\CentralWallet\Application\CeremonyCompleteService;
 use App\CentralWallet\Application\CeremonyVerificationProofValidator;
 use App\CentralWallet\Application\Contracts\WalletMigrationSpokeClient;
+use App\CentralWallet\Application\CrossSiteCeremonyResolver;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
 use App\CentralWallet\Application\NullWalletMigrationSpokeClient;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
+use App\CentralWallet\Infrastructure\Http\HttpWalletMigrationSpokeClient;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -28,6 +30,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CentralWalletService::class);
         $this->app->singleton(AccountLinkService::class);
         $this->app->singleton(CeremonyVerificationProofValidator::class);
+        $this->app->singleton(CrossSiteCeremonyResolver::class);
         $this->app->singleton(CeremonyCompleteService::class);
         $this->app->singleton(LedgerService::class);
         $this->app->singleton(LedgerEntryReadService::class);
@@ -35,12 +38,26 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(BalanceMigrationCutoverService::class);
 
         $this->app->singleton(WalletMigrationSpokeClient::class, function (): WalletMigrationSpokeClient {
-            $baseUrl = trim((string) config('central_wallet.balance_migration.spoke_base_url', ''));
-            if ($baseUrl === '') {
+            $migrationConfig = config('central_wallet.balance_migration', []);
+            $baseUrl = rtrim(trim((string) ($migrationConfig['spoke_base_url'] ?? '')), '/');
+            $token = trim((string) ($migrationConfig['spoke_token'] ?? ''));
+
+            if ($baseUrl === '' || $token === '') {
+                $spoke = config('order_lookup.spokes.rdservice_in', []);
+                $baseUrl = rtrim(trim((string) ($spoke['base_url'] ?? '')), '/');
+                $token = trim((string) ($spoke['token'] ?? ''));
+            }
+
+            if ($baseUrl === '' || $token === '') {
                 return new NullWalletMigrationSpokeClient;
             }
 
-            return new NullWalletMigrationSpokeClient;
+            return new HttpWalletMigrationSpokeClient(
+                baseUrl: $baseUrl,
+                token: $token,
+                connectTimeoutSeconds: (int) ($migrationConfig['spoke_connect_timeout_seconds'] ?? 3),
+                timeoutSeconds: (int) ($migrationConfig['spoke_timeout_seconds'] ?? 15),
+            );
         });
     }
 

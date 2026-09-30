@@ -20,6 +20,7 @@ final class CeremonyCompleteService
         private readonly CentralWalletService $wallets,
         private readonly AccountLinkService $accountLinks,
         private readonly AuditEventRecorder $auditEvents,
+        private readonly CrossSiteCeremonyResolver $crossSiteResolver,
     ) {}
 
     /**
@@ -31,6 +32,7 @@ final class CeremonyCompleteService
         string $ceremonyVerificationRef,
         ?string $verificationMethod,
         ?string $correlationId,
+        ?string $crossSiteLinkAuthorizationRef = null,
     ): array {
         try {
             $validated = $this->proofValidator->validate(
@@ -70,7 +72,7 @@ final class CeremonyCompleteService
         $proof = $validated['proof'];
 
         try {
-            return DB::transaction(function () use ($proof, $siteCode, $localUserId, $correlationId): array {
+            return DB::transaction(function () use ($proof, $siteCode, $localUserId, $correlationId, $crossSiteLinkAuthorizationRef): array {
                 try {
                     $this->consumeProof($proof);
                 } catch (InvalidArgumentException $exception) {
@@ -128,6 +130,51 @@ final class CeremonyCompleteService
                     $provisionAction = 'resolved_existing';
                 }
 
+                if ($centralWalletId === null) {
+                    $crossSite = $this->crossSiteResolver->resolve(
+                        siteCode: $siteCode,
+                        verifiedPhoneE164Hash: $proof->verifiedPhoneE164Hash,
+                        crossSiteLinkAuthorizationRef: $crossSiteLinkAuthorizationRef,
+                    );
+
+                    if ($crossSite->status === CrossSiteResolution::STATUS_AMBIGUOUS) {
+                        return $this->conflictResponse(
+                            error: 'cross_site_identity_ambiguous',
+                            siteCode: $siteCode,
+                            localUserId: $localUserId,
+                            centralWalletId: null,
+                            correlationId: $correlationId,
+                        );
+                    }
+
+                    if ($crossSite->status === CrossSiteResolution::STATUS_AUTHORIZATION_REQUIRED) {
+                        return [
+                            'status' => 403,
+                            'body' => ['error' => 'cross_site_authorization_required'],
+                        ];
+                    }
+
+                    if ($crossSite->status === CrossSiteResolution::STATUS_RESOLVED) {
+                        $centralWalletId = $crossSite->centralWalletId;
+                        $provisionAction = 'resolved_cross_site_existing';
+
+                        $this->auditEvents->record(
+                            eventType: 'ceremony.wallet_resolved',
+                            centralWalletId: $centralWalletId,
+                            actorType: AuditActorType::Service,
+                            actorId: 'ceremony:'.$siteCode,
+                            correlationId: $correlationId,
+                            payload: [
+                                'site_code' => $siteCode,
+                                'local_user_id' => $localUserId,
+                                'ceremony_attempt_id' => $proof->ceremonyAttemptId,
+                                'provision_action' => $provisionAction,
+                                'cross_site_link_authorization_ref' => $crossSiteLinkAuthorizationRef,
+                            ],
+                        );
+                    }
+                }
+
                 if ($centralWalletId !== null) {
                     $walletLinkedElsewhere = CentralWalletAccountLink::query()
                         ->where('site_code', $siteCode)
@@ -174,19 +221,21 @@ final class CeremonyCompleteService
                         verifiedPhoneE164Hash: $proof->verifiedPhoneE164Hash,
                     );
                 } else {
-                    $this->auditEvents->record(
-                        eventType: 'ceremony.wallet_resolved',
-                        centralWalletId: $centralWalletId,
-                        actorType: AuditActorType::Service,
-                        actorId: 'ceremony:'.$siteCode,
-                        correlationId: $correlationId,
-                        payload: [
-                            'site_code' => $siteCode,
-                            'local_user_id' => $localUserId,
-                            'ceremony_attempt_id' => $proof->ceremonyAttemptId,
-                            'provision_action' => 'resolved_existing',
-                        ],
-                    );
+                    if ($provisionAction !== 'resolved_cross_site_existing') {
+                        $this->auditEvents->record(
+                            eventType: 'ceremony.wallet_resolved',
+                            centralWalletId: $centralWalletId,
+                            actorType: AuditActorType::Service,
+                            actorId: 'ceremony:'.$siteCode,
+                            correlationId: $correlationId,
+                            payload: [
+                                'site_code' => $siteCode,
+                                'local_user_id' => $localUserId,
+                                'ceremony_attempt_id' => $proof->ceremonyAttemptId,
+                                'provision_action' => $provisionAction,
+                            ],
+                        );
+                    }
 
                     $this->upsertCeremonyIdentity(
                         identity: $identity,

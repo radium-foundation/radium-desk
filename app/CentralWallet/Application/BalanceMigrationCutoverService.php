@@ -374,6 +374,21 @@ final class BalanceMigrationCutoverService
         }
 
         if ($migration->status === BalanceMigrationStatus::SourceRetired) {
+            $reconciliation = $this->spokeClient->verifyReconciliation(
+                migrationOperationId: $migration->migration_operation_id,
+                sourceSiteCode: $migration->source_site_code,
+                sourceLocalUserId: $migration->source_local_user_id,
+                sourceUsersWalletId: $migration->source_users_wallet_id,
+                amount: $migration->source_amount,
+                sourceBusinessReference: $migration->source_business_reference,
+                retirementReference: (string) ($migration->source_retirement_reference ?? ''),
+            );
+
+            if ($reconciliation['status'] >= 400
+                || ($reconciliation['body']['verified'] ?? false) !== true) {
+                return $this->error('source_reconciliation_failed', 502, $migration);
+            }
+
             $migration = $this->transition($migration, BalanceMigrationStatus::Reconciled, [
                 'reconciled_at' => now(),
             ]);
