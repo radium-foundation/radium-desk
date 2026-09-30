@@ -109,12 +109,30 @@ body {
     background-color: rgba(255, 255, 255, 0.42);
 }
 
-.app-sidebar .brand-mark-icon {
+.app-sidebar .brand-mark-icon,
+.app-sidebar .brand-mark-logo {
     width: auto;
-    height: 30px;
     object-fit: contain;
     flex-shrink: 0;
     border: none;
+}
+
+.app-sidebar .brand-mark-icon {
+    height: 30px;
+}
+
+.app-sidebar .brand-mark-logo {
+    display: none;
+    height: 28px;
+    filter: brightness(0) invert(1);
+}
+
+html.sidebar-expanded .app-sidebar .brand-mark-logo {
+    display: block;
+}
+
+html.sidebar-expanded .app-sidebar .brand-mark-icon {
+    display: none;
 }
 
 .guest-brand-logo {
@@ -125,6 +143,10 @@ body {
     margin-inline: auto;
     display: block;
     border: none;
+}
+
+.guest-brand-icon {
+    max-height: 72px;
 }
 
 .app-version-footer {

@@ -64,7 +64,7 @@ class DriverInstallationGuideEmailTemplateTest extends TestCase
         $this->assertStringContainsString('Need Help?', $html);
         $this->assertStringContainsString('mailto:support@radiumbox.com', $html);
         $this->assertStringContainsString('support@radiumbox.com', $html);
-        $this->assertStringContainsString('brand/icon.svg', $html);
+        $this->assertStringContainsString('brand/logo.png', $html);
     }
 
     public function test_template_hides_secondary_cta_when_support_booking_link_is_unavailable(): void
