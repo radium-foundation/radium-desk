@@ -1,6 +1,7 @@
 <?php
 
 use App\CentralWallet\Infrastructure\Http\Controllers\AccountLinkController;
+use App\CentralWallet\Infrastructure\Http\Controllers\BalanceMigrationController;
 use App\CentralWallet\Infrastructure\Http\Controllers\CeremonyCompleteController;
 use App\CentralWallet\Infrastructure\Http\Controllers\HealthController;
 use App\CentralWallet\Infrastructure\Http\Controllers\LedgerEntryController;
@@ -38,3 +39,6 @@ Route::post('/ceremony/complete', [CeremonyCompleteController::class, 'store'])
 
 Route::post('/wallet-reservations', [ReservationController::class, 'store'])
     ->name('central-wallet.wallet-reservations.store');
+
+Route::post('/balance-migrations/execute', [BalanceMigrationController::class, 'execute'])
+    ->name('central-wallet.balance-migrations.execute');

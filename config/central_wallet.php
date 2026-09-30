@@ -1,5 +1,7 @@
 <?php
 
+use App\CentralWallet\Support\CohortUserIdList;
+
 return [
 
     /*
@@ -38,6 +40,13 @@ return [
     'ceremony' => [
         'audience' => 'radium-desk:ceremony-complete',
         'proof_ttl_seconds' => max(60, (int) env('CENTRAL_WALLET_CEREMONY_PROOF_TTL_SECONDS', 300)),
+        'cross_site_enabled' => filter_var(env('CENTRAL_WALLET_CROSS_SITE_CEREMONY_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'cross_site_cohort' => [
+            'enabled' => filter_var(env('CENTRAL_WALLET_CROSS_SITE_CEREMONY_COHORT_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'allowed_local_user_ids' => CohortUserIdList::normalize(
+                env('CENTRAL_WALLET_CROSS_SITE_CEREMONY_COHORT_LOCAL_USER_IDS', ''),
+            ),
+        ],
         'signing_secrets' => [
             'radiumbox.com' => env('CENTRAL_WALLET_CEREMONY_SIGNING_SECRET_RADIUMBOX_COM'),
             'rdservice.in' => env('CENTRAL_WALLET_CEREMONY_SIGNING_SECRET_RDSERVICE_IN'),
@@ -67,5 +76,19 @@ return [
     */
 
     'log_channel' => env('CENTRAL_WALLET_LOG_CHANNEL', 'stack'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Balance migration / cutover (default OFF — fail-closed)
+    |--------------------------------------------------------------------------
+    */
+
+    'balance_migration' => [
+        'execution_enabled' => filter_var(env('CENTRAL_WALLET_BALANCE_MIGRATION_EXECUTION_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'spoke_base_url' => env('CENTRAL_WALLET_MIGRATION_SPOKE_BASE_URL'),
+        'spoke_token' => env('CENTRAL_WALLET_MIGRATION_SPOKE_TOKEN'),
+        'spoke_connect_timeout_seconds' => max(1, (int) env('CENTRAL_WALLET_MIGRATION_SPOKE_CONNECT_TIMEOUT', 3)),
+        'spoke_timeout_seconds' => max(1, (int) env('CENTRAL_WALLET_MIGRATION_SPOKE_TIMEOUT', 15)),
+    ],
 
 ];
