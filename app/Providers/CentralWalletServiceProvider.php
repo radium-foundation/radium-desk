@@ -4,12 +4,16 @@ namespace App\Providers;
 
 use App\CentralWallet\Application\AccountLinkService;
 use App\CentralWallet\Application\AuditEventRecorder;
+use App\CentralWallet\Application\BalanceMigrationCutoverService;
+use App\CentralWallet\Application\BalanceMigrationStateMachine;
 use App\CentralWallet\Application\CentralWalletService;
 use App\CentralWallet\Application\CeremonyCompleteService;
 use App\CentralWallet\Application\CeremonyVerificationProofValidator;
+use App\CentralWallet\Application\Contracts\WalletMigrationSpokeClient;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
+use App\CentralWallet\Application\NullWalletMigrationSpokeClient;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -27,6 +31,17 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CeremonyCompleteService::class);
         $this->app->singleton(LedgerService::class);
         $this->app->singleton(LedgerEntryReadService::class);
+        $this->app->singleton(BalanceMigrationStateMachine::class);
+        $this->app->singleton(BalanceMigrationCutoverService::class);
+
+        $this->app->singleton(WalletMigrationSpokeClient::class, function (): WalletMigrationSpokeClient {
+            $baseUrl = trim((string) config('central_wallet.balance_migration.spoke_base_url', ''));
+            if ($baseUrl === '') {
+                return new NullWalletMigrationSpokeClient;
+            }
+
+            return new NullWalletMigrationSpokeClient;
+        });
     }
 
     public function boot(): void

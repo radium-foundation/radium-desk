@@ -68,4 +68,16 @@ return [
 
     'log_channel' => env('CENTRAL_WALLET_LOG_CHANNEL', 'stack'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Balance migration / cutover (default OFF — fail-closed)
+    |--------------------------------------------------------------------------
+    */
+
+    'balance_migration' => [
+        'execution_enabled' => filter_var(env('CENTRAL_WALLET_BALANCE_MIGRATION_EXECUTION_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'spoke_base_url' => env('CENTRAL_WALLET_MIGRATION_SPOKE_BASE_URL'),
+        'spoke_token' => env('CENTRAL_WALLET_MIGRATION_SPOKE_TOKEN'),
+    ],
+
 ];
