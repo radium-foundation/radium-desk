@@ -58,7 +58,6 @@ class CentralWalletSecurityTest extends TestCase
             'idempotency_key' => 'scoped-credit',
             'entry_type' => 'credit',
             'amount' => '3.00',
-            'source_system' => 'test_harness',
         ];
 
         $first = $this->authenticatedAs('rdservice.in')

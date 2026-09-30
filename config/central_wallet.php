@@ -55,6 +55,12 @@ return [
 
     'reservation_ttl_seconds' => max(60, (int) env('CENTRAL_WALLET_RESERVATION_TTL_SECONDS', 900)),
 
+    'reservations' => [
+        'enabled' => filter_var(env('CENTRAL_WALLET_RESERVATIONS_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'expiry_batch_size' => max(1, (int) env('CENTRAL_WALLET_RESERVATION_EXPIRY_BATCH_SIZE', 100)),
+        'expiry_schedule' => env('CENTRAL_WALLET_RESERVATION_EXPIRY_SCHEDULE', '*/15 * * * *'),
+    ],
+
     'currency' => 'INR',
 
     /*

@@ -3,6 +3,7 @@
 use App\CentralWallet\Infrastructure\Http\Middleware\AssignCentralWalletCorrelationId;
 use App\CentralWallet\Infrastructure\Http\Middleware\AuthenticateCentralWalletIntegration;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletApiEnabled;
+use App\CentralWallet\Infrastructure\Jobs\ExpireActiveReservationsJob;
 use App\CentralWallet\Infrastructure\Jobs\PurgeExpiredIdempotencyRecordsJob;
 use App\CentralWallet\Infrastructure\Jobs\ReconciliationDailyJob;
 use App\Enums\QueueWorkerMode;
@@ -293,6 +294,13 @@ return Application::configure(basePath: dirname(__DIR__))
             ->when(fn (): bool => (bool) config('central_wallet.enabled', false))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/central-wallet-idempotency-purge.log'));
+
+        $schedule->job(new ExpireActiveReservationsJob)
+            ->cron((string) config('central_wallet.reservations.expiry_schedule', '*/15 * * * *'))
+            ->when(fn (): bool => (bool) config('central_wallet.enabled', false)
+                && (bool) config('central_wallet.reservations.enabled', false))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/central-wallet-reservation-expiry.log'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

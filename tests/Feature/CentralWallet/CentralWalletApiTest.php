@@ -236,10 +236,12 @@ class CentralWalletApiTest extends TestCase
         ])->assertStatus(409);
     }
 
-    public function test_wallet_reservation_endpoint_returns_not_implemented(): void
+    public function test_wallet_reservation_endpoint_disabled_by_default(): void
     {
+        config(['central_wallet.reservations.enabled' => false]);
+
         $this->authenticated()->postJson('/api/central-wallet/v1/wallet-reservations', [])
-            ->assertStatus(501);
+            ->assertStatus(503);
     }
 
     public function test_correlation_id_is_returned(): void

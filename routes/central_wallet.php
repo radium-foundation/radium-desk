@@ -37,8 +37,19 @@ Route::get('/account-links', [AccountLinkController::class, 'index'])->name('cen
 Route::post('/ceremony/complete', [CeremonyCompleteController::class, 'store'])
     ->name('central-wallet.ceremony.complete');
 
-Route::post('/wallet-reservations', [ReservationController::class, 'store'])
-    ->name('central-wallet.wallet-reservations.store');
+Route::middleware('central_wallet.reservations')->group(function (): void {
+    Route::post('/wallet-reservations', [ReservationController::class, 'store'])
+        ->name('central-wallet.wallet-reservations.store');
+    Route::get('/wallet-reservations/{reservation_id}', [ReservationController::class, 'show'])
+        ->whereUuid('reservation_id')
+        ->name('central-wallet.wallet-reservations.show');
+    Route::post('/wallet-reservations/{reservation_id}/commit', [ReservationController::class, 'commit'])
+        ->whereUuid('reservation_id')
+        ->name('central-wallet.wallet-reservations.commit');
+    Route::post('/wallet-reservations/{reservation_id}/release', [ReservationController::class, 'release'])
+        ->whereUuid('reservation_id')
+        ->name('central-wallet.wallet-reservations.release');
+});
 
 Route::post('/balance-migrations/execute', [BalanceMigrationController::class, 'execute'])
     ->name('central-wallet.balance-migrations.execute');

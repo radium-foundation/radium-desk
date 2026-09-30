@@ -20,6 +20,7 @@ class CentralWalletLedgerEntry extends Model
         'correlation_id',
         'business_reference',
         'reservation_id',
+        'original_ledger_entry_id',
         'metadata',
         'posted_at',
     ];
