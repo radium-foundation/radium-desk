@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.168 — 2026-09-30 — Central Wallet external direct debit safety gate (default ON)
+
+- **Safety gate:** `CENTRAL_WALLET_DIRECT_LEDGER_DEBIT_ENABLED` (default **true**) controls whether external site callers (`X-Site-Code`) may POST `entry_type=debit` to `/wallets/{cwid}/ledger-entries`. When false, rejects with **503** before idempotency/ledger mutation.
+- **Preserved:** Reservation commit debits, credits, adjustments, reversals, balance migration, internal `central_wallet_service` callers, and all existing Central Wallet auth/source-system behavior unchanged.
+- **Production intent:** Flag remains **true** — no change to current direct-debit availability until checkout cutover explicitly sets false.
+- Regression: `CentralWalletDirectLedgerDebitGateTest` (**14**) + Central Wallet suite PASS. Prompt **RadiumDesk-P-30-09-14**.
+- Rollback target: v4.0.167 / `f826d9e3`.
+
 ## 4.0.167 — 2026-09-30 — Central Wallet reservation lifecycle foundation (additive, flag OFF)
 
 - **Reservation foundation:** State machine, `ReservationService`, API routes/controllers, expiry job, source-system security, and reversal linkage for Central Wallet holds (reserve → commit/release/expire).
