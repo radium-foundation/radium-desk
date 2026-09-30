@@ -133,9 +133,33 @@ final class CeremonyCompleteService
                 if ($centralWalletId === null) {
                     $crossSite = $this->crossSiteResolver->resolve(
                         siteCode: $siteCode,
+                        localUserId: $localUserId,
                         verifiedPhoneE164Hash: $proof->verifiedPhoneE164Hash,
                         crossSiteLinkAuthorizationRef: $crossSiteLinkAuthorizationRef,
                     );
+
+                    if ($crossSite->status === CrossSiteResolution::STATUS_COHORT_DENIED) {
+                        $this->auditEvents->record(
+                            eventType: 'ceremony.cross_site_cohort_rejected',
+                            centralWalletId: null,
+                            actorType: AuditActorType::Service,
+                            actorId: 'ceremony:'.$siteCode,
+                            correlationId: $correlationId,
+                            payload: [
+                                'site_code' => $siteCode,
+                                'local_user_id' => $localUserId,
+                                'reason' => $crossSite->cohortRejectionReason,
+                            ],
+                        );
+
+                        return [
+                            'status' => 403,
+                            'body' => [
+                                'error' => 'cross_site_cohort_denied',
+                                'reason' => $crossSite->cohortRejectionReason,
+                            ],
+                        ];
+                    }
 
                     if ($crossSite->status === CrossSiteResolution::STATUS_AMBIGUOUS) {
                         return $this->conflictResponse(

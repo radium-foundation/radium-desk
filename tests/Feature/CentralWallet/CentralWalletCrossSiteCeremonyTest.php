@@ -38,6 +38,8 @@ class CentralWalletCrossSiteCeremonyTest extends TestCase
                 self::RDIN_SITE => self::SIGNING_SECRET_RDIN,
             ],
             'central_wallet.ceremony.cross_site_enabled' => true,
+            'central_wallet.ceremony.cross_site_cohort.enabled' => true,
+            'central_wallet.ceremony.cross_site_cohort.allowed_local_user_ids' => [3],
         ]);
     }
 
@@ -66,16 +68,18 @@ class CentralWalletCrossSiteCeremonyTest extends TestCase
         ]);
     }
 
-    public function test_cross_site_match_without_authorization_fails_closed(): void
+    public function test_cohort_denied_when_user_not_allowlisted(): void
     {
-        $phoneHash = hash('sha256', '+919111111111');
+        config(['central_wallet.ceremony.cross_site_cohort.allowed_local_user_ids' => [99]]);
+
+        $phoneHash = hash('sha256', '+919888888888');
         $this->seedLinkedSiteUser(self::BOX_SITE, '8', $phoneHash);
 
         $proof = $this->issueProof(self::RDIN_SITE, '8', (string) Str::uuid(), $phoneHash, self::SIGNING_SECRET_RDIN);
 
-        $this->complete(self::RDIN_SITE, 'idem-cross-auth', '8', $proof)
+        $this->complete(self::RDIN_SITE, 'idem-cohort-deny', '8', $proof, 'OWNER-CROSS-LINK-TEST-COHORT')
             ->assertForbidden()
-            ->assertJsonPath('error', 'cross_site_authorization_required');
+            ->assertJsonPath('error', 'cross_site_cohort_denied');
 
         $this->assertDatabaseMissing('central_wallet_account_links', [
             'site_code' => self::RDIN_SITE,
@@ -83,21 +87,68 @@ class CentralWalletCrossSiteCeremonyTest extends TestCase
         ]);
     }
 
+    public function test_cohort_disabled_blocks_cross_site_resolution(): void
+    {
+        config(['central_wallet.ceremony.cross_site_cohort.enabled' => false]);
+
+        $phoneHash = hash('sha256', '+919111111111');
+        $this->seedLinkedSiteUser(self::BOX_SITE, '3', $phoneHash);
+
+        $proof = $this->issueProof(self::RDIN_SITE, '3', (string) Str::uuid(), $phoneHash, self::SIGNING_SECRET_RDIN);
+
+        $this->complete(self::RDIN_SITE, 'idem-cohort-off', '3', $proof, 'OWNER-CROSS-LINK-TEST-COHORT-OFF')
+            ->assertForbidden()
+            ->assertJsonPath('error', 'cross_site_cohort_denied')
+            ->assertJsonPath('reason', 'cross_site_cohort_disabled');
+    }
+
+    public function test_empty_cohort_blocks_cross_site_resolution(): void
+    {
+        config(['central_wallet.ceremony.cross_site_cohort.allowed_local_user_ids' => []]);
+
+        $phoneHash = hash('sha256', '+919111111112');
+        $this->seedLinkedSiteUser(self::BOX_SITE, '3', $phoneHash);
+
+        $proof = $this->issueProof(self::RDIN_SITE, '3', (string) Str::uuid(), $phoneHash, self::SIGNING_SECRET_RDIN);
+
+        $this->complete(self::RDIN_SITE, 'idem-cohort-empty', '3', $proof, 'OWNER-CROSS-LINK-TEST-COHORT-EMPTY')
+            ->assertForbidden()
+            ->assertJsonPath('error', 'cross_site_cohort_denied')
+            ->assertJsonPath('reason', 'cross_site_cohort_empty');
+    }
+
+    public function test_cross_site_match_without_authorization_fails_closed(): void
+    {
+        $phoneHash = hash('sha256', '+919111111111');
+        $this->seedLinkedSiteUser(self::BOX_SITE, '3', $phoneHash);
+
+        $proof = $this->issueProof(self::RDIN_SITE, '3', (string) Str::uuid(), $phoneHash, self::SIGNING_SECRET_RDIN);
+
+        $this->complete(self::RDIN_SITE, 'idem-cross-auth', '3', $proof)
+            ->assertForbidden()
+            ->assertJsonPath('error', 'cross_site_authorization_required');
+
+        $this->assertDatabaseMissing('central_wallet_account_links', [
+            'site_code' => self::RDIN_SITE,
+            'local_user_id' => '3',
+        ]);
+    }
+
     public function test_ambiguous_cross_site_identity_returns_conflict(): void
     {
         $phoneHash = hash('sha256', '+919222222222');
-        $this->seedLinkedSiteUser(self::BOX_SITE, '11', $phoneHash);
-        $this->seedLinkedSiteUser('rdservice.net', '11', $phoneHash);
+        $this->seedLinkedSiteUser(self::BOX_SITE, '3', $phoneHash);
+        $this->seedLinkedSiteUser('rdservice.net', '3', $phoneHash);
 
-        $proof = $this->issueProof(self::RDIN_SITE, '11', (string) Str::uuid(), $phoneHash, self::SIGNING_SECRET_RDIN);
+        $proof = $this->issueProof(self::RDIN_SITE, '3', (string) Str::uuid(), $phoneHash, self::SIGNING_SECRET_RDIN);
 
-        $this->complete(self::RDIN_SITE, 'idem-ambiguous', '11', $proof, 'OWNER-CROSS-LINK-TEST-002')
+        $this->complete(self::RDIN_SITE, 'idem-ambiguous', '3', $proof, 'OWNER-CROSS-LINK-TEST-002')
             ->assertStatus(409)
             ->assertJsonPath('error', 'cross_site_identity_ambiguous');
 
         $this->assertDatabaseMissing('central_wallet_account_links', [
             'site_code' => self::RDIN_SITE,
-            'local_user_id' => '11',
+            'local_user_id' => '3',
         ]);
     }
 
@@ -133,16 +184,18 @@ class CentralWalletCrossSiteCeremonyTest extends TestCase
     public function test_cross_site_idempotent_replay_returns_same_link(): void
     {
         $phoneHash = hash('sha256', '+919555555555');
-        $existingCwid = $this->seedLinkedSiteUser(self::BOX_SITE, '16', $phoneHash);
-        $proof = $this->issueProof(self::RDIN_SITE, '16', (string) Str::uuid(), $phoneHash, self::SIGNING_SECRET_RDIN);
+        $existingCwid = $this->seedLinkedSiteUser(self::BOX_SITE, '3', $phoneHash);
+        $proof = $this->issueProof(self::RDIN_SITE, '3', (string) Str::uuid(), $phoneHash, self::SIGNING_SECRET_RDIN);
 
-        $this->complete(self::RDIN_SITE, 'idem-replay-cross', '16', $proof, 'OWNER-CROSS-LINK-TEST-004')
+        $this->complete(self::RDIN_SITE, 'idem-replay-cross', '3', $proof, 'OWNER-CROSS-LINK-TEST-004')
             ->assertCreated();
 
-        $this->complete(self::RDIN_SITE, 'idem-replay-cross', '16', $proof, 'OWNER-CROSS-LINK-TEST-004')
+        $this->complete(self::RDIN_SITE, 'idem-replay-cross', '3', $proof, 'OWNER-CROSS-LINK-TEST-004')
             ->assertStatus(201)
             ->assertJsonPath('idempotent', true)
             ->assertJsonPath('central_wallet_id', $existingCwid);
+
+        $this->assertSame(1, DB::table('central_wallets')->count());
     }
 
     public function test_cwid_already_linked_elsewhere_on_same_site_still_conflicts(): void

@@ -10,6 +10,7 @@ use App\CentralWallet\Application\CentralWalletService;
 use App\CentralWallet\Application\CeremonyCompleteService;
 use App\CentralWallet\Application\CeremonyVerificationProofValidator;
 use App\CentralWallet\Application\Contracts\WalletMigrationSpokeClient;
+use App\CentralWallet\Application\CrossSiteCeremonyCohortEligibility;
 use App\CentralWallet\Application\CrossSiteCeremonyResolver;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\LedgerEntryReadService;
@@ -30,6 +31,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CentralWalletService::class);
         $this->app->singleton(AccountLinkService::class);
         $this->app->singleton(CeremonyVerificationProofValidator::class);
+        $this->app->singleton(CrossSiteCeremonyCohortEligibility::class);
         $this->app->singleton(CrossSiteCeremonyResolver::class);
         $this->app->singleton(CeremonyCompleteService::class);
         $this->app->singleton(LedgerService::class);

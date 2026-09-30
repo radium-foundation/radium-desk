@@ -8,8 +8,13 @@ use Illuminate\Support\Collection;
 
 final class CrossSiteCeremonyResolver
 {
+    public function __construct(
+        private readonly CrossSiteCeremonyCohortEligibility $cohortEligibility,
+    ) {}
+
     public function resolve(
         string $siteCode,
+        string $localUserId,
         string $verifiedPhoneE164Hash,
         ?string $crossSiteLinkAuthorizationRef,
     ): CrossSiteResolution {
@@ -25,6 +30,11 @@ final class CrossSiteCeremonyResolver
 
         if ($cwids->isEmpty()) {
             return CrossSiteResolution::noMatch();
+        }
+
+        $cohortRejection = $this->cohortEligibility->rejectionReason($localUserId);
+        if ($cohortRejection !== null) {
+            return CrossSiteResolution::cohortDenied($cohortRejection);
         }
 
         if ($cwids->count() > 1) {
@@ -73,9 +83,12 @@ final class CrossSiteResolution
 
     public const STATUS_AUTHORIZATION_REQUIRED = 'authorization_required';
 
+    public const STATUS_COHORT_DENIED = 'cohort_denied';
+
     private function __construct(
         public readonly string $status,
         public readonly ?string $centralWalletId = null,
+        public readonly ?string $cohortRejectionReason = null,
     ) {}
 
     public static function noMatch(): self
@@ -96,5 +109,10 @@ final class CrossSiteResolution
     public static function authorizationRequired(): self
     {
         return new self(self::STATUS_AUTHORIZATION_REQUIRED);
+    }
+
+    public static function cohortDenied(string $reason): self
+    {
+        return new self(self::STATUS_COHORT_DENIED, null, $reason);
     }
 }

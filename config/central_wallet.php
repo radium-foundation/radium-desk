@@ -1,5 +1,7 @@
 <?php
 
+use App\CentralWallet\Support\CohortUserIdList;
+
 return [
 
     /*
@@ -39,6 +41,12 @@ return [
         'audience' => 'radium-desk:ceremony-complete',
         'proof_ttl_seconds' => max(60, (int) env('CENTRAL_WALLET_CEREMONY_PROOF_TTL_SECONDS', 300)),
         'cross_site_enabled' => filter_var(env('CENTRAL_WALLET_CROSS_SITE_CEREMONY_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'cross_site_cohort' => [
+            'enabled' => filter_var(env('CENTRAL_WALLET_CROSS_SITE_CEREMONY_COHORT_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'allowed_local_user_ids' => CohortUserIdList::normalize(
+                env('CENTRAL_WALLET_CROSS_SITE_CEREMONY_COHORT_LOCAL_USER_IDS', ''),
+            ),
+        ],
         'signing_secrets' => [
             'radiumbox.com' => env('CENTRAL_WALLET_CEREMONY_SIGNING_SECRET_RADIUMBOX_COM'),
             'rdservice.in' => env('CENTRAL_WALLET_CEREMONY_SIGNING_SECRET_RDSERVICE_IN'),
