@@ -97,7 +97,9 @@ class PlatformIdentityTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('brand/icon.svg', false);
+            ->assertSee('brand/icon.svg', false)
+            ->assertSee('brand-mark-icon', false)
+            ->assertSee('brand-mark-logo', false);
     }
 
     public function test_layout_includes_robots_meta_tag(): void
@@ -121,7 +123,8 @@ class PlatformIdentityTest extends TestCase
         $response = $this->get(route('login'));
 
         $response->assertOk();
-        $response->assertSee('brand/logo.png', false);
+        $response->assertSee('brand/icon.svg', false);
+        $response->assertSee('guest-brand-icon', false);
         $response->assertSee('Internal Operations Portal', false);
         $response->assertDontSee('<h1 class="h4 fw-bold text-primary mb-1">', false);
     }

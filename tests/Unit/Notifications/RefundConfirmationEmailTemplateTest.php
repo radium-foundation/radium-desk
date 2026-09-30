@@ -54,6 +54,6 @@ class RefundConfirmationEmailTemplateTest extends TestCase
         $this->assertStringContainsString('Kind regards,', $html);
         $this->assertStringContainsString('Team Radium Box', $html);
         $this->assertStringContainsString('support@radiumbox.com', $html);
-        $this->assertStringContainsString('brand/icon.svg', $html);
+        $this->assertStringContainsString('brand/logo.png', $html);
     }
 }

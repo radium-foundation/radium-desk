@@ -336,3 +336,15 @@ Merge Central Wallet ceremony release to main as **v4.0.159**. Merge `release/ce
 ## RadiumDesk-P-25-09-124
 
 Release v4.0.160: Central Wallet ceremony migration MariaDB compatibility fix (`5bc574c3`). Idempotent STORED generated-column partial unique indexes for MariaDB 11.8.8; resumes partial production state from failed v4.0.159 deploy. **Push + tag only — no deploy/production migration/signing secret/OTP/CWID.**
+
+---
+
+## RadiumDesk-P-30-09-04
+
+Isolate verified OOM DISTINCT + automation enum-label fixes onto `hotfix/incoming-email-oom-and-automation-label` from `main` @ `b275fbde`. Excludes Central Wallet feature worktree changes and External Courier. Focused unit tests **6/6** PASS; AutomationOperations **12/13** (stale sidebar test pre-existing since v4.0.110). **Not committed/pushed/tagged/deployed.**
+
+---
+
+## RadiumDesk-P-30-09-02
+
+Investigate and correct Radium branding/logo behavior in outgoing emails and Desk authentication/navigation UI. Investigation-first: verify email logo reference, login page branding, and authenticated sidebar expanded/collapsed logos. **Not committed/pushed/deployed.**

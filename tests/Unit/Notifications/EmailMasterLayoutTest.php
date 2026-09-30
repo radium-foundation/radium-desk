@@ -24,7 +24,8 @@ class EmailMasterLayoutTest extends TestCase
         $this->assertStringContainsString('max-width: 600px', $html);
         $this->assertStringContainsString('background-color: #ffffff', $html);
         $this->assertStringContainsString('border: 1px solid #e9ecef', $html);
-        $this->assertStringContainsString('brand/icon.svg', $html);
+        $this->assertStringContainsString('brand/logo.png', $html);
+        $this->assertStringNotContainsString('brand/icon.svg', $html);
         $this->assertStringContainsString('All rights reserved.', $html);
     }
 
