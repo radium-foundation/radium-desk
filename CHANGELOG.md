@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.164 — 2026-09-30 — Incoming email OOM + automation sync label hotfix
+
+- **Incoming email OOM:** `IncomingEmailAttentionCategoryService::knownCustomerEmails()` now uses database-side `DISTINCT` before `pluck('customer_email')`, so repeat customer orders no longer materialize one PHP string per order row (verified 128MB production OOM on dashboard email-intake KPI path).
+- **Automation snapshot:** `AutomationOperationsValidationCollector::radiumBoxSyncLabel()` delegates to `RadiumBoxEnrichmentSyncStatus::label()` for all seven sync statuses, fixing `UnhandledMatchError` on `HandoffPending`, `HandoffFailed`, and `ReconciliationRequired` during `automation:snapshot`.
+- **Preserved:** Soft-delete scope on order lookup, intake categorization semantics, and existing labels for the original four sync statuses. No `memory_limit` change. `OrderIdentityValidationAnalyzerService` unchanged.
+- Regression: `IncomingEmailAttentionCategoryServiceTest` (**3/3**), `AutomationOperationsValidationCollectorSyncLabelTest` (**3/3**). Prompt **RadiumDesk-P-30-09-04**.
+- Rollback target: v4.0.163 / `88a9c7dc`.
+
 ## 4.0.163 — 2026-09-30 — Central Wallet cross-site linking + migration safety infrastructure
 
 - **Cross-site ceremony:** `CrossSiteCeremonyResolver` resolves existing CWID across sites via verified phone hash when `CENTRAL_WALLET_CROSS_SITE_CEREMONY_ENABLED=true` and explicit `cross_site_link_authorization_ref` is supplied; `provision_action: resolved_cross_site_existing`.
