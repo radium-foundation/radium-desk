@@ -3,6 +3,7 @@
 namespace App\CentralWallet\Infrastructure\Http\Controllers;
 
 use App\CentralWallet\Application\CentralWalletService;
+use App\CentralWallet\Application\ExternalDirectLedgerDebitGate;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\IntegrationSourceSystemResolver;
 use App\CentralWallet\Application\LedgerService;
@@ -10,6 +11,7 @@ use App\CentralWallet\Domain\Cwid;
 use App\CentralWallet\Domain\Enums\LedgerEntryType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 final class WalletController
 {
@@ -18,6 +20,7 @@ final class WalletController
         private readonly LedgerService $ledger,
         private readonly IdempotencyService $idempotency,
         private readonly IntegrationSourceSystemResolver $sourceSystemResolver,
+        private readonly ExternalDirectLedgerDebitGate $directLedgerDebitGate,
     ) {}
 
     public function store(Request $request): JsonResponse
@@ -123,6 +126,25 @@ final class WalletController
         }
 
         $validated['source_system'] = $sourceSystem;
+        $entryType = LedgerEntryType::from($validated['entry_type']);
+
+        if ($this->directLedgerDebitGate->rejectsExternalDirectDebit($callerId, $entryType)) {
+            Log::channel((string) config('central_wallet.log_channel', 'stack'))->info(
+                'central_wallet.direct_ledger_debit.rejected',
+                [
+                    'caller_id' => $callerId,
+                    'central_wallet_id' => $cwid,
+                    'correlation_id' => $correlationId,
+                    'reason' => 'direct_ledger_debit_disabled',
+                ],
+            );
+
+            return response()->json([
+                'error' => 'direct_ledger_debit_disabled',
+                'message' => 'Direct external site ledger debits are disabled.',
+            ], 503);
+        }
+
         $requestHash = hash('sha256', json_encode($validated, JSON_THROW_ON_ERROR));
 
         $result = $this->idempotency->execute(
@@ -133,7 +155,7 @@ final class WalletController
                 try {
                     $entry = $this->ledger->appendEntry(
                         centralWalletId: $cwid,
-                        entryType: LedgerEntryType::from($validated['entry_type']),
+                        entryType: $entryType,
                         amount: $validated['amount'],
                         sourceSystem: $sourceSystem,
                         correlationId: $correlationId,

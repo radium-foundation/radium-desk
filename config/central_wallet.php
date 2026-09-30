@@ -61,6 +61,26 @@ return [
         'expiry_schedule' => env('CENTRAL_WALLET_RESERVATION_EXPIRY_SCHEDULE', '*/15 * * * *'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | External site direct ledger debit gate
+    |--------------------------------------------------------------------------
+    |
+    | Controls whether authenticated external site callers (X-Site-Code) may
+    | POST entry_type=debit to /wallets/{cwid}/ledger-entries.
+    |
+    | Default true — preserves current production behavior until checkout cutover
+    | explicitly sets this to false and enables the reservation spend path.
+    |
+    | Does NOT gate: reservation commit debits, credits, adjustments, reversals,
+    | balance migration, or internal central_wallet_service callers.
+    |
+    */
+
+    'direct_ledger_debit' => [
+        'enabled' => filter_var(env('CENTRAL_WALLET_DIRECT_LEDGER_DEBIT_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+    ],
+
     'currency' => 'INR',
 
     /*
