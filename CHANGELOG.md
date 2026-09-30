@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.0.163 — 2026-09-30 — Central Wallet cross-site linking + migration safety infrastructure
+
+- **Cross-site ceremony:** `CrossSiteCeremonyResolver` resolves existing CWID across sites via verified phone hash when `CENTRAL_WALLET_CROSS_SITE_CEREMONY_ENABLED=true` and explicit `cross_site_link_authorization_ref` is supplied; `provision_action: resolved_cross_site_existing`.
+- **Cohort gate:** `CENTRAL_WALLET_CROSS_SITE_CEREMONY_COHORT_ENABLED` + `CENTRAL_WALLET_CROSS_SITE_CEREMONY_COHORT_LOCAL_USER_IDS` fail-closed before cross-site resolution (default **OFF** / empty).
+- **Migration safety:** `central_wallet_balance_migrations` table, cutover service/controller, state machine; `CENTRAL_WALLET_BALANCE_MIGRATION_EXECUTION_ENABLED` default **false** (no money movement).
+- **Spoke client:** `HttpWalletMigrationSpokeClient` for rdservice.in lock/retire/status APIs; reconciliation verify before `RECONCILED`.
+- **Preserved:** M2 confirm, ceremony complete, revoke, ledger, wallet refund flows unchanged. No production migration execution in this release.
+- Regression: Central Wallet suite **132** tests (**128** pass / **4** skip). Prompt **RadiumDesk-P-28-09-07**.
+- Rollback target: v4.0.162 / `efceb854`.
+
 ## 4.0.162 — 2026-09-30 — Central Wallet account-link revoke API
 
 - **Revoke endpoint:** `POST /api/central-wallet/v1/account-links/{link_id}/revoke` exposes `AccountLinkService::revokeLink` through the established Central Wallet API boundary.
