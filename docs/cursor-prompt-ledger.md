@@ -306,4 +306,5 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-30-09-03 | 2026-09-30 | Validation-only browser/UI verification of logo changes @ `d9acf7d3` | Login PASS; collapsed/expand/email PASS; expanded sidebar FAIL (invert blob). **Validation only — no code/deploy/push.** |
 | RadiumDesk-P-30-09-05 | 2026-09-30 | Fix expanded-sidebar logo invert defect @ `d9acf7d3` | No light wordmark asset; remove `brightness(0) invert(1)`; white brand header + canonical `logo.png`. Committed `98c482cd`. **Not deployed.** |
 | RadiumDesk-P-30-09-06 | 2026-09-30 | Push + deploy v4.0.165 Desk branding logo fixes | Push hotfix branch; cherry-pick onto `main`; tag **v4.0.165**; KVM `desk deploy --yes`. Production verification. |
+| RadiumDesk-P-30-09-07 | 2026-09-30 | Login page branding: compact icon → canonical rectangular `logo.png` | Guest layout prefers `logo.png` (Invoice-style 196px max-width); sidebar/email unchanged. **Not pushed/deployed.** |
 Do not renumber or overwrite earlier rows. Append only.
