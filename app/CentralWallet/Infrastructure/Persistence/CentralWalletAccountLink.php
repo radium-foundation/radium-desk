@@ -10,6 +10,7 @@ class CentralWalletAccountLink extends Model
 {
     protected $fillable = [
         'central_wallet_id',
+        'desk_customer_id',
         'site_code',
         'local_user_id',
         'status',

@@ -12,6 +12,8 @@ use App\CentralWallet\Application\CeremonyVerificationProofValidator;
 use App\CentralWallet\Application\Contracts\WalletMigrationSpokeClient;
 use App\CentralWallet\Application\CrossSiteCeremonyCohortEligibility;
 use App\CentralWallet\Application\CrossSiteCeremonyResolver;
+use App\CentralWallet\Application\CustomerIdentityResolveService;
+use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
 use App\CentralWallet\Application\ExternalDirectLedgerDebitGate;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\IntegrationSourceSystemResolver;
@@ -22,6 +24,7 @@ use App\CentralWallet\Application\ReservationService;
 use App\CentralWallet\Application\ReservationStateMachine;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
 use App\CentralWallet\Infrastructure\Http\HttpWalletMigrationSpokeClient;
+use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletCustomerIdentityEnabled;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletReservationsEnabled;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -39,6 +42,8 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CrossSiteCeremonyCohortEligibility::class);
         $this->app->singleton(CrossSiteCeremonyResolver::class);
         $this->app->singleton(CeremonyCompleteService::class);
+        $this->app->singleton(CustomerIdentitySubjectHasher::class);
+        $this->app->singleton(CustomerIdentityResolveService::class);
         $this->app->singleton(LedgerService::class);
         $this->app->singleton(IntegrationSourceSystemResolver::class);
         $this->app->singleton(ExternalDirectLedgerDebitGate::class);
@@ -75,6 +80,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Route::aliasMiddleware('central_wallet.reservations', EnsureCentralWalletReservationsEnabled::class);
+        Route::aliasMiddleware('central_wallet.customer_identity', EnsureCentralWalletCustomerIdentityEnabled::class);
 
         Route::middleware([
             'api',

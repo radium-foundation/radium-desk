@@ -79,6 +79,7 @@ final class AccountLinkService
         string $verificationMethod,
         string $actorId,
         ?string $correlationId = null,
+        ?string $deskCustomerId = null,
     ): CentralWalletAccountLink {
         $this->guardIdentityFields($siteCode, $localUserId, []);
 
@@ -98,6 +99,7 @@ final class AccountLinkService
 
             $link = CentralWalletAccountLink::query()->create([
                 'central_wallet_id' => $centralWalletId,
+                'desk_customer_id' => $deskCustomerId,
                 'site_code' => $siteCode,
                 'local_user_id' => $localUserId,
                 'status' => AccountLinkStatus::Active,

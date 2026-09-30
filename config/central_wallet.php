@@ -117,4 +117,22 @@ return [
         'spoke_timeout_seconds' => max(1, (int) env('CENTRAL_WALLET_MIGRATION_SPOKE_TIMEOUT', 15)),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Central Customer identity resolution (default OFF — fail-closed)
+    |--------------------------------------------------------------------------
+    |
+    | Desk Customer ID is the permanent central customer identity. Trusted
+    | Google subject and verified email credentials resolve to one Customer ID
+    | and one CWID. Mobile is optional and never the sole customer key.
+    |
+    */
+
+    'customer_identity' => [
+        'enabled' => filter_var(env('CENTRAL_WALLET_CUSTOMER_IDENTITY_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'google_enabled' => filter_var(env('CENTRAL_WALLET_CUSTOMER_IDENTITY_GOOGLE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'verified_email_enabled' => filter_var(env('CENTRAL_WALLET_CUSTOMER_IDENTITY_VERIFIED_EMAIL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'verified_mobile_enabled' => filter_var(env('CENTRAL_WALLET_CUSTOMER_IDENTITY_VERIFIED_MOBILE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
 ];

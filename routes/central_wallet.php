@@ -3,6 +3,7 @@
 use App\CentralWallet\Infrastructure\Http\Controllers\AccountLinkController;
 use App\CentralWallet\Infrastructure\Http\Controllers\BalanceMigrationController;
 use App\CentralWallet\Infrastructure\Http\Controllers\CeremonyCompleteController;
+use App\CentralWallet\Infrastructure\Http\Controllers\CustomerIdentityController;
 use App\CentralWallet\Infrastructure\Http\Controllers\HealthController;
 use App\CentralWallet\Infrastructure\Http\Controllers\LedgerEntryController;
 use App\CentralWallet\Infrastructure\Http\Controllers\ReservationController;
@@ -36,6 +37,11 @@ Route::get('/account-links', [AccountLinkController::class, 'index'])->name('cen
 
 Route::post('/ceremony/complete', [CeremonyCompleteController::class, 'store'])
     ->name('central-wallet.ceremony.complete');
+
+Route::middleware('central_wallet.customer_identity')->group(function (): void {
+    Route::post('/customer-identity/resolve', [CustomerIdentityController::class, 'resolve'])
+        ->name('central-wallet.customer-identity.resolve');
+});
 
 Route::middleware('central_wallet.reservations')->group(function (): void {
     Route::post('/wallet-reservations', [ReservationController::class, 'store'])
