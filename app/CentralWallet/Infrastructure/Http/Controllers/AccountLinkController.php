@@ -198,6 +198,80 @@ final class AccountLinkController
         return response()->json($result['body'], $result['status']);
     }
 
+    public function revoke(Request $request, int $linkId): JsonResponse
+    {
+        $validated = $request->validate([
+            'idempotency_key' => ['required', 'string', 'max:128'],
+            'local_user_id' => ['required', 'string', 'max:64'],
+            'actor_id' => ['required', 'string', 'max:128'],
+        ]);
+
+        $callerSite = trim((string) $request->header('X-Site-Code', ''));
+        if ($callerSite === '') {
+            $callerSite = (string) $request->attributes->get('central_wallet_caller_id');
+        }
+
+        $link = $this->accountLinks->findByIdForSite($linkId, $callerSite);
+        if ($link === null) {
+            return response()->json([
+                'error' => 'not_found',
+                'message' => 'Account link not found for caller site.',
+            ], 404);
+        }
+
+        if ($link->local_user_id !== $validated['local_user_id']) {
+            return response()->json([
+                'error' => 'forbidden',
+                'message' => 'Account link does not belong to the specified local user.',
+            ], 403);
+        }
+
+        $callerId = (string) $request->attributes->get('central_wallet_caller_id');
+        $correlationId = (string) $request->attributes->get('central_wallet_correlation_id');
+        $requestHash = hash('sha256', json_encode(array_merge($validated, ['link_id' => $linkId]), JSON_THROW_ON_ERROR));
+
+        $result = $this->idempotency->execute(
+            $callerId,
+            $validated['idempotency_key'],
+            $requestHash,
+            function () use ($link, $validated, $correlationId): array {
+                if ($link->status === AccountLinkStatus::Revoked) {
+                    return [
+                        'status' => 200,
+                        'body' => $this->serializeLink($link->fresh()),
+                        'resource_type' => 'account_link',
+                        'resource_id' => (string) $link->id,
+                    ];
+                }
+
+                if ($link->status !== AccountLinkStatus::Active) {
+                    return [
+                        'status' => 409,
+                        'body' => [
+                            'error' => 'invalid_link_state',
+                            'message' => 'Only active links can be revoked.',
+                        ],
+                    ];
+                }
+
+                $revoked = $this->accountLinks->revokeLink(
+                    $link,
+                    $validated['actor_id'],
+                    $correlationId,
+                );
+
+                return [
+                    'status' => 200,
+                    'body' => $this->serializeLink($revoked),
+                    'resource_type' => 'account_link',
+                    'resource_id' => (string) $revoked->id,
+                ];
+            },
+        );
+
+        return response()->json($result['body'], $result['status']);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -211,6 +285,7 @@ final class AccountLinkController
             'status' => $link->status->value,
             'verification_method' => $link->verification_method,
             'linked_at' => $link->linked_at?->toIso8601String(),
+            'revoked_at' => $link->revoked_at?->toIso8601String(),
         ];
     }
 }
