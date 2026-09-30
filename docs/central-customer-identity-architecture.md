@@ -96,12 +96,44 @@ Identity linking and checkout **never** trigger historical local-wallet migratio
 
 Group-wide verified identity / SSO so identity established once works across all group websites without repeated verification.
 
+## Stage 1 rollout (radiumbox.com only)
+
+Stage 1 enables the end-to-end Central Wallet path **only on radiumbox.com**:
+
+```
+Desk credit / ledger top-up (authoritative)
+        ↓
+RadiumBox trusted identity → Desk balance read (read-through cache)
+        ↓
+RadiumBox checkout reservation → Desk commit/release
+```
+
+| Responsibility | Owner |
+|----------------|-------|
+| Authoritative ledger, balance, reservation, commit, release | **Desk** |
+| Trusted/provisional identity resolution | Desk API + RadiumBox local link cache |
+| Balance display + cache invalidation on wallet open / post-commit | **RadiumBox** (non-authoritative) |
+| Central Wallet checkout spending | **RadiumBox only** (Stage 1) |
+
+**Stage 1 does not include:** rdservice.in, rdservice.net, rdserviceonline.in, or radiumsign.com Central Wallet checkout. Those spokes may retain read-only identity/balance work for later stages.
+
+### Cache / freshness (Stage 1)
+
+- Trusted and provisional balances use **separate** cache keys scoped to `site_code` + `local_user_id`.
+- Wallet page load uses a **Desk refresh read** (bypasses presentation cache) so a successful Desk credit is visible after the customer opens/refocuses the wallet page.
+- Checkout balance reads bypass cache; successful commit **invalidates** cached balance for the purchaser.
+- Stale cache is never used to authorize spending.
+
+### Production safety (Stage 1)
+
+All Central Wallet flags remain **OFF** in production until Owner enables them. `CENTRAL_WALLET_CHECKOUT_ENABLED=false` preserves existing RadiumBox checkout behavior unchanged.
+
 ## Spoke status (2026-09-30)
 
 | Site | Auth | Trusted identity | CW mapping | Balance read | Checkout |
 |------|------|------------------|------------|--------------|----------|
-| radiumbox.com | Google, email/password | Implemented (flag OFF) | Local + Desk | Existing (flag OFF) | Existing (flag OFF) |
-| rdservice.in | Google, email/password | Implemented (flag OFF) | Local + Desk | Not yet | Not yet |
-| rdservice.net | TBD | Not in scope | — | — | — |
-| rdserviceonline.in | TBD | Not in scope | — | — | — |
-| radiumsign.com | TBD | Not in scope | — | — | — |
+| radiumbox.com | Google, email/password | Implemented (flag OFF) | Local + Desk | Stage 1 (flag OFF) | Stage 1 (flag OFF) |
+| rdservice.in | Google, email/password | Implemented (flag OFF) | Local + Desk | Later stage | Later stage |
+| rdservice.net | TBD | Later stage | — | — | — |
+| rdserviceonline.in | TBD | Later stage | — | — | — |
+| radiumsign.com | TBD | Later stage | — | — | — |

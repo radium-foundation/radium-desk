@@ -20,11 +20,14 @@ use App\CentralWallet\Application\IntegrationSourceSystemResolver;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
 use App\CentralWallet\Application\NullWalletMigrationSpokeClient;
+use App\CentralWallet\Application\ProvisionalIdentityResolveService;
 use App\CentralWallet\Application\ReservationService;
 use App\CentralWallet\Application\ReservationStateMachine;
+use App\CentralWallet\Application\TrustedFinancialAuthorizationGate;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
 use App\CentralWallet\Infrastructure\Http\HttpWalletMigrationSpokeClient;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletCustomerIdentityEnabled;
+use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletProvisionalIdentityEnabled;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletReservationsEnabled;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -44,6 +47,8 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CeremonyCompleteService::class);
         $this->app->singleton(CustomerIdentitySubjectHasher::class);
         $this->app->singleton(CustomerIdentityResolveService::class);
+        $this->app->singleton(ProvisionalIdentityResolveService::class);
+        $this->app->singleton(TrustedFinancialAuthorizationGate::class);
         $this->app->singleton(LedgerService::class);
         $this->app->singleton(IntegrationSourceSystemResolver::class);
         $this->app->singleton(ExternalDirectLedgerDebitGate::class);
@@ -81,6 +86,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
     {
         Route::aliasMiddleware('central_wallet.reservations', EnsureCentralWalletReservationsEnabled::class);
         Route::aliasMiddleware('central_wallet.customer_identity', EnsureCentralWalletCustomerIdentityEnabled::class);
+        Route::aliasMiddleware('central_wallet.provisional_identity', EnsureCentralWalletProvisionalIdentityEnabled::class);
 
         Route::middleware([
             'api',

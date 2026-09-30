@@ -378,3 +378,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-30-09-18
 
 Provisional read-only Central Wallet identity resolution and trusted financial authorization gate. `POST /customer-identity/provisional-resolve` returns balance only (no CWID/Customer ID). Reservation create requires trusted active account link when financial gate enabled. `CentralWalletProvisionalIdentityTest` **6/6** PASS. **No deploy/flag enable/financial mutation.**
+
+---
+
+## RadiumDesk-P-30-09-19
+
+Stage 1 documentation update (Desk = financial SSOT; radiumbox.com Stage 1 spending scope). Register missing `ProvisionalIdentityResolveService`, `TrustedFinancialAuthorizationGate`, and provisional-identity middleware in `CentralWalletServiceProvider`. **No deploy/flag enable/financial mutation.**
