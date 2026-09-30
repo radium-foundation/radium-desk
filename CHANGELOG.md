@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.166 — 2026-09-30 — Login page rectangular logo
+
+- **Login:** Guest layout now uses canonical transparent rectangular `brand/logo.png` (196px max-width, Invoice-aligned) instead of compact `brand/icon.svg`.
+- **Preserved:** Sidebar expanded/collapsed branding, outgoing email `logo.png` header, authentication flow, canonical logo assets. No migrations.
+- Regression: `PlatformIdentityTest` login branding PASS; `EmailMasterLayoutTest` PASS. Prompt **RadiumDesk-P-30-09-07**.
+- Rollback target: v4.0.165 / `b8fa4104`.
+
 ## 4.0.165 — 2026-09-30 — Desk branding logo fixes
 
 - **Email:** Outgoing notification headers use email-safe `brand/logo.png` instead of `brand/icon.svg` (SVG blocked by many mail clients).
