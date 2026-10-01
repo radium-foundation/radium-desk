@@ -55,7 +55,7 @@ final class E2ProvisionalDisplayService
             ];
         }
 
-        $matches = $this->manifestLoader->findBySiteEmailHash($manifest, $siteCode, $emailHash);
+        $matches = $this->manifestLoader->findByEmailHash($manifest, $emailHash);
         if ($matches === []) {
             return $this->unresolved('not_in_e2_verification_cohort');
         }

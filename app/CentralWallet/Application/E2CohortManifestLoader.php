@@ -22,7 +22,8 @@ final class E2CohortManifestLoader
      *     amount: string,
      *     rows: list<array<string, mixed>>,
      *     by_refund_id: array<int, array<string, mixed>>,
-     *     by_site_email_hash: array<string, list<array<string, mixed>>>
+     *     by_site_email_hash: array<string, list<array<string, mixed>>>,
+     *     by_email_hash: array<string, list<array<string, mixed>>>
      * }
      */
     public function load(?string $path = null): array
@@ -42,6 +43,7 @@ final class E2CohortManifestLoader
 
         $byRefundId = [];
         $bySiteEmailHash = [];
+        $byEmailHash = [];
         foreach ($rows as $row) {
             $refundId = (int) $row['refund_id'];
             $byRefundId[$refundId] = $row;
@@ -52,6 +54,10 @@ final class E2CohortManifestLoader
                 $key = $this->siteEmailHashKey($site, $emailHash);
                 $bySiteEmailHash[$key][] = $row;
             }
+
+            if ($emailHash !== '') {
+                $byEmailHash[$emailHash][] = $row;
+            }
         }
 
         return [
@@ -61,6 +67,7 @@ final class E2CohortManifestLoader
             'rows' => $rows,
             'by_refund_id' => $byRefundId,
             'by_site_email_hash' => $bySiteEmailHash,
+            'by_email_hash' => $byEmailHash,
         ];
     }
 
@@ -72,6 +79,14 @@ final class E2CohortManifestLoader
         $key = $this->siteEmailHashKey($siteCode, $orderEmailHash);
 
         return $manifest['by_site_email_hash'][$key] ?? [];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findByEmailHash(array $manifest, string $orderEmailHash): array
+    {
+        return $manifest['by_email_hash'][$orderEmailHash] ?? [];
     }
 
     public function siteEmailHashKey(string $siteCode, string $orderEmailHash): string

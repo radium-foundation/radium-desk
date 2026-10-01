@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
 use App\CentralWallet\Application\ReconciledHistoricalRefundFilter;
+use App\CentralWallet\Support\HistoricalGroupSiteScope;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -82,14 +83,14 @@ class BuildHistoricalVisibilityContactIndexCommand extends Command
                 'refund_amount' => $amount,
                 'desk_refund_reference' => (string) $row->desk_refund_reference,
                 'order_number' => (string) $row->order_number,
-                'site' => $this->inferSiteFromOrderNumber((string) $row->order_number),
+                'site' => HistoricalGroupSiteScope::inferOriginFromOrderNumber((string) $row->order_number),
                 'order_email_hash' => $emailHash,
                 'order_mobile_hash' => $mobileHash,
             ];
         }
 
         $payload = [
-            'prompt_id' => 'RadiumDesk-P-30-10-37',
+            'prompt_id' => 'RadiumDesk-P-30-10-39',
             'population_count' => count($indexRows),
             'population_amount' => $total,
             'source_refund_count' => $rows->count(),
@@ -112,18 +113,4 @@ class BuildHistoricalVisibilityContactIndexCommand extends Command
         return self::SUCCESS;
     }
 
-    private function inferSiteFromOrderNumber(string $orderNumber): string
-    {
-        $upper = strtoupper(trim($orderNumber));
-
-        if (str_starts_with($upper, 'RD')) {
-            return 'rdservice.in';
-        }
-
-        if (str_starts_with($upper, 'RB')) {
-            return 'radiumbox.com';
-        }
-
-        return 'unknown';
-    }
 }

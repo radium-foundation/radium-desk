@@ -658,3 +658,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-30-10-37
 
 **Master historical wallet visibility — contact identity match + trusted-link fallthrough** (read-only): `HistoricalContactIdentityMatchService` + contact index loader/build command; `HistoricalWalletVisibilityService` no longer blocks verified-email users or zero-balance trusted links from historical paths; E1/E2/cohort services no longer 422 on trusted link. Production overlay `deploy-backups-p30-10-37-20261001T171058Z`; built contact index **292 / ₹165,490** (source **293 / ₹165,989** minus protected refund **300 / ₹499**). Desk API probe E1 user **506514** → **₹597.00 unverified** without OTP. Ledger **54 / ₹28,574** unchanged; financial execution flags **OFF**. PHPUnit **18/18** historical visibility + contact-match tests PASS.
+
+---
+
+## RadiumDesk-P-30-10-39
+
+**Historical wallet visibility simplification — group/customer-scoped balance** (read-only): Desk resolver now matches historical refunds across group sites (`radiumbox.com`, `rdservice.in`, `rdservice.net`) by verified email/mobile and E1/E2 cohort email — not refund-origin site + local account. `HistoricalGroupSiteScope`; group-scoped contact index lookups; E1 contact-intersection + E2 group email hash; email+mobile intersection narrows ambiguous contact matches. **No spoke changes.** PHPUnit **28/28** historical visibility + **9/9** group-scoped tests PASS; E1/E2 **23/23** PASS. **No financial mutation.**

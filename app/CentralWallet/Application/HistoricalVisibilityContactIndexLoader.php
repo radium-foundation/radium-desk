@@ -13,7 +13,9 @@ final class HistoricalVisibilityContactIndexLoader
      *     population_amount: string,
      *     rows: list<array<string, mixed>>,
      *     by_site_email_hash: array<string, list<array<string, mixed>>>,
-     *     by_site_mobile_hash: array<string, list<array<string, mixed>>>
+     *     by_site_mobile_hash: array<string, list<array<string, mixed>>>,
+     *     by_email_hash: array<string, list<array<string, mixed>>>,
+     *     by_mobile_hash: array<string, list<array<string, mixed>>>
      * }
      */
     public function load(?string $path = null): array
@@ -31,6 +33,8 @@ final class HistoricalVisibilityContactIndexLoader
         $rows = array_values($decoded['rows']);
         $bySiteEmailHash = [];
         $bySiteMobileHash = [];
+        $byEmailHash = [];
+        $byMobileHash = [];
 
         foreach ($rows as $row) {
             $site = strtolower(trim((string) ($row['site'] ?? '')));
@@ -44,6 +48,14 @@ final class HistoricalVisibilityContactIndexLoader
             if ($site !== '' && $mobileHash !== '') {
                 $bySiteMobileHash[$this->siteContactKey($site, $mobileHash)][] = $row;
             }
+
+            if ($emailHash !== '') {
+                $byEmailHash[$emailHash][] = $row;
+            }
+
+            if ($mobileHash !== '') {
+                $byMobileHash[$mobileHash][] = $row;
+            }
         }
 
         return [
@@ -52,6 +64,8 @@ final class HistoricalVisibilityContactIndexLoader
             'rows' => $rows,
             'by_site_email_hash' => $bySiteEmailHash,
             'by_site_mobile_hash' => $bySiteMobileHash,
+            'by_email_hash' => $byEmailHash,
+            'by_mobile_hash' => $byMobileHash,
         ];
     }
 
@@ -69,6 +83,22 @@ final class HistoricalVisibilityContactIndexLoader
     public function findBySiteMobileHash(array $manifest, string $siteCode, string $mobileHash): array
     {
         return $manifest['by_site_mobile_hash'][$this->siteContactKey($siteCode, $mobileHash)] ?? [];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findByEmailHash(array $manifest, string $emailHash): array
+    {
+        return $manifest['by_email_hash'][$emailHash] ?? [];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findByMobileHash(array $manifest, string $mobileHash): array
+    {
+        return $manifest['by_mobile_hash'][$mobileHash] ?? [];
     }
 
     public function siteContactKey(string $siteCode, string $contactHash): string

@@ -79,6 +79,14 @@ class HistoricalContactIdentityMatchTest extends TestCase
             ->assertJsonPath('wallet_balance', '0.00');
     }
 
+    public function test_rdin_origin_refund_visible_on_radiumbox(): void
+    {
+        $this->walletVisibility(self::BOX, '507', 'unique@example.com')
+            ->assertOk()
+            ->assertJsonPath('wallet_balance', '499.00')
+            ->assertJsonPath('balance_status', 'unverified');
+    }
+
     public function test_no_match_returns_no_disclosure(): void
     {
         $this->walletVisibility(self::RDIN, '506', 'nobody@example.com', '9000000000')

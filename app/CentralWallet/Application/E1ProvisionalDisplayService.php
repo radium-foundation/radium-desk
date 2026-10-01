@@ -12,6 +12,8 @@ final class E1ProvisionalDisplayService
 {
     public function __construct(
         private readonly E1CohortManifestLoader $manifestLoader,
+        private readonly HistoricalVisibilityContactIndexLoader $contactIndexLoader,
+        private readonly CustomerIdentitySubjectHasher $subjectHasher,
         private readonly ReconciledHistoricalRefundFilter $reconciledFilter,
         private readonly AuditEventRecorder $auditEvents,
     ) {}
@@ -43,7 +45,7 @@ final class E1ProvisionalDisplayService
             ];
         }
 
-        $matches = $this->manifestLoader->findBySiteUser($manifest, $siteCode, $localUserId);
+        $matches = $this->resolveE1Matches($manifest, $siteCode, $localUserId, $email, $mobile);
         if ($matches === []) {
             return $this->unresolved('not_in_e1_verification_cohort');
         }
@@ -132,6 +134,84 @@ final class E1ProvisionalDisplayService
                 'historical_migration_separate' => true,
             ],
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function resolveE1Matches(
+        array $manifest,
+        string $siteCode,
+        string $localUserId,
+        ?string $email,
+        ?string $mobile,
+    ): array {
+        $merged = [];
+
+        foreach ($this->manifestLoader->findBySiteUser($manifest, $siteCode, $localUserId) as $row) {
+            $refundId = (int) ($row['refund_id'] ?? 0);
+            if ($refundId > 0) {
+                $merged[$refundId] = $row;
+            }
+        }
+
+        foreach ($this->findContactMatchedE1Rows($manifest, $email, $mobile) as $row) {
+            $refundId = (int) ($row['refund_id'] ?? 0);
+            if ($refundId > 0) {
+                $merged[$refundId] = $row;
+            }
+        }
+
+        return array_values($merged);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function findContactMatchedE1Rows(array $manifest, ?string $email, ?string $mobile): array
+    {
+        if (! (bool) config('central_wallet.historical_wallet_visibility.contact_match_enabled', true)) {
+            return [];
+        }
+
+        try {
+            $contactManifest = $this->contactIndexLoader->load();
+        } catch (InvalidArgumentException) {
+            return [];
+        }
+
+        $email = strtolower(trim((string) $email));
+        $mobileDigits = preg_replace('/\D+/', '', (string) $mobile) ?? '';
+        $contactRows = [];
+
+        if ($email !== '' && str_contains($email, '@')) {
+            try {
+                $emailHash = $this->subjectHasher->hashVerifiedEmail($email);
+                $contactRows = array_merge($contactRows, $this->contactIndexLoader->findByEmailHash($contactManifest, $emailHash));
+            } catch (InvalidArgumentException) {
+                // ignore invalid email
+            }
+        }
+
+        if (strlen($mobileDigits) >= 10) {
+            $normalized = strlen($mobileDigits) === 10 ? '+91'.$mobileDigits : '+'.$mobileDigits;
+            $mobileHash = hash('sha256', 'historical_contact_mobile:'.$normalized);
+            $contactRows = array_merge($contactRows, $this->contactIndexLoader->findByMobileHash($contactManifest, $mobileHash));
+        }
+
+        if ($contactRows === []) {
+            return [];
+        }
+
+        $matches = [];
+        foreach ($contactRows as $contactRow) {
+            $refundId = (int) ($contactRow['refund_id'] ?? 0);
+            if ($refundId > 0 && isset($manifest['by_refund_id'][$refundId])) {
+                $matches[$refundId] = $manifest['by_refund_id'][$refundId];
+            }
+        }
+
+        return array_values($matches);
     }
 
     private function hasUsableContactData(?string $email, ?string $mobile): bool

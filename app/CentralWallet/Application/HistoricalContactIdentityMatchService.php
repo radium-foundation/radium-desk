@@ -47,7 +47,7 @@ final class HistoricalContactIdentityMatchService
         if ($email !== '' && str_contains($email, '@')) {
             try {
                 $emailHash = $this->subjectHasher->hashVerifiedEmail($email);
-                $emailMatches = $this->indexLoader->findBySiteEmailHash($manifest, $siteCode, $emailHash);
+                $emailMatches = $this->indexLoader->findByEmailHash($manifest, $emailHash);
             } catch (InvalidArgumentException) {
                 $emailMatches = [];
             }
@@ -55,11 +55,19 @@ final class HistoricalContactIdentityMatchService
 
         if (strlen($mobileDigits) >= 10) {
             $mobileHash = $this->hashContactMobile($mobileDigits);
-            $mobileMatches = $this->indexLoader->findBySiteMobileHash($manifest, $siteCode, $mobileHash);
+            $mobileMatches = $this->indexLoader->findByMobileHash($manifest, $mobileHash);
         }
 
         if ($emailMatches === [] && $mobileMatches === []) {
             return null;
+        }
+
+        if ($emailMatches !== [] && $mobileMatches !== []) {
+            $intersection = $this->intersectRowsByRefundId($emailMatches, $mobileMatches);
+            if ($intersection !== []) {
+                $emailMatches = $intersection;
+                $mobileMatches = $intersection;
+            }
         }
 
         $emailCustomerKeys = $this->customerKeys($emailMatches);
@@ -142,6 +150,32 @@ final class HistoricalContactIdentityMatchService
         }
 
         return array_keys($keys);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $a
+     * @param  list<array<string, mixed>>  $b
+     * @return list<array<string, mixed>>
+     */
+    private function intersectRowsByRefundId(array $a, array $b): array
+    {
+        $bByRefundId = [];
+        foreach ($b as $row) {
+            $refundId = (int) ($row['refund_id'] ?? 0);
+            if ($refundId > 0) {
+                $bByRefundId[$refundId] = $row;
+            }
+        }
+
+        $intersection = [];
+        foreach ($a as $row) {
+            $refundId = (int) ($row['refund_id'] ?? 0);
+            if ($refundId > 0 && isset($bByRefundId[$refundId])) {
+                $intersection[$refundId] = $row;
+            }
+        }
+
+        return array_values($intersection);
     }
 
     /**
