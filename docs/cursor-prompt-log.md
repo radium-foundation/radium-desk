@@ -426,3 +426,9 @@ Complete 292-refund identity + CWID migration manifest (read-only): production-v
 ## RadiumDesk-P-30-09-28
 
 Deploy Customer Identity schema foundation to production KVM8 + User 3 Desk Customer association + CWID provisioning manifest prep. Migration `2026_09_30_200000_create_central_customer_identity_tables` applied (batch 45); surgical overlay of `CustomerFoundationFromCeremonyService` + `central-wallet:establish-customer-from-ceremony`. User 3 Desk Customer `46c69a65-7fb9-4d36-948f-32d00475fd0e` linked to CWID `50ff2e87-6030-4ae8-b93a-163884db90c5` + active link id 7. Manifest `cw-migration-cwid-provisioning-p30-09-28.json` (226 customers). Doc: `docs/central-wallet-customer-identity-foundation-p-30-09-28.md`. **No CW credit / spoke debit / refund migration / execution flags.**
+
+---
+
+## RadiumDesk-P-30-09-29
+
+Controlled CWID provisioning + 65 exception refund resolution prep. Production: `MigrationControlledCwidProvisionService` + `central-wallet:migration-provision-cwid`; finalize script `cw-identity-finalize-p30-09-29.py`. **15** new customers provisioned (trusted Google/email); **7/10** ambiguous resolved via order-prefix spoke authority; **55** identity-insufficient remain Owner-blocked; **3** ambiguous unresolved (₹1,497). Final manifest `cw-migration-final-manifest-p30-09-29.json` — **292/₹165,708**, `EXECUTION READY=NO`. Ledger **0**. Doc: `docs/central-wallet-cwid-provisioning-p-30-09-29.md`. **No financial migration.**

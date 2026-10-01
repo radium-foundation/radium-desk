@@ -20,6 +20,7 @@ use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\IntegrationSourceSystemResolver;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
+use App\CentralWallet\Application\MigrationControlledCwidProvisionService;
 use App\CentralWallet\Application\NullWalletMigrationSpokeClient;
 use App\CentralWallet\Application\ProvisionalIdentityResolveService;
 use App\CentralWallet\Application\RefundMigrationBatchGate;
@@ -58,6 +59,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CeremonyCompleteService::class);
         $this->app->singleton(CustomerIdentitySubjectHasher::class);
         $this->app->singleton(CustomerFoundationFromCeremonyService::class);
+        $this->app->singleton(MigrationControlledCwidProvisionService::class);
         $this->app->singleton(CustomerIdentityResolveService::class);
         $this->app->singleton(ProvisionalIdentityResolveService::class);
         $this->app->singleton(TrustedFinancialAuthorizationGate::class);
