@@ -456,3 +456,9 @@ Forensic identity trace for **REF-2026-000217** (read-only KVM8 DB queries). Ref
 ## RadiumDesk-P-30-10-01
 
 TYPE-1 customer-level M2 ceremony plan. **211** refunds (₹115,126) → **210** unique customers (209×1 refund, 1×2 refunds rdin **535731**). All **210** `READY_FOR_IDENTITY_CEREMONY`; **0** conflicts/trusted/insufficient. Sites: rdin **208**, box **2**. Script `cw-type1-customer-ceremony-plan-p30-10-01.py`. Artifacts: `cw-type1-customer-ceremony-plan-p30-10-01.json/.csv`. Doc: `docs/cw-type1-customer-ceremony-plan-p-30-10-01.md`. **No financial mutation.**
+
+---
+
+## RadiumDesk-P-30-10-02
+
+TYPE-1 M2 ceremony execution plan. Mapped existing Connect Wallet flow (rdin `/connect-wallet`, box `/user/wallet/connect` → Desk `ceremony/complete`). **210** customers all `M2_EXISTING_CEREMONY`; **50** cohort-eligible (₹26,230), **160** blocked by allowlist (₹88,896). Decision: `SMALL_NON_FINANCIAL_EXTENSION_REQUIRED` (cohort expansion + Desk Customer follow-up CLI/extension). Script `cw-type1-m2-execution-plan-p30-10-02.py`. Artifacts: `cw-type1-m2-execution-plan-p30-10-02.json/.csv`. Doc: `docs/cw-type1-m2-execution-plan-p-30-10-02.md`. **No financial mutation; flags not enabled.**
