@@ -534,3 +534,9 @@ Owner-authorized **READY-3 financial migration EXECUTION** (refunds 268/284/336,
 ## RadiumDesk-P-30-10-15
 
 **Remaining-239 migration campaign** (292 − 53 = 239 / ₹137,983). Owner approval: `R-CW-REMAINING239-FIN-MIG-20261001-001`. Phase 1 reconciliation **COMPLETE**; immutable manifest SHA `03a4aac97f9b133428a89bd02d9d1fdc73bf92c073842a70a34b38729fb00018`. Classification: **B 220/₹127,328**; **C 3/₹1,497**; **D 14/₹7,810**; **F 2/₹1,348** (300 User 3, 360 radiumbox executor). **Executable Lane A: 0/₹0**. rdservice.in spoke deployed; radiumbox.com **not deployed**. Targeted regression **41/41** PASS. **FINANCIAL EXECUTION NOT PERFORMED** — no row passed all gates. Ledger delta **₹0**. Doc: `docs/cw-remaining-239-campaign-p-30-10-15.md`.
+
+---
+
+## RadiumDesk-P-30-10-16
+
+Read-only **identity-resolution audit** of exactly **220** refunds (₹127,328) classified `IDENTITY_REQUIRED` (class B) from P-30-10-15. Per-refund inspection of Desk refund/order data, spoke wallet users, `central_customers`, identity credentials, and account links. Cross-spoke desk-order-email trusted match: **0/220**. **All 220 → audit state E (LOCAL_CUSTOMER_DATA_ONLY)**; **0** have Desk Customer, CWID, trusted credential, or active link. Sub-cohorts: **168** wallet-user resolved (unverified email only); **52** wallet-user unresolved (no execution txn / order customer). Campaign `IDENTITY_REQUIRED` classification **confirmed correct**. Ledger **53/₹27,725** unchanged; execution flags **OFF**. Artifacts: `cw-identity-required-220-audit-p30-10-16.json/.csv`. Doc: `docs/cw-identity-required-220-audit-p-30-10-16.md`. **No financial or identity mutation.**
