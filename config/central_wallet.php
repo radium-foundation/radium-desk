@@ -183,4 +183,36 @@ return [
         'expected_amount' => '26230.00',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | TYPE-1 financial migration preparation (50 refunds — default OFF)
+    |--------------------------------------------------------------------------
+    */
+
+    'type1_financial_migration' => [
+        'manifest_path' => env(
+            'CENTRAL_WALLET_TYPE1_FINANCIAL_MIGRATION_MANIFEST_PATH',
+            storage_path('app/private/cw-type1-financial-migration-preflight-p30-10-06.json'),
+        ),
+        'rdin_env_path' => env('CENTRAL_WALLET_TYPE1_RDIN_ENV_PATH', '/var/www/rdservice.in/.env'),
+        'rdin_db_user' => env('CENTRAL_WALLET_TYPE1_RDIN_DB_USER', 'rdservice_in_prod'),
+        'rdin_db_name' => env('CENTRAL_WALLET_TYPE1_RDIN_DB_NAME', 'rdservice_in_prod'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | READY-4 financial migration preflight (4 refunds — default OFF)
+    |--------------------------------------------------------------------------
+    */
+
+    'ready4_financial_migration' => [
+        'manifest_path' => env(
+            'CENTRAL_WALLET_READY4_FINANCIAL_MIGRATION_MANIFEST_PATH',
+            storage_path('app/private/cw-type1-ready4-financial-preflight-p30-10-12.json'),
+        ),
+        'rdin_env_path' => env('CENTRAL_WALLET_READY4_RDIN_ENV_PATH', '/var/www/rdservice.in/.env'),
+        'rdin_db_user' => env('CENTRAL_WALLET_READY4_RDIN_DB_USER', 'rdservice_in_prod'),
+        'rdin_db_name' => env('CENTRAL_WALLET_READY4_RDIN_DB_NAME', 'rdservice_in_prod'),
+    ],
+
 ];

@@ -33,11 +33,23 @@ use App\CentralWallet\Application\RefundMigrationRollbackService;
 use App\CentralWallet\Application\RefundMigrationStateMachine;
 use App\CentralWallet\Application\RefundMigrationTargetAssignmentService;
 use App\CentralWallet\Application\RefundProvenanceMigrationService;
-use App\CentralWallet\Application\Type1MigrationCohortIdentityEstablishmentService;
-use App\CentralWallet\Application\Type1MigrationCohortManifestLoader;
 use App\CentralWallet\Application\ReservationService;
 use App\CentralWallet\Application\ReservationStateMachine;
 use App\CentralWallet\Application\TrustedFinancialAuthorizationGate;
+use App\CentralWallet\Application\Type1FinancialMigrationManifestLoader;
+use App\CentralWallet\Application\Type1MigrationCohortIdentityEstablishmentService;
+use App\CentralWallet\Application\Type1MigrationCohortManifestLoader;
+use App\CentralWallet\Application\Type1RefundMigrationBatchGate;
+use App\CentralWallet\Application\Type1RefundMigrationDryRunService;
+use App\CentralWallet\Application\Type1RefundMigrationJournalImportService;
+use App\CentralWallet\Application\Type1RefundMigrationOrchestrator;
+use App\CentralWallet\Application\Ready4FinancialMigrationManifestLoader;
+use App\CentralWallet\Application\Ready4RefundMigrationBatchGate;
+use App\CentralWallet\Application\Ready4RefundMigrationDryRunService;
+use App\CentralWallet\Application\Ready4RefundMigrationJournalImportService;
+use App\CentralWallet\Application\Ready4RefundMigrationOrchestrator;
+use App\CentralWallet\Application\Ready4RefundMigrationRehearseService;
+use App\CentralWallet\Application\Type1RefundMigrationRehearseService;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
 use App\CentralWallet\Infrastructure\Http\HttpWalletMigrationSpokeClient;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletCustomerIdentityEnabled;
@@ -64,6 +76,18 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(MigrationControlledCwidProvisionService::class);
         $this->app->singleton(Type1MigrationCohortManifestLoader::class);
         $this->app->singleton(Type1MigrationCohortIdentityEstablishmentService::class);
+        $this->app->singleton(Type1FinancialMigrationManifestLoader::class);
+        $this->app->singleton(Type1RefundMigrationJournalImportService::class);
+        $this->app->singleton(Type1RefundMigrationBatchGate::class);
+        $this->app->singleton(Type1RefundMigrationDryRunService::class);
+        $this->app->singleton(Type1RefundMigrationOrchestrator::class);
+        $this->app->singleton(Type1RefundMigrationRehearseService::class);
+        $this->app->singleton(Ready4FinancialMigrationManifestLoader::class);
+        $this->app->singleton(Ready4RefundMigrationJournalImportService::class);
+        $this->app->singleton(Ready4RefundMigrationBatchGate::class);
+        $this->app->singleton(Ready4RefundMigrationDryRunService::class);
+        $this->app->singleton(Ready4RefundMigrationRehearseService::class);
+        $this->app->singleton(Ready4RefundMigrationOrchestrator::class);
         $this->app->singleton(CustomerIdentityResolveService::class);
         $this->app->singleton(ProvisionalIdentityResolveService::class);
         $this->app->singleton(TrustedFinancialAuthorizationGate::class);
@@ -91,10 +115,12 @@ final class CentralWalletServiceProvider extends ServiceProvider
             $baseUrl = rtrim(trim((string) ($migrationConfig['spoke_base_url'] ?? '')), '/');
             $token = trim((string) ($migrationConfig['spoke_token'] ?? ''));
 
+            $hostHeader = null;
             if ($baseUrl === '' || $token === '') {
                 $spoke = config('order_lookup.spokes.rdservice_in', []);
                 $baseUrl = rtrim(trim((string) ($spoke['base_url'] ?? '')), '/');
                 $token = trim((string) ($spoke['token'] ?? ''));
+                $hostHeader = trim((string) ($spoke['host'] ?? ''));
             }
 
             if ($baseUrl === '' || $token === '') {
@@ -106,6 +132,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
                 token: $token,
                 connectTimeoutSeconds: (int) ($migrationConfig['spoke_connect_timeout_seconds'] ?? 3),
                 timeoutSeconds: (int) ($migrationConfig['spoke_timeout_seconds'] ?? 15),
+                hostHeader: $hostHeader !== '' ? $hostHeader : null,
             );
         });
     }

@@ -474,3 +474,57 @@ Controlled M2 identity pilot for **50** cohort-eligible TYPE-1 customers (₹26,
 ## RadiumDesk-P-30-10-04
 
 Retire M2 OTP dependency for 50-customer TYPE-1 migration path. Added `Type1MigrationCohortIdentityEstablishmentService` + `migration_cohort_anchor` credential (Owner-authorized, not raw email/mobile); CLI `central-wallet:establish-type1-cohort-identity --owner-authorized`; flag `CENTRAL_WALLET_TYPE1_MIGRATION_COHORT_IDENTITY_ENABLED` default **false**. Normal M2 Connect Wallet **preserved**. Immutable cohort manifest `cw-type1-migration-cohort-p30-10-04.json`. Tests **6/6** PASS. Doc: `docs/cw-type1-migration-cohort-identity-p-30-10-04.md`. **Not deployed. 0 production identities created. No financial mutation.**
+
+---
+
+## RadiumDesk-P-30-10-05
+
+Deploy P-30-10-04 Type-1 cohort identity path to production (surgical overlay `4054aee7` on KVM8 v4.0.168). Enable `CENTRAL_WALLET_TYPE1_MIGRATION_COHORT_IDENTITY_ENABLED=true`; keep `CENTRAL_WALLET_REFUND_MIGRATION_EXECUTION_ENABLED=false`. Dry-run **50/50/₹26,230**; Owner-authorized establishment **50/50** `IDENTITY_ESTABLISHED`. Ledger **0** delta; financial variance **₹0**. Cohort isolation preserved (160 blocked, 3 owner-resolution, 55 identity-insufficient unchanged). Tests **10/10** PASS. Doc: `docs/cw-type1-cohort-identity-deploy-p-30-10-05.md`. **No financial migration.**
+
+---
+
+## RadiumDesk-P-30-10-06
+
+Final financial migration **preflight only** for immutable 50 TYPE-1 refunds (₹26,230). Production read-only verification: **50/50** `IDENTITY_ESTABLISHED`; **50** Lane A spoke debit (`rdservice.in` `desk_refund_reference` authoritative over cross-spoke txn ID collision); **0** Lane B/C/D. Preflight dry-run **PASS**; ledger **0**; execution flag **OFF**. Artifacts: `cw-type1-financial-migration-preflight-p30-10-06.json/.csv`. Doc: `docs/cw-type1-financial-migration-preflight-p-30-10-06.md`. Tests **40/40** PASS. **No money moved.**
+
+---
+
+## RadiumDesk-P-30-10-07
+
+Prepare Type-1 **50-row** financial migration execution path. Deploy `central_wallet_refund_migrations` (+ resolutions) schema to production; add Type-1 manifest loader/batch gate/journal import/dry-run (292 pathway unchanged). Import **50** prepared journal rows (₹26,230, Lane A, targets assigned); live spoke balance verification **PASS**; production dry-run **50/50** `batch_ready=true`. Ledger **0** delta; execution flag **OFF**. Doc: `docs/cw-type1-financial-migration-execution-prep-p-30-10-07.md`. Tests **46/46** PASS. **No money moved. Machinery READY.**
+
+---
+
+## RadiumDesk-P-30-10-08
+
+Verify and deploy minimum Type-1 financial migration **executor** overlay to production. Trace path: journal → `Type1RefundMigrationBatchGate` → `Type1RefundMigrationOrchestrator` → `RefundMigrationLane1Executor` → `BalanceMigrationCutoverService` → spoke debit + CW credit; rollback via ledger reversal. Non-writing rehearsal **PASS** (`50/50`, executor resolvable). Execute command deployed but **gated** (flag OFF). Ledger **0** delta. Doc: `docs/cw-type1-executor-verification-p-30-10-08.md`. Tests **31/31** PASS. **No money moved. Executor VERIFIED.**
+
+---
+
+## RadiumDesk-P-30-10-10
+
+Owner-authorized **Type-1 financial migration EXECUTION** for immutable 50-row cohort (`desk-refund-wallet-migration-type1-50-p30-10-06`, ₹26,230, Lane A). Owner approval: `OWNER-CW-TYPE1-50-FINANCIAL-MIGRATION-20261001-001`. Required enabling `CENTRAL_WALLET_REFUND_MIGRATION_EXECUTION_ENABLED` + underlying `CENTRAL_WALLET_BALANCE_MIGRATION_EXECUTION_ENABLED`; rdservice.in migration gates (`LOCK`/`RETIREMENT`/`CUTOVER`). Production fixes: `HttpWalletMigrationSpokeClient` Host header for loopback spoke; rdservice.in `Wallet` fillable migration columns. **SUCCESS:** 50/50 reconciled, ₹26,230 source debit / CW credit, ₹0 variance, flags **OFF**. Doc: `docs/cw-type1-financial-migration-execution-p-30-10-10.md`.
+
+---
+
+## RadiumDesk-P-30-10-11
+
+Read-only **post-migration reconciliation** of remaining **242** refunds (₹139,478) after P-30-10-10 Type-1 execution. Verified completed 50 (`reconciled`, CW credits, spoke spendable ₹0). Rebuilt from authoritative 292 manifest minus 50 cohort. Current production classification: **A READY 4/₹2,344**; **B IDENTITY_REQUIRED 220/₹127,328**; **C OWNER_RESOLUTION 3/₹1,497**; **D SOURCE_RECONCILIATION 14/₹7,810**; **E ALREADY_MIGRATED 0**; **F BLOCKED 1/₹499** (User 3). **21** cross-spoke `execution_transaction_id` collisions documented (`desk_refund_reference` authoritative). Ledger delta **₹0**. Doc: `docs/cw-remaining-242-reconciliation-p-30-10-11.md`. **No money moved.**
+
+---
+
+## RadiumDesk-P-30-10-12
+
+**Preflight/preparation only** for immutable **READY-4** refund cohort (₹2,344, refunds 268/284/336/360). Manifest + CSV artifacts; Ready4 manifest loader/journal import/batch gate/dry-run/rehearse machinery. **3/4 executable** (₹1,495, `rdservice.in`); **refund 360 blocked** (`radiumbox_spoke_cutover_executor_not_deployed`, ₹849). Identity **4/4** verified read-only; Lane A for all. Executable dry-run **PASS**; full 4/4 blocked. Ledger **0** delta; execution flag **OFF**. Doc: `docs/cw-type1-ready4-financial-preflight-p-30-10-12.md`. Tests **14/14** PASS. **No money moved.**
+
+---
+
+## RadiumDesk-P-30-10-13
+
+**READY-3 financial migration EXECUTION attempt** (refunds 268/284/336, ₹1,495, batch `desk-refund-wallet-migration-type1-ready4-p30-10-12`). Production preflight **PASS**: 3 journal rows `prepared`, manifest/journal match, live spoke balances sufficient (2542=₹499, 2552=₹497, 2585=₹499), 0 duplicate credits, refund 360 untouched (0 journal rows), Type-1 50 still reconciled (₹26,230), dry-run `executable_batch_ready=true`. **STOPPED:** no Owner approval reference supplied for this batch (cannot reuse `OWNER-CW-TYPE1-50-FINANCIAL-MIGRATION-20261001-001`). **FINANCIAL EXECUTION NOT PERFORMED.** Flags remain **OFF**. Ledger delta **₹0**.
+
+---
+
+## RadiumDesk-P-30-10-14
+
+Owner-authorized **READY-3 financial migration EXECUTION** (refunds 268/284/336, ₹1,495, batch `desk-refund-wallet-migration-type1-ready4-p30-10-12`). Owner approval: `R-CW-T1-READY3-FIN-MIG-20261001-001`. Deployed `Ready4RefundMigrationOrchestrator` + execute command. **SUCCESS:** 3/3 reconciled, ₹1,495 source debit / CW credit, ₹0 variance, flags **OFF**. Refund 360 untouched. Type-1 50 unchanged (50/50, ₹26,230). Idempotency verified. Doc: `docs/cw-type1-ready3-financial-migration-execution-p-30-10-14.md`. Tests **17/17** PASS.
