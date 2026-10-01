@@ -598,3 +598,9 @@ Read-only **fresh reconciliation** of remaining **239 / ₹137,983** + next-safe
 ---
 
 Forensic **Class-B source reconciliation** for **14 / ₹7,810** (CWID established, source wallet unproven). Per-refund spoke/Desk/journal inspection: **0** `DETERMINISTIC_SOURCE_FOUND`; **14** `NO_AUTHORITATIVE_SOURCE`. Root cause: legacy wallet credits with generic order messages and **no** `desk_refund_reference` / `execution_transaction_id` link to current refund; aggregate spendable match alone rejected. **Prepared batch: 0/₹0**; manifest SHA `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945`. Separate **refund 360** RadiumBox assessment: authoritative Box source wallet **2567** exists; blocked by missing Box `wallet-migration-*` API + Desk spoke client wiring (Lane-1 compatible in principle). **No radiumbox.com changes.** Ledger **53/₹27,725** unchanged; flags **OFF**. Artifacts: `cw-class-b-source-reconciliation-p30-10-25.json/.csv`. Doc: `docs/cw-class-b-source-reconciliation-p-30-10-25.md`. **No financial execution.**
+
+---
+
+## RadiumDesk-P-30-10-27
+
+Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refund-wallet-migration-refund360-p30-10-26`, ₹849, radiumbox.com wallet **2567** → CWID `5a3d0706-…`). Owner approval: `R-CW-REF360-FIN-MIG-20261001-001`. Added `central-wallet:refund360-migration-execute` + `Refund360MigrationExecutionTest`. **SUCCESS:** journal **reconciled**, ledger **54/₹28,574**, Box user **499465** spendable **₹0**, retirement row **2569**, lock **retired/released**, idempotency replay **no duplicate credit**. Flags **OFF** after execution. Tests **17/17** PASS. Doc: `docs/cw-refund360-financial-migration-execution-p-30-10-27.md`.
