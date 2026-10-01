@@ -24,6 +24,7 @@ final class CustomerFoundationFromCeremonyService
     public function __construct(
         private readonly AuditEventRecorder $auditEvents,
         private readonly E2VerificationDestinationService $e2VerificationDestination,
+        private readonly E1VerificationDestinationService $e1VerificationDestination,
     ) {}
 
     /**
@@ -151,12 +152,23 @@ final class CustomerFoundationFromCeremonyService
         CentralCustomer $customer,
         ?string $correlationId,
     ): void {
+        $identity = ['type' => CustomerIdentityCredentialType::VerifiedMobile->value];
+
         $this->e2VerificationDestination->prepareAfterTrustedVerification(
             siteCode: $siteCode,
             localUserId: $localUserId,
             deskCustomerId: $customer->id,
             cwid: $customer->central_wallet_id,
-            identity: ['type' => CustomerIdentityCredentialType::VerifiedMobile->value],
+            identity: $identity,
+            correlationId: $correlationId,
+        );
+
+        $this->e1VerificationDestination->prepareAfterTrustedVerification(
+            siteCode: $siteCode,
+            localUserId: $localUserId,
+            deskCustomerId: $customer->id,
+            cwid: $customer->central_wallet_id,
+            identity: $identity,
             correlationId: $correlationId,
         );
     }

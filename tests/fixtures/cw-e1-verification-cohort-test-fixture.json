@@ -1,0 +1,41 @@
+{
+  "cohort_id": "e1-identity-required-wallet-resolved-p30-10-30",
+  "prompt_id": "test-fixture-p30-10-32",
+  "refund_count": 3,
+  "refund_amount": "1500.00",
+  "rows": [
+    {
+      "refund_id": 92001,
+      "refund_amount": "500.00",
+      "desk_refund_reference": "REF-TEST-92001",
+      "site": "rdservice.in",
+      "local_user_id": "400001",
+      "order_number": "RD-TEST-92001",
+      "source_wallet_id": 99001,
+      "source_application": "rdservice.in",
+      "current_source_spendable_balance": "500.00"
+    },
+    {
+      "refund_id": 92002,
+      "refund_amount": "500.00",
+      "desk_refund_reference": "REF-TEST-92002",
+      "site": "rdservice.in",
+      "local_user_id": "400001",
+      "order_number": "RD-TEST-92002",
+      "source_wallet_id": 99002,
+      "source_application": "rdservice.in",
+      "current_source_spendable_balance": "500.00"
+    },
+    {
+      "refund_id": 92003,
+      "refund_amount": "500.00",
+      "desk_refund_reference": "REF-TEST-92003",
+      "site": "radiumbox.com",
+      "local_user_id": "400002",
+      "order_number": "RB-TEST-92003",
+      "source_wallet_id": null,
+      "source_application": "radiumbox.com",
+      "current_source_spendable_balance": "500.00"
+    }
+  ]
+}

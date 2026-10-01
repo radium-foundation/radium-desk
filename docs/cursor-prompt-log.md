@@ -622,3 +622,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-30-10-31
 
 **Class-C final validation** (263/265/266, ₹1,497): Independent read-only evidence reconstruction on production. All three: **UNKNOWN** owner — no `desk_refund_reference` on wallet, `order.customer_id` null, wallet userid ≠ reconciliation user, wallet message order ≠ Desk order. Cyclic permutation and name/email alignment **not** used as proof. **0** migration candidates; CWID readiness **none**. Ledger **54/₹28,574** unchanged; flags **OFF**. **No financial mutation.** Doc: `docs/cw-class-c-final-validation-p-30-10-31.md`.
+
+---
+
+## RadiumDesk-P-30-10-32
+
+**E-1 identity migration path** (168 / ₹92,811): Extended E-2 identity architecture for E-1 cohort keyed on `site`+`local_user_id`. Added `E1CohortManifestLoader`, `E1CohortStateResolver`, `E1VerificationDestinationService`, `E1IdentityMigrationJournalImportService`, `E1DestinationReadinessManifestService` + artisan audit/manifest commands. Hooks in `CustomerIdentityResolveService` / `CustomerFoundationFromCeremonyService`. Production: **168 VERIFICATION_AVAILABLE**, **0 destination-ready**; verification cohort SHA `28a97ac1…`; destination manifest SHA `fd3cda4a…`; ledger **54/₹28,574** unchanged; execution flags **OFF**. Tests **14/14** PASS (E1+E2 regression). **No financial mutation.** Doc: `docs/cw-e1-identity-migration-p-30-10-32.md`.

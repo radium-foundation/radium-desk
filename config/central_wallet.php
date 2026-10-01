@@ -281,6 +281,38 @@ return [
         ),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | E-1 identity migration (168 refunds — default OFF)
+    |--------------------------------------------------------------------------
+    |
+    | Trusted identity + destination preparation for E-1 historical wallet refunds.
+    | Does NOT credit Central Wallet or debit spoke wallets.
+    |
+    */
+
+    'e1_identity_migration' => [
+        'verification_cohort_manifest_path' => env(
+            'CENTRAL_WALLET_E1_VERIFICATION_COHORT_MANIFEST_PATH',
+            storage_path('app/private/cw-e1-verification-cohort-manifest-p30-10-32.json'),
+        ),
+        'destination_readiness_manifest_path' => env(
+            'CENTRAL_WALLET_E1_DESTINATION_READINESS_MANIFEST_PATH',
+            storage_path('app/private/cw-e1-destination-readiness-manifest-p30-10-32.json'),
+        ),
+        'expected_count' => 168,
+        'expected_amount' => '92811.00',
+        'batch_id' => 'desk-refund-identity-migration-e1-168-p30-10-32',
+        'owner_approval_ref' => env(
+            'CENTRAL_WALLET_E1_IDENTITY_MIGRATION_OWNER_APPROVAL_REF',
+            'OWNER-CW-E1-IDENTITY-MIGRATION-20261001-001',
+        ),
+        'verification_enabled' => filter_var(
+            env('CENTRAL_WALLET_E1_IDENTITY_MIGRATION_VERIFICATION_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+    ],
+
     'e2_historical_settlement' => [
         'manifest_path' => env(
             'CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_MANIFEST_PATH',
