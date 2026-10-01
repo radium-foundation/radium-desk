@@ -9,6 +9,14 @@ final class NextSafeBatchManifestLoader
 {
     public const BATCH_ID = 'desk-refund-wallet-migration-next-safe-p30-10-24';
 
+    public const BATCH_ID_CLASS_B_P30_10_25 = 'desk-refund-wallet-migration-class-b-p30-10-25';
+
+    /** @var list<string> */
+    public const ALLOWED_BATCH_IDS = [
+        self::BATCH_ID,
+        self::BATCH_ID_CLASS_B_P30_10_25,
+    ];
+
     public const EMPTY_MANIFEST_ROWS_SHA256 = '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945';
 
     /**
@@ -42,7 +50,8 @@ final class NextSafeBatchManifestLoader
      */
     public function validate(array $manifest): void
     {
-        if ((string) ($manifest['batch_id'] ?? '') !== self::BATCH_ID) {
+        $batchId = (string) ($manifest['batch_id'] ?? '');
+        if (! in_array($batchId, self::ALLOWED_BATCH_IDS, true)) {
             throw new InvalidArgumentException('next_safe_batch_batch_mismatch');
         }
 
