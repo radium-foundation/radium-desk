@@ -42,6 +42,8 @@ class IdentityRequiredCohortProvisionalIdentityTest extends TestCase
             'central_wallet.identity_required_cohort.campaign_manifest_path' => self::FIXTURE,
             'central_wallet.identity_required_cohort.expected_refunds' => 7,
             'central_wallet.identity_required_cohort.expected_amount' => '2150.00',
+            'central_wallet.e1_identity_migration.verification_enabled' => false,
+            'central_wallet.e2_historical_settlement.verification_enabled' => false,
             'central_wallet.ceremony.signing_secrets' => [
                 self::SITE => self::CEREMONY_SECRET,
             ],
@@ -55,7 +57,7 @@ class IdentityRequiredCohortProvisionalIdentityTest extends TestCase
             ->assertJsonPath('identity_state', 'provisional')
             ->assertJsonPath('verification_status', 'unverified')
             ->assertJsonPath('available_balance', '499.00')
-            ->assertJsonPath('balance_source', 'local_spoke_wallet')
+            ->assertJsonPath('balance_source', 'historical_wallet_refund')
             ->assertJsonPath('verification_required', true)
             ->assertJsonPath('financial_use_requires_verification', true)
             ->assertJsonPath('historical_migration_separate', true)
@@ -68,7 +70,7 @@ class IdentityRequiredCohortProvisionalIdentityTest extends TestCase
             ->assertOk()
             ->assertJsonPath('identity_state', 'provisional')
             ->assertJsonPath('available_balance', '597.00')
-            ->assertJsonPath('balance_source', 'local_spoke_wallet');
+            ->assertJsonPath('balance_source', 'historical_wallet_refund');
     }
 
     public function test_email_and_mobile_unverified_returns_read_only_balance(): void
@@ -99,12 +101,13 @@ class IdentityRequiredCohortProvisionalIdentityTest extends TestCase
             ->assertJsonPath('identity_state', 'unresolved');
     }
 
-    public function test_source_wallet_unresolved_blocks_provisional_display(): void
+    public function test_source_wallet_unresolved_falls_through_when_e2_unmatched(): void
     {
         $this->provisionalResolve('100003', 'user@example.com', null, false, 'idem-source-block')
             ->assertNotFound()
-            ->assertJsonPath('error', 'source_reconciliation_required')
-            ->assertJsonPath('blocker', 'authoritative_source_wallet_unresolved');
+            ->assertJsonPath('identity_state', 'unresolved')
+            ->assertJsonPath('wallet_balance', '0.00')
+            ->assertJsonPath('balance_status', 'verification_required');
     }
 
     public function test_multiple_refunds_aggregate_spendable_balance_for_same_user(): void

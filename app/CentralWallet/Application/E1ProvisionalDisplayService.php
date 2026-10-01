@@ -8,11 +8,10 @@ use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
 use App\CentralWallet\Support\TrustedVerificationMethod;
 use InvalidArgumentException;
 
-final class E2ProvisionalDisplayService
+final class E1ProvisionalDisplayService
 {
     public function __construct(
-        private readonly E2CohortManifestLoader $manifestLoader,
-        private readonly CustomerIdentitySubjectHasher $subjectHasher,
+        private readonly E1CohortManifestLoader $manifestLoader,
         private readonly ReconciledHistoricalRefundFilter $reconciledFilter,
         private readonly AuditEventRecorder $auditEvents,
     ) {}
@@ -27,23 +26,12 @@ final class E2ProvisionalDisplayService
         ?string $mobile,
         ?string $correlationId = null,
     ): array {
-        if (! (bool) config('central_wallet.e2_historical_settlement.verification_enabled', false)) {
-            return $this->unresolved('e2_verification_disabled');
+        if (! (bool) config('central_wallet.e1_identity_migration.verification_enabled', false)) {
+            return $this->unresolved('e1_verification_disabled');
         }
 
         if (! $this->hasUsableContactData($email, $mobile)) {
             return $this->unresolved('contact_data_required');
-        }
-
-        $email = trim((string) $email);
-        if ($email === '' || ! str_contains($email, '@')) {
-            return $this->unresolved('e2_provisional_requires_email');
-        }
-
-        try {
-            $emailHash = $this->subjectHasher->hashVerifiedEmail($email);
-        } catch (InvalidArgumentException) {
-            return $this->unresolved('email_invalid');
         }
 
         try {
@@ -51,15 +39,47 @@ final class E2ProvisionalDisplayService
         } catch (InvalidArgumentException) {
             return [
                 'status' => 503,
-                'body' => ['error' => 'e2_verification_cohort_manifest_unavailable', 'identity_state' => 'unresolved'],
+                'body' => ['error' => 'e1_verification_cohort_manifest_unavailable', 'identity_state' => 'unresolved'],
             ];
         }
 
-        $matches = $this->manifestLoader->findBySiteEmailHash($manifest, $siteCode, $emailHash);
+        $matches = $this->manifestLoader->findBySiteUser($manifest, $siteCode, $localUserId);
         if ($matches === []) {
-            return $this->unresolved('not_in_e2_verification_cohort');
+            return $this->unresolved('not_in_e1_verification_cohort');
         }
 
+        $linkError = $this->checkAccountLinkAmbiguity($siteCode, $localUserId, $correlationId);
+        if ($linkError !== null) {
+            return $linkError;
+        }
+
+        $balance = $this->reconciledFilter->sumDisplayableAmounts($matches);
+        if (bccomp($balance, '0', 2) <= 0) {
+            return $this->unresolved('historical_balance_already_settled');
+        }
+
+        $this->auditEvents->record(
+            eventType: 'customer_identity.e1_provisional_balance_resolved',
+            centralWalletId: null,
+            actorType: AuditActorType::Customer,
+            actorId: 'customer:'.$localUserId,
+            correlationId: $correlationId,
+            payload: [
+                'site_code' => $siteCode,
+                'local_user_id' => $localUserId,
+                'cohort_id' => E1CohortManifestLoader::COHORT_ID,
+                'refund_count' => count($matches),
+            ],
+        );
+
+        return $this->provisionalBody($balance, 'historical_wallet_refund');
+    }
+
+    /**
+     * @return array{status: int, body: array<string, mixed>}|null
+     */
+    private function checkAccountLinkAmbiguity(string $siteCode, string $localUserId, ?string $correlationId): ?array
+    {
         $existingLink = CentralWalletAccountLink::query()
             ->where('site_code', $siteCode)
             ->where('local_user_id', $localUserId)
@@ -75,10 +95,10 @@ final class E2ProvisionalDisplayService
 
         if ($existingLink !== null && ! TrustedVerificationMethod::isTrusted($existingLink->verification_method)) {
             $this->auditEvents->record(
-                eventType: 'customer_identity.e2_provisional_ambiguous',
+                eventType: 'customer_identity.e1_provisional_ambiguous',
                 centralWalletId: $existingLink->central_wallet_id,
                 actorType: AuditActorType::Service,
-                actorId: 'e2_provisional:'.$siteCode,
+                actorId: 'e1_provisional:'.$siteCode,
                 correlationId: $correlationId,
                 payload: [
                     'site_code' => $siteCode,
@@ -92,32 +112,21 @@ final class E2ProvisionalDisplayService
             ];
         }
 
-        $balance = $this->reconciledFilter->sumDisplayableAmounts($matches, 'refund_amount');
-        if (bccomp($balance, '0', 2) <= 0) {
-            return $this->unresolved('historical_balance_already_settled');
-        }
+        return null;
+    }
 
-        $this->auditEvents->record(
-            eventType: 'customer_identity.e2_provisional_balance_resolved',
-            centralWalletId: null,
-            actorType: AuditActorType::Customer,
-            actorId: 'customer:'.$localUserId,
-            correlationId: $correlationId,
-            payload: [
-                'site_code' => $siteCode,
-                'local_user_id' => $localUserId,
-                'cohort_id' => E2CohortManifestLoader::COHORT_ID,
-                'refund_count' => count($matches),
-            ],
-        );
-
+    /**
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    private function provisionalBody(string $balance, string $balanceSource): array
+    {
         return [
             'status' => 200,
             'body' => [
                 'identity_state' => 'provisional',
                 'verification_status' => 'unverified',
                 'available_balance' => $balance,
-                'balance_source' => 'historical_wallet_refund',
+                'balance_source' => $balanceSource,
                 'currency' => (string) config('central_wallet.currency', 'INR'),
                 'verification_required' => true,
                 'verification_paths' => [
@@ -125,10 +134,9 @@ final class E2ProvisionalDisplayService
                     'verified_mobile_otp',
                     'google_sign_in',
                 ],
-                'message' => 'Verify your identity to use this wallet balance.',
+                'message' => 'Verify your account to use this balance.',
                 'financial_use_requires_verification' => true,
                 'historical_migration_separate' => true,
-                'source_wallet_provenance' => 'unavailable_not_reconstructed',
             ],
         ];
     }

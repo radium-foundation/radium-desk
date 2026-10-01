@@ -9,6 +9,7 @@ use App\CentralWallet\Infrastructure\Http\Controllers\LedgerEntryController;
 use App\CentralWallet\Infrastructure\Http\Controllers\ProvisionalIdentityController;
 use App\CentralWallet\Infrastructure\Http\Controllers\ReservationController;
 use App\CentralWallet\Infrastructure\Http\Controllers\WalletController;
+use App\CentralWallet\Infrastructure\Http\Controllers\WalletVisibilityController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', HealthController::class)->name('central-wallet.health');
@@ -47,6 +48,11 @@ Route::middleware('central_wallet.customer_identity')->group(function (): void {
 Route::middleware('central_wallet.provisional_identity')->group(function (): void {
     Route::post('/customer-identity/provisional-resolve', [ProvisionalIdentityController::class, 'resolve'])
         ->name('central-wallet.customer-identity.provisional-resolve');
+});
+
+Route::middleware('central_wallet.historical_wallet_visibility')->group(function (): void {
+    Route::get('/wallet-visibility', [WalletVisibilityController::class, 'show'])
+        ->name('central-wallet.wallet-visibility.show');
 });
 
 Route::middleware('central_wallet.reservations')->group(function (): void {

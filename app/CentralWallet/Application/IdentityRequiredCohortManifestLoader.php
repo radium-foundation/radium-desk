@@ -55,13 +55,15 @@ final class IdentityRequiredCohortManifestLoader
                     'site' => $site,
                     'local_user_id' => $localUserId,
                     'refund_ids' => [],
+                    'refund_amounts' => [],
                     'refund_total' => '0.00',
                     'source_wallet_resolved' => true,
                     'spendable_balance' => '0.00',
                 ];
             }
 
-            $bySiteUser[$key]['refund_ids'][] = (int) $row['refund_id'];
+            $refundId = (int) $row['refund_id'];
+            $bySiteUser[$key]['refund_ids'][] = $refundId;
             $bySiteUser[$key]['refund_total'] = bcadd(
                 $bySiteUser[$key]['refund_total'],
                 (string) ($row['amount'] ?? '0'),
@@ -71,7 +73,9 @@ final class IdentityRequiredCohortManifestLoader
             $spendable = $this->normalizeAmount($row['current_source_spendable_balance'] ?? null);
             if ($spendable === null) {
                 $bySiteUser[$key]['source_wallet_resolved'] = false;
+                $bySiteUser[$key]['refund_amounts'][$refundId] = (string) ($row['amount'] ?? '0');
             } else {
+                $bySiteUser[$key]['refund_amounts'][$refundId] = $spendable;
                 $bySiteUser[$key]['spendable_balance'] = bcadd(
                     $bySiteUser[$key]['spendable_balance'],
                     $spendable,

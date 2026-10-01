@@ -75,7 +75,7 @@ class E2VerificationPathTest extends TestCase
             ->assertJsonPath('identity_state', 'provisional')
             ->assertJsonPath('verification_status', 'unverified')
             ->assertJsonPath('available_balance', '1214.00')
-            ->assertJsonPath('balance_source', 'historical_refund_amount_pending_verification')
+            ->assertJsonPath('balance_source', 'historical_wallet_refund')
             ->assertJsonPath('verification_required', true)
             ->assertJsonPath('source_wallet_provenance', 'unavailable_not_reconstructed')
             ->assertJsonMissing(['central_wallet_id', 'desk_customer_id', 'refund_id']);

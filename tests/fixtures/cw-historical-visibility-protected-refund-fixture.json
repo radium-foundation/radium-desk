@@ -1,0 +1,12 @@
+{
+  "cohort_id": "e1-protected-refund-test",
+  "rows": [
+    {
+      "refund_id": 300,
+      "refund_amount": "499.00",
+      "site": "rdservice.in",
+      "local_user_id": "300001",
+      "current_source_spendable_balance": "499.00"
+    }
+  ]
+}

@@ -142,6 +142,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Historical wallet visibility (post-2026-07-15 refunds — default OFF)
+    |--------------------------------------------------------------------------
+    |
+    | Read-only customer-facing display of historical wallet refund balances.
+    | Does NOT credit Central Wallet, debit spokes, or enable spending without
+    | trusted identity. Desk Central Wallet remains SSOT at checkout.
+    |
+    */
+
+    'historical_wallet_visibility' => [
+        'enabled' => filter_var(
+            env('CENTRAL_WALLET_HISTORICAL_WALLET_VISIBILITY_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        'protected_refund_ids' => [300],
+        'campaign_start_date' => '2026-07-15',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | IDENTITY_REQUIRED historical cohort (220 refunds — default OFF)
     |--------------------------------------------------------------------------
     |

@@ -2,22 +2,10 @@
 
 namespace App\CentralWallet\Application;
 
-use App\CentralWallet\Domain\Enums\AccountLinkStatus;
-use App\CentralWallet\Domain\Enums\AuditActorType;
-use App\CentralWallet\Domain\Enums\CustomerIdentityCredentialType;
-use App\CentralWallet\Infrastructure\Persistence\CentralCustomerIdentityCredential;
-use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
-use App\CentralWallet\Support\TrustedVerificationMethod;
-use InvalidArgumentException;
-
 final class ProvisionalIdentityResolveService
 {
     public function __construct(
-        private readonly CustomerIdentitySubjectHasher $subjectHasher,
-        private readonly LedgerService $ledger,
-        private readonly AuditEventRecorder $auditEvents,
-        private readonly HistoricalCohortProvisionalBalanceService $historicalCohortProvisional,
-        private readonly E2ProvisionalDisplayService $e2ProvisionalDisplay,
+        private readonly HistoricalWalletVisibilityService $visibility,
     ) {}
 
     /**
@@ -38,137 +26,13 @@ final class ProvisionalIdentityResolveService
             ];
         }
 
-        if ($emailVerified) {
-            return [
-                'status' => 422,
-                'body' => ['error' => 'use_trusted_identity_path'],
-            ];
-        }
-
-        $email = trim($email);
-        $credentials = collect();
-        if ($email !== '' && str_contains($email, '@')) {
-            try {
-                $subjectHash = $this->subjectHasher->hashVerifiedEmail($email);
-            } catch (InvalidArgumentException) {
-                return [
-                    'status' => 422,
-                    'body' => ['error' => 'verified_email_invalid'],
-                ];
-            }
-
-            $credentials = CentralCustomerIdentityCredential::query()
-                ->where('credential_type', CustomerIdentityCredentialType::VerifiedEmail)
-                ->where('provider', 'desk_email')
-                ->where('subject_hash', $subjectHash)
-                ->get();
-        }
-
-        if ($credentials->isEmpty()) {
-            $historical = $this->historicalCohortProvisional->resolve(
-                siteCode: $siteCode,
-                localUserId: $localUserId,
-                email: $email !== '' ? $email : null,
-                mobile: $mobile,
-                correlationId: $correlationId,
-            );
-
-            if ($historical['status'] === 200 || $historical['status'] === 409 || $historical['status'] === 422) {
-                return $historical;
-            }
-
-            if (($historical['body']['error'] ?? '') === 'source_reconciliation_required') {
-                return $historical;
-            }
-
-            return $this->e2ProvisionalDisplay->resolve(
-                siteCode: $siteCode,
-                localUserId: $localUserId,
-                email: $email !== '' ? $email : null,
-                mobile: $mobile,
-                correlationId: $correlationId,
-            );
-        }
-
-        if ($credentials->pluck('desk_customer_id')->unique()->count() > 1) {
-            $this->auditEvents->record(
-                eventType: 'customer_identity.provisional_ambiguous',
-                centralWalletId: null,
-                actorType: AuditActorType::Service,
-                actorId: 'provisional:'.$siteCode,
-                correlationId: $correlationId,
-                payload: [
-                    'site_code' => $siteCode,
-                    'local_user_id' => $localUserId,
-                ],
-            );
-
-            return [
-                'status' => 409,
-                'body' => ['error' => 'identity_ambiguous', 'identity_state' => 'unresolved'],
-            ];
-        }
-
-        $credential = $credentials->first();
-        $customer = $credential?->customer;
-        if ($customer === null) {
-            return [
-                'status' => 404,
-                'body' => ['error' => 'identity_unresolved', 'identity_state' => 'unresolved'],
-            ];
-        }
-
-        $existingLink = CentralWalletAccountLink::query()
-            ->where('site_code', $siteCode)
-            ->where('local_user_id', $localUserId)
-            ->where('status', AccountLinkStatus::Active)
-            ->first();
-
-        if ($existingLink !== null) {
-            if ($existingLink->central_wallet_id !== $customer->central_wallet_id) {
-                return [
-                    'status' => 409,
-                    'body' => ['error' => 'identity_ambiguous', 'identity_state' => 'unresolved'],
-                ];
-            }
-
-            if (TrustedVerificationMethod::isTrusted($existingLink->verification_method)) {
-                return [
-                    'status' => 422,
-                    'body' => ['error' => 'use_trusted_identity_path'],
-                ];
-            }
-        }
-
-        try {
-            $availableBalance = $this->ledger->spendableBalance($customer->central_wallet_id);
-        } catch (\Throwable) {
-            return [
-                'status' => 503,
-                'body' => ['error' => 'balance_unavailable', 'identity_state' => 'unresolved'],
-            ];
-        }
-
-        $this->auditEvents->record(
-            eventType: 'customer_identity.provisional_balance_resolved',
-            centralWalletId: $customer->central_wallet_id,
-            actorType: AuditActorType::Customer,
-            actorId: 'customer:'.$localUserId,
+        return $this->visibility->resolve(
+            siteCode: $siteCode,
+            localUserId: $localUserId,
+            email: $email,
+            emailVerified: $emailVerified,
             correlationId: $correlationId,
-            payload: [
-                'site_code' => $siteCode,
-                'local_user_id' => $localUserId,
-            ],
+            mobile: $mobile,
         );
-
-        return [
-            'status' => 200,
-            'body' => [
-                'identity_state' => 'provisional',
-                'available_balance' => $availableBalance,
-                'currency' => (string) config('central_wallet.currency', 'INR'),
-                'verification_required' => true,
-            ],
-        ];
     }
 }

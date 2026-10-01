@@ -640,3 +640,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-30-10-34
 
 **E-1 trusted verification endpoint repair** (non-financial surgical overlay): Deployed missing `CustomerIdentityController.php` + `EnsureCentralWalletCustomerIdentityEnabled.php` from repo `795b6ab1` to KVM `/var/www/radium-desk`. Backups: `storage/app/private/deploy-backups-p30-10-34/`. Resolve endpoint: **500 → 422** (empty validation), **401** (no/invalid auth). Health **200** (authenticated). E-1 **168/₹92,811**, destination-ready **0**; E-2 **52/₹34,517** unchanged; ledger **54/₹28,574**; no spoke/refund mutation; execution flags **OFF**. Tests **25/25** PASS. **No financial mutation.** Doc: `docs/cw-e1-trusted-verify-endpoint-repair-p-30-10-34.md`.
+
+---
+
+## RadiumDesk-P-30-10-35
+
+**Historical Wallet Visibility layer** (read-only, non-financial): Unified `HistoricalWalletVisibilityService` + `E1ProvisionalDisplayService` + `ReconciledHistoricalRefundFilter`; GET `/wallet-visibility`; enhanced `provisional-resolve` with `wallet_balance`/`balance_status`/`spendable` fields. E-1 (168) + E-2 (52) unverified display; verified CW balance for trusted links; reconciled/protected refund 300 exclusion; E-2 fallthrough after `source_reconciliation_required`. Class-B/C unchanged (not displayed without safe association). **67/67** PHPUnit PASS. **No ledger/spoke/refund mutation; execution flags OFF.** Doc: `docs/cw-historical-wallet-visibility-p-30-10-35.md`. **Not deployed** (awaiting authorization).

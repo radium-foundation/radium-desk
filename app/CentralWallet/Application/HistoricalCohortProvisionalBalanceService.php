@@ -12,6 +12,7 @@ final class HistoricalCohortProvisionalBalanceService
 {
     public function __construct(
         private readonly IdentityRequiredCohortManifestLoader $manifestLoader,
+        private readonly ReconciledHistoricalRefundFilter $reconciledFilter,
         private readonly AuditEventRecorder $auditEvents,
     ) {}
 
@@ -90,9 +91,18 @@ final class HistoricalCohortProvisionalBalanceService
             ];
         }
 
-        $balance = (string) ($cohortMember['spendable_balance'] ?? '0.00');
-        if (bccomp($balance, '0', 2) < 0) {
-            return $this->unresolved('invalid_source_balance');
+        $refundIds = $cohortMember['refund_ids'] ?? [];
+        $amountsByRefundId = [];
+        foreach ($cohortMember['refund_amounts'] ?? [] as $refundId => $amount) {
+            $amountsByRefundId[(int) $refundId] = (string) $amount;
+        }
+
+        $balance = is_array($refundIds) && $refundIds !== []
+            ? $this->reconciledFilter->sumDisplayableFromRefundIds($refundIds, $amountsByRefundId)
+            : (string) ($cohortMember['spendable_balance'] ?? '0.00');
+
+        if (bccomp($balance, '0', 2) <= 0) {
+            return $this->unresolved('historical_balance_already_settled');
         }
 
         $this->auditEvents->record(
@@ -115,7 +125,7 @@ final class HistoricalCohortProvisionalBalanceService
                 'identity_state' => 'provisional',
                 'verification_status' => 'unverified',
                 'available_balance' => $balance,
-                'balance_source' => 'local_spoke_wallet',
+                'balance_source' => 'historical_wallet_refund',
                 'currency' => (string) config('central_wallet.currency', 'INR'),
                 'verification_required' => true,
                 'verification_paths' => [

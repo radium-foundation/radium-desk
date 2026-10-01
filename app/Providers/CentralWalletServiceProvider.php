@@ -19,6 +19,7 @@ use App\CentralWallet\Application\E1CohortManifestLoader;
 use App\CentralWallet\Application\E1CohortStateResolver;
 use App\CentralWallet\Application\E1DestinationReadinessManifestService;
 use App\CentralWallet\Application\E1IdentityMigrationJournalImportService;
+use App\CentralWallet\Application\E1ProvisionalDisplayService;
 use App\CentralWallet\Application\E1VerificationDestinationService;
 use App\CentralWallet\Application\E2CohortManifestLoader;
 use App\CentralWallet\Application\E2CohortStateResolver;
@@ -33,6 +34,7 @@ use App\CentralWallet\Application\E2ProvisionalDisplayService;
 use App\CentralWallet\Application\E2VerificationDestinationService;
 use App\CentralWallet\Application\ExternalDirectLedgerDebitGate;
 use App\CentralWallet\Application\HistoricalCohortProvisionalBalanceService;
+use App\CentralWallet\Application\HistoricalWalletVisibilityService;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\IdentityRequiredCohortManifestLoader;
 use App\CentralWallet\Application\IntegrationSourceSystemResolver;
@@ -50,6 +52,7 @@ use App\CentralWallet\Application\Ready4RefundMigrationDryRunService;
 use App\CentralWallet\Application\Ready4RefundMigrationJournalImportService;
 use App\CentralWallet\Application\Ready4RefundMigrationOrchestrator;
 use App\CentralWallet\Application\Ready4RefundMigrationRehearseService;
+use App\CentralWallet\Application\ReconciledHistoricalRefundFilter;
 use App\CentralWallet\Application\Refund360MigrationBatchGate;
 use App\CentralWallet\Application\Refund360MigrationDryRunService;
 use App\CentralWallet\Application\Refund360MigrationJournalImportService;
@@ -80,6 +83,7 @@ use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletCustomerIdentityEnabled;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletProvisionalIdentityEnabled;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletReservationsEnabled;
+use App\CentralWallet\Infrastructure\Http\Middleware\EnsureHistoricalWalletVisibilityEnabled;
 use App\CentralWallet\Infrastructure\Http\RoutingWalletMigrationSpokeClient;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -125,7 +129,9 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(E2VerificationDestinationService::class);
         $this->app->singleton(E2CohortStateResolver::class);
         $this->app->singleton(E2DestinationReadinessManifestService::class);
+        $this->app->singleton(ReconciledHistoricalRefundFilter::class);
         $this->app->singleton(E1CohortManifestLoader::class);
+        $this->app->singleton(E1ProvisionalDisplayService::class);
         $this->app->singleton(E1IdentityMigrationJournalImportService::class);
         $this->app->singleton(E1VerificationDestinationService::class);
         $this->app->singleton(E1CohortStateResolver::class);
@@ -141,6 +147,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CustomerIdentityResolveService::class);
         $this->app->singleton(IdentityRequiredCohortManifestLoader::class);
         $this->app->singleton(HistoricalCohortProvisionalBalanceService::class);
+        $this->app->singleton(HistoricalWalletVisibilityService::class);
         $this->app->singleton(ProvisionalIdentityResolveService::class);
         $this->app->singleton(TrustedFinancialAuthorizationGate::class);
         $this->app->singleton(LedgerService::class);
@@ -204,6 +211,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         Route::aliasMiddleware('central_wallet.reservations', EnsureCentralWalletReservationsEnabled::class);
         Route::aliasMiddleware('central_wallet.customer_identity', EnsureCentralWalletCustomerIdentityEnabled::class);
         Route::aliasMiddleware('central_wallet.provisional_identity', EnsureCentralWalletProvisionalIdentityEnabled::class);
+        Route::aliasMiddleware('central_wallet.historical_wallet_visibility', EnsureHistoricalWalletVisibilityEnabled::class);
 
         Route::middleware([
             'api',
