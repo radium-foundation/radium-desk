@@ -444,3 +444,9 @@ Close remaining 276 refund identity/CWID mappings. Script `cw-identity-close-p30
 ## RadiumDesk-P-30-09-31
 
 Owner decision package for **273** unresolved refunds (₹155,055). Script `cw-owner-decision-package-p30-09-31.py` (KVM8 read-only): **270** identity case records grouped A(2)/B(211)/D(52)/E(5); **3** resolution details (263/265/266 circular mismatch); **223** machine-readable Owner decisions; **263** M2 ceremony-eligible. Artifacts: `cw-owner-decisions-required-p30-09-30.json`, `cw-owner-identity-cases-p30-09-31.json`. Doc: `docs/cw-owner-decision-package-p30-09-30.md`. Ledger **0**; financial variance **₹0**. **EXECUTION READY=NO. No financial migration.**
+
+---
+
+## RadiumDesk-P-30-09-32
+
+Forensic identity trace for **REF-2026-000217** (read-only KVM8 DB queries). Refund is **cashfree** (not in 292 wallet cohort); business customer deterministically identifiable via Desk order RD3490575 → rdin user **534268**; trusted identity **absent** (no Google, no verified email, no CWID). **211/270** TYPE-1 cases share this pattern (trusted identity missing only). Artifacts: `cw-ref-2026-000217-identity-trace.json`. Doc: `docs/cw-refund-identity-forensic-ref-2026-000217-p-30-09-32.md`. **No financial mutation.**
