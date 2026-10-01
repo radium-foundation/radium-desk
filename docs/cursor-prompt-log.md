@@ -564,3 +564,9 @@ Read-only **forensic reconstruction** of E-2 sub-cohort: **52 / ₹34,517**. Ext
 ## RadiumDesk-P-30-10-20
 
 Owner-authorized **E-2 historical manual refund settlement** infrastructure for **52 / ₹34,517** (P-30-10-19 CORROBORATING_ONLY cohort). Implements Lane 4 `OWNER_APPROVED_HISTORICAL_MANUAL_REFUND_SETTLEMENT` — CW credit only, no spoke debit, no fabricated source provenance; idempotency `desk-refund-historical-settlement:{refund_id}`. Immutable manifest SHA-256 `48f173da…dfe0`. **Execution STOPPED:** all 52 blocked — **0 trusted Desk Customer/CWID** destinations (P-30-10-16); manifest rows have null `desk_customer_id`/`cwid`; dry-run `batch_executable=false`. Ledger **53/₹27,725** unchanged; flags **OFF**. Artifacts: `cw-e2-historical-settlement-manifest-p30-10-20.json`. Doc: `docs/cw-e2-historical-settlement-p-30-10-20.md`. **No financial execution.**
+
+---
+
+## RadiumDesk-P-30-10-21
+
+Read-only **trusted destination preparation** for E-2 cohort **52 / ₹34,517** under Owner approval `OWNER-CW-E2-HISTORICAL-SETTLEMENT-20261001-001`. Determines trusted Desk Customer/CWID readiness for Lane 4 settlement (P-30-10-20) without executing settlement or fabricating identity. **All 52 → C VERIFICATION_REQUIRED**; **0 → A/B/F**. Every row has Desk order email but **no** Google/verified-email spoke match; **0** Desk Customer/CWID/account link. **Lane 4 destination-ready: 0/52**. Historical spoke destination **not** reconstructed. Ledger **53/₹27,725** unchanged; flags **OFF**. Artifacts: `cw-e2-trusted-destination-preparation-p30-10-21.json/.csv`. Doc: `docs/cw-e2-trusted-destination-preparation-p-30-10-21.md`. **No financial mutation. STOP — no Lane 4 execution.**
