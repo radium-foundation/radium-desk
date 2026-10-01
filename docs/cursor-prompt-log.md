@@ -664,3 +664,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-30-10-39
 
 **Historical wallet visibility simplification — group/customer-scoped balance** (read-only): Desk resolver now matches historical refunds across group sites (`radiumbox.com`, `rdservice.in`, `rdservice.net`) by verified email/mobile and E1/E2 cohort email — not refund-origin site + local account. `HistoricalGroupSiteScope`; group-scoped contact index lookups; E1 contact-intersection + E2 group email hash; email+mobile intersection narrows ambiguous contact matches. **No spoke changes.** PHPUnit **28/28** historical visibility + **9/9** group-scoped tests PASS; E1/E2 **23/23** PASS. Production surgical overlay `deploy-backups-p30-10-39-20261001T181600Z` @ `e16e7071`. Cross-site probes: RadiumBox user **506623** + rdin user **169718** both **₹997.00 unverified** (refund **119**); E1 user **506514** **₹597.00** on both sites; user **3** / refund **300** **₹0** protected. Ledger **54/₹28,574** unchanged; financial execution flags **OFF**. **No financial mutation.**
+
+---
+
+## RadiumDesk-P-30-10-42
+
+**Refund #300 visibility unprotection + Owner rule alignment** (read-only visibility only): `protected_refund_ids` now env-driven (`CENTRAL_WALLET_HISTORICAL_PROTECTED_REFUND_IDS`, default empty) — removes hardcoded refund **300** protection under current Owner rule (all Desk wallet refunds visible on Box + rdin regardless of origin). Tests: refund **300** visible **₹499.00 unverified** on both sites when in contact index and not protected; remains hidden when explicitly protected. **No CW ledger credit; no local wallet mutation; no migration.** PHPUnit **29/29** historical visibility tests PASS. **Not deployed** (awaiting KVM overlay + contact-index rebuild).

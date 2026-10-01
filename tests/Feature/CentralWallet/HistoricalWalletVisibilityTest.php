@@ -212,15 +212,41 @@ class HistoricalWalletVisibilityTest extends TestCase
             ->assertJsonPath('wallet_balance', '500.00');
     }
 
-    public function test_protected_refund_300_is_never_displayed(): void
+    public function test_refund_300_is_visible_when_in_contact_index_and_not_protected(): void
     {
         config([
-            'central_wallet.e1_identity_migration.verification_cohort_manifest_path' => __DIR__.'/../../fixtures/cw-historical-visibility-protected-refund-fixture.json',
-            'central_wallet.e1_identity_migration.expected_count' => 1,
-            'central_wallet.e1_identity_migration.expected_amount' => '499.00',
+            'central_wallet.historical_wallet_visibility.protected_refund_ids' => [],
+            'central_wallet.historical_wallet_visibility.contact_match_enabled' => true,
+            'central_wallet.historical_wallet_visibility.contact_index_manifest_path' => __DIR__.'/../../fixtures/cw-refund-300-contact-index-fixture.json',
+            'central_wallet.e1_identity_migration.verification_enabled' => false,
+            'central_wallet.e2_historical_settlement.verification_enabled' => false,
+            'central_wallet.identity_required_cohort.provisional_display_enabled' => false,
         ]);
 
-        $this->walletVisibility(self::RDIN, '300001', 'user3@example.com')
+        $this->walletVisibility(self::BOX, '3', 'user3@example.com', '9852525656')
+            ->assertOk()
+            ->assertJsonPath('wallet_balance', '499.00')
+            ->assertJsonPath('balance_status', 'unverified')
+            ->assertJsonPath('spendable', false);
+
+        $this->walletVisibility(self::RDIN, '3', 'user3@example.com', '9852525656')
+            ->assertOk()
+            ->assertJsonPath('wallet_balance', '499.00')
+            ->assertJsonPath('spendable', false);
+    }
+
+    public function test_refund_300_remains_hidden_when_explicitly_protected(): void
+    {
+        config([
+            'central_wallet.historical_wallet_visibility.protected_refund_ids' => [300],
+            'central_wallet.historical_wallet_visibility.contact_match_enabled' => true,
+            'central_wallet.historical_wallet_visibility.contact_index_manifest_path' => __DIR__.'/../../fixtures/cw-refund-300-contact-index-fixture.json',
+            'central_wallet.e1_identity_migration.verification_enabled' => false,
+            'central_wallet.e2_historical_settlement.verification_enabled' => false,
+            'central_wallet.identity_required_cohort.provisional_display_enabled' => false,
+        ]);
+
+        $this->walletVisibility(self::RDIN, '3', 'user3@example.com')
             ->assertNotFound()
             ->assertJsonPath('wallet_balance', '0.00');
     }
@@ -255,15 +281,20 @@ class HistoricalWalletVisibilityTest extends TestCase
             ->assertJsonPath('error', 'historical_wallet_visibility_disabled');
     }
 
-    private function walletVisibility(string $site, string $localUserId, string $email): TestResponse
+    private function walletVisibility(string $site, string $localUserId, string $email, ?string $mobile = null): TestResponse
     {
+        $query = [
+            'site_code' => $site,
+            'local_user_id' => $localUserId,
+            'email' => $email,
+            'email_verified' => false,
+        ];
+        if ($mobile !== null && $mobile !== '') {
+            $query['mobile'] = $mobile;
+        }
+
         return $this->withHeaders($this->authHeaders($site))
-            ->getJson('/api/central-wallet/v1/wallet-visibility?'.http_build_query([
-                'site_code' => $site,
-                'local_user_id' => $localUserId,
-                'email' => $email,
-                'email_verified' => false,
-            ]));
+            ->getJson('/api/central-wallet/v1/wallet-visibility?'.http_build_query($query));
     }
 
     /**

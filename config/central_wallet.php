@@ -156,7 +156,10 @@ return [
             env('CENTRAL_WALLET_HISTORICAL_WALLET_VISIBILITY_ENABLED', false),
             FILTER_VALIDATE_BOOLEAN,
         ),
-        'protected_refund_ids' => [300],
+        'protected_refund_ids' => array_values(array_filter(array_map(
+            'intval',
+            explode(',', (string) env('CENTRAL_WALLET_HISTORICAL_PROTECTED_REFUND_IDS', '')),
+        ))),
         'campaign_start_date' => '2026-07-15',
         'contact_match_enabled' => filter_var(
             env('CENTRAL_WALLET_HISTORICAL_CONTACT_MATCH_ENABLED', true),
