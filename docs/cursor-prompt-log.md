@@ -438,3 +438,9 @@ Controlled CWID provisioning + 65 exception refund resolution prep. Production: 
 ## RadiumDesk-P-30-09-30
 
 Close remaining 276 refund identity/CWID mappings. Script `cw-identity-close-p30-09-30.py`: reclassified **218** `CWID_REQUIRED` → `OWNER_IDENTITY_REQUIRED`; desk-email trusted spoke match provisioned **7** customers (**3** refunds → `READY`); **3** ambiguous (263/265/266) remain Owner-blocked. Final: **19** `READY` / ₹10,653; **270** `OWNER_IDENTITY` / ₹153,558; **3** `OWNER_RESOLUTION` / ₹1,497; **0** `CWID_REQUIRED`. Manifest `cw-migration-final-manifest-p30-09-30.json`. Doc: `docs/central-wallet-292-final-readiness-p-30-09-30.md`. **No financial migration.**
+
+---
+
+## RadiumDesk-P-30-09-31
+
+Owner decision package for **273** unresolved refunds (₹155,055). Script `cw-owner-decision-package-p30-09-31.py` (KVM8 read-only): **270** identity case records grouped A(2)/B(211)/D(52)/E(5); **3** resolution details (263/265/266 circular mismatch); **223** machine-readable Owner decisions; **263** M2 ceremony-eligible. Artifacts: `cw-owner-decisions-required-p30-09-30.json`, `cw-owner-identity-cases-p30-09-31.json`. Doc: `docs/cw-owner-decision-package-p30-09-30.md`. Ledger **0**; financial variance **₹0**. **EXECUTION READY=NO. No financial migration.**
