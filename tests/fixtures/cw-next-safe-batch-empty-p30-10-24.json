@@ -1,0 +1,11 @@
+{
+  "prompt_id": "RadiumDesk-P-30-10-24",
+  "batch_id": "desk-refund-wallet-migration-next-safe-p30-10-24",
+  "owner_approval_reference": "R-CW-REMAINING239-FIN-MIG-20261001-001",
+  "mode": "next_safe_batch_preparation_only",
+  "financial_execution": false,
+  "refund_count": 0,
+  "refund_amount": "0",
+  "manifest_rows_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "rows": []
+}

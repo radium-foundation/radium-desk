@@ -252,6 +252,19 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Next-safe batch preparation (remaining-239 — default OFF execution)
+    |--------------------------------------------------------------------------
+    */
+
+    'next_safe_batch' => [
+        'manifest_path' => env(
+            'CENTRAL_WALLET_NEXT_SAFE_BATCH_MANIFEST_PATH',
+            storage_path('app/private/cw-next-safe-batch-manifest-p30-10-24.json'),
+        ),
+    ],
+
     'e2_historical_settlement' => [
         'manifest_path' => env(
             'CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_MANIFEST_PATH',
