@@ -628,3 +628,15 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-30-10-32
 
 **E-1 identity migration path** (168 / ₹92,811): Extended E-2 identity architecture for E-1 cohort keyed on `site`+`local_user_id`. Added `E1CohortManifestLoader`, `E1CohortStateResolver`, `E1VerificationDestinationService`, `E1IdentityMigrationJournalImportService`, `E1DestinationReadinessManifestService` + artisan audit/manifest commands. Hooks in `CustomerIdentityResolveService` / `CustomerFoundationFromCeremonyService`. Production: **168 VERIFICATION_AVAILABLE**, **0 destination-ready**; verification cohort SHA `28a97ac1…`; destination manifest SHA `fd3cda4a…`; ledger **54/₹28,574** unchanged; execution flags **OFF**. Tests **14/14** PASS (E1+E2 regression). **No financial mutation.** Doc: `docs/cw-e1-identity-migration-p-30-10-32.md`.
+
+---
+
+## RadiumDesk-P-30-10-33
+
+**E-1 verification flag enable** (config only): Set `CENTRAL_WALLET_E1_IDENTITY_MIGRATION_VERIFICATION_ENABLED=true` on production `.env`. Backup: `.env.bak-p30-10-33-20261001201605`. Ledger **54/₹28,574** unchanged; all execution flags **OFF**. Post-enable probe discovered `POST /customer-identity/resolve` HTTP **500** (controller absent). **No git commit** (host config only).
+
+---
+
+## RadiumDesk-P-30-10-34
+
+**E-1 trusted verification endpoint repair** (non-financial surgical overlay): Deployed missing `CustomerIdentityController.php` + `EnsureCentralWalletCustomerIdentityEnabled.php` from repo `795b6ab1` to KVM `/var/www/radium-desk`. Backups: `storage/app/private/deploy-backups-p30-10-34/`. Resolve endpoint: **500 → 422** (empty validation), **401** (no/invalid auth). Health **200** (authenticated). E-1 **168/₹92,811**, destination-ready **0**; E-2 **52/₹34,517** unchanged; ledger **54/₹28,574**; no spoke/refund mutation; execution flags **OFF**. Tests **25/25** PASS. **No financial mutation.** Doc: `docs/cw-e1-trusted-verify-endpoint-repair-p-30-10-34.md`.
