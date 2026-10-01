@@ -576,3 +576,9 @@ Read-only **trusted destination preparation** for E-2 cohort **52 / ₹34,517** 
 ## RadiumDesk-P-30-10-22
 
 Implemented **E-2 customer verification path** for **52 / ₹34,517** under Owner approval `OWNER-CW-E2-HISTORICAL-SETTLEMENT-20261001-001`. Flag-gated (`CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_VERIFICATION_ENABLED`, default OFF) provisional display + post-verification destination preparation via existing email OTP / M2 ceremony / Google resolve APIs. `E2ProvisionalDisplayService`, `E2VerificationDestinationService`, `E2CohortStateResolver`; audit `central-wallet:e2-verification-audit`; manifest build `central-wallet:e2-verification-cohort-manifest-build`. **Does NOT** execute Lane 4 or credit wallets. Historical spoke destination **not** reconstructed. Re-audit at deploy: **52 UNVERIFIED** (code-only; no live customer verification). Tests: `E2VerificationPathTest` 16/16 PASS. Doc: `docs/cw-e2-verification-path-p-30-10-22.md`. **No financial execution. STOP — no Lane 4 execution.**
+
+---
+
+## RadiumDesk-P-30-10-23
+
+Production KVM8 surgical overlay deploy of **9e01c154** E-2 verification path + identity API prerequisites to `/var/www/radium-desk`. Built `cw-e2-verification-cohort-manifest-p30-10-22.json` (**52 / ₹34,517**, hashes only). Enabled `CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_VERIFICATION_ENABLED=true` + identity API gates (`PROVISIONAL_IDENTITY`, `CUSTOMER_IDENTITY` verified email/Google); **execution flags remain OFF**. Post-deploy audit: **52 UNVERIFIED**, **0 SETTLEMENT_DESTINATION_READY**. Ledger **53/₹27,725** unchanged; Lane 4 **0/₹0**. HTTP provisional-resolve verified (historical refund amount, unverified, no internal IDs). Backup: `storage/app/backups/p-30-10-23-e2-verification-20261001T121430Z`. Hotfix: `HttpWalletMigrationSpokeClient` `hostHeader` param required for boot at 9e01c154. **No Lane 4 execution. No financial mutation.**

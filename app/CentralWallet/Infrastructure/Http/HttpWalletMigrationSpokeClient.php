@@ -14,6 +14,7 @@ final class HttpWalletMigrationSpokeClient implements WalletMigrationSpokeClient
         private readonly string $token,
         private readonly int $connectTimeoutSeconds = 3,
         private readonly int $timeoutSeconds = 15,
+        private readonly ?string $hostHeader = null,
     ) {}
 
     public function acquireLock(
@@ -133,12 +134,15 @@ final class HttpWalletMigrationSpokeClient implements WalletMigrationSpokeClient
     private function post(string $path, array $payload, string $migrationOperationId): array
     {
         try {
+            $headers = ['X-Migration-Operation-Id' => $migrationOperationId];
+            if ($this->hostHeader !== null && $this->hostHeader !== '') {
+                $headers['Host'] = $this->hostHeader;
+            }
+
             $response = Http::baseUrl($this->baseUrl)
                 ->acceptJson()
                 ->withToken($this->token)
-                ->withHeaders([
-                    'X-Migration-Operation-Id' => $migrationOperationId,
-                ])
+                ->withHeaders($headers)
                 ->connectTimeout($this->connectTimeoutSeconds)
                 ->timeout($this->timeoutSeconds)
                 ->post($path, $payload);
