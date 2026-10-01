@@ -616,3 +616,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-30-10-30
 
 **Campaign closure audit** (post–Refund 360): Read-only Tasks A–E across remaining **238 / ₹137,134**. **E-2:** 52 UNVERIFIED, **0** destination-ready (manifest SHA `e1e1dc98c7…`). **E-1:** 168 / ₹92,811 all `IDENTITY_INSUFFICIENT` — no trusted Desk Customer/CWID/credential chain. **Class-C:** 263/265/266 cyclic user-id permutation — Owner written resolution required. **Class-B:** 14 blocked, no new authoritative provenance. **Next safe batch: 0 / ₹0** (SHA `4f53cda…`). Ledger **54/₹28,574** unchanged; all execution flags **OFF**. **No financial mutation.** Doc: `docs/cw-campaign-closure-audit-p-30-10-30.md`. Artifacts on production private storage.
+
+---
+
+## RadiumDesk-P-30-10-31
+
+**Class-C final validation** (263/265/266, ₹1,497): Independent read-only evidence reconstruction on production. All three: **UNKNOWN** owner — no `desk_refund_reference` on wallet, `order.customer_id` null, wallet userid ≠ reconciliation user, wallet message order ≠ Desk order. Cyclic permutation and name/email alignment **not** used as proof. **0** migration candidates; CWID readiness **none**. Ledger **54/₹28,574** unchanged; flags **OFF**. **No financial mutation.** Doc: `docs/cw-class-c-final-validation-p-30-10-31.md`.
