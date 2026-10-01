@@ -142,6 +142,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | IDENTITY_REQUIRED historical cohort (220 refunds — default OFF)
+    |--------------------------------------------------------------------------
+    |
+    | Read-only provisional display of local spoke wallet balances for the
+    | immutable 220-refund IDENTITY_REQUIRED cohort (P-30-10-16 audit).
+    | Unverified contact data may display balance only; financial use requires
+    | trusted verification. Does NOT move money or auto-create identity.
+    |
+    */
+
+    'identity_required_cohort' => [
+        'provisional_display_enabled' => filter_var(
+            env('CENTRAL_WALLET_IDENTITY_REQUIRED_COHORT_PROVISIONAL_DISPLAY_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        'campaign_manifest_path' => env(
+            'CENTRAL_WALLET_IDENTITY_REQUIRED_COHORT_MANIFEST_PATH',
+            storage_path('app/private/cw-remaining-239-campaign-p30-10-15.json'),
+        ),
+        'cohort_id' => 'identity-required-220-p30-10-16',
+        'expected_refunds' => 220,
+        'expected_amount' => '127328.00',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Terminal refund wallet migration (292 population — default OFF)
     |--------------------------------------------------------------------------
     */

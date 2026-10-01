@@ -20,9 +20,16 @@ final class ProvisionalIdentityController
             'idempotency_key' => ['required', 'string', 'max:128'],
             'site_code' => ['required', 'string', 'max:64'],
             'local_user_id' => ['required', 'string', 'max:64'],
-            'email' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'string', 'max:255'],
+            'mobile' => ['nullable', 'string', 'max:32'],
             'email_verified' => ['required', 'boolean'],
         ]);
+
+        $email = trim((string) ($validated['email'] ?? ''));
+        $mobile = trim((string) ($validated['mobile'] ?? ''));
+        if ($email === '' && $mobile === '') {
+            return response()->json(['error' => 'contact_data_required'], 422);
+        }
 
         $callerSite = trim((string) $request->header('X-Site-Code', ''));
         if ($callerSite === '') {
@@ -44,9 +51,10 @@ final class ProvisionalIdentityController
             fn (): array => $this->resolver->resolve(
                 siteCode: $validated['site_code'],
                 localUserId: $validated['local_user_id'],
-                email: $validated['email'],
+                email: $email,
                 emailVerified: (bool) $validated['email_verified'],
                 correlationId: $correlationId,
+                mobile: $mobile !== '' ? $mobile : null,
             ),
         );
 

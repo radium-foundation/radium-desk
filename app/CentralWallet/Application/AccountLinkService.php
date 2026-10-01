@@ -93,6 +93,7 @@ final class AccountLinkService
             $verificationMethod,
             $actorId,
             $correlationId,
+            $deskCustomerId,
         ): CentralWalletAccountLink {
             $this->assertNoActiveLink($siteCode, $localUserId);
             $this->assertNoActiveSiteLinkForWallet($centralWalletId, $siteCode);

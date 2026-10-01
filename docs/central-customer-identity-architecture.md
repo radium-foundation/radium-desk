@@ -16,16 +16,37 @@ Verified Google subject or verified email credential resolves Desk Customer ID �
 
 ### Provisional identity
 
-Authenticated spoke users with **unverified email** may receive a **read-only provisional balance** when Desk finds **exactly one** existing customer with a matching **verified_email** credential hash. This is informational only.
+Authenticated spoke users with **unverified contact data** may receive a **read-only provisional balance** through two paths:
 
-Provisional matching rule (unambiguous):
+#### Path A — Existing Desk customer (verified_email credential match)
+
+When Desk finds **exactly one** existing customer with a matching **verified_email** credential hash:
 
 1. Spoke sends normalized email with `email_verified=false`.
 2. Desk hashes email identically to verified_email credentials.
-3. Exactly **one** `verified_email` credential match → provisional balance returned.
-4. Zero matches → unresolved (no balance).
+3. Exactly **one** `verified_email` credential match → Central Wallet spendable balance returned.
+4. Zero matches → fall through to Path B if enabled.
 5. Conflicting active site link to a different CWID → ambiguous (fail closed).
 6. Existing trusted active link → use trusted path instead.
+
+#### Path B — IDENTITY_REQUIRED historical cohort (220 refunds)
+
+For the immutable **220-refund / ₹127,328** IDENTITY_REQUIRED cohort (P-30-10-16 audit), when `CENTRAL_WALLET_IDENTITY_REQUIRED_COHORT_PROVISIONAL_DISPLAY_ENABLED=true`:
+
+1. Spoke sends `email_verified=false` with **unverified email or mobile** (at least one required).
+2. Desk confirms `(site_code, local_user_id)` is in the cohort manifest.
+3. If authoritative source wallet is resolved → **local spoke wallet spendable balance** returned as read-only.
+4. If source wallet unresolved → `source_reconciliation_required` (no invented balance).
+5. If not in cohort → unresolved.
+
+**Important policy distinctions:**
+
+- Unverified email/mobile may be used to **display** a provisional read-only balance only.
+- Unverified contact data is **NOT** trusted financial identity.
+- Desk Customer, CWID, and account links are **never** created from unverified data.
+- Financial use requires successful trusted verification (Google, verified email OTP, or M2 mobile OTP ceremony).
+- Verification/linking does **not** automatically migrate historical funds.
+- Ambiguous/conflicting identity fails closed.
 
 Provisional responses **never** include CWID or Desk Customer ID. Financial mutation endpoints require a trusted active account link (`trusted_google`, `verified_email`, `m2_dual_otp`, `m2_whatsapp_otp`).
 

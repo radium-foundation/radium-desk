@@ -16,6 +16,8 @@ use App\CentralWallet\Application\CustomerFoundationFromCeremonyService;
 use App\CentralWallet\Application\CustomerIdentityResolveService;
 use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
 use App\CentralWallet\Application\ExternalDirectLedgerDebitGate;
+use App\CentralWallet\Application\HistoricalCohortProvisionalBalanceService;
+use App\CentralWallet\Application\IdentityRequiredCohortManifestLoader;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\IntegrationSourceSystemResolver;
 use App\CentralWallet\Application\LedgerEntryReadService;
@@ -89,6 +91,8 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(Ready4RefundMigrationRehearseService::class);
         $this->app->singleton(Ready4RefundMigrationOrchestrator::class);
         $this->app->singleton(CustomerIdentityResolveService::class);
+        $this->app->singleton(IdentityRequiredCohortManifestLoader::class);
+        $this->app->singleton(HistoricalCohortProvisionalBalanceService::class);
         $this->app->singleton(ProvisionalIdentityResolveService::class);
         $this->app->singleton(TrustedFinancialAuthorizationGate::class);
         $this->app->singleton(LedgerService::class);

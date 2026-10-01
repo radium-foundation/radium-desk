@@ -16,6 +16,7 @@ final class ProvisionalIdentityResolveService
         private readonly CustomerIdentitySubjectHasher $subjectHasher,
         private readonly LedgerService $ledger,
         private readonly AuditEventRecorder $auditEvents,
+        private readonly HistoricalCohortProvisionalBalanceService $historicalCohortProvisional,
     ) {}
 
     /**
@@ -27,6 +28,7 @@ final class ProvisionalIdentityResolveService
         string $email,
         bool $emailVerified,
         ?string $correlationId = null,
+        ?string $mobile = null,
     ): array {
         if (! (bool) config('central_wallet.provisional_identity.enabled', false)) {
             return [
@@ -42,26 +44,33 @@ final class ProvisionalIdentityResolveService
             ];
         }
 
-        try {
-            $subjectHash = $this->subjectHasher->hashVerifiedEmail($email);
-        } catch (InvalidArgumentException) {
-            return [
-                'status' => 422,
-                'body' => ['error' => 'verified_email_invalid'],
-            ];
+        $email = trim($email);
+        $credentials = collect();
+        if ($email !== '' && str_contains($email, '@')) {
+            try {
+                $subjectHash = $this->subjectHasher->hashVerifiedEmail($email);
+            } catch (InvalidArgumentException) {
+                return [
+                    'status' => 422,
+                    'body' => ['error' => 'verified_email_invalid'],
+                ];
+            }
+
+            $credentials = CentralCustomerIdentityCredential::query()
+                ->where('credential_type', CustomerIdentityCredentialType::VerifiedEmail)
+                ->where('provider', 'desk_email')
+                ->where('subject_hash', $subjectHash)
+                ->get();
         }
 
-        $credentials = CentralCustomerIdentityCredential::query()
-            ->where('credential_type', CustomerIdentityCredentialType::VerifiedEmail)
-            ->where('provider', 'desk_email')
-            ->where('subject_hash', $subjectHash)
-            ->get();
-
         if ($credentials->isEmpty()) {
-            return [
-                'status' => 404,
-                'body' => ['error' => 'identity_unresolved', 'identity_state' => 'unresolved'],
-            ];
+            return $this->historicalCohortProvisional->resolve(
+                siteCode: $siteCode,
+                localUserId: $localUserId,
+                email: $email !== '' ? $email : null,
+                mobile: $mobile,
+                correlationId: $correlationId,
+            );
         }
 
         if ($credentials->pluck('desk_customer_id')->unique()->count() > 1) {

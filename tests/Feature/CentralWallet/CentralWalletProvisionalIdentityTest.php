@@ -33,6 +33,7 @@ class CentralWalletProvisionalIdentityTest extends TestCase
             'central_wallet.provisional_identity.enabled' => true,
             'central_wallet.provisional_identity.financial_gate_enabled' => true,
             'central_wallet.reservations.enabled' => true,
+            'central_wallet.identity_required_cohort.provisional_display_enabled' => false,
         ]);
     }
 
