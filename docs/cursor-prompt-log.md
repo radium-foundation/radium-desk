@@ -528,3 +528,9 @@ Read-only **post-migration reconciliation** of remaining **242** refunds (₹139
 ## RadiumDesk-P-30-10-14
 
 Owner-authorized **READY-3 financial migration EXECUTION** (refunds 268/284/336, ₹1,495, batch `desk-refund-wallet-migration-type1-ready4-p30-10-12`). Owner approval: `R-CW-T1-READY3-FIN-MIG-20261001-001`. Deployed `Ready4RefundMigrationOrchestrator` + execute command. **SUCCESS:** 3/3 reconciled, ₹1,495 source debit / CW credit, ₹0 variance, flags **OFF**. Refund 360 untouched. Type-1 50 unchanged (50/50, ₹26,230). Idempotency verified. Doc: `docs/cw-type1-ready3-financial-migration-execution-p-30-10-14.md`. Tests **17/17** PASS.
+
+---
+
+## RadiumDesk-P-30-10-15
+
+**Remaining-239 migration campaign** (292 − 53 = 239 / ₹137,983). Owner approval: `R-CW-REMAINING239-FIN-MIG-20261001-001`. Phase 1 reconciliation **COMPLETE**; immutable manifest SHA `03a4aac97f9b133428a89bd02d9d1fdc73bf92c073842a70a34b38729fb00018`. Classification: **B 220/₹127,328**; **C 3/₹1,497**; **D 14/₹7,810**; **F 2/₹1,348** (300 User 3, 360 radiumbox executor). **Executable Lane A: 0/₹0**. rdservice.in spoke deployed; radiumbox.com **not deployed**. Targeted regression **41/41** PASS. **FINANCIAL EXECUTION NOT PERFORMED** — no row passed all gates. Ledger delta **₹0**. Doc: `docs/cw-remaining-239-campaign-p-30-10-15.md`.
