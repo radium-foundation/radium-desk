@@ -16,7 +16,7 @@
 | Ambiguous resolved | **7** / ₹3,456 |
 | Ambiguous unresolved | **3** / ₹1,497 |
 | Identity-insufficient unresolved | **55** / ₹36,512 |
-| `READY_FOR_EXECUTION` | **2** / ₹996 (User 3 + 1 provisioned) |
+| `READY_FOR_EXECUTION` | **16** / ₹8,658 (User 3 + 15 provisioned refunds) |
 | `EXECUTION READY` | **NO** |
 
 ---
