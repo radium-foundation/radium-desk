@@ -33,6 +33,8 @@ use App\CentralWallet\Application\RefundMigrationRollbackService;
 use App\CentralWallet\Application\RefundMigrationStateMachine;
 use App\CentralWallet\Application\RefundMigrationTargetAssignmentService;
 use App\CentralWallet\Application\RefundProvenanceMigrationService;
+use App\CentralWallet\Application\Type1MigrationCohortIdentityEstablishmentService;
+use App\CentralWallet\Application\Type1MigrationCohortManifestLoader;
 use App\CentralWallet\Application\ReservationService;
 use App\CentralWallet\Application\ReservationStateMachine;
 use App\CentralWallet\Application\TrustedFinancialAuthorizationGate;
@@ -60,6 +62,8 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CustomerIdentitySubjectHasher::class);
         $this->app->singleton(CustomerFoundationFromCeremonyService::class);
         $this->app->singleton(MigrationControlledCwidProvisionService::class);
+        $this->app->singleton(Type1MigrationCohortManifestLoader::class);
+        $this->app->singleton(Type1MigrationCohortIdentityEstablishmentService::class);
         $this->app->singleton(CustomerIdentityResolveService::class);
         $this->app->singleton(ProvisionalIdentityResolveService::class);
         $this->app->singleton(TrustedFinancialAuthorizationGate::class);

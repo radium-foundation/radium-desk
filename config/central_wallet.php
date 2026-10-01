@@ -157,4 +157,30 @@ return [
         'batch_id' => 'desk-refund-wallet-migration-292-p30-09-25',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | TYPE-1 migration cohort identity (50 customers — default OFF)
+    |--------------------------------------------------------------------------
+    |
+    | Owner-authorized server-side identity establishment for the immutable
+    | 50-customer TYPE-1 pilot cohort. Does NOT require Connect Wallet OTP.
+    | Does NOT move money. Does NOT enable refund migration execution.
+    |
+    */
+
+    'type1_migration_cohort' => [
+        'identity_establishment_enabled' => filter_var(
+            env('CENTRAL_WALLET_TYPE1_MIGRATION_COHORT_IDENTITY_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        'cohort_manifest_path' => env(
+            'CENTRAL_WALLET_TYPE1_MIGRATION_COHORT_MANIFEST_PATH',
+            storage_path('app/private/cw-type1-migration-cohort-p30-10-04.json'),
+        ),
+        'cohort_id' => 'type1-migration-cohort-50-p30-10-04',
+        'expected_customers' => 50,
+        'expected_refunds' => 50,
+        'expected_amount' => '26230.00',
+    ],
+
 ];

@@ -468,3 +468,9 @@ TYPE-1 M2 ceremony execution plan. Mapped existing Connect Wallet flow (rdin `/c
 ## RadiumDesk-P-30-10-03
 
 Controlled M2 identity pilot for **50** cohort-eligible TYPE-1 customers (₹26,230). Production assessment: **0/50** `PILOT_SUCCESS` — all `PILOT_PENDING_CUSTOMER_ACTION` (customer WhatsApp OTP required; no bypass). User **535731** excluded; no RadiumBox in pilot. Ledger **0**; financial variance **₹0**. Script `cw-type1-m2-pilot-p30-10-03.py`. Artifacts: `cw-type1-m2-pilot-p30-10-03.json/.csv`. Doc: `docs/cw-type1-m2-pilot-p-30-10-03.md`. **PILOT_SUCCESS=NO. No financial migration. Cohort not expanded.**
+
+---
+
+## RadiumDesk-P-30-10-04
+
+Retire M2 OTP dependency for 50-customer TYPE-1 migration path. Added `Type1MigrationCohortIdentityEstablishmentService` + `migration_cohort_anchor` credential (Owner-authorized, not raw email/mobile); CLI `central-wallet:establish-type1-cohort-identity --owner-authorized`; flag `CENTRAL_WALLET_TYPE1_MIGRATION_COHORT_IDENTITY_ENABLED` default **false**. Normal M2 Connect Wallet **preserved**. Immutable cohort manifest `cw-type1-migration-cohort-p30-10-04.json`. Tests **6/6** PASS. Doc: `docs/cw-type1-migration-cohort-identity-p-30-10-04.md`. **Not deployed. 0 production identities created. No financial mutation.**

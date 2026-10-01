@@ -1,0 +1,610 @@
+{
+  "prompt_id": "RadiumDesk-P-30-10-04",
+  "cohort_id": "type1-migration-cohort-50-p30-10-04",
+  "immutable": true,
+  "customer_count": 50,
+  "refund_count": 50,
+  "amount": "26230.00",
+  "customers": [
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0005",
+      "site": "rdservice.in",
+      "local_user_id": "126483",
+      "refund_ids": [
+        278
+      ],
+      "refund_references": [
+        "REF-2026-000278"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0007",
+      "site": "rdservice.in",
+      "local_user_id": "188416",
+      "refund_ids": [
+        349
+      ],
+      "refund_references": [
+        "REF-67351"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0008",
+      "site": "rdservice.in",
+      "local_user_id": "207636",
+      "refund_ids": [
+        282
+      ],
+      "refund_references": [
+        "REF-2026-000282"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0009",
+      "site": "rdservice.in",
+      "local_user_id": "217324",
+      "refund_ids": [
+        314
+      ],
+      "refund_references": [
+        "REF-2026-000314"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0014",
+      "site": "rdservice.in",
+      "local_user_id": "250192",
+      "refund_ids": [
+        344
+      ],
+      "refund_references": [
+        "REF-67346"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0016",
+      "site": "rdservice.in",
+      "local_user_id": "256928",
+      "refund_ids": [
+        347
+      ],
+      "refund_references": [
+        "REF-67349"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0020",
+      "site": "rdservice.in",
+      "local_user_id": "313226",
+      "refund_ids": [
+        327
+      ],
+      "refund_references": [
+        "REF-67328"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0031",
+      "site": "rdservice.in",
+      "local_user_id": "474821",
+      "refund_ids": [
+        297
+      ],
+      "refund_references": [
+        "REF-2026-000297"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0074",
+      "site": "rdservice.in",
+      "local_user_id": "515056",
+      "refund_ids": [
+        340
+      ],
+      "refund_references": [
+        "REF-67342"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0109",
+      "site": "rdservice.in",
+      "local_user_id": "525470",
+      "refund_ids": [
+        309
+      ],
+      "refund_references": [
+        "REF-2026-000309"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0134",
+      "site": "rdservice.in",
+      "local_user_id": "535460",
+      "refund_ids": [
+        202
+      ],
+      "refund_references": [
+        "REF-2026-000202"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0156",
+      "site": "rdservice.in",
+      "local_user_id": "543743",
+      "refund_ids": [
+        310
+      ],
+      "refund_references": [
+        "REF-2026-000310"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0164",
+      "site": "rdservice.in",
+      "local_user_id": "549604",
+      "refund_ids": [
+        270
+      ],
+      "refund_references": [
+        "REF-2026-000270"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0165",
+      "site": "rdservice.in",
+      "local_user_id": "550604",
+      "refund_ids": [
+        280
+      ],
+      "refund_references": [
+        "REF-2026-000280"
+      ],
+      "refund_total": "699.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0166",
+      "site": "rdservice.in",
+      "local_user_id": "550676",
+      "refund_ids": [
+        277
+      ],
+      "refund_references": [
+        "REF-2026-000277"
+      ],
+      "refund_total": "599.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0167",
+      "site": "rdservice.in",
+      "local_user_id": "551292",
+      "refund_ids": [
+        287
+      ],
+      "refund_references": [
+        "REF-2026-000287"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0168",
+      "site": "rdservice.in",
+      "local_user_id": "551439",
+      "refund_ids": [
+        294
+      ],
+      "refund_references": [
+        "REF-2026-000294"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0169",
+      "site": "rdservice.in",
+      "local_user_id": "551451",
+      "refund_ids": [
+        285
+      ],
+      "refund_references": [
+        "REF-2026-000285"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0170",
+      "site": "rdservice.in",
+      "local_user_id": "551453",
+      "refund_ids": [
+        279
+      ],
+      "refund_references": [
+        "REF-2026-000279"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0171",
+      "site": "rdservice.in",
+      "local_user_id": "552070",
+      "refund_ids": [
+        283
+      ],
+      "refund_references": [
+        "REF-2026-000283"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0172",
+      "site": "rdservice.in",
+      "local_user_id": "552196",
+      "refund_ids": [
+        286
+      ],
+      "refund_references": [
+        "REF-2026-000286"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0173",
+      "site": "rdservice.in",
+      "local_user_id": "552467",
+      "refund_ids": [
+        291
+      ],
+      "refund_references": [
+        "REF-2026-000291"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0174",
+      "site": "rdservice.in",
+      "local_user_id": "552744",
+      "refund_ids": [
+        293
+      ],
+      "refund_references": [
+        "REF-2026-000293"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0175",
+      "site": "rdservice.in",
+      "local_user_id": "553220",
+      "refund_ids": [
+        303
+      ],
+      "refund_references": [
+        "REF-2026-000303"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0176",
+      "site": "rdservice.in",
+      "local_user_id": "553423",
+      "refund_ids": [
+        299
+      ],
+      "refund_references": [
+        "REF-2026-000299"
+      ],
+      "refund_total": "631.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0177",
+      "site": "rdservice.in",
+      "local_user_id": "553433",
+      "refund_ids": [
+        295
+      ],
+      "refund_references": [
+        "REF-2026-000295"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0178",
+      "site": "rdservice.in",
+      "local_user_id": "553899",
+      "refund_ids": [
+        326
+      ],
+      "refund_references": [
+        "REF-67325"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0179",
+      "site": "rdservice.in",
+      "local_user_id": "554404",
+      "refund_ids": [
+        305
+      ],
+      "refund_references": [
+        "REF-2026-000305"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0180",
+      "site": "rdservice.in",
+      "local_user_id": "554470",
+      "refund_ids": [
+        308
+      ],
+      "refund_references": [
+        "REF-2026-000308"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0181",
+      "site": "rdservice.in",
+      "local_user_id": "554507",
+      "refund_ids": [
+        306
+      ],
+      "refund_references": [
+        "REF-2026-000306"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0182",
+      "site": "rdservice.in",
+      "local_user_id": "554690",
+      "refund_ids": [
+        311
+      ],
+      "refund_references": [
+        "REF-2026-000311"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0183",
+      "site": "rdservice.in",
+      "local_user_id": "554932",
+      "refund_ids": [
+        348
+      ],
+      "refund_references": [
+        "REF-67350"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0184",
+      "site": "rdservice.in",
+      "local_user_id": "555222",
+      "refund_ids": [
+        320
+      ],
+      "refund_references": [
+        "REF-67319"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0185",
+      "site": "rdservice.in",
+      "local_user_id": "555423",
+      "refund_ids": [
+        332
+      ],
+      "refund_references": [
+        "REF-67333"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0186",
+      "site": "rdservice.in",
+      "local_user_id": "555490",
+      "refund_ids": [
+        322
+      ],
+      "refund_references": [
+        "REF-67321"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0187",
+      "site": "rdservice.in",
+      "local_user_id": "555904",
+      "refund_ids": [
+        338
+      ],
+      "refund_references": [
+        "REF-67340"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0188",
+      "site": "rdservice.in",
+      "local_user_id": "555921",
+      "refund_ids": [
+        330
+      ],
+      "refund_references": [
+        "REF-67331"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0189",
+      "site": "rdservice.in",
+      "local_user_id": "556120",
+      "refund_ids": [
+        333
+      ],
+      "refund_references": [
+        "REF-67334"
+      ],
+      "refund_total": "979.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0190",
+      "site": "rdservice.in",
+      "local_user_id": "556251",
+      "refund_ids": [
+        324
+      ],
+      "refund_references": [
+        "REF-67323"
+      ],
+      "refund_total": "599.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0191",
+      "site": "rdservice.in",
+      "local_user_id": "556775",
+      "refund_ids": [
+        339
+      ],
+      "refund_references": [
+        "REF-67341"
+      ],
+      "refund_total": "599.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0192",
+      "site": "rdservice.in",
+      "local_user_id": "556889",
+      "refund_ids": [
+        331
+      ],
+      "refund_references": [
+        "REF-67332"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0193",
+      "site": "rdservice.in",
+      "local_user_id": "556998",
+      "refund_ids": [
+        334
+      ],
+      "refund_references": [
+        "REF-67335"
+      ],
+      "refund_total": "497.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0194",
+      "site": "rdservice.in",
+      "local_user_id": "557133",
+      "refund_ids": [
+        335
+      ],
+      "refund_references": [
+        "REF-67337"
+      ],
+      "refund_total": "599.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0195",
+      "site": "rdservice.in",
+      "local_user_id": "557343",
+      "refund_ids": [
+        341
+      ],
+      "refund_references": [
+        "REF-67343"
+      ],
+      "refund_total": "597.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0197",
+      "site": "rdservice.in",
+      "local_user_id": "557730",
+      "refund_ids": [
+        343
+      ],
+      "refund_references": [
+        "REF-67345"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0198",
+      "site": "rdservice.in",
+      "local_user_id": "557769",
+      "refund_ids": [
+        342
+      ],
+      "refund_references": [
+        "REF-67344"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0199",
+      "site": "rdservice.in",
+      "local_user_id": "558630",
+      "refund_ids": [
+        346
+      ],
+      "refund_references": [
+        "REF-67348"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0200",
+      "site": "rdservice.in",
+      "local_user_id": "558781",
+      "refund_ids": [
+        350
+      ],
+      "refund_references": [
+        "REF-67352"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0201",
+      "site": "rdservice.in",
+      "local_user_id": "559485",
+      "refund_ids": [
+        351
+      ],
+      "refund_references": [
+        "REF-67353"
+      ],
+      "refund_total": "499.00"
+    },
+    {
+      "customer_group_id": "TYPE1-RadiumDesk-P-30-10-01-0203",
+      "site": "rdservice.in",
+      "local_user_id": "559881",
+      "refund_ids": [
+        353
+      ],
+      "refund_references": [
+        "REF-67355"
+      ],
+      "refund_total": "499.00"
+    }
+  ]
+}

@@ -246,6 +246,7 @@ final class MigrationControlledCwidProvisionService
             CustomerIdentityCredentialType::Google => 'trusted_google',
             CustomerIdentityCredentialType::VerifiedEmail => 'verified_email',
             CustomerIdentityCredentialType::VerifiedMobile => 'verified_mobile',
+            CustomerIdentityCredentialType::MigrationCohortAnchor => 'owner_migration_cohort',
         };
     }
 }

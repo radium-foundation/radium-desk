@@ -38,6 +38,29 @@ final class CustomerIdentitySubjectHasher
     }
 
     /**
+     * Owner-authorized migration cohort anchor — NOT derived from raw email/mobile.
+     *
+     * @param  list<int>  $refundIds
+     */
+    public function hashMigrationCohortAnchor(string $cohortId, string $siteCode, string $localUserId, array $refundIds): string
+    {
+        $cohortId = trim($cohortId);
+        $siteCode = trim($siteCode);
+        $localUserId = trim($localUserId);
+        if ($cohortId === '' || $siteCode === '' || $localUserId === '') {
+            throw new InvalidArgumentException('migration_cohort_anchor_invalid');
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $refundIds)));
+        sort($ids);
+        if ($ids === []) {
+            throw new InvalidArgumentException('migration_cohort_refund_ids_required');
+        }
+
+        return hash('sha256', 'migration_cohort_anchor:'.$cohortId.':'.$siteCode.':'.$localUserId.':'.implode(',', $ids));
+    }
+
+    /**
      * @param  array<string, mixed>  $identity
      * @return array{credential_type: CustomerIdentityCredentialType, provider: string, subject_hash: string}
      */
