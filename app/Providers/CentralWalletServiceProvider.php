@@ -34,6 +34,8 @@ use App\CentralWallet\Application\E2ProvisionalDisplayService;
 use App\CentralWallet\Application\E2VerificationDestinationService;
 use App\CentralWallet\Application\ExternalDirectLedgerDebitGate;
 use App\CentralWallet\Application\HistoricalCohortProvisionalBalanceService;
+use App\CentralWallet\Application\HistoricalContactIdentityMatchService;
+use App\CentralWallet\Application\HistoricalVisibilityContactIndexLoader;
 use App\CentralWallet\Application\HistoricalWalletVisibilityService;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\IdentityRequiredCohortManifestLoader;
@@ -147,6 +149,8 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CustomerIdentityResolveService::class);
         $this->app->singleton(IdentityRequiredCohortManifestLoader::class);
         $this->app->singleton(HistoricalCohortProvisionalBalanceService::class);
+        $this->app->singleton(HistoricalVisibilityContactIndexLoader::class);
+        $this->app->singleton(HistoricalContactIdentityMatchService::class);
         $this->app->singleton(HistoricalWalletVisibilityService::class);
         $this->app->singleton(ProvisionalIdentityResolveService::class);
         $this->app->singleton(TrustedFinancialAuthorizationGate::class);

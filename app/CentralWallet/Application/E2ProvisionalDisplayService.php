@@ -66,13 +66,6 @@ final class E2ProvisionalDisplayService
             ->where('status', AccountLinkStatus::Active)
             ->first();
 
-        if ($existingLink !== null && TrustedVerificationMethod::isTrusted($existingLink->verification_method)) {
-            return [
-                'status' => 422,
-                'body' => ['error' => 'use_trusted_identity_path'],
-            ];
-        }
-
         if ($existingLink !== null && ! TrustedVerificationMethod::isTrusted($existingLink->verification_method)) {
             $this->auditEvents->record(
                 eventType: 'customer_identity.e2_provisional_ambiguous',

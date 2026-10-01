@@ -48,7 +48,7 @@ final class E1ProvisionalDisplayService
             return $this->unresolved('not_in_e1_verification_cohort');
         }
 
-        $linkError = $this->checkAccountLinkAmbiguity($siteCode, $localUserId, $correlationId);
+        $linkError = $this->checkUntrustedAccountLinkAmbiguity($siteCode, $localUserId, $correlationId);
         if ($linkError !== null) {
             return $linkError;
         }
@@ -78,20 +78,13 @@ final class E1ProvisionalDisplayService
     /**
      * @return array{status: int, body: array<string, mixed>}|null
      */
-    private function checkAccountLinkAmbiguity(string $siteCode, string $localUserId, ?string $correlationId): ?array
+    private function checkUntrustedAccountLinkAmbiguity(string $siteCode, string $localUserId, ?string $correlationId): ?array
     {
         $existingLink = CentralWalletAccountLink::query()
             ->where('site_code', $siteCode)
             ->where('local_user_id', $localUserId)
             ->where('status', AccountLinkStatus::Active)
             ->first();
-
-        if ($existingLink !== null && TrustedVerificationMethod::isTrusted($existingLink->verification_method)) {
-            return [
-                'status' => 422,
-                'body' => ['error' => 'use_trusted_identity_path'],
-            ];
-        }
 
         if ($existingLink !== null && ! TrustedVerificationMethod::isTrusted($existingLink->verification_method)) {
             $this->auditEvents->record(

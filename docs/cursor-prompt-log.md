@@ -652,3 +652,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-30-10-36
 
 **Historical Wallet Visibility production deploy** (surgical overlay from `aab3ce35`): 13 application files to KVM `/var/www/radium-desk`. Backup: `storage/app/private/deploy-backups-p30-10-36/` + `.env` snapshot. Set `CENTRAL_WALLET_HISTORICAL_WALLET_VISIBILITY_ENABLED=true`; preserved `PROVISIONAL_IDENTITY`, `E1_IDENTITY_MIGRATION_VERIFICATION`, `E2_HISTORICAL_SETTLEMENT_VERIFICATION` **ON**; all execution flags **OFF**. Route `GET /wallet-visibility` live; provisional-resolve unified fields verified. Ledger **54/₹28,574** unchanged; E-1 **168/₹92,811**; E-2 **52/₹34,517**. No financial mutation. Safe probes only (no fake customer verification).
+
+---
+
+## RadiumDesk-P-30-10-37
+
+**Master historical wallet visibility — contact identity match + trusted-link fallthrough** (read-only): `HistoricalContactIdentityMatchService` + contact index loader/build command; `HistoricalWalletVisibilityService` no longer blocks verified-email users or zero-balance trusted links from historical paths; E1/E2/cohort services no longer 422 on trusted link. Production overlay `deploy-backups-p30-10-37-20261001T171058Z`; built contact index **292 / ₹165,490** (source **293 / ₹165,989** minus protected refund **300 / ₹499**). Desk API probe E1 user **506514** → **₹597.00 unverified** without OTP. Ledger **54 / ₹28,574** unchanged; financial execution flags **OFF**. PHPUnit **18/18** historical visibility + contact-match tests PASS.

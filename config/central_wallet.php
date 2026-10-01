@@ -158,6 +158,14 @@ return [
         ),
         'protected_refund_ids' => [300],
         'campaign_start_date' => '2026-07-15',
+        'contact_match_enabled' => filter_var(
+            env('CENTRAL_WALLET_HISTORICAL_CONTACT_MATCH_ENABLED', true),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        'contact_index_manifest_path' => env(
+            'CENTRAL_WALLET_HISTORICAL_CONTACT_INDEX_MANIFEST_PATH',
+            storage_path('app/private/cw-historical-visibility-contact-index.json'),
+        ),
     ],
 
     /*
