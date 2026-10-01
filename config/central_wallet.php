@@ -290,6 +290,10 @@ return [
             'CENTRAL_WALLET_E2_VERIFICATION_COHORT_MANIFEST_PATH',
             storage_path('app/private/cw-e2-verification-cohort-manifest-p30-10-22.json'),
         ),
+        'destination_readiness_manifest_path' => env(
+            'CENTRAL_WALLET_E2_DESTINATION_READINESS_MANIFEST_PATH',
+            storage_path('app/private/cw-e2-destination-readiness-manifest-p30-10-29.json'),
+        ),
         'expected_count' => 52,
         'expected_amount' => '34517.00',
         'batch_id' => 'desk-refund-historical-settlement-e2-52-p30-10-20',

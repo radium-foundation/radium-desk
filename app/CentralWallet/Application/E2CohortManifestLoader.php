@@ -13,6 +13,8 @@ final class E2CohortManifestLoader
 
     public const EXPECTED_AMOUNT = '34517.00';
 
+    public const VERIFICATION_COHORT_MANIFEST_SHA256 = '727431121af73d41df314c963a0c214af7582497b3ade06d09233722d96a16db';
+
     /**
      * @return array{
      *     cohort_id: string,

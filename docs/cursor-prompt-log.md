@@ -604,3 +604,9 @@ Forensic **Class-B source reconciliation** for **14 / ₹7,810** (CWID establish
 ## RadiumDesk-P-30-10-27
 
 Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refund-wallet-migration-refund360-p30-10-26`, ₹849, radiumbox.com wallet **2567** → CWID `5a3d0706-…`). Owner approval: `R-CW-REF360-FIN-MIG-20261001-001`. Added `central-wallet:refund360-migration-execute` + `Refund360MigrationExecutionTest`. **SUCCESS:** journal **reconciled**, ledger **54/₹28,574**, Box user **499465** spendable **₹0**, retirement row **2569**, lock **retired/released**, idempotency replay **no duplicate credit**. Flags **OFF** after execution. Tests **17/17** PASS. Doc: `docs/cw-refund360-financial-migration-execution-p-30-10-27.md`.
+
+---
+
+## RadiumDesk-P-30-10-29
+
+**E-2 destination readiness** (52 / ₹34,517): Audited P-30-10-22 verification workflow; added `E2DestinationReadinessManifestService` + `central-wallet:e2-destination-readiness-manifest-build`. Verification cohort manifest SHA `727431121a…`; destination-readiness manifest SHA `e1e1dc98c7…`. Production: **52 UNVERIFIED**, **0 destination-ready**; ledger **54/₹28,574** unchanged; Lane 4 execution **OFF**. **No financial settlement.** Doc: `docs/cw-e2-destination-readiness-p-30-10-29.md`. Tests **20/20** E2 PASS.

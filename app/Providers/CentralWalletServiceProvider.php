@@ -17,6 +17,7 @@ use App\CentralWallet\Application\CustomerIdentityResolveService;
 use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
 use App\CentralWallet\Application\E2CohortManifestLoader;
 use App\CentralWallet\Application\E2CohortStateResolver;
+use App\CentralWallet\Application\E2DestinationReadinessManifestService;
 use App\CentralWallet\Application\E2HistoricalManualRefundSettlementService;
 use App\CentralWallet\Application\E2HistoricalSettlementBatchGate;
 use App\CentralWallet\Application\E2HistoricalSettlementDryRunService;
@@ -118,6 +119,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(E2ProvisionalDisplayService::class);
         $this->app->singleton(E2VerificationDestinationService::class);
         $this->app->singleton(E2CohortStateResolver::class);
+        $this->app->singleton(E2DestinationReadinessManifestService::class);
         $this->app->singleton(NextSafeBatchManifestLoader::class);
         $this->app->singleton(NextSafeBatchJournalImportService::class);
         $this->app->singleton(NextSafeBatchDryRunService::class);
