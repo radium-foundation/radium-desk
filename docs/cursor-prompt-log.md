@@ -462,3 +462,9 @@ TYPE-1 customer-level M2 ceremony plan. **211** refunds (₹115,126) → **210**
 ## RadiumDesk-P-30-10-02
 
 TYPE-1 M2 ceremony execution plan. Mapped existing Connect Wallet flow (rdin `/connect-wallet`, box `/user/wallet/connect` → Desk `ceremony/complete`). **210** customers all `M2_EXISTING_CEREMONY`; **50** cohort-eligible (₹26,230), **160** blocked by allowlist (₹88,896). Decision: `SMALL_NON_FINANCIAL_EXTENSION_REQUIRED` (cohort expansion + Desk Customer follow-up CLI/extension). Script `cw-type1-m2-execution-plan-p30-10-02.py`. Artifacts: `cw-type1-m2-execution-plan-p30-10-02.json/.csv`. Doc: `docs/cw-type1-m2-execution-plan-p-30-10-02.md`. **No financial mutation; flags not enabled.**
+
+---
+
+## RadiumDesk-P-30-10-03
+
+Controlled M2 identity pilot for **50** cohort-eligible TYPE-1 customers (₹26,230). Production assessment: **0/50** `PILOT_SUCCESS` — all `PILOT_PENDING_CUSTOMER_ACTION` (customer WhatsApp OTP required; no bypass). User **535731** excluded; no RadiumBox in pilot. Ledger **0**; financial variance **₹0**. Script `cw-type1-m2-pilot-p30-10-03.py`. Artifacts: `cw-type1-m2-pilot-p30-10-03.json/.csv`. Doc: `docs/cw-type1-m2-pilot-p-30-10-03.md`. **PILOT_SUCCESS=NO. No financial migration. Cohort not expanded.**
