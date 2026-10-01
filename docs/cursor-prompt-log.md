@@ -552,3 +552,9 @@ Read-only **identity-resolution audit** of exactly **220** refunds (₹127,328) 
 ## RadiumDesk-P-30-10-18
 
 Read-only **source reconciliation audit** of E-2 sub-cohort: **52 / ₹34,517** (campaign class B, `local_user_id` null). Corrects prior E-2 amount error (₹8,078 cited in P-30-10-16/17; manifest authoritative sum is **₹34,517**). Per-refund inspection of Desk refund/order data and spoke `users_wallet` / `order_rdservice` provenance. **All 52 → F NO_AUTHORITATIVE_PROVENANCE**; **0 → A SOURCE_WALLET_DETERMINED**. Desk shows `approved_refund_method=wallet` for all 52 but no spoke wallet has matching `desk_refund_reference` or deterministic message link. Ledger **53/₹27,725** unchanged; execution flags **OFF**. Artifacts: `cw-e2-source-reconciliation-audit-p30-10-18.json/.csv`. Doc: `docs/cw-e2-source-reconciliation-audit-p-30-10-18.md`. **No financial mutation.**
+
+---
+
+## RadiumDesk-P-30-10-19
+
+Read-only **forensic reconstruction** of E-2 sub-cohort: **52 / ₹34,517**. Extends P-30-10-18 with Desk `audit_logs`, application source/git timeline, and spoke/log forensic search for authoritative `refund → wallet-credit → spoke wallet → customer` chains. **All 52 → D CORROBORATING_ONLY**; **0 → A/B/C**. Key finding: all 52 `refund.completed` audits show `provider=manual` (ManualRefundExecutor); all executed before WalletRefundExecutor production deploy (2026-09-12); zero spoke `users_wallet` authoritative hits; zero application log hits. Desk administrative wallet completion without durable destination capture confirmed. **0** safe for source-wallet migration prep. Ledger **53/₹27,725** unchanged; flags **OFF**. Artifacts: `cw-e2-forensic-reconstruction-p30-10-19.json/.csv`. Doc: `docs/cw-e2-forensic-reconstruction-p-30-10-19.md`. **No financial mutation. STOP — no migration/repair.**
