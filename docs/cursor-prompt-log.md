@@ -646,3 +646,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-30-10-35
 
 **Historical Wallet Visibility layer** (read-only, non-financial): Unified `HistoricalWalletVisibilityService` + `E1ProvisionalDisplayService` + `ReconciledHistoricalRefundFilter`; GET `/wallet-visibility`; enhanced `provisional-resolve` with `wallet_balance`/`balance_status`/`spendable` fields. E-1 (168) + E-2 (52) unverified display; verified CW balance for trusted links; reconciled/protected refund 300 exclusion; E-2 fallthrough after `source_reconciliation_required`. Class-B/C unchanged (not displayed without safe association). **67/67** PHPUnit PASS. **No ledger/spoke/refund mutation; execution flags OFF.** Doc: `docs/cw-historical-wallet-visibility-p-30-10-35.md`. **Not deployed** (awaiting authorization).
+
+---
+
+## RadiumDesk-P-30-10-36
+
+**Historical Wallet Visibility production deploy** (surgical overlay from `aab3ce35`): 13 application files to KVM `/var/www/radium-desk`. Backup: `storage/app/private/deploy-backups-p30-10-36/` + `.env` snapshot. Set `CENTRAL_WALLET_HISTORICAL_WALLET_VISIBILITY_ENABLED=true`; preserved `PROVISIONAL_IDENTITY`, `E1_IDENTITY_MIGRATION_VERIFICATION`, `E2_HISTORICAL_SETTLEMENT_VERIFICATION` **ON**; all execution flags **OFF**. Route `GET /wallet-visibility` live; provisional-resolve unified fields verified. Ledger **54/₹28,574** unchanged; E-1 **168/₹92,811**; E-2 **52/₹34,517**. No financial mutation. Safe probes only (no fake customer verification).
