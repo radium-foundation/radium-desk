@@ -13,6 +13,8 @@ use App\CentralWallet\Application\Contracts\WalletMigrationSpokeClient;
 use App\CentralWallet\Application\CrossSiteCeremonyCohortEligibility;
 use App\CentralWallet\Application\CrossSiteCeremonyResolver;
 use App\CentralWallet\Application\CustomerFoundationFromCeremonyService;
+use App\CentralWallet\Application\CustomerIdentityResolveService;
+use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
 use App\CentralWallet\Application\E2CohortManifestLoader;
 use App\CentralWallet\Application\E2CohortStateResolver;
 use App\CentralWallet\Application\E2HistoricalManualRefundSettlementService;
@@ -23,12 +25,10 @@ use App\CentralWallet\Application\E2HistoricalSettlementManifestLoader;
 use App\CentralWallet\Application\E2HistoricalSettlementOrchestrator;
 use App\CentralWallet\Application\E2ProvisionalDisplayService;
 use App\CentralWallet\Application\E2VerificationDestinationService;
-use App\CentralWallet\Application\CustomerIdentityResolveService;
-use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
 use App\CentralWallet\Application\ExternalDirectLedgerDebitGate;
 use App\CentralWallet\Application\HistoricalCohortProvisionalBalanceService;
-use App\CentralWallet\Application\IdentityRequiredCohortManifestLoader;
 use App\CentralWallet\Application\IdempotencyService;
+use App\CentralWallet\Application\IdentityRequiredCohortManifestLoader;
 use App\CentralWallet\Application\IntegrationSourceSystemResolver;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
@@ -38,6 +38,17 @@ use App\CentralWallet\Application\NextSafeBatchJournalImportService;
 use App\CentralWallet\Application\NextSafeBatchManifestLoader;
 use App\CentralWallet\Application\NullWalletMigrationSpokeClient;
 use App\CentralWallet\Application\ProvisionalIdentityResolveService;
+use App\CentralWallet\Application\Ready4FinancialMigrationManifestLoader;
+use App\CentralWallet\Application\Ready4RefundMigrationBatchGate;
+use App\CentralWallet\Application\Ready4RefundMigrationDryRunService;
+use App\CentralWallet\Application\Ready4RefundMigrationJournalImportService;
+use App\CentralWallet\Application\Ready4RefundMigrationOrchestrator;
+use App\CentralWallet\Application\Ready4RefundMigrationRehearseService;
+use App\CentralWallet\Application\Refund360MigrationBatchGate;
+use App\CentralWallet\Application\Refund360MigrationDryRunService;
+use App\CentralWallet\Application\Refund360MigrationJournalImportService;
+use App\CentralWallet\Application\Refund360MigrationManifestLoader;
+use App\CentralWallet\Application\Refund360MigrationOrchestrator;
 use App\CentralWallet\Application\RefundMigrationBatchGate;
 use App\CentralWallet\Application\RefundMigrationDryRunService;
 use App\CentralWallet\Application\RefundMigrationJournalImportService;
@@ -58,18 +69,12 @@ use App\CentralWallet\Application\Type1RefundMigrationBatchGate;
 use App\CentralWallet\Application\Type1RefundMigrationDryRunService;
 use App\CentralWallet\Application\Type1RefundMigrationJournalImportService;
 use App\CentralWallet\Application\Type1RefundMigrationOrchestrator;
-use App\CentralWallet\Application\Ready4FinancialMigrationManifestLoader;
-use App\CentralWallet\Application\Ready4RefundMigrationBatchGate;
-use App\CentralWallet\Application\Ready4RefundMigrationDryRunService;
-use App\CentralWallet\Application\Ready4RefundMigrationJournalImportService;
-use App\CentralWallet\Application\Ready4RefundMigrationOrchestrator;
-use App\CentralWallet\Application\Ready4RefundMigrationRehearseService;
 use App\CentralWallet\Application\Type1RefundMigrationRehearseService;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
-use App\CentralWallet\Infrastructure\Http\HttpWalletMigrationSpokeClient;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletCustomerIdentityEnabled;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletProvisionalIdentityEnabled;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletReservationsEnabled;
+use App\CentralWallet\Infrastructure\Http\RoutingWalletMigrationSpokeClient;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -116,6 +121,11 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(NextSafeBatchManifestLoader::class);
         $this->app->singleton(NextSafeBatchJournalImportService::class);
         $this->app->singleton(NextSafeBatchDryRunService::class);
+        $this->app->singleton(Refund360MigrationManifestLoader::class);
+        $this->app->singleton(Refund360MigrationJournalImportService::class);
+        $this->app->singleton(Refund360MigrationBatchGate::class);
+        $this->app->singleton(Refund360MigrationDryRunService::class);
+        $this->app->singleton(Refund360MigrationOrchestrator::class);
         $this->app->singleton(CustomerIdentityResolveService::class);
         $this->app->singleton(IdentityRequiredCohortManifestLoader::class);
         $this->app->singleton(HistoricalCohortProvisionalBalanceService::class);
@@ -142,27 +152,37 @@ final class CentralWalletServiceProvider extends ServiceProvider
 
         $this->app->singleton(WalletMigrationSpokeClient::class, function (): WalletMigrationSpokeClient {
             $migrationConfig = config('central_wallet.balance_migration', []);
-            $baseUrl = rtrim(trim((string) ($migrationConfig['spoke_base_url'] ?? '')), '/');
-            $token = trim((string) ($migrationConfig['spoke_token'] ?? ''));
+            $spokes = [];
 
-            $hostHeader = null;
-            if ($baseUrl === '' || $token === '') {
-                $spoke = config('order_lookup.spokes.rdservice_in', []);
+            foreach ([
+                'rdservice.in' => config('order_lookup.spokes.rdservice_in', []),
+                'radiumbox.com' => config('order_lookup.spokes.radiumbox_com', []),
+            ] as $siteCode => $spoke) {
+                if (! is_array($spoke)) {
+                    continue;
+                }
+
                 $baseUrl = rtrim(trim((string) ($spoke['base_url'] ?? '')), '/');
                 $token = trim((string) ($spoke['token'] ?? ''));
-                $hostHeader = trim((string) ($spoke['host'] ?? ''));
+                if ($baseUrl === '' || $token === '') {
+                    continue;
+                }
+
+                $spokes[$siteCode] = [
+                    'base_url' => $baseUrl,
+                    'token' => $token,
+                    'host' => trim((string) ($spoke['host'] ?? '')),
+                ];
             }
 
-            if ($baseUrl === '' || $token === '') {
+            if ($spokes === []) {
                 return new NullWalletMigrationSpokeClient;
             }
 
-            return new HttpWalletMigrationSpokeClient(
-                baseUrl: $baseUrl,
-                token: $token,
+            return new RoutingWalletMigrationSpokeClient(
+                spokes: $spokes,
                 connectTimeoutSeconds: (int) ($migrationConfig['spoke_connect_timeout_seconds'] ?? 3),
                 timeoutSeconds: (int) ($migrationConfig['spoke_timeout_seconds'] ?? 15),
-                hostHeader: $hostHeader !== '' ? $hostHeader : null,
             );
         });
     }

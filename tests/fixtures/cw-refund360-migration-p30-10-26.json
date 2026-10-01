@@ -1,0 +1,42 @@
+{
+  "prompt_id": "RadiumDesk-P-30-10-26",
+  "batch_id": "desk-refund-wallet-migration-refund360-p30-10-26",
+  "cohort_id": "refund360-p30-10-26",
+  "immutable": true,
+  "refund_count": 1,
+  "refund_amount": "849.00",
+  "manifest_rows_sha256": "d04ce130e7c002fe441b1447fb8b7832e4e05a079b3c6af4f0ae39595c680967",
+  "allowed_refund_ids": [360],
+  "blocked_rows": [],
+  "executable_count": 1,
+  "lane_totals": {
+    "LANE_A_SPOKE_DEBIT": { "count": 1, "amount": "849.00" }
+  },
+  "rows": [
+    {
+      "refund_id": 360,
+      "refund_amount": "849.00",
+      "desk_refund_reference": "REF-67363",
+      "site": "radiumbox.com",
+      "local_user_id": "499465",
+      "desk_customer_id": "be49594b-289c-44d6-b9e4-6c8d3a810227",
+      "cwid": "5a3d0706-9f4b-4adc-b3d8-7cd134295404",
+      "account_link_id": "9",
+      "identity_status": "IDENTITY_ESTABLISHED",
+      "order_number": "RB484",
+      "expected_spoke": "radiumbox.com",
+      "source_lane": "LANE_A_SPOKE_DEBIT",
+      "source_wallet_id": 2567,
+      "source_balance_before": "849.00",
+      "expected_source_balance_after": "0.00",
+      "target_cwid": "5a3d0706-9f4b-4adc-b3d8-7cd134295404",
+      "idempotency_key": "desk-refund-migration:refund_requests:360",
+      "rollback_action": "RefundMigrationRollbackService::rollback",
+      "rollback_idempotency_key": "desk-refund-migration-rollback:refund_requests:360",
+      "match_method": "desk_refund_reference",
+      "execution_transaction_id": "2567",
+      "status": "prepared",
+      "preparation_block_reason": null
+    }
+  ]
+}

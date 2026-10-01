@@ -593,4 +593,8 @@ Read-only **fresh reconciliation** of remaining **239 / ₹137,983** + next-safe
 
 ## RadiumDesk-P-30-10-25
 
+**Refund 360 / radiumbox.com Lane-1 migration prep** (P-30-10-26): Deployed Box wallet-migration lock/retire/status/restore APIs + Desk `RoutingWalletMigrationSpokeClient` + refund-360-only manifest/journal/dry-run (`desk-refund-wallet-migration-refund360-p30-10-26`, SHA `d04ce130…`). Production: Box wallet **2567** verified `REF-67363` / ₹849 unchanged; journal **1 prepared**; dry-run `executable_batch_ready=true`. Ledger **53/₹27,725** unchanged; execution flags **OFF**. **No financial execution.** Doc: `docs/cw-refund360-radiumbox-migration-prep-p-30-10-26.md`. Tests **5/5** Refund360 + routing.
+
+---
+
 Forensic **Class-B source reconciliation** for **14 / ₹7,810** (CWID established, source wallet unproven). Per-refund spoke/Desk/journal inspection: **0** `DETERMINISTIC_SOURCE_FOUND`; **14** `NO_AUTHORITATIVE_SOURCE`. Root cause: legacy wallet credits with generic order messages and **no** `desk_refund_reference` / `execution_transaction_id` link to current refund; aggregate spendable match alone rejected. **Prepared batch: 0/₹0**; manifest SHA `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945`. Separate **refund 360** RadiumBox assessment: authoritative Box source wallet **2567** exists; blocked by missing Box `wallet-migration-*` API + Desk spoke client wiring (Lane-1 compatible in principle). **No radiumbox.com changes.** Ledger **53/₹27,725** unchanged; flags **OFF**. Artifacts: `cw-class-b-source-reconciliation-p30-10-25.json/.csv`. Doc: `docs/cw-class-b-source-reconciliation-p-30-10-25.md`. **No financial execution.**

@@ -243,6 +243,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Refund 360 / radiumbox.com Lane-1 migration (1 refund — default OFF)
+    |--------------------------------------------------------------------------
+    */
+
+    'refund360_migration' => [
+        'manifest_path' => env(
+            'CENTRAL_WALLET_REFUND360_MIGRATION_MANIFEST_PATH',
+            storage_path('app/private/cw-refund360-migration-manifest-p30-10-26.json'),
+        ),
+        'radiumbox_env_path' => env('CENTRAL_WALLET_REFUND360_RADIUMBOX_ENV_PATH', '/var/www/radiumbox.com/.env'),
+        'radiumbox_db_user' => env('CENTRAL_WALLET_REFUND360_RADIUMBOX_DB_USER', 'radiumbox_prod'),
+        'radiumbox_db_name' => env('CENTRAL_WALLET_REFUND360_RADIUMBOX_DB_NAME', 'radiumbox_prod'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | E-2 historical manual refund settlement (52 refunds — default OFF)
     |--------------------------------------------------------------------------
     |
