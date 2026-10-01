@@ -414,3 +414,15 @@ Controlled migration preparation for all 292 terminal wallet refunds (₹165,708
 ## RadiumDesk-P-30-09-26
 
 Implement controlled 292-refund migration engine: durable journal, Lane 1 spoke cutover, Lane 3 `RefundProvenanceMigrationService`, ambiguous/identity resolution controls, batch gate, dry-run command, rollback via ledger reversal. Uses existing `central_customers` schema. **No production financial execution / deploy.**
+
+---
+
+## RadiumDesk-P-30-09-27
+
+Complete 292-refund identity + CWID migration manifest (read-only): production-verified gate classification (1 existing CWID / 226 provision / 10 owner spoke / 55 owner identity); ambiguous resolution table; provisioning plan; reconciliation ₹0 variance. Doc: `docs/central-wallet-refund-identity-manifest-p-30-09-27.md`. **No financial mutation / deploy.**
+
+---
+
+## RadiumDesk-P-30-09-28
+
+Deploy Customer Identity schema foundation to production KVM8 + User 3 Desk Customer association + CWID provisioning manifest prep. Migration `2026_09_30_200000_create_central_customer_identity_tables` applied (batch 45); surgical overlay of `CustomerFoundationFromCeremonyService` + `central-wallet:establish-customer-from-ceremony`. User 3 Desk Customer `46c69a65-7fb9-4d36-948f-32d00475fd0e` linked to CWID `50ff2e87-6030-4ae8-b93a-163884db90c5` + active link id 7. Manifest `cw-migration-cwid-provisioning-p30-09-28.json` (226 customers). Doc: `docs/central-wallet-customer-identity-foundation-p-30-09-28.md`. **No CW credit / spoke debit / refund migration / execution flags.**
