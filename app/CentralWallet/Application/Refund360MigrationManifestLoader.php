@@ -24,6 +24,8 @@ final class Refund360MigrationManifestLoader
 
     public const MANIFEST_ROWS_SHA256 = 'd04ce130e7c002fe441b1447fb8b7832e4e05a079b3c6af4f0ae39595c680967';
 
+    public const EXPECTED_OWNER_APPROVAL_REF = 'R-CW-REF360-FIN-MIG-20261001-001';
+
     /**
      * @return array{
      *     batch_id: string,
