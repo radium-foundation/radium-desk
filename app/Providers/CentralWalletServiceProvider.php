@@ -21,6 +21,16 @@ use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
 use App\CentralWallet\Application\NullWalletMigrationSpokeClient;
 use App\CentralWallet\Application\ProvisionalIdentityResolveService;
+use App\CentralWallet\Application\RefundMigrationBatchGate;
+use App\CentralWallet\Application\RefundMigrationDryRunService;
+use App\CentralWallet\Application\RefundMigrationJournalImportService;
+use App\CentralWallet\Application\RefundMigrationLane1Executor;
+use App\CentralWallet\Application\RefundMigrationManifestLoader;
+use App\CentralWallet\Application\RefundMigrationOrchestrator;
+use App\CentralWallet\Application\RefundMigrationRollbackService;
+use App\CentralWallet\Application\RefundMigrationStateMachine;
+use App\CentralWallet\Application\RefundMigrationTargetAssignmentService;
+use App\CentralWallet\Application\RefundProvenanceMigrationService;
 use App\CentralWallet\Application\ReservationService;
 use App\CentralWallet\Application\ReservationStateMachine;
 use App\CentralWallet\Application\TrustedFinancialAuthorizationGate;
@@ -57,6 +67,16 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(LedgerEntryReadService::class);
         $this->app->singleton(BalanceMigrationStateMachine::class);
         $this->app->singleton(BalanceMigrationCutoverService::class);
+        $this->app->singleton(RefundMigrationManifestLoader::class);
+        $this->app->singleton(RefundMigrationStateMachine::class);
+        $this->app->singleton(RefundMigrationJournalImportService::class);
+        $this->app->singleton(RefundMigrationTargetAssignmentService::class);
+        $this->app->singleton(RefundMigrationBatchGate::class);
+        $this->app->singleton(RefundProvenanceMigrationService::class);
+        $this->app->singleton(RefundMigrationLane1Executor::class);
+        $this->app->singleton(RefundMigrationRollbackService::class);
+        $this->app->singleton(RefundMigrationDryRunService::class);
+        $this->app->singleton(RefundMigrationOrchestrator::class);
 
         $this->app->singleton(WalletMigrationSpokeClient::class, function (): WalletMigrationSpokeClient {
             $migrationConfig = config('central_wallet.balance_migration', []);

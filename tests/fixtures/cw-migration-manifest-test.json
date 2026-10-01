@@ -1,0 +1,49 @@
+{
+  "batch_id": "desk-refund-wallet-migration-292-p30-09-25",
+  "population_count": 3,
+  "population_amount": "1497.00",
+  "rows": [
+    {
+      "refund_id": 9001,
+      "reference_no": "REF-TEST-LANE1",
+      "amount": "499.00",
+      "destination_class_p24": "verified_rdin",
+      "identity_class": "B",
+      "identity_note": "TEST_LANE1",
+      "order_resolved_user_id": "3",
+      "cwid": null,
+      "migration_lane": "LANE_1_SPOKE_CUTOVER",
+      "idempotency_key": "desk-refund-migration:refund_requests:9001",
+      "spoke_wallet_id": "99001",
+      "spoke_site": "rdservice.in"
+    },
+    {
+      "refund_id": 9002,
+      "reference_no": "REF-TEST-LANE3",
+      "amount": "499.00",
+      "destination_class_p24": "no_destination_record",
+      "identity_class": "C",
+      "identity_note": "TEST_LANE3",
+      "order_resolved_user_id": "506514",
+      "cwid": null,
+      "migration_lane": "LANE_3_REFUND_PROVENANCE",
+      "idempotency_key": "desk-refund-migration:refund_requests:9002",
+      "spoke_wallet_id": null,
+      "spoke_site": null
+    },
+    {
+      "refund_id": 9003,
+      "reference_no": "REF-TEST-BLOCKED",
+      "amount": "499.00",
+      "destination_class_p24": "no_destination_record",
+      "identity_class": "E",
+      "identity_note": "TEST_BLOCKED",
+      "order_resolved_user_id": null,
+      "cwid": null,
+      "migration_lane": "LANE_3_BLOCKED_INSUFFICIENT_EVIDENCE",
+      "idempotency_key": "desk-refund-migration:refund_requests:9003",
+      "spoke_wallet_id": null,
+      "spoke_site": null
+    }
+  ]
+}

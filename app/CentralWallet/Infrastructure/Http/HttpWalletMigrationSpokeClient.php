@@ -106,6 +106,26 @@ final class HttpWalletMigrationSpokeClient implements WalletMigrationSpokeClient
         ], $migrationOperationId);
     }
 
+    public function restoreSourceCredit(
+        string $migrationOperationId,
+        string $sourceSiteCode,
+        string $sourceLocalUserId,
+        int $sourceUsersWalletId,
+        string $amount,
+        string $sourceBusinessReference,
+        string $rollbackIdempotencyKey,
+    ): array {
+        return $this->post('/api/integrations/v1/wallet-migration-restorations', [
+            'migration_operation_id' => $migrationOperationId,
+            'users_wallet_id' => $sourceUsersWalletId,
+            'userid' => $sourceLocalUserId,
+            'amount' => $amount,
+            'desk_refund_reference' => $sourceBusinessReference,
+            'idempotency_key' => $rollbackIdempotencyKey,
+            'source_site_code' => $sourceSiteCode,
+        ], $migrationOperationId);
+    }
+
     /**
      * @param  array<string, mixed>  $payload
      * @return array{status: int, body: array<string, mixed>}

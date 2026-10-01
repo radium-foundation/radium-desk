@@ -140,4 +140,21 @@ return [
         'financial_gate_enabled' => filter_var(env('CENTRAL_WALLET_PROVISIONAL_FINANCIAL_GATE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Terminal refund wallet migration (292 population — default OFF)
+    |--------------------------------------------------------------------------
+    */
+
+    'refund_migration' => [
+        'execution_enabled' => filter_var(env('CENTRAL_WALLET_REFUND_MIGRATION_EXECUTION_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'manifest_path' => env(
+            'CENTRAL_WALLET_REFUND_MIGRATION_MANIFEST_PATH',
+            storage_path('app/private/cw-migration-manifest-final-p30-09-25.json'),
+        ),
+        'expected_count' => 292,
+        'expected_amount' => '165708.00',
+        'batch_id' => 'desk-refund-wallet-migration-292-p30-09-25',
+    ],
+
 ];

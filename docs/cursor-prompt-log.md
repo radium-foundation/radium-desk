@@ -390,3 +390,27 @@ Stage 1 documentation update (Desk = financial SSOT; radiumbox.com Stage 1 spend
 ## RadiumDesk-P-30-09-20
 
 Stage 1 real-customer population export (read-only): `central-wallet:stage1-population-export` + `Stage1PopulationExportService`; hashed credentials only; cutoff `2026-07-15 00:00:00` IST. Doc: `docs/central-wallet-stage1-real-customer-population.md`. **No production query/mutation/deploy.**
+
+---
+
+## RadiumDesk-P-30-09-23
+
+Desk refund-to-wallet forensic reconciliation (read-only): start from `refund_requests` not `central_wallets`; 362 refunds / 356 closed; 292 terminal wallet refunds ₹165,708; 0 Desk CW credits; spoke `users_wallet` destination. **No mutation.**
+
+---
+
+## RadiumDesk-P-30-09-24
+
+292 terminal wallet refund row-level reconciliation (read-only): verified rdin 57 / box 2 / unresolved 212 / ambiguous 21; ₹0 variance; 0 migration candidates. Doc: `docs/central-wallet-terminal-refund-reconciliation-p-30-09-24.md`; artifacts under `storage/app/private/`. **No mutation/commit/deploy.**
+
+---
+
+## RadiumDesk-P-30-09-25
+
+Controlled migration preparation for all 292 terminal wallet refunds (₹165,708) into Desk Central Wallet: 292-row manifest, customer/CWID mapping (A–E), three-lane source treatment, idempotency/rollback/failure design, User 3 planned Lane 1 cutover. Doc: `docs/central-wallet-refund-migration-preparation-p-30-09-25.md`; artifacts under `storage/app/private/`. **No financial mutation / commit / deploy.**
+
+---
+
+## RadiumDesk-P-30-09-26
+
+Implement controlled 292-refund migration engine: durable journal, Lane 1 spoke cutover, Lane 3 `RefundProvenanceMigrationService`, ambiguous/identity resolution controls, batch gate, dry-run command, rollback via ledger reversal. Uses existing `central_customers` schema. **No production financial execution / deploy.**
