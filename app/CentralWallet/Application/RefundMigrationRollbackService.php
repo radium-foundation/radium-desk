@@ -7,6 +7,7 @@ use App\CentralWallet\Domain\Enums\AuditActorType;
 use App\CentralWallet\Domain\Enums\LedgerEntryType;
 use App\CentralWallet\Domain\Enums\RefundMigrationLane;
 use App\CentralWallet\Domain\Enums\RefundMigrationStatus;
+use App\CentralWallet\Domain\E2HistoricalSettlementIdempotencyKey;
 use App\CentralWallet\Domain\RefundMigrationIdempotencyKey;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletRefundMigration;
@@ -64,17 +65,23 @@ final class RefundMigrationRollbackService
                 return $existing;
             }
 
+            $rollbackSourceReference = $migration->lane->isHistoricalSettlement()
+                ? E2HistoricalSettlementIdempotencyKey::rollback((int) $migration->refund_id)
+                : RefundMigrationIdempotencyKey::rollback((int) $migration->refund_id);
+
             return $this->ledger->appendEntry(
                 centralWalletId: (string) $migration->cwid,
                 entryType: LedgerEntryType::Reversal,
                 amount: (string) $migration->amount,
                 sourceSystem: 'radium-desk',
                 correlationId: $correlationId,
-                sourceReference: RefundMigrationIdempotencyKey::rollback((int) $migration->refund_id),
+                sourceReference: $rollbackSourceReference,
                 businessReference: $migration->refund_reference,
                 originalLedgerEntryId: $original->id,
                 metadata: [
-                    'rollback_type' => 'refund_migration_reversal',
+                    'rollback_type' => $migration->lane->isHistoricalSettlement()
+                        ? 'e2_historical_settlement_reversal'
+                        : 'refund_migration_reversal',
                     'refund_id' => $migration->refund_id,
                     'owner_approval_ref' => $ownerApprovalRef,
                 ],

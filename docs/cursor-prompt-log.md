@@ -558,3 +558,9 @@ Read-only **source reconciliation audit** of E-2 sub-cohort: **52 / ₹34,517** 
 ## RadiumDesk-P-30-10-19
 
 Read-only **forensic reconstruction** of E-2 sub-cohort: **52 / ₹34,517**. Extends P-30-10-18 with Desk `audit_logs`, application source/git timeline, and spoke/log forensic search for authoritative `refund → wallet-credit → spoke wallet → customer` chains. **All 52 → D CORROBORATING_ONLY**; **0 → A/B/C**. Key finding: all 52 `refund.completed` audits show `provider=manual` (ManualRefundExecutor); all executed before WalletRefundExecutor production deploy (2026-09-12); zero spoke `users_wallet` authoritative hits; zero application log hits. Desk administrative wallet completion without durable destination capture confirmed. **0** safe for source-wallet migration prep. Ledger **53/₹27,725** unchanged; flags **OFF**. Artifacts: `cw-e2-forensic-reconstruction-p30-10-19.json/.csv`. Doc: `docs/cw-e2-forensic-reconstruction-p-30-10-19.md`. **No financial mutation. STOP — no migration/repair.**
+
+---
+
+## RadiumDesk-P-30-10-20
+
+Owner-authorized **E-2 historical manual refund settlement** infrastructure for **52 / ₹34,517** (P-30-10-19 CORROBORATING_ONLY cohort). Implements Lane 4 `OWNER_APPROVED_HISTORICAL_MANUAL_REFUND_SETTLEMENT` — CW credit only, no spoke debit, no fabricated source provenance; idempotency `desk-refund-historical-settlement:{refund_id}`. Immutable manifest SHA-256 `48f173da…dfe0`. **Execution STOPPED:** all 52 blocked — **0 trusted Desk Customer/CWID** destinations (P-30-10-16); manifest rows have null `desk_customer_id`/`cwid`; dry-run `batch_executable=false`. Ledger **53/₹27,725** unchanged; flags **OFF**. Artifacts: `cw-e2-historical-settlement-manifest-p30-10-20.json`. Doc: `docs/cw-e2-historical-settlement-p-30-10-20.md`. **No financial execution.**

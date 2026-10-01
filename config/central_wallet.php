@@ -241,4 +241,29 @@ return [
         'rdin_db_name' => env('CENTRAL_WALLET_READY4_RDIN_DB_NAME', 'rdservice_in_prod'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | E-2 historical manual refund settlement (52 refunds — default OFF)
+    |--------------------------------------------------------------------------
+    |
+    | Owner-approved settlement for E-2 cohort where historical spoke wallet
+    | destination could not be reconstructed (P-30-10-19). Credits Central
+    | Wallet only — no spoke debit, no fabricated source provenance.
+    |
+    */
+
+    'e2_historical_settlement' => [
+        'manifest_path' => env(
+            'CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_MANIFEST_PATH',
+            storage_path('app/private/cw-e2-historical-settlement-manifest-p30-10-20.json'),
+        ),
+        'expected_count' => 52,
+        'expected_amount' => '34517.00',
+        'batch_id' => 'desk-refund-historical-settlement-e2-52-p30-10-20',
+        'owner_approval_ref' => env(
+            'CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_OWNER_APPROVAL_REF',
+            'OWNER-CW-E2-HISTORICAL-SETTLEMENT-20261001-001',
+        ),
+    ],
+
 ];
