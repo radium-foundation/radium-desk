@@ -23,6 +23,7 @@ final class CustomerFoundationFromCeremonyService
 {
     public function __construct(
         private readonly AuditEventRecorder $auditEvents,
+        private readonly E2VerificationDestinationService $e2VerificationDestination,
     ) {}
 
     /**
@@ -59,6 +60,7 @@ final class CustomerFoundationFromCeremonyService
 
         if ($existingCustomer !== null) {
             $this->attachDeskCustomerToActiveLink($existingCustomer, $siteCode, $localUserId);
+            $this->prepareE2DestinationFromCeremony($siteCode, $localUserId, $existingCustomer, $correlationId);
 
             return [
                 'status' => 'existing_customer',
@@ -132,6 +134,8 @@ final class CustomerFoundationFromCeremonyService
                 ],
             );
 
+            $this->prepareE2DestinationFromCeremony($siteCode, $localUserId, $customer, $correlationId);
+
             return [
                 'status' => 'created_customer',
                 'desk_customer_id' => $customerId,
@@ -139,6 +143,22 @@ final class CustomerFoundationFromCeremonyService
                 'idempotent_replay' => false,
             ];
         });
+    }
+
+    private function prepareE2DestinationFromCeremony(
+        string $siteCode,
+        string $localUserId,
+        CentralCustomer $customer,
+        ?string $correlationId,
+    ): void {
+        $this->e2VerificationDestination->prepareAfterTrustedVerification(
+            siteCode: $siteCode,
+            localUserId: $localUserId,
+            deskCustomerId: $customer->id,
+            cwid: $customer->central_wallet_id,
+            identity: ['type' => CustomerIdentityCredentialType::VerifiedMobile->value],
+            correlationId: $correlationId,
+        );
     }
 
     private function attachDeskCustomerToActiveLink(

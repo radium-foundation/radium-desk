@@ -1,0 +1,63 @@
+{
+  "batch_id": "desk-refund-historical-settlement-e2-52-p30-10-20",
+  "cohort_id": "e2-identity-required-manual-wallet-unresolved-p30-10-19",
+  "owner_approval_ref": "OWNER-CW-E2-HISTORICAL-SETTLEMENT-20261001-001",
+  "forensic_report_ref": "RadiumDesk-P-30-10-19",
+  "settlement_classification": "OWNER_APPROVED_HISTORICAL_MANUAL_REFUND_SETTLEMENT",
+  "refund_count": 3,
+  "refund_amount": "1714.00",
+  "manifest_rows_sha256": "2a7a8976af2ac25fe06eeb248b361160addbe44a731dfb82d0ed4c695adc020e",
+  "rows": [
+    {
+      "refund_id": 91001,
+      "desk_refund_reference": "REF-TEST-91001",
+      "refund_amount": "717.00",
+      "order_number": "RD-TEST-91001",
+      "site": "rdservice.in",
+      "historical_executed_at": "2026-07-15 15:44:19",
+      "approved_refund_method": "wallet",
+      "execution_reference_no": "REF-TEST-91001",
+      "forensic_classification": "CORROBORATING_ONLY",
+      "forensic_report_ref": "RadiumDesk-P-30-10-19",
+      "settlement_classification": "OWNER_APPROVED_HISTORICAL_MANUAL_REFUND_SETTLEMENT",
+      "desk_customer_id": null,
+      "cwid": null,
+      "destination_policy": "existing_trusted_desk_customer_cwid_required",
+      "blocked_reason": "no_trusted_desk_customer_or_cwid"
+    },
+    {
+      "refund_id": 91002,
+      "desk_refund_reference": "REF-TEST-91002",
+      "refund_amount": "497.00",
+      "order_number": "RD-TEST-91002",
+      "site": "rdservice.in",
+      "historical_executed_at": "2026-07-15 15:45:44",
+      "approved_refund_method": "wallet",
+      "execution_reference_no": "REF-TEST-91002",
+      "forensic_classification": "CORROBORATING_ONLY",
+      "forensic_report_ref": "RadiumDesk-P-30-10-19",
+      "settlement_classification": "OWNER_APPROVED_HISTORICAL_MANUAL_REFUND_SETTLEMENT",
+      "desk_customer_id": null,
+      "cwid": null,
+      "destination_policy": "existing_trusted_desk_customer_cwid_required",
+      "blocked_reason": "no_trusted_desk_customer_or_cwid"
+    },
+    {
+      "refund_id": 91003,
+      "desk_refund_reference": "REF-TEST-91003",
+      "refund_amount": "500.00",
+      "order_number": "RB-TEST-91003",
+      "site": "radiumbox.com",
+      "historical_executed_at": "2026-07-17 10:22:47",
+      "approved_refund_method": "wallet",
+      "execution_reference_no": "REF-TEST-91003",
+      "forensic_classification": "CORROBORATING_ONLY",
+      "forensic_report_ref": "RadiumDesk-P-30-10-19",
+      "settlement_classification": "OWNER_APPROVED_HISTORICAL_MANUAL_REFUND_SETTLEMENT",
+      "desk_customer_id": null,
+      "cwid": null,
+      "destination_policy": "existing_trusted_desk_customer_cwid_required",
+      "blocked_reason": "no_trusted_desk_customer_or_cwid"
+    }
+  ]
+}

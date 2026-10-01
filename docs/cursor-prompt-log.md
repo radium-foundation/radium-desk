@@ -570,3 +570,9 @@ Owner-authorized **E-2 historical manual refund settlement** infrastructure for 
 ## RadiumDesk-P-30-10-21
 
 Read-only **trusted destination preparation** for E-2 cohort **52 / ₹34,517** under Owner approval `OWNER-CW-E2-HISTORICAL-SETTLEMENT-20261001-001`. Determines trusted Desk Customer/CWID readiness for Lane 4 settlement (P-30-10-20) without executing settlement or fabricating identity. **All 52 → C VERIFICATION_REQUIRED**; **0 → A/B/F**. Every row has Desk order email but **no** Google/verified-email spoke match; **0** Desk Customer/CWID/account link. **Lane 4 destination-ready: 0/52**. Historical spoke destination **not** reconstructed. Ledger **53/₹27,725** unchanged; flags **OFF**. Artifacts: `cw-e2-trusted-destination-preparation-p30-10-21.json/.csv`. Doc: `docs/cw-e2-trusted-destination-preparation-p-30-10-21.md`. **No financial mutation. STOP — no Lane 4 execution.**
+
+---
+
+## RadiumDesk-P-30-10-22
+
+Implemented **E-2 customer verification path** for **52 / ₹34,517** under Owner approval `OWNER-CW-E2-HISTORICAL-SETTLEMENT-20261001-001`. Flag-gated (`CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_VERIFICATION_ENABLED`, default OFF) provisional display + post-verification destination preparation via existing email OTP / M2 ceremony / Google resolve APIs. `E2ProvisionalDisplayService`, `E2VerificationDestinationService`, `E2CohortStateResolver`; audit `central-wallet:e2-verification-audit`; manifest build `central-wallet:e2-verification-cohort-manifest-build`. **Does NOT** execute Lane 4 or credit wallets. Historical spoke destination **not** reconstructed. Re-audit at deploy: **52 UNVERIFIED** (code-only; no live customer verification). Tests: `E2VerificationPathTest` 16/16 PASS. Doc: `docs/cw-e2-verification-path-p-30-10-22.md`. **No financial execution. STOP — no Lane 4 execution.**

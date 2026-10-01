@@ -21,6 +21,7 @@ final class CustomerIdentityResolveService
         private readonly CentralWalletService $wallets,
         private readonly AccountLinkService $accountLinks,
         private readonly AuditEventRecorder $auditEvents,
+        private readonly E2VerificationDestinationService $e2VerificationDestination,
     ) {}
 
     /**
@@ -150,12 +151,21 @@ final class CustomerIdentityResolveService
                         ];
                     }
 
-                    return $this->successResponse(
+                    $response = $this->successResponse(
                         customer: $customer,
                         link: $existingLocalLink,
                         provisionAction: 'resolved_local_link',
                         httpStatus: 200,
                     );
+                    $this->prepareE2DestinationIfApplicable(
+                        $siteCode,
+                        $localUserId,
+                        $customer,
+                        $identity,
+                        $correlationId,
+                    );
+
+                    return $response;
                 }
 
                 $verificationMethod = $this->verificationMethodForCredential($credential['credential_type']);
@@ -186,12 +196,21 @@ final class CustomerIdentityResolveService
                     ],
                 );
 
-                return $this->successResponse(
+                $response = $this->successResponse(
                     customer: $customer,
                     link: $link,
                     provisionAction: $provisionAction,
                     httpStatus: 201,
                 );
+                $this->prepareE2DestinationIfApplicable(
+                    $siteCode,
+                    $localUserId,
+                    $customer,
+                    $identity,
+                    $correlationId,
+                );
+
+                return $response;
             });
         } catch (RuntimeException $exception) {
             if (str_contains($exception->getMessage(), 'already exists')) {
@@ -374,5 +393,25 @@ final class CustomerIdentityResolveService
     private function isDuplicateCredentialException(QueryException $exception): bool
     {
         return str_contains($exception->getMessage(), 'central_customer_credentials_subject_uq');
+    }
+
+    /**
+     * @param  array<string, mixed>  $identity
+     */
+    private function prepareE2DestinationIfApplicable(
+        string $siteCode,
+        string $localUserId,
+        CentralCustomer $customer,
+        array $identity,
+        ?string $correlationId,
+    ): void {
+        $this->e2VerificationDestination->prepareAfterTrustedVerification(
+            siteCode: $siteCode,
+            localUserId: $localUserId,
+            deskCustomerId: $customer->id,
+            cwid: $customer->central_wallet_id,
+            identity: $identity,
+            correlationId: $correlationId,
+        );
     }
 }

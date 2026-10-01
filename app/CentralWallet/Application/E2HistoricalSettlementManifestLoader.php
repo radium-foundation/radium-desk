@@ -66,7 +66,11 @@ final class E2HistoricalSettlementManifestLoader
         }
 
         $rows = $manifest['rows'];
-        if (count($rows) !== self::EXPECTED_COUNT) {
+        $expectedCount = (int) config(
+            'central_wallet.e2_historical_settlement.expected_count',
+            self::EXPECTED_COUNT,
+        );
+        if (count($rows) !== $expectedCount) {
             throw new InvalidArgumentException('e2_historical_settlement_count_mismatch');
         }
 
@@ -102,7 +106,11 @@ final class E2HistoricalSettlementManifestLoader
             $total = bcadd($total, $amount, 2);
         }
 
-        if (bccomp($total, self::EXPECTED_AMOUNT, 2) !== 0) {
+        $expectedAmount = (string) config(
+            'central_wallet.e2_historical_settlement.expected_amount',
+            self::EXPECTED_AMOUNT,
+        );
+        if (bccomp($total, $expectedAmount, 2) !== 0) {
             throw new InvalidArgumentException('e2_historical_settlement_amount_mismatch');
         }
     }

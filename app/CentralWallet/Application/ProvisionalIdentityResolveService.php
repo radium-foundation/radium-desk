@@ -17,6 +17,7 @@ final class ProvisionalIdentityResolveService
         private readonly LedgerService $ledger,
         private readonly AuditEventRecorder $auditEvents,
         private readonly HistoricalCohortProvisionalBalanceService $historicalCohortProvisional,
+        private readonly E2ProvisionalDisplayService $e2ProvisionalDisplay,
     ) {}
 
     /**
@@ -64,7 +65,23 @@ final class ProvisionalIdentityResolveService
         }
 
         if ($credentials->isEmpty()) {
-            return $this->historicalCohortProvisional->resolve(
+            $historical = $this->historicalCohortProvisional->resolve(
+                siteCode: $siteCode,
+                localUserId: $localUserId,
+                email: $email !== '' ? $email : null,
+                mobile: $mobile,
+                correlationId: $correlationId,
+            );
+
+            if ($historical['status'] === 200 || $historical['status'] === 409 || $historical['status'] === 422) {
+                return $historical;
+            }
+
+            if (($historical['body']['error'] ?? '') === 'source_reconciliation_required') {
+                return $historical;
+            }
+
+            return $this->e2ProvisionalDisplay->resolve(
                 siteCode: $siteCode,
                 localUserId: $localUserId,
                 email: $email !== '' ? $email : null,

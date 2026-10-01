@@ -37,7 +37,17 @@ For the immutable **220-refund / ₹127,328** IDENTITY_REQUIRED cohort (P-30-10-
 2. Desk confirms `(site_code, local_user_id)` is in the cohort manifest.
 3. If authoritative source wallet is resolved → **local spoke wallet spendable balance** returned as read-only.
 4. If source wallet unresolved → `source_reconciliation_required` (no invented balance).
-5. If not in cohort → unresolved.
+5. If not in cohort → fall through to Path C if enabled.
+
+#### Path C — E-2 historical manual refund cohort (52 refunds)
+
+For the immutable **52-refund / ₹34,517** E-2 cohort (P-30-10-19 / P-30-10-21), when `CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_VERIFICATION_ENABLED=true`:
+
+1. Spoke sends `email_verified=false` with **unverified email** (required for E-2 lookup).
+2. Desk matches normalized email hash against the E-2 verification cohort manifest (`order_email_hash`) on the same site.
+3. Returns **historical refund amount** as read-only provisional balance (`balance_source: historical_refund_amount_pending_verification`).
+4. Does **not** claim spoke-wallet provenance (`source_wallet_provenance: unavailable_not_reconstructed`).
+5. After trusted verification, `E2VerificationDestinationService` may assign Lane 4 journal destinations — **not** execute settlement.
 
 **Important policy distinctions:**
 

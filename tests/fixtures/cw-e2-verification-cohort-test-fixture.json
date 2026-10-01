@@ -1,0 +1,27 @@
+{
+  "cohort_id": "e2-identity-required-manual-wallet-unresolved-p30-10-19",
+  "prompt_id": "test-fixture-p30-10-22",
+  "rows": [
+    {
+      "refund_id": 91001,
+      "refund_amount": "717.00",
+      "site": "rdservice.in",
+      "order_number": "RD-TEST-91001",
+      "order_email_hash": "bdd662bf33ed0b24ed4ba1fb2d1ef75c74d4cbe1ccf3e2a49213038105b86bef"
+    },
+    {
+      "refund_id": 91002,
+      "refund_amount": "497.00",
+      "site": "rdservice.in",
+      "order_number": "RD-TEST-91002",
+      "order_email_hash": "bdd662bf33ed0b24ed4ba1fb2d1ef75c74d4cbe1ccf3e2a49213038105b86bef"
+    },
+    {
+      "refund_id": 91003,
+      "refund_amount": "500.00",
+      "site": "radiumbox.com",
+      "order_number": "RB-TEST-91003",
+      "order_email_hash": "b6fe869070fb5cb5e72ab4fc802f94f68d7748b5c2886dbc40b70418313474cd"
+    }
+  ]
+}

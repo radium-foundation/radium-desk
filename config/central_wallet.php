@@ -257,12 +257,24 @@ return [
             'CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_MANIFEST_PATH',
             storage_path('app/private/cw-e2-historical-settlement-manifest-p30-10-20.json'),
         ),
+        'verification_cohort_manifest_path' => env(
+            'CENTRAL_WALLET_E2_VERIFICATION_COHORT_MANIFEST_PATH',
+            storage_path('app/private/cw-e2-verification-cohort-manifest-p30-10-22.json'),
+        ),
         'expected_count' => 52,
         'expected_amount' => '34517.00',
         'batch_id' => 'desk-refund-historical-settlement-e2-52-p30-10-20',
         'owner_approval_ref' => env(
             'CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_OWNER_APPROVAL_REF',
             'OWNER-CW-E2-HISTORICAL-SETTLEMENT-20261001-001',
+        ),
+        'verification_enabled' => filter_var(
+            env('CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_VERIFICATION_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        'execution_enabled' => filter_var(
+            env('CENTRAL_WALLET_E2_HISTORICAL_SETTLEMENT_EXECUTION_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
         ),
     ],
 
