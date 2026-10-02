@@ -2,7 +2,10 @@
 
 namespace Tests\Feature\CentralWallet;
 
+use App\CentralWallet\Domain\Enums\AccountLinkStatus;
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -94,17 +97,60 @@ class HistoricalContactIdentityMatchTest extends TestCase
             ->assertJsonPath('wallet_balance', '0.00');
     }
 
+    public function test_trusted_verified_email_link_with_zero_ledger_still_returns_historical_unverified(): void
+    {
+        $cwid = (string) Str::uuid();
+        $customerId = (string) Str::uuid();
+
+        \DB::table('central_wallets')->insert([
+            'id' => $cwid,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        \DB::table('central_customers')->insert([
+            'id' => $customerId,
+            'central_wallet_id' => $cwid,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        CentralWalletAccountLink::query()->create([
+            'central_wallet_id' => $cwid,
+            'desk_customer_id' => $customerId,
+            'site_code' => self::RDIN,
+            'local_user_id' => '3',
+            'status' => AccountLinkStatus::Active,
+            'verification_method' => 'verified_email',
+            'created_by' => 'test',
+            'linked_at' => now(),
+        ]);
+
+        $this->walletVisibility(self::RDIN, '3', 'unique@example.com', null, true)
+            ->assertOk()
+            ->assertJsonPath('wallet_balance', '499.00')
+            ->assertJsonPath('balance_status', 'unverified')
+            ->assertJsonPath('balance_source', 'historical_wallet_refund')
+            ->assertJsonPath('spendable', false)
+            ->assertJsonPath('verification_required', true)
+            ->assertJsonMissingPath('central_wallet_id')
+            ->assertJsonMissingPath('desk_customer_id');
+    }
+
     private function walletVisibility(
         string $site,
         string $localUserId,
         string $email,
         ?string $mobile = null,
+        bool $emailVerified = false,
     ): TestResponse {
         $query = [
             'site_code' => $site,
             'local_user_id' => $localUserId,
             'email' => $email,
-            'email_verified' => false,
+            'email_verified' => $emailVerified,
         ];
 
         if ($mobile !== null && $mobile !== '') {
