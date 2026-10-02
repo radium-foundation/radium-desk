@@ -675,6 +675,12 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 
 ---
 
+## RadiumDesk-P-02-10-03
+
+**Harden v4.1.0 RC before Owner tag authorization.** Fix `ChangelogServiceTest` to validate manifest-version contract (not `entries[0]`). Fix v4.0.168 regression: `WalletController` closure missing `$entryType` in `use (...)`. Re-run full wallet/CW regression gate. Release lineage: cherry-pick `1cbb36b0` + hardening onto `013ec2c6` baseline recommended. **Not tagged/deployed.**
+
+---
+
 ## RadiumDesk-P-02-10-02
 
 **Release candidate v4.1.0 — rdservice.net Central Wallet refund companion (Desk side).** Adds `RdServiceNetWalletRefundClient`, `config/rdservice_net.php`, `order_lookup.spokes.rdservice_net`, and guarded `WalletRefundExecutor` / `WalletRefundDestinationResolver` paths for RN/RA/RNP wallet refunds via rdservice.net spoke → Desk Central Wallet ledger. Flags `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED` and `RDSERVICE_NET_LOOKUP_ENABLED` default **OFF**. Companion to rdservice.net `c975940` (RDServiceNet-P-02-10-01). **Not tagged, not deployed, no financial mutation.**

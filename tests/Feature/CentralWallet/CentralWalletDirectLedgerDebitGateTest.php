@@ -8,6 +8,7 @@ use App\CentralWallet\Infrastructure\Persistence\CentralWalletIdempotencyRecord;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
+use Psr\Log\LoggerInterface;
 use Tests\TestCase;
 
 class CentralWalletDirectLedgerDebitGateTest extends TestCase
@@ -248,23 +249,37 @@ class CentralWalletDirectLedgerDebitGateTest extends TestCase
 
         $cwid = $this->fundWallet('25.00');
 
-        $this->withHeaders([
-            'Authorization' => 'Bearer '.self::TOKEN,
-        ])->postJson("/api/central-wallet/v1/wallets/{$cwid}/ledger-entries", [
-            'idempotency_key' => 'internal-debit-gate-off',
-            'entry_type' => 'debit',
-            'amount' => '5.00',
-            'source_system' => 'radiumbox.com',
-        ])->assertCreated();
+        $this->withoutHeader('X-Site-Code')
+            ->withHeaders([
+                'Authorization' => 'Bearer '.self::TOKEN,
+            ])->postJson("/api/central-wallet/v1/wallets/{$cwid}/ledger-entries", [
+                'idempotency_key' => 'internal-debit-gate-off',
+                'entry_type' => 'debit',
+                'amount' => '5.00',
+                'source_system' => 'radiumbox.com',
+            ])->assertCreated();
     }
 
     public function test_gate_off_emits_safe_operational_log_without_secrets(): void
     {
         config(['central_wallet.direct_ledger_debit.enabled' => false]);
 
-        Log::spy();
-
         $cwid = $this->fundWallet('20.00');
+
+        $logChannel = \Mockery::mock(LoggerInterface::class);
+        Log::shouldReceive('channel')
+            ->once()
+            ->with((string) config('central_wallet.log_channel', 'stack'))
+            ->andReturn($logChannel);
+        $logChannel->shouldReceive('info')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'central_wallet.direct_ledger_debit.rejected'
+                    && ($context['caller_id'] ?? null) === 'radiumbox.com'
+                    && ($context['reason'] ?? null) === 'direct_ledger_debit_disabled'
+                    && ! array_key_exists('Authorization', $context)
+                    && ! array_key_exists('token', $context);
+            });
 
         $this->authenticatedAs('radiumbox.com')->postJson("/api/central-wallet/v1/wallets/{$cwid}/ledger-entries", [
             'idempotency_key' => 'debit-log',
@@ -272,16 +287,6 @@ class CentralWalletDirectLedgerDebitGateTest extends TestCase
             'amount' => '5.00',
             'source_system' => 'radiumbox.com',
         ])->assertStatus(503);
-
-        Log::shouldHaveReceived('info')
-            ->withArgs(function (string $message, array $context): bool {
-                return $message === 'central_wallet.direct_ledger_debit.rejected'
-                    && ($context['caller_id'] ?? null) === 'radiumbox.com'
-                    && ($context['reason'] ?? null) === 'direct_ledger_debit_disabled'
-                    && ! array_key_exists('Authorization', $context)
-                    && ! array_key_exists('token', $context);
-            })
-            ->once();
     }
 
     public function test_source_system_spoof_protection_unchanged_when_gate_off(): void
