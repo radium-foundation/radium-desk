@@ -8,6 +8,7 @@ use App\CentralWallet\Domain\Enums\CustomerIdentityCredentialType;
 use App\CentralWallet\Infrastructure\Persistence\CentralCustomer;
 use App\CentralWallet\Infrastructure\Persistence\CentralCustomerIdentityCredential;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
+use App\CentralWallet\Support\AccountLinkIdentityMetadata;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -21,6 +22,7 @@ final class CustomerIdentityResolveService
         private readonly CentralWalletService $wallets,
         private readonly AccountLinkService $accountLinks,
         private readonly AuditEventRecorder $auditEvents,
+        private readonly CrossCredentialContinuityService $crossCredentialContinuity,
         private readonly E2VerificationDestinationService $e2VerificationDestination,
         private readonly E1VerificationDestinationService $e1VerificationDestination,
     ) {}
@@ -114,6 +116,28 @@ final class CustomerIdentityResolveService
                 }
 
                 if ($customer === null) {
+                    $continuity = $this->crossCredentialContinuity->resolveCustomer(
+                        $siteCode,
+                        $localUserId,
+                        $credential,
+                        $correlationId,
+                    );
+
+                    if ($continuity['status'] === 'ambiguous') {
+                        return [
+                            'status' => 409,
+                            'body' => ['error' => 'identity_ambiguous'],
+                        ];
+                    }
+
+                    if ($continuity['status'] === 'resolved' && isset($continuity['customer'])) {
+                        $customer = $continuity['customer'];
+                        $this->attachCredential($customer, $credential, $identity, $siteCode, $localUserId, $correlationId);
+                        $provisionAction = 'attached_credential_via_continuity';
+                    }
+                }
+
+                if ($customer === null) {
                     $customer = $this->provisionCustomer($credential, $identity, $siteCode, $localUserId, $correlationId);
                     $provisionAction = 'created_customer';
                 } else {
@@ -180,6 +204,14 @@ final class CustomerIdentityResolveService
                     correlationId: $correlationId,
                     deskCustomerId: $customer->id,
                 );
+
+                if ($credential['credential_type'] === CustomerIdentityCredentialType::VerifiedEmail) {
+                    $link->metadata = AccountLinkIdentityMetadata::withVerifiedEmailSubjectHash(
+                        $link->metadata,
+                        $credential['subject_hash'],
+                    );
+                    $link->save();
+                }
 
                 $this->auditEvents->record(
                     eventType: 'customer_identity.linked',
