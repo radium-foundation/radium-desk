@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Services\ChangelogService;
 use App\Services\Release\ReleaseManifestStore;
+use App\Services\VersionService;
 use Illuminate\Support\Facades\Process;
 use Tests\TestCase;
 
@@ -35,7 +36,7 @@ class ChangelogServiceTest extends TestCase
             '*' => Process::result(output: "abc1234\n"),
         ]);
 
-        $this->app->forgetInstance(\App\Services\VersionService::class);
+        $this->app->forgetInstance(VersionService::class);
     }
 
     protected function tearDown(): void
@@ -52,12 +53,31 @@ class ChangelogServiceTest extends TestCase
         $entries = app(ChangelogService::class)->entries();
 
         $this->assertNotEmpty($entries);
-        $this->assertSame('4.0.0', $entries[0]['version']);
-        $this->assertSame('2026-07-26', $entries[0]['release_date']);
-        $this->assertSame('P09 Workforce Platform Update', $entries[0]['title']);
-        $this->assertTrue($entries[0]['is_current']);
-        $this->assertSame('testing', $entries[0]['environment']);
-        $this->assertSame('abc1234', $entries[0]['git_commit']);
+
+        $current = $this->entryForVersion($entries, '4.0.0');
+
+        $this->assertNotNull($current);
+        $this->assertSame('2026-07-26', $current['release_date']);
+        $this->assertSame('P09 Workforce Platform Update', $current['title']);
+        $this->assertTrue($current['is_current']);
+        $this->assertSame('testing', $current['environment']);
+        $this->assertSame('abc1234', $current['git_commit']);
+
+        foreach ($entries as $entry) {
+            if ($entry['version'] === '4.0.0') {
+                continue;
+            }
+
+            $this->assertFalse($entry['is_current'], 'Only the manifest version should be marked current.');
+        }
+    }
+
+    public function test_newest_changelog_entry_is_not_necessarily_current(): void
+    {
+        $entries = app(ChangelogService::class)->entries();
+
+        $this->assertSame('4.1.0', $entries[0]['version']);
+        $this->assertFalse($entries[0]['is_current']);
     }
 
     public function test_current_release_entries_returns_only_matching_version(): void
@@ -74,20 +94,20 @@ class ChangelogServiceTest extends TestCase
     public function test_current_release_entries_empty_when_version_has_no_changelog_section(): void
     {
         (new ReleaseManifestStore)->write([
-            'version' => '4.0.2',
-            'tag' => 'v4.0.2',
+            'version' => '4.99.99',
+            'tag' => 'v4.99.99',
             'build' => '6b1b3f7',
             'deployed_at' => '2026-07-28T00:00:00+00:00',
             'release_date' => '2026-07-26',
         ]);
 
-        $this->app->forgetInstance(\App\Services\VersionService::class);
+        $this->app->forgetInstance(VersionService::class);
 
         $service = app(ChangelogService::class);
 
         $this->assertSame([], $service->currentReleaseEntries());
         $this->assertFalse($service->entries()[0]['is_current']);
-        $this->assertSame('Release notes for v4.0.2 are not available.', $service->missingReleaseNotesMessage());
+        $this->assertSame('Release notes for v4.99.99 are not available.', $service->missingReleaseNotesMessage());
         $this->assertStringNotContainsString('Workforce availability intelligence', json_encode($service->currentReleaseEntries()));
     }
 
@@ -96,7 +116,9 @@ class ChangelogServiceTest extends TestCase
         $service = app(ChangelogService::class);
 
         $this->assertTrue($service->hasEntryForVersion('4.0.0'));
-        $this->assertFalse($service->hasEntryForVersion('4.0.2'));
+        $this->assertTrue($service->hasEntryForVersion('4.1.0'));
+        $this->assertTrue($service->hasEntryForVersion('4.0.2'));
+        $this->assertFalse($service->hasEntryForVersion('4.99.99'));
     }
 
     public function test_legacy_header_without_version_is_never_marked_current(): void
@@ -121,5 +143,20 @@ MARKDOWN);
         } finally {
             file_put_contents($path, $original);
         }
+    }
+
+    /**
+     * @param  list<array{version: string|null, title: string, release_date: string|null, environment: string|null, git_commit: string|null, is_current: bool, items: list<string>}>  $entries
+     * @return array{version: string|null, title: string, release_date: string|null, environment: string|null, git_commit: string|null, is_current: bool, items: list<string>}|null
+     */
+    private function entryForVersion(array $entries, string $version): ?array
+    {
+        foreach ($entries as $entry) {
+            if ($entry['version'] === $version) {
+                return $entry;
+            }
+        }
+
+        return null;
     }
 }

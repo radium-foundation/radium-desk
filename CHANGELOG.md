@@ -3,6 +3,7 @@
 ## 4.1.0 — 2026-10-02 — rdservice.net Central Wallet refund destination (companion, flag OFF)
 
 - **rdservice.net wallet refunds:** When `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED=true` and the `rdservice_net` order-lookup spoke is configured, Desk wallet approvals and execution for RN/RA/RNP orders POST to rdservice.net `/api/integrations/v1/wallet-refunds`. The spoke resolves trusted identity and credits the authoritative Desk Central Wallet ledger — not a local spoke wallet.
+- **Central Wallet hotfix:** `WalletController::appendLedgerEntry` closure now captures `$entryType` correctly (regression from v4.0.168 direct-debit gate refactor). Restores external ledger credit/debit append after gate check.
 - **Fail-closed defaults:** Both `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED` and `RDSERVICE_NET_LOOKUP_ENABLED` remain **false**. With flags off, rdservice.net wallet approval/execution continues to reject with the existing Cashfree/other payout guidance.
 - **Preserved:** rdservice.in and RadiumBox wallet refund clients/executors, Cashfree and bank-transfer payout paths, refund approval/outbox gates, and Central Wallet ledger SSOT unchanged. Desk does not trust spoke-provided CWIDs or create identity from contact fields alone.
 - **Companion:** Requires rdservice.net `CENTRAL_WALLET_REFUND_DESTINATION_ENABLED` (also default **false**) from commit `c975940` (RDServiceNet-P-02-10-01). **Not deployed to production in this release.**

@@ -151,7 +151,7 @@ final class WalletController
             $callerId,
             $validated['idempotency_key'],
             $requestHash,
-            function () use ($cwid, $validated, $correlationId, $sourceSystem): array {
+            function () use ($cwid, $validated, $correlationId, $sourceSystem, $entryType): array {
                 try {
                     $entry = $this->ledger->appendEntry(
                         centralWalletId: $cwid,
