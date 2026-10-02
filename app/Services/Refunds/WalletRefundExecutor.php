@@ -8,6 +8,7 @@ use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\RadiumBox\RadiumBoxWalletRefundClient;
 use App\Services\RdService\RdServiceInWalletRefundClient;
+use App\Services\RdService\RdServiceNetWalletRefundClient;
 use App\Support\Money\WalletMoney;
 use Illuminate\Validation\ValidationException;
 
@@ -15,6 +16,7 @@ class WalletRefundExecutor implements RefundExecutor
 {
     public function __construct(
         private readonly RdServiceInWalletRefundClient $rdServiceInWalletRefundClient,
+        private readonly RdServiceNetWalletRefundClient $rdServiceNetWalletRefundClient,
         private readonly RadiumBoxWalletRefundClient $radiumBoxWalletRefundClient,
         private readonly WalletRefundDestinationResolver $destinations,
     ) {}
@@ -45,6 +47,16 @@ class WalletRefundExecutor implements RefundExecutor
 
         if ($this->destinations->isRdServiceIn($orderId)) {
             return $this->creditRdServiceIn($refund, $actor, $payload, $orderId, $amount);
+        }
+
+        if ($this->destinations->isRdServiceNet($orderId)) {
+            if (! $this->destinations->supportsAutomatedWalletCredit($orderId)) {
+                throw ValidationException::withMessages([
+                    'refund' => $this->destinations->unsupportedAutomatedWalletCreditMessage($orderId),
+                ]);
+            }
+
+            return $this->creditRdServiceNet($refund, $actor, $payload, $orderId, $amount);
         }
 
         if ($this->destinations->isRadiumBox($orderId)) {
@@ -89,6 +101,42 @@ class WalletRefundExecutor implements RefundExecutor
             payload: $payload,
             defaultRemark: 'Wallet credited automatically via rdservice.in integration.',
             extra: ['wallet_balance' => $credit['balance']],
+        );
+    }
+
+    /**
+     * @param  array{remarks?: string|null}  $payload
+     * @return array{provider: string, reference_number: string|null, transaction_id: string|null, remarks: string|null, metadata: array<string, mixed>}
+     */
+    private function creditRdServiceNet(
+        RefundRequest $refund,
+        User $actor,
+        array $payload,
+        string $orderId,
+        string $amount,
+    ): array {
+        if (! $this->rdServiceNetWalletRefundClient->isConfigured()) {
+            throw ValidationException::withMessages([
+                'refund' => 'rdservice.net wallet credit is not configured. Wallet refunds cannot fall back to manual completion.',
+            ]);
+        }
+
+        $credit = $this->rdServiceNetWalletRefundClient->creditWalletRefund(
+            deskRefundReference: (string) $refund->reference_no,
+            orderId: $orderId,
+            amount: $amount,
+            customerEmail: $refund->order?->customer_email,
+        );
+
+        return $this->executionResult(
+            provider: 'rdservice_net_central_wallet',
+            walletReference: $credit['wallet_reference'],
+            walletTransactionId: (string) $credit['wallet_transaction_id'],
+            refund: $refund,
+            actor: $actor,
+            payload: $payload,
+            defaultRemark: 'Central Wallet credited automatically via rdservice.net integration.',
+            extra: ['wallet_balance' => $credit['balance'], 'destination' => 'central_wallet'],
         );
     }
 

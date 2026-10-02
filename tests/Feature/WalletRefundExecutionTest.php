@@ -437,6 +437,116 @@ class WalletRefundExecutionTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_rdservice_net_wallet_refund_posts_idempotent_central_wallet_credit_when_configured(): void
+    {
+        config([
+            'rdservice_net.wallet_refund_credit_enabled' => true,
+            'order_lookup.spokes.rdservice_net.enabled' => true,
+            'order_lookup.spokes.rdservice_net.base_url' => 'https://rdservice.net.test',
+            'order_lookup.spokes.rdservice_net.token' => 'desk-rdservice-net-wallet-token',
+            'order_lookup.spokes.rdservice_net.connect_timeout_seconds' => 3,
+            'order_lookup.spokes.rdservice_net.timeout_seconds' => 8,
+        ]);
+
+        Http::fake([
+            'https://rdservice.net.test/api/integrations/v1/wallet-refunds' => Http::response([
+                'status' => 201,
+                'message' => 'Central Wallet credit created',
+                'data' => [
+                    'wallet_transaction_id' => 56,
+                    'wallet_reference' => '50ff2e87-1111-2222-3333-444444444444',
+                    'source_system' => 'radium_desk',
+                    'desk_refund_reference' => 'REF-67366',
+                    'credit' => '599.00',
+                    'currency' => 'INR',
+                    'balance' => '599.00',
+                ],
+            ], 201),
+        ]);
+
+        [$ops, $refund] = $this->pendingWalletRefundFixture('RN158', '599.00', 'REF-67366');
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [])
+            ->assertRedirect(route('refunds.show', $refund))
+            ->assertSessionHas('status', 'refund-completed');
+
+        $refund->refresh();
+        $this->assertContains($refund->status, [RefundStatus::Completed, RefundStatus::Closed]);
+        $this->assertSame('50ff2e87-1111-2222-3333-444444444444', $refund->execution_reference_no);
+        $this->assertSame('56', $refund->execution_transaction_id);
+
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://rdservice.net.test/api/integrations/v1/wallet-refunds'
+                && $request['source_system'] === 'radium_desk'
+                && $request['desk_refund_reference'] === 'REF-67366'
+                && $request['order_id'] === 'RN158'
+                && $request['amount'] === '599.00'
+                && $request['currency'] === 'INR'
+                && $request['customer_email'] === 'customer@example.com';
+        });
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'rdservice.in.test'));
+    }
+
+    public function test_rdservice_net_duplicate_http_200_does_not_fail_completion(): void
+    {
+        config([
+            'rdservice_net.wallet_refund_credit_enabled' => true,
+            'order_lookup.spokes.rdservice_net.enabled' => true,
+            'order_lookup.spokes.rdservice_net.base_url' => 'https://rdservice.net.test',
+            'order_lookup.spokes.rdservice_net.token' => 'desk-rdservice-net-wallet-token',
+        ]);
+
+        Http::fake([
+            'https://rdservice.net.test/api/integrations/v1/wallet-refunds' => Http::response([
+                'status' => 200,
+                'message' => 'Central Wallet credit already exists',
+                'data' => [
+                    'wallet_transaction_id' => 57,
+                    'wallet_reference' => '50ff2e87-2222-3333-4444-555555555555',
+                    'desk_refund_reference' => 'REF-NET-IDEM',
+                    'credit' => '199.50',
+                    'currency' => 'INR',
+                    'balance' => '199.50',
+                ],
+            ], 200),
+        ]);
+
+        [$ops, $refund] = $this->pendingWalletRefundFixture('RN159', '199.50', 'REF-NET-IDEM');
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [])
+            ->assertRedirect(route('refunds.show', $refund));
+
+        $refund->refresh();
+        $this->assertSame('50ff2e87-2222-3333-4444-555555555555', $refund->execution_reference_no);
+    }
+
+    public function test_rdservice_net_api_timeout_leaves_refund_pending_execution(): void
+    {
+        config([
+            'rdservice_net.wallet_refund_credit_enabled' => true,
+            'order_lookup.spokes.rdservice_net.enabled' => true,
+            'order_lookup.spokes.rdservice_net.base_url' => 'https://rdservice.net.test',
+            'order_lookup.spokes.rdservice_net.token' => 'desk-rdservice-net-wallet-token',
+        ]);
+
+        Http::fake([
+            'https://rdservice.net.test/api/integrations/v1/wallet-refunds' => function () {
+                throw new ConnectionException('timed out');
+            },
+        ]);
+
+        [$ops, $refund] = $this->pendingWalletRefundFixture('RN160', '100.00', 'REF-NET-TIMEOUT');
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [])
+            ->assertSessionHasErrors('refund');
+
+        $refund->refresh();
+        $this->assertSame(RefundStatus::PendingExecution, $refund->status);
+    }
+
     /**
      * @return array{0: User, 1: RefundRequest}
      */

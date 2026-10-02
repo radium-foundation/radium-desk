@@ -34,6 +34,15 @@ return [
             'accepts' => ['rd', 'rde', 'rb', 'rbp', 'rbx'],
             'historical_invoice_path' => '/api/integrations/v1/historical-invoices/',
         ],
+        'rdservice_net' => [
+            'enabled' => filter_var(env('RDSERVICE_NET_LOOKUP_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'base_url' => rtrim((string) env('RDSERVICE_NET_BASE_URL', 'https://rdservice.net'), '/'),
+            'host' => trim((string) env('RDSERVICE_NET_HOST', '')),
+            'token' => env('RDSERVICE_NET_DESK_TOKEN', env('DESK_ORDER_API_TOKEN')),
+            'connect_timeout_seconds' => max(1, (int) env('RDSERVICE_NET_CONNECT_TIMEOUT_SECONDS', 3)),
+            'timeout_seconds' => max(1, (int) env('RDSERVICE_NET_TIMEOUT_SECONDS', 8)),
+            'accepts' => ['rn', 'ra', 'rnp'],
+        ],
     ],
 
 ];

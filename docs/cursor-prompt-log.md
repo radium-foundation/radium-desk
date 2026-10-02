@@ -667,6 +667,30 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 
 ---
 
+## RadiumDesk-P-02-10-02
+
+**Release candidate v4.1.0 — rdservice.net Central Wallet refund companion (Desk side).** Adds `RdServiceNetWalletRefundClient`, `config/rdservice_net.php`, `order_lookup.spokes.rdservice_net`, and guarded `WalletRefundExecutor` / `WalletRefundDestinationResolver` paths for RN/RA/RNP wallet refunds via rdservice.net spoke → Desk Central Wallet ledger. Flags `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED` and `RDSERVICE_NET_LOOKUP_ENABLED` default **OFF**. Companion to rdservice.net `c975940` (RDServiceNet-P-02-10-01). **Not tagged, not deployed, no financial mutation.**
+
+---
+
+## RadiumDesk-P-30-10-48
+
+**Provenance-ready identity establishment & Class-C destination investigation (read-only)** — Workstreams A–D on remaining **239/₹137,633**. **A:** 8 provenance-ready rdin refunds all **NO_TRUSTED_IDENTITY** (no Desk link/credential; unspent spoke proven). **B:** 11 Class-C trusted-identity refunds all **NO_FINANCIAL_DESTINATION_PROOF** (no `desk_refund_reference` wallet row; weak message hits rejected). **C:** 15 class-D ambiguity packet — cross-site `users_wallet.id` collision confirmed (same ID, different site/user/refund). **D:** #364/#365 POST_MANIFEST append proposal confirmed. **No mutation.**
+
+---
+
+## RadiumDesk-P-30-10-47
+
+**Group-wide refund identity/provenance resolution (read-only)** — deep forensic on remaining **239/₹137,633**. Production evidence matrix: **0** `IDENTITY_AND_PROVENANCE_READY`; **8** `PROVENANCE_READY` (₹4,190); **11** `IDENTITY_READY` (₹5,815); **15** `AMBIGUOUS` (₹7,870, class D); **55** `NO_TRUSTED_IDENTITY`; **148** `NO_FINANCIAL_DESTINATION_PROOF`; **2** `POST_MANIFEST`. Class C (**157**) all lack `execution_transaction_id`. **74** active Desk account links. **No mutation.**
+
+---
+
+## RadiumDesk-P-30-10-46
+
+**Group-wide historical wallet/refund forensic gate (read-only)** — post refund **#300** migration. Production SELECT on `radium_desk`, `rdservice_in_prod`, `radiumbox_prod`, `rdservice_net`, `rdserviceonline`, `radiumsign_prod`. Verified reconciled **55 / ₹29,073**; remaining terminal wallet **239 / ₹137,633**; manifest cohort **292 / ₹165,708**. Refund **#300** canonical CW ledger credit **#55** ₹499 confirmed; rdin retirement row **#2661**. **No financial/code/git/deploy mutation.**
+
+---
+
 ## RadiumDesk-P-30-10-42
 
 **Refund #300 visibility unprotection + Owner rule alignment** (read-only visibility only): `protected_refund_ids` now env-driven (`CENTRAL_WALLET_HISTORICAL_PROTECTED_REFUND_IDS`, default empty) — removes hardcoded refund **300** protection under current Owner rule (all Desk wallet refunds visible on Box + rdin regardless of origin). Tests: refund **300** visible **₹499.00 unverified** on both sites when in contact index and not protected; remains hidden when explicitly protected. **No CW ledger credit; no local wallet mutation; no migration.** PHPUnit **29/29** historical visibility tests PASS. Production surgical overlay `deploy-backups-p30-10-42-20261001T185136Z` @ `cb192174`; contact index rebuilt **293 / ₹165,989** (includes refund **300**). Post-deploy probe user **3** / `ravithelavi@gmail.com`: Box + rdin **₹499.00 unverified**, `spendable=false`. Ledger **54** rows unchanged; financial execution flags **OFF**.
