@@ -42,6 +42,7 @@ use App\CentralWallet\Application\HistoricalWalletVisibilityService;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\IdentityRequiredCohortManifestLoader;
 use App\CentralWallet\Application\IntegrationSourceSystemResolver;
+use App\CentralWallet\Application\CustomerLedgerHistoryAuthorizationGate;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
 use App\CentralWallet\Application\MigrationControlledCwidProvisionService;
@@ -158,6 +159,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(HistoricalWalletVisibilityService::class);
         $this->app->singleton(ProvisionalIdentityResolveService::class);
         $this->app->singleton(TrustedFinancialAuthorizationGate::class);
+        $this->app->singleton(CustomerLedgerHistoryAuthorizationGate::class);
         $this->app->singleton(LedgerService::class);
         $this->app->singleton(IntegrationSourceSystemResolver::class);
         $this->app->singleton(ExternalDirectLedgerDebitGate::class);

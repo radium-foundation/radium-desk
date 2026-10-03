@@ -117,6 +117,45 @@ final class LedgerEntryReadService
     }
 
     /**
+     * Cross-spoke Central Wallet customer history for an explicitly authorized caller.
+     *
+     * @param  array{
+     *     limit: int,
+     *     cursor: ?LedgerEntryCursor,
+     *     source_reference: ?string,
+     *     business_reference: ?string,
+     *     correlation_id: ?string,
+     *     entry_type: ?LedgerEntryType,
+     *     status: ?LedgerEntryStatus,
+     *     status_explicit: bool,
+     *     posted_from: ?CarbonImmutable,
+     *     posted_to: ?CarbonImmutable,
+     *     central_wallet_id: ?string,
+     *     ledger_entry_id: ?int,
+     * }  $parameters
+     * @return array{
+     *     data: list<array<string, mixed>>,
+     *     pagination: array{limit: int, next_cursor: ?string, has_more: bool},
+     * }
+     */
+    public function listCustomerHistoryForWallet(string $centralWalletId, array $parameters): array
+    {
+        Cwid::fromString($centralWalletId);
+
+        /** @var list<string> $authorizedSourceSystems */
+        $authorizedSourceSystems = config('central_wallet.ledger_read.customer_history.authorized_source_systems', []);
+        if ($authorizedSourceSystems === []) {
+            throw new InvalidArgumentException('customer_history_not_configured');
+        }
+
+        $query = CentralWalletLedgerEntry::query()
+            ->where('central_wallet_id', $centralWalletId)
+            ->whereIn('source_system', $authorizedSourceSystems);
+
+        return $this->paginateCustomerHistory($query, $parameters);
+    }
+
+    /**
      * @return Builder<CentralWalletLedgerEntry>
      */
     private function baseCallerQuery(string $callerId): Builder
@@ -254,6 +293,83 @@ final class LedgerEntryReadService
                 ->orWhere(function (Builder $inner) use ($postedAt, $cursor): void {
                     $inner->where('posted_at', $postedAt)
                         ->where('id', '>', $cursor->id);
+                });
+        });
+    }
+
+    /**
+     * @param  Builder<CentralWalletLedgerEntry>  $query
+     * @param  array{
+     *     limit: int,
+     *     cursor: ?LedgerEntryCursor,
+     *     source_reference: ?string,
+     *     business_reference: ?string,
+     *     correlation_id: ?string,
+     *     entry_type: ?LedgerEntryType,
+     *     status: ?LedgerEntryStatus,
+     *     status_explicit: bool,
+     *     posted_from: ?CarbonImmutable,
+     *     posted_to: ?CarbonImmutable,
+     *     central_wallet_id: ?string,
+     *     ledger_entry_id: ?int,
+     * }  $parameters
+     * @return array{
+     *     data: list<array<string, mixed>>,
+     *     pagination: array{limit: int, next_cursor: ?string, has_more: bool},
+     * }
+     */
+    private function paginateCustomerHistory(Builder $query, array $parameters): array
+    {
+        $this->applyFilters($query, $parameters);
+
+        if ($parameters['cursor'] !== null) {
+            $this->applyKeysetCursorDescending($query, $parameters['cursor']);
+        }
+
+        $limit = $parameters['limit'];
+
+        $entries = $query
+            ->orderByDesc('posted_at')
+            ->orderByDesc('id')
+            ->limit($limit + 1)
+            ->get();
+
+        $hasMore = $entries->count() > $limit;
+        if ($hasMore) {
+            $entries = $entries->slice(0, $limit)->values();
+        }
+
+        $data = $entries
+            ->map(static fn (CentralWalletLedgerEntry $entry): array => LedgerEntryResource::toArray($entry))
+            ->all();
+
+        $nextCursor = null;
+        if ($hasMore && $entries->isNotEmpty()) {
+            $nextCursor = LedgerEntryCursor::fromEntry($entries->last())->encode();
+        }
+
+        return [
+            'data' => $data,
+            'pagination' => [
+                'limit' => $limit,
+                'next_cursor' => $nextCursor,
+                'has_more' => $hasMore,
+            ],
+        ];
+    }
+
+    /**
+     * @param  Builder<CentralWalletLedgerEntry>  $query
+     */
+    private function applyKeysetCursorDescending(Builder $query, LedgerEntryCursor $cursor): void
+    {
+        $postedAt = $cursor->postedAt;
+
+        $query->where(function (Builder $builder) use ($postedAt, $cursor): void {
+            $builder->where('posted_at', '<', $postedAt)
+                ->orWhere(function (Builder $inner) use ($postedAt, $cursor): void {
+                    $inner->where('posted_at', $postedAt)
+                        ->where('id', '<', $cursor->id);
                 });
         });
     }
