@@ -190,6 +190,41 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Wallet refund destination identity (canonical email/mobile match)
+    |--------------------------------------------------------------------------
+    |
+    | Resolves CWID for wallet refund credits. Verification and spoke trusted
+    | links are not required; spending authorization remains separate.
+    |
+    */
+
+    'wallet_refund_destination' => [
+        'enabled' => filter_var(
+            env('CENTRAL_WALLET_WALLET_REFUND_DESTINATION_ENABLED', true),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customer identity → CWID ensure (default ON)
+    |--------------------------------------------------------------------------
+    |
+    | Ensures valid spoke customers resolve to exactly one Desk Central Wallet.
+    | Used by wallet-refund-destination and integration ensure paths.
+    | Does NOT authorize spending — trusted verification remains separate.
+    |
+    */
+
+    'customer_identity_ensure' => [
+        'enabled' => filter_var(
+            env('CENTRAL_WALLET_CUSTOMER_IDENTITY_ENSURE_ENABLED', true),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | IDENTITY_REQUIRED historical cohort (220 refunds — default OFF)
     |--------------------------------------------------------------------------
     |

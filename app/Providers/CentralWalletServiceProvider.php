@@ -39,6 +39,8 @@ use App\CentralWallet\Application\HistoricalCohortProvisionalBalanceService;
 use App\CentralWallet\Application\HistoricalContactIdentityMatchService;
 use App\CentralWallet\Application\HistoricalVisibilityContactIndexLoader;
 use App\CentralWallet\Application\HistoricalWalletVisibilityService;
+use App\CentralWallet\Application\CentralWalletCustomerIdentityEnsureService;
+use App\CentralWallet\Application\WalletRefundDestinationIdentityService;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\IdentityRequiredCohortManifestLoader;
 use App\CentralWallet\Application\IntegrationSourceSystemResolver;
@@ -157,6 +159,8 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(HistoricalVisibilityContactIndexLoader::class);
         $this->app->singleton(HistoricalContactIdentityMatchService::class);
         $this->app->singleton(HistoricalWalletVisibilityService::class);
+        $this->app->singleton(CentralWalletCustomerIdentityEnsureService::class);
+        $this->app->singleton(WalletRefundDestinationIdentityService::class);
         $this->app->singleton(ProvisionalIdentityResolveService::class);
         $this->app->singleton(TrustedFinancialAuthorizationGate::class);
         $this->app->singleton(CustomerLedgerHistoryAuthorizationGate::class);
