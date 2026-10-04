@@ -673,6 +673,12 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 
 ---
 
+## RadiumDesk-P-04-10-02
+
+**Deploy Central Wallet historical visibility API (`GET /api/central-wallet/v1/wallet-visibility`).** Surgical overlay to KVM `/var/www/radium-desk`: 9 application PHP files + routes/provider/config patches. Backup `radium-desk-p041002-wallet-visibility-20261004T130300Z`. Historical visibility tests **30/30** PASS pre-deploy. Production: route registered; health 200; unauth 401; rdnet trusted user **3** ₹399 preserved; rdnet user **546179** provisional ₹1079 unverified/non-spendable; RN153 no match. Ledger **57** unchanged. REF-67354 not executed.
+
+---
+
 ## RadiumDesk-P-02-10-02
 
 **Release candidate v4.1.0 — rdservice.net Central Wallet refund companion (Desk side).** Adds `RdServiceNetWalletRefundClient`, `config/rdservice_net.php`, `order_lookup.spokes.rdservice_net`, and guarded `WalletRefundExecutor` / `WalletRefundDestinationResolver` paths for RN/RA/RNP wallet refunds via rdservice.net spoke → Desk Central Wallet ledger. Flags `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED` and `RDSERVICE_NET_LOOKUP_ENABLED` default **OFF**. Companion to rdservice.net `c975940` (RDServiceNet-P-02-10-01). **Not tagged, not deployed, no financial mutation.**
@@ -700,3 +706,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-30-10-42
 
 **Refund #300 visibility unprotection + Owner rule alignment** (read-only visibility only): `protected_refund_ids` now env-driven (`CENTRAL_WALLET_HISTORICAL_PROTECTED_REFUND_IDS`, default empty) — removes hardcoded refund **300** protection under current Owner rule (all Desk wallet refunds visible on Box + rdin regardless of origin). Tests: refund **300** visible **₹499.00 unverified** on both sites when in contact index and not protected; remains hidden when explicitly protected. **No CW ledger credit; no local wallet mutation; no migration.** PHPUnit **29/29** historical visibility tests PASS. Production surgical overlay `deploy-backups-p30-10-42-20261001T185136Z` @ `cb192174`; contact index rebuilt **293 / ₹165,989** (includes refund **300**). Post-deploy probe user **3** / `ravithelavi@gmail.com`: Box + rdin **₹499.00 unverified**, `spendable=false`. Ledger **54** rows unchanged; financial execution flags **OFF**.
+
+---
+
+## RadiumDesk-P-04-10-01
+
+**Enable existing rdservice.net Wallet-refund infrastructure (production flags only).** Owner-authorized `/var/www/radium-desk/.env`: `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED=true` and `RDSERVICE_NET_LOOKUP_ENABLED=true` (keys were absent; runtime was false). Backup `/var/backups/radium-desk/overlays/p-04-10-01-env-20261004T121233Z/.env` sha256 `ba1950c5c0e226d8b5f33e09277dec23f95015cf502c06b1131fbdfe0b2a5495`. `config:clear` only; config cache remains absent. Runtime: spoke enabled, resolver `isRdServiceNetWalletRefundConfigured=true`. rdservice.in and RadiumBox wallet flags unchanged. REF-67354 still pending; ledger **57** / max id **57** unchanged. No code, refund, credit, or link. Companion `RDServiceNet-P-04-10-02`.
