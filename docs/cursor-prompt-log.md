@@ -709,6 +709,12 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 
 ---
 
+## RadiumDesk-P-04-10-05
+
+**Deploy Central Wallet identity ensure + refund destination to production Desk (Step 1/4).** Surgical overlay to KVM `/var/www/radium-desk`: `CentralWalletCustomerIdentityEnsureService`, `WalletRefundDestinationIdentityService`, `WalletRefundDestinationController`, routes/provider/config patches. Backup `/home/ravi/backups/radium-desk-p041005-identity-ensure-20261004T142042Z`. Pre-deploy tests **31/31** PASS. Post-deploy: `GET /wallet-refund-destination` live; unauth **401**; user **3** refund-dest **200** (`match_basis=account_link`, CWID `50ff2e87…`); wallet-visibility user **3** **₹399 verified/spendable** preserved; idempotent repeat **200** same CWID; ledger **57** unchanged. Non-financial ensure probe established 1 test identity (customers **73→74**, links **75→76**). REF-67354 not executed. rdservice.net/Box/rdin **not deployed**.
+
+---
+
 ## RadiumDesk-P-04-10-01
 
 **Enable existing rdservice.net Wallet-refund infrastructure (production flags only).** Owner-authorized `/var/www/radium-desk/.env`: `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED=true` and `RDSERVICE_NET_LOOKUP_ENABLED=true` (keys were absent; runtime was false). Backup `/var/backups/radium-desk/overlays/p-04-10-01-env-20261004T121233Z/.env` sha256 `ba1950c5c0e226d8b5f33e09277dec23f95015cf502c06b1131fbdfe0b2a5495`. `config:clear` only; config cache remains absent. Runtime: spoke enabled, resolver `isRdServiceNetWalletRefundConfigured=true`. rdservice.in and RadiumBox wallet flags unchanged. REF-67354 still pending; ledger **57** / max id **57** unchanged. No code, refund, credit, or link. Companion `RDServiceNet-P-04-10-02`.
