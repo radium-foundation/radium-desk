@@ -56,9 +56,9 @@ class Customer360WalletLedgerTest extends TestCase
                             'credit' => 400,
                             'debit' => null,
                             'status' => 'success',
-                            'message' => 'Wallet refund for order RD123 (Desk REF-2026-001234)',
+                            'message' => 'Wallet refund for order RB123 (Desk REF-2026-001234)',
                             'orderid' => 55,
-                            'order_code' => 'RD123',
+                            'order_code' => 'RB123',
                             'txnid' => 'RD99',
                             'desk_refund_reference' => 'REF-2026-001234',
                             'admin_id' => null,
@@ -71,7 +71,7 @@ class Customer360WalletLedgerTest extends TestCase
         ]);
 
         $financeUser = $this->financeUser();
-        [$incident, $refund] = $this->walletIncident($financeUser, 'wallet@example.com', 'RD123');
+        [$incident, $refund] = $this->walletIncident($financeUser, 'wallet@example.com', 'RB123');
 
         $response = $this->actingAs($financeUser)
             ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1')
@@ -134,7 +134,7 @@ class Customer360WalletLedgerTest extends TestCase
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        [$incident] = $this->walletIncident($agent, 'wallet@example.com', 'RD999');
+        [$incident] = $this->walletIncident($agent, 'wallet@example.com', 'RB999');
 
         $this->actingAs($agent)
             ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1')
@@ -155,7 +155,7 @@ class Customer360WalletLedgerTest extends TestCase
         ]);
 
         $financeUser = $this->financeUser();
-        [$incident] = $this->walletIncident($financeUser, 'customer-a@example.com', 'RD111');
+        [$incident] = $this->walletIncident($financeUser, 'customer-a@example.com', 'RB111');
 
         $this->actingAs($financeUser)
             ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1&customer_email=customer-b@example.com')
@@ -172,7 +172,7 @@ class Customer360WalletLedgerTest extends TestCase
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        [$incident] = $this->walletIncident($agent, 'wallet@example.com', 'RD222');
+        [$incident] = $this->walletIncident($agent, 'wallet@example.com', 'RB222');
 
         $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
@@ -190,7 +190,7 @@ class Customer360WalletLedgerTest extends TestCase
         ]);
 
         $financeUser = $this->financeUser();
-        [$incident] = $this->walletIncident($financeUser, 'wallet@example.com', 'RD333');
+        [$incident] = $this->walletIncident($financeUser, 'wallet@example.com', 'RB333');
 
         $this->actingAs($financeUser)
             ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1')

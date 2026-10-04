@@ -718,3 +718,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-01
 
 **Enable existing rdservice.net Wallet-refund infrastructure (production flags only).** Owner-authorized `/var/www/radium-desk/.env`: `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED=true` and `RDSERVICE_NET_LOOKUP_ENABLED=true` (keys were absent; runtime was false). Backup `/var/backups/radium-desk/overlays/p-04-10-01-env-20261004T121233Z/.env` sha256 `ba1950c5c0e226d8b5f33e09277dec23f95015cf502c06b1131fbdfe0b2a5495`. `config:clear` only; config cache remains absent. Runtime: spoke enabled, resolver `isRdServiceNetWalletRefundConfigured=true`. rdservice.in and RadiumBox wallet flags unchanged. REF-67354 still pending; ledger **57** / max id **57** unchanged. No code, refund, credit, or link. Companion `RDServiceNet-P-04-10-02`.
+
+---
+
+## RadiumDesk-P-04-10-06
+
+**Customer 360 Central Wallet ledger display (read-only).** Fix C360 wallet tab for `rdservice.net`/`rdservice.in` orders: resolve CWID read-only (account link → credential → refund ledger fallback); read Desk Central Wallet ledger via `LedgerEntryReadService::listCustomerHistoryForWallet`; preserve RadiumBox legacy path for `radiumbox.com` orders. Fixture mapping: REF-67354→CW:72 ₹731; REF-67366→CW:71 ₹599. Tests **18/18** PASS (legacy + CW feature + resolver unit). **Not deployed.** No production ledger/refund mutation.

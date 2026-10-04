@@ -15,6 +15,8 @@ class WalletLedgerReadService
 {
     public function __construct(
         private readonly RadiumBoxWalletLedgerClient $client,
+        private readonly WalletLedgerSourceResolver $sourceResolver,
+        private readonly Customer360CentralWalletLedgerReadService $centralWalletLedger,
     ) {}
 
     /**
@@ -24,6 +26,12 @@ class WalletLedgerReadService
     public function forIncident(Incident $incident, User $viewer, array $filters = []): array
     {
         $incident->loadMissing('order');
+
+        if ($this->sourceResolver->resolveForIncident($incident) === WalletLedgerSource::CentralWallet) {
+            $ledger = $this->centralWalletLedger->forIncident($incident, $viewer, $filters);
+
+            return $this->enrichTransactionLinks($ledger, $viewer);
+        }
 
         $email = $this->resolveCustomerEmail($incident);
 
@@ -88,6 +96,38 @@ class WalletLedgerReadService
         $transactions = is_array($data['transactions'] ?? null) ? $data['transactions'] : [];
         $balance = is_array($data['balance'] ?? null) ? $data['balance'] : [];
 
+        $ledger = [
+            'customer_email' => $email,
+            'incident_id' => $incident->id,
+            'balance' => [
+                'available' => round((float) ($balance['available'] ?? 0), 2),
+                'pending_credits' => round((float) ($balance['pending_credits'] ?? 0), 2),
+                'pending_debits' => round((float) ($balance['pending_debits'] ?? 0), 2),
+                'cached_wallet_amount' => isset($balance['cached_wallet_amount'])
+                    ? round((float) $balance['cached_wallet_amount'], 2)
+                    : null,
+            ],
+            'last_activity_at' => $this->formatIst($data['last_activity_at'] ?? null),
+            'transactions' => $transactions,
+            'pagination' => is_array($data['pagination'] ?? null) ? $data['pagination'] : [
+                'has_more' => false,
+                'next_before_id' => null,
+            ],
+            'show_running_balance' => false,
+            'wallet_source' => WalletLedgerSource::RadiumBoxLegacy->value,
+        ];
+
+        return $this->enrichTransactionLinks($ledger, $viewer);
+    }
+
+    /**
+     * @param  array<string, mixed>  $ledger
+     * @return array<string, mixed>
+     */
+    private function enrichTransactionLinks(array $ledger, User $viewer): array
+    {
+        $transactions = is_array($ledger['transactions'] ?? null) ? $ledger['transactions'] : [];
+
         $deskRefundReferences = collect($transactions)
             ->pluck('desk_refund_reference')
             ->filter(fn ($value) => is_string($value) && trim($value) !== '')
@@ -147,25 +187,9 @@ class WalletLedgerReadService
             ];
         })->values()->all();
 
-        return [
-            'customer_email' => $email,
-            'incident_id' => $incident->id,
-            'balance' => [
-                'available' => round((float) ($balance['available'] ?? 0), 2),
-                'pending_credits' => round((float) ($balance['pending_credits'] ?? 0), 2),
-                'pending_debits' => round((float) ($balance['pending_debits'] ?? 0), 2),
-                'cached_wallet_amount' => isset($balance['cached_wallet_amount'])
-                    ? round((float) $balance['cached_wallet_amount'], 2)
-                    : null,
-            ],
-            'last_activity_at' => $this->formatIst($data['last_activity_at'] ?? null),
-            'transactions' => $rows,
-            'pagination' => is_array($data['pagination'] ?? null) ? $data['pagination'] : [
-                'has_more' => false,
-                'next_before_id' => null,
-            ],
-            'show_running_balance' => false,
-        ];
+        $ledger['transactions'] = $rows;
+
+        return $ledger;
     }
 
     /**
@@ -182,6 +206,10 @@ class WalletLedgerReadService
 
         if ($status === 'pending') {
             $badges[] = 'Pending';
+        }
+
+        if (($transaction['wallet_source'] ?? '') === WalletLedgerSource::CentralWallet->value) {
+            $badges[] = 'Central Wallet';
         }
 
         if ($deskRefundReference !== '') {
