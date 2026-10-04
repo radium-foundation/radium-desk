@@ -724,3 +724,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-06
 
 **Customer 360 Central Wallet ledger display (read-only).** Fix C360 wallet tab for `rdservice.net`/`rdservice.in` orders: resolve CWID read-only (account link → credential → refund ledger fallback); read Desk Central Wallet ledger via `LedgerEntryReadService::listCustomerHistoryForWallet`; preserve RadiumBox legacy path for `radiumbox.com` orders. Fixture mapping: REF-67354→CW:72 ₹731; REF-67366→CW:71 ₹599. Tests **18/18** PASS (legacy + CW feature + resolver unit). **Not deployed.** No production ledger/refund mutation.
+
+---
+
+## RadiumDesk-P-04-10-07
+
+**Release/deploy C360 Central Wallet ledger visibility @ `7b2499b2`.** Approved release: full regression, production config gate, push, surgical KVM overlay, post-deploy C360 verification for RN153/REF-67354 and RN158/REF-67366; legacy RadiumBox wallet path regression. No financial mutation.
