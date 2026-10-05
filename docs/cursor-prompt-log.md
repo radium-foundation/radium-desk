@@ -736,3 +736,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-08
 
 **Fix rdservice.in refund response parser for Central Wallet references.** `RdServiceInWalletRefundClient::normalizeWalletReference` now accepts `CW:{positive integer}` (production regression: `CW:73` / `wallet_transaction_id=73`). Malformed `CW:` variants remain rejected. Unit + `WalletRefundExecutionTest` **39/39** PASS. **Not deployed.** REF-67379/RD13612 not retried; existing Desk ledger **#73** credit untouched.
+
+---
+
+## RadiumDesk-P-04-10-09
+
+**Deploy rdservice.in refund parser fix @ `65c829b8` (surgical overlay).** Single-file overlay `RdServiceInWalletRefundClient.php` → `/var/www/radium-desk`. Backup `/home/ravi/backups/radium-desk-p041009-rdin-parser-20261005T015247Z/` (pre-md5 `588dc573…`). Post-deploy parser reflection: `CW:1/73/12345` accept, malformed reject; `/up` **200**, `/login` **200**. Ledger **#73** ₹499 unchanged; refund **#374** still `pending_execution`; **0** new credits/reversals for REF-67379. REF-67379/RD13612 not retried/completed.
