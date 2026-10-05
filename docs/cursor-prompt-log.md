@@ -826,3 +826,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-23
 
 **Deploy rdservice.net CW refund reversal Desk companion @ `30adc198`.** Surgical overlay **3** runtime files to `/var/www/radium-desk`. Backup `/home/ravi/backups/radium-desk-p042023-rdnet-reversal-20261005T045002Z`. Post-deploy SHAs match `30adc198`; `isRdServiceNet` resolver branch present; `rdnet_reversal=false` runtime; `RDSERVICE_NET_WALLET_REFUND_REVERSAL_ENABLED` **absent** from `.env`. rd.in reversal **unchanged** (`true`). REF-67354/#72 + REF-67366/#71 **closed/unrevoked**; ledger **#57/#71/#72** unchanged; revoke attempts **0**. `/login` **200**, `/up` **200**. **No live revoke. No flag enablement.**
+
+---
+
+## RadiumDesk-P-04-10-24
+
+**Controlled live rd.net CW refund reversal gate — STOPPED (no candidate).** Owner authorized live test. Pre-flight verified Desk **30adc198**, rdnet **70472cc**, migration applied, reversals **0**. Candidate search: **3** rd.net wallet refunds total — REF-67354/CW:72 and REF-67366/CW:71 **protected**; REF-2026-000276/RA3506948 **ineligible** (no CW ledger credit, `execution_transaction_id` null, legacy manual completion). **No flag enablement. No revoke. No financial mutation.**
