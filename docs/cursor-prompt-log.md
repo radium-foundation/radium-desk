@@ -790,3 +790,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-17
 
 **Gate 1E: Enable Central Wallet refund reconciliation detection (production config only).** Owner-authorized. Pre: `CENTRAL_WALLET_RECONCILIATION_ENABLED` **false** (env absent); pending wallet PE **0**; REF-67378/#373 **closed** CW:74; REF-67379/#374 **closed** CW:73; ledger max **74**; recon runs/items **0**. Backup `/home/ravi/backups/radium-desk-p041017-recon-enable-20261005T025054Z` (`.env` sha256 `8acdc3a2708f121f09b39a08c52997f609366b9ee96bc82090e3a2079204a4d5`). Set `CENTRAL_WALLET_RECONCILIATION_ENABLED=true`; `config:clear` only. Post runtime: reconciliation **true**; detection sub-gate **true**; batch **100**; schedule **02:30**; `/up` **200**. Financial unchanged; recon runs/items still **0**; job **not** manually executed. Recovery remains manual; first scheduled run @ **02:30** detection-only.
+
+---
+
+## RadiumDesk-P-04-10-18
+
+**Gate 1F: Verify first natural scheduled reconciliation detection run (read-only).** Verified @ **2026-10-05 08:28 IST**. Gate 1E config still enabled: reconciliation **true**, detection **true**, batch **100**, schedule **02:30**. Gate 1E enablement was **~08:20 IST** — after today's **02:30** slot. `schedule:list`: `ReconciliationDailyJob` next due **~18h** (2026-10-06 02:30 IST). Recon runs **0**, items **0**; `central-wallet-reconciliation.log` absent; no laravel reconciliation log entries post-enable. Financial unchanged: pending wallet PE **0**; REF-67378/#373 **closed** CW:74; REF-67379/#374 **closed** CW:73; ledger max **74**. **NOT YET RUN — no manual execution performed.** **Gate 1F verdict: PENDING.**
