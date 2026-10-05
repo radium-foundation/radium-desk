@@ -456,3 +456,33 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-49
 
 **Deployment safety remediation for rsync --delete.** KVM deploy: pre-sync deletion dry-run inventory, expected vs unexpected classification, explicit `delete-unexpected` gate, remote pre-delete backup under `storage/app/backups/deploy-rsync-safety-*`, local audit under `storage/app/deploy-backups/`. Local tests A–F. **No production deploy.**
+
+---
+
+## RadiumDesk-P-04-10-50
+
+**Production deployment safety dry-run verification.** Safety branch @ `cdec37d3`; invoked `deploy_rsync_analyze_deletions` (same non-mutating path as `desk deploy --dry-run`; full CLI blocked by release preflight off `main`). **INCIDENT:** defective analyzer omitted rsync `--dry-run`; live sync mutated production (release.json deleted, .git deleted, ~4439 files transferred). **Not contained.**
+
+---
+
+## RadiumDesk-P-04-10-51
+
+**Production incident containment after accidental live rsync.** Read-only state/evidence capture; `release.json` restored from verified P-04-10-44 pre-deploy backup only. `.git` not restored. `.cursor`/`.env.mysql`/safety tooling left in place (secret exposure on `.env.mysql`). No rsync/deploy/DB/migration/secret rotation.
+
+---
+
+## RadiumDesk-P-04-10-52
+
+**Production security containment and integrity recovery after P-04-10-50.** Removed `.env.mysql`, local artifacts, defective safety tooling; restored v4.1.2 `deploy-kvm.sh`; corrected `release.json` to v4.1.2/59b717e7. SHA256 compare: 3545/3545 exact match. No rsync/deploy/DB/rotation.
+
+---
+
+## RadiumDesk-P-04-10-53
+
+**Credential exposure and rotation assessment (read-only).** `.env.mysql` was local dev template on disk; fingerprints differ from production `.env` for APP_KEY/DB/mail; not runtime-loaded; HTTP 404; no access log hits. Rotation: PARTIAL/precautionary only. **No rotation performed.**
+
+---
+
+## RadiumDesk-P-04-10-54
+
+**Fix deployment dry-run safety defect.** Added centralized `--dry-run` rsync argv construction + assert guard; fixed application/public-build/local dry-run functions; regression tests for P-04-10-50 failure mode. **Local only; no production access.**

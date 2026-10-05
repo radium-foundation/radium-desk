@@ -146,4 +146,26 @@ test_d_backup_failure_blocks
 test_e_inventory_persisted
 test_f_protected_paths
 
+# TEST G: local dry-run must not mutate destination (P-04-10-50 guard)
+test_g_local_dry_run_is_non_mutating() {
+    local src="${TMP}/test-g-src" dest="${TMP}/test-g-dest" log="${TMP}/test-g.log"
+
+    mkdir -p "${src}/app" "${dest}/app/Extra"
+    echo 'src' >"${src}/app/keep.php"
+    echo 'dest-only' >"${dest}/app/Extra/OnlyOnDest.php"
+
+    deploy_rsync_local_run_dry_run "$src" "$dest" "$log"
+
+    [[ -f "${dest}/app/Extra/OnlyOnDest.php" ]] \
+        || fail "TEST G dry-run must not delete destination-only files"
+
+    echo "$log" | grep -Fq 'app/Extra/OnlyOnDest.php' \
+        || grep -Fq '*deleting app/Extra/OnlyOnDest.php' "$log" \
+        || fail "TEST G dry-run log should mention would-delete path"
+
+    pass "TEST G local dry-run is non-mutating"
+}
+
+test_g_local_dry_run_is_non_mutating
+
 echo "All deploy-rsync-safety local tests passed."

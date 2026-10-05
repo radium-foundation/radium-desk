@@ -328,5 +328,10 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-47 | 2026-10-05 | Read-only Central Wallet refund migration status + reconciliation gate | 55 migration rows all `reconciled` (₹29,073); 292 manifest 55/292 done, 237 pending (₹136,635); `REFUND_MIGRATION_EXECUTION_ENABLED=false`; overlay CLI absent. Reconciliation ON but scaffold-only. 0 duplicate-credit candidates. **No mutations.** |
 | RadiumDesk-P-04-10-48 | 2026-10-05 | Controlled production disable of scaffold-only CW reconciliation | Owner-authorized: `CENTRAL_WALLET_RECONCILIATION_ENABLED` true→false in production `.env`; config cache refresh. No code/deploy/DB/wallet/refund/migration changes. |
 | RadiumDesk-P-04-10-49 | 2026-10-05 | Deployment safety remediation for rsync --delete | KVM deploy gate: dry-run deletion inventory, unexpected-file approval, remote backup, local audit. Tests A–F PASS. **No production deploy.** |
+| RadiumDesk-P-04-10-50 | 2026-10-05 | Production deployment safety dry-run verification | **INCIDENT:** defective analyzer ran live rsync; release.json/.git deleted; safety-branch files copied. Health /up 200. |
+| RadiumDesk-P-04-10-51 | 2026-10-05 | Production incident containment after accidental live rsync | Evidence preserved; release.json restored from P-04-10-44 pre-deploy backup (v4.1.0 metadata). `.env.mysql` secret exposure documented; no broad file removal. |
+| RadiumDesk-P-04-10-52 | 2026-10-05 | Security containment + integrity recovery after P-04-10-50 | Removed `.env.mysql`/local artifacts/safety tooling; release.json→v4.1.2; 3545-file SHA256 match to 59b717e7. No rsync/rotation. |
+| RadiumDesk-P-04-10-53 | 2026-10-05 | Credential exposure and rotation assessment (read-only) | Incident file = local `.env.mysql` template; prod secrets largely not in file; no HTTP/log evidence of retrieval. **No rotation.** |
+| RadiumDesk-P-04-10-54 | 2026-10-05 | Fix deployment dry-run safety defect | Centralized `--dry-run` rsync argv + assert; incident regression tests. Local only. **No production access.** |
 
 Do not renumber or overwrite earlier rows. Append only.

@@ -8,6 +8,33 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
+# Wrapper for rsync execution (tests may override to capture argv).
+deploy_rsync_exec() {
+    "$@"
+}
+
+# Central dry-run rsync base flags. Every analyze/dry-run path must use this.
+deploy_rsync_init_dry_run_command() {
+    DEPLOY_RSYNC_DRY_RUN_BASE=(rsync -avzi --dry-run --delete)
+}
+
+deploy_rsync_assert_dry_run_command() {
+    local -a cmd=("$@")
+    local saw_dry_run=0 saw_delete=0
+
+    for arg in "${cmd[@]}"; do
+        [[ "$arg" == "--dry-run" ]] && saw_dry_run=1
+        [[ "$arg" == "--delete" ]] && saw_delete=1
+    done
+
+    if [[ "$saw_dry_run" -ne 1 || "$saw_delete" -ne 1 ]]; then
+        print_error "Refusing rsync analyze command without --dry-run and --delete"
+        return 1
+    fi
+
+    return 0
+}
+
 # --- Protected paths (rsync excludes + explicit persistent production state) ---
 
 deploy_rsync_protected_patterns() {
@@ -158,7 +185,11 @@ deploy_rsync_classify_deletion_path() {
 
 deploy_rsync_run_application_dry_run() {
     local output_file="$1"
-    local -a rsync_cmd=(rsync -avzi --delete)
+    local -a rsync_cmd=()
+
+    deploy_rsync_init_dry_run_command
+    rsync_cmd=("${DEPLOY_RSYNC_DRY_RUN_BASE[@]}")
+    deploy_rsync_assert_dry_run_command "${rsync_cmd[@]}" || return 1
 
     rsync_cmd+=(-e "$(deploy_kvm_rsync_ssh_command)")
 
@@ -169,17 +200,24 @@ deploy_rsync_run_application_dry_run() {
 
     rsync_cmd+=("${PROJECT_ROOT}/" "$(deploy_kvm_rsync_remote_target)")
 
-    "${rsync_cmd[@]}" >"$output_file" 2>&1
+    deploy_rsync_exec "${rsync_cmd[@]}" >"$output_file" 2>&1
 }
 
 deploy_rsync_run_public_build_dry_run() {
     local output_file="$1"
+    local -a rsync_cmd=()
 
-    rsync -avzi --delete \
-        -e "$(deploy_kvm_rsync_ssh_command)" \
-        "${PROJECT_ROOT}/public/build/" \
-        "${SSH_USER}@${SSH_HOST}:${REMOTE_PROJECT}/public/build/" \
-        >"$output_file" 2>&1
+    deploy_rsync_init_dry_run_command
+    rsync_cmd=("${DEPLOY_RSYNC_DRY_RUN_BASE[@]}")
+    deploy_rsync_assert_dry_run_command "${rsync_cmd[@]}" || return 1
+
+    rsync_cmd+=(
+        -e "$(deploy_kvm_rsync_ssh_command)"
+        "${PROJECT_ROOT}/public/build/"
+        "${SSH_USER}@${SSH_HOST}:${REMOTE_PROJECT}/public/build/"
+    )
+
+    deploy_rsync_exec "${rsync_cmd[@]}" >"$output_file" 2>&1
 }
 
 deploy_rsync_write_inventory() {
@@ -456,7 +494,13 @@ deploy_rsync_local_run_dry_run() {
     local output_file="$3"
 
     mkdir -p "$dest_root"
-    rsync -avzi --delete \
+    local -a rsync_cmd=()
+
+    deploy_rsync_init_dry_run_command
+    rsync_cmd=("${DEPLOY_RSYNC_DRY_RUN_BASE[@]}")
+    deploy_rsync_assert_dry_run_command "${rsync_cmd[@]}" || return 1
+
+    rsync_cmd+=(
         --exclude '.git/' \
         --exclude '.env' \
         --exclude 'node_modules/' \
@@ -473,8 +517,10 @@ deploy_rsync_local_run_dry_run() {
         --exclude 'storage/app/*' \
         --exclude 'storage/*' \
         --exclude 'public/build/' \
-        "${source_root}/" "${dest_root}/" \
-        >"$output_file" 2>&1
+        "${source_root}/" "${dest_root}/"
+    )
+
+    deploy_rsync_exec "${rsync_cmd[@]}" >"$output_file" 2>&1
 }
 
 deploy_rsync_local_backup_deletions() {
