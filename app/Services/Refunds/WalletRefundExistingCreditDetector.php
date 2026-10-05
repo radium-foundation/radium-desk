@@ -12,12 +12,6 @@ use Illuminate\Support\Collection;
 
 final class WalletRefundExistingCreditDetector
 {
-    /** @var list<string> */
-    private const CENTRAL_WALLET_SOURCE_SYSTEMS = [
-        WalletRefundDestinationResolver::RDSERVICE_IN,
-        WalletRefundDestinationResolver::RDSERVICE_NET,
-    ];
-
     public function __construct(
         private readonly WalletRefundDestinationResolver $destinations,
     ) {}
@@ -32,6 +26,10 @@ final class WalletRefundExistingCreditDetector
         }
 
         if ($this->destinations->isRdServiceIn($orderId)) {
+            return true;
+        }
+
+        if ($this->destinations->isRadiumBox($orderId)) {
             return true;
         }
 
@@ -61,13 +59,18 @@ final class WalletRefundExistingCreditDetector
 
         $expectedCurrency = strtoupper((string) config('central_wallet.currency', 'INR'));
         $expectedSourceReference = 'desk_refund:'.$orderId;
+        $expectedSourceSystem = $this->expectedSourceSystemForOrder($orderId);
+
+        if ($expectedSourceSystem === null) {
+            return WalletRefundExistingCreditDetection::notFound();
+        }
 
         /** @var Collection<int, CentralWalletLedgerEntry> $candidates */
         $candidates = CentralWalletLedgerEntry::query()
             ->where('business_reference', $reference)
             ->where('entry_type', LedgerEntryType::Credit)
             ->where('status', LedgerEntryStatus::Posted)
-            ->whereIn('source_system', self::CENTRAL_WALLET_SOURCE_SYSTEMS)
+            ->where('source_system', $expectedSourceSystem)
             ->orderBy('id')
             ->get();
 
@@ -115,6 +118,23 @@ final class WalletRefundExistingCreditDetector
         }
 
         return WalletRefundExistingCreditDetection::matched($entry);
+    }
+
+    private function expectedSourceSystemForOrder(string $orderId): ?string
+    {
+        if ($this->destinations->isRdServiceIn($orderId)) {
+            return WalletRefundDestinationResolver::RDSERVICE_IN;
+        }
+
+        if ($this->destinations->isRadiumBox($orderId)) {
+            return WalletRefundDestinationResolver::RADIUMBOX_COM;
+        }
+
+        if ($this->destinations->isRdServiceNet($orderId)) {
+            return WalletRefundDestinationResolver::RDSERVICE_NET;
+        }
+
+        return null;
     }
 
     private function isReversed(CentralWalletLedgerEntry $entry): bool

@@ -75,7 +75,14 @@ class WalletRefundExecutor implements RefundExecutor
         }
 
         if ($this->destinations->isRadiumBox($orderId)) {
-            return $this->creditRadiumBox($refund, $actor, $payload, $orderId, $amount);
+            return $this->executeCentralWalletCredit(
+                fn (): array => $this->creditRadiumBox($refund, $actor, $payload, $orderId, $amount),
+                $refund,
+                $actor,
+                $payload,
+                'radiumbox_wallet',
+                'Wallet credited automatically via RadiumBox integration.',
+            );
         }
 
         throw ValidationException::withMessages([

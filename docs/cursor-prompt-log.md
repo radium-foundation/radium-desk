@@ -796,3 +796,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-18
 
 **Gate 1F: Verify first natural scheduled reconciliation detection run (read-only).** Verified @ **2026-10-05 08:28 IST**. Gate 1E config still enabled: reconciliation **true**, detection **true**, batch **100**, schedule **02:30**. Gate 1E enablement was **~08:20 IST** — after today's **02:30** slot. `schedule:list`: `ReconciliationDailyJob` next due **~18h** (2026-10-06 02:30 IST). Recon runs **0**, items **0**; `central-wallet-reconciliation.log` absent; no laravel reconciliation log entries post-enable. Financial unchanged: pending wallet PE **0**; REF-67378/#373 **closed** CW:74; REF-67379/#374 **closed** CW:73; ledger max **74**. **NOT YET RUN — no manual execution performed.** **Gate 1F verdict: PENDING.**
+
+---
+
+## RadiumDesk-P-04-10-19
+
+**Extend Wallet refund existing-credit detector for RadiumBox (`radiumbox.com`).** `WalletRefundExistingCreditDetector` scopes credits by order-owner source system and supports RadiumBox refunds; `WalletRefundExecutor` routes RadiumBox completion through existing-credit detection before spoke credit. REF-67363/CW:54 regression covered. **44** detector/recovery/execution tests PASS. **No deploy / no prod config / no financial mutation.** Companion `radiumbox.com-P-02-10-69`.

@@ -100,6 +100,42 @@ class WalletRefundExistingCreditRecoveryTest extends TestCase
         $this->assertSame('73', $refund->execution_transaction_id);
     }
 
+    public function test_ref67363_radiumbox_regression_contract_recovery_without_second_credit(): void
+    {
+        Http::fake();
+
+        $cwid = '5a3d0706-9f4b-4adc-b3d8-7cd134295404';
+        $ledgerId = $this->seedPostedCreditLedgerEntry(
+            cwid: $cwid,
+            businessReference: 'REF-67363',
+            orderId: 'RB484',
+            amount: '849.00',
+            sourceSystem: 'radiumbox.com',
+            ledgerEntryId: 54,
+        );
+
+        [$ops, $refund] = $this->pendingWalletRefundFixture('RB484', '849.00', 'REF-67363');
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [])
+            ->assertRedirect(route('refunds.show', $refund))
+            ->assertSessionHas('status', 'refund-completed');
+
+        $refund->refresh();
+        $this->assertContains($refund->status, [RefundStatus::Completed, RefundStatus::Closed]);
+        $this->assertSame('CW:'.$ledgerId, $refund->execution_reference_no);
+        $this->assertSame((string) $ledgerId, $refund->execution_transaction_id);
+
+        Http::assertNothingSent();
+        $this->assertSame(1, CentralWalletLedgerEntry::query()->where('entry_type', 'credit')->count());
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'refund.wallet_credit_reconciled',
+            'auditable_type' => RefundRequest::class,
+            'auditable_id' => $refund->id,
+        ]);
+    }
+
     public function test_ref67379_regression_contract_recovery_without_second_credit(): void
     {
         Http::fake();
