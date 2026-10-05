@@ -772,3 +772,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-14
 
 **Gate 1B: Production recovery REF-67378 via existing CW:74 credit.** Pre-check: refund **#373** `pending_execution` ₹631 RD13929; ledger **#74** posted credit matched (detector `matched`); 0 reversals/consumers. Recovery via `RefundRequestService::complete()` actor user **1** @ **2026-10-05 08:09:19 IST**. Post: status **closed**, `execution_reference_no=CW:74`, `execution_transaction_id=74`; audit `refund.wallet_credit_reconciled` **#2227762**; ledger max still **74** (no new credit); REF-67379/CW:73 unchanged. Post-commit OOM on notifications only; financial state committed. **No spoke API call. No new CW credit.**
+
+---
+
+## RadiumDesk-P-04-10-15
+
+**Gate 1B OOM investigation (read-only).** REF-67378 recovery OOM @ **2026-10-05 08:09:41 IST** in `artisan tinker` CLI (`128M`); stack `HasAttributes.php:799`. Financial/audit commits @ **08:09:19** before OOM. `communication_channels=[]` → customer notify would skip; no `refund.customer_notified` audit; no requester `completed` notify audit; 0 whatsapp/interakt/in-app notifications **08:09–08:10**. Hourly `:00` OOM pattern also present (broader). **No mutation.**
