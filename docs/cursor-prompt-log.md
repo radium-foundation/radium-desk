@@ -766,3 +766,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-13
 
 **Gate 1A: Production deploy @ `ceeff4e7`.** Surgical overlay 11 Gate 1 files to `/var/www/radium-desk`. Backup `/home/ravi/backups/radium-desk-p041012-gate1-20261005T023553Z`. Post-deploy: `/up` **200**, `/login` **200**, `/refunds` **302**; `CENTRAL_WALLET_RECONCILIATION_ENABLED` **false** (env absent). REF-67379/#374 **closed**; ledger **#73** ₹499 unchanged; read-only scan: 1 pending wallet refund, 1 match (REF-67378/CW:74). **No financial mutation.**
+
+---
+
+## RadiumDesk-P-04-10-14
+
+**Gate 1B: Production recovery REF-67378 via existing CW:74 credit.** Pre-check: refund **#373** `pending_execution` ₹631 RD13929; ledger **#74** posted credit matched (detector `matched`); 0 reversals/consumers. Recovery via `RefundRequestService::complete()` actor user **1** @ **2026-10-05 08:09:19 IST**. Post: status **closed**, `execution_reference_no=CW:74`, `execution_transaction_id=74`; audit `refund.wallet_credit_reconciled` **#2227762**; ledger max still **74** (no new credit); REF-67379/CW:73 unchanged. Post-commit OOM on notifications only; financial state committed. **No spoke API call. No new CW credit.**
