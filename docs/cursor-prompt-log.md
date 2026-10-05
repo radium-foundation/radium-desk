@@ -820,3 +820,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-22
 
 **Implement rdservice.net CW refund reversal Desk companion.** Added `RdServiceNetWalletRefundReversalClient`, resolver branch for RN/RA/RNP, `RDSERVICE_NET_WALLET_REFUND_REVERSAL_ENABLED` (default false). **12** new + **20** regression reversal tests PASS. **Not deployed. Flag not enabled. No live revoke.**
+
+---
+
+## RadiumDesk-P-04-10-23
+
+**Deploy rdservice.net CW refund reversal Desk companion @ `30adc198`.** Surgical overlay **3** runtime files to `/var/www/radium-desk`. Backup `/home/ravi/backups/radium-desk-p042023-rdnet-reversal-20261005T045002Z`. Post-deploy SHAs match `30adc198`; `isRdServiceNet` resolver branch present; `rdnet_reversal=false` runtime; `RDSERVICE_NET_WALLET_REFUND_REVERSAL_ENABLED` **absent** from `.env`. rd.in reversal **unchanged** (`true`). REF-67354/#72 + REF-67366/#71 **closed/unrevoked**; ledger **#57/#71/#72** unchanged; revoke attempts **0**. `/login` **200**, `/up` **200**. **No live revoke. No flag enablement.**
