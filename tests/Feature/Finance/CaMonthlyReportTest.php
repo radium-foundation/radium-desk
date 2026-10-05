@@ -77,7 +77,8 @@ class CaMonthlyReportTest extends TestCase
         $this->actingAs($user)
             ->get(route('finance.reports.ca-monthly.index', self::RANGE))
             ->assertOk()
-            ->assertSee('CA Monthly Report')
+            ->assertSee('Sales Report')
+            ->assertDontSee('>CA Monthly Report<', false)
             ->assertSee($invoice->invoice_number)
             ->assertSee('RD Service')
             ->assertDontSee('Preflight summary')
@@ -948,7 +949,7 @@ class CaMonthlyReportTest extends TestCase
             ->get(route('finance.reports.ca-monthly.index'));
 
         $response->assertOk();
-        $response->assertSee('CA Monthly Report');
+        $response->assertSee('Sales Report');
         $response->assertSee(now()->startOfMonth()->toDateString(), false);
         $response->assertSee(now()->toDateString(), false);
     }
@@ -1161,7 +1162,7 @@ class CaMonthlyReportTest extends TestCase
 
         $this->assertNotNull($audit);
         $this->assertSame($user->id, $audit->user_id);
-        $this->assertSame('CA Monthly Report', $audit->new_values['report_type']);
+        $this->assertSame('Sales Report', $audit->new_values['report_type']);
         $this->assertSame('csv', $audit->new_values['format']);
         $this->assertSame('2026-09-01', $audit->new_values['date_from']);
         $this->assertSame('2026-09-21', $audit->new_values['date_to']);

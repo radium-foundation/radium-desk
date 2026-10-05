@@ -150,6 +150,7 @@ final class CaMonthlyReportInvoiceExportBuilder
 
         return [
             (string) $item->description,
+            (string) ($item->sku ?? ''),
             (string) $item->qty,
             (string) ($item->hsn_sac ?? ''),
             $this->money((float) $item->taxable_value),

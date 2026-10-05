@@ -180,7 +180,7 @@ class FourMenuNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('finance.reports.ca-monthly.index'))
             ->assertOk()
-            ->assertSee('CA Monthly Report', false);
+            ->assertSee('Sales Report', false);
     }
 
     public function test_control_and_admin_workspace_includes_attendance_leave_and_incoming_email(): void

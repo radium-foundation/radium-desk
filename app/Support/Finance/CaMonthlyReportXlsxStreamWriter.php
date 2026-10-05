@@ -298,8 +298,12 @@ XML);
     private function padDetailToParentWidth(array $detail): array
     {
         $product = $detail[0] ?? '';
-        $qty = $detail[1] ?? '';
+        $sku = $detail[1] ?? '';
+        $qty = $detail[2] ?? '';
         $label = $product;
+        if ($sku !== '') {
+            $label .= ' ['.$sku.']';
+        }
         if ($qty !== '' && $qty !== '1') {
             $label .= ' (Qty: '.$qty.')';
         }
@@ -315,14 +319,14 @@ XML);
             '',
             '',
             '',
-            $detail[2] ?? '',
             $detail[3] ?? '',
             $detail[4] ?? '',
             $detail[5] ?? '',
             $detail[6] ?? '',
             $detail[7] ?? '',
-            '',
             $detail[8] ?? '',
+            '',
+            $detail[9] ?? '',
             '',
             '',
             '',

@@ -3,7 +3,7 @@
 namespace App\Reports\CaMonthly;
 
 /**
- * CA Monthly Report output contract and period configuration.
+ * Sales Report (statutory CA monthly register) output contract and period configuration.
  *
  * Period filter uses statutory invoice issue date (Date of Invoice).
  */
@@ -11,7 +11,10 @@ final class CaMonthlyReportDefinition
 {
     public const ID = 'statutory.ca_monthly';
 
-    public const DISPLAY_NAME = 'CA Monthly Report';
+    public const DISPLAY_NAME = 'Sales Report';
+
+    /** @deprecated User-facing legacy label retained for route/internal identifiers only. */
+    public const LEGACY_DISPLAY_NAME = 'CA Monthly Report';
 
     /**
      * Configurable authoritative date column for period filtering.
@@ -26,9 +29,9 @@ final class CaMonthlyReportDefinition
 
     public const DATA_START_ROW = 4;
 
-    public const SHEET_NAME = 'CA Monthly Report';
+    public const SHEET_NAME = 'Sales Report';
 
-    public const TEMPLATE_VERSION = '2026-09-26';
+    public const TEMPLATE_VERSION = '2026-10-05';
 
     /**
      * Invoice-level CA register columns (parent rows).
@@ -66,7 +69,8 @@ final class CaMonthlyReportDefinition
      * @var list<string>
      */
     public const DETAIL_HEADERS = [
-        'Product / Service',
+        'Product Name',
+        'Product Code / SKU',
         'Quantity',
         'HSN/SAC',
         'Taxable Amount',

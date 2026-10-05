@@ -6,6 +6,7 @@ use App\Enums\CaMonthlyReportEmailDeliveryMode;
 use App\Enums\CaMonthlyReportEmailStatus;
 use App\Enums\CaMonthlyReportExportFormat;
 use App\Enums\CaMonthlyReportExportStatus;
+use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -97,7 +98,7 @@ class CaMonthlyReportExport extends Model
 
     public function reportTypeLabel(): string
     {
-        return 'CA Monthly Report';
+        return CaMonthlyReportDefinition::DISPLAY_NAME;
     }
 
     public function generationDurationMs(): ?int

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'CA Monthly Report')
+@section('title', 'Sales Report')
 
 @section('content')
     @php
@@ -14,12 +14,12 @@
 
     <div class="mb-4">
         <p class="text-muted small text-uppercase fw-semibold mb-1">Finance · Reports</p>
-        <h1 class="h3 mb-2">CA Monthly Report</h1>
+        <h1 class="h3 mb-2">Sales Report</h1>
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
             <span class="badge rounded-pill text-bg-primary fs-6 fw-normal">{{ $periodLabel }}</span>
         </div>
         <p class="text-muted mb-0 small">
-            Statutory invoice export for CA review. Reporting period uses
+            Statutory invoice sales register for Finance review. Reporting period uses
             <strong>Date of Invoice</strong> (<code>statutory_invoices.issued_at</code>).
             Preview groups multi-product invoices; Excel export is one invoice summary row with expandable non-zero line detail.
         </p>
@@ -51,7 +51,7 @@
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     <h2 class="h6 mb-1">Report Download History</h2>
-                    <p class="small text-muted mb-2">Super Admin audit of CA Monthly report exports and downloads.</p>
+                    <p class="small text-muted mb-2">Super Admin audit of Sales Report exports and downloads.</p>
                     <div class="d-flex align-items-center gap-2 text-muted small" id="ca-monthly-download-history-loading">
                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                         <span>Loading download history…</span>
@@ -278,7 +278,12 @@
                                         data-parent-invoice="{{ $group->invoiceId }}"
                                     >
                                         <td></td>
-                                        <td colspan="4" class="ps-4 small text-muted">{{ $child->productName }}</td>
+                                        <td colspan="4" class="ps-4 small text-muted">
+                                            {{ $child->productName }}
+                                            @if ($child->productCodeSku !== '')
+                                                <span class="text-muted">· {{ $child->productCodeSku }}</span>
+                                            @endif
+                                        </td>
                                         <td class="text-end small">{{ $child->taxableAmount }}</td>
                                         <td class="text-end small d-none d-lg-table-cell">{{ $child->shipping !== '' ? $child->shipping : '—' }}</td>
                                         <td class="text-end small d-none d-lg-table-cell">
@@ -299,7 +304,12 @@
                                     <td>
                                         {{ $group->buyerName !== '' ? $group->buyerName : '—' }}
                                         @if (($group->children[0] ?? null) !== null)
-                                            <div class="small text-muted">{{ $group->children[0]->productName }}</div>
+                                            <div class="small text-muted">
+                                                {{ $group->children[0]->productName }}
+                                                @if ($group->children[0]->productCodeSku !== '')
+                                                    · {{ $group->children[0]->productCodeSku }}
+                                                @endif
+                                            </div>
                                         @endif
                                     </td>
                                     <td class="d-none d-md-table-cell">{{ $group->orderType !== '' ? $group->orderType : '—' }}</td>

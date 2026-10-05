@@ -27,7 +27,7 @@ class CaMonthlyReportExportMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'CA Monthly Report '.$this->export->dateRangeLabel(),
+            subject: 'Sales Report '.$this->export->dateRangeLabel(),
         );
     }
 
