@@ -778,3 +778,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-15
 
 **Gate 1B OOM investigation (read-only).** REF-67378 recovery OOM @ **2026-10-05 08:09:41 IST** in `artisan tinker` CLI (`128M`); stack `HasAttributes.php:799`. Financial/audit commits @ **08:09:19** before OOM. `communication_channels=[]` → customer notify would skip; no `refund.customer_notified` audit; no requester `completed` notify audit; 0 whatsapp/interakt/in-app notifications **08:09–08:10**. Hourly `:00` OOM pattern also present (broader). **No mutation.**
+
+---
+
+## RadiumDesk-P-04-10-16
+
+**Gate 1D: Central Wallet refund reconciliation detector preflight (read-only).** Production KVM `/var/www/radium-desk`; Gate 1 reconciliation files md5-match local @ branch `fix/c360-central-wallet-ledger-display`. Runtime: `CENTRAL_WALLET_RECONCILIATION_ENABLED` **false** (env absent); `wallet_refund_detection_enabled` **true**; `batch_size` **100**. Protected state verified: REF-67378/#373 **closed** CW:74; REF-67379/#374 **closed** CW:73; ledger max **74**; reconciliation runs/items **0**. Preflight scan: **0** `pending_execution` wallet refunds; **0** detector-eligible; **0** matched/ambiguous/mismatch/no-match. Code: `chunkById(100)` bounded scan; detector read-only on ledger/refunds; job writes reconciliation run/item records only (`auto_completed: 0`); no `RefundRequestService`/`WalletRefundExecutor`/spoke HTTP. Queue worker `lsphp84` **128M**, `--timeout=900`; schedule **02:30** with `withoutOverlapping`. **Verdict: READY TO ENABLE** (detection flag only; recovery remains manual). **No mutation; job not executed.**
