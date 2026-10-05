@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.1 — 2026-10-05 — Sales Report (CA Monthly register rename + product detail)
+
+- **User-facing rename:** CA Monthly Report is now presented as **Sales Report** (navigation, page title, export email, XLSX sheet/title, audit label). Internal route identifiers (`finance.reports.ca-monthly.*`) and report ID (`statutory.ca_monthly`) unchanged for backward compatibility.
+- **Product detail:** XLSX expandable line detail and web preview now expose **Product Name** (`statutory_invoice_items.description`) and **Product Code / SKU** (`statutory_invoice_items.sku`, blank when null).
+- **Accounting grain preserved:** One invoice-level parent row per statutory invoice (22 columns); invoice totals, GST, and Credit Note aggregation unchanged. Multi-product invoices remain one parent row with expandable line detail in XLSX; CSV remains parent-only.
+- **Credit Note behavior preserved:** Status column and separate credit-note rows unchanged; no refund-amount columns added.
+- **No migration.** No wallet, refund-journal, or statutory-adjustment changes.
+- Regression: `CaMonthlyReportSalesReportTest`, CA Monthly report suite, `FourMenuNavigationTest`.
+- Rollback target: v4.1.0 / `8212bbc8`.
+- Prompt **RadiumDesk-P-04-10-38**.
+
 ## 4.1.0 — 2026-10-02 — rdservice.net Central Wallet refund destination (companion, flag OFF)
 
 - **rdservice.net wallet refunds:** When `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED=true` and the `rdservice_net` order-lookup spoke is configured, Desk wallet approvals and execution for RN/RA/RNP orders POST to rdservice.net `/api/integrations/v1/wallet-refunds`. The spoke resolves trusted identity and credits the authoritative Desk Central Wallet ledger — not a local spoke wallet.
