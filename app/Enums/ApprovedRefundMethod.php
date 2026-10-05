@@ -20,4 +20,23 @@ enum ApprovedRefundMethod: string
             self::Other => 'Other',
         });
     }
+
+    /**
+     * Internal wallet credit — no external bank/payment-provider cash movement.
+     */
+    public function isWalletCredit(): bool
+    {
+        return $this === self::Wallet;
+    }
+
+    /**
+     * External payment reversal (Cashfree, bank, UPI, or other OPM attestation).
+     */
+    public function isExternalPaymentReversal(): bool
+    {
+        return match ($this) {
+            self::Cashfree, self::BankTransfer, self::Upi, self::Other => true,
+            self::Wallet => false,
+        };
+    }
 }

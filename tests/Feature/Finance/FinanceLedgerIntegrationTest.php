@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Finance;
 
+use App\Enums\ApprovedRefundMethod;
 use App\Enums\FinanceJournalSourceType;
 use App\Enums\OrderStatus;
 use App\Enums\RefundStatus;
@@ -120,6 +121,7 @@ class FinanceLedgerIntegrationTest extends TestCase
             'refund_amount' => 200,
             'reason' => 'Ledger integration refund fixture.',
             'status' => RefundStatus::Completed,
+            'approved_refund_method' => ApprovedRefundMethod::Cashfree,
             'requested_by' => $this->admin->id,
             'executed_by' => $this->admin->id,
             'executed_at' => now(),

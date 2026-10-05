@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Enums\FinanceAccountType;
+use App\Enums\FinanceJournalSourceType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Finance\StoreFinanceAccountRequest;
 use App\Http\Requests\Finance\StoreOpeningBalanceRequest;
 use App\Http\Requests\Finance\UpdateFinancePreferencesRequest;
 use App\Models\FinanceAccount;
-use App\Models\FinanceCashAccount;
 use App\Models\FinanceBankAccount;
+use App\Models\FinanceCashAccount;
 use App\Models\FinanceExpenseCategory;
 use App\Models\FinanceJournal;
 use App\Models\FinancePaymentMethod;
@@ -127,6 +128,7 @@ class SettingsController extends Controller
                 'default_revenue_account_code' => FinanceSetting::getValue(FinanceSettingsService::KEY_DEFAULT_REVENUE),
                 'default_refund_account_code' => FinanceSetting::getValue(FinanceSettingsService::KEY_DEFAULT_REFUND),
                 'default_bank_clearing_account_code' => FinanceSetting::getValue(FinanceSettingsService::KEY_DEFAULT_BANK_CLEARING),
+                'default_wallet_liability_account_code' => FinanceSetting::getValue(FinanceSettingsService::KEY_DEFAULT_WALLET_LIABILITY),
                 'default_cash_account_code' => FinanceSetting::getValue(FinanceSettingsService::KEY_DEFAULT_CASH),
                 'opening_equity_account_code' => FinanceSetting::getValue(FinanceSettingsService::KEY_OPENING_EQUITY),
                 'default_misc_expense_account_code' => FinanceSetting::getValue(FinanceSettingsService::KEY_DEFAULT_MISC_EXPENSE),
@@ -144,6 +146,7 @@ class SettingsController extends Controller
             FinanceSettingsService::KEY_DEFAULT_REVENUE => $data['default_revenue_account_code'] ?? null,
             FinanceSettingsService::KEY_DEFAULT_REFUND => $data['default_refund_account_code'] ?? null,
             FinanceSettingsService::KEY_DEFAULT_BANK_CLEARING => $data['default_bank_clearing_account_code'] ?? null,
+            FinanceSettingsService::KEY_DEFAULT_WALLET_LIABILITY => $data['default_wallet_liability_account_code'] ?? null,
             FinanceSettingsService::KEY_DEFAULT_CASH => $data['default_cash_account_code'] ?? null,
             FinanceSettingsService::KEY_OPENING_EQUITY => $data['opening_equity_account_code'] ?? null,
             FinanceSettingsService::KEY_DEFAULT_MISC_EXPENSE => $data['default_misc_expense_account_code'] ?? null,
@@ -196,7 +199,7 @@ class SettingsController extends Controller
 
         return view('finance.settings.journals', [
             'journals' => $journals,
-            'sourceTypes' => \App\Enums\FinanceJournalSourceType::cases(),
+            'sourceTypes' => FinanceJournalSourceType::cases(),
             'selectedSourceType' => $request->string('source_type')->toString() ?: null,
         ]);
     }

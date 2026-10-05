@@ -16,6 +16,8 @@ class FinanceChartOfAccountsSeeder extends Seeder
 
     public const CODE_BANK_CLEARING = '1100';
 
+    public const CODE_WALLET_LIABILITY = '2100';
+
     public const CODE_OPENING_EQUITY = '3000';
 
     public const CODE_SALES_INCOME = '4000';
@@ -39,6 +41,7 @@ class FinanceChartOfAccountsSeeder extends Seeder
         $accounts = [
             [self::CODE_CASH_ON_HAND, 'Cash on Hand', FinanceAccountType::Asset, 'Primary cash drawer GL'],
             [self::CODE_BANK_CLEARING, 'Bank / Payment Clearing', FinanceAccountType::Asset, 'Cashfree and bank receipts clearing'],
+            [self::CODE_WALLET_LIABILITY, 'Customer Wallet Liability', FinanceAccountType::Liability, 'Customer wallet credits and internal wallet refund obligations'],
             [self::CODE_OPENING_EQUITY, 'Opening Balance Equity', FinanceAccountType::Equity, 'Opening balance offset'],
             [self::CODE_SALES_INCOME, 'Sales / RD Income', FinanceAccountType::Income, 'Customer order collections'],
             [self::CODE_REFUND_EXPENSE, 'Customer Refunds', FinanceAccountType::Expense, 'Completed customer refunds'],
@@ -98,6 +101,7 @@ class FinanceChartOfAccountsSeeder extends Seeder
         FinanceSetting::putValue('default_revenue_account_code', self::CODE_SALES_INCOME);
         FinanceSetting::putValue('default_refund_account_code', self::CODE_REFUND_EXPENSE);
         FinanceSetting::putValue('default_bank_clearing_account_code', self::CODE_BANK_CLEARING);
+        FinanceSetting::putValue('default_wallet_liability_account_code', self::CODE_WALLET_LIABILITY);
         FinanceSetting::putValue('default_cash_account_code', self::CODE_CASH_ON_HAND);
         FinanceSetting::putValue('opening_equity_account_code', self::CODE_OPENING_EQUITY);
         FinanceSetting::putValue('default_misc_expense_account_code', self::CODE_EXPENSE_MISC);

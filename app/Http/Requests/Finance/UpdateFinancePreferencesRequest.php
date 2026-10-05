@@ -28,6 +28,7 @@ class UpdateFinancePreferencesRequest extends FormRequest
             'default_revenue_account_code' => ['nullable', 'string', Rule::exists('finance_accounts', 'code')],
             'default_refund_account_code' => ['nullable', 'string', Rule::exists('finance_accounts', 'code')],
             'default_bank_clearing_account_code' => ['nullable', 'string', Rule::exists('finance_accounts', 'code')],
+            'default_wallet_liability_account_code' => ['nullable', 'string', Rule::exists('finance_accounts', 'code')],
             'default_cash_account_code' => ['nullable', 'string', Rule::exists('finance_accounts', 'code')],
             'opening_equity_account_code' => ['nullable', 'string', Rule::exists('finance_accounts', 'code')],
             'default_misc_expense_account_code' => ['nullable', 'string', Rule::exists('finance_accounts', 'code')],

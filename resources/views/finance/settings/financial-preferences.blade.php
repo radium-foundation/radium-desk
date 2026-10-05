@@ -36,6 +36,7 @@
                         'default_revenue_account_code' => 'Default revenue account',
                         'default_refund_account_code' => 'Default refund account',
                         'default_bank_clearing_account_code' => 'Default bank clearing',
+                        'default_wallet_liability_account_code' => 'Default wallet liability',
                         'default_cash_account_code' => 'Default cash account',
                         'opening_equity_account_code' => 'Opening equity account',
                         'default_misc_expense_account_code' => 'Default misc expense',

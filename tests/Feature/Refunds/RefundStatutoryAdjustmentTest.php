@@ -53,6 +53,7 @@ class RefundStatutoryAdjustmentTest extends TestCase
 
         config([
             'refunds.statutory_adjustment.enabled' => true,
+            'refunds.statutory_adjustment.activated_at' => '2020-01-01 00:00:00',
             'cashfree.system_user_email' => 'superadmin@radium.local',
             'statutory_invoices.auto_issue_on_pos_complete' => false,
             'statutory_invoices.worker_may_mint' => false,
@@ -74,6 +75,56 @@ class RefundStatutoryAdjustmentTest extends TestCase
         $refundsConfig = require config_path('refunds.php');
 
         $this->assertFalse($refundsConfig['statutory_adjustment']['enabled']);
+        $this->assertNull($refundsConfig['statutory_adjustment']['activated_at']);
+    }
+
+    public function test_enabled_without_activation_timestamp_skips_adjustment(): void
+    {
+        config([
+            'refunds.statutory_adjustment.enabled' => true,
+            'refunds.statutory_adjustment.activated_at' => null,
+        ]);
+
+        [$order, $invoice, $refund] = $this->fullRefundFixture();
+
+        $this->enqueue($refund);
+
+        $adjustment = RefundStatutoryAdjustment::query()->firstOrFail();
+        $this->assertSame(RefundStatutoryAdjustmentStatus::NotApplicable, $adjustment->status);
+        $this->assertSame('statutory_adjustment_not_activated', $adjustment->skip_reason);
+        $this->assertDatabaseCount('outbox_events', 0);
+    }
+
+    public function test_refund_before_activation_timestamp_is_not_adjusted(): void
+    {
+        config([
+            'refunds.statutory_adjustment.enabled' => true,
+            'refunds.statutory_adjustment.activated_at' => now()->addDay()->toDateTimeString(),
+        ]);
+
+        [$order, $invoice, $refund] = $this->fullRefundFixture();
+
+        $this->enqueue($refund);
+
+        $adjustment = RefundStatutoryAdjustment::query()->firstOrFail();
+        $this->assertSame(RefundStatutoryAdjustmentStatus::NotApplicable, $adjustment->status);
+        $this->assertSame('refund_before_statutory_adjustment_activation', $adjustment->skip_reason);
+        $this->assertDatabaseCount('outbox_events', 0);
+    }
+
+    public function test_wallet_and_opm_full_refunds_are_both_eligible_after_activation(): void
+    {
+        foreach ([ApprovedRefundMethod::Wallet, ApprovedRefundMethod::Cashfree] as $method) {
+            [$order, $invoice] = $this->orderWithInvoice(paymentAmount: 1000, orderId: 'RD-ADJ-'.uniqid());
+            $refund = $this->completedRefund($order, amount: 1000, approvedMethod: $method->value);
+
+            $this->enqueue($refund);
+
+            $adjustment = RefundStatutoryAdjustment::query()
+                ->where('refund_request_id', $refund->id)
+                ->firstOrFail();
+            $this->assertSame(RefundStatutoryAdjustmentStatus::Pending, $adjustment->status);
+        }
     }
 
     public function test_feature_flag_disabled_skips_enqueue_on_refund_completed(): void
@@ -307,8 +358,8 @@ class RefundStatutoryAdjustmentTest extends TestCase
 
         $readModel = app(CaMonthlyStatutoryLineReadModel::class);
         $request = Request::create('/', 'GET', [
-            'date_from' => '2026-09-01',
-            'date_to' => '2026-09-30',
+            'date_from' => Carbon::parse($invoice->issued_at)->startOfMonth()->toDateString(),
+            'date_to' => Carbon::parse($creditNote->issued_at ?? now())->endOfMonth()->toDateString(),
         ]);
         $preflight = $readModel->preflight($request);
         $rows = $readModel->exportRows($request);

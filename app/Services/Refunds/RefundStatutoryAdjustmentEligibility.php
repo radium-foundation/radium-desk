@@ -18,10 +18,16 @@ final class RefundStatutoryAdjustmentEligibility
     public function __construct(
         private readonly OrderStatutoryInvoiceResolver $invoiceResolver,
         private readonly RefundCalculationService $calculations,
+        private readonly RefundStatutoryAdjustmentActivation $activation,
     ) {}
 
     public function evaluate(RefundRequest $refund): RefundStatutoryAdjustmentEligibilityResult
     {
+        $activationSkip = $this->activation->skipReasonFor($refund);
+        if ($activationSkip !== null) {
+            return RefundStatutoryAdjustmentEligibilityResult::skip($activationSkip);
+        }
+
         if (! $refund->status->isTerminalSuccess()) {
             return RefundStatutoryAdjustmentEligibilityResult::skip('refund_not_terminal_success');
         }

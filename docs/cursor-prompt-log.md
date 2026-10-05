@@ -832,3 +832,27 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-24
 
 **Controlled live rd.net CW refund reversal gate — STOPPED (no candidate).** Owner authorized live test. Pre-flight verified Desk **30adc198**, rdnet **70472cc**, migration applied, reversals **0**. Candidate search: **3** rd.net wallet refunds total — REF-67354/CW:72 and REF-67366/CW:71 **protected**; REF-2026-000276/RA3506948 **ineligible** (no CW ledger credit, `execution_transaction_id` null, legacy manual completion). **No flag enablement. No revoke. No financial mutation.**
+
+---
+
+## RadiumDesk-P-04-10-25
+
+**CA Monthly Report pre-cutover gap investigation (Sept 1–6, 2026) — read-only.** Production KVM `/var/www/radium-desk` DB `radium_desk` @ release **v4.1.0/8212bbc8**. CA report queries `statutory_invoices.issued_at` only; **0** rows for 2026-09-01→2026-09-06 (MIN `issued_at` **2026-09-07 10:29:03 IST**). Pre-cutover source **`radiumbox_prod.orders`** (`invoice_date` + `invoicecode`): **1299** invoices / **₹17,06,803.49** for 2026-09-01→2026-09-06 (daily activity **2026-09-01..05** only; **2026-09-06 = 0** all sources). Channels: `rdservice.in` 1193, `POS` 12, `radiumecom` 41, `radiumbox.com` 43, `radiumsign`/other remainder. **Do not sum** `rdservice_in_prod` separately — rd.in rows are already in `radiumbox_prod` via `order_rdservice`. Root cause: expected cutover gap — historical Admin invoices never imported into Desk `statutory_invoices`. Recommended recovery: one-time read-only export from `radiumbox_prod` + merge with Desk CA export from **2026-09-07** onward. **No code/data/deploy/migration changes. Extraction not executed.**
+
+---
+
+## RadiumDesk-P-04-10-26
+
+**One-time read-only pre-cutover CA historical supplement extraction (Sept 1–5, 2026) for accountant Amit.** Authorized execution of P-04-10-25 recovery plan. Source KVM8 `radiumbox_prod.orders` + `order_rdservice` + read-only `order_details` / `einvoice_respose` enrichment. Pre-export validation: daily counts/totals **MATCH** investigation; join duplicates **0**; invoicecode uniqueness **1299/1299**. Channel note: `radiumecom` **51** (prior summary typo **41**). Output: multi-sheet accountant workbook + manifest under `storage/app/private/ca-recovery-p-04-10-26/`. **No production mutation / no Desk import / no code deploy.**
+
+---
+
+## RadiumDesk-P-04-10-27
+
+**Wallet vs OPM refund accounting policy specification (read-only).** Traces RefundRequest → executor → wallet/payment movement → finance journal → statutory invoice/cancellation/Credit Note paths. Production KVM `/var/www/radium-desk` DB `radium_desk` read-only: 304 wallet / 67 OPM terminal refunds; 0 refund-linked CNs; 87 invoiced-refund cohort analyzed; 116 missing-journal root cause verified (112 pre–2026-08-02 finance foundation; 4 same-day edge). Proposed accounting decision matrix for Owner/CA review. **No code/data/flag/journal/CN/wallet mutation; no commit/deploy.**
+
+---
+
+## RadiumDesk-P-04-10-28
+
+**Wallet vs OPM refund accounting implementation (Owner-approved).** Implements Customer Wallet Liability GL **2100**, method-aware `RefundJournalService` (Wallet → liability; OPM → bank clearing), fail-closed wallet posting, statutory-adjustment `activated_at` boundary, financial-preferences UI, migration, regression tests, rollout doc. **No historical CN/journal/invoice mutation; `REFUNDS_STATUTORY_ADJUSTMENT_ENABLED` remains OFF; no deploy unless separately authorized.**

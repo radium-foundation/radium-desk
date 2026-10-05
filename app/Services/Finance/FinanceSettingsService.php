@@ -2,9 +2,11 @@
 
 namespace App\Services\Finance;
 
+use App\Enums\FinanceAccountType;
 use App\Models\FinanceAccount;
 use App\Models\FinanceSetting;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 class FinanceSettingsService
 {
@@ -17,6 +19,8 @@ class FinanceSettingsService
     public const KEY_DEFAULT_REFUND = 'default_refund_account_code';
 
     public const KEY_DEFAULT_BANK_CLEARING = 'default_bank_clearing_account_code';
+
+    public const KEY_DEFAULT_WALLET_LIABILITY = 'default_wallet_liability_account_code';
 
     public const KEY_DEFAULT_CASH = 'default_cash_account_code';
 
@@ -86,6 +90,41 @@ class FinanceSettingsService
         return $this->accountBySettingKey(self::KEY_DEFAULT_BANK_CLEARING);
     }
 
+    public function defaultWalletLiabilityAccount(): ?FinanceAccount
+    {
+        return $this->walletLiabilityAccountOrNull();
+    }
+
+    /**
+     * @throws ValidationException when wallet liability posting is required but misconfigured
+     */
+    public function requireWalletLiabilityAccountForRefund(): FinanceAccount
+    {
+        $account = $this->walletLiabilityAccountOrNull();
+        if ($account === null) {
+            throw ValidationException::withMessages([
+                'wallet_liability' => 'Customer Wallet Liability account is not configured or is invalid for wallet refund posting.',
+            ]);
+        }
+
+        return $account;
+    }
+
+    /**
+     * @throws ValidationException when bank clearing posting is required but misconfigured
+     */
+    public function requireBankClearingAccountForRefund(): FinanceAccount
+    {
+        $account = $this->defaultBankClearingAccount();
+        if ($account === null) {
+            throw ValidationException::withMessages([
+                'bank_clearing' => 'Bank / Payment Clearing account is not configured for external refund posting.',
+            ]);
+        }
+
+        return $account;
+    }
+
     public function defaultCashAccount(): ?FinanceAccount
     {
         return $this->accountBySettingKey(self::KEY_DEFAULT_CASH);
@@ -104,5 +143,24 @@ class FinanceSettingsService
         foreach ($values as $key => $value) {
             FinanceSetting::putValue($key, $value === null || $value === '' ? null : (string) $value);
         }
+    }
+
+    private function walletLiabilityAccountOrNull(): ?FinanceAccount
+    {
+        $account = $this->accountBySettingKey(self::KEY_DEFAULT_WALLET_LIABILITY);
+        if ($account === null) {
+            return null;
+        }
+
+        if ($account->type !== FinanceAccountType::Liability) {
+            return null;
+        }
+
+        $bankClearingCode = FinanceSetting::getValue(self::KEY_DEFAULT_BANK_CLEARING);
+        if (is_string($bankClearingCode) && $bankClearingCode !== '' && $account->code === $bankClearingCode) {
+            return null;
+        }
+
+        return $account;
     }
 }

@@ -33,6 +33,12 @@ return [
 
     'statutory_adjustment' => [
         'enabled' => (bool) env('REFUNDS_STATUTORY_ADJUSTMENT_ENABLED', false),
+        /**
+         * ISO-8601 datetime (app timezone). When enabled, only refunds completed
+         * on or after this timestamp are eligible for automatic statutory adjustment.
+         * Must be set before production enablement to protect historical refunds.
+         */
+        'activated_at' => env('REFUNDS_STATUTORY_ADJUSTMENT_ACTIVATED_AT'),
     ],
 
     'profiles' => [
