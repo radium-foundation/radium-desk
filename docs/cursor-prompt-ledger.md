@@ -340,4 +340,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-56 | 2026-10-05 | Merge approved deployment dry-run safety fix | Owner-authorized merge of `fix/deploy-rsync-delete-safety` into `main`. **Merge and push only; no deploy/production access.** |
 | RadiumDesk-P-04-10-57 | 2026-10-05 | Authorized production read-only dry-run | Owner-authorized `./tools/desk deploy --dry-run` against KVM production using corrected safety tooling on `main` @ `450a6854`. **BLOCKED** by release-tag preflight. No rsync/production mutation. |
 | RadiumDesk-P-04-10-58 | 2026-10-05 | Separate read-only dry-run from release preflight | `validate_dry_run_candidate` for `--dry-run`; `validate_release_metadata` live-only. Tests for tag-ahead scenario. **Local only; no push/deploy/production access.** |
+| RadiumDesk-P-04-10-59 | 2026-10-05 | Push verified main (P-04-10-58 preflight fix) | Owner-authorized push of `03f8c797` to `origin/main`. **Push only; no deploy/production access/tag.** |
+| RadiumDesk-P-04-10-60 | 2026-10-05 | Production read-only dry-run (post-preflight fix) | Owner-authorized `./tools/desk deploy --dry-run` from `main` @ `03f8c797` against production v4.1.2. **Dry-run only; no live deploy/mutation.** |
 Do not renumber or overwrite earlier rows. Append only.

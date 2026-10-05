@@ -528,3 +528,15 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-58
 
 **Separate read-only dry-run from release preflight.** Added `validate_dry_run_candidate()` for `--dry-run` path; moved `validate_release_metadata()` to live deploy only. Preflight separation tests including HEAD-ahead-of-tag scenario. **Local only; no push/deploy/production access.**
+
+---
+
+## RadiumDesk-P-04-10-59
+
+**Push verified main (P-04-10-58 preflight fix).** Owner-authorized push of `03f8c797` to `origin/main`. Pre-push verification: single commit ahead of `450a6854`; scope limited to preflight separation, tests, and prompt docs. **Push only; no deploy/production access/tag.**
+
+---
+
+## RadiumDesk-P-04-10-60
+
+**Production read-only dry-run (post-preflight fix).** Owner-authorized `./tools/desk deploy --dry-run` from `main` @ `03f8c797` against KVM production v4.1.2 @ `59b717e7`. Complete deletion/change inventory capture and classification. **Dry-run only; no live deploy/mutation/approval.**
