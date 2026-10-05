@@ -230,9 +230,13 @@ class ServicePosUiTest extends TestCase
             'statutory_invoice_id' => $invoice->id,
             'amount' => $partial,
             'method' => 'Bank Transfer',
+            'reference' => 'NEFT-SVC-UI-PART-001',
+            'bank_name' => 'HDFC Bank',
+            'bank_branch' => 'Connaught Place',
             'payment_date' => '2026-09-17',
             'idempotency_key' => (string) Str::uuid(),
-        ])->assertRedirect();
+        ])->assertRedirect()
+            ->assertSessionHasNoErrors();
 
         $order->refresh();
         $this->assertSame(ServiceOrderPaymentStatus::Partial, $order->payment_status);
@@ -245,7 +249,8 @@ class ServicePosUiTest extends TestCase
             'method' => 'Cash',
             'payment_date' => '2026-09-17',
             'idempotency_key' => (string) Str::uuid(),
-        ])->assertRedirect();
+        ])->assertRedirect()
+            ->assertSessionHasNoErrors();
 
         $this->assertSame(ServiceOrderPaymentStatus::Paid, $order->fresh()->payment_status);
         $this->assertSame(InventorySale::query()->count(), $beforeSales);

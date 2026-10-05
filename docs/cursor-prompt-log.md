@@ -871,6 +871,12 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 
 ---
 
+## RadiumDesk-P-04-10-32
+
+**Service POS price-edit validation + acceptance-test fixture repair.** Confirmed payment failure pre-dates `78447400` (fails on `f8fe7f5f` and `1517ac37`; passes on `e975865d` before Bank Transfer validation). Root cause: `ServicePosUiTest` HTTP Bank Transfer POST omitted required `reference`/`bank_name`/`bank_branch`; `assertRedirect()` masked validation failure. Fixed test payload + `assertSessionHasNoErrors()`. Browser UAT on local `127.0.0.1:9889`: catalog price 422.88→500, totals ₹590, proforma `SQ-2026-000001` persisted `unit_price_ex_gst=500`. Full Service POS **33/33 PASS**. **Not pushed/deployed.**
+
+---
+
 ## RadiumDesk-P-04-10-30
 
 **Wallet/OPM validation + Sales Report (CA→Sales) — STOP at branch ambiguity.** Verified repository `/Users/ravi/RadiumWebsites/radium-desk`; current branch `fix/c360-central-wallet-ledger-display` @ `f8fe7f5f` (Wallet accounting commit from P-04-10-28). Searched 221 local/remote branches: **no branch named Delhi, Mumbai, delhi, or mumbai**. CA-report-related branches exist (`fix/ca-monthly-report-v4.0.138`, `release/ca-monthly-report-v4.0.138`) but do not match Owner "Delhi / Mumbai" branch requirement. Workstream A: 29 Wallet/statutory-adjustment tests PASS (re-validated). Workstream B: **not started** — awaiting Owner clarification of required git branch. Inspected CA Monthly Report architecture: invoice-level parent rows + XLSX expandable line detail; `Product / Service` from `statutory_invoice_items.description`; no dedicated Product Code/SKU column yet. **No code/DB/config/production mutation.**
