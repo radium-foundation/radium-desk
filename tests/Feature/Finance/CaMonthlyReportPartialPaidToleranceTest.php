@@ -37,9 +37,9 @@ class CaMonthlyReportPartialPaidToleranceTest extends TestCase
 
     public function test_export_contract_is_payment_channel_only(): void
     {
-        $this->assertCount(22, CaMonthlyReportDefinition::HEADERS);
-        $this->assertSame('Payment Channel', CaMonthlyReportDefinition::HEADERS[21]);
-        $this->assertNotContains('Payment Method', CaMonthlyReportDefinition::HEADERS);
+        $this->assertCount(27, CaMonthlyReportDefinition::HEADERS);
+        $this->assertSame('Payment Method', CaMonthlyReportDefinition::HEADERS[21]);
+        $this->assertNotContains('Payment Channel', CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Reference', CaMonthlyReportDefinition::HEADERS);
     }
 
@@ -82,7 +82,7 @@ class CaMonthlyReportPartialPaidToleranceTest extends TestCase
 
         $this->assertSame('599.01', $row[18]);
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertCount(22, $row);
+        $this->assertCount(27, $row);
     }
 
     public function test_inv_67643_style_one_paisa_difference_exports_cf_not_partial_paid(): void

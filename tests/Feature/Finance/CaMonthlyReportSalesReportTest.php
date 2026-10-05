@@ -48,7 +48,7 @@ class CaMonthlyReportSalesReportTest extends TestCase
     public function test_detail_headers_include_product_name_and_sku(): void
     {
         $this->assertSame(
-            ['Product Name', 'Product Code / SKU', 'Quantity', 'HSN/SAC', 'Taxable Amount', 'Shipping', 'IGST', 'CGST', 'SGST', 'Line Total'],
+            ['Product Name', 'Product Code / SKU', 'Quantity', 'Unit Price', 'Discount', 'HSN/SAC', 'GST Rate', 'Taxable Amount', 'Shipping', 'IGST', 'CGST', 'SGST', 'Line Total'],
             CaMonthlyReportDefinition::DETAIL_HEADERS,
         );
     }
@@ -199,7 +199,7 @@ class CaMonthlyReportSalesReportTest extends TestCase
 
         $this->assertSame('Credit Note', $row[3]);
         $this->assertSame('CN-0001', $row[2]);
-        $this->assertCount(22, $row);
+        $this->assertCount(27, $row);
     }
 
     public function test_sync_xlsx_generator_uses_sales_report_title(): void

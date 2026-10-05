@@ -29,6 +29,7 @@ final class CaMonthlyReportXlsxPackageValidator
             'xl/_rels/workbook.xml.rels',
             'xl/styles.xml',
             'xl/worksheets/sheet1.xml',
+            'xl/worksheets/sheet2.xml',
         ];
 
         foreach ($requiredParts as $part) {
