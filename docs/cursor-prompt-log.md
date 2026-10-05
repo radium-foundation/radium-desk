@@ -808,3 +808,15 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-20
 
 **Deploy RadiumBox CW existing-credit detector support @ `dd0f6c85`.** Surgical overlay **2** runtime files to `/var/www/radium-desk`. Backup `/home/ravi/backups/radium-desk-p042020-gate1b-box-detector-20261005T035321Z`. Post-deploy SHAs match `dd0f6c85`; `isRadiumBox` + `RADIUMBOX_COM` present; rd.in REF-67379/CW:73 + REF-67378/CW:74 **matched**; `/up` **200**, `/login` **200**. Ledger max **74** unchanged; CW **#54** REF-67363 ₹849 `radiumbox.com` posted unchanged; REF-67363 refund **closed** exec **RD2567** (CW54 `source_reference=users_wallet:2567` → detector `source_mismatch`, expected). **No refund recovery / no reconciliation run / no financial mutation.**
+
+---
+
+## RadiumDesk-P-04-10-21
+
+**Read-only verification: Desk CW refund reversal companion for rdservice.net.** Confirmed `WalletRefundReversalResolver` supports rd.in + Box only; no `RdServiceNetWalletRefundReversalClient`; prod `RDSERVICE_NET_WALLET_REFUND_REVERSAL_ENABLED` absent. **No mutation.**
+
+---
+
+## RadiumDesk-P-04-10-22
+
+**Implement rdservice.net CW refund reversal Desk companion.** Added `RdServiceNetWalletRefundReversalClient`, resolver branch for RN/RA/RNP, `RDSERVICE_NET_WALLET_REFUND_REVERSAL_ENABLED` (default false). **12** new + **20** regression reversal tests PASS. **Not deployed. Flag not enabled. No live revoke.**

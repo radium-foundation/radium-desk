@@ -6,6 +6,8 @@ use App\Contracts\Refunds\WalletRefundReversalClient;
 use App\Models\RefundRequest;
 use App\Services\RadiumBox\RadiumBoxWalletRefundReversalClient;
 use App\Services\RdService\RdServiceInWalletRefundReversalClient;
+use App\Services\RdService\RdServiceNetWalletRefundReversalClient;
+use App\Support\Money\WalletMoney;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Validation\ValidationException;
 
@@ -20,6 +22,10 @@ class WalletRefundReversalResolver
     {
         if ($this->destinations->isRdServiceIn($orderId)) {
             return $this->container->make(RdServiceInWalletRefundReversalClient::class);
+        }
+
+        if ($this->destinations->isRdServiceNet($orderId)) {
+            return $this->container->make(RdServiceNetWalletRefundReversalClient::class);
         }
 
         if ($this->destinations->isRadiumBox($orderId)) {
@@ -44,8 +50,8 @@ class WalletRefundReversalResolver
             ]);
         }
 
-        $amount = \App\Support\Money\WalletMoney::normalize($refund->refund_amount ?? $refund->amount);
-        if ($amount === null || ! \App\Support\Money\WalletMoney::isPositive($amount)) {
+        $amount = WalletMoney::normalize($refund->refund_amount ?? $refund->amount);
+        if ($amount === null || ! WalletMoney::isPositive($amount)) {
             throw ValidationException::withMessages([
                 'refund' => 'A positive refund amount is required before wallet reversal can be posted.',
             ]);
