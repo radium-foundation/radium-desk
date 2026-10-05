@@ -291,7 +291,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
         $xml = $this->sheetXml($path);
         $this->assertStringContainsString('outlineLevel="1"', $xml);
         $this->assertStringContainsString('hidden="1"', $xml);
-        $this->assertStringContainsString('CA Monthly Report', $xml);
+        $this->assertStringContainsString('Sales Report', $xml);
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $this->readXlsxRow($path, 3));
         $this->assertSame('118.00', $this->readXlsxRow($path, 4)[18]);
 

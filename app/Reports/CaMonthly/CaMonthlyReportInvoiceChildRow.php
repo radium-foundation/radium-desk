@@ -6,6 +6,7 @@ final class CaMonthlyReportInvoiceChildRow
 {
     public function __construct(
         public readonly string $productName,
+        public readonly string $productCodeSku,
         public readonly string $quantity,
         public readonly string $hsnSac,
         public readonly string $taxableAmount,

@@ -6,7 +6,7 @@
         </div>
 
         @if ($history->isEmpty())
-            <p class="small text-muted mb-0">No CA Monthly report export activity in the selected history window.</p>
+            <p class="small text-muted mb-0">No Sales Report export activity in the selected history window.</p>
         @else
             <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle mb-0">

@@ -88,7 +88,7 @@ final class CaMonthlyReportXlsxPackageValidator
 
         $headerNeedle = '<is><t>'.CaMonthlyReportDefinition::HEADERS[0].'</t></is>';
         if (! str_contains($xml, $headerNeedle)) {
-            $errors[] = 'Worksheet is missing the first CA Monthly header cell.';
+            $errors[] = 'Worksheet is missing the first Sales Report header cell.';
         }
 
         return $errors;

@@ -390,3 +390,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-02-10-04
 
 **Create clean `release/v4.1.0` branch from v4.0.168 baseline.** Cherry-picked rdservice.net companion + hardening commits only; excluded feature-branch forensic/migration scope. Doc conflicts resolved to release-only ledger entries. Full release-scope regression gate on clean branch. **Not tagged/pushed/deployed.**
+
+---
+
+## RadiumDesk-P-04-10-33
+
+**Sales Report rename + Product Name/SKU line detail (CA Monthly continuation).** Owner authorized proceed on `fix/ca-monthly-report-v4.0.138` (fast-forwarded to `main` @ `8212bbc8`; branch was fully merged/stale, 106 commits behind). User-facing **CA Monthly Report** → **Sales Report** (nav, page title, XLSX sheet/title, email, audit label). Line detail contract: **Product Name** (`statutory_invoice_items.description`) + **Product Code / SKU** (`statutory_invoice_items.sku`); XLSX expandable child rows include SKU in label. Invoice-grain parent totals unchanged (22 parent columns); CSV parent-only; multi-product invoices remain one parent row + expandable detail. Credit Note rows via existing Status column; no refund-amount columns added (no direct invoice→refund authoritative link). **172** CA Monthly/Sales Report tests PASS; Pint PASS. Wallet branch untouched. **Not pushed/deployed.**
