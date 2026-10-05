@@ -429,6 +429,29 @@ class RefundRequestService
                 request: $request,
             );
 
+            if (($execution['metadata']['recovered_from_existing_credit'] ?? false) === true) {
+                $this->auditLogService->log(
+                    userId: $user->id,
+                    event: 'refund.wallet_credit_reconciled',
+                    auditable: $fresh,
+                    oldValues: $oldValues,
+                    newValues: [
+                        'refund_id' => $fresh->id,
+                        'reference_no' => $fresh->reference_no,
+                        'central_wallet_id' => $execution['metadata']['central_wallet_id'] ?? null,
+                        'ledger_entry_id' => $execution['metadata']['ledger_entry_id'] ?? null,
+                        'wallet_reference' => $fresh->execution_reference_no,
+                        'amount' => $fresh->refund_amount ?? $fresh->amount,
+                        'currency' => config('central_wallet.currency', 'INR'),
+                        'previous_status' => $oldValues['status'] ?? RefundStatus::PendingExecution->value,
+                        'resulting_status' => $fresh->status->value,
+                        'reason' => 'existing_central_wallet_credit_detected',
+                        'idempotency_reconciliation_reference' => $fresh->reference_no,
+                    ],
+                    request: $request,
+                );
+            }
+
             app(TeamMemberActivityService::class)
                 ->recordCaseAction($user);
 

@@ -16,6 +16,10 @@ return [
 
     'reconciliation' => [
         'enabled' => filter_var(env('CENTRAL_WALLET_RECONCILIATION_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'wallet_refund_detection_enabled' => filter_var(
+            env('CENTRAL_WALLET_RECONCILIATION_WALLET_REFUND_DETECTION_ENABLED', true),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
         'daily_schedule' => env('CENTRAL_WALLET_RECONCILIATION_DAILY_AT', '02:30'),
         'batch_size' => max(1, (int) env('CENTRAL_WALLET_RECONCILIATION_BATCH_SIZE', 100)),
         'rate_limit_per_minute' => max(1, (int) env('CENTRAL_WALLET_RECONCILIATION_RATE_LIMIT', 60)),

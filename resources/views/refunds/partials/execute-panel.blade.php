@@ -1,10 +1,12 @@
 @php
     $isWalletExecution = $refund->approved_refund_method === \App\Enums\ApprovedRefundMethod::Wallet;
+    $walletRecovery = $walletRefundRecovery ?? null;
+    $isWalletRecovery = $isWalletExecution && ! empty($walletRecovery);
 @endphp
 
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-header bg-white py-3">
-        <h2 class="h6 mb-0">Execute Refund</h2>
+        <h2 class="h6 mb-0">{{ $isWalletRecovery ? 'Complete Wallet Refund (Recovery)' : 'Execute Refund' }}</h2>
     </div>
     <div class="card-body">
         <div class="alert alert-light border mb-3 py-2 small">
@@ -17,10 +19,17 @@
             </div>
         @endif
 
-        @if($isWalletExecution)
+        @if($isWalletRecovery)
+            @include('refunds.partials.wallet-recovery-panel', ['walletRefundRecovery' => $walletRecovery])
+
             <p class="small text-muted mb-3">
-                Wallet credit and execution identifiers are recorded by the wallet integration when you complete
-                this refund. Do not enter the Desk refund reference here.
+                Use the action below to safely complete this refund using the verified existing Central Wallet credit.
+                Desk will not call the spoke integration again and will not create a second credit.
+            </p>
+        @elseif($isWalletExecution)
+            <p class="small text-muted mb-3">
+                Completing this refund will credit the customer wallet automatically and record the execution result.
+                You do not need to enter wallet transaction IDs or CW references.
             </p>
         @else
             <p class="small text-muted mb-3">
@@ -69,9 +78,20 @@
                 @enderror
             </div>
 
+            @error('refund')
+                <div class="alert alert-danger py-2 small">{{ $message }}</div>
+            @enderror
+
             <button type="submit" class="btn btn-primary w-100"
-                    onclick="return confirm('Mark this refund as completed?');">
-                <i class="bi bi-check2-circle me-1"></i> Mark Refund Completed
+                    onclick="return confirm('{{ $isWalletRecovery ? 'Safely complete this refund using the existing Wallet credit?' : 'Mark this refund as completed?' }}');">
+                <i class="bi bi-check2-circle me-1"></i>
+                @if($isWalletRecovery)
+                    Safely Complete Refund
+                @elseif($isWalletExecution)
+                    Complete Wallet Refund
+                @else
+                    Mark Refund Completed
+                @endif
             </button>
         </form>
     </div>

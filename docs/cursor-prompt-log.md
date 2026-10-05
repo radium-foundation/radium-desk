@@ -748,3 +748,15 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-10
 
 **Read-only latency investigation: REF-67379 / RD13612 / refund #374.** Reconstructed timeline from prod DB + access logs. **VERIFIED:** ~30h21m request→approval (human workflow); execution/credit **~4s**; **~9h20m** stranded `pending_execution` after successful ledger **#73** due to parser rejection of `CW:73`; manual completion by user **1** at **2026-10-05 07:36:12 IST** after parser deploy. **No mutation.**
+
+---
+
+## RadiumDesk-P-04-10-11
+
+**Central Wallet final architecture closure audit (read-only).** Cross-lifecycle audit A–O: Desk SSOT ledger/reservations; spoke paths (Box/rdin/rdnet); refund/reversal/C360; Shipra UX gaps; security; simplification matrix. **No mutation.**
+
+---
+
+## RadiumDesk-P-04-10-12
+
+**Gate 1: Desk Wallet safety + Shipra refund workflow.** Existing Central Wallet credit detection/recovery for rdin/rdnet refunds; safe complete without re-credit; recovery UI; reconciliation job read-only detection; REF-67379 regression contract tests. **Not deployed.**

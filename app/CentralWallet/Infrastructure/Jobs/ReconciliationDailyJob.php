@@ -2,6 +2,7 @@
 
 namespace App\CentralWallet\Infrastructure\Jobs;
 
+use App\CentralWallet\Application\WalletRefundReconciliationService;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletReconciliationRun;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -15,9 +16,21 @@ final class ReconciliationDailyJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function handle(): void
+    public function handle(WalletRefundReconciliationService $walletRefundReconciliation): void
     {
         if (! config('central_wallet.reconciliation.enabled', false)) {
+            return;
+        }
+
+        if (config('central_wallet.reconciliation.wallet_refund_detection_enabled', true)) {
+            $run = $walletRefundReconciliation->runDailyDetection();
+
+            Log::channel((string) config('central_wallet.log_channel', 'stack'))->info('central_wallet.reconciliation.daily.completed', [
+                'run_id' => $run->id,
+                'scope' => $run->scope,
+                'summary' => $run->summary,
+            ]);
+
             return;
         }
 

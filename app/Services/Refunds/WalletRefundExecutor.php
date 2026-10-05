@@ -19,6 +19,7 @@ class WalletRefundExecutor implements RefundExecutor
         private readonly RdServiceNetWalletRefundClient $rdServiceNetWalletRefundClient,
         private readonly RadiumBoxWalletRefundClient $radiumBoxWalletRefundClient,
         private readonly WalletRefundDestinationResolver $destinations,
+        private readonly WalletRefundExistingCreditDetector $existingCreditDetector,
     ) {}
 
     public function supports(ApprovedRefundMethod $method): bool
@@ -46,7 +47,14 @@ class WalletRefundExecutor implements RefundExecutor
         }
 
         if ($this->destinations->isRdServiceIn($orderId)) {
-            return $this->creditRdServiceIn($refund, $actor, $payload, $orderId, $amount);
+            return $this->executeCentralWalletCredit(
+                fn (): array => $this->creditRdServiceIn($refund, $actor, $payload, $orderId, $amount),
+                $refund,
+                $actor,
+                $payload,
+                'rdservice_in_wallet',
+                'Wallet credited automatically via rdservice.in integration.',
+            );
         }
 
         if ($this->destinations->isRdServiceNet($orderId)) {
@@ -56,7 +64,14 @@ class WalletRefundExecutor implements RefundExecutor
                 ]);
             }
 
-            return $this->creditRdServiceNet($refund, $actor, $payload, $orderId, $amount);
+            return $this->executeCentralWalletCredit(
+                fn (): array => $this->creditRdServiceNet($refund, $actor, $payload, $orderId, $amount),
+                $refund,
+                $actor,
+                $payload,
+                'rdservice_net_central_wallet',
+                'Central Wallet credited automatically via rdservice.net integration.',
+            );
         }
 
         if ($this->destinations->isRadiumBox($orderId)) {
@@ -66,6 +81,81 @@ class WalletRefundExecutor implements RefundExecutor
         throw ValidationException::withMessages([
             'refund' => $this->destinations->unsupportedAutomatedWalletCreditMessage($orderId),
         ]);
+    }
+
+    /**
+     * @param  callable(): array{provider: string, reference_number: string|null, transaction_id: string|null, remarks: string|null, metadata: array<string, mixed>}  $creditExecutor
+     * @param  array{remarks?: string|null}  $payload
+     * @return array{provider: string, reference_number: string|null, transaction_id: string|null, remarks: string|null, metadata: array<string, mixed>}
+     */
+    private function executeCentralWalletCredit(
+        callable $creditExecutor,
+        RefundRequest $refund,
+        User $actor,
+        array $payload,
+        string $provider,
+        string $defaultRemark,
+    ): array {
+        $detection = $this->existingCreditDetector->detect($refund);
+
+        if ($detection->isMatched()) {
+            $entry = $detection->ledgerEntry();
+            if ($entry === null) {
+                throw ValidationException::withMessages([
+                    'refund' => 'Central Wallet credit reconciliation failed unexpectedly.',
+                ]);
+            }
+
+            return $this->executionResultFromExistingCredit(
+                provider: $provider,
+                entryId: (int) $entry->id,
+                centralWalletId: (string) $entry->central_wallet_id,
+                refund: $refund,
+                actor: $actor,
+                payload: $payload,
+                defaultRemark: 'Refund completed from existing Central Wallet credit (CW:'.$entry->id.').',
+            );
+        }
+
+        if ($detection->isBlocking()) {
+            throw ValidationException::withMessages([
+                'refund' => $detection->adminMessage()
+                    ?? 'Central Wallet credit reconciliation could not proceed safely.',
+            ]);
+        }
+
+        return $creditExecutor();
+    }
+
+    /**
+     * @param  array{remarks?: string|null}  $payload
+     * @return array{provider: string, reference_number: string, transaction_id: string, remarks: string, metadata: array<string, mixed>}
+     */
+    private function executionResultFromExistingCredit(
+        string $provider,
+        int $entryId,
+        string $centralWalletId,
+        RefundRequest $refund,
+        User $actor,
+        array $payload,
+        string $defaultRemark,
+    ): array {
+        $walletReference = 'CW:'.$entryId;
+
+        return $this->executionResult(
+            provider: $provider,
+            walletReference: $walletReference,
+            walletTransactionId: (string) $entryId,
+            refund: $refund,
+            actor: $actor,
+            payload: $payload,
+            defaultRemark: $defaultRemark,
+            extra: [
+                'recovered_from_existing_credit' => true,
+                'central_wallet_id' => $centralWalletId,
+                'ledger_entry_id' => $entryId,
+            ],
+        );
     }
 
     /**
