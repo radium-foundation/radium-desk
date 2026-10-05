@@ -742,3 +742,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-09
 
 **Deploy rdservice.in refund parser fix @ `65c829b8` (surgical overlay).** Single-file overlay `RdServiceInWalletRefundClient.php` → `/var/www/radium-desk`. Backup `/home/ravi/backups/radium-desk-p041009-rdin-parser-20261005T015247Z/` (pre-md5 `588dc573…`). Post-deploy parser reflection: `CW:1/73/12345` accept, malformed reject; `/up` **200**, `/login` **200**. Ledger **#73** ₹499 unchanged; refund **#374** still `pending_execution`; **0** new credits/reversals for REF-67379. REF-67379/RD13612 not retried/completed.
+
+---
+
+## RadiumDesk-P-04-10-10
+
+**Read-only latency investigation: REF-67379 / RD13612 / refund #374.** Reconstructed timeline from prod DB + access logs. **VERIFIED:** ~30h21m request→approval (human workflow); execution/credit **~4s**; **~9h20m** stranded `pending_execution` after successful ledger **#73** due to parser rejection of `CW:73`; manual completion by user **1** at **2026-10-05 07:36:12 IST** after parser deploy. **No mutation.**
