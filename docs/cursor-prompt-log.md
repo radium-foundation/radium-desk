@@ -730,3 +730,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-07
 
 **Release/deploy C360 Central Wallet ledger visibility @ `7b2499b2`.** Approved release: full regression, production config gate, push, surgical KVM overlay, post-deploy C360 verification for RN153/REF-67354 and RN158/REF-67366; legacy RadiumBox wallet path regression. No financial mutation.
+
+---
+
+## RadiumDesk-P-04-10-08
+
+**Fix rdservice.in refund response parser for Central Wallet references.** `RdServiceInWalletRefundClient::normalizeWalletReference` now accepts `CW:{positive integer}` (production regression: `CW:73` / `wallet_transaction_id=73`). Malformed `CW:` variants remain rejected. Unit + `WalletRefundExecutionTest` **39/39** PASS. **Not deployed.** REF-67379/RD13612 not retried; existing Desk ledger **#73** credit untouched.

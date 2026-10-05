@@ -5,6 +5,7 @@ namespace Tests\Unit\RdService;
 use App\Services\RdService\RdServiceInWalletRefundClient;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class RdServiceInWalletRefundClientTest extends TestCase
@@ -162,6 +163,76 @@ class RdServiceInWalletRefundClientTest extends TestCase
                 $exception->errors()['refund'][0] ?? null,
             );
         }
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function validCentralWalletReferenceProvider(): array
+    {
+        return [
+            'CW:1' => ['CW:1'],
+            'CW:73 production regression' => ['CW:73'],
+            'CW:12345' => ['CW:12345'],
+        ];
+    }
+
+    #[DataProvider('validCentralWalletReferenceProvider')]
+    public function test_accepts_central_wallet_reference_format(string $walletReference): void
+    {
+        Http::fake([
+            'https://rdservice.in.test/api/integrations/v1/wallet-refunds' => Http::response([
+                'status' => 201,
+                'message' => 'Central Wallet credit created',
+                'data' => [
+                    'wallet_transaction_id' => 73,
+                    'wallet_reference' => $walletReference,
+                    'source_system' => 'radium_desk',
+                    'desk_refund_reference' => 'REF-67379',
+                    'credit' => '499.00',
+                    'currency' => 'INR',
+                    'balance' => '499.00',
+                    'destination' => 'central_wallet',
+                ],
+            ], 201),
+        ]);
+
+        $result = app(RdServiceInWalletRefundClient::class)->creditWalletRefund(
+            deskRefundReference: 'REF-67379',
+            orderId: 'RD13612',
+            amount: '499.00',
+        );
+
+        $this->assertSame($walletReference, $result['wallet_reference']);
+        $this->assertSame(73, $result['wallet_transaction_id']);
+        $this->assertSame('499.00', $result['balance']);
+    }
+
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public static function invalidCentralWalletReferenceProvider(): array
+    {
+        return [
+            'CW:' => ['CW:'],
+            'CW:abc' => ['CW:abc'],
+            'CW:-1' => ['CW:-1'],
+            'CW:1.5' => ['CW:1.5'],
+            'CW 73' => ['CW 73'],
+            'arbitrary string' => ['not-a-valid-reference!'],
+            'array value' => [['bad']],
+        ];
+    }
+
+    #[DataProvider('invalidCentralWalletReferenceProvider')]
+    public function test_rejects_malformed_central_wallet_reference(mixed $walletReference): void
+    {
+        $this->expectWalletCreditDetailsValidationError([
+            'wallet_reference' => $walletReference,
+            'wallet_transaction_id' => 73,
+            'credit' => '499.00',
+            'currency' => 'INR',
+        ]);
     }
 
     public function test_preserves_distinct_wallet_reference_and_transaction_id_semantics(): void

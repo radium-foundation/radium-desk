@@ -199,6 +199,10 @@ class RdServiceInWalletRefundClient
             return $trimmed;
         }
 
+        if (preg_match('/^CW:[1-9]\d*$/', $trimmed) === 1) {
+            return $trimmed;
+        }
+
         if (preg_match('/^[A-Za-z0-9._-]{1,64}$/', $trimmed) === 1) {
             return $trimmed;
         }
