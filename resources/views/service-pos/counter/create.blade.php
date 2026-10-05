@@ -123,25 +123,15 @@
     const searchInput = document.getElementById('svc-item-search');
     const categoryFilter = document.getElementById('svc-category-filter');
     const results = document.getElementById('svc-search-results');
-    let lineIndex = 0;
 
-    function money(n) { return '₹' + Number(n).toFixed(2); }
+    function moneyAmount(n) { return Number(n).toFixed(2); }
+    function money(n) { return '₹' + moneyAmount(n); }
     function lineTotal(line) {
         const sub = line.qty * line.unit_price_ex_gst - (line.discount || 0);
         const tax = sub * (line.gst_rate / 100);
         return sub + tax;
     }
-    function render() {
-        cartBody.innerHTML = cart.map((line, i) => `
-            <tr>
-                <td>${line.description}</td>
-                <td>${line.sac_code || '—'}</td>
-                <td class="text-end">${line.qty}</td>
-                <td class="text-end">${line.unit_price_ex_gst.toFixed(2)}</td>
-                <td class="text-end">${line.gst_rate}%</td>
-                <td class="text-end">${lineTotal(line).toFixed(2)}</td>
-                <td><button type="button" class="btn btn-sm btn-link text-danger" data-remove="${i}">Remove</button></td>
-            </tr>`).join('');
+    function syncLineFields() {
         lineFields.innerHTML = cart.map((line, i) => `
             <input type="hidden" name="lines[${i}][service_item_id]" value="${line.service_item_id || ''}">
             <input type="hidden" name="lines[${i}][description]" value="${line.description.replace(/"/g, '&quot;')}">
@@ -150,6 +140,8 @@
             <input type="hidden" name="lines[${i}][sac_code]" value="${line.sac_code || ''}">
             <input type="hidden" name="lines[${i}][gst_rate]" value="${line.gst_rate}">
         `).join('');
+    }
+    function renderTotals() {
         let subtotal = 0, tax = 0;
         cart.forEach(line => {
             const taxable = line.qty * line.unit_price_ex_gst;
@@ -159,12 +151,47 @@
         document.getElementById('svc-subtotal').textContent = money(subtotal);
         document.getElementById('svc-tax').textContent = money(tax);
         document.getElementById('svc-total').textContent = money(subtotal + tax);
-        cartBody.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', () => {
-            cart.splice(Number(btn.dataset.remove), 1);
-            render();
-        }));
     }
-    function addLine(line) { cart.push(line); render(); }
+    function renderCart() {
+        cartBody.innerHTML = cart.map((line, i) => `
+            <tr>
+                <td>${line.description}</td>
+                <td>${line.sac_code || '—'}</td>
+                <td class="text-end">${line.qty}</td>
+                <td class="text-end"><input type="number" step="0.01" min="0" class="form-control form-control-sm text-end svc-price" data-index="${i}" value="${moneyAmount(line.unit_price_ex_gst)}"></td>
+                <td class="text-end">${line.gst_rate}%</td>
+                <td class="text-end" data-line-total="${i}">${moneyAmount(lineTotal(line))}</td>
+                <td><button type="button" class="btn btn-sm btn-link text-danger" data-remove="${i}">Remove</button></td>
+            </tr>`).join('');
+        syncLineFields();
+        renderTotals();
+    }
+    cartBody.addEventListener('click', (event) => {
+        const btn = event.target.closest('[data-remove]');
+        if (!btn) {
+            return;
+        }
+        cart.splice(Number(btn.dataset.remove), 1);
+        renderCart();
+    });
+    cartBody.addEventListener('input', (event) => {
+        const field = event.target;
+        if (!field.classList.contains('svc-price')) {
+            return;
+        }
+        const index = parseInt(field.dataset.index, 10);
+        if (Number.isNaN(index) || !cart[index]) {
+            return;
+        }
+        cart[index].unit_price_ex_gst = Math.max(0, parseFloat(field.value) || 0);
+        const totalCell = cartBody.querySelector(`[data-line-total="${index}"]`);
+        if (totalCell) {
+            totalCell.textContent = moneyAmount(lineTotal(cart[index]));
+        }
+        renderTotals();
+        syncLineFields();
+    });
+    function addLine(line) { cart.push(line); renderCart(); }
     async function search() {
         const q = searchInput.value.trim();
         if (q.length < 1) { results.innerHTML = ''; return; }

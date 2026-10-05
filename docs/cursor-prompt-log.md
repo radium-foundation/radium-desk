@@ -372,3 +372,21 @@ Fix Central Wallet reservation commit spendable-balance double-count (P-30-09-07
 ## RadiumDesk-P-30-09-09
 
 Create clean Central Wallet reservation integration branch `feat/central-wallet-reservations` from `origin/main` @ `6b1ee86d`. Cherry-picked `0c69ab3b` (foundation) and `6657a2d2` (commit-balance fix); excluded unrelated hotfix branding commits. Ledger conflict on second cherry-pick resolved. CW suite **127** (**123** pass / **4** skip); Pint PASS. Pushed new branch only. **No main merge/deploy; flag OFF.**
+
+---
+
+## RadiumDesk-P-04-10-29
+
+**Read-only investigation: Admin Dileep cannot change service price in Sell Services (Service POS).** Identified workflow in `radium-desk` Commerce → **Sell Services** (`service-pos.counter.create`). Catalog lines render Ex-GST as static text + hidden input (no `<input>` editor); price snapshot is taken from `ServiceItem.price_ex_gst` at add-to-cart. Secondary Freight Reverse Auction / SAC **998311** / **₹50,000** ex-GST / line **₹59,000** matches service master + 18% GST. Admin role includes `service-pos.sell` and `services.manage`; no Dileep-specific permission gate found. Backend `ServiceQuoteService::resolveLine()` accepts client-supplied `unit_price_ex_gst` without enforcing catalog price. Contrast: Product POS counter has editable `pos-price` inputs. Workarounds today: edit Service master, or **Add custom line** (browser `prompt()`). **No code/DB/config/permission/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-31
+
+**Service POS inline Ex-GST price editing for catalog lines.** Branch `fix/service-pos-inline-price-edit`. Replaced static Ex-GST display with editable `svc-price` number input (Product POS `pos-price` parity); live line/grand total recalc; hidden `lines[i][unit_price_ex_gst]` stays in sync. Backend unchanged. `ServicePosUiTest` regression: editable control markup, default master price, overridden catalog price, custom line preserved. **PR to `main`. Not deployed.**
+
+---
+
+## RadiumDesk-P-04-10-32
+
+**Service POS price-edit validation + acceptance-test fixture repair.** Confirmed payment failure pre-dates `78447400` (fails on parent branch and `1517ac37`; passes before Bank Transfer validation). Root cause: `ServicePosUiTest` HTTP Bank Transfer POST omitted required `reference`/`bank_name`/`bank_branch`; `assertRedirect()` masked validation failure. Fixed test payload + `assertSessionHasNoErrors()`. Browser UAT on local `127.0.0.1:9889`: catalog price 422.88→500, totals ₹590, proforma `SQ-2026-000001` persisted `unit_price_ex_gst=500`. Full Service POS **33/33 PASS**. **PR to `main`. Not deployed.**

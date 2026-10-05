@@ -119,6 +119,71 @@ class ServicePosUiTest extends TestCase
         ]))->assertSessionHasErrors();
     }
 
+    public function test_service_counter_renders_editable_catalog_price_control(): void
+    {
+        $this->actingAs($this->admin)
+            ->get(route('service-pos.counter.create'))
+            ->assertOk()
+            ->assertSee('svc-price', false)
+            ->assertSee('data-line-total', false);
+    }
+
+    public function test_admin_can_submit_catalog_service_with_default_master_price(): void
+    {
+        $item = ServiceItem::query()->where('code', 'DEV-RD-1Y')->firstOrFail();
+
+        $this->actingAs($this->admin)->post(route('service-pos.quotes.store'), $this->quotePayload([
+            ['service_item_id' => $item->id, 'qty' => 1, 'unit_price_ex_gst' => (float) $item->price_ex_gst],
+        ]))->assertRedirect();
+
+        $quote = ServiceQuote::query()->latest('id')->firstOrFail();
+        $this->assertSame('422.88', $quote->lines->first()->unit_price_ex_gst);
+        $this->assertSame((float) $item->price_ex_gst, (float) $quote->lines->first()->unit_price_ex_gst);
+    }
+
+    public function test_admin_can_submit_catalog_service_with_overridden_price(): void
+    {
+        $item = ServiceItem::query()->where('code', 'DEV-RD-1Y')->firstOrFail();
+
+        $this->actingAs($this->admin)->post(route('service-pos.quotes.store'), $this->quotePayload([
+            [
+                'service_item_id' => $item->id,
+                'qty' => 1,
+                'unit_price_ex_gst' => 500.00,
+                'sac_code' => $item->sac_code,
+                'gst_rate' => (float) $item->gst_rate,
+            ],
+        ]))->assertRedirect();
+
+        $quote = ServiceQuote::query()->latest('id')->firstOrFail();
+        $line = $quote->lines->first();
+        $this->assertSame($item->id, $line->service_item_id);
+        $this->assertSame('998313', $line->sac_code);
+        $this->assertSame('18.00', $line->gst_rate);
+        $this->assertSame('500.00', $line->unit_price_ex_gst);
+        $this->assertSame('590.00', $line->line_total);
+    }
+
+    public function test_custom_line_quote_create_still_works_with_manual_price(): void
+    {
+        $this->actingAs($this->admin)->post(route('service-pos.quotes.store'), $this->quotePayload([
+            [
+                'description' => 'Custom consulting',
+                'qty' => 1,
+                'unit_price_ex_gst' => 1000,
+                'sac_code' => '998596',
+                'gst_rate' => 18,
+            ],
+        ]))->assertRedirect();
+
+        $quote = ServiceQuote::query()->latest('id')->firstOrFail();
+        $line = $quote->lines->first();
+        $this->assertNull($line->service_item_id);
+        $this->assertSame('Custom consulting', $line->description);
+        $this->assertSame('1000.00', $line->unit_price_ex_gst);
+        $this->assertSame('1180.00', $line->line_total);
+    }
+
     public function test_full_acceptance_scenario_via_http(): void
     {
         $beforeSales = InventorySale::query()->count();
@@ -130,7 +195,8 @@ class ServicePosUiTest extends TestCase
             ->assertOk()
             ->assertSee('Service counter')
             ->assertSee('Search by name, phone, or email', false)
-            ->assertSee('pos-customer-lookup-root', false);
+            ->assertSee('pos-customer-lookup-root', false)
+            ->assertSee('svc-price', false);
 
         $this->actingAs($this->admin)->post(route('service-pos.quotes.store'), $this->quotePayload([
             ['service_item_id' => $rd->id, 'qty' => 1],
@@ -164,9 +230,13 @@ class ServicePosUiTest extends TestCase
             'statutory_invoice_id' => $invoice->id,
             'amount' => $partial,
             'method' => 'Bank Transfer',
+            'reference' => 'NEFT-SVC-UI-PART-001',
+            'bank_name' => 'HDFC Bank',
+            'bank_branch' => 'Connaught Place',
             'payment_date' => '2026-09-17',
             'idempotency_key' => (string) Str::uuid(),
-        ])->assertRedirect();
+        ])->assertRedirect()
+            ->assertSessionHasNoErrors();
 
         $order->refresh();
         $this->assertSame(ServiceOrderPaymentStatus::Partial, $order->payment_status);
@@ -179,7 +249,8 @@ class ServicePosUiTest extends TestCase
             'method' => 'Cash',
             'payment_date' => '2026-09-17',
             'idempotency_key' => (string) Str::uuid(),
-        ])->assertRedirect();
+        ])->assertRedirect()
+            ->assertSessionHasNoErrors();
 
         $this->assertSame(ServiceOrderPaymentStatus::Paid, $order->fresh()->payment_status);
         $this->assertSame(InventorySale::query()->count(), $beforeSales);
