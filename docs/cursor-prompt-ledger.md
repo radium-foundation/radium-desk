@@ -333,5 +333,7 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-52 | 2026-10-05 | Security containment + integrity recovery after P-04-10-50 | Removed `.env.mysql`/local artifacts/safety tooling; release.json→v4.1.2; 3545-file SHA256 match to 59b717e7. No rsync/rotation. |
 | RadiumDesk-P-04-10-53 | 2026-10-05 | Credential exposure and rotation assessment (read-only) | Incident file = local `.env.mysql` template; prod secrets largely not in file; no HTTP/log evidence of retrieval. **No rotation.** |
 | RadiumDesk-P-04-10-54 | 2026-10-05 | Fix deployment dry-run safety defect | Centralized `--dry-run` rsync argv + assert; incident regression tests. Local only. **No production access.** |
+| RadiumDesk-P-04-10-55 | 2026-10-05 | Independent review of deployment dry-run safety fix | Read-only review of `bd0019e8` on `fix/deploy-rsync-delete-safety`. Tests, call graph, rsync path audit. **No production access; no merge/push.** |
+| RadiumDesk-P-04-10-56 | 2026-10-05 | Merge approved deployment dry-run safety fix | Owner-authorized merge of `fix/deploy-rsync-delete-safety` into `main`. **Merge and push only; no deploy/production access.** |
 
 Do not renumber or overwrite earlier rows. Append only.
