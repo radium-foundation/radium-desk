@@ -856,3 +856,21 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-28
 
 **Wallet vs OPM refund accounting implementation (Owner-approved).** Implements Customer Wallet Liability GL **2100**, method-aware `RefundJournalService` (Wallet → liability; OPM → bank clearing), fail-closed wallet posting, statutory-adjustment `activated_at` boundary, financial-preferences UI, migration, regression tests, rollout doc. **No historical CN/journal/invoice mutation; `REFUNDS_STATUTORY_ADJUSTMENT_ENABLED` remains OFF; no deploy unless separately authorized.**
+
+---
+
+## RadiumDesk-P-04-10-29
+
+**Read-only investigation: Admin Dileep cannot change service price in Sell Services (Service POS).** Identified workflow in `radium-desk` Commerce → **Sell Services** (`service-pos.counter.create`). Catalog lines render Ex-GST as static text + hidden input (no `<input>` editor); price snapshot is taken from `ServiceItem.price_ex_gst` at add-to-cart. Secondary Freight Reverse Auction / SAC **998311** / **₹50,000** ex-GST / line **₹59,000** matches service master + 18% GST. Admin role includes `service-pos.sell` and `services.manage`; no Dileep-specific permission gate found. Backend `ServiceQuoteService::resolveLine()` accepts client-supplied `unit_price_ex_gst` without enforcing catalog price. Contrast: Product POS counter has editable `pos-price` inputs. Workarounds today: edit Service master, or **Add custom line** (browser `prompt()`). **No code/DB/config/permission/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-31
+
+**Service POS inline Ex-GST price editing for catalog lines.** Branch `fix/service-pos-inline-price-edit`. Replaced static Ex-GST display with editable `svc-price` number input (Product POS `pos-price` parity); live line/grand total recalc; hidden `lines[i][unit_price_ex_gst]` stays in sync. Backend unchanged. `ServicePosUiTest` regression: editable control markup, default master price, overridden catalog price, custom line preserved. Focused Service POS **32/33** pass (1 pre-existing payment-status failure in full acceptance scenario). **Not pushed/deployed.**
+
+---
+
+## RadiumDesk-P-04-10-30
+
+**Wallet/OPM validation + Sales Report (CA→Sales) — STOP at branch ambiguity.** Verified repository `/Users/ravi/RadiumWebsites/radium-desk`; current branch `fix/c360-central-wallet-ledger-display` @ `f8fe7f5f` (Wallet accounting commit from P-04-10-28). Searched 221 local/remote branches: **no branch named Delhi, Mumbai, delhi, or mumbai**. CA-report-related branches exist (`fix/ca-monthly-report-v4.0.138`, `release/ca-monthly-report-v4.0.138`) but do not match Owner "Delhi / Mumbai" branch requirement. Workstream A: 29 Wallet/statutory-adjustment tests PASS (re-validated). Workstream B: **not started** — awaiting Owner clarification of required git branch. Inspected CA Monthly Report architecture: invoice-level parent rows + XLSX expandable line detail; `Product / Service` from `statutory_invoice_items.description`; no dedicated Product Code/SKU column yet. **No code/DB/config/production mutation.**
