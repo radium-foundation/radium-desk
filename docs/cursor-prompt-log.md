@@ -390,3 +390,33 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-02-10-04
 
 **Create clean `release/v4.1.0` branch from v4.0.168 baseline.** Cherry-picked rdservice.net companion + hardening commits only; excluded feature-branch forensic/migration scope. Doc conflicts resolved to release-only ledger entries. Full release-scope regression gate on clean branch. **Not tagged/pushed/deployed.**
+
+---
+
+## RadiumDesk-P-04-10-39
+
+**Read-only production refund / invoice / Credit Note reconciliation.** Production v4.1.0 @ `8212bbc8`. SELECT-only queries on KVM8 `radium_desk`. Mapped refund→order→statutory invoice resolver logic; verified `REFUNDS_STATUTORY_ADJUSTMENT_ENABLED=false`; 371 terminal refunds (304 wallet / 67 OPM cashfree); 0 refund-linked invoice cancellations; 0 refund-linked CNs; 3 B2B+IRN >24h full refunds with active invoice (CN path if auto-adjustment enabled). **No code/DB/deploy/commit/mutation.**
+
+---
+
+## RadiumDesk-P-04-10-40
+
+**Read-only review of 3 B2B+IRN >24h refunds (P-04-10-39 follow-up).** Re-queried production with IRN age measured at refund completion (not current time). **2 of 3** genuinely qualify (REF-313/RBP98 ₹6,747; REF-67350/RD5089 ₹497); third (REF-276/RA3506948 ₹1,079) refund completed **11 days before invoice/IRN existed** — P-04-10-39 false positive from current-age metric. No CN or manual Finance action on any case. **No code/DB/deploy/mutation.**
+
+---
+
+## RadiumDesk-P-04-10-41
+
+**CA-ready Sales Report XLSX + Refund & CN Review exception sheet.** Branch `release/sales-report-v4.1.1`. Two-sheet XLSX: Sheet 1 adds CA columns (Customer Type, Total GST, Payment Status, Credit Note Number/Status; line Unit Price, Discount, GST Rate). Sheet 2 exception-only refunds by refund completion date with neutral CA review flags (B2B+IRN >24h at refund without CN; refund-before-invoice anomaly). No hard-coded production IDs. No financial logic changes. Tests 146/146 PASS. **Not deployed; prompt docs excluded from release commit.**
+
+---
+
+## RadiumDesk-P-04-10-42
+
+**Create v4.1.2 release tag only (Option B).** Pre-tag verification PASS (branch/HEAD/remote all `5f87eb46`; v4.1.1 unchanged at `77276772`; v4.1.2 absent locally and on origin). CA-ready content verified in HEAD. **BLOCKED:** `CHANGELOG.md` has no `## 4.1.2` entry — repository convention requires a release note before tagging. Tag not created or pushed. **No deploy/code/migration.**
+
+---
+
+## RadiumDesk-P-04-10-43
+
+**Add v4.1.2 CHANGELOG entry + create/push annotated tag.** `CHANGELOG.md` section for CA-ready Sales Report / Refund & CN Review. Tag `v4.1.2` on release HEAD including CHANGELOG commit. v4.1.1 unchanged. **Not deployed.**

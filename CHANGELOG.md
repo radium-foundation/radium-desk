@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.1.2 — 2026-10-05 — CA-ready Sales Report
+
+- **CA-ready Sales Report XLSX:** Sheet 1 adds CA handoff columns — Customer Type, Total GST, Payment Status, Credit Note Number/Status; Payment Channel renamed to **Payment Method**; line detail adds Unit Price, Discount, and GST Rate. Parent invoice grain, expandable product detail, and CSV parent-only export unchanged.
+- **Refund & CN Review sheet:** Second XLSX sheet lists exception-only refunds completed in the reporting period that require CA/Finance review (not a full refund register). Scope documented in the sheet period row.
+- **Product detail preserved:** Product Name (`statutory_invoice_items.description`) and Product Code / SKU (`statutory_invoice_items.sku`) remain on expandable line rows and web preview.
+- **Refund review timing:** IRN age for CA classification is measured at **refund completion time** (`executed_at` / `closed_at`), not current time. Neutral review flags only — potential statutory Credit Note treatment (B2B + submitted IRN + full refund + no linked CN beyond cancellation window); refund-before-invoice timeline anomaly.
+- **Refund vs Credit Note separation:** Refund amounts are reported separately from Credit Note Number, Status, and Amount. Refunds are not labelled as GST Credit Notes.
+- **Accounting behavior preserved:** Invoice-level totals, GST calculations, Credit Note display on original invoices, permissions/routes, and wallet/refund accounting unchanged. No migration. No wallet, refund-journal, or statutory-adjustment changes.
+- Regression (previously verified): CaMonthly report suite **146** passed; `CaMonthlyReportCaReadyExportTest` **7** passed; `CaMonthlyReportXlsxCompatibilityTest` **9** passed; Pint PASS.
+- Rollback target: v4.1.1 / `77276772`.
+- Prompt **RadiumDesk-P-04-10-41**.
+
 ## 4.1.1 — 2026-10-05 — Sales Report (CA Monthly register rename + product detail)
 
 - **User-facing rename:** CA Monthly Report is now presented as **Sales Report** (navigation, page title, export email, XLSX sheet/title, audit label). Internal route identifiers (`finance.reports.ca-monthly.*`) and report ID (`statutory.ca_monthly`) unchanged for backward compatibility.
