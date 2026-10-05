@@ -420,3 +420,39 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-43
 
 **Add v4.1.2 CHANGELOG entry + create/push annotated tag.** `CHANGELOG.md` section for CA-ready Sales Report / Refund & CN Review. Tag `v4.1.2` on release HEAD including CHANGELOG commit. v4.1.1 unchanged. **Not deployed.**
+
+---
+
+## RadiumDesk-P-04-10-44
+
+**Production deploy v4.1.2 CA-ready Sales Report.** Owner-authorized KVM deploy via `desk deploy --yes`. Production baseline verified v4.1.0 / `8212bbc8`. Target `v4.1.2` / `59b717e7`. No migrations (`Nothing to migrate`). Statutory adjustment flag OFF. Post-deploy: release.json v4.1.2 / `59b717e7`; `/up` 200; Sep-2026 XLSX two-sheet verify PASS; REF-313/67350 → potential CN treatment; REF-276 → refund-before-invoice anomaly.
+
+---
+
+## RadiumDesk-P-04-10-45
+
+**Read-only investigation: v4.1.2 rsync --delete side effect.** Production `release.json` was v4.1.0 but disk carried ~120 unreleased Central Wallet overlay files (branch `fix/c360-central-wallet-ledger-display` delta vs `8212bbc8`). `rsync --delete` removed them during P-04-10-44. Core CW API routes/schema/migration history intact; overlay migration artisan commands and 3 migration PHP files removed from disk (tables remain). Pre-deploy backup = release.json only. **No mutations.**
+
+---
+
+## RadiumDesk-P-04-10-46
+
+**Central Wallet overlay dependency + regression-safety investigation.** Machine inventory: 120 files (`ceeff4e7` ∖ `59b717e7`). Git grep: zero v4.1.2 references to overlay classes. Core CW APIs/schema preserved. Overlay routes/CLI absent; related env flags OFF except reconciliation (scaffold-only job). DB: 55 `central_wallet_refund_migrations` rows; migration PHP files absent from disk. **No mutations.**
+
+---
+
+## RadiumDesk-P-04-10-47
+
+**Read-only Central Wallet refund migration status + reconciliation gate.** Production v4.1.2 @ `59b717e7` verified. `central_wallet_refund_migrations`: 55 rows, all `reconciled`, ₹29,073.00; 0 resolutions; 0 duplicate-credit candidates in table. 292-refund manifest (P-30-09-25): 55/292 migrated; 237 remaining (₹136,635) with execution flag OFF and overlay tooling absent. Reconciliation flag ON → v4.1.2 scaffold-only job (writes empty run record). **No mutations.**
+
+---
+
+## RadiumDesk-P-04-10-48
+
+**Controlled production disable of scaffold-only Central Wallet reconciliation.** Owner-authorized `.env` change: `CENTRAL_WALLET_RECONCILIATION_ENABLED=true` → `false`; Laravel config cache refresh only. No code/deploy/DB/wallet/refund/migration changes.
+
+---
+
+## RadiumDesk-P-04-10-49
+
+**Deployment safety remediation for rsync --delete.** KVM deploy: pre-sync deletion dry-run inventory, expected vs unexpected classification, explicit `delete-unexpected` gate, remote pre-delete backup under `storage/app/backups/deploy-rsync-safety-*`, local audit under `storage/app/deploy-backups/`. Local tests A–F. **No production deploy.**

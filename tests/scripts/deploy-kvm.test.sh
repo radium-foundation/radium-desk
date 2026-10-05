@@ -8,22 +8,34 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$ROOT/tools/commands/deploy-kvm.sh"
+SAFETY_LIB="$ROOT/tools/lib/deploy-rsync-safety.sh"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "PASS: $*"; }
 
 [[ -f "$SCRIPT" ]] || fail "deploy-kvm.sh missing"
+[[ -f "$SAFETY_LIB" ]] || fail "deploy-rsync-safety.sh missing"
 bash -n "$SCRIPT" || fail "deploy-kvm.sh syntax check failed"
+bash -n "$SAFETY_LIB" || fail "deploy-rsync-safety.sh syntax check failed"
 pass "deploy-kvm.sh syntax valid"
+pass "deploy-rsync-safety.sh syntax valid"
+
+grep -q 'deploy-rsync-safety.sh' "$SCRIPT" || fail "must source deploy-rsync-safety.sh"
+grep -q 'deploy_rsync_run_deletion_safety_gate' "$SCRIPT" || fail "must run deletion safety gate before live rsync"
+grep -q 'deploy_rsync_analyze_deletions' "$SCRIPT" || fail "must analyze deletions during deploy --dry-run"
+grep -q 'delete-unexpected' "$SAFETY_LIB" || fail "must require explicit delete-unexpected approval"
+grep -q 'deploy-backups' "$SAFETY_LIB" || fail "must persist deletion inventory under deploy-backups"
+grep -q 'storage/app/backups/deploy-rsync-safety' "$SAFETY_LIB" || fail "must back up deletions remotely before sync"
+pass "deploy rsync deletion safety integration present"
 
 grep -q 'DEPLOY_MODE' "$SCRIPT" || fail "must enforce DEPLOY_MODE"
 grep -q 'redis-vps-preinstall-inspection.md' "$SCRIPT" || fail "must allow known untracked doc"
-grep -q '\-\-exclude.*\.env' "$SCRIPT" || fail "must exclude remote .env"
-grep -q '\-\-exclude.*\.git/' "$SCRIPT" || fail "must exclude .git"
-grep -q '\-\-exclude.*node_modules/' "$SCRIPT" || fail "must exclude node_modules"
-grep -q '\-\-exclude.*vendor/' "$SCRIPT" || fail "must exclude vendor"
-grep -q '\-\-exclude.*storage/logs/' "$SCRIPT" || fail "must exclude storage/logs"
-grep -q '\-\-exclude.*storage/framework/' "$SCRIPT" || fail "must exclude storage/framework"
+grep -q '\-\-exclude.*\.env' "$SAFETY_LIB" || fail "must exclude remote .env"
+grep -q '\-\-exclude.*\.git/' "$SAFETY_LIB" || fail "must exclude .git"
+grep -q '\-\-exclude.*node_modules/' "$SAFETY_LIB" || fail "must exclude node_modules"
+grep -q '\-\-exclude.*vendor/' "$SAFETY_LIB" || fail "must exclude vendor"
+grep -q '\-\-exclude.*storage/logs/' "$SAFETY_LIB" || fail "must exclude storage/logs"
+grep -q '\-\-exclude.*storage/framework/' "$SAFETY_LIB" || fail "must exclude storage/framework"
 grep -q 'CHANGELOG.md' "$SCRIPT" || fail "must validate CHANGELOG.md"
 grep -q 'describe --exact-match' "$SCRIPT" || fail "must require exact release tag on HEAD"
 grep -q 'sync_kvm_public_build' "$SCRIPT" || fail "must sync KVM public/build"
@@ -52,21 +64,22 @@ grep -q 'verify_ready_queue_contract' "$SCRIPT" \
 grep -q 'verify-ready-queue-contract.sh' "$SCRIPT" \
     || fail "must invoke verify-ready-queue-contract.sh"
 
-grep -q '\-\-exclude.*bootstrap/cache/' "$SCRIPT" \
+grep -q '\-\-exclude.*bootstrap/cache/' "$SAFETY_LIB" \
     || fail "must exclude bootstrap/cache from rsync"
 
 # --- release.json rsync filter regression (static ordering) ---
 
 extract_rsync_filters() {
     awk '
-        /rsync_args\+=\(/ { in_block=1; next }
-        in_block && /^[[:space:]]*\)[[:space:]]*$/ { exit }
-        in_block && /--(include|exclude)/ {
-            if (match($0, /'\''[^'\'']+'\''/)) {
-                print substr($0, RSTART, RLENGTH)
-            }
+        /^deploy_kvm_rsync_application_filters\(\)/ { in_fn=1; next }
+        in_fn && /^}/ { exit }
+        in_fn && /^--(include|exclude)$/ {
+            getline
+            gsub(/^[[:space:]]+/, "", $0)
+            printf "'\''%s'\''\n", $0
+            next
         }
-    ' "$SCRIPT"
+    ' "$SAFETY_LIB"
 }
 
 RSYNC_FILTERS=()
@@ -146,7 +159,7 @@ done
 pass "release.json rsync filter ordering valid"
 
 find_filter_index "'bootstrap/cache/'" >/dev/null \
-    || fail "bootstrap/cache/ exclude must be part of application rsync filter set"
+    || fail "bootstrap/cache/ exclude must be part of application rsync filter set in deploy-rsync-safety.sh"
 
 pass "bootstrap/cache rsync protection present"
 

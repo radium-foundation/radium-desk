@@ -41,3 +41,6 @@ Thumbs.db
 # Disposable Inventory/POS browser QA sqlite (never production)
 /database/inventory-pos-browser-qa.sqlite
 /database/inventory-pos-browser-qa.sqlite-*
+
+# Local deploy deletion audit inventories (tools/lib/deploy-rsync-safety.sh)
+/storage/app/deploy-backups/
