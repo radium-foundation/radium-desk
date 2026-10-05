@@ -19,7 +19,7 @@ source "$SCRIPT_DIR/../lib.sh"
 # shellcheck source=tools/lib/deploy-rsync-safety.sh
 source "$SCRIPT_DIR/../lib/deploy-rsync-safety.sh"
 
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="${DEPLOY_KVM_PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 ALLOWED_UNTRACKED="docs/redis-vps-preinstall-inspection.md"
 
 DRY_RUN=0
@@ -131,6 +131,32 @@ validate_release_metadata() {
     fi
 
     print_success "Release metadata validated (tag=${latest_tag}, CHANGELOG entry present)"
+}
+
+# Read-only dry-run preflight: analyze current tree without requiring a release tag.
+validate_dry_run_candidate() {
+    local head_ref branch_ref
+
+    if ! git -C "$PROJECT_ROOT" rev-parse HEAD >/dev/null 2>&1; then
+        print_error "Dry-run candidate is not a valid Git commit."
+        exit 1
+    fi
+
+    head_ref="$(git -C "$PROJECT_ROOT" rev-parse --short HEAD)"
+    branch_ref="$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD)"
+
+    if [[ -z "${SSH_HOST:-}" || -z "${REMOTE_PROJECT:-}" ]]; then
+        print_error "Deployment target is not configured (SSH_HOST/REMOTE_PROJECT)."
+        exit 1
+    fi
+
+    if [[ -z "${DEPLOY_MODE:-}" || "$DEPLOY_MODE" != "kvm" ]]; then
+        print_error "Dry-run requires DEPLOY_MODE=kvm (got: ${DEPLOY_MODE:-unset})."
+        exit 1
+    fi
+
+    print_success "Dry-run read-only candidate validated (branch=${branch_ref}, commit=${head_ref})"
+    print_warning "Dry-run analyzes the current working tree; exact semver tag is not required."
 }
 
 ensure_local_build_manifest() {
@@ -295,11 +321,11 @@ main() {
 
     ensure_clean_working_tree
     ensure_release_branch
-    validate_release_metadata
     verify_hardware_dashboard_contract
     verify_ready_queue_contract
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
+        validate_dry_run_candidate
         ensure_local_build_manifest
         print_warning "Dry-run mode: deletion inventory and rsync preview only (no remote mutations)."
         if ! deploy_rsync_analyze_deletions; then
@@ -317,6 +343,7 @@ main() {
         exit 0
     fi
 
+    validate_release_metadata
     confirm_deploy
     build_frontend_assets
     write_local_release_snapshot
@@ -347,4 +374,6 @@ main() {
     print_success "KVM deployment finished successfully"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

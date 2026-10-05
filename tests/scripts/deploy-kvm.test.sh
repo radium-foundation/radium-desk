@@ -41,6 +41,8 @@ grep -q '\-\-exclude.*storage/logs/' "$SAFETY_LIB" || fail "must exclude storage
 grep -q '\-\-exclude.*storage/framework/' "$SAFETY_LIB" || fail "must exclude storage/framework"
 grep -q 'CHANGELOG.md' "$SCRIPT" || fail "must validate CHANGELOG.md"
 grep -q 'describe --exact-match' "$SCRIPT" || fail "must require exact release tag on HEAD"
+grep -q 'validate_dry_run_candidate' "$SCRIPT" || fail "must validate read-only dry-run candidate separately from release tag"
+grep -q 'exact semver tag is not required' "$SCRIPT" || fail "dry-run must document tag exemption"
 grep -q 'sync_kvm_public_build' "$SCRIPT" || fail "must sync KVM public/build"
 grep -q 'kvm_restart_supervisor_worker' "$SCRIPT" || fail "must restart KVM supervisor worker"
 grep -q 'kvm_health_check' "$SCRIPT" || fail "must run KVM health check"

@@ -516,3 +516,15 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-32
 
 **Service POS price-edit validation + acceptance-test fixture repair.** Confirmed payment failure pre-dates `78447400` (fails on parent branch and `1517ac37`; passes before Bank Transfer validation). Root cause: `ServicePosUiTest` HTTP Bank Transfer POST omitted required `reference`/`bank_name`/`bank_branch`; `assertRedirect()` masked validation failure. Fixed test payload + `assertSessionHasNoErrors()`. Browser UAT on local `127.0.0.1:9889`: catalog price 422.88→500, totals ₹590, proforma `SQ-2026-000001` persisted `unit_price_ex_gst=500`. Full Service POS **33/33 PASS**. **PR to `main`. Not deployed.**
+
+---
+
+## RadiumDesk-P-04-10-57
+
+**Authorized production read-only dry-run.** Owner-authorized `./tools/desk deploy --dry-run` from `main` @ `450a6854` against KVM production v4.1.2 @ `59b717e7`. Static safety verification PASS (P-04-10-54 fix present in `tools/lib/deploy-rsync-safety.sh`). **BLOCKED:** public command failed preflight `validate_release_metadata` — HEAD is `v4.1.2-6-g450a6854`, not exactly tagged `v4.1.2`. No rsync reached production. Health `/up` 200 before and after. **No production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-58
+
+**Separate read-only dry-run from release preflight.** Added `validate_dry_run_candidate()` for `--dry-run` path; moved `validate_release_metadata()` to live deploy only. Preflight separation tests including HEAD-ahead-of-tag scenario. **Local only; no push/deploy/production access.**

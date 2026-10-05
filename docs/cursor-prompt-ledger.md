@@ -338,4 +338,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-54 | 2026-10-05 | Fix deployment dry-run safety defect | Centralized `--dry-run` rsync argv + assert; incident regression tests. Local only. **No production access.** |
 | RadiumDesk-P-04-10-55 | 2026-10-05 | Independent review of deployment dry-run safety fix | Read-only review of `bd0019e8` on `fix/deploy-rsync-delete-safety`. Tests, call graph, rsync path audit. **No production access; no merge/push.** |
 | RadiumDesk-P-04-10-56 | 2026-10-05 | Merge approved deployment dry-run safety fix | Owner-authorized merge of `fix/deploy-rsync-delete-safety` into `main`. **Merge and push only; no deploy/production access.** |
+| RadiumDesk-P-04-10-57 | 2026-10-05 | Authorized production read-only dry-run | Owner-authorized `./tools/desk deploy --dry-run` against KVM production using corrected safety tooling on `main` @ `450a6854`. **BLOCKED** by release-tag preflight. No rsync/production mutation. |
+| RadiumDesk-P-04-10-58 | 2026-10-05 | Separate read-only dry-run from release preflight | `validate_dry_run_candidate` for `--dry-run`; `validate_release_metadata` live-only. Tests for tag-ahead scenario. **Local only; no push/deploy/production access.** |
 Do not renumber or overwrite earlier rows. Append only.
