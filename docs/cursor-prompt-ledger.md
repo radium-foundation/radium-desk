@@ -341,4 +341,5 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-10 | 2026-10-05 | REF-67379 refund latency investigation (read-only) | Timeline reconstruction: approval wait ~30h; credit immediate; ~9h20m pending_execution after parser failure until manual close **07:36 IST**. Compared REF-67354/67366. **No mutation.** |
 | RadiumDesk-P-04-10-11 | 2026-10-05 | Central Wallet final architecture closure audit (read-only) | Full lifecycle audit A–O across Desk + Box + rdin + rdnet. SSOT matrix, Shipra UX, security, phasing. **No mutation.** |
 | RadiumDesk-P-04-10-12 | 2026-10-05 | Gate 1: Desk Wallet safety + Shipra refund workflow | Existing CW credit detection/recovery; safe complete UI; reconciliation read-only detection; REF-67379 regression tests. **Not deployed.** |
+| RadiumDesk-P-04-10-13 | 2026-10-05 | Gate 1A: Production deploy @ `ceeff4e7` | Surgical overlay 11 files; backup `radium-desk-p041012-gate1-20261005T023553Z`; health **200**; reconciliation flag **OFF**; REF-67379 closed; ledger **#73** unchanged. **No financial mutation.** |
 Do not renumber or overwrite earlier rows. Append only.

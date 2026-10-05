@@ -760,3 +760,9 @@ Owner-authorized **Refund 360 financial migration EXECUTION** (batch `desk-refun
 ## RadiumDesk-P-04-10-12
 
 **Gate 1: Desk Wallet safety + Shipra refund workflow.** Existing Central Wallet credit detection/recovery for rdin/rdnet refunds; safe complete without re-credit; recovery UI; reconciliation job read-only detection; REF-67379 regression contract tests. **Not deployed.**
+
+---
+
+## RadiumDesk-P-04-10-13
+
+**Gate 1A: Production deploy @ `ceeff4e7`.** Surgical overlay 11 Gate 1 files to `/var/www/radium-desk`. Backup `/home/ravi/backups/radium-desk-p041012-gate1-20261005T023553Z`. Post-deploy: `/up` **200**, `/login` **200**, `/refunds` **302**; `CENTRAL_WALLET_RECONCILIATION_ENABLED` **false** (env absent). REF-67379/#374 **closed**; ledger **#73** ₹499 unchanged; read-only scan: 1 pending wallet refund, 1 match (REF-67378/CW:74). **No financial mutation.**
