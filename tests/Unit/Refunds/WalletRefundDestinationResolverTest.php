@@ -50,6 +50,21 @@ class WalletRefundDestinationResolverTest extends TestCase
         $this->assertFalse($resolver->supportsAutomatedWalletCredit('RN92'));
     }
 
+    public function test_rdservice_net_supports_automated_wallet_credit_only_when_configured(): void
+    {
+        config([
+            'rdservice_net.wallet_refund_credit_enabled' => true,
+            'order_lookup.spokes.rdservice_net.enabled' => true,
+            'order_lookup.spokes.rdservice_net.base_url' => 'https://rdservice.net.test',
+            'order_lookup.spokes.rdservice_net.token' => 'net-token',
+        ]);
+
+        $resolver = new WalletRefundDestinationResolver;
+
+        $this->assertTrue($resolver->supportsAutomatedWalletCredit('RN92'));
+        $this->assertTrue($resolver->isRdServiceNetWalletRefundConfigured());
+    }
+
     public function test_unknown_prefix_has_no_wallet_owner(): void
     {
         $resolver = new WalletRefundDestinationResolver;

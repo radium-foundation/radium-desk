@@ -35,7 +35,24 @@ final class WalletRefundDestinationResolver
 
     public function supportsAutomatedWalletCredit(?string $orderId): bool
     {
-        return $this->isRdServiceIn($orderId) || $this->isRadiumBox($orderId);
+        if ($this->isRdServiceIn($orderId) || $this->isRadiumBox($orderId)) {
+            return true;
+        }
+
+        return $this->isRdServiceNet($orderId) && $this->isRdServiceNetWalletRefundConfigured();
+    }
+
+    public function isRdServiceNetWalletRefundConfigured(): bool
+    {
+        if (! config('rdservice_net.wallet_refund_credit_enabled')) {
+            return false;
+        }
+
+        $config = config('order_lookup.spokes.rdservice_net', []);
+
+        return (bool) ($config['enabled'] ?? false)
+            && trim((string) ($config['token'] ?? '')) !== ''
+            && trim((string) ($config['base_url'] ?? '')) !== '';
     }
 
     public function unsupportedAutomatedWalletCreditMessage(?string $orderId): string
@@ -50,6 +67,10 @@ final class WalletRefundDestinationResolver
     public function assertWalletApprovalAllowed(?string $orderId): void
     {
         if (! $this->isRdServiceNet($orderId)) {
+            return;
+        }
+
+        if ($this->isRdServiceNetWalletRefundConfigured()) {
             return;
         }
 

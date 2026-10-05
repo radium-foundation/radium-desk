@@ -2,6 +2,7 @@
 
 namespace App\Reports\CaMonthly;
 
+use App\Enums\StatutoryInvoiceDocumentType;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilmentPaymentEvidence;
 use App\Models\Order;
@@ -39,6 +40,7 @@ final class CaMonthlyReportInvoiceExportBuilder
         $hardwareEvidence = $this->paymentChannelResolver->hardwareEvidenceForInvoices($invoices);
         $commerceOrders = $this->branchResolver->commerceOrdersForInvoices($invoices);
         $branches = $this->branchResolver->resolveForInvoices($invoices, $commerceOrders);
+        $creditNotesByInvoice = $this->creditNotesByOriginalInvoice($invoices);
 
         $rows = [];
         foreach ($invoices as $invoice) {
@@ -51,6 +53,7 @@ final class CaMonthlyReportInvoiceExportBuilder
                 $commerceOrders[$invoice->id] ?? null,
                 $supportOrders[$invoice->id] ?? null,
                 $hardwareEvidence[$invoice->id] ?? null,
+                $creditNotesByInvoice[$invoice->id] ?? collect(),
             );
         }
 
@@ -66,6 +69,7 @@ final class CaMonthlyReportInvoiceExportBuilder
         ?CommerceOrder $commerceOrder,
         ?Order $supportOrder,
         ?HardwareFulfilmentPaymentEvidence $hardwareEvidenceRecord,
+        Collection $linkedCreditNotes,
     ): CaMonthlyReportInvoiceExportRow {
         $invoice->loadMissing('inventorySale');
         $exportableItems = $this->lineValuePolicy->filterExportable(
@@ -97,9 +101,11 @@ final class CaMonthlyReportInvoiceExportBuilder
         $igst = round((float) ($invoice->igst ?? 0), 2);
         $cgst = round((float) ($invoice->cgst ?? 0), 2);
         $sgst = round((float) ($invoice->sgst ?? 0), 2);
+        $totalGst = round($igst + $cgst + $sgst, 2);
         $shortExcess = round((float) $invoice->rounding, 2);
         $headerDiscount = round((float) ($invoice->discount ?? 0), 2);
         $invoiceTotal = round((float) $invoice->invoice_value, 2);
+        $creditNoteSummary = $this->summarizeCreditNotes($linkedCreditNotes, $invoice);
 
         $parentCells = [
             $branch,
@@ -124,6 +130,11 @@ final class CaMonthlyReportInvoiceExportBuilder
             (string) ($invoice->eInvoiceRecord?->irn ?? ''),
             (string) ($invoice->eInvoiceRecord?->ack_no ?? ''),
             $paymentChannel,
+            CaMonthlyReportCustomerTypeDisplay::forInvoice($invoice),
+            $totalGst !== 0.0 ? $this->money($totalGst) : '',
+            CaMonthlyReportPaymentStatusDisplay::fromPaymentChannel($paymentChannel),
+            $creditNoteSummary['number'],
+            $creditNoteSummary['status'],
         ];
 
         return new CaMonthlyReportInvoiceExportRow(
@@ -150,8 +161,12 @@ final class CaMonthlyReportInvoiceExportBuilder
 
         return [
             (string) $item->description,
+            (string) ($item->sku ?? ''),
             (string) $item->qty,
+            $this->money((float) $item->unit_price),
+            $this->zeroBlankMoney($item->discount),
             (string) ($item->hsn_sac ?? ''),
+            $this->formatGstRate($item->gst_percentage),
             $this->money((float) $item->taxable_value),
             $shipping !== 0.0 ? $this->money($shipping) : '',
             $this->zeroBlankMoney($item->igst),
@@ -159,6 +174,78 @@ final class CaMonthlyReportInvoiceExportBuilder
             $this->zeroBlankMoney($item->sgst),
             $this->money((float) $item->line_total),
         ];
+    }
+
+    /**
+     * @param  Collection<int, StatutoryInvoice>  $invoices
+     * @return array<int, Collection<int, StatutoryInvoice>>
+     */
+    private function creditNotesByOriginalInvoice(Collection $invoices): array
+    {
+        $invoiceIds = $invoices->pluck('id')->all();
+        if ($invoiceIds === []) {
+            return [];
+        }
+
+        $creditNotes = StatutoryInvoice::query()
+            ->whereIn('original_statutory_invoice_id', $invoiceIds)
+            ->where('document_type', StatutoryInvoiceDocumentType::CreditNote)
+            ->orderBy('id')
+            ->get()
+            ->groupBy('original_statutory_invoice_id');
+
+        $byInvoice = [];
+        foreach ($invoiceIds as $invoiceId) {
+            $byInvoice[$invoiceId] = $creditNotes->get($invoiceId, collect());
+        }
+
+        return $byInvoice;
+    }
+
+    /**
+     * @param  Collection<int, StatutoryInvoice>  $creditNotes
+     * @return array{number: string, status: string}
+     */
+    private function summarizeCreditNotes(Collection $creditNotes, StatutoryInvoice $invoice): array
+    {
+        if ($invoice->document_type === StatutoryInvoiceDocumentType::CreditNote) {
+            return [
+                'number' => (string) $invoice->invoice_number,
+                'status' => CaMonthlyReportStatusDisplay::forInvoice($invoice),
+            ];
+        }
+
+        if ($creditNotes->isEmpty()) {
+            return ['number' => '', 'status' => ''];
+        }
+
+        $numbers = $creditNotes
+            ->map(fn (StatutoryInvoice $creditNote): string => (string) $creditNote->invoice_number)
+            ->filter(fn (string $number): bool => $number !== '')
+            ->values()
+            ->all();
+
+        $statuses = $creditNotes
+            ->map(fn (StatutoryInvoice $creditNote): string => CaMonthlyReportStatusDisplay::forInvoice($creditNote))
+            ->unique()
+            ->values()
+            ->all();
+
+        return [
+            'number' => implode(', ', $numbers),
+            'status' => implode(', ', $statuses),
+        ];
+    }
+
+    private function formatGstRate(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        $rate = round((float) $value, 2);
+
+        return $rate === 0.0 ? '' : number_format($rate, 2, '.', '').'%';
     }
 
     /**

@@ -16,6 +16,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tools/lib.sh
 source "$SCRIPT_DIR/../lib.sh"
+# shellcheck source=tools/lib/deploy-rsync-safety.sh
+source "$SCRIPT_DIR/../lib/deploy-rsync-safety.sh"
 
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ALLOWED_UNTRACKED="docs/redis-vps-preinstall-inspection.md"
@@ -59,10 +61,6 @@ if [[ "${DEPLOY_MODE:-}" != "kvm" ]]; then
     print_error "DEPLOY_MODE must be 'kvm' (got: ${DEPLOY_MODE:-unset})"
     exit 1
 fi
-
-rsync_ssh() {
-    printf 'ssh -p %s -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new' "$SSH_PORT"
-}
 
 ensure_clean_working_tree() {
     local line status path
@@ -207,34 +205,23 @@ confirm_deploy() {
 
 rsync_application_to_kvm() {
     local -a rsync_args=(rsync -avz)
-    local remote="${SSH_USER}@${SSH_HOST}:${REMOTE_PROJECT}/"
+    local remote
+    local filter_line
+
+    remote="$(deploy_kvm_rsync_remote_target)"
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
         rsync_args+=(--dry-run)
     fi
 
-    rsync_args+=(
-        -e "$(rsync_ssh)"
-        --delete
-        --exclude '.git/'
-        --exclude '.env'
-        --exclude 'node_modules/'
-        --exclude 'vendor/'
-        --exclude 'storage/logs/'
-        --exclude 'storage/framework/'
-        --exclude 'bootstrap/cache/'
-        --exclude 'tests/'
-        --include 'storage/'
-        --include 'storage/app/'
-        --include 'storage/app/private/'
-        --include 'storage/app/private/release.json'
-        --exclude 'storage/app/private/*'
-        --exclude 'storage/app/*'
-        --exclude 'storage/*'
-        --exclude 'public/build/'
-        "${PROJECT_ROOT}/"
-        "$remote"
-    )
+    rsync_args+=(-e "$(deploy_kvm_rsync_ssh_command)" --delete)
+
+    while IFS= read -r filter_line; do
+        [[ -z "$filter_line" ]] && continue
+        rsync_args+=("$filter_line")
+    done < <(deploy_kvm_rsync_application_filters)
+
+    rsync_args+=("${PROJECT_ROOT}/" "$remote")
 
     print_warning "Synchronizing application source to KVM..."
     "${rsync_args[@]}"
@@ -314,11 +301,15 @@ main() {
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
         ensure_local_build_manifest
-        print_warning "Dry-run mode: rsync preview only (no remote mutations)."
+        print_warning "Dry-run mode: deletion inventory and rsync preview only (no remote mutations)."
+        if ! deploy_rsync_analyze_deletions; then
+            print_error "Deletion safety analysis failed during dry-run."
+            exit 1
+        fi
         rsync_application_to_kvm
         print_warning "Dry-run: public/build preview..."
         rsync -avz --dry-run \
-            -e "$(rsync_ssh)" \
+            -e "$(deploy_kvm_rsync_ssh_command)" \
             --delete \
             "${PROJECT_ROOT}/public/build/" \
             "${SSH_USER}@${SSH_HOST}:${REMOTE_PROJECT}/public/build/"
@@ -330,6 +321,13 @@ main() {
     build_frontend_assets
     write_local_release_snapshot
     ensure_remote_deploy_ownership
+
+    print_warning "Running rsync deletion safety gate before destructive synchronization..."
+    if ! deploy_rsync_run_deletion_safety_gate; then
+        print_error "Deployment stopped by rsync deletion safety gate."
+        exit 1
+    fi
+
     rsync_application_to_kvm
     sync_kvm_public_build "$PROJECT_ROOT"
     fix_remote_ownership

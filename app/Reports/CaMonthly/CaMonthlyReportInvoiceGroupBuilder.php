@@ -44,14 +44,15 @@ final class CaMonthlyReportInvoiceGroupBuilder
 
                 $children[] = new CaMonthlyReportInvoiceChildRow(
                     productName: $detail[0],
-                    quantity: $detail[1],
-                    hsnSac: $detail[2],
-                    taxableAmount: $detail[3],
-                    shipping: $detail[4],
-                    igst: $detail[5],
-                    cgst: $detail[6],
-                    sgst: $detail[7],
-                    lineTotal: $detail[8],
+                    productCodeSku: $detail[1],
+                    quantity: $detail[2],
+                    hsnSac: $detail[3],
+                    taxableAmount: $detail[4],
+                    shipping: $detail[5],
+                    igst: $detail[6],
+                    cgst: $detail[7],
+                    sgst: $detail[8],
+                    lineTotal: $detail[9],
                 );
             }
 

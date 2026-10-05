@@ -375,6 +375,132 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 
 ---
 
+## RadiumDesk-P-02-10-02
+
+**Release candidate v4.1.0 — rdservice.net Central Wallet refund companion (Desk side).** Adds `RdServiceNetWalletRefundClient`, `config/rdservice_net.php`, `order_lookup.spokes.rdservice_net`, and guarded `WalletRefundExecutor` / `WalletRefundDestinationResolver` paths for RN/RA/RNP wallet refunds via rdservice.net spoke → Desk Central Wallet ledger. Flags `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED` and `RDSERVICE_NET_LOOKUP_ENABLED` default **OFF**. Companion to rdservice.net `c975940` (RDServiceNet-P-02-10-01). **Not tagged, not deployed, no financial mutation.**
+
+---
+
+## RadiumDesk-P-02-10-03
+
+**Harden v4.1.0 RC before Owner tag authorization.** Fix `ChangelogServiceTest` to validate manifest-version contract (not `entries[0]`). Fix v4.0.168 regression: `WalletController` closure missing `$entryType` in `use (...)`. Re-run full wallet/CW regression gate. Release lineage: cherry-pick onto `013ec2c6` baseline recommended. **Not tagged/deployed.**
+
+---
+
+## RadiumDesk-P-02-10-04
+
+**Create clean `release/v4.1.0` branch from v4.0.168 baseline.** Cherry-picked rdservice.net companion + hardening commits only; excluded feature-branch forensic/migration scope. Doc conflicts resolved to release-only ledger entries. Full release-scope regression gate on clean branch. **Not tagged/pushed/deployed.**
+
+---
+
+## RadiumDesk-P-04-10-39
+
+**Read-only production refund / invoice / Credit Note reconciliation.** Production v4.1.0 @ `8212bbc8`. SELECT-only queries on KVM8 `radium_desk`. Mapped refund→order→statutory invoice resolver logic; verified `REFUNDS_STATUTORY_ADJUSTMENT_ENABLED=false`; 371 terminal refunds (304 wallet / 67 OPM cashfree); 0 refund-linked invoice cancellations; 0 refund-linked CNs; 3 B2B+IRN >24h full refunds with active invoice (CN path if auto-adjustment enabled). **No code/DB/deploy/commit/mutation.**
+
+---
+
+## RadiumDesk-P-04-10-40
+
+**Read-only review of 3 B2B+IRN >24h refunds (P-04-10-39 follow-up).** Re-queried production with IRN age measured at refund completion (not current time). **2 of 3** genuinely qualify (REF-313/RBP98 ₹6,747; REF-67350/RD5089 ₹497); third (REF-276/RA3506948 ₹1,079) refund completed **11 days before invoice/IRN existed** — P-04-10-39 false positive from current-age metric. No CN or manual Finance action on any case. **No code/DB/deploy/mutation.**
+
+---
+
+## RadiumDesk-P-04-10-41
+
+**CA-ready Sales Report XLSX + Refund & CN Review exception sheet.** Branch `release/sales-report-v4.1.1`. Two-sheet XLSX: Sheet 1 adds CA columns (Customer Type, Total GST, Payment Status, Credit Note Number/Status; line Unit Price, Discount, GST Rate). Sheet 2 exception-only refunds by refund completion date with neutral CA review flags (B2B+IRN >24h at refund without CN; refund-before-invoice anomaly). No hard-coded production IDs. No financial logic changes. Tests 146/146 PASS. **Not deployed; prompt docs excluded from release commit.**
+
+---
+
+## RadiumDesk-P-04-10-42
+
+**Create v4.1.2 release tag only (Option B).** Pre-tag verification PASS (branch/HEAD/remote all `5f87eb46`; v4.1.1 unchanged at `77276772`; v4.1.2 absent locally and on origin). CA-ready content verified in HEAD. **BLOCKED:** `CHANGELOG.md` has no `## 4.1.2` entry — repository convention requires a release note before tagging. Tag not created or pushed. **No deploy/code/migration.**
+
+---
+
+## RadiumDesk-P-04-10-43
+
+**Add v4.1.2 CHANGELOG entry + create/push annotated tag.** `CHANGELOG.md` section for CA-ready Sales Report / Refund & CN Review. Tag `v4.1.2` on release HEAD including CHANGELOG commit. v4.1.1 unchanged. **Not deployed.**
+
+---
+
+## RadiumDesk-P-04-10-44
+
+**Production deploy v4.1.2 CA-ready Sales Report.** Owner-authorized KVM deploy via `desk deploy --yes`. Production baseline verified v4.1.0 / `8212bbc8`. Target `v4.1.2` / `59b717e7`. No migrations (`Nothing to migrate`). Statutory adjustment flag OFF. Post-deploy: release.json v4.1.2 / `59b717e7`; `/up` 200; Sep-2026 XLSX two-sheet verify PASS; REF-313/67350 → potential CN treatment; REF-276 → refund-before-invoice anomaly.
+
+---
+
+## RadiumDesk-P-04-10-45
+
+**Read-only investigation: v4.1.2 rsync --delete side effect.** Production `release.json` was v4.1.0 but disk carried ~120 unreleased Central Wallet overlay files (branch `fix/c360-central-wallet-ledger-display` delta vs `8212bbc8`). `rsync --delete` removed them during P-04-10-44. Core CW API routes/schema/migration history intact; overlay migration artisan commands and 3 migration PHP files removed from disk (tables remain). Pre-deploy backup = release.json only. **No mutations.**
+
+---
+
+## RadiumDesk-P-04-10-46
+
+**Central Wallet overlay dependency + regression-safety investigation.** Machine inventory: 120 files (`ceeff4e7` ∖ `59b717e7`). Git grep: zero v4.1.2 references to overlay classes. Core CW APIs/schema preserved. Overlay routes/CLI absent; related env flags OFF except reconciliation (scaffold-only job). DB: 55 `central_wallet_refund_migrations` rows; migration PHP files absent from disk. **No mutations.**
+
+---
+
+## RadiumDesk-P-04-10-47
+
+**Read-only Central Wallet refund migration status + reconciliation gate.** Production v4.1.2 @ `59b717e7` verified. `central_wallet_refund_migrations`: 55 rows, all `reconciled`, ₹29,073.00; 0 resolutions; 0 duplicate-credit candidates in table. 292-refund manifest (P-30-09-25): 55/292 migrated; 237 remaining (₹136,635) with execution flag OFF and overlay tooling absent. Reconciliation flag ON → v4.1.2 scaffold-only job (writes empty run record). **No mutations.**
+
+---
+
+## RadiumDesk-P-04-10-48
+
+**Controlled production disable of scaffold-only Central Wallet reconciliation.** Owner-authorized `.env` change: `CENTRAL_WALLET_RECONCILIATION_ENABLED=true` → `false`; Laravel config cache refresh only. No code/deploy/DB/wallet/refund/migration changes.
+
+---
+
+## RadiumDesk-P-04-10-49
+
+**Deployment safety remediation for rsync --delete.** KVM deploy: pre-sync deletion dry-run inventory, expected vs unexpected classification, explicit `delete-unexpected` gate, remote pre-delete backup under `storage/app/backups/deploy-rsync-safety-*`, local audit under `storage/app/deploy-backups/`. Local tests A–F. **No production deploy.**
+
+---
+
+## RadiumDesk-P-04-10-50
+
+**Production deployment safety dry-run verification.** Safety branch @ `cdec37d3`; invoked `deploy_rsync_analyze_deletions` (same non-mutating path as `desk deploy --dry-run`; full CLI blocked by release preflight off `main`). **INCIDENT:** defective analyzer omitted rsync `--dry-run`; live sync mutated production (release.json deleted, .git deleted, ~4439 files transferred). **Not contained.**
+
+---
+
+## RadiumDesk-P-04-10-51
+
+**Production incident containment after accidental live rsync.** Read-only state/evidence capture; `release.json` restored from verified P-04-10-44 pre-deploy backup only. `.git` not restored. `.cursor`/`.env.mysql`/safety tooling left in place (secret exposure on `.env.mysql`). No rsync/deploy/DB/migration/secret rotation.
+
+---
+
+## RadiumDesk-P-04-10-52
+
+**Production security containment and integrity recovery after P-04-10-50.** Removed `.env.mysql`, local artifacts, defective safety tooling; restored v4.1.2 `deploy-kvm.sh`; corrected `release.json` to v4.1.2/59b717e7. SHA256 compare: 3545/3545 exact match. No rsync/deploy/DB/rotation.
+
+---
+
+## RadiumDesk-P-04-10-53
+
+**Credential exposure and rotation assessment (read-only).** `.env.mysql` was local dev template on disk; fingerprints differ from production `.env` for APP_KEY/DB/mail; not runtime-loaded; HTTP 404; no access log hits. Rotation: PARTIAL/precautionary only. **No rotation performed.**
+
+---
+
+## RadiumDesk-P-04-10-54
+
+**Fix deployment dry-run safety defect.** Added centralized `--dry-run` rsync argv construction + assert guard; fixed application/public-build/local dry-run functions; regression tests for P-04-10-50 failure mode. **Local only; no production access.**
+
+---
+
+## RadiumDesk-P-04-10-55
+
+**Independent review of deployment dry-run safety fix.** Read-only audit of `bd0019e8` on `fix/deploy-rsync-delete-safety`: diff review, call graph, rsync path classification, local non-mutation reproduction, regression test execution. **No production access; no merge/push/deploy.**
+
+---
+
+## RadiumDesk-P-04-10-56
+
+**Merge approved deployment dry-run safety fix.** Owner-authorized merge of `fix/deploy-rsync-delete-safety` (P-04-10-54 fix, P-04-10-55 review PASS) into `main`. Post-merge tests; push to origin. **No deploy, production dry-run, tag, or production access.**
+
+---
+
 ## RadiumDesk-P-04-10-29
 
 **Read-only investigation: Admin Dileep cannot change service price in Sell Services (Service POS).** Identified workflow in `radium-desk` Commerce → **Sell Services** (`service-pos.counter.create`). Catalog lines render Ex-GST as static text + hidden input (no `<input>` editor); price snapshot is taken from `ServiceItem.price_ex_gst` at add-to-cart. Secondary Freight Reverse Auction / SAC **998311** / **₹50,000** ex-GST / line **₹59,000** matches service master + 18% GST. Admin role includes `service-pos.sell` and `services.manage`; no Dileep-specific permission gate found. Backend `ServiceQuoteService::resolveLine()` accepts client-supplied `unit_price_ex_gst` without enforcing catalog price. Contrast: Product POS counter has editable `pos-price` inputs. Workarounds today: edit Service master, or **Add custom line** (browser `prompt()`). **No code/DB/config/permission/production mutation.**

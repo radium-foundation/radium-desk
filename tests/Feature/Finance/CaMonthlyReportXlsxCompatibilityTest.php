@@ -68,9 +68,9 @@ class CaMonthlyReportXlsxCompatibilityTest extends TestCase
         $this->assertStringContainsString('relationships/styles', $workbookRels);
         $this->assertStringContainsString('<bookViews>', $workbook);
         $this->assertStringContainsString('<styleSheet', $styles);
-        $this->assertMatchesRegularExpression('/<dimension ref="A1:V\d+"\/>/', $sheet);
+        $this->assertMatchesRegularExpression('/<dimension ref="A1:AA\d+"\/>/', $sheet);
         $this->assertStringNotContainsString('fitToHeight="0"', $sheet);
-        $this->assertStringContainsString('<autoFilter ref="A3:V3"/>', $sheet);
+        $this->assertStringContainsString('<autoFilter ref="A3:AA3"/>', $sheet);
 
         @unlink($path);
     }
@@ -82,8 +82,8 @@ class CaMonthlyReportXlsxCompatibilityTest extends TestCase
         $path = $this->generateWorkbook();
 
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $this->readXlsxRow($path, 3));
-        $this->assertCount(22, CaMonthlyReportDefinition::HEADERS);
-        $this->assertNotContains('Payment Method', CaMonthlyReportDefinition::HEADERS);
+        $this->assertCount(27, CaMonthlyReportDefinition::HEADERS);
+        $this->assertNotContains('Payment Channel', CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Reference', CaMonthlyReportDefinition::HEADERS);
 
         @unlink($path);

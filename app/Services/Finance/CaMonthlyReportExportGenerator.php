@@ -36,11 +36,13 @@ final class CaMonthlyReportExportGenerator
             }
         } else {
             $writer = new CaMonthlyReportXlsxStreamWriter;
-            $writer->open($absolutePath, $headers, $this->readModel->workbookMeta($request));
+            $meta = $this->readModel->workbookMeta($request);
+            $writer->open($absolutePath, $headers, $meta);
             try {
                 $rowCount = $this->readModel->streamExportInvoiceGroups($request, function ($invoiceRow) use ($writer): void {
                     $writer->appendInvoiceGroup($invoiceRow);
                 });
+                $writer->openRefundReviewSheet($this->readModel->refundReviewRows($request), $meta);
                 $writer->close();
             } catch (\Throwable $exception) {
                 $writer->abort();

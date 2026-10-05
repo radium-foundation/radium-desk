@@ -3,7 +3,7 @@
 namespace App\Reports\CaMonthly;
 
 /**
- * CA Monthly Report output contract and period configuration.
+ * Sales Report (statutory CA monthly register) output contract and period configuration.
  *
  * Period filter uses statutory invoice issue date (Date of Invoice).
  */
@@ -11,7 +11,10 @@ final class CaMonthlyReportDefinition
 {
     public const ID = 'statutory.ca_monthly';
 
-    public const DISPLAY_NAME = 'CA Monthly Report';
+    public const DISPLAY_NAME = 'Sales Report';
+
+    /** @deprecated User-facing legacy label retained for route/internal identifiers only. */
+    public const LEGACY_DISPLAY_NAME = 'CA Monthly Report';
 
     /**
      * Configurable authoritative date column for period filtering.
@@ -26,9 +29,9 @@ final class CaMonthlyReportDefinition
 
     public const DATA_START_ROW = 4;
 
-    public const SHEET_NAME = 'CA Monthly Report';
+    public const SHEET_NAME = 'Sales Report';
 
-    public const TEMPLATE_VERSION = '2026-09-26';
+    public const TEMPLATE_VERSION = '2026-10-05-ca-ready';
 
     /**
      * Invoice-level CA register columns (parent rows).
@@ -57,7 +60,12 @@ final class CaMonthlyReportDefinition
         'Invoice Total',
         'IRN Number',
         'Acknowledgement',
-        'Payment Channel',
+        'Payment Method',
+        'Customer Type',
+        'Total GST',
+        'Payment Status',
+        'Credit Note Number',
+        'Credit Note Status',
     ];
 
     /**
@@ -66,9 +74,13 @@ final class CaMonthlyReportDefinition
      * @var list<string>
      */
     public const DETAIL_HEADERS = [
-        'Product / Service',
+        'Product Name',
+        'Product Code / SKU',
         'Quantity',
+        'Unit Price',
+        'Discount',
         'HSN/SAC',
+        'GST Rate',
         'Taxable Amount',
         'Shipping',
         'IGST',
@@ -76,4 +88,35 @@ final class CaMonthlyReportDefinition
         'SGST',
         'Line Total',
     ];
+
+    public const REFUND_REVIEW_SHEET_NAME = 'Refund & CN Review';
+
+    /**
+     * Refund exception review columns (second workbook sheet).
+     *
+     * @var list<string>
+     */
+    public const REFUND_REVIEW_HEADERS = [
+        'Refund ID',
+        'Refund Reference',
+        'Order Reference',
+        'Invoice Number',
+        'Refund Date',
+        'Refund Method',
+        'Refund Amount',
+        'Invoice Amount',
+        'Cumulative Refund Amount',
+        'Invoice Status',
+        'Customer Type',
+        'IRN Date',
+        'IRN Age at Refund (hours)',
+        'Credit Note Number',
+        'Credit Note Status',
+        'Credit Note Amount',
+        'Exception / Review Status',
+    ];
+
+    public const REVIEW_STATUS_REFUND_BEFORE_INVOICE = 'CA / Finance Review — refund-before-invoice timeline anomaly';
+
+    public const REVIEW_STATUS_POTENTIAL_CN = 'CA / Finance Review — potential statutory Credit Note treatment';
 }

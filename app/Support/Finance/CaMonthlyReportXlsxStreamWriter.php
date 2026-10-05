@@ -4,6 +4,7 @@ namespace App\Support\Finance;
 
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use App\Reports\CaMonthly\CaMonthlyReportInvoiceExportRow;
+use App\Reports\CaMonthly\CaMonthlyReportRefundReviewExportRow;
 use App\Reports\CaMonthly\CaMonthlyReportWorkbookMeta;
 use ZipArchive;
 
@@ -38,6 +39,17 @@ final class CaMonthlyReportXlsxStreamWriter
 
     private float $invoiceGrandTotal = 0.0;
 
+    private float $totalGstAmount = 0.0;
+
+    private int $creditNoteCount = 0;
+
+    private float $creditNoteTotal = 0.0;
+
+    /** @var list<CaMonthlyReportRefundReviewExportRow> */
+    private array $refundReviewRows = [];
+
+    private ?string $refundReviewSheetPath = null;
+
     private string $outputPath = '';
 
     public function __construct(?CaMonthlyReportXmlCellEncoder $cellEncoder = null)
@@ -70,6 +82,11 @@ final class CaMonthlyReportXlsxStreamWriter
         $this->cgstTotal = 0.0;
         $this->sgstTotal = 0.0;
         $this->invoiceGrandTotal = 0.0;
+        $this->totalGstAmount = 0.0;
+        $this->creditNoteCount = 0;
+        $this->creditNoteTotal = 0.0;
+        $this->refundReviewRows = [];
+        $this->refundReviewSheetPath = null;
         $this->outputPath = $outputPath;
 
         fwrite($handle, '<?xml version="1.0" encoding="UTF-8"?>');
@@ -106,12 +123,20 @@ final class CaMonthlyReportXlsxStreamWriter
 
         $this->parentRowCount++;
 
-        if (($row->parentCells[3] ?? '') !== 'Cancelled') {
+        $status = (string) ($row->parentCells[3] ?? '');
+
+        if ($status === 'Credit Note') {
+            $this->creditNoteCount++;
+            $this->creditNoteTotal += $row->invoiceTotal;
+        }
+
+        if ($status !== 'Cancelled') {
             $this->taxableTotal += $row->taxableAmount;
             $this->shippingTotal += $row->shippingAmount;
             $this->igstTotal += $row->igst;
             $this->cgstTotal += $row->cgst;
             $this->sgstTotal += $row->sgst;
+            $this->totalGstAmount += round($row->igst + $row->cgst + $row->sgst, 2);
             $this->invoiceGrandTotal += $row->invoiceTotal;
         }
 
@@ -144,6 +169,20 @@ final class CaMonthlyReportXlsxStreamWriter
         $this->writeRowXml($this->sheetHandle, $this->currentRowNumber, $cells, 0, false);
     }
 
+    /**
+     * @param  list<CaMonthlyReportRefundReviewExportRow>  $rows
+     */
+    public function openRefundReviewSheet(array $rows, ?CaMonthlyReportWorkbookMeta $meta = null): void
+    {
+        if ($this->tmpdir === null) {
+            throw new \RuntimeException('XLSX stream writer is not open.');
+        }
+
+        $this->refundReviewRows = $rows;
+        $this->refundReviewSheetPath = $this->tmpdir.'/sheet2.xml';
+        $this->writeRefundReviewSheet($this->refundReviewSheetPath, $rows, $meta);
+    }
+
     public function close(): void
     {
         if ($this->sheetHandle === null || $this->tmpdir === null || $this->sheetPath === null) {
@@ -157,6 +196,8 @@ final class CaMonthlyReportXlsxStreamWriter
             $this->writeRowXml($this->sheetHandle, $this->currentRowNumber, $this->summaryLabelRow(), 0, false);
             $this->currentRowNumber++;
             $this->writeRowXml($this->sheetHandle, $this->currentRowNumber, $this->summaryTotalsRow(), 0, false);
+            $this->currentRowNumber++;
+            $this->writeRowXml($this->sheetHandle, $this->currentRowNumber, $this->summaryNotesRow(), 0, false);
         }
 
         $lastColumn = $this->columnLetter(count(CaMonthlyReportDefinition::HEADERS) - 1);
@@ -175,6 +216,10 @@ final class CaMonthlyReportXlsxStreamWriter
         $this->injectWorksheetDimension($this->sheetPath, $dimensionRef);
         $this->assertWorksheetXmlIsValid($this->sheetPath);
 
+        if ($this->refundReviewSheetPath === null) {
+            $this->openRefundReviewSheet([], null);
+        }
+
         $stylesXml = $this->minimalStylesXml();
 
         $zip = new ZipArchive;
@@ -190,6 +235,7 @@ final class CaMonthlyReportXlsxStreamWriter
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 </Types>
 XML);
         $zip->addFromString('_rels/.rels', <<<'XML'
@@ -202,15 +248,18 @@ XML);
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>
 XML);
         $zip->addFromString('xl/workbook.xml', sprintf(
-            '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><workbookPr/><bookViews><workbookView/></bookViews><sheets><sheet name="%s" sheetId="1" r:id="rId1"/></sheets></workbook>',
+            '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><workbookPr/><bookViews><workbookView/></bookViews><sheets><sheet name="%s" sheetId="1" r:id="rId1"/><sheet name="%s" sheetId="2" r:id="rId2"/></sheets></workbook>',
             htmlspecialchars(CaMonthlyReportDefinition::SHEET_NAME, ENT_XML1),
+            htmlspecialchars(CaMonthlyReportDefinition::REFUND_REVIEW_SHEET_NAME, ENT_XML1),
         ));
         $zip->addFromString('xl/styles.xml', $stylesXml);
         $zip->addFile($this->sheetPath, 'xl/worksheets/sheet1.xml');
+        $zip->addFile((string) $this->refundReviewSheetPath, 'xl/worksheets/sheet2.xml');
         $zip->close();
 
         $packageErrors = (new CaMonthlyReportXlsxPackageValidator)->validate($this->outputPath);
@@ -270,6 +319,7 @@ XML);
         $row[15] = 'CGST total';
         $row[16] = 'SGST total';
         $row[18] = 'Invoice grand total';
+        $row[23] = 'Total GST';
 
         return $row;
     }
@@ -287,6 +337,23 @@ XML);
         $row[15] = $this->cgstTotal !== 0.0 ? $this->money($this->cgstTotal) : '';
         $row[16] = $this->sgstTotal !== 0.0 ? $this->money($this->sgstTotal) : '';
         $row[18] = $this->money($this->invoiceGrandTotal);
+        $row[23] = $this->totalGstAmount !== 0.0 ? $this->money($this->totalGstAmount) : '';
+
+        return $row;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function summaryNotesRow(): array
+    {
+        $row = array_fill(0, count(CaMonthlyReportDefinition::HEADERS), '');
+        $notes = 'Credit notes in period: '.$this->creditNoteCount;
+        if ($this->creditNoteCount > 0) {
+            $notes .= ' ('.$this->money($this->creditNoteTotal).')';
+        }
+        $notes .= '. Refunds requiring review: see "'.$this->refundReviewSheetLabel().'" sheet ('.count($this->refundReviewRows).'). Net sales: not computed in this invoice register.';
+        $row[0] = $notes;
 
         return $row;
     }
@@ -298,35 +365,101 @@ XML);
     private function padDetailToParentWidth(array $detail): array
     {
         $product = $detail[0] ?? '';
-        $qty = $detail[1] ?? '';
+        $sku = $detail[1] ?? '';
+        $qty = $detail[2] ?? '';
         $label = $product;
+        if ($sku !== '') {
+            $label .= ' ['.$sku.']';
+        }
         if ($qty !== '' && $qty !== '1') {
             $label .= ' (Qty: '.$qty.')';
         }
 
-        return [
-            '',
-            '',
-            '',
-            '',
-            '',
-            '  » '.$label,
-            '',
-            '',
-            '',
-            '',
-            $detail[2] ?? '',
-            $detail[3] ?? '',
-            $detail[4] ?? '',
-            $detail[5] ?? '',
-            $detail[6] ?? '',
-            $detail[7] ?? '',
-            '',
-            $detail[8] ?? '',
-            '',
-            '',
-            '',
-        ];
+        $row = array_fill(0, count(CaMonthlyReportDefinition::HEADERS), '');
+        $row[5] = '  » '.$label;
+        $row[11] = $detail[5] ?? '';
+        $row[12] = $detail[7] ?? '';
+        $row[13] = $detail[8] ?? '';
+        $row[14] = $detail[9] ?? '';
+        $row[15] = $detail[10] ?? '';
+        $row[16] = $detail[11] ?? '';
+        $row[18] = $detail[12] ?? '';
+
+        return $row;
+    }
+
+    /**
+     * @param  list<CaMonthlyReportRefundReviewExportRow>  $rows
+     */
+    private function writeRefundReviewSheet(string $path, array $rows, ?CaMonthlyReportWorkbookMeta $meta): void
+    {
+        $headers = CaMonthlyReportDefinition::REFUND_REVIEW_HEADERS;
+        $handle = fopen($path, 'wb');
+        if ($handle === false) {
+            throw new \RuntimeException('Could not open temporary refund review worksheet file.');
+        }
+
+        fwrite($handle, '<?xml version="1.0" encoding="UTF-8"?>');
+        fwrite($handle, '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">');
+        fwrite($handle, '<sheetViews><sheetView workbookViewId="0"><pane ySplit="'.CaMonthlyReportDefinition::HEADER_ROW.'" topLeftCell="A'.CaMonthlyReportDefinition::DATA_START_ROW.'" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>');
+        fwrite($handle, '<sheetFormatPr defaultRowHeight="15"/>');
+        fwrite($handle, '<cols>');
+        foreach ($headers as $index => $_header) {
+            $width = match ($index) {
+                16 => 48,
+                3, 8 => 18,
+                default => 14,
+            };
+            fwrite($handle, '<col min="'.($index + 1).'" max="'.($index + 1).'" width="'.$width.'" customWidth="1"/>');
+        }
+        fwrite($handle, '</cols>');
+        fwrite($handle, '<sheetData>');
+
+        $title = array_fill(0, count($headers), '');
+        $title[0] = CaMonthlyReportDefinition::REFUND_REVIEW_SHEET_NAME;
+        $this->writeRowXml($handle, CaMonthlyReportDefinition::TITLE_ROW, $title, 0, false);
+
+        $period = array_fill(0, count($headers), '');
+        if ($meta !== null) {
+            $period[0] = sprintf(
+                'Reporting period (refund completion date): %s to %s | Scope: exception-only refunds with linked invoices requiring CA/Finance review | Generated: %s',
+                $meta->periodFrom,
+                $meta->periodTo,
+                $meta->generatedAt,
+            );
+        }
+        $this->writeRowXml($handle, CaMonthlyReportDefinition::PERIOD_ROW, $period, 0, false);
+        $this->writeRowXml($handle, CaMonthlyReportDefinition::HEADER_ROW, $headers, 0, false);
+
+        $rowNumber = CaMonthlyReportDefinition::HEADER_ROW;
+        foreach ($rows as $row) {
+            $rowNumber++;
+            $this->writeRowXml($handle, $rowNumber, $row->cells, 0, false);
+        }
+
+        if ($rows === []) {
+            $rowNumber++;
+            $emptyNote = array_fill(0, count($headers), '');
+            $emptyNote[0] = 'No refund exceptions requiring CA/Finance review were found in this reporting period.';
+            $this->writeRowXml($handle, $rowNumber, $emptyNote, 0, false);
+        }
+
+        $lastColumn = $this->columnLetter(count($headers) - 1);
+        fwrite($handle, '</sheetData>');
+        fwrite(
+            $handle,
+            '<autoFilter ref="A'.CaMonthlyReportDefinition::HEADER_ROW.':'.$lastColumn.CaMonthlyReportDefinition::HEADER_ROW.'"/>',
+        );
+        fwrite($handle, '</worksheet>');
+        fclose($handle);
+
+        $this->injectWorksheetDimension($path, 'A1:'.$lastColumn.$rowNumber);
+        $this->assertWorksheetXmlIsValid($path);
+    }
+
+    private function refundReviewSheetLabel(): string
+    {
+        return CaMonthlyReportDefinition::REFUND_REVIEW_SHEET_NAME;
     }
 
     /**
@@ -451,11 +584,16 @@ XML;
             @unlink($this->sheetPath);
         }
 
+        if ($this->refundReviewSheetPath !== null && is_file($this->refundReviewSheetPath)) {
+            @unlink($this->refundReviewSheetPath);
+        }
+
         if ($this->tmpdir !== null && is_dir($this->tmpdir)) {
             @rmdir($this->tmpdir);
         }
 
         $this->tmpdir = null;
         $this->sheetPath = null;
+        $this->refundReviewSheetPath = null;
     }
 }

@@ -222,6 +222,11 @@ class WalletRefundRdServiceNetApprovalGuardTest extends TestCase
 
     public function test_wallet_approval_guard_message_identifies_rdservice_net_source(): void
     {
+        config([
+            'rdservice_net.wallet_refund_credit_enabled' => false,
+            'order_lookup.spokes.rdservice_net.enabled' => false,
+        ]);
+
         $resolver = app(WalletRefundDestinationResolver::class);
 
         try {
@@ -234,6 +239,20 @@ class WalletRefundRdServiceNetApprovalGuardTest extends TestCase
                 $exception->errors()['approved_refund_method'][0]
             );
         }
+    }
+
+    public function test_rdservice_net_wallet_approval_is_allowed_when_spoke_is_configured(): void
+    {
+        config([
+            'rdservice_net.wallet_refund_credit_enabled' => true,
+            'order_lookup.spokes.rdservice_net.enabled' => true,
+            'order_lookup.spokes.rdservice_net.base_url' => 'https://rdservice.net.test',
+            'order_lookup.spokes.rdservice_net.token' => 'net-token',
+        ]);
+
+        app(WalletRefundDestinationResolver::class)->assertWalletApprovalAllowed('RN92');
+
+        $this->assertTrue(true);
     }
 
     private function adminUser(): User

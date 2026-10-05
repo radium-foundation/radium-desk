@@ -125,11 +125,20 @@ Equivalent direct invocation: `./tools/desk deploy-kvm`
 
 1. Run `npm run build` locally
 2. Run `php artisan release:snapshot` locally (writes `release.json` for sync to KVM)
-3. Rsync application source to `REMOTE_PROJECT` (excludes `.env`, `vendor/`, `storage/logs`, `storage/framework/`, etc.)
-4. Sync `public/build/` to KVM `public/build/`
-5. Remote: `composer install --no-dev`, `migrate --force`, role permission seed, cache rebuild
-6. Restart Supervisor queue worker (`SUPERVISOR_PROGRAM`)
-7. KVM health check (`/up`) and Vite manifest verification
+3. **Rsync deletion safety gate** — dry-run inventory, classify deletions (`expected` vs unexpected production-only files), require explicit `delete-unexpected` approval when needed, back up affected remote files under `storage/app/backups/deploy-rsync-safety-<UTC>/`, persist audit under local `storage/app/deploy-backups/rsync-deletion-inventory-<UTC>/`
+4. Rsync application source to `REMOTE_PROJECT` (excludes `.env`, `vendor/`, `storage/logs`, `storage/framework/`, etc.; `--delete` remains enabled for controlled stale release cleanup)
+5. Sync `public/build/` to KVM `public/build/`
+6. Remote: `composer install --no-dev`, `migrate --force`, role permission seed, cache rebuild
+7. Restart Supervisor queue worker (`SUPERVISOR_PROGRAM`)
+8. KVM health check (`/up`) and Vite manifest verification
+
+**Preview deletions without deploying:**
+
+```bash
+./tools/desk deploy --dry-run
+```
+
+This runs the deletion inventory and rsync preview only (no remote mutations). Unexpected production-only deletions are reported and would block a live deploy until explicitly approved.
 
 Exits `0` on success, `1` on failure.
 

@@ -1,5 +1,38 @@
 # Changelog
 
+## 4.1.2 — 2026-10-05 — CA-ready Sales Report
+
+- **CA-ready Sales Report XLSX:** Sheet 1 adds CA handoff columns — Customer Type, Total GST, Payment Status, Credit Note Number/Status; Payment Channel renamed to **Payment Method**; line detail adds Unit Price, Discount, and GST Rate. Parent invoice grain, expandable product detail, and CSV parent-only export unchanged.
+- **Refund & CN Review sheet:** Second XLSX sheet lists exception-only refunds completed in the reporting period that require CA/Finance review (not a full refund register). Scope documented in the sheet period row.
+- **Product detail preserved:** Product Name (`statutory_invoice_items.description`) and Product Code / SKU (`statutory_invoice_items.sku`) remain on expandable line rows and web preview.
+- **Refund review timing:** IRN age for CA classification is measured at **refund completion time** (`executed_at` / `closed_at`), not current time. Neutral review flags only — potential statutory Credit Note treatment (B2B + submitted IRN + full refund + no linked CN beyond cancellation window); refund-before-invoice timeline anomaly.
+- **Refund vs Credit Note separation:** Refund amounts are reported separately from Credit Note Number, Status, and Amount. Refunds are not labelled as GST Credit Notes.
+- **Accounting behavior preserved:** Invoice-level totals, GST calculations, Credit Note display on original invoices, permissions/routes, and wallet/refund accounting unchanged. No migration. No wallet, refund-journal, or statutory-adjustment changes.
+- Regression (previously verified): CaMonthly report suite **146** passed; `CaMonthlyReportCaReadyExportTest` **7** passed; `CaMonthlyReportXlsxCompatibilityTest` **9** passed; Pint PASS.
+- Rollback target: v4.1.1 / `77276772`.
+- Prompt **RadiumDesk-P-04-10-41**.
+
+## 4.1.1 — 2026-10-05 — Sales Report (CA Monthly register rename + product detail)
+
+- **User-facing rename:** CA Monthly Report is now presented as **Sales Report** (navigation, page title, export email, XLSX sheet/title, audit label). Internal route identifiers (`finance.reports.ca-monthly.*`) and report ID (`statutory.ca_monthly`) unchanged for backward compatibility.
+- **Product detail:** XLSX expandable line detail and web preview now expose **Product Name** (`statutory_invoice_items.description`) and **Product Code / SKU** (`statutory_invoice_items.sku`, blank when null).
+- **Accounting grain preserved:** One invoice-level parent row per statutory invoice (22 columns); invoice totals, GST, and Credit Note aggregation unchanged. Multi-product invoices remain one parent row with expandable line detail in XLSX; CSV remains parent-only.
+- **Credit Note behavior preserved:** Status column and separate credit-note rows unchanged; no refund-amount columns added.
+- **No migration.** No wallet, refund-journal, or statutory-adjustment changes.
+- Regression: `CaMonthlyReportSalesReportTest`, CA Monthly report suite, `FourMenuNavigationTest`.
+- Rollback target: v4.1.0 / `8212bbc8`.
+- Prompt **RadiumDesk-P-04-10-38**.
+
+## 4.1.0 — 2026-10-02 — rdservice.net Central Wallet refund destination (companion, flag OFF)
+
+- **rdservice.net wallet refunds:** When `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED=true` and the `rdservice_net` order-lookup spoke is configured, Desk wallet approvals and execution for RN/RA/RNP orders POST to rdservice.net `/api/integrations/v1/wallet-refunds`. The spoke resolves trusted identity and credits the authoritative Desk Central Wallet ledger — not a local spoke wallet.
+- **Central Wallet hotfix:** `WalletController::appendLedgerEntry` closure now captures `$entryType` correctly (regression from v4.0.168 direct-debit gate refactor). Restores external ledger credit/debit append after gate check.
+- **Fail-closed defaults:** Both `RDSERVICE_NET_WALLET_REFUND_CREDIT_ENABLED` and `RDSERVICE_NET_LOOKUP_ENABLED` remain **false**. With flags off, rdservice.net wallet approval/execution continues to reject with the existing Cashfree/other payout guidance.
+- **Preserved:** rdservice.in and RadiumBox wallet refund clients/executors, Cashfree and bank-transfer payout paths, refund approval/outbox gates, and Central Wallet ledger SSOT unchanged. Desk does not trust spoke-provided CWIDs or create identity from contact fields alone.
+- **Companion:** Requires rdservice.net `CENTRAL_WALLET_REFUND_DESTINATION_ENABLED` (also default **false**) from commit `c975940` (RDServiceNet-P-02-10-01). **Not deployed to production in this release.**
+- Regression: `WalletRefundExecutionTest`, `WalletRefundRdServiceNetApprovalGuardTest`, `RdServiceNetWalletRefundClientTest`, `WalletRefundDestinationResolverTest`. Prompt **RadiumDesk-P-02-10-02**.
+- Rollback target: v4.0.168 / `013ec2c6`.
+
 ## 4.0.168 — 2026-09-30 — Central Wallet external direct debit safety gate (default ON)
 
 - **Safety gate:** `CENTRAL_WALLET_DIRECT_LEDGER_DEBIT_ENABLED` (default **true**) controls whether external site callers (`X-Site-Code`) may POST `entry_type=debit` to `/wallets/{cwid}/ledger-entries`. When false, rejects with **503** before idempotency/ledger mutation.

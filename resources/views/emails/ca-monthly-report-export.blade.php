@@ -1,6 +1,6 @@
 <p>Hello,</p>
 
-<p>Your CA Monthly Report export is ready.</p>
+<p>Your Sales Report export is ready.</p>
 
 <ul>
     <li><strong>Date range:</strong> {{ $export->dateRangeLabel() }}</li>
@@ -15,7 +15,7 @@
     <p>The report is attached to this email.</p>
 @elseif ($downloadUrl)
     <p>The report is too large to attach. Use this secure download link before it expires:</p>
-    <p><a href="{{ $downloadUrl }}">Download CA Monthly Report</a></p>
+    <p><a href="{{ $downloadUrl }}">Download Sales Report</a></p>
 @endif
 
 <p>This link and any attached file are confidential. Do not forward outside authorized Finance recipients.</p>

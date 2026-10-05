@@ -17,6 +17,8 @@ use App\Reports\CaMonthly\CaMonthlyReportOrderType;
 use App\Reports\CaMonthly\CaMonthlyReportOrderTypeResolver;
 use App\Reports\CaMonthly\CaMonthlyReportPaymentEvidenceResolver;
 use App\Reports\CaMonthly\CaMonthlyReportPreflight;
+use App\Reports\CaMonthly\CaMonthlyReportRefundReviewExportBuilder;
+use App\Reports\CaMonthly\CaMonthlyReportRefundReviewExportRow;
 use App\Reports\CaMonthly\CaMonthlyReportWorkbookMeta;
 use App\Support\Finance\ReportPeriod;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
@@ -36,6 +38,7 @@ class CaMonthlyStatutoryLineReadModel
         private readonly CaMonthlyReportLineValuePolicy $lineValuePolicy,
         private readonly CaMonthlyReportPaymentEvidenceResolver $paymentEvidenceResolver,
         private readonly CaMonthlyReportInvoiceReconciliation $invoiceReconciliation,
+        private readonly CaMonthlyReportRefundReviewExportBuilder $refundReviewBuilder,
     ) {}
 
     /**
@@ -118,6 +121,14 @@ class CaMonthlyStatutoryLineReadModel
             });
 
         return $rowCount;
+    }
+
+    /**
+     * @return list<CaMonthlyReportRefundReviewExportRow>
+     */
+    public function refundReviewRows(Request $request): array
+    {
+        return $this->refundReviewBuilder->buildForRequest($request);
     }
 
     public function workbookMeta(Request $request): CaMonthlyReportWorkbookMeta

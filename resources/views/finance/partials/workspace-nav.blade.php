@@ -62,7 +62,7 @@
             'visible' => Gate::check('viewAny', RefundRequest::class),
         ],
         'ca_monthly_report' => [
-            'label' => 'CA Monthly Report',
+            'label' => 'Sales Report',
             'url' => route('finance.reports.ca-monthly.index'),
             'visible' => FinanceAccess::allowsInvoices($user),
         ],
