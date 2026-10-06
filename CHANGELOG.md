@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.1.3 — 2026-10-06 — Central Wallet wallet-refund destination recovery + deploy safety
+
+- **Central Wallet wallet-refund destination (source restore):** Reintroduces `GET /api/central-wallet/v1/wallet-refund-destination` and its dependency chain after the endpoint was lost during the v4.1.2 recovery overlay. Resolves Desk CWID for spoke wallet refund credits via canonical customer identity ensure — **read-only destination resolution; no ledger credit or refund execution in this endpoint.** Spending authorization and wallet refund execution remain separate.
+- **Customer identity support:** Adds customer-identity tables, credential hashing, historical contact-index matching, and `desk_customer_id` on account links required by the destination endpoint. Migrations are additive; MariaDB production semantics unchanged. SQLite test compatibility restores ceremony partial unique indexes after the identity migration table rebuild.
+- **Feature flags (defaults unchanged for production overlay):** `CENTRAL_WALLET_HISTORICAL_WALLET_VISIBILITY_ENABLED` defaults **false** — endpoint returns 503 until explicitly enabled post-deploy with contact index configured. `CENTRAL_WALLET_CUSTOMER_IDENTITY_ENSURE_ENABLED` and `CENTRAL_WALLET_WALLET_REFUND_DESTINATION_ENABLED` default **true** in source. **Not deployed; production remains v4.1.2 until a separate authorized deploy.**
+- **Wallet/refund execution preserved:** No changes to `WalletRefundExecutor`, refund status transitions, CN flows, ledger debit/reservation APIs, or direct-ledger-debit gate behavior.
+- **Deployment rsync safety:** Extends KVM deploy tooling with centralized deletion safety gate, dry-run `--dry-run` enforcement, read-only dry-run preflight separation from live release-tag validation, and hardened rsync excludes for local dev artifacts (`.env.sqlite`, `database/*.sqlite`, `.git`, `.DS_Store`, `.cursor/`). Filter-leak regression test added.
+- **Service POS:** Inline Ex-GST price editing on Service POS catalog lines (included in release history).
+- **Source-only release note:** This changelog describes repository capability at tagged release time. **Does not imply production deployment, production endpoint activation, or execution of pending wallet refunds (e.g. REF-67372).**
+- Regression (previously verified on `8d5d88f0`): Central Wallet **151** passed / **4** skipped; WalletRefund **73/73**; WalletRefundDestination **20/20**; extended wallet-refund bundle **72/72**; security **8/8**; idempotency **6/6**; deployment-safety scripts PASS; Pint PASS.
+- Rollback target: v4.1.2 / `59b717e7`.
+- Prompts **RadiumDesk-P-04-10-64** through **RadiumDesk-P-04-10-71**.
+
 ## 4.1.2 — 2026-10-05 — CA-ready Sales Report
 
 - **CA-ready Sales Report XLSX:** Sheet 1 adds CA handoff columns — Customer Type, Total GST, Payment Status, Credit Note Number/Status; Payment Channel renamed to **Payment Method**; line detail adds Unit Price, Discount, and GST Rate. Parent invoice grain, expandable product detail, and CSV parent-only export unchanged.
