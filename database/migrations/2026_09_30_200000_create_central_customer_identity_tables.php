@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -54,6 +55,8 @@ return new class extends Migration
 
             $table->index('desk_customer_id', 'cw_account_links_customer_idx');
         });
+
+        $this->restoreSqliteActiveAccountLinkPartialUniqueIndexes();
     }
 
     public function down(): void
@@ -66,5 +69,45 @@ return new class extends Migration
 
         Schema::dropIfExists('central_customer_identity_credentials');
         Schema::dropIfExists('central_customers');
+    }
+
+    /**
+     * SQLite rebuilds tables during Schema::table and drops partial-index predicates.
+     * Restore ceremony partial uniques so inactive/revoked links remain allowed in tests.
+     */
+    private function restoreSqliteActiveAccountLinkPartialUniqueIndexes(): void
+    {
+        if (Schema::getConnection()->getDriverName() !== 'sqlite') {
+            return;
+        }
+
+        foreach ([
+            'cw_account_links_site_user_active_uq',
+            'cw_account_links_site_wallet_active_uq',
+        ] as $indexName) {
+            if ($this->indexExists('central_wallet_account_links', $indexName)) {
+                DB::statement("DROP INDEX {$indexName}");
+            }
+        }
+
+        DB::statement(
+            'CREATE UNIQUE INDEX cw_account_links_site_user_active_uq ON central_wallet_account_links (site_code, local_user_id) WHERE status = \'active\''
+        );
+        DB::statement(
+            'CREATE UNIQUE INDEX cw_account_links_site_wallet_active_uq ON central_wallet_account_links (site_code, central_wallet_id) WHERE status = \'active\''
+        );
+    }
+
+    private function indexExists(string $table, string $indexName): bool
+    {
+        $rows = DB::select("PRAGMA index_list('{$table}')");
+
+        foreach ($rows as $row) {
+            if (($row->name ?? null) === $indexName) {
+                return true;
+            }
+        }
+
+        return false;
     }
 };
