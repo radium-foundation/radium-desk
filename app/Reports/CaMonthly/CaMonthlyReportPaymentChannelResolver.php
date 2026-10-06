@@ -133,6 +133,7 @@ final class CaMonthlyReportPaymentChannelResolver
         ?HardwareFulfilmentPaymentEvidence $hardwareEvidence = null,
         float $allocationTotal = 0.0,
         ?InventorySale $inventorySale = null,
+        ?string $allocationPaymentMethod = null,
     ): string {
         $invoiceValue = round((float) $invoice->invoice_value, 2);
         $verifiedPaid = $this->paidAmounts->resolveVerifiedPaidAmount(
@@ -147,10 +148,6 @@ final class CaMonthlyReportPaymentChannelResolver
             return self::CHANNEL_UNPAID;
         }
 
-        if ($this->paidAmounts->isPartiallyPaid($verifiedPaid, $invoiceValue)) {
-            return self::CHANNEL_PARTIAL_PAID;
-        }
-
         if ($this->hasCashfreeGatewayEvidence($invoice, $commerceOrder, $supportOrder, $hardwareEvidence)) {
             return self::CHANNEL_CF;
         }
@@ -161,12 +158,68 @@ final class CaMonthlyReportPaymentChannelResolver
             $supportOrder,
             $hardwareEvidence,
             $inventorySale,
+            $allocationPaymentMethod,
         );
         if ($directChannel !== null) {
             return $directChannel;
         }
 
+        if ($this->paidAmounts->isPartiallyPaid($verifiedPaid, $invoiceValue)) {
+            return self::CHANNEL_PARTIAL_PAID;
+        }
+
         return '';
+    }
+
+    public function isPaymentUnpaid(
+        StatutoryInvoice $invoice,
+        ?CommerceOrder $commerceOrder = null,
+        ?Order $supportOrder = null,
+        ?HardwareFulfilmentPaymentEvidence $hardwareEvidence = null,
+        float $allocationTotal = 0.0,
+        ?InventorySale $inventorySale = null,
+    ): bool {
+        $verifiedPaid = $this->paidAmounts->resolveVerifiedPaidAmount(
+            $invoice,
+            $commerceOrder,
+            $supportOrder,
+            $allocationTotal,
+            $inventorySale,
+        );
+
+        return $this->isUnpaid(
+            $invoice,
+            $commerceOrder,
+            $supportOrder,
+            $hardwareEvidence,
+            $allocationTotal,
+            $inventorySale,
+            $verifiedPaid,
+        );
+    }
+
+    public function isPaymentPartial(
+        StatutoryInvoice $invoice,
+        ?CommerceOrder $commerceOrder = null,
+        ?Order $supportOrder = null,
+        ?HardwareFulfilmentPaymentEvidence $hardwareEvidence = null,
+        float $allocationTotal = 0.0,
+        ?InventorySale $inventorySale = null,
+    ): bool {
+        if ($this->isPaymentUnpaid($invoice, $commerceOrder, $supportOrder, $hardwareEvidence, $allocationTotal, $inventorySale)) {
+            return false;
+        }
+
+        return $this->paidAmounts->isPartiallyPaid(
+            $this->paidAmounts->resolveVerifiedPaidAmount(
+                $invoice,
+                $commerceOrder,
+                $supportOrder,
+                $allocationTotal,
+                $inventorySale,
+            ),
+            round((float) $invoice->invoice_value, 2),
+        );
     }
 
     public function resolvePaymentReferenceDisplay(
@@ -282,11 +335,13 @@ final class CaMonthlyReportPaymentChannelResolver
         ?Order $supportOrder,
         ?HardwareFulfilmentPaymentEvidence $hardwareEvidence,
         ?InventorySale $inventorySale,
+        ?string $allocationPaymentMethod = null,
     ): ?string {
         foreach ([
             $hardwareEvidence?->payment_method,
             $supportOrder?->payment_method,
             $commerceOrder?->payment_method,
+            $allocationPaymentMethod,
             $invoice->payment_method,
             $inventorySale?->payment_method,
         ] as $value) {

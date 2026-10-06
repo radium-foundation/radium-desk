@@ -52,7 +52,7 @@ class CaMonthlyReportCaReadyExportTest extends TestCase
     {
         $headers = CaMonthlyReportDefinition::HEADERS;
 
-        $this->assertContains('Customer Type', $headers);
+        $this->assertNotContains('Customer Type', $headers);
         $this->assertContains('Total GST', $headers);
         $this->assertContains('Payment Status', $headers);
         $this->assertContains('Payment Method', $headers);
@@ -70,9 +70,10 @@ class CaMonthlyReportCaReadyExportTest extends TestCase
 
         $row = app(CaMonthlyReportInvoiceExportBuilder::class)->buildForInvoices(collect([$invoice]))[0];
 
-        $this->assertSame('B2B', $row->parentCells[22]);
-        $this->assertSame('18.00', $row->parentCells[23]);
-        $this->assertSame('Unpaid', $row->parentCells[24]);
+        $this->assertSame('18.00', $row->parentCells[22]);
+        $this->assertSame('Unpaid', $row->parentCells[23]);
+        $this->assertNotContains('B2B', $row->parentCells);
+        $this->assertNotContains('B2C', $row->parentCells);
     }
 
     public function test_line_detail_includes_unit_price_discount_and_gst_rate(): void
@@ -104,8 +105,8 @@ class CaMonthlyReportCaReadyExportTest extends TestCase
         $row = app(CaMonthlyReportInvoiceExportBuilder::class)
             ->buildForInvoices(collect([$original->fresh()]))[0];
 
-        $this->assertSame('CN-0009', $row->parentCells[25]);
-        $this->assertSame('Credit Note', $row->parentCells[26]);
+        $this->assertSame('CN-0009', $row->parentCells[24]);
+        $this->assertSame('Credit Note', $row->parentCells[25]);
     }
 
     public function test_refund_review_flags_b2b_irn_beyond_window_without_credit_note(): void

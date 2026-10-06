@@ -60,7 +60,12 @@ final class CaMonthlyReportXlsxPackageValidator
 
         $sheetXml = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
         if ($sheetXml !== '') {
-            $errors = array_merge($errors, $this->validateWorksheetXml($sheetXml));
+            $errors = array_merge($errors, $this->validateWorksheetXml($sheetXml, true));
+        }
+
+        $refundSheetXml = (string) $zip->getFromName('xl/worksheets/sheet2.xml');
+        if ($refundSheetXml !== '') {
+            $errors = array_merge($errors, $this->validateWorksheetXml($refundSheetXml, false));
         }
 
         $zip->close();
@@ -71,12 +76,34 @@ final class CaMonthlyReportXlsxPackageValidator
     /**
      * @return list<string>
      */
-    private function validateWorksheetXml(string $xml): array
+    private function validateWorksheetXml(string $xml, bool $requireSalesHeaders): array
     {
-        $errors = $this->validateXmlFragment($xml, 'sheet1.xml');
+        $errors = $this->validateXmlFragment($xml, $requireSalesHeaders ? 'sheet1.xml' : 'sheet2.xml');
 
         if (! str_contains($xml, '<dimension ')) {
             $errors[] = 'Worksheet must declare a dimension reference.';
+        }
+
+        $dimensionPos = strpos($xml, '<dimension ');
+        $sheetViewsPos = strpos($xml, '<sheetViews>');
+        if ($dimensionPos !== false && $sheetViewsPos !== false && $dimensionPos > $sheetViewsPos) {
+            $errors[] = 'Worksheet dimension must appear before sheetViews.';
+        }
+
+        if (preg_match('/<pageSetup[^>]*fitToPage=/', $xml) === 1) {
+            $errors[] = 'Worksheet pageSetup must not use fitToPage; that attribute belongs on pageSetUpPr.';
+        }
+
+        $printOptionsPos = strpos($xml, '<printOptions');
+        $pageSetupPos = strpos($xml, '<pageSetup ');
+        if ($printOptionsPos !== false && $pageSetupPos !== false && $printOptionsPos > $pageSetupPos) {
+            $errors[] = 'Worksheet printOptions must appear before pageSetup.';
+        }
+
+        $outlinePos = strpos($xml, '<outlinePr');
+        $pageSetUpPos = strpos($xml, '<pageSetUpPr');
+        if ($outlinePos !== false && $pageSetUpPos !== false && $outlinePos > $pageSetUpPos) {
+            $errors[] = 'Worksheet sheetPr must list outlinePr before pageSetUpPr.';
         }
 
         if (! str_contains($xml, '<sheetData>')) {
@@ -87,9 +114,11 @@ final class CaMonthlyReportXlsxPackageValidator
             $errors[] = 'Worksheet pageSetup must not use fitToHeight="0".';
         }
 
-        $headerNeedle = '<is><t>'.CaMonthlyReportDefinition::HEADERS[0].'</t></is>';
-        if (! str_contains($xml, $headerNeedle)) {
-            $errors[] = 'Worksheet is missing the first Sales Report header cell.';
+        if ($requireSalesHeaders) {
+            $headerNeedle = '<is><t>'.CaMonthlyReportDefinition::HEADERS[0].'</t></is>';
+            if (! str_contains($xml, $headerNeedle)) {
+                $errors[] = 'Worksheet is missing the first Sales Report header cell.';
+            }
         }
 
         return $errors;

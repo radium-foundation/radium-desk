@@ -7,10 +7,13 @@ use App\Enums\InventorySaleStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceSourceType;
 use App\Models\CommerceOrder;
+use App\Models\CustomerPayment;
 use App\Models\HardwareFulfilmentPaymentEvidence;
 use App\Models\InventoryBranch;
+use App\Models\InventoryCustomer;
 use App\Models\InventorySale;
 use App\Models\Order;
+use App\Models\PaymentAllocation;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use App\Reports\CaMonthly\CaMonthlyReportPaymentChannelResolver;
@@ -296,6 +299,76 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
+    }
+
+    public function test_customer_payment_hdfc_m_overrides_bank_transfer_placeholder(): void
+    {
+        $row = $this->invoiceWithAllocatedMethod('HDFC M', 'CP-HDFC-M');
+
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_M, $row[21]);
+        $this->assertSame('Paid', $row[23]);
+        $this->assertNotSame('Cash', $row[21]);
+    }
+
+    public function test_customer_payment_hdfc_d_overrides_bank_transfer_placeholder(): void
+    {
+        $row = $this->invoiceWithAllocatedMethod('HDFC D', 'CP-HDFC-D');
+
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_D, $row[21]);
+        $this->assertSame('Paid', $row[23]);
+    }
+
+    public function test_genuine_cash_without_hdfc_allocation_stays_cash(): void
+    {
+        $this->makeTaxInvoice([
+            'issued_at' => '2026-09-10 10:00:00',
+            'payment_method' => 'Cash',
+            'payment_reference' => 'CASH-ONLY-1',
+            'invoice_value' => '118.00',
+        ]);
+
+        $row = $this->firstRow();
+
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CASH, $row[21]);
+        $this->assertSame('Paid', $row[23]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function invoiceWithAllocatedMethod(string $method, string $paymentNumber): array
+    {
+        $customer = InventoryCustomer::query()->create([
+            'name' => 'POS Buyer',
+            'phone' => '9999900001',
+        ]);
+
+        $invoice = $this->makeTaxInvoice([
+            'issued_at' => '2026-09-10 10:00:00',
+            'channel' => StatutoryInvoiceChannel::DeskPos,
+            'payment_method' => 'Bank Transfer',
+            'payment_reference' => 'HIST-PLACEHOLDER',
+            'invoice_value' => '118.00',
+        ]);
+
+        $payment = CustomerPayment::query()->create([
+            'payment_number' => $paymentNumber,
+            'customer_id' => $customer->id,
+            'amount' => '118.00',
+            'method' => $method,
+            'bank_name' => 'HDFC Bank',
+            'payment_date' => '2026-09-07',
+            'source' => 'historical_pos_backfill',
+        ]);
+
+        PaymentAllocation::query()->create([
+            'customer_payment_id' => $payment->id,
+            'statutory_invoice_id' => $invoice->id,
+            'amount' => '118.00',
+            'allocated_at' => '2026-09-10 10:00:00',
+        ]);
+
+        return $this->firstRow();
     }
 
     /**

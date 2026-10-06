@@ -36,6 +36,7 @@ final class CaMonthlyReportInvoiceExportBuilder
         $orderContexts = $this->orderContextResolver->resolveForInvoices($invoices);
         $orderTypes = $this->orderTypeResolver->resolveForInvoices($invoices);
         $allocationTotals = $this->paymentEvidenceResolver->allocationTotalsForInvoices($invoices);
+        $allocationMethods = $this->paymentEvidenceResolver->allocationPaymentMethodsForInvoices($invoices);
         $supportOrders = $this->paymentChannelResolver->supportOrdersForInvoices($invoices);
         $hardwareEvidence = $this->paymentChannelResolver->hardwareEvidenceForInvoices($invoices);
         $commerceOrders = $this->branchResolver->commerceOrdersForInvoices($invoices);
@@ -50,6 +51,7 @@ final class CaMonthlyReportInvoiceExportBuilder
                 (string) ($orderTypes[$invoice->id] ?? ''),
                 $branches[$invoice->id] ?? '',
                 $allocationTotals[$invoice->id] ?? 0.0,
+                $allocationMethods[$invoice->id] ?? null,
                 $commerceOrders[$invoice->id] ?? null,
                 $supportOrders[$invoice->id] ?? null,
                 $hardwareEvidence[$invoice->id] ?? null,
@@ -66,6 +68,7 @@ final class CaMonthlyReportInvoiceExportBuilder
         string $orderType,
         string $branch,
         float $allocationTotal,
+        ?string $allocationPaymentMethod,
         ?CommerceOrder $commerceOrder,
         ?Order $supportOrder,
         ?HardwareFulfilmentPaymentEvidence $hardwareEvidenceRecord,
@@ -95,6 +98,7 @@ final class CaMonthlyReportInvoiceExportBuilder
             $hardwareEvidenceRecord,
             $allocationTotal,
             $invoice->inventorySale,
+            $allocationPaymentMethod,
         );
 
         $taxableAmount = round((float) $invoice->taxable_value, 2);
@@ -116,7 +120,7 @@ final class CaMonthlyReportInvoiceExportBuilder
             $orderType,
             (string) ($invoice->buyer_name ?? ''),
             (string) ($invoice->buyer_gstin ?? ''),
-            (string) ($this->resolveState($invoice) ?? ''),
+            (string) ($this->resolveState($invoice, $commerceOrder) ?? ''),
             (string) ($invoice->place_of_supply_state ?? ''),
             '',
             $this->combineHsnSac($exportableItems),
@@ -130,11 +134,29 @@ final class CaMonthlyReportInvoiceExportBuilder
             (string) ($invoice->eInvoiceRecord?->irn ?? ''),
             (string) ($invoice->eInvoiceRecord?->ack_no ?? ''),
             $paymentChannel,
-            CaMonthlyReportCustomerTypeDisplay::forInvoice($invoice),
             $totalGst !== 0.0 ? $this->money($totalGst) : '',
-            CaMonthlyReportPaymentStatusDisplay::fromPaymentChannel($paymentChannel),
+            CaMonthlyReportPaymentStatusDisplay::fromPaymentState(
+                $this->paymentChannelResolver->isPaymentUnpaid(
+                    $invoice,
+                    $commerceOrder,
+                    $supportOrder,
+                    $hardwareEvidenceRecord,
+                    $allocationTotal,
+                    $invoice->inventorySale,
+                ),
+                $this->paymentChannelResolver->isPaymentPartial(
+                    $invoice,
+                    $commerceOrder,
+                    $supportOrder,
+                    $hardwareEvidenceRecord,
+                    $allocationTotal,
+                    $invoice->inventorySale,
+                ),
+                $paymentChannel,
+            ),
             $creditNoteSummary['number'],
             $creditNoteSummary['status'],
+            $this->productNameSummary($exportableItems),
         ];
 
         return new CaMonthlyReportInvoiceExportRow(
@@ -264,11 +286,59 @@ final class CaMonthlyReportInvoiceExportBuilder
         return implode(', ', array_keys($codes));
     }
 
-    private function resolveState(StatutoryInvoice $invoice): ?string
+    /**
+     * Customer billing state. Precedence is the stored billing snapshot, then the
+     * linked order's structured billing state, then the order's billing_state column.
+     * Place of supply and GSTIN registration state are not used.
+     */
+    private function resolveState(StatutoryInvoice $invoice, ?CommerceOrder $commerceOrder): ?string
     {
-        $structured = StatutoryBillingStructured::fromStored($invoice->billing_address_structured);
+        $fromInvoice = $this->stateFromStructured($invoice->billing_address_structured);
+        if ($fromInvoice !== null) {
+            return $fromInvoice;
+        }
 
-        return StatutoryBillingStructured::nullable($structured['state'] ?? null);
+        if ($commerceOrder !== null) {
+            $fromCommerceStructured = $this->stateFromStructured($commerceOrder->billing_address_structured);
+            if ($fromCommerceStructured !== null) {
+                return $fromCommerceStructured;
+            }
+
+            $billingState = $this->nullableString($commerceOrder->billing_state);
+            if ($billingState !== null) {
+                return $billingState;
+            }
+        }
+
+        $sale = $invoice->inventorySale;
+        if ($sale !== null) {
+            return $this->stateFromStructured($sale->billing_address_structured);
+        }
+
+        return null;
+    }
+
+    private function stateFromStructured(mixed $structured): ?string
+    {
+        $parsed = StatutoryBillingStructured::fromStored($structured);
+
+        return StatutoryBillingStructured::nullable($parsed['state'] ?? null);
+    }
+
+    /**
+     * @param  list<StatutoryInvoiceItem>  $items
+     */
+    private function productNameSummary(array $items): string
+    {
+        $names = [];
+        foreach ($items as $item) {
+            $name = $this->nullableString($item->description);
+            if ($name !== null) {
+                $names[] = $name;
+            }
+        }
+
+        return implode('; ', $names);
     }
 
     private function formatDate(mixed $value): string

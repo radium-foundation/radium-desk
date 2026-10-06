@@ -89,7 +89,7 @@ class CaMonthlyReportExport extends Model
     public function downloadFilename(): string
     {
         return sprintf(
-            'ca-monthly-report-%s-%s.%s',
+            'sales-report-%s-%s.%s',
             $this->date_from->format('Ymd'),
             $this->date_to->format('Ymd'),
             $this->format->extension(),

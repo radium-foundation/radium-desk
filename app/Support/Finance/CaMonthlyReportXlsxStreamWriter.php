@@ -91,7 +91,8 @@ final class CaMonthlyReportXlsxStreamWriter
 
         fwrite($handle, '<?xml version="1.0" encoding="UTF-8"?>');
         fwrite($handle, '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">');
-        fwrite($handle, '<sheetPr><outlinePr summaryBelow="0"/></sheetPr>');
+        fwrite($handle, '<sheetPr><outlinePr summaryBelow="0"/><pageSetUpPr fitToPage="1"/></sheetPr>');
+        fwrite($handle, '<dimension ref="A1:A1"/>');
         fwrite($handle, '<sheetViews><sheetView workbookViewId="0"><pane ySplit="'.CaMonthlyReportDefinition::HEADER_ROW.'" topLeftCell="A'.CaMonthlyReportDefinition::DATA_START_ROW.'" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>');
         fwrite($handle, '<sheetFormatPr defaultRowHeight="15"/>');
         fwrite($handle, '<cols>');
@@ -206,8 +207,8 @@ final class CaMonthlyReportXlsxStreamWriter
             $this->sheetHandle,
             '<autoFilter ref="A'.CaMonthlyReportDefinition::HEADER_ROW.':'.$lastColumn.CaMonthlyReportDefinition::HEADER_ROW.'"/>',
         );
-        fwrite($this->sheetHandle, '<pageSetup orientation="landscape" fitToPage="1" fitToWidth="1"/>');
         fwrite($this->sheetHandle, '<printOptions horizontalCentered="1"/>');
+        fwrite($this->sheetHandle, '<pageSetup orientation="landscape" fitToWidth="1" fitToHeight="1"/>');
         fwrite($this->sheetHandle, '</worksheet>');
         fclose($this->sheetHandle);
         $this->sheetHandle = null;
@@ -319,7 +320,7 @@ XML);
         $row[15] = 'CGST total';
         $row[16] = 'SGST total';
         $row[18] = 'Invoice grand total';
-        $row[23] = 'Total GST';
+        $row[22] = 'Total GST';
 
         return $row;
     }
@@ -337,7 +338,7 @@ XML);
         $row[15] = $this->cgstTotal !== 0.0 ? $this->money($this->cgstTotal) : '';
         $row[16] = $this->sgstTotal !== 0.0 ? $this->money($this->sgstTotal) : '';
         $row[18] = $this->money($this->invoiceGrandTotal);
-        $row[23] = $this->totalGstAmount !== 0.0 ? $this->money($this->totalGstAmount) : '';
+        $row[22] = $this->totalGstAmount !== 0.0 ? $this->money($this->totalGstAmount) : '';
 
         return $row;
     }
@@ -376,7 +377,7 @@ XML);
         }
 
         $row = array_fill(0, count(CaMonthlyReportDefinition::HEADERS), '');
-        $row[5] = '  » '.$label;
+        $row[count(CaMonthlyReportDefinition::HEADERS) - 1] = $label;
         $row[11] = $detail[5] ?? '';
         $row[12] = $detail[7] ?? '';
         $row[13] = $detail[8] ?? '';
@@ -401,6 +402,7 @@ XML);
 
         fwrite($handle, '<?xml version="1.0" encoding="UTF-8"?>');
         fwrite($handle, '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">');
+        fwrite($handle, '<dimension ref="A1:A1"/>');
         fwrite($handle, '<sheetViews><sheetView workbookViewId="0"><pane ySplit="'.CaMonthlyReportDefinition::HEADER_ROW.'" topLeftCell="A'.CaMonthlyReportDefinition::DATA_START_ROW.'" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>');
         fwrite($handle, '<sheetFormatPr defaultRowHeight="15"/>');
         fwrite($handle, '<cols>');
@@ -511,8 +513,8 @@ XML);
         if (str_contains($xml, '<dimension ')) {
             $xml = preg_replace('/<dimension ref="[^"]*"\/>/', $dimension, $xml, 1) ?? $xml;
         } else {
-            $needle = '</cols><sheetData>';
-            $replacement = '</cols>'.$dimension.'<sheetData>';
+            $needle = '<sheetViews>';
+            $replacement = $dimension.'<sheetViews>';
             if (! str_contains($xml, $needle)) {
                 throw new \RuntimeException('Could not inject worksheet dimension reference.');
             }

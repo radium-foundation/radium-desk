@@ -39,7 +39,7 @@ final class CaMonthlyReportDefinition
      * @var list<string>
      */
     public const HEADERS = [
-        'Branch',
+        'Branch Name',
         'Invoice Date',
         'Invoice No.',
         'Status',
@@ -61,11 +61,11 @@ final class CaMonthlyReportDefinition
         'IRN Number',
         'Acknowledgement',
         'Payment Method',
-        'Customer Type',
         'Total GST',
         'Payment Status',
         'Credit Note Number',
         'Credit Note Status',
+        'Product Name',
     ];
 
     /**
