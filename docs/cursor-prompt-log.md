@@ -564,3 +564,45 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-64
 
 **Implement minimal protected wallet refund recovery.** Restore proven `GET /api/central-wallet/v1/wallet-refund-destination` chain from commits `debb49a7`…`1becfafe` without importing unrelated feature-branch work. Local commit + tests only. **No push/deploy/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-65
+
+**Resolve full Central Wallet test failures before push.** Reproduce and bisect Central Wallet suite failures against parent `3f8d78dd` vs recovery `d463c07c`; classify SQLite partial-index regression from customer-identity migration; apply SQLite-only restore fix (uncommitted). **No push/deploy/production mutation/REF-67372.**
+
+---
+
+## RadiumDesk-P-04-10-66
+
+**Commit SQLite regression fix and final validation.** Commit proven SQLite-only partial-index restore after customer-identity migration; re-run Central Wallet, wallet-refund, deploy-safety, and Pint gates. **No push/deploy/tag/production mutation/REF-67372.**
+
+---
+
+## RadiumDesk-P-04-10-67
+
+**Controlled push preparation.** Review unpushed commits `3f8d78dd`…`f8ef9194`, uncommitted P-04-10-61 deploy-safety filter hardening, and full diff vs `origin/main` for owner-authorized push gate. **No push/deploy/tag/production mutation/REF-67372.**
+
+---
+
+## RadiumDesk-P-04-10-68
+
+**Commit P-04-10-61 deployment-safety filter hardening.** Isolated commit for rsync exclude hardening and filter-leak regression test only. **No push/deploy/tag/production mutation/REF-67372.**
+
+---
+
+## RadiumDesk-P-04-10-69
+
+**Owner-authorized push of reviewed main history.** Push four commits (`3f8d78dd`, `d463c07c`, `f8ef9194`, `8d5d88f0`) to `origin/main`. **Push only; no deploy/tag/production mutation/REF-67372.**
+
+---
+
+## RadiumDesk-P-04-10-70
+
+**Release-readiness assessment (wallet recovery + deploy safety).** Preflight review of `8d5d88f0` vs production v4.1.2 / `59b717e7`; classify changes, endpoint chain, tests, and deploy gates. **No tag/deploy/push/production mutation/REF-67372.**
+
+---
+
+## RadiumDesk-P-04-10-71
+
+**Prepare v4.1.3 release documentation.** Add CHANGELOG `4.1.3` and commit prompt ledger entries; run fresh validation and `npm run build` on documentation-only commits atop `8d5d88f0`. **No tag/deploy/push/production mutation/REF-67372.**
