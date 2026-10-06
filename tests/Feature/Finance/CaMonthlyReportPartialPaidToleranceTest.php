@@ -167,7 +167,8 @@ class CaMonthlyReportPartialPaidToleranceTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_PARTIAL_PAID, $row[21]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
+        $this->assertSame('Partial Paid', $row[23]);
     }
 
     public function test_zero_payment_exports_unpaid(): void

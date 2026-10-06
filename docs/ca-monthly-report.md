@@ -18,13 +18,13 @@
 - **CSV** contains **parent invoice rows only** (no child line detail).
 - `countExportLines()`, sync/async thresholds, and `row_count` on export artifacts count **invoices**, not line items.
 
-## Parent invoice columns (22)
+## Parent invoice columns (27)
 
 Exact order from `CaMonthlyReportDefinition::HEADERS`:
 
 | # | Column |
 |---|--------|
-| 1 | Branch |
+| 1 | Branch Name |
 | 2 | Invoice Date |
 | 3 | Invoice No. |
 | 4 | Status |
@@ -45,7 +45,12 @@ Exact order from `CaMonthlyReportDefinition::HEADERS`:
 | 19 | Invoice Total |
 | 20 | IRN Number |
 | 21 | Acknowledgement |
-| 22 | Payment Channel |
+| 22 | Payment Method |
+| 23 | Total GST |
+| 24 | Payment Status |
+| 25 | Credit Note Number |
+| 26 | Credit Note Status |
+| 27 | Product Name |
 
 ### Not exported
 
@@ -106,6 +111,10 @@ Parent-row amounts come from **`statutory_invoices` invoice-level fields**, not 
 
 Parent **HSN/SAC** combines unique codes from exportable lines (comma-separated). **eWay Bill** remains blank without an authoritative source.
 
+**Product Name** is the exportable line `statutory_invoice_items.description` values, joined with `; ` when an invoice has more than one exportable line. SKU is not used as the product name.
+
+**State** is the customer billing state, in this order: invoice `billing_address_structured.state`, then the linked order's structured billing state, then `commerce_orders.billing_state`. Place of supply and GSTIN registration state are not used.
+
 ## Branch
 
 Resolver: `CaMonthlyReportBranchResolver`.
@@ -146,8 +155,8 @@ Owner-approved normalized channels:
 | Channel | When used |
 |---------|-----------|
 | `CF` | Cashfree gateway evidence only (`cashfree_payment_id`, or `payment_method`/snapshot explicitly `cashfree`) — **never inferred from UPI/Card alone** |
-| `HDFC M` | Direct POS/settlement method `HDFC M` |
-| `HDFC D` | Direct POS/settlement method `HDFC D` |
+| `HDFC M` | Direct method `HDFC M`, or `customer_payments.method` from a payment allocation when that allocation is the recorded tender |
+| `HDFC D` | Direct method `HDFC D`, or `customer_payments.method` from a payment allocation when that allocation is the recorded tender |
 | `Cash` | Direct cash settlement |
 | `Unpaid` | Verified paid amount = 0 |
 | `Partial Paid` | Verified paid amount > 0 and absolute invoice/paid difference **> ₹1.00** (inclusive tolerance) |
@@ -162,13 +171,14 @@ Instrument and reference resolvers remain available for reconciliation/debugging
 - `CaMonthlyReportPaymentEvidenceResolver::resolvePaymentModeDisplay()`
 - `CaMonthlyReportPaymentChannelResolver::resolvePaymentReferenceDisplay()`
 
-Resolution order (first non-empty, normalized label wins):
+Resolution order for the exported method (first match wins):
 
-1. Verified `HardwareFulfilmentPaymentEvidence.payment_method` (by source / commerce order)
-2. Linked support `orders.payment_method`
-3. `commerce_orders.payment_method`
-4. `PaymentAllocation` → linked `CustomerPayment.method`
-5. `statutory_invoices.payment_method` (invoice snapshot)
+1. Cashfree gateway evidence → `CF` (a Cashfree UPI/card/net-banking/wallet instrument stays `CF`)
+2. Verified hardware evidence method, then support-order method, then commerce method
+3. Allocated `customer_payments.method` (historical POS backfill records `HDFC M` / `HDFC D` / `Cash` here)
+4. Invoice `payment_method`, then inventory-sale `payment_method`
+
+`Bank Transfer` on a historical POS invoice is the pre-backfill placeholder. It is not rewritten to Cash. When an allocation records `HDFC M` or `HDFC D`, that allocation method is the exported method. A sale with no payment evidence exports Payment Status `Unpaid`. Customer Type is not a Sales Report column.
 
 **Payment providers are not payment instruments.** Provider aliases such as `cashfree`, `payu`, and `razorpay` are filtered from instrument resolution. A Cashfree-backed UPI transaction therefore exports **Channel = CF** only.
 

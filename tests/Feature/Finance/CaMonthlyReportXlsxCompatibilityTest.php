@@ -69,6 +69,10 @@ class CaMonthlyReportXlsxCompatibilityTest extends TestCase
         $this->assertStringContainsString('<bookViews>', $workbook);
         $this->assertStringContainsString('<styleSheet', $styles);
         $this->assertMatchesRegularExpression('/<dimension ref="A1:AA\d+"\/>/', $sheet);
+        $this->assertLessThan(strpos($sheet, '<sheetViews>'), strpos($sheet, '<dimension '));
+        $this->assertLessThan(strpos($sheet, '<pageSetUpPr'), strpos($sheet, '<outlinePr'));
+        $this->assertLessThan(strpos($sheet, '<pageSetup '), strpos($sheet, '<printOptions'));
+        $this->assertDoesNotMatchRegularExpression('/<pageSetup[^>]*fitToPage=/', $sheet);
         $this->assertStringNotContainsString('fitToHeight="0"', $sheet);
         $this->assertStringContainsString('<autoFilter ref="A3:AA3"/>', $sheet);
 
@@ -313,7 +317,7 @@ class CaMonthlyReportXlsxCompatibilityTest extends TestCase
 
         $this->assertStringContainsString('outlineLevel="1"', $sheet);
         $this->assertStringContainsString('hidden="1"', $sheet);
-        $this->assertStringContainsString('  » AMC Support', $sheet);
+        $this->assertStringContainsString('AMC Support [ADDON]', $sheet);
 
         $errors = (new CaMonthlyReportXlsxPackageValidator)->validate($path);
         $this->assertSame([], $errors);

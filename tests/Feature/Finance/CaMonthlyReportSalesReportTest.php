@@ -4,6 +4,7 @@ namespace Tests\Feature\Finance;
 
 use App\Enums\CaMonthlyReportExportFormat;
 use App\Enums\StatutoryInvoiceDocumentType;
+use App\Mail\CaMonthlyReportExportMail;
 use App\Models\CaMonthlyReportExport;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
@@ -11,9 +12,12 @@ use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use App\Reports\CaMonthly\CaMonthlyReportInvoiceExportBuilder;
 use App\Services\Finance\CaMonthlyReportExportGenerator;
+use App\Services\Finance\CaMonthlyReportExportService;
+use App\Support\Finance\CaMonthlyReportXlsxPackageValidator;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\Support\CreatesStatutoryInvoicesForEinvoice;
 use Tests\TestCase;
@@ -184,7 +188,7 @@ class CaMonthlyReportSalesReportTest extends TestCase
         $this->assertStringContainsString('Invoice Total', $artifact);
         $this->assertStringContainsString('118.00', $artifact);
         $this->assertSame(1, substr_count($artifact, 'INV-EINV-1'));
-        $this->assertStringNotContainsString('Add-on Service', $artifact);
+        $this->assertStringContainsString('RD Service; Add-on Service', $artifact);
     }
 
     public function test_credit_note_row_shows_credit_note_status_without_inventing_refund_amount(): void
@@ -200,6 +204,7 @@ class CaMonthlyReportSalesReportTest extends TestCase
         $this->assertSame('Credit Note', $row[3]);
         $this->assertSame('CN-0001', $row[2]);
         $this->assertCount(27, $row);
+        $this->assertSame('RD Service', $row[26]);
     }
 
     public function test_sync_xlsx_generator_uses_sales_report_title(): void
@@ -213,13 +218,227 @@ class CaMonthlyReportSalesReportTest extends TestCase
             $path,
         );
 
-        $this->assertStringContainsString('Sales Report', $this->readWorksheetXml($path));
+        $sheet1 = $this->readWorksheetXml($path);
+        $this->assertStringContainsString('Sales Report', $sheet1);
+        $this->assertLessThan(strpos($sheet1, '<sheetViews>'), strpos($sheet1, '<dimension '));
+        $this->assertLessThan(strpos($sheet1, '<pageSetUpPr'), strpos($sheet1, '<outlinePr'));
+        $this->assertDoesNotMatchRegularExpression('/<pageSetup[^>]*fitToPage=/', $sheet1);
+
+        $zip = new ZipArchive;
+        $zip->open($path);
+        $sheet2 = $zip->getFromName('xl/worksheets/sheet2.xml');
+        $workbook = $zip->getFromName('xl/workbook.xml');
+        $zip->close();
+        $this->assertIsString($sheet2);
+        $this->assertLessThan(strpos($sheet2, '<sheetViews>'), strpos($sheet2, '<dimension '));
+        $this->assertStringContainsString('Refund &amp; CN Review', (string) $workbook);
         @unlink($path);
+    }
+
+    public function test_download_filename_uses_sales_report_prefix(): void
+    {
+        $export = new CaMonthlyReportExport([
+            'date_from' => '2026-09-01',
+            'date_to' => '2026-09-07',
+            'format' => CaMonthlyReportExportFormat::Xlsx,
+        ]);
+
+        $this->assertSame('sales-report-20260901-20260907.xlsx', $export->downloadFilename());
+        $this->assertDoesNotMatchRegularExpression('/ca-monthly-report/', $export->downloadFilename());
+    }
+
+    public function test_download_filename_rejects_legacy_ca_monthly_report_prefix_for_every_format(): void
+    {
+        foreach (CaMonthlyReportExportFormat::cases() as $format) {
+            $name = (new CaMonthlyReportExport([
+                'date_from' => '2026-09-01',
+                'date_to' => '2026-09-07',
+                'format' => $format,
+            ]))->downloadFilename();
+
+            $this->assertSame('sales-report-20260901-20260907.'.$format->extension(), $name);
+            $this->assertDoesNotMatchRegularExpression('/ca-monthly-report/', $name);
+        }
+    }
+
+    public function test_background_and_synchronous_email_exports_share_the_sales_report_workbook(): void
+    {
+        Mail::fake();
+        $this->seedPeriodInvoiceWithBillingState();
+        $this->makeTaxInvoice([
+            'issued_at' => '2026-08-31 23:59:59',
+            'invoice_number' => 'INV-OUTSIDE-RANGE',
+            'buyer_gstin' => null,
+        ]);
+
+        $background = $this->requestEmailedXlsx('background-export@example.com', syncMaxLines: 0);
+        $synchronous = $this->requestEmailedXlsx('sync-export@example.com', syncMaxLines: 500);
+
+        $sent = Mail::sent(CaMonthlyReportExportMail::class);
+        $this->assertCount(2, $sent);
+
+        foreach ([$background, $synchronous] as $export) {
+            $export->refresh();
+            $this->assertSame('sales-report-20260901-20260907.xlsx', $export->downloadFilename());
+            $this->assertDoesNotMatchRegularExpression('/ca-monthly-report/', $export->downloadFilename());
+            $this->assertSame([], app(CaMonthlyReportXlsxPackageValidator::class)->validate(
+                Storage::disk('local')->path((string) $export->storage_path),
+            ));
+        }
+
+        foreach ($sent as $mail) {
+            $attachments = $mail->attachments();
+            $this->assertCount(1, $attachments);
+            $this->assertSame('sales-report-20260901-20260907.xlsx', $attachments[0]->as);
+            $this->assertDoesNotMatchRegularExpression('/ca-monthly-report/', (string) $attachments[0]->as);
+            $this->assertStringContainsString('2026-09-01 to 2026-09-07', $mail->render());
+        }
+
+        $backgroundXml = $this->withoutGeneratedTimestamp($this->readWorksheetXml(
+            Storage::disk('local')->path((string) $background->storage_path),
+        ));
+        $synchronousXml = $this->withoutGeneratedTimestamp($this->readWorksheetXml(
+            Storage::disk('local')->path((string) $synchronous->storage_path),
+        ));
+
+        $this->assertSame($synchronousXml, $backgroundXml);
+        $this->assertStringContainsString('Branch Name', $backgroundXml);
+        $this->assertStringContainsString('Product Name', $backgroundXml);
+        $this->assertStringContainsString('Payment Method', $backgroundXml);
+        $this->assertStringContainsString('Andhra Pradesh', $backgroundXml);
+        $this->assertStringContainsString('RD Service', $backgroundXml);
+        $this->assertStringContainsString('Delhi', $backgroundXml);
+        $this->assertStringNotContainsString('Customer Type', $backgroundXml);
+        $this->assertStringNotContainsString('INV-OUTSIDE-RANGE', $backgroundXml);
+        $this->assertSame(1, substr_count($backgroundXml, 'Andhra Pradesh'));
+
+        $zip = new ZipArchive;
+        $zip->open(Storage::disk('local')->path((string) $background->storage_path));
+        $workbook = $zip->getFromName('xl/workbook.xml');
+        $refundSheet = $zip->getFromName('xl/worksheets/sheet2.xml');
+        $zip->close();
+        $this->assertIsString($workbook);
+        $this->assertStringContainsString('Sales Report', $workbook);
+        $this->assertStringContainsString('Refund &amp; CN Review', $workbook);
+        $this->assertIsString($refundSheet);
+        $this->assertStringContainsString('Customer Type', $refundSheet);
+    }
+
+    public function test_state_uses_commerce_billing_state_when_invoice_snapshot_has_no_state(): void
+    {
+        $invoice = $this->makeTaxInvoice([
+            'issued_at' => '2026-09-07 10:00:00',
+            'buyer_gstin' => null,
+            'billing_address_structured' => null,
+            'place_of_supply_state' => 'Karnataka',
+            'channel' => \App\Enums\StatutoryInvoiceChannel::RdServiceNet,
+            'source_type' => \App\Enums\StatutoryInvoiceSourceType::CommerceOrder,
+            'source_id' => 'STATE-BILLING',
+        ]);
+
+        \App\Models\CommerceOrder::query()->create([
+            'order_no' => 'CO-STATE-BILLING',
+            'channel' => \App\Enums\StatutoryInvoiceChannel::RdServiceNet,
+            'source_type' => \App\Enums\StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => 'STATE-BILLING',
+            'source_order_id' => 'STATE-BILLING',
+            'idempotency_key' => 'statutory:rd_service_net:commerce_order:STATE-BILLING',
+            'payload_hash' => hash('sha256', 'STATE-BILLING'),
+            'status' => \App\Enums\CommerceOrderStatus::InvoicePending,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'customer_name' => 'No Gstin Buyer',
+            'billing_state' => 'Andhra Pradesh',
+            'billing_address' => '1 Road',
+            'shipping_address' => '1 Road',
+            'branch_code' => 'DELHI-RETAIL',
+            'place_of_supply_state' => 'Karnataka',
+            'taxable_value' => 100,
+            'tax_total' => 18,
+            'order_value' => 118,
+            'ordered_at' => '2026-09-07 09:00:00',
+            'received_at' => now(),
+        ]);
+
+        $row = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0];
+
+        $this->assertSame('Andhra Pradesh', $row[8]);
+        $this->assertNotSame('Karnataka', $row[8]);
+        $this->assertSame('RD Service', $row[26]);
+        $this->assertSame('Branch Name', CaMonthlyReportDefinition::HEADERS[0]);
+        $this->assertNotSame('', $row[0]);
+        $this->assertSame($invoice->invoice_number, $row[2]);
     }
 
     private function request(): Request
     {
         return Request::create('/finance/reports/ca-monthly', 'GET', self::RANGE);
+    }
+
+    private function requestEmailedXlsx(string $recipient, int $syncMaxLines): CaMonthlyReportExport
+    {
+        config(['ca_monthly_report.sync_max_lines' => $syncMaxLines]);
+
+        $user = User::factory()->create([
+            'is_active' => true,
+            'email' => $recipient,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        return app(CaMonthlyReportExportService::class)->requestFromHttp(
+            Request::create('/finance/reports/ca-monthly', 'GET', [
+                'date_from' => '2026-09-01',
+                'date_to' => '2026-09-07',
+            ]),
+            $user,
+            CaMonthlyReportExportFormat::Xlsx,
+            $recipient,
+        );
+    }
+
+    private function seedPeriodInvoiceWithBillingState(): void
+    {
+        $this->makeTaxInvoice([
+            'issued_at' => '2026-09-07 10:00:00',
+            'invoice_number' => 'INV-EMAIL-PATH',
+            'buyer_gstin' => null,
+            'billing_address_structured' => null,
+            'place_of_supply_state' => 'Karnataka',
+            'channel' => \App\Enums\StatutoryInvoiceChannel::RdServiceNet,
+            'source_type' => \App\Enums\StatutoryInvoiceSourceType::CommerceOrder,
+            'source_id' => 'EMAIL-PATH',
+        ]);
+
+        \App\Models\CommerceOrder::query()->create([
+            'order_no' => 'CO-EMAIL-PATH',
+            'channel' => \App\Enums\StatutoryInvoiceChannel::RdServiceNet,
+            'source_type' => \App\Enums\StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => 'EMAIL-PATH',
+            'source_order_id' => 'EMAIL-PATH',
+            'idempotency_key' => 'statutory:rd_service_net:commerce_order:EMAIL-PATH',
+            'payload_hash' => hash('sha256', 'EMAIL-PATH'),
+            'status' => \App\Enums\CommerceOrderStatus::InvoicePending,
+            'invoice_eligible' => true,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'customer_name' => 'Email Path Buyer',
+            'billing_state' => 'Andhra Pradesh',
+            'billing_address' => '1 Road',
+            'shipping_address' => '1 Road',
+            'branch_code' => 'DELHI-RETAIL',
+            'place_of_supply_state' => 'Karnataka',
+            'taxable_value' => 100,
+            'tax_total' => 18,
+            'order_value' => 118,
+            'ordered_at' => '2026-09-07 09:00:00',
+            'received_at' => now(),
+        ]);
+    }
+
+    private function withoutGeneratedTimestamp(string $xml): string
+    {
+        return (string) preg_replace('/Generated[^<]*/', 'Generated', $xml);
     }
 
     private function readWorksheetXml(string $path): string
