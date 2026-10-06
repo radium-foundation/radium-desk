@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.1.4 — 2026-10-06 — Sales Report export correction
+
+- **Sales Report filename:** XLSX/CSV/email downloads now use `sales-report-%s-%s.%s` instead of `ca-monthly-report-*`.
+- **Main sheet columns:** Customer Type removed from the Sales Report parent sheet (remains on Refund & CN Review where applicable). **Product Name** added as a parent column sourced from `statutory_invoice_items.description`.
+- **Desk State preserved:** Invoice billing snapshot → linked order structured billing state → `commerce_orders.billing_state`.
+- **Branch Name preserved:** Existing `CaMonthlyReportBranchResolver`; column title **Branch Name**.
+- **XLSX page setup:** `fitToPage` moved under `pageSetUpPr` (Excel-compatible); no longer on invalid `pageSetup` node.
+- **Refund & CN Review preserved:** Second worksheet unchanged in scope.
+- **Accounting behavior preserved:** Invoice grain, GST totals, Credit Note handling, permissions/routes, wallet/refund accounting unchanged. No migration. No wallet, refund-journal, or statutory-adjustment changes.
+- Regression (verified on release candidate): focused Sales Report suite **52** passed (`CaMonthlyReportSalesReportTest`, `CaMonthlyReportPaymentChannelTest`, `CaMonthlyReportCaReadyExportTest`, `CaMonthlyReportPartialPaidToleranceTest`, `CaMonthlyReportXlsxCompatibilityTest`).
+- Rollback target: v4.1.3 / `fe47927f`.
+- Prompt **RadiumDesk-P-04-10-84**.
+
 ## 4.1.3 — 2026-10-06 — Central Wallet wallet-refund destination recovery + deploy safety
 
 - **Central Wallet wallet-refund destination (source restore):** Reintroduces `GET /api/central-wallet/v1/wallet-refund-destination` and its dependency chain after the endpoint was lost during the v4.1.2 recovery overlay. Resolves Desk CWID for spoke wallet refund credits via canonical customer identity ensure — **read-only destination resolution; no ledger credit or refund execution in this endpoint.** Spending authorization and wallet refund execution remain separate.
