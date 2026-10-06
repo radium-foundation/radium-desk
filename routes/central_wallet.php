@@ -7,6 +7,7 @@ use App\CentralWallet\Infrastructure\Http\Controllers\HealthController;
 use App\CentralWallet\Infrastructure\Http\Controllers\LedgerEntryController;
 use App\CentralWallet\Infrastructure\Http\Controllers\ReservationController;
 use App\CentralWallet\Infrastructure\Http\Controllers\WalletController;
+use App\CentralWallet\Infrastructure\Http\Controllers\WalletRefundDestinationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', HealthController::class)->name('central-wallet.health');
@@ -36,6 +37,11 @@ Route::get('/account-links', [AccountLinkController::class, 'index'])->name('cen
 
 Route::post('/ceremony/complete', [CeremonyCompleteController::class, 'store'])
     ->name('central-wallet.ceremony.complete');
+
+Route::middleware('central_wallet.historical_wallet_visibility')->group(function (): void {
+    Route::get('/wallet-refund-destination', [WalletRefundDestinationController::class, 'show'])
+        ->name('central-wallet.wallet-refund-destination.show');
+});
 
 Route::middleware('central_wallet.reservations')->group(function (): void {
     Route::post('/wallet-reservations', [ReservationController::class, 'store'])

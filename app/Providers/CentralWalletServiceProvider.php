@@ -6,23 +6,30 @@ use App\CentralWallet\Application\AccountLinkService;
 use App\CentralWallet\Application\AuditEventRecorder;
 use App\CentralWallet\Application\BalanceMigrationCutoverService;
 use App\CentralWallet\Application\BalanceMigrationStateMachine;
+use App\CentralWallet\Application\CentralWalletCustomerIdentityEnsureService;
 use App\CentralWallet\Application\CentralWalletService;
 use App\CentralWallet\Application\CeremonyCompleteService;
 use App\CentralWallet\Application\CeremonyVerificationProofValidator;
 use App\CentralWallet\Application\Contracts\WalletMigrationSpokeClient;
 use App\CentralWallet\Application\CrossSiteCeremonyCohortEligibility;
 use App\CentralWallet\Application\CrossSiteCeremonyResolver;
+use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
 use App\CentralWallet\Application\ExternalDirectLedgerDebitGate;
+use App\CentralWallet\Application\HistoricalContactIdentityMatchService;
+use App\CentralWallet\Application\HistoricalVisibilityContactIndexLoader;
 use App\CentralWallet\Application\IdempotencyService;
 use App\CentralWallet\Application\IntegrationSourceSystemResolver;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
 use App\CentralWallet\Application\NullWalletMigrationSpokeClient;
+use App\CentralWallet\Application\ReconciledHistoricalRefundFilter;
 use App\CentralWallet\Application\ReservationService;
 use App\CentralWallet\Application\ReservationStateMachine;
+use App\CentralWallet\Application\WalletRefundDestinationIdentityService;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
 use App\CentralWallet\Infrastructure\Http\HttpWalletMigrationSpokeClient;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletReservationsEnabled;
+use App\CentralWallet\Infrastructure\Http\Middleware\EnsureHistoricalWalletVisibilityEnabled;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -39,6 +46,12 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(CrossSiteCeremonyCohortEligibility::class);
         $this->app->singleton(CrossSiteCeremonyResolver::class);
         $this->app->singleton(CeremonyCompleteService::class);
+        $this->app->singleton(CustomerIdentitySubjectHasher::class);
+        $this->app->singleton(HistoricalVisibilityContactIndexLoader::class);
+        $this->app->singleton(ReconciledHistoricalRefundFilter::class);
+        $this->app->singleton(HistoricalContactIdentityMatchService::class);
+        $this->app->singleton(CentralWalletCustomerIdentityEnsureService::class);
+        $this->app->singleton(WalletRefundDestinationIdentityService::class);
         $this->app->singleton(LedgerService::class);
         $this->app->singleton(IntegrationSourceSystemResolver::class);
         $this->app->singleton(ExternalDirectLedgerDebitGate::class);
@@ -75,6 +88,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Route::aliasMiddleware('central_wallet.reservations', EnsureCentralWalletReservationsEnabled::class);
+        Route::aliasMiddleware('central_wallet.historical_wallet_visibility', EnsureHistoricalWalletVisibilityEnabled::class);
 
         Route::middleware([
             'api',

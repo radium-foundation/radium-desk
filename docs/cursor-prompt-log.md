@@ -540,3 +540,27 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-60
 
 **Production read-only dry-run (post-preflight fix).** Owner-authorized `./tools/desk deploy --dry-run` from `main` @ `03f8c797` against KVM production v4.1.2 @ `59b717e7`. Complete deletion/change inventory capture and classification. **Dry-run only; no live deploy/mutation/approval.**
+
+---
+
+## RadiumDesk-P-04-10-61
+
+**Resolve dry-run blockers locally.** Investigate `.git`, `.env.sqlite`, sqlite, `.DS_Store`, and protected nested `storage/app/private/storage/app/` from P-04-10-60 inventory; categorize 4422-file sync; tighten rsync excludes for dev artifacts. **Local only; no production mutation/push/deploy.**
+
+---
+
+## RadiumDesk-P-04-10-62
+
+**Investigate wallet refund route 404 (REF-67372).** Read-only trace of `api/central-wallet/v1/wallet-refund-destination` on production v4.1.2 / `59b717e7`. **No fix/deploy/DB/wallet mutation.**
+
+---
+
+## RadiumDesk-P-04-10-63
+
+**Restore protected wallet refund functionality (forensic).** Reconstruct P-04-10-05/`1becfafe` wallet-refund-destination overlay and dependencies vs production v4.1.2; define minimal recovery set, security review, and test plan. **No implementation/deploy/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-64
+
+**Implement minimal protected wallet refund recovery.** Restore proven `GET /api/central-wallet/v1/wallet-refund-destination` chain from commits `debb49a7`…`1becfafe` without importing unrelated feature-branch work. Local commit + tests only. **No push/deploy/production mutation.**

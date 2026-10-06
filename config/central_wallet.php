@@ -117,4 +117,56 @@ return [
         'spoke_timeout_seconds' => max(1, (int) env('CENTRAL_WALLET_MIGRATION_SPOKE_TIMEOUT', 15)),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Historical wallet visibility (contact index for refund destination)
+    |--------------------------------------------------------------------------
+    */
+
+    'historical_wallet_visibility' => [
+        'enabled' => filter_var(
+            env('CENTRAL_WALLET_HISTORICAL_WALLET_VISIBILITY_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        'protected_refund_ids' => array_values(array_filter(array_map(
+            'intval',
+            explode(',', (string) env('CENTRAL_WALLET_HISTORICAL_PROTECTED_REFUND_IDS', '')),
+        ))),
+        'campaign_start_date' => '2026-07-15',
+        'contact_match_enabled' => filter_var(
+            env('CENTRAL_WALLET_HISTORICAL_CONTACT_MATCH_ENABLED', true),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        'contact_index_manifest_path' => env(
+            'CENTRAL_WALLET_HISTORICAL_CONTACT_INDEX_MANIFEST_PATH',
+            storage_path('app/private/cw-historical-visibility-contact-index.json'),
+        ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Wallet refund destination (CWID resolve for spoke wallet credits)
+    |--------------------------------------------------------------------------
+    */
+
+    'wallet_refund_destination' => [
+        'enabled' => filter_var(
+            env('CENTRAL_WALLET_WALLET_REFUND_DESTINATION_ENABLED', true),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customer identity ensure (canonical CWID for refund destination)
+    |--------------------------------------------------------------------------
+    */
+
+    'customer_identity_ensure' => [
+        'enabled' => filter_var(
+            env('CENTRAL_WALLET_CUSTOMER_IDENTITY_ENSURE_ENABLED', true),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+    ],
+
 ];

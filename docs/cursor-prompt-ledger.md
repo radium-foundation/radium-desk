@@ -342,4 +342,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-58 | 2026-10-05 | Separate read-only dry-run from release preflight | `validate_dry_run_candidate` for `--dry-run`; `validate_release_metadata` live-only. Tests for tag-ahead scenario. **Local only; no push/deploy/production access.** |
 | RadiumDesk-P-04-10-59 | 2026-10-05 | Push verified main (P-04-10-58 preflight fix) | Owner-authorized push of `03f8c797` to `origin/main`. **Push only; no deploy/production access/tag.** |
 | RadiumDesk-P-04-10-60 | 2026-10-05 | Production read-only dry-run (post-preflight fix) | Owner-authorized `./tools/desk deploy --dry-run` from `main` @ `03f8c797` against production v4.1.2. **Dry-run only; no live deploy/mutation.** |
+| RadiumDesk-P-04-10-61 | 2026-10-05 | Resolve dry-run blockers locally | Investigate P-04-10-60 inventory; tighten rsync excludes for dev artifacts. **Local only; no production mutation/push/deploy.** |
+| RadiumDesk-P-04-10-62 | 2026-10-05 | Investigate wallet refund route 404 (REF-67372) | Read-only: trace `api/central-wallet/v1/wallet-refund-destination` 404 on production v4.1.2. **No fix/deploy/DB/wallet mutation.** |
+| RadiumDesk-P-04-10-63 | 2026-10-06 | Restore protected wallet refund functionality (forensic) | Reconstruct P-04-10-05/`1becfafe` wallet-refund-destination overlay vs v4.1.2; minimal recovery set + test/security plan. **No deploy/implementation/production mutation.** |
+| RadiumDesk-P-04-10-64 | 2026-10-06 | Implement minimal protected wallet refund recovery | Restore `GET /wallet-refund-destination` dependency chain from `debb49a7`…`1becfafe`. Local commit + tests only. **No push/deploy/production mutation.** |
 Do not renumber or overwrite earlier rows. Append only.
