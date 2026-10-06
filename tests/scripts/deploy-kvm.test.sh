@@ -33,12 +33,31 @@ pass "deploy rsync deletion safety integration present"
 
 grep -q 'DEPLOY_MODE' "$SCRIPT" || fail "must enforce DEPLOY_MODE"
 grep -q 'redis-vps-preinstall-inspection.md' "$SCRIPT" || fail "must allow known untracked doc"
-grep -q '\-\-exclude.*\.env' "$SAFETY_LIB" || fail "must exclude remote .env"
-grep -q '\-\-exclude.*\.git/' "$SAFETY_LIB" || fail "must exclude .git"
-grep -q '\-\-exclude.*node_modules/' "$SAFETY_LIB" || fail "must exclude node_modules"
-grep -q '\-\-exclude.*vendor/' "$SAFETY_LIB" || fail "must exclude vendor"
-grep -q '\-\-exclude.*storage/logs/' "$SAFETY_LIB" || fail "must exclude storage/logs"
-grep -q '\-\-exclude.*storage/framework/' "$SAFETY_LIB" || fail "must exclude storage/framework"
+
+print_warning() { :; }
+print_error() { echo "ERROR: $*" >&2; }
+print_success() { :; }
+# shellcheck source=tools/lib/deploy-rsync-safety.sh
+source "$SAFETY_LIB"
+
+assert_rsync_filter_excludes() {
+    local pattern="$1"
+    deploy_kvm_rsync_application_filters | grep -qxF "$pattern" \
+        || fail "must exclude ${pattern}"
+}
+
+assert_rsync_filter_excludes '.env'
+assert_rsync_filter_excludes '.git/'
+assert_rsync_filter_excludes '.git'
+assert_rsync_filter_excludes '.env.sqlite'
+assert_rsync_filter_excludes 'database/*.sqlite'
+assert_rsync_filter_excludes '.DS_Store'
+assert_rsync_filter_excludes '.cursor/'
+assert_rsync_filter_excludes 'node_modules/'
+assert_rsync_filter_excludes 'vendor/'
+assert_rsync_filter_excludes 'storage/logs/'
+assert_rsync_filter_excludes 'storage/framework/'
+pass "deploy rsync application filters exclude dev artifacts"
 grep -q 'CHANGELOG.md' "$SCRIPT" || fail "must validate CHANGELOG.md"
 grep -q 'describe --exact-match' "$SCRIPT" || fail "must require exact release tag on HEAD"
 grep -q 'validate_dry_run_candidate' "$SCRIPT" || fail "must validate read-only dry-run candidate separately from release tag"
@@ -68,9 +87,6 @@ grep -q 'verify_ready_queue_contract' "$SCRIPT" \
     || fail "must verify Service Ready Queue contract before deploy"
 grep -q 'verify-ready-queue-contract.sh' "$SCRIPT" \
     || fail "must invoke verify-ready-queue-contract.sh"
-
-grep -q '\-\-exclude.*bootstrap/cache/' "$SAFETY_LIB" \
-    || fail "must exclude bootstrap/cache from rsync"
 
 # --- release.json rsync filter regression (static ordering) ---
 

@@ -40,7 +40,11 @@ deploy_rsync_assert_dry_run_command() {
 deploy_rsync_protected_patterns() {
     cat <<'EOF'
 ^\.env$
-^\.git/
+^\.env\.(mysql|sqlite|sqlite\.backup|local|production|testing\.local)$
+^\.git/?$
+^\.cursor/
+^\.DS_Store$
+^database/.*\.sqlite
 ^node_modules/
 ^vendor/
 ^storage/logs/
@@ -79,7 +83,29 @@ deploy_kvm_rsync_application_filters() {
 --exclude
 .git/
 --exclude
+.git
+--exclude
 .env
+--exclude
+.env.mysql
+--exclude
+.env.sqlite
+--exclude
+.env.sqlite.backup
+--exclude
+.env.local
+--exclude
+.env.production
+--exclude
+.env.testing.local
+--exclude
+.cursor/
+--exclude
+.DS_Store
+--exclude
+database/*.sqlite
+--exclude
+database/*.sqlite*
 --exclude
 node_modules/
 --exclude
@@ -500,25 +526,12 @@ deploy_rsync_local_run_dry_run() {
     rsync_cmd=("${DEPLOY_RSYNC_DRY_RUN_BASE[@]}")
     deploy_rsync_assert_dry_run_command "${rsync_cmd[@]}" || return 1
 
-    rsync_cmd+=(
-        --exclude '.git/' \
-        --exclude '.env' \
-        --exclude 'node_modules/' \
-        --exclude 'vendor/' \
-        --exclude 'storage/logs/' \
-        --exclude 'storage/framework/' \
-        --exclude 'bootstrap/cache/' \
-        --exclude 'tests/' \
-        --include 'storage/' \
-        --include 'storage/app/' \
-        --include 'storage/app/private/' \
-        --include 'storage/app/private/release.json' \
-        --exclude 'storage/app/private/*' \
-        --exclude 'storage/app/*' \
-        --exclude 'storage/*' \
-        --exclude 'public/build/' \
-        "${source_root}/" "${dest_root}/"
-    )
+    while IFS= read -r filter_line; do
+        [[ -z "$filter_line" ]] && continue
+        rsync_cmd+=("$filter_line")
+    done < <(deploy_kvm_rsync_application_filters)
+
+    rsync_cmd+=("${source_root}/" "${dest_root}/")
 
     deploy_rsync_exec "${rsync_cmd[@]}" >"$output_file" 2>&1
 }
