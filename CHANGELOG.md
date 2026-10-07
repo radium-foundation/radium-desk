@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.9 — 2026-10-07 — Customer 360 Central Wallet
+
+- **One customer wallet:** The Customer 360 wallet tab shows one verified Desk customer's Central Wallet: available balance, active reservations, and posted history from radiumbox.com, rdservice.in, and rdservice.net.
+- **Identity stays on the server:** The case email only finds that one verified customer. The wallet id comes from the Desk customer record. A browser-supplied wallet id is ignored. A conflicting customer id, or a customer with no wallet id, leaves the wallet unresolved and does not show ₹0.
+- **Agent access:** An agent with wallet view permission can open the tab. That permission does not open the Finance module.
+- **No wallet or schema change:** No migration. No ledger write. No refund change. No `users_wallet` write.
+- Regression (verified on release candidate): dedicated 360 wallet tests **17** passed. Central Wallet **166** passed, **4** skipped. Wallet/refund **78** passed and **1** pre-existing parent failure. Customer 360 **25** passed and **1** pre-existing parent failure.
+- Rollback target: v4.1.8 / `ca6d59fd`.
+- Prompt **RadiumDesk-P-04-10-113**.
+
 ## 4.1.8 — 2026-10-07 — Central Wallet customer transaction history
 
 - **Customer wallet history:** RadiumBox can again show a customer's Central Wallet transaction history, including posted entries from other Radium sites on the same wallet.

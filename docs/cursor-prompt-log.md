@@ -768,3 +768,15 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-111
 
 **Local checkpoint of the 360 customer veto.** A recorded `customer_id` that is a different Desk customer leaves the wallet unresolved, and neither wallet is shown. A verified customer whose `central_wallet_id` is null stays unresolved: no balance, no ₹0, and no other customer's history. Dedicated 360 tests **17** passed. Central Wallet regression **166** passed, **4** skipped. Wallet/refund regression **78** passed and **1** known parent failure. Customer 360 regression **25** passed and **1** known parent failure. **Local commit only. No push. No deploy. No wallet mutation.**
+
+---
+
+## RadiumDesk-P-04-10-112
+
+**Release-readiness review only.** Compared `ca6d59fd` with checkpoint `c3f945b1`. Dedicated 360 tests **17** passed. Every remaining statutory and PDF failure matched parent `ca6d59fd`. Classification **GREEN**. **No code change. No deploy. No wallet mutation.**
+
+---
+
+## RadiumDesk-P-04-10-113
+
+**Release v4.1.9 Customer 360 Central Wallet.** Clean checkout of reviewed checkpoint `c3f945b1`. CHANGELOG **4.1.9**. Annotated tag `v4.1.9`. Fast-forward `origin/main`. Dedicated 360 tests **17** passed. Central Wallet **166** passed, **4** skipped. Wallet/refund **78** passed and **1** known parent failure. Customer 360 **25** passed and **1** known parent failure. Rollback target remains v4.1.8 / `ca6d59fd`. **No deploy. No wallet, refund, or users_wallet mutation.**
