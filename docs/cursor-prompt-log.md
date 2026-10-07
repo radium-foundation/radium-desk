@@ -786,3 +786,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-116
 
 **Accept Central Wallet references from the RadiumBox wallet-refund API.** `RadiumBoxWalletRefundClient` now keeps `CW:{positive ledger id}` and uses that ledger id as `wallet_transaction_id`. A supplied reference that does not match the contract is rejected instead of being rewritten to `RD{id}`. Missing-reference legacy responses can still derive `RD{local id}`. RadiumBox client tests and `WalletRefundExecutionTest` passed. Prompt IDs **114** and **115** are already assigned outside this commit. **No deploy. No production flag or refund mutation.**
+
+---
+
+## RadiumDesk-P-04-10-117
+
+**Release v4.1.10 RadiumBox Central Wallet refund references.** CHANGELOG **4.1.10** on the reviewed parser commit. Annotated tag `v4.1.10`. Release-gate tests **60** passed. Rollback target remains v4.1.9 / `87471510`. The RadiumBox destination flag stays off. Production deploy of this tag follows in the same prompt. **No wallet or refund mutation in the release commit.**

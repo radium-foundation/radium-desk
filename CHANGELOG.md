@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.10 — 2026-10-07 — RadiumBox Central Wallet refund references
+
+- **Wallet refund reference:** When RadiumBox returns a Central Wallet credit reference, Desk keeps `CW:` followed by the positive ledger id. `CW:86` stays `CW:86` and is not rewritten to `RD86`.
+- **Existing references preserved:** Numeric references and legacy `RD{id}` references remain valid. A response that omits the reference can still derive `RD{id}` from the local transaction id.
+- **Invalid references rejected:** A zero id, leading zeros, lowercase `cw:`, and other malformed references are rejected instead of being rewritten.
+- **No wallet or schema change:** No migration. No new credit. No `users_wallet` write. Refund completion stays on Desk. The RadiumBox Central Wallet destination flag is not enabled.
+- Regression (verified on release candidate): RadiumBox wallet client, wallet refund execution, refund reference guard, and Central Wallet destination tests **60** passed.
+- Rollback target: v4.1.9 / `87471510`.
+- Prompt **RadiumDesk-P-04-10-117**.
+
 ## 4.1.9 — 2026-10-07 — Customer 360 Central Wallet
 
 - **One customer wallet:** The Customer 360 wallet tab shows one verified Desk customer's Central Wallet: available balance, active reservations, and posted history from radiumbox.com, rdservice.in, and rdservice.net.
