@@ -193,10 +193,10 @@ class CaMonthlyReportTest extends TestCase
         $firstDataRow = $this->readXlsxRow($path, 4);
 
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $headers);
-        $this->assertCount(27, $headers);
-        $this->assertSame('998313', $firstDataRow[11]);
-        $this->assertSame('118.00', $firstDataRow[18]);
-        $this->assertCount(27, app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0]);
+        $this->assertCount(28, $headers);
+        $this->assertSame('998313', $firstDataRow[12]);
+        $this->assertSame('118.00', $firstDataRow[19]);
+        $this->assertCount(28, app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0]);
     }
 
     public function test_service_ordertype_is_resolved_from_sac_code(): void
@@ -335,8 +335,8 @@ class CaMonthlyReportTest extends TestCase
         $row = $this->firstRow();
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
 
-        $this->assertSame('90.00', $row[12]);
-        $this->assertSame('106.20', $row[18]);
+        $this->assertSame('90.00', $row[13]);
+        $this->assertSame('106.20', $row[19]);
         $this->assertSame(1, $preflight->discountLineCount);
     }
 
@@ -350,8 +350,8 @@ class CaMonthlyReportTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('100.00', $row[12]);
-        $this->assertSame('118.00', $row[18]);
+        $this->assertSame('100.00', $row[13]);
+        $this->assertSame('118.00', $row[19]);
     }
 
     public function test_shipping_remains_blank_without_authoritative_source(): void
@@ -360,7 +360,7 @@ class CaMonthlyReportTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('', $row[13]);
+        $this->assertSame('', $row[14]);
     }
 
     public function test_invoice_level_shipping_amount_is_reported_on_first_line_only(): void
@@ -390,7 +390,7 @@ class CaMonthlyReportTest extends TestCase
 
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
 
-        $this->assertSame('25.00', $rows[0][13]);
+        $this->assertSame('25.00', $rows[0][14]);
     }
 
     public function test_gst_columns_and_total_amount_are_populated(): void
@@ -400,10 +400,10 @@ class CaMonthlyReportTest extends TestCase
         $row = $this->firstRow();
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
 
-        $this->assertSame('9.00', $row[15]);
         $this->assertSame('9.00', $row[16]);
-        $this->assertSame('', $row[14]);
-        $this->assertSame('118.00', $row[18]);
+        $this->assertSame('9.00', $row[17]);
+        $this->assertSame('', $row[15]);
+        $this->assertSame('118.00', $row[19]);
         $this->assertSame('100.00', $preflight->taxableAmountTotal);
         $this->assertSame('118.00', $preflight->totalAmountTotal);
     }
@@ -439,7 +439,7 @@ class CaMonthlyReportTest extends TestCase
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
 
-        $this->assertSame('0.35', $rows[0][17]);
+        $this->assertSame('0.35', $rows[0][18]);
         $this->assertSame('0.35', $preflight->shortExcessTotal);
     }
 
@@ -458,8 +458,8 @@ class CaMonthlyReportTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('ACK123456789', $row[20]);
-        $this->assertStringNotContainsString('2026', $row[20]);
+        $this->assertSame('ACK123456789', $row[21]);
+        $this->assertStringNotContainsString('2026', $row[21]);
     }
 
     public function test_eway_bill_remains_blank_without_authoritative_source(): void
@@ -469,7 +469,7 @@ class CaMonthlyReportTest extends TestCase
         $row = $this->firstRow();
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
 
-        $this->assertSame('', $row[10]);
+        $this->assertSame('', $row[11]);
         $this->assertGreaterThan(0, $preflight->unresolvedEwayBillLineCount);
     }
 
@@ -492,7 +492,7 @@ class CaMonthlyReportTest extends TestCase
         $this->assertCount(1, $readModel->exportRows($this->request()));
         $this->assertSame(1, $preflight->cancelledIncludedCount);
         $this->assertSame(0, $preflight->cancelledExcludedCount);
-        $this->assertSame('0.00', $row[18]);
+        $this->assertSame('0.00', $row[19]);
     }
 
     public function test_cancelled_commerce_invoice_with_payment_snapshot_is_included(): void
@@ -514,7 +514,7 @@ class CaMonthlyReportTest extends TestCase
         $this->assertSame(1, $preflight->cancelledIncludedCount);
         $this->assertSame(1, $preflight->cancelledIncludedViaPaymentReferenceCount);
         $this->assertSame('Cancelled', $row[3]);
-        $this->assertCount(27, $row);
+        $this->assertCount(28, $row);
     }
 
     public function test_cancelled_pos_invoice_with_payment_snapshot_is_included(): void
@@ -582,7 +582,7 @@ class CaMonthlyReportTest extends TestCase
         $this->assertSame(1, $preflight->cancelledIncludedCount);
         $this->assertSame(1, $preflight->cancelledIncludedViaPaymentAllocationCount);
         $this->assertSame('Cancelled', $row[3]);
-        $this->assertCount(27, $row);
+        $this->assertCount(28, $row);
     }
 
     public function test_cancelled_service_pos_invoice_without_allocation_is_still_included(): void
@@ -676,13 +676,13 @@ class CaMonthlyReportTest extends TestCase
         $this->assertSame('CN-CA-PAIR-1', $rows[1][2]);
         $this->assertSame('Issued', $rows[0][3]);
         $this->assertSame('Credit Note', $rows[1][3]);
-        $this->assertSame('118.00', $rows[0][18]);
-        $this->assertSame('118.00', $rows[1][18]);
-        $this->assertCount(27, $rows[0]);
-        $this->assertCount(27, $rows[1]);
-        $this->assertNotEmpty($rows[0][21]);
-        $this->assertNotEmpty($rows[1][21]);
-        $this->assertSame(CaMonthlyReportDefinition::HEADERS[21], 'Payment Method');
+        $this->assertSame('118.00', $rows[0][19]);
+        $this->assertSame('118.00', $rows[1][19]);
+        $this->assertCount(28, $rows[0]);
+        $this->assertCount(28, $rows[1]);
+        $this->assertNotEmpty($rows[0][22]);
+        $this->assertNotEmpty($rows[1][22]);
+        $this->assertSame(CaMonthlyReportDefinition::HEADERS[22], 'Payment Method');
         $this->assertSame($original->id, $creditNote->original_statutory_invoice_id);
     }
 
@@ -815,7 +815,7 @@ class CaMonthlyReportTest extends TestCase
 
         $this->assertSame(0, $preflight->nonReconcilingLineCount);
         $this->assertSame([], $preflight->nonReconcilingInvoices);
-        $this->assertCount(27, CaMonthlyReportDefinition::HEADERS);
+        $this->assertCount(28, CaMonthlyReportDefinition::HEADERS);
     }
 
     public function test_rounding_only_invoice_still_reconciles_in_preflight(): void
@@ -1299,7 +1299,7 @@ class CaMonthlyReportTest extends TestCase
         );
 
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $this->readXlsxRow($path, 3));
-        $this->assertSame('118.00', $this->readXlsxRow($path, 4)[18]);
+        $this->assertSame('118.00', $this->readXlsxRow($path, 4)[19]);
 
         @unlink($path);
     }

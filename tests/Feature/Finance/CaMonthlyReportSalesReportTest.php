@@ -3,9 +3,13 @@
 namespace Tests\Feature\Finance;
 
 use App\Enums\CaMonthlyReportExportFormat;
+use App\Enums\CommerceOrderStatus;
+use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
+use App\Enums\StatutoryInvoiceSourceType;
 use App\Mail\CaMonthlyReportExportMail;
 use App\Models\CaMonthlyReportExport;
+use App\Models\CommerceOrder;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
@@ -105,7 +109,7 @@ class CaMonthlyReportSalesReportTest extends TestCase
         $groups = $readModel->paginateInvoiceGroups($this->request(), 50)->items();
 
         $this->assertCount(1, $exportRows);
-        $this->assertSame('118.00', $exportRows[0][18]);
+        $this->assertSame('118.00', $exportRows[0][19]);
         $this->assertTrue($groups[0]->expandable);
         $this->assertCount(2, $groups[0]->children);
         $this->assertSame('RD Service', $groups[0]->children[0]->productName);
@@ -203,8 +207,8 @@ class CaMonthlyReportSalesReportTest extends TestCase
 
         $this->assertSame('Credit Note', $row[3]);
         $this->assertSame('CN-0001', $row[2]);
-        $this->assertCount(27, $row);
-        $this->assertSame('RD Service', $row[26]);
+        $this->assertCount(28, $row);
+        $this->assertSame('RD Service', $row[27]);
     }
 
     public function test_sync_xlsx_generator_uses_sales_report_title(): void
@@ -331,20 +335,20 @@ class CaMonthlyReportSalesReportTest extends TestCase
             'buyer_gstin' => null,
             'billing_address_structured' => null,
             'place_of_supply_state' => 'Karnataka',
-            'channel' => \App\Enums\StatutoryInvoiceChannel::RdServiceNet,
-            'source_type' => \App\Enums\StatutoryInvoiceSourceType::CommerceOrder,
+            'channel' => StatutoryInvoiceChannel::RdServiceNet,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder,
             'source_id' => 'STATE-BILLING',
         ]);
 
-        \App\Models\CommerceOrder::query()->create([
+        CommerceOrder::query()->create([
             'order_no' => 'CO-STATE-BILLING',
-            'channel' => \App\Enums\StatutoryInvoiceChannel::RdServiceNet,
-            'source_type' => \App\Enums\StatutoryInvoiceSourceType::CommerceOrder->value,
+            'channel' => StatutoryInvoiceChannel::RdServiceNet,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
             'source_id' => 'STATE-BILLING',
             'source_order_id' => 'STATE-BILLING',
             'idempotency_key' => 'statutory:rd_service_net:commerce_order:STATE-BILLING',
             'payload_hash' => hash('sha256', 'STATE-BILLING'),
-            'status' => \App\Enums\CommerceOrderStatus::InvoicePending,
+            'status' => CommerceOrderStatus::InvoicePending,
             'invoice_eligible' => true,
             'payment_status' => 'paid',
             'currency' => 'INR',
@@ -363,9 +367,9 @@ class CaMonthlyReportSalesReportTest extends TestCase
 
         $row = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0];
 
-        $this->assertSame('Andhra Pradesh', $row[8]);
-        $this->assertNotSame('Karnataka', $row[8]);
-        $this->assertSame('RD Service', $row[26]);
+        $this->assertSame('Andhra Pradesh', $row[9]);
+        $this->assertNotSame('Karnataka', $row[9]);
+        $this->assertSame('RD Service', $row[27]);
         $this->assertSame('Branch Name', CaMonthlyReportDefinition::HEADERS[0]);
         $this->assertNotSame('', $row[0]);
         $this->assertSame($invoice->invoice_number, $row[2]);
@@ -405,20 +409,20 @@ class CaMonthlyReportSalesReportTest extends TestCase
             'buyer_gstin' => null,
             'billing_address_structured' => null,
             'place_of_supply_state' => 'Karnataka',
-            'channel' => \App\Enums\StatutoryInvoiceChannel::RdServiceNet,
-            'source_type' => \App\Enums\StatutoryInvoiceSourceType::CommerceOrder,
+            'channel' => StatutoryInvoiceChannel::RdServiceNet,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder,
             'source_id' => 'EMAIL-PATH',
         ]);
 
-        \App\Models\CommerceOrder::query()->create([
+        CommerceOrder::query()->create([
             'order_no' => 'CO-EMAIL-PATH',
-            'channel' => \App\Enums\StatutoryInvoiceChannel::RdServiceNet,
-            'source_type' => \App\Enums\StatutoryInvoiceSourceType::CommerceOrder->value,
+            'channel' => StatutoryInvoiceChannel::RdServiceNet,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
             'source_id' => 'EMAIL-PATH',
             'source_order_id' => 'EMAIL-PATH',
             'idempotency_key' => 'statutory:rd_service_net:commerce_order:EMAIL-PATH',
             'payload_hash' => hash('sha256', 'EMAIL-PATH'),
-            'status' => \App\Enums\CommerceOrderStatus::InvoicePending,
+            'status' => CommerceOrderStatus::InvoicePending,
             'invoice_eligible' => true,
             'payment_status' => 'paid',
             'currency' => 'INR',

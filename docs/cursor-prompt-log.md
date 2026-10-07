@@ -606,3 +606,81 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-71
 
 **Prepare v4.1.3 release documentation.** Add CHANGELOG `4.1.3` and commit prompt ledger entries; run fresh validation and `npm run build` on documentation-only commits atop `8d5d88f0`. **No tag/deploy/push/production mutation/REF-67372.**
+
+---
+
+## RadiumDesk-P-04-10-80
+
+**Desk-only full-month September 2026 Sales Report verification.** RadiumBox was out of scope and was not queried. Production `/var/www/radium-desk` on `radium_desk`, app timezone Asia/Kolkata, period filter `statutory_invoices.issued_at`. Sep 1–6 statutory invoices: 0. Sep 7–30 and Sep 1–30: 8,859 documents, taxable ₹11,864,850.42, CGST ₹175,173.66, SGST ₹175,173.66, IGST ₹1,785,321.78, gross ₹14,000,518.40, credit notes 1, refund-review rows 17 / ₹16,351.00. October 1–31 returns a different total, so the generator is not hard-coded to September. Production download name is `ca-monthly-report-%s-%s.%s`. The Sales Report sheet still includes Customer Type and omits a Product Name column; Product Name is only on expandable detail rows. `pageSetup` still carries invalid `fitToPage`. Those corrections exist only in the uncommitted working tree. Focused tests 29 passed. **No commit, push, deploy, or production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-81
+
+**Commit the permanent Sales Report export correction.** `ea836518` on `fix/deploy-rsync-delete-safety`. Sales Report files and their tests only. Prompt ledger and `docs/ca-evidence/` were left unstaged. **Not pushed. Not deployed. Production not modified.**
+
+---
+
+## RadiumDesk-P-04-10-82
+
+**Push the Sales Report correction.** Normal non-force push. `origin/fix/deploy-rsync-delete-safety` is `ea836518`. Unstaged prompt docs and `docs/ca-evidence/` were kept. **Not deployed. Production not modified.**
+
+---
+
+## RadiumDesk-P-04-10-83
+
+**Sales Report deploy stopped before any production change.** `desk deploy` deploys the whole tree from `main` at the latest semver tag. `ea836518` is one commit on `fix/deploy-rsync-delete-safety`, based on `7d1243ef`, while production is `v4.1.3` / `fe47927f`. Deploying that tree with rsync `--delete` would remove commits that are on `main` and not on this branch. Unstaged evidence files were not staged. **No deploy. Production not modified.**
+
+---
+
+## RadiumDesk-P-04-10-84
+
+**Prepare Sales Report correction release on current production main.** Verify `origin/main` @ `fe47927f`; cherry-pick only the 13 Sales Report application files from `ea836518` onto current main (no whole-branch merge). Run focused Sales Report and payment-channel tests; validate September 2026 Desk-only totals; prepare CHANGELOG `4.1.4`. **No deploy, push, tag, production mutation, or RadiumBox.**
+
+---
+
+## RadiumDesk-P-04-10-85
+
+**Final pre-release validation for Sales Report v4.1.4.** Verify `release/sales-report-v4.1.4` @ `ad5047ac`; run full CaMonthly suite; review committed diff vs `fe47927f`; confirm CHANGELOG `4.1.4`; reconfirm Desk-only Sep/Oct production-DB read-only totals. **No deploy, push, tag, production mutation, or RadiumBox.**
+
+---
+
+## RadiumDesk-P-04-10-86
+
+**Promote Sales Report v4.1.4 to main and push tag.** Fast-forward `main` to `ad5047ac`; create and push `v4.1.4`. Preserve unstaged ledger/log/evidence via documented stash/worktree safety. **No `desk deploy`. Production not modified.**
+
+---
+
+## RadiumDesk-P-04-10-87
+
+**Owner-authorized deploy v4.1.4 Sales Report correction to KVM production.** Sync deploy worktree `radium-desk-pos-release` to `origin/main` @ `ad5047ac`; run documented `desk deploy --yes`. Post-deploy release identity, Sep 2026 Sales Report totals, XLSX contract, and export-path verification. Rollback: v4.1.3 / `fe47927f` via `desk deploy`.
+
+---
+
+## RadiumDesk-P-04-10-88
+
+**Read-only September 2026 preflight exception investigation.** Identify 8 missing Date_of_order, GSTIN/IRN intersection (48 GSTIN present + IRN missing), 2 cancelled UAT invoices, 1 credit note, and documented test invoices. Production `radium_desk` SELECT/preflight only. **No mutation, deploy, or RadiumBox.**
+
+---
+
+## RadiumDesk-P-04-10-89
+
+**Owner-authorized production cancellation of four proven UAT Synthetic service invoices.** Production v4.1.4 / `ad5047ac` on `187.127.129.16`. Pre-read identified INV-672800 (3075), INV-673062 (3360), INV-673076 (3375), INV-673077 (3376) as issued B2C UAT Synthetic (P-17-09-10), no IRN, no prior cancellation. Backup SHA256 `c28f123467f5d5537e65c0d94d8d8a1cd29f60c34fdb2921ba6be4061db8ab66`. Executed `StatutoryInvoiceCancellationOrchestrator::cancel()` sequentially; cancellation records 4–7; reason `Owner-authorized cancellation of proven UAT Synthetic service invoice (RadiumDesk-P-04-10-89)`. All four targets now `cancelled` with amounts/taxes preserved; no credit notes. Protected invoices unchanged. September preflight: register count 8,859 (unchanged); active issued 8,853 (−4); cancelled included 6 (+4); taxable ₹11,811,989.40; gross ₹13,938,142.40; credit notes 1; refund review 17 / ₹16,351.00. **Classification A. No code/deploy/commit/push/RadiumBox.**
+
+---
+
+## RadiumDesk-P-04-10-90
+
+**Read-only CA remaining exceptions and wallet/cancellation investigation.** Production v4.1.4 / `ad5047ac`. Reproduced September preflight: 1,061 unresolved State (100% have `place_of_supply_state` but null `billing_address_structured` — report resolver limitation); 8 missing Date_of_order (all service `SVC-*` IDs — 4 UAT + 4 genuine Sundrop). Verified wallet refund does not auto-cancel invoices; `REFUNDS_STATUTORY_ADJUSTMENT_ENABLED=false`; 82 September wallet refunds, 64 with issued invoice, 0 with cancelled invoice. P-04-10-89 targets have no refund/wallet linkage. Report: `docs/ca-evidence/2026-09-01-to-2026-09-30/CA-REMAINING-EXCEPTIONS-AND-WALLET-INVESTIGATION.md`. **No mutation/deploy/commit/push.**
+
+---
+
+## RadiumDesk-P-04-10-91
+
+**CA Sales Report State/Date resolver fix and GSTIN format reporting.** Implemented `CaMonthlyReportStateResolver` with verified precedence; fixed `SVC-*` service order date lookup; added `GSTIN Format Status` column (format-only, no external API). Production read-only simulation: 1,061→0 state unresolved; Sundrop dates 2026-09-22; 48 GSTIN+no IRN all format-valid (29 permanent_failure, 19 skipped IRN). CaMonthly tests 170/170 pass. **Not deployed/committed.**
+
+---
+
+## RadiumDesk-P-04-10-92
+
+**Commit and push P-04-10-91 reporting fixes.** Pre-commit verification on `release/sales-report-v4.1.4` @ `ad5047ac`: full diff review (reporting-only; no wallet/refund/invoice mutation); CaMonthly suite **186/186** PASS; Pint PASS; fixed AST300 export column index regression. Focused commit + push to `origin`. **No deploy/tag/production mutation.**

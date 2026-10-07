@@ -31,6 +31,7 @@ final class CaMonthlyReportOrderContextResolver
         $commerceKeys = [];
         $inventorySaleIds = [];
         $serviceOrderIds = [];
+        $serviceOrderNumbers = [];
         $supportOrderIds = [];
 
         foreach ($invoiceList as $invoice) {
@@ -49,7 +50,12 @@ final class CaMonthlyReportOrderContextResolver
             }
 
             if ($sourceType === StatutoryInvoiceSourceType::ServiceOrder->value) {
-                $serviceOrderIds[] = (int) $invoice->source_id;
+                $sourceId = trim((string) $invoice->source_id);
+                if ($sourceId !== '' && ctype_digit($sourceId)) {
+                    $serviceOrderIds[] = (int) $sourceId;
+                } elseif ($sourceId !== '') {
+                    $serviceOrderNumbers[] = $sourceId;
+                }
             }
 
             if ($invoice->support_order_id !== null) {
@@ -68,6 +74,10 @@ final class CaMonthlyReportOrderContextResolver
             ->whereIn('id', array_values(array_unique($serviceOrderIds)))
             ->get()
             ->keyBy('id');
+        $serviceOrdersByNumber = ServiceOrder::query()
+            ->whereIn('order_number', array_values(array_unique($serviceOrderNumbers)))
+            ->get()
+            ->keyBy('order_number');
         $supportOrdersById = Order::query()
             ->whereIn('id', array_values(array_unique($supportOrderIds)))
             ->get()
@@ -80,6 +90,7 @@ final class CaMonthlyReportOrderContextResolver
                 $commerceByKey,
                 $salesById,
                 $serviceOrdersById,
+                $serviceOrdersByNumber,
                 $supportOrdersById,
             );
         }
@@ -123,6 +134,7 @@ final class CaMonthlyReportOrderContextResolver
      * @param  array<string, CommerceOrder>  $commerceByKey
      * @param  Collection<int, InventorySale>  $salesById
      * @param  Collection<int, ServiceOrder>  $serviceOrdersById
+     * @param  Collection<string, ServiceOrder>  $serviceOrdersByNumber
      * @param  Collection<int, Order>  $supportOrdersById
      */
     private function resolveOne(
@@ -130,6 +142,7 @@ final class CaMonthlyReportOrderContextResolver
         array $commerceByKey,
         $salesById,
         $serviceOrdersById,
+        $serviceOrdersByNumber,
         $supportOrdersById,
     ): CaMonthlyReportOrderContext {
         $orderDate = null;
@@ -161,7 +174,7 @@ final class CaMonthlyReportOrderContextResolver
         }
 
         if ($sourceType === StatutoryInvoiceSourceType::ServiceOrder->value) {
-            $serviceOrder = $serviceOrdersById->get((int) $invoice->source_id);
+            $serviceOrder = $this->resolveServiceOrder($invoice, $serviceOrdersById, $serviceOrdersByNumber);
             if ($serviceOrder !== null) {
                 $orderDate = $this->formatDate($serviceOrder->created_at);
                 $orderId = $this->nullableString($serviceOrder->order_number) ?? $orderId;
@@ -182,6 +195,30 @@ final class CaMonthlyReportOrderContextResolver
         }
 
         return new CaMonthlyReportOrderContext($orderDate, $orderId);
+    }
+
+    /**
+     * @param  Collection<int, ServiceOrder>  $serviceOrdersById
+     * @param  Collection<string, ServiceOrder>  $serviceOrdersByNumber
+     */
+    private function resolveServiceOrder(
+        StatutoryInvoice $invoice,
+        $serviceOrdersById,
+        $serviceOrdersByNumber,
+    ): ?ServiceOrder {
+        $sourceId = trim((string) $invoice->source_id);
+        if ($sourceId === '') {
+            return null;
+        }
+
+        if (ctype_digit($sourceId)) {
+            $byId = $serviceOrdersById->get((int) $sourceId);
+            if ($byId !== null) {
+                return $byId;
+            }
+        }
+
+        return $serviceOrdersByNumber->get($sourceId);
     }
 
     private function sourceTypeValue(StatutoryInvoice $invoice): string

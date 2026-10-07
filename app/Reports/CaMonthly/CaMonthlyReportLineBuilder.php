@@ -4,7 +4,6 @@ namespace App\Reports\CaMonthly;
 
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
-use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -141,9 +140,7 @@ final class CaMonthlyReportLineBuilder
 
     private function resolveState(StatutoryInvoice $invoice): ?string
     {
-        $structured = StatutoryBillingStructured::fromStored($invoice->billing_address_structured);
-
-        return StatutoryBillingStructured::nullable($structured['state'] ?? null);
+        return app(CaMonthlyReportStateResolver::class)->resolve($invoice);
     }
 
     private function formatDate(mixed $value): string

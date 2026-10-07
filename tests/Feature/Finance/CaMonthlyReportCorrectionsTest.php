@@ -206,8 +206,8 @@ class CaMonthlyReportCorrectionsTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertCount(27, $row);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertCount(28, $row);
     }
 
     public function test_upi_without_cashfree_evidence_leaves_payment_channel_unclassified(): void
@@ -232,7 +232,7 @@ class CaMonthlyReportCorrectionsTest extends TestCase
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
         $row = $this->firstRow();
 
-        $this->assertSame('', $row[21]);
+        $this->assertSame('', $row[22]);
         $this->assertSame(1, $preflight->unclassifiedPaymentChannelCount);
     }
 
@@ -263,8 +263,8 @@ class CaMonthlyReportCorrectionsTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertSame('599.01', $row[18]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertSame('599.01', $row[19]);
     }
 
     public function test_inv_67506_style_amounts_preserve_exact_invoice_total(): void
@@ -300,9 +300,9 @@ class CaMonthlyReportCorrectionsTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('507.64', $row[12]);
-        $this->assertSame('91.37', $row[14]);
-        $this->assertSame('599.01', $row[18]);
+        $this->assertSame('507.64', $row[13]);
+        $this->assertSame('91.37', $row[15]);
+        $this->assertSame('599.01', $row[19]);
     }
 
     public function test_export_contract_includes_status_column(): void
@@ -311,7 +311,7 @@ class CaMonthlyReportCorrectionsTest extends TestCase
         $this->assertContains('Payment Method', CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Channel', CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Reference', CaMonthlyReportDefinition::HEADERS);
-        $this->assertCount(27, CaMonthlyReportDefinition::HEADERS);
+        $this->assertCount(28, CaMonthlyReportDefinition::HEADERS);
     }
 
     public function test_workbook_meta_formats_reporting_period_as_dd_mmm_yyyy(): void

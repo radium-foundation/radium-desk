@@ -3,12 +3,13 @@
 namespace App\Reports\CaMonthly;
 
 use App\Enums\StatutoryInvoiceDocumentType;
+use App\Enums\StatutoryInvoiceSourceType;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilmentPaymentEvidence;
 use App\Models\Order;
+use App\Models\ServiceOrder;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
-use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -21,6 +22,7 @@ final class CaMonthlyReportInvoiceExportBuilder
         private readonly CaMonthlyReportPaymentChannelResolver $paymentChannelResolver,
         private readonly CaMonthlyReportBranchResolver $branchResolver,
         private readonly CaMonthlyReportLineValuePolicy $lineValuePolicy,
+        private readonly CaMonthlyReportStateResolver $stateResolver,
     ) {}
 
     /**
@@ -40,6 +42,7 @@ final class CaMonthlyReportInvoiceExportBuilder
         $supportOrders = $this->paymentChannelResolver->supportOrdersForInvoices($invoices);
         $hardwareEvidence = $this->paymentChannelResolver->hardwareEvidenceForInvoices($invoices);
         $commerceOrders = $this->branchResolver->commerceOrdersForInvoices($invoices);
+        $serviceOrders = $this->serviceOrdersForInvoices($invoices);
         $branches = $this->branchResolver->resolveForInvoices($invoices, $commerceOrders);
         $creditNotesByInvoice = $this->creditNotesByOriginalInvoice($invoices);
 
@@ -53,6 +56,7 @@ final class CaMonthlyReportInvoiceExportBuilder
                 $allocationTotals[$invoice->id] ?? 0.0,
                 $allocationMethods[$invoice->id] ?? null,
                 $commerceOrders[$invoice->id] ?? null,
+                $serviceOrders[$invoice->id] ?? null,
                 $supportOrders[$invoice->id] ?? null,
                 $hardwareEvidence[$invoice->id] ?? null,
                 $creditNotesByInvoice[$invoice->id] ?? collect(),
@@ -70,6 +74,7 @@ final class CaMonthlyReportInvoiceExportBuilder
         float $allocationTotal,
         ?string $allocationPaymentMethod,
         ?CommerceOrder $commerceOrder,
+        ?ServiceOrder $serviceOrder,
         ?Order $supportOrder,
         ?HardwareFulfilmentPaymentEvidence $hardwareEvidenceRecord,
         Collection $linkedCreditNotes,
@@ -120,7 +125,8 @@ final class CaMonthlyReportInvoiceExportBuilder
             $orderType,
             (string) ($invoice->buyer_name ?? ''),
             (string) ($invoice->buyer_gstin ?? ''),
-            (string) ($this->resolveState($invoice, $commerceOrder) ?? ''),
+            CaMonthlyReportGstinFormatStatusDisplay::forInvoice($invoice),
+            (string) ($this->stateResolver->resolve($invoice, $commerceOrder, $serviceOrder) ?? ''),
             (string) ($invoice->place_of_supply_state ?? ''),
             '',
             $this->combineHsnSac($exportableItems),
@@ -287,42 +293,74 @@ final class CaMonthlyReportInvoiceExportBuilder
     }
 
     /**
-     * Customer billing state. Precedence is the stored billing snapshot, then the
-     * linked order's structured billing state, then the order's billing_state column.
-     * Place of supply and GSTIN registration state are not used.
+     * @param  Collection<int, StatutoryInvoice>  $invoices
+     * @return array<int, ServiceOrder>
      */
-    private function resolveState(StatutoryInvoice $invoice, ?CommerceOrder $commerceOrder): ?string
+    private function serviceOrdersForInvoices(Collection $invoices): array
     {
-        $fromInvoice = $this->stateFromStructured($invoice->billing_address_structured);
-        if ($fromInvoice !== null) {
-            return $fromInvoice;
-        }
+        $ids = [];
+        $numbers = [];
 
-        if ($commerceOrder !== null) {
-            $fromCommerceStructured = $this->stateFromStructured($commerceOrder->billing_address_structured);
-            if ($fromCommerceStructured !== null) {
-                return $fromCommerceStructured;
+        foreach ($invoices as $invoice) {
+            if ($this->sourceTypeValue($invoice) !== StatutoryInvoiceSourceType::ServiceOrder->value) {
+                continue;
             }
 
-            $billingState = $this->nullableString($commerceOrder->billing_state);
-            if ($billingState !== null) {
-                return $billingState;
+            $sourceId = trim((string) $invoice->source_id);
+            if ($sourceId === '') {
+                continue;
+            }
+
+            if (ctype_digit($sourceId)) {
+                $ids[] = (int) $sourceId;
+            } else {
+                $numbers[] = $sourceId;
             }
         }
 
-        $sale = $invoice->inventorySale;
-        if ($sale !== null) {
-            return $this->stateFromStructured($sale->billing_address_structured);
+        $byInvoiceId = [];
+        $byId = ServiceOrder::query()
+            ->whereIn('id', array_values(array_unique($ids)))
+            ->get()
+            ->keyBy('id');
+        $byNumber = ServiceOrder::query()
+            ->whereIn('order_number', array_values(array_unique($numbers)))
+            ->get()
+            ->keyBy('order_number');
+
+        foreach ($invoices as $invoice) {
+            if ($this->sourceTypeValue($invoice) !== StatutoryInvoiceSourceType::ServiceOrder->value) {
+                continue;
+            }
+
+            $sourceId = trim((string) $invoice->source_id);
+            if ($sourceId === '') {
+                continue;
+            }
+
+            $order = null;
+            if (ctype_digit($sourceId)) {
+                $order = $byId->get((int) $sourceId);
+            }
+            $order ??= $byNumber->get($sourceId);
+
+            if ($order !== null) {
+                $byInvoiceId[$invoice->id] = $order;
+            }
         }
 
-        return null;
+        return $byInvoiceId;
     }
 
-    private function stateFromStructured(mixed $structured): ?string
+    private function sourceTypeValue(StatutoryInvoice $invoice): string
     {
-        $parsed = StatutoryBillingStructured::fromStored($structured);
+        $sourceType = $invoice->source_type;
 
-        return StatutoryBillingStructured::nullable($parsed['state'] ?? null);
+        if ($sourceType instanceof StatutoryInvoiceSourceType) {
+            return $sourceType->value;
+        }
+
+        return (string) $sourceType;
     }
 
     /**

@@ -67,9 +67,9 @@ class CaMonthlyReportExportTest extends TestCase
         });
 
         $this->assertCount(1, $rows);
-        $this->assertCount(27, $rows[0]);
+        $this->assertCount(28, $rows[0]);
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, CaMonthlyReportDefinition::HEADERS);
-        $this->assertSame('118.00', $rows[0][18]);
+        $this->assertSame('118.00', $rows[0][19]);
     }
 
     public function test_sync_csv_streams_without_building_full_array_in_controller_path(): void
@@ -547,8 +547,8 @@ class CaMonthlyReportExportTest extends TestCase
         });
 
         $this->assertCount(1, $rows);
-        $this->assertSame('25.00', $rows[0][13]);
-        $this->assertSame('118.00', $rows[0][18]);
+        $this->assertSame('25.00', $rows[0][14]);
+        $this->assertSame('118.00', $rows[0][19]);
     }
 
     public function test_agent_cannot_queue_export(): void

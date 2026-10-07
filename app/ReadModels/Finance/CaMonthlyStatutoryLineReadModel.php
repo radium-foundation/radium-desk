@@ -21,7 +21,6 @@ use App\Reports\CaMonthly\CaMonthlyReportRefundReviewExportBuilder;
 use App\Reports\CaMonthly\CaMonthlyReportRefundReviewExportRow;
 use App\Reports\CaMonthly\CaMonthlyReportWorkbookMeta;
 use App\Support\Finance\ReportPeriod;
-use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -242,7 +241,7 @@ class CaMonthlyStatutoryLineReadModel
                         $missingBranchInvoiceCount++;
                     }
 
-                    if ($this->nullableString($exportRow->parentCells[21] ?? null) === null) {
+                    if ($this->nullableString($exportRow->parentCells[22] ?? null) === null) {
                         $unclassifiedPaymentChannelCount++;
                     }
 
@@ -320,7 +319,7 @@ class CaMonthlyStatutoryLineReadModel
                         $missingAckInvoiceIds[$invoice->id] = true;
                     }
 
-                    if ($this->resolveState($invoice) === null) {
+                    if ($this->nullableString($exportRow->parentCells[9] ?? null) === null) {
                         $missingStateInvoiceIds[$invoice->id] = true;
                     }
                 }
@@ -423,13 +422,6 @@ class CaMonthlyStatutoryLineReadModel
             'items',
             'inventorySale.branch',
         ];
-    }
-
-    private function resolveState(StatutoryInvoice $invoice): ?string
-    {
-        $structured = StatutoryBillingStructured::fromStored($invoice->billing_address_structured);
-
-        return StatutoryBillingStructured::nullable($structured['state'] ?? null);
     }
 
     private function money(float $value): string

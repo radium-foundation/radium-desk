@@ -37,8 +37,8 @@ class CaMonthlyReportPartialPaidToleranceTest extends TestCase
 
     public function test_export_contract_is_payment_channel_only(): void
     {
-        $this->assertCount(27, CaMonthlyReportDefinition::HEADERS);
-        $this->assertSame('Payment Method', CaMonthlyReportDefinition::HEADERS[21]);
+        $this->assertCount(28, CaMonthlyReportDefinition::HEADERS);
+        $this->assertSame('Payment Method', CaMonthlyReportDefinition::HEADERS[22]);
         $this->assertNotContains('Payment Channel', CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Reference', CaMonthlyReportDefinition::HEADERS);
     }
@@ -80,9 +80,9 @@ class CaMonthlyReportPartialPaidToleranceTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('599.01', $row[18]);
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertCount(27, $row);
+        $this->assertSame('599.01', $row[19]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertCount(28, $row);
     }
 
     public function test_inv_67643_style_one_paisa_difference_exports_cf_not_partial_paid(): void
@@ -91,8 +91,8 @@ class CaMonthlyReportPartialPaidToleranceTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('499.01', $row[18]);
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
+        $this->assertSame('499.01', $row[19]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
     }
 
     public function test_inv_67506_style_one_paisa_difference_exports_cf_not_partial_paid(): void
@@ -101,8 +101,8 @@ class CaMonthlyReportPartialPaidToleranceTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('599.01', $row[18]);
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
+        $this->assertSame('599.01', $row[19]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
     }
 
     public function test_exactly_one_rupee_difference_is_not_partial_paid_and_retains_cash_channel(): void
@@ -140,7 +140,7 @@ class CaMonthlyReportPartialPaidToleranceTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CASH, $row[21]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CASH, $row[22]);
     }
 
     public function test_one_rupee_one_paisa_difference_exports_partial_paid(): void
@@ -167,8 +167,8 @@ class CaMonthlyReportPartialPaidToleranceTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
-        $this->assertSame('Partial Paid', $row[23]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertSame('Partial Paid', $row[24]);
     }
 
     public function test_zero_payment_exports_unpaid(): void
@@ -183,7 +183,7 @@ class CaMonthlyReportPartialPaidToleranceTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_UNPAID, $row[21]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_UNPAID, $row[22]);
     }
 
     public function test_tolerance_constant_matches_owner_rule(): void

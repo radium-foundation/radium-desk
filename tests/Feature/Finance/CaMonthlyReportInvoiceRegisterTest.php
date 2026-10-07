@@ -48,7 +48,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $headers = CaMonthlyReportDefinition::HEADERS;
 
-        $this->assertCount(27, $headers);
+        $this->assertCount(28, $headers);
         $this->assertContains('Status', $headers);
         $this->assertNotContains('Document Type', $headers);
         $this->assertContains('Invoice Total', $headers);
@@ -64,7 +64,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
 
         $this->assertCount(1, $rows);
-        $this->assertCount(27, $rows[0]);
+        $this->assertCount(28, $rows[0]);
         $this->assertSame(CaMonthlyReportOrderType::SERVICE, $rows[0][5]);
     }
 
@@ -152,9 +152,9 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('669.47', $row[12]);
-        $this->assertSame('789.98', $row[18]);
-        $this->assertNotSame($row[12], $row[18]);
+        $this->assertSame('669.47', $row[13]);
+        $this->assertSame('789.98', $row[19]);
+        $this->assertNotSame($row[13], $row[19]);
     }
 
     public function test_rb297_payment_mode_prefers_support_order_transaction_over_invoice_snapshot(): void
@@ -187,7 +187,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
             'Card',
             $evidenceResolver->resolvePaymentModeDisplay($invoice, null, null, null, $supportMethods[$invoice->id] ?? null),
         );
-        $this->assertCount(27, $this->firstRow());
+        $this->assertCount(28, $this->firstRow());
     }
 
     public function test_branch_resolves_from_commerce_order_branch_code_when_invoice_branch_is_missing(): void
@@ -256,7 +256,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[21]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
     }
 
     public function test_xlsx_workbook_has_grouped_child_rows_and_summary(): void
@@ -293,7 +293,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
         $this->assertStringContainsString('hidden="1"', $xml);
         $this->assertStringContainsString('Sales Report', $xml);
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $this->readXlsxRow($path, 3));
-        $this->assertSame('118.00', $this->readXlsxRow($path, 4)[18]);
+        $this->assertSame('118.00', $this->readXlsxRow($path, 4)[19]);
 
         @unlink($path);
     }

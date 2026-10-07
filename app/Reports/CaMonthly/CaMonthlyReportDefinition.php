@@ -47,6 +47,7 @@ final class CaMonthlyReportDefinition
         'Order Type',
         'Customer Name',
         'GSTIN',
+        'GSTIN Format Status',
         'State',
         'Place of Supply',
         'eWay Bill',
