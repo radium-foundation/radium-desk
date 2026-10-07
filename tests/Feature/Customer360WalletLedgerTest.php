@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\CentralWallet\Application\CentralWalletCustomerIdentityEnsureService;
 use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
 use App\CentralWallet\Domain\Enums\AccountLinkStatus;
 use App\CentralWallet\Domain\Enums\CustomerIdentityCredentialType;
@@ -486,6 +487,62 @@ class Customer360WalletLedgerTest extends TestCase
             '/@media \(max-width: 479\.98px\) \{.*\.c360-wallet-filters/s',
             $css,
         );
+    }
+
+    public function test_cohort_linked_customer_wallet_opens_after_identity_ensure_backfill(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $email = 'rd9064-equivalent@example.com';
+        $incident = $this->incidentFor($agent, $email, 'RD9064');
+        $linkedCustomerId = 'c85258e3-fa6b-4213-97ef-305cb0496238';
+        $linkedWalletId = 'dddddddd-eeee-4fff-8aaa-bbbbbbbbd406';
+
+        $this->walletFor($linkedWalletId);
+        CentralCustomer::query()->create([
+            'id' => $linkedCustomerId,
+            'central_wallet_id' => $linkedWalletId,
+            'status' => 'active',
+        ]);
+        DB::table('central_customer_identity_credentials')->insert([
+            'desk_customer_id' => $linkedCustomerId,
+            'credential_type' => 'migration_cohort_anchor',
+            'provider' => 'owner_migration_cohort',
+            'subject_hash' => hash('sha256', 'migration-anchor-not-an-email'),
+            'verified_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        CentralWalletAccountLink::query()->create([
+            'central_wallet_id' => $linkedWalletId,
+            'desk_customer_id' => $linkedCustomerId,
+            'site_code' => 'rdservice.in',
+            'local_user_id' => '557730',
+            'status' => AccountLinkStatus::Active,
+            'verification_method' => 'owner_migration_cohort',
+            'created_by' => 'test',
+        ]);
+        $this->ledgerRow($linkedWalletId, [
+            'entry_type' => 'credit',
+            'amount' => '499.00',
+            'source_system' => 'rdservice.in',
+            'business_reference' => 'REF-67345',
+            'posted_at' => '2026-09-25 14:38:32',
+        ]);
+
+        $hidden = $this->walletHtml($agent, $incident);
+        $this->assertStringContainsString('not linked to one verified Desk customer', $hidden);
+
+        app(CentralWalletCustomerIdentityEnsureService::class)->ensure(
+            'rdservice.in',
+            '557730',
+            $email,
+            '9123450555',
+        );
+
+        $html = $this->walletHtml($agent, $incident);
+        $this->assertStringContainsString('₹499.00', $html);
+        $this->assertStringContainsString('REF-67345', $html);
+        $this->assertStringNotContainsString('not linked to one verified Desk customer', $html);
     }
 
     public function test_case_without_verified_email_stays_hidden_when_an_account_link_exists(): void

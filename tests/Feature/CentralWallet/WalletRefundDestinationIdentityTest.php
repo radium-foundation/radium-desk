@@ -100,6 +100,113 @@ class WalletRefundDestinationIdentityTest extends TestCase
         $this->assertSame('canonical_account_identity', $link->verification_method);
     }
 
+    public function test_existing_account_link_backfills_verified_email_for_cohort_linked_customer(): void
+    {
+        $cwid = (string) Str::uuid();
+        $customerId = (string) Str::uuid();
+
+        \DB::table('central_wallets')->insert([
+            'id' => $cwid,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        CentralCustomer::query()->create([
+            'id' => $customerId,
+            'central_wallet_id' => $cwid,
+            'status' => 'active',
+        ]);
+
+        \DB::table('central_customer_identity_credentials')->insert([
+            'desk_customer_id' => $customerId,
+            'credential_type' => 'migration_cohort_anchor',
+            'provider' => 'owner_migration_cohort',
+            'subject_hash' => hash('sha256', 'migration-anchor-not-an-email'),
+            'verified_at' => now(),
+            'metadata' => json_encode(['source' => 'type1_migration_cohort_identity']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        CentralWalletAccountLink::query()->create([
+            'central_wallet_id' => $cwid,
+            'desk_customer_id' => $customerId,
+            'site_code' => self::RDNET,
+            'local_user_id' => '7091',
+            'status' => AccountLinkStatus::Active,
+            'verification_method' => 'owner_migration_cohort',
+            'created_by' => 'test',
+            'linked_at' => now(),
+        ]);
+
+        $this->assertFalse(CentralCustomerIdentityCredential::query()
+            ->where('desk_customer_id', $customerId)
+            ->where('credential_type', CustomerIdentityCredentialType::VerifiedEmail)
+            ->exists());
+
+        $this->refundDestination(self::RDNET, '7091', 'cohort-linked@example.com')
+            ->assertOk()
+            ->assertJsonPath('central_wallet_id', $cwid)
+            ->assertJsonPath('match_basis', 'account_link');
+
+        $this->assertTrue(CentralCustomerIdentityCredential::query()
+            ->where('desk_customer_id', $customerId)
+            ->where('credential_type', CustomerIdentityCredentialType::VerifiedEmail)
+            ->where('provider', 'desk_email')
+            ->whereNotNull('verified_at')
+            ->exists());
+    }
+
+    public function test_existing_account_link_does_not_backfill_email_owned_by_another_customer(): void
+    {
+        [, $otherCwid] = $this->seedCustomerWithVerifiedEmail('taken@example.com');
+
+        $cwid = (string) Str::uuid();
+        $customerId = (string) Str::uuid();
+
+        \DB::table('central_wallets')->insert([
+            'id' => $cwid,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        CentralCustomer::query()->create([
+            'id' => $customerId,
+            'central_wallet_id' => $cwid,
+            'status' => 'active',
+        ]);
+
+        CentralWalletAccountLink::query()->create([
+            'central_wallet_id' => $cwid,
+            'desk_customer_id' => $customerId,
+            'site_code' => self::RDNET,
+            'local_user_id' => '7092',
+            'status' => AccountLinkStatus::Active,
+            'verification_method' => 'owner_migration_cohort',
+            'created_by' => 'test',
+            'linked_at' => now(),
+        ]);
+
+        $this->refundDestination(self::RDNET, '7092', 'taken@example.com')
+            ->assertOk()
+            ->assertJsonPath('central_wallet_id', $cwid);
+
+        $this->assertFalse(CentralCustomerIdentityCredential::query()
+            ->where('desk_customer_id', $customerId)
+            ->where('credential_type', CustomerIdentityCredentialType::VerifiedEmail)
+            ->exists());
+
+        $otherCustomerId = CentralCustomerIdentityCredential::query()
+            ->where('credential_type', CustomerIdentityCredentialType::VerifiedEmail)
+            ->where('provider', 'desk_email')
+            ->where('subject_hash', hash('sha256', 'verified_email:'.strtolower(trim('taken@example.com'))))
+            ->value('desk_customer_id');
+
+        $this->assertSame($otherCwid, (string) CentralCustomer::query()->whereKey($otherCustomerId)->value('central_wallet_id'));
+    }
+
     public function test_existing_account_link_returns_cwid_without_duplicate(): void
     {
         [, $cwid] = $this->seedCustomerWithVerifiedEmail('linked@example.com');

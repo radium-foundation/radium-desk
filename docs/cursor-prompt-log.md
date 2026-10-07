@@ -804,3 +804,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-119
 
 **Release v4.1.11 Customer 360 wallet drawer layout.** CHANGELOG **4.1.11** on commit `97587bb3`. Annotated tag `v4.1.11`. Customer 360 wallet **19** passed. Central Wallet **205** passed, **4** skipped. Frontend build succeeded. Production deploy of this tag follows in the same prompt. RD9064 stays wallet-unavailable. **No wallet, refund, customer, or credential mutation.**
+
+---
+
+## RadiumDesk-P-04-10-120
+
+**Permanent Customer 360 identity investigation and credential backfill on linked ensure.** Architecture **B** verified: case email → verified Desk credential → Desk customer → Central Wallet. RD9064 has authoritative wallet mapping but no verified `desk_email` credential because migration cohort provisioning skipped it and linked `ensure()` returned early. Customer 360 resolver unchanged. Identity ensure now backfills verified credentials for linked customers when a spoke attests email/mobile and no conflict exists. **No production mutation. No deploy.**
