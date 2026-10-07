@@ -684,3 +684,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-92
 
 **Commit and push P-04-10-91 reporting fixes.** Pre-commit verification on `release/sales-report-v4.1.4` @ `ad5047ac`: full diff review (reporting-only; no wallet/refund/invoice mutation); CaMonthly suite **186/186** PASS; Pint PASS; fixed AST300 export column index regression. Focused commit + push to `origin`. **No deploy/tag/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-93
+
+**Prepare v4.1.5 release tag for CA Sales Report resolver fixes.** Functional release commit `5baf2332` (State resolver, `SVC-*` Date_of_order, GSTIN Format Status). Added CHANGELOG `4.1.5`; annotated tag `v4.1.5` on release HEAD; pushed `origin/main` + tag. CaMonthly **186/186** PASS; Pint PASS. Production remains v4.1.4 / `ad5047ac`. **No deploy/production mutation.**

@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.5 — 2026-10-07 — CA Sales Report State, Date_of_order, and GSTIN format
+
+- **Shared State resolver:** `CaMonthlyReportStateResolver` centralizes buyer State for the Sales Report register. Precedence: invoice billing snapshot structured state → linked commerce order structured billing state → commerce `billing_state` → invoice `place_of_supply_state` → linked POS inventory sale structured billing state → linked service order structured billing state → service `billing_state` / `place_of_supply_state`. **GSTIN is not used as a State source.**
+- **Preflight alignment:** Preflight State warnings now evaluate the exported register State column (same resolver as XLSX/CSV), not invoice snapshot alone.
+- **Service Date_of_order fix:** Service invoices with non-numeric source IDs (e.g. `SVC-*`) resolve order date and order ID through `service_orders.order_number` instead of incorrectly casting `source_id` to integer zero.
+- **GSTIN Format Status column:** Parent sheet adds **GSTIN Format Status** after GSTIN with values **Not present**, **Format valid — registration not verified**, or **Format invalid**. Uses local GSTIN format validation only — **does not verify GST registration status** and does not call an external GST taxpayer API.
+- **Accounting behavior preserved:** Invoice grain, GST totals, Credit Note handling, payment channel logic, permissions/routes, and wallet/refund accounting unchanged. No migration. No wallet, refund-journal, statutory-adjustment, invoice cancellation, or Credit Note changes.
+- Regression (verified on release candidate): CaMonthly unit + feature suite **186** passed; Pint PASS.
+- Rollback target: v4.1.4 / `ad5047ac`.
+- Prompt **RadiumDesk-P-04-10-91**.
+
 ## 4.1.4 — 2026-10-06 — Sales Report export correction
 
 - **Sales Report filename:** XLSX/CSV/email downloads now use `sales-report-%s-%s.%s` instead of `ca-monthly-report-*`.
