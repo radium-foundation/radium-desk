@@ -199,6 +199,12 @@ class RdServiceInWalletRefundClient
             return $trimmed;
         }
 
+        // Established Central Wallet contract: CW:{positive ledger id}. Colon is not
+        // accepted in any other reference shape.
+        if (preg_match('/^CW:[1-9]\d*$/', $trimmed) === 1 && strlen($trimmed) <= 64) {
+            return $trimmed;
+        }
+
         if (preg_match('/^[A-Za-z0-9._-]{1,64}$/', $trimmed) === 1) {
             return $trimmed;
         }

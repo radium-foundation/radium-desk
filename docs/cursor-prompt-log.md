@@ -702,3 +702,15 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-98
 
 **Release v4.1.6 CA Sales Report e-invoice/IRN evidence columns.** Validated P-04-10-97 commit `db3a4396`; CaMonthly **297/297** PASS; Pint PASS; 48-case fixture verified. Pushed `origin/main`; annotated tag **`v4.1.6`**. Production remains v4.1.5 / `08d30030`. **No deploy/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-99
+
+**Read-only RCA: RD14441 / RD15020 wallet refunds stranded after Central Wallet credit.** Companion `rdservice.in` `P-04-10-15`. Production SELECT and access-log inspection only. REF-67385 and REF-67384 already have one posted Desk credit each (`#86` ₹497, `#87` ₹499) and matching rdservice.in audit rows. Spoke HTTP 201 bodies use `wallet_reference=CW:{ledger_id}`. The deployed rdservice.in refund client rejects `:` and leaves the Desk refund `pending_execution`. **No retry, credit, status change, or code change.**
+
+---
+
+## RadiumDesk-P-04-10-100
+
+**Accept `CW:{ledger_id}` in the rdservice.in wallet-refund parser.** Smallest parser change in `RdServiceInWalletRefundClient`: accept `CW:` followed by a positive ledger id, including the known-good `CW:73` and the existing credits `CW:86` / `CW:87`. Numeric references and `RD{id}` stay accepted. Other colon-containing strings stay rejected. Request body and idempotency key are unchanged. **No production retry, credit, completion, or deploy.**

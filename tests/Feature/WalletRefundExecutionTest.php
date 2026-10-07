@@ -109,6 +109,39 @@ class WalletRefundExecutionTest extends TestCase
         $this->assertSame('RD91002', $refund->execution_reference_no);
     }
 
+    public function test_central_wallet_replay_completes_from_existing_cw_reference_without_a_second_post(): void
+    {
+        Http::fake([
+            'https://rdservice.in.test/api/integrations/v1/wallet-refunds' => Http::response([
+                'message' => 'Central Wallet credit already exists',
+                'data' => [
+                    'source_system' => 'radium_desk',
+                    'desk_refund_reference' => 'REF-67385',
+                    'order_id' => 'RD14441',
+                    'credit' => '497.00',
+                    'currency' => 'INR',
+                    'wallet_reference' => 'CW:86',
+                    'wallet_transaction_id' => 86,
+                    'balance' => '497.00',
+                    'destination' => 'central_wallet',
+                ],
+            ], 200),
+        ]);
+
+        [$ops, $refund] = $this->pendingWalletRefundFixture('RD14441', '497.00', 'REF-67385');
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [])
+            ->assertRedirect(route('refunds.show', $refund))
+            ->assertSessionHas('status', 'refund-completed');
+
+        $refund->refresh();
+        $this->assertContains($refund->status, [RefundStatus::Completed, RefundStatus::Closed]);
+        $this->assertSame('CW:86', $refund->execution_reference_no);
+        $this->assertSame('86', $refund->execution_transaction_id);
+        Http::assertSentCount(1);
+    }
+
     public function test_production_shaped_numeric_wallet_reference_completes_refund(): void
     {
         Http::fake([
