@@ -22,6 +22,7 @@ use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -210,6 +211,150 @@ class Customer360WalletLedgerTest extends TestCase
         $this->assertStringNotContainsString('₹', $html);
         $this->assertStringNotContainsString('UNLINKED-SHOULD-NOT-SHOW', $html);
         $this->assertStringNotContainsString($otherCwid, $html);
+    }
+
+    public function test_duplicate_verified_email_credentials_do_not_open_either_wallet(): void
+    {
+        Schema::table('central_customer_identity_credentials', function ($table): void {
+            $table->dropUnique('central_customer_credentials_subject_uq');
+        });
+
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $this->ledgerRow(self::CWID, [
+            'entry_type' => 'credit',
+            'amount' => '399.00',
+            'source_system' => 'rdservice.in',
+            'business_reference' => 'KNOWN-WALLET',
+            'posted_at' => '2026-10-02 11:55:57',
+        ]);
+
+        $otherCustomerId = '11111111-2222-4333-8444-555555555555';
+        $otherCwid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeaaaa';
+        $this->walletFor($otherCwid);
+        CentralCustomer::query()->create([
+            'id' => $otherCustomerId,
+            'central_wallet_id' => $otherCwid,
+            'status' => 'active',
+        ]);
+        CentralCustomerIdentityCredential::query()->create([
+            'desk_customer_id' => $otherCustomerId,
+            'credential_type' => CustomerIdentityCredentialType::VerifiedEmail,
+            'provider' => 'desk_email',
+            'subject_hash' => app(CustomerIdentitySubjectHasher::class)->hashVerifiedEmail(self::EMAIL),
+            'verified_at' => now(),
+        ]);
+        $this->ledgerRow($otherCwid, [
+            'entry_type' => 'credit',
+            'amount' => '999.00',
+            'source_system' => 'radiumbox.com',
+            'business_reference' => 'OTHER-WALLET-SECRET',
+            'posted_at' => '2026-10-07 12:00:00',
+        ]);
+
+        $html = $this->walletHtml($agent, $incident);
+
+        $this->assertStringContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringNotContainsString('₹', $html);
+        $this->assertStringNotContainsString('KNOWN-WALLET', $html);
+        $this->assertStringNotContainsString('OTHER-WALLET-SECRET', $html);
+    }
+
+    public function test_disagreeing_recorded_desk_customer_does_not_open_either_wallet(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $this->createVerifiedFiveEntries();
+
+        $otherCustomerId = '11111111-2222-4333-8444-555555555555';
+        $otherCwid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeaaaa';
+        $this->walletFor($otherCwid);
+        CentralCustomer::query()->create([
+            'id' => $otherCustomerId,
+            'central_wallet_id' => $otherCwid,
+            'status' => 'active',
+        ]);
+        $this->ledgerRow($otherCwid, [
+            'entry_type' => 'credit',
+            'amount' => '999.00',
+            'source_system' => 'radiumbox.com',
+            'business_reference' => 'OTHER-WALLET-SECRET',
+            'posted_at' => '2026-10-07 12:00:00',
+        ]);
+        $incident->order?->update(['customer_id' => $otherCustomerId]);
+
+        $html = $this->walletHtml($agent, $incident->fresh());
+
+        $this->assertStringContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringNotContainsString('₹', $html);
+        $this->assertStringNotContainsString('RN172', $html);
+        $this->assertStringNotContainsString('OTHER-WALLET-SECRET', $html);
+        $this->assertStringNotContainsString($otherCwid, $html);
+    }
+
+    public function test_matching_recorded_desk_customer_keeps_the_verified_wallet(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $this->createVerifiedFiveEntries();
+        $incident->order?->update(['customer_id' => self::CUSTOMER_ID]);
+
+        $html = $this->walletHtml($agent, $incident->fresh());
+
+        $this->assertStringContainsString('₹399.00', $html);
+        $this->assertStringContainsString('····90c5', $html);
+        $this->assertStringContainsString('RN172', $html);
+        $this->assertStringNotContainsString(self::CWID, $html);
+    }
+
+    public function test_legacy_order_customer_id_is_not_a_wallet_key(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $this->createVerifiedFiveEntries();
+        $incident->order?->update(['customer_id' => 'BOX-USER-3']);
+
+        $html = $this->walletHtml($agent, $incident->fresh());
+
+        $this->assertStringContainsString('₹399.00', $html);
+        $this->assertStringContainsString('····90c5', $html);
+        $this->assertStringNotContainsString(self::CWID, $html);
+    }
+
+    public function test_verified_customer_without_a_central_wallet_id_stays_unresolved(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+
+        Schema::table('central_customers', function ($table): void {
+            $table->uuid('central_wallet_id')->nullable()->change();
+        });
+        CentralCustomer::query()->whereKey(self::CUSTOMER_ID)->update([
+            'central_wallet_id' => null,
+        ]);
+
+        config(['central_wallet.ledger_read.customer_history.authorized_source_systems' => []]);
+
+        $otherCwid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeaaaa';
+        $this->walletFor($otherCwid);
+        $this->ledgerRow($otherCwid, [
+            'entry_type' => 'credit',
+            'amount' => '999.00',
+            'source_system' => 'radiumbox.com',
+            'business_reference' => 'OTHER-WALLET-SECRET',
+            'posted_at' => '2026-10-07 12:00:00',
+        ]);
+
+        $html = $this->walletHtml($agent, $incident);
+
+        $this->assertStringContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringNotContainsString('temporarily unavailable', $html);
+        $this->assertStringNotContainsString('₹', $html);
+        $this->assertStringNotContainsString('0.00', $html);
+        $this->assertStringNotContainsString('OTHER-WALLET-SECRET', $html);
+        $this->assertStringNotContainsString($otherCwid, $html);
+        $this->assertStringNotContainsString(self::CWID, $html);
+        $this->assertStringNotContainsString('····90c5', $html);
     }
 
     public function test_active_reservation_reduces_available_balance(): void

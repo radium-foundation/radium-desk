@@ -750,3 +750,21 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-107
 
 **360 Wallet Ledger reads one Central Wallet.** `P-04-10-106` is the prior read-only RCA. The existing case route now resolves the verified Desk customer from the case's verified email credential, then reads that customer's CWID on the server. Balance and reservations come from `LedgerService`. Posted history comes from `listCustomerHistoryForWallet()`, across `radiumbox.com`, `rdservice.in`, and `rdservice.net`. A browser-supplied CWID is ignored. `finance.wallet.view` is sufficient for the tab, and the agent role receives only that finance permission. A failed Central Wallet read does not display ₹0. **No deploy. No wallet, refund, or users_wallet mutation.**
+
+---
+
+## RadiumDesk-P-04-10-108
+
+**Release-gate review.** The September credit-note assertion and the generic e-invoice sentence both fail on parent `ca6d59fd` with the same results as this branch. Credit notes are dated `now()`, so an October credit note is outside the September CA window. A 232-character billing address explains the specific address-limit sentence. Incidents have no Desk-customer foreign key. The resolver keeps the unique verified `desk_email` credential and now refuses the wallet when `orders.customer_id` is a different Desk customer. 360 wallet tests **16** passed. **No commit. No push. No deploy.**
+
+---
+
+## RadiumDesk-P-04-10-110
+
+**Final release-gate validation.** `P-04-10-109` stays on `fix/baseline-ca-c360-test-expectations` and was not merged. Dedicated 360 tests **16** passed. Central Wallet regression **166** passed, **4** skipped. Wallet/refund regression **78** passed and **1** known parent failure. Customer 360 regression **25** passed and **1** known parent failure. Twelve other statutory tests fail with the same messages and are outside this diff. The wrong-customer veto remains uncommitted on top of `44a93f71`. **No commit. No push. No deploy.**
+
+---
+
+## RadiumDesk-P-04-10-111
+
+**Local checkpoint of the 360 customer veto.** A recorded `customer_id` that is a different Desk customer leaves the wallet unresolved, and neither wallet is shown. A verified customer whose `central_wallet_id` is null stays unresolved: no balance, no ₹0, and no other customer's history. Dedicated 360 tests **17** passed. Central Wallet regression **166** passed, **4** skipped. Wallet/refund regression **78** passed and **1** known parent failure. Customer 360 regression **25** passed and **1** known parent failure. **Local commit only. No push. No deploy. No wallet mutation.**

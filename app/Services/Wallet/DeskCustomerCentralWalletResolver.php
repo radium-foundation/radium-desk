@@ -8,13 +8,17 @@ use App\CentralWallet\Infrastructure\Persistence\CentralCustomer;
 use App\CentralWallet\Infrastructure\Persistence\CentralCustomerIdentityCredential;
 use App\CentralWallet\Infrastructure\Persistence\CentralWallet;
 use App\Models\Incident;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 /**
  * Resolves one Desk customer and that customer's Central Wallet from a case.
  *
- * The case email is only a lookup into an already verified credential. It is
- * not the wallet key. Account links are not consulted.
+ * Incidents do not store a Desk customer. Order customer_id is a free-text
+ * legacy value, not a foreign key. A verified desk_email credential is the
+ * link that already exists. Account links are not consulted. A recorded
+ * customer id is used only as a veto when it is itself a different Desk
+ * customer.
  */
 final class DeskCustomerCentralWalletResolver
 {
@@ -63,6 +67,10 @@ final class DeskCustomerCentralWalletResolver
             return ['state' => 'unresolved'];
         }
 
+        if ($this->recordedCustomerDisagrees($incident, (string) $customer->id)) {
+            return ['state' => 'unresolved'];
+        }
+
         $centralWalletId = (string) $customer->central_wallet_id;
         $ownerIds = CentralCustomer::query()
             ->where('central_wallet_id', $centralWalletId)
@@ -84,5 +92,18 @@ final class DeskCustomerCentralWalletResolver
             'central_wallet_id' => $centralWalletId,
             'wallet_status' => (string) $wallet->status,
         ];
+    }
+
+    private function recordedCustomerDisagrees(Incident $incident, string $credentialCustomerId): bool
+    {
+        $recordedCustomerId = trim((string) ($incident->order?->customer_id ?? ''));
+        if ($recordedCustomerId === '' || ! Str::isUuid($recordedCustomerId)) {
+            return false;
+        }
+
+        $recordedCustomer = CentralCustomer::query()->find($recordedCustomerId);
+
+        return $recordedCustomer !== null
+            && (string) $recordedCustomer->id !== $credentialCustomerId;
     }
 }
