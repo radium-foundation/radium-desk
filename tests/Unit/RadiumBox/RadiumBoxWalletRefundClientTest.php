@@ -3,6 +3,7 @@
 namespace Tests\Unit\RadiumBox;
 
 use App\Services\RadiumBox\RadiumBoxWalletRefundClient;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -128,6 +129,110 @@ class RadiumBoxWalletRefundClientTest extends TestCase
         $this->assertSame('RD273105', $result['wallet_reference']);
     }
 
+    public function test_accepts_central_wallet_references_without_rewriting_them(): void
+    {
+        foreach ([
+            ['CW:1', 1],
+            ['CW:73', 73],
+            ['CW:86', 86],
+            ['CW:87', 87],
+            ['CW:999999', 999999],
+        ] as [$reference, $ledgerId]) {
+            Http::swap(new Factory);
+            Http::fake([
+                'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::response([
+                    'status' => 201,
+                    'message' => 'Central Wallet credit created',
+                    'data' => [
+                        'wallet_transaction_id' => $ledgerId,
+                        'wallet_reference' => $reference,
+                        'desk_refund_reference' => 'REF-67385',
+                        'credit' => 497,
+                        'balance' => 497,
+                    ],
+                ], 201),
+            ]);
+
+            $result = app(RadiumBoxWalletRefundClient::class)->creditWalletRefund(
+                deskRefundReference: 'REF-67385',
+                orderId: 'RB317',
+                amount: 497.00,
+            );
+
+            $this->assertSame($reference, $result['wallet_reference']);
+            $this->assertSame($ledgerId, $result['wallet_transaction_id']);
+            $this->assertNotSame('RD'.$ledgerId, $result['wallet_reference']);
+        }
+    }
+
+    public function test_rejects_invalid_central_wallet_references_instead_of_rewriting_them(): void
+    {
+        foreach (['CW:0', 'CW:00', 'CW:086', 'cw:86', 'CW:86!', 'CW:', 'CW:-1', 'A:B', '86abc'] as $reference) {
+            $this->expectWalletCreditDetailsValidationError([
+                'wallet_transaction_id' => 86,
+                'wallet_reference' => $reference,
+                'desk_refund_reference' => 'REF-67385',
+                'credit' => 497,
+                'balance' => 497,
+            ]);
+        }
+    }
+
+    public function test_rejects_central_wallet_reference_when_transaction_id_disagrees(): void
+    {
+        $this->expectWalletCreditDetailsValidationError([
+            'wallet_transaction_id' => 99,
+            'wallet_reference' => 'CW:86',
+            'desk_refund_reference' => 'REF-67385',
+            'credit' => 497,
+            'balance' => 497,
+        ]);
+    }
+
+    public function test_central_wallet_replay_preserves_the_same_cw_reference(): void
+    {
+        $data = [
+            'wallet_transaction_id' => 86,
+            'wallet_reference' => 'CW:86',
+            'desk_refund_reference' => 'REF-67385',
+            'credit' => 497,
+            'balance' => 497,
+        ];
+
+        Http::fake([
+            'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::sequence()
+                ->push(['status' => 201, 'message' => 'Central Wallet credit created', 'data' => $data], 201)
+                ->push(['status' => 200, 'message' => 'Central Wallet credit already exists', 'data' => $data], 200),
+        ]);
+
+        $client = app(RadiumBoxWalletRefundClient::class);
+        $first = $client->creditWalletRefund('REF-67385', 'RB317', 497.00);
+        $second = $client->creditWalletRefund('REF-67385', 'RB317', 497.00);
+
+        $this->assertSame('CW:86', $first['wallet_reference']);
+        $this->assertSame(86, $first['wallet_transaction_id']);
+        $this->assertSame($first, $second);
+    }
+
+    public function test_conflicting_amount_does_not_accept_a_central_wallet_reference(): void
+    {
+        Http::fake([
+            'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::response([
+                'message' => 'Wallet credit already exists for this refund with a different amount',
+            ], 409),
+        ]);
+
+        try {
+            app(RadiumBoxWalletRefundClient::class)->creditWalletRefund('REF-67385', 'RB317', 497.00);
+            $this->fail('Expected the conflicting amount to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                'Wallet credit already exists for this refund with a different amount',
+                $exception->errors()['refund'][0] ?? null,
+            );
+        }
+    }
+
     public function test_idempotent_retry_returns_same_wallet_credit_details(): void
     {
         $payload = [
@@ -202,6 +307,7 @@ class RadiumBoxWalletRefundClientTest extends TestCase
      */
     private function expectWalletCreditDetailsValidationError(array $data): void
     {
+        Http::swap(new Factory);
         Http::fake([
             'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::response([
                 'status' => 201,

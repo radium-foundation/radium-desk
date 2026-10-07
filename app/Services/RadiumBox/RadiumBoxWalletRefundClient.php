@@ -139,12 +139,28 @@ class RadiumBoxWalletRefundClient
         }
 
         $walletTransactionId = $this->normalizeWalletTransactionId(data_get($data, 'wallet_transaction_id'));
-        $walletReference = $this->normalizeWalletReference(
-            data_get($data, 'wallet_reference') ?? data_get($data, 'txnid'),
-        );
+        $rawReference = data_get($data, 'wallet_reference') ?? data_get($data, 'txnid');
+        $walletReference = $this->normalizeWalletReference($rawReference);
+
+        if ($this->referenceWasProvided($rawReference) && $walletReference === null) {
+            throw ValidationException::withMessages([
+                'refund' => 'RadiumBox wallet refund API did not return wallet credit details.',
+            ]);
+        }
 
         if ($walletReference === null && $walletTransactionId !== null) {
             $walletReference = 'RD'.$walletTransactionId;
+        }
+
+        if (is_string($walletReference) && preg_match('/^CW:([1-9]\d*)$/', $walletReference, $matches) === 1) {
+            $ledgerId = (int) $matches[1];
+            if ((string) $ledgerId !== $matches[1] || ($walletTransactionId !== null && $walletTransactionId !== $ledgerId)) {
+                throw ValidationException::withMessages([
+                    'refund' => 'RadiumBox wallet refund API did not return wallet credit details.',
+                ]);
+            }
+
+            $walletTransactionId = $ledgerId;
         }
 
         if ($walletReference === null || $walletTransactionId === null) {
@@ -187,11 +203,26 @@ class RadiumBoxWalletRefundClient
             return $trimmed;
         }
 
+        // Established Central Wallet contract: CW:{positive ledger id}. Colon is not
+        // accepted in any other reference shape.
+        if (preg_match('/^CW:[1-9]\d*$/', $trimmed) === 1 && strlen($trimmed) <= 64) {
+            return $trimmed;
+        }
+
         if (preg_match('/^[A-Za-z0-9._-]{1,64}$/', $trimmed) === 1) {
             return $trimmed;
         }
 
         return null;
+    }
+
+    private function referenceWasProvided(mixed $value): bool
+    {
+        if (is_string($value)) {
+            return trim($value) !== '';
+        }
+
+        return $value !== null;
     }
 
     private function normalizeWalletTransactionId(mixed $value): ?int

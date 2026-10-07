@@ -280,6 +280,36 @@ class WalletRefundExecutionTest extends TestCase
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'rdservice.in.test'));
     }
 
+    public function test_radiumbox_central_wallet_reference_is_stored_without_an_rd_rewrite(): void
+    {
+        Http::fake([
+            'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::response([
+                'status' => 201,
+                'message' => 'Central Wallet credit created',
+                'data' => [
+                    'wallet_transaction_id' => 86,
+                    'wallet_reference' => 'CW:86',
+                    'desk_refund_reference' => 'REF-67385',
+                    'credit' => 497,
+                    'balance' => 896,
+                    'destination' => 'central_wallet',
+                ],
+            ], 201),
+        ]);
+
+        [$ops, $refund] = $this->pendingWalletRefundFixture('RB317', '497.00', 'REF-67385');
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [])
+            ->assertRedirect(route('refunds.show', $refund));
+
+        $refund->refresh();
+        $this->assertContains($refund->status, [RefundStatus::Completed, RefundStatus::Closed]);
+        $this->assertSame('CW:86', $refund->execution_reference_no);
+        $this->assertSame('86', $refund->execution_transaction_id);
+        $this->assertNotSame('RD86', $refund->execution_reference_no);
+    }
+
     public function test_radiumbox_wallet_refund_ref_67330_accepts_numeric_wallet_reference(): void
     {
         Http::fake([
