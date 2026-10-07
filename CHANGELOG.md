@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.7 — 2026-10-07 — rdservice.in wallet refund references
+
+- **Wallet refund completion:** rdservice.in wallet refunds can complete when the Central Wallet reference is `CW:` followed by a positive ledger id. Existing credits that already returned this reference can finish through the normal refund completion flow.
+- **Existing references preserved:** Numeric wallet references and `RD` order references continue to be accepted.
+- **Invalid references still rejected:** Malformed Central Wallet references, including a zero id, leading zeros, lowercase `cw:`, spaces, and other punctuation, remain rejected.
+- **Checks unchanged:** Amount, currency, source, and refund-reference validation are unchanged. Replaying the same refund does not create a second Central Wallet credit.
+- **No wallet or schema change:** No migration. No new credit, no `users_wallet` write, and no change to rdservice.in or payment flows.
+- Regression (verified on release candidate): wallet/refund suite **65** passed, including the rdservice.in wallet refund client (**15**) and wallet refund execution (**20**).
+- Rollback target: v4.1.6 / `584dd066`.
+- Prompt **RadiumDesk-P-04-10-102**.
+
 ## 4.1.6 — 2026-10-07 — CA Sales Report e-invoice / IRN evidence columns
 
 - **E-invoice evidence columns:** Sales Report parent sheet adds **E-Invoice / IRN Generation Status**, **E-Invoice / IRN Response Code**, and **E-Invoice / IRN Response Reason** after Acknowledgement. Values are read from persisted `e_invoice_records` via `StatutoryInvoice.eInvoiceRecord` — provider codes/messages are exported verbatim from stored `response_payload`; skip reasons and IRP field gaps are exported for non-submitted cases; invoices without an e-invoice record show an explicit not-available status/reason rather than implying failure.

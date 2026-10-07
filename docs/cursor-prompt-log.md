@@ -714,3 +714,15 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-100
 
 **Accept `CW:{ledger_id}` in the rdservice.in wallet-refund parser.** Smallest parser change in `RdServiceInWalletRefundClient`: accept `CW:` followed by a positive ledger id, including the known-good `CW:73` and the existing credits `CW:86` / `CW:87`. Numeric references and `RD{id}` stay accepted. Other colon-containing strings stay rejected. Request body and idempotency key are unchanged. **No production retry, credit, completion, or deploy.**
+
+---
+
+## RadiumDesk-P-04-10-101
+
+**STOP before production deploy.** `desk deploy` requires a clean `main` worktree whose HEAD is exactly the latest semver tag, then rsyncs the whole application with `--delete`. `b04f219e` is on `release/sales-report-v4.1.4`, is not a tag, and the worktree has untracked CA evidence. Production parser and CHANGELOG still match `v4.1.6` / `584dd066`. RD14441 / RD15020 remain pending on existing credits #86 / #87. **No deploy, completion, credit, or commit.**
+
+---
+
+## RadiumDesk-P-04-10-102
+
+**Integrate the rdservice.in wallet-refund parser into production release v4.1.7.** Fast-forward `main` from `v4.1.6` / `584dd066` onto reviewed commit `b04f219e` only. No other commits from `release/sales-report-v4.1.4`. CHANGELOG **4.1.7**. Annotated tag `v4.1.7`. Wallet/refund regression **65** passed, including the rdservice.in client (**15**) and wallet refund execution (**20**). **No deploy. No completion of RD14441 / RD15020. No wallet mutation.**
