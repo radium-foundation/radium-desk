@@ -738,3 +738,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-104
 
 **Restore Central Wallet customer ledger-history.** Production RadiumBox `GET /wallets/{cwid}/ledger-history` returns HTTP 404 on Desk v4.1.7 because the route from `441540c0` is not on `main`. Restored that route with trusted account-link authorization and posted history for `radiumbox.com`, `rdservice.in`, and `rdservice.net`. `GET /ledger-entries` remains limited to the caller source system. Customer-history API tests **15/15**. Central Wallet plus wallet/refund regression **231** passed, **4** skipped. **No deploy. No wallet, refund, reservation, or users_wallet mutation.**
+
+---
+
+## RadiumDesk-P-04-10-105
+
+**Release v4.1.8 Central Wallet customer transaction history.** Fast-forward clean `main` from `v4.1.7` / `7ba534c3` onto reviewed commit `f37f0a74` only. CHANGELOG **4.1.8**. Annotated tag `v4.1.8`. Customer-history API **15** passed. Central Wallet plus wallet/refund regression **231** passed, **4** skipped. Production deploy of this tag is the next step of the same prompt. Rollback target remains v4.1.7 / `7ba534c3`. **No wallet, refund, reservation, or users_wallet mutation.**

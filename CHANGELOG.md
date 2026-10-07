@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.8 — 2026-10-07 — Central Wallet customer transaction history
+
+- **Customer wallet history:** RadiumBox can again show a customer's Central Wallet transaction history, including posted entries from other Radium sites on the same wallet.
+- **Balance unchanged:** This release restores the history read only. It does not change wallet balances, ledger entries, reservations, or refunds.
+- **Site reads preserved:** A site's own ledger read remains limited to that site. A valid wallet with no posted entries returns an empty history.
+- **No schema change:** No migration. No `users_wallet` write. No refund completion.
+- Regression (verified on release candidate): customer-history API **15** passed; Central Wallet plus wallet/refund regression **231** passed, **4** skipped.
+- Rollback target: v4.1.7 / `7ba534c3`.
+- Prompt **RadiumDesk-P-04-10-105**.
+
 ## 4.1.7 — 2026-10-07 — rdservice.in wallet refund references
 
 - **Wallet refund completion:** rdservice.in wallet refunds can complete when the Central Wallet reference is `CW:` followed by a positive ledger id. Existing credits that already returned this reference can finish through the normal refund completion flow.
