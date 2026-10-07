@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.11 — 2026-10-07 — Customer 360 wallet drawer layout
+
+- **Compact wallet rows:** The Customer 360 wallet tab uses compact transaction rows instead of a wide eight-column table. Type, amount, and business reference stay on the first line. Website, posted time, and ledger id stay on the second line.
+- **Secondary details preserved:** Reservation id, source reference, correlation id, reversal linkage, status, currency, and posted time remain available under Details. Long identifiers are shortened on screen and stay copyable in full.
+- **Security unchanged:** Customer 360 still requires exactly one verified Desk customer. Account links do not bypass identity. A browser-supplied wallet id is ignored. An unresolved customer does not show ₹0.
+- **No wallet or schema change:** No migration. No ledger write. No refund change. No customer, credential, or account-link change. RD9064 remains wallet-unavailable until Owner identity remediation.
+- Regression (verified on release candidate): Customer 360 wallet tests **19** passed. Central Wallet **205** passed, **4** skipped. Frontend build succeeded.
+- Rollback target: v4.1.10 / `4875d076`.
+- Prompt **RadiumDesk-P-04-10-119**.
+
 ## 4.1.10 — 2026-10-07 — RadiumBox Central Wallet refund references
 
 - **Wallet refund reference:** When RadiumBox returns a Central Wallet credit reference, Desk keeps `CW:` followed by the positive ledger id. `CW:86` stays `CW:86` and is not rewritten to `RD86`.
