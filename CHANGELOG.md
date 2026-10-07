@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.12 — 2026-10-07 — Customer 360 identity credential backfill
+
+- **Linked ensure backfill:** When a spoke calls wallet-refund-destination with attested email or mobile and an active account link already exists, Desk adds the missing verified `desk_email` or `desk_mobile` credential to that linked Desk customer only.
+- **Fail-closed on conflict:** If another Desk customer already owns the same verified credential, Desk skips the backfill and does not overwrite or duplicate identity.
+- **No new wallet provisioning:** Existing linked customers do not get a new Desk customer, Central Wallet, account link, ledger entry, or refund from this path.
+- **Customer 360 unchanged:** Case email still requires exactly one verified `desk_email` credential. Account links, migration anchors, raw order email, and browser-supplied wallet ids are not used as identity proof.
+- **No schema change:** No migration. No wallet balance change. The 50 migration-cohort credential backfill is a separate Owner gate and is not performed by this deploy.
+- Regression (verified on release candidate): Customer 360 wallet tests **21** passed. Wallet refund destination identity **12** passed. Central Wallet **205** passed, **4** skipped.
+- Rollback target: v4.1.11 / `997493ad`.
+- Prompt **RadiumDesk-P-04-10-121**.
+
 ## 4.1.11 — 2026-10-07 — Customer 360 wallet drawer layout
 
 - **Compact wallet rows:** The Customer 360 wallet tab uses compact transaction rows instead of a wide eight-column table. Type, amount, and business reference stay on the first line. Website, posted time, and ledger id stay on the second line.
