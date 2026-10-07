@@ -792,3 +792,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-117
 
 **Release v4.1.10 RadiumBox Central Wallet refund references.** CHANGELOG **4.1.10** on the reviewed parser commit. Annotated tag `v4.1.10`. Release-gate tests **60** passed. Rollback target remains v4.1.9 / `87471510`. The RadiumBox destination flag stays off. Production deploy of this tag follows in the same prompt. **No wallet or refund mutation in the release commit.**
+
+---
+
+## RadiumDesk-P-04-10-118
+
+**Compact the Customer 360 wallet drawer and trace RD9064.** The wallet tab is a compact list for the 420–480px drawer. Long reservation, source, and correlation identifiers stay copyable inside Details. RD9064 resolves to order `57950`, case SC59056, and email `jogisun5865@gmail.com`, with no verified `desk_email` credential. An active rdservice.in account link exists, but its migration anchor is not that email hash, so the wallet stays unavailable. **No production data change. No deploy. No wallet or refund mutation.**

@@ -235,7 +235,7 @@ class WalletLedgerReadService
             return null;
         }
 
-        return Carbon::parse($value)->timezone('Asia/Kolkata')->format('d M Y h:i A');
+        return Carbon::parse($value)->timezone('Asia/Kolkata')->format('d M Y, H:i');
     }
 
     private function nullableString(mixed $value): ?string

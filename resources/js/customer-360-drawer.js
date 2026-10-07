@@ -476,8 +476,13 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         contentHost.innerHTML = '';
     };
 
-    const bindCopyActions = () => {
-        contentHost.querySelectorAll('[data-customer-360-copy]').forEach((button) => {
+    const bindCopyActions = (scope = contentHost) => {
+        scope.querySelectorAll('[data-customer-360-copy]').forEach((button) => {
+            if (button.dataset.copyBound === 'true') {
+                return;
+            }
+
+            button.dataset.copyBound = 'true';
             button.addEventListener('click', async () => {
                 const value = button.dataset.copyValue?.trim() ?? '';
 
@@ -907,6 +912,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
 
         root.dataset.walletLedgerBound = 'true';
+        bindCopyActions(root);
 
         const showWalletError = () => {
             const error = root.querySelector('[data-wallet-ledger-error]');
@@ -995,12 +1001,15 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                     const temp = document.createElement('div');
                     temp.innerHTML = payload.html;
                     const nextRoot = temp.querySelector('[data-wallet-ledger-root]');
-                    const currentTable = root.querySelector('tbody');
-                    const nextTable = nextRoot?.querySelector('tbody');
+                    const currentList = root.querySelector('[data-wallet-ledger-list]');
+                    const nextList = nextRoot?.querySelector('[data-wallet-ledger-list]');
                     const nextLoadMore = nextRoot?.querySelector('[data-wallet-ledger-load-more]');
 
-                    if (currentTable && nextTable) {
-                        nextTable.querySelectorAll('tr').forEach((row) => currentTable.appendChild(row));
+                    if (currentList && nextList) {
+                        nextList.querySelectorAll('[data-wallet-ledger-entry]').forEach((entry) => {
+                            currentList.appendChild(entry);
+                        });
+                        bindCopyActions(currentList);
                     }
 
                     button.remove();

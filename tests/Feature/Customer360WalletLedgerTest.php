@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -440,6 +441,99 @@ class Customer360WalletLedgerTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('data-customer-360-tab="wallet-ledger"', false);
+    }
+
+    public function test_compact_drawer_rows_keep_long_identifiers_available(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $businessReference = 'RB-'.str_repeat('LONG-REF-', 8);
+        $reservationId = 'b288a7b9-1d37-4501-84a0-69c7d1074822';
+        $sourceReference = 'users_wallet:2540-with-a-very-long-source-reference';
+        $correlationId = 'corr-'.str_repeat('abc123', 8);
+
+        $this->ledgerRow(self::CWID, [
+            'entry_type' => 'debit',
+            'amount' => '50.00',
+            'currency' => 'INR',
+            'source_system' => 'rdservice.net',
+            'source_reference' => $sourceReference,
+            'business_reference' => $businessReference,
+            'reservation_id' => $reservationId,
+            'correlation_id' => $correlationId,
+            'posted_at' => '2026-10-02 22:51:49',
+        ]);
+
+        $html = $this->walletHtml($agent, $incident);
+        $css = (string) file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('data-c360-wallet-layout="compact"', $html);
+        $this->assertStringContainsString('data-entry-type="debit"', $html);
+        $this->assertStringContainsString('−₹50.00', $html);
+        $this->assertStringContainsString($businessReference, $html);
+        $this->assertStringContainsString('title="'.$businessReference.'"', $html);
+        $this->assertStringContainsString('data-copy-value="'.$reservationId.'"', $html);
+        $this->assertStringContainsString('b288a7b9…4822', $html);
+        $this->assertStringContainsString('data-copy-value="'.$sourceReference.'"', $html);
+        $this->assertStringContainsString('data-copy-value="'.$correlationId.'"', $html);
+        $this->assertStringContainsString('INR', $html);
+        $this->assertStringContainsString('rdservice.net', $html);
+        $this->assertStringContainsString('02 Oct 2026, 22:51', $html);
+        $this->assertStringNotContainsString('<table', $html);
+        $this->assertStringContainsString('.c360-wallet-line', $css);
+        $this->assertStringContainsString('.c360-wallet-ref', $css);
+        $this->assertMatchesRegularExpression(
+            '/@media \(max-width: 479\.98px\) \{.*\.c360-wallet-filters/s',
+            $css,
+        );
+    }
+
+    public function test_case_without_verified_email_stays_hidden_when_an_account_link_exists(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->incidentFor($agent, 'rd9064-unverified@example.com', 'RD9064');
+        $linkedCustomerId = 'c85258e3-fa6b-4213-97ef-305cb0496238';
+        $linkedWalletId = 'dddddddd-eeee-4fff-8aaa-bbbbbbbbd406';
+
+        $this->walletFor($linkedWalletId);
+        CentralCustomer::query()->create([
+            'id' => $linkedCustomerId,
+            'central_wallet_id' => $linkedWalletId,
+            'status' => 'active',
+        ]);
+        DB::table('central_customer_identity_credentials')->insert([
+            'desk_customer_id' => $linkedCustomerId,
+            'credential_type' => 'migration_cohort_anchor',
+            'provider' => 'owner_migration_cohort',
+            'subject_hash' => hash('sha256', 'migration-anchor-not-an-email'),
+            'verified_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        CentralWalletAccountLink::query()->create([
+            'central_wallet_id' => $linkedWalletId,
+            'desk_customer_id' => $linkedCustomerId,
+            'site_code' => 'rdservice.in',
+            'local_user_id' => '557730',
+            'status' => AccountLinkStatus::Active,
+            'verification_method' => 'canonical_account',
+            'created_by' => 'test',
+        ]);
+        $this->ledgerRow($linkedWalletId, [
+            'entry_type' => 'credit',
+            'amount' => '499.00',
+            'source_system' => 'rdservice.in',
+            'business_reference' => 'LINKED-WALLET-MUST-STAY-HIDDEN',
+            'posted_at' => '2026-10-07 12:00:00',
+        ]);
+
+        $html = $this->walletHtml($agent, $incident);
+
+        $this->assertStringContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringNotContainsString('₹', $html);
+        $this->assertStringNotContainsString('499.00', $html);
+        $this->assertStringNotContainsString('LINKED-WALLET-MUST-STAY-HIDDEN', $html);
+        $this->assertStringNotContainsString($linkedWalletId, $html);
     }
 
     /**
