@@ -696,3 +696,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-97
 
 **CA Sales Report e-invoice / IRN evidence columns.** Implements P-04-10-96: parent sheet adds **E-Invoice / IRN Generation Status**, **Response Code**, and **Response Reason** from persisted `e_invoice_records` (verbatim provider evidence; skip reason + gaps; explicit no-record state). GSTIN Format Status unchanged. CHANGELOG **4.1.6**. **No deploy/production mutation/IRN retry.**
+
+---
+
+## RadiumDesk-P-04-10-98
+
+**Release v4.1.6 CA Sales Report e-invoice/IRN evidence columns.** Validated P-04-10-97 commit `db3a4396`; CaMonthly **297/297** PASS; Pint PASS; 48-case fixture verified. Pushed `origin/main`; annotated tag **`v4.1.6`**. Production remains v4.1.5 / `08d30030`. **No deploy/production mutation.**

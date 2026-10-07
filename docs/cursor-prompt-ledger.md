@@ -371,5 +371,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-95 | 2026-10-07 | Read-only Whitebook GSTIN registration verification investigation (48 Sep cases) | **No code/DB/deploy/mutation.** |
 | RadiumDesk-P-04-10-96 | 2026-10-07 | Read-only IRN response evidence investigation (48 Sep GSTIN+no-IRN cases) | Recommend CA IRN status/code/reason columns. **No code/DB/deploy/mutation/retry.** |
 | RadiumDesk-P-04-10-97 | 2026-10-07 | CA Sales Report e-invoice / IRN evidence columns (P-04-10-96 implementation) | Add Generation Status, Response Code, Response Reason from `e_invoice_records`; CHANGELOG 4.1.6. **No deploy/production mutation/IRN retry.** |
+| RadiumDesk-P-04-10-98 | 2026-10-07 | Release v4.1.6 CA Sales Report e-invoice/IRN evidence columns | Validate P-04-10-97 @ `db3a4396`; push `origin/main`; annotated tag `v4.1.6`. CaMonthly **297/297** PASS; Pint PASS. **No deploy/production mutation.** |
 
 Do not renumber or overwrite earlier rows. Append only.
