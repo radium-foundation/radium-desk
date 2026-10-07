@@ -31,7 +31,7 @@ final class CaMonthlyReportDefinition
 
     public const SHEET_NAME = 'Sales Report';
 
-    public const TEMPLATE_VERSION = '2026-10-05-ca-ready';
+    public const TEMPLATE_VERSION = '2026-10-07-einvoice-evidence';
 
     /**
      * Invoice-level CA register columns (parent rows).
@@ -61,6 +61,9 @@ final class CaMonthlyReportDefinition
         'Invoice Total',
         'IRN Number',
         'Acknowledgement',
+        'E-Invoice / IRN Generation Status',
+        'E-Invoice / IRN Response Code',
+        'E-Invoice / IRN Response Reason',
         'Payment Method',
         'Total GST',
         'Payment Status',

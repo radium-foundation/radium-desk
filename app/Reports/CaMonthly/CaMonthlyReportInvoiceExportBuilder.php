@@ -139,6 +139,9 @@ final class CaMonthlyReportInvoiceExportBuilder
             $this->money($invoiceTotal),
             (string) ($invoice->eInvoiceRecord?->irn ?? ''),
             (string) ($invoice->eInvoiceRecord?->ack_no ?? ''),
+            CaMonthlyReportEInvoiceEvidenceDisplay::generationStatus($invoice),
+            CaMonthlyReportEInvoiceEvidenceDisplay::responseCode($invoice),
+            CaMonthlyReportEInvoiceEvidenceDisplay::responseReason($invoice),
             $paymentChannel,
             $totalGst !== 0.0 ? $this->money($totalGst) : '',
             CaMonthlyReportPaymentStatusDisplay::fromPaymentState(

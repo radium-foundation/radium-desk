@@ -367,5 +367,9 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-91 | 2026-10-07 | CA Sales Report State/Date resolver fix + GSTIN format column | `CaMonthlyReportStateResolver` (POS/commerce/service precedence); `SVC-*` order date lookup; `GSTIN Format Status` column; 48 GSTIN+no IRN read-only investigation. Tests 170/170. Prod simulation: 1,061→0 state unresolved. **Not deployed/committed.** |
 | RadiumDesk-P-04-10-92 | 2026-10-07 | Commit and push P-04-10-91 reporting fixes | Verify diff/tests/lint; focused commit on `release/sales-report-v4.1.4`; push to `origin`. CaMonthly 186/186; Pint PASS. **No deploy/tag/production mutation.** |
 | RadiumDesk-P-04-10-93 | 2026-10-07 | Prepare v4.1.5 release tag for CA Sales Report resolver fixes | CHANGELOG `4.1.5` on `5baf2332`; annotated tag `v4.1.5`; push `origin/main` + tag. CaMonthly 186/186; Pint PASS. **No deploy/production mutation.** |
+| RadiumDesk-P-04-10-94 | 2026-10-07 | Owner-authorized deploy v4.1.5 CA Sales Report resolver fixes to KVM production | `desk deploy --yes` @ `v4.1.5`/`08d30030`. **No wallet/refund/invoice/CN mutation.** |
+| RadiumDesk-P-04-10-95 | 2026-10-07 | Read-only Whitebook GSTIN registration verification investigation (48 Sep cases) | **No code/DB/deploy/mutation.** |
+| RadiumDesk-P-04-10-96 | 2026-10-07 | Read-only IRN response evidence investigation (48 Sep GSTIN+no-IRN cases) | Recommend CA IRN status/code/reason columns. **No code/DB/deploy/mutation/retry.** |
+| RadiumDesk-P-04-10-97 | 2026-10-07 | CA Sales Report e-invoice / IRN evidence columns (P-04-10-96 implementation) | Add Generation Status, Response Code, Response Reason from `e_invoice_records`; CHANGELOG 4.1.6. **No deploy/production mutation/IRN retry.** |
 
 Do not renumber or overwrite earlier rows. Append only.

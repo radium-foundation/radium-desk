@@ -68,13 +68,13 @@ class CaMonthlyReportXlsxCompatibilityTest extends TestCase
         $this->assertStringContainsString('relationships/styles', $workbookRels);
         $this->assertStringContainsString('<bookViews>', $workbook);
         $this->assertStringContainsString('<styleSheet', $styles);
-        $this->assertMatchesRegularExpression('/<dimension ref="A1:AB\d+"\/>/', $sheet);
+        $this->assertMatchesRegularExpression('/<dimension ref="A1:AE\d+"\/>/', $sheet);
         $this->assertLessThan(strpos($sheet, '<sheetViews>'), strpos($sheet, '<dimension '));
         $this->assertLessThan(strpos($sheet, '<pageSetUpPr'), strpos($sheet, '<outlinePr'));
         $this->assertLessThan(strpos($sheet, '<pageSetup '), strpos($sheet, '<printOptions'));
         $this->assertDoesNotMatchRegularExpression('/<pageSetup[^>]*fitToPage=/', $sheet);
         $this->assertStringNotContainsString('fitToHeight="0"', $sheet);
-        $this->assertStringContainsString('<autoFilter ref="A3:AB3"/>', $sheet);
+        $this->assertStringContainsString('<autoFilter ref="A3:AE3"/>', $sheet);
 
         @unlink($path);
     }
@@ -86,7 +86,7 @@ class CaMonthlyReportXlsxCompatibilityTest extends TestCase
         $path = $this->generateWorkbook();
 
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $this->readXlsxRow($path, 3));
-        $this->assertCount(28, CaMonthlyReportDefinition::HEADERS);
+        $this->assertCount(31, CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Channel', CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Reference', CaMonthlyReportDefinition::HEADERS);
 
@@ -199,9 +199,9 @@ class CaMonthlyReportXlsxCompatibilityTest extends TestCase
 
         $path = $this->generateWorkbook();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $this->readXlsxRow($path, 4)[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $this->readXlsxRow($path, 4)[25]);
         $this->assertSame('599.01', $this->readXlsxRow($path, 4)[19]);
-        $this->assertSame('', $this->readXlsxRow($path, 5)[22]);
+        $this->assertSame('', $this->readXlsxRow($path, 5)[25]);
 
         @unlink($path);
     }
@@ -250,7 +250,7 @@ class CaMonthlyReportXlsxCompatibilityTest extends TestCase
         $this->assertSame('Cancelled', $row[3]);
         $this->assertSame('POS-6757', $row[4]);
         $this->assertSame('118.00', $row[19]);
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CASH, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CASH, $row[25]);
 
         @unlink($path);
     }

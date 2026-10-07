@@ -64,8 +64,8 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
-        $this->assertCount(28, $row);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[25]);
+        $this->assertCount(31, $row);
         $this->assertNotContains('Payment Channel', CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Reference', CaMonthlyReportDefinition::HEADERS);
     }
@@ -91,7 +91,7 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[25]);
     }
 
     public function test_cashfree_gateway_with_net_banking_instrument(): void
@@ -112,7 +112,7 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[25]);
     }
 
     public function test_cashfree_gateway_with_wallet_instrument(): void
@@ -136,7 +136,7 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[25]);
     }
 
     public function test_hdfc_m_direct_channel(): void
@@ -149,7 +149,7 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_M, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_M, $row[25]);
     }
 
     public function test_hdfc_d_direct_channel(): void
@@ -162,7 +162,7 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_D, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_D, $row[25]);
     }
 
     public function test_cash_direct_channel(): void
@@ -175,7 +175,7 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CASH, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CASH, $row[25]);
     }
 
     public function test_indus_payment_evidence_is_not_mapped_to_a_primary_channel(): void
@@ -189,7 +189,7 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $preflight = app(CaMonthlyStatutoryLineReadModel::class)->preflight($this->request());
         $row = $this->firstRow();
 
-        $this->assertSame('', $row[22]);
+        $this->assertSame('', $row[25]);
         $this->assertSame(1, $preflight->unclassifiedPaymentChannelCount);
     }
 
@@ -229,7 +229,7 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_UNPAID, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_UNPAID, $row[25]);
     }
 
     public function test_upi_without_cashfree_evidence_is_not_mapped_to_cf(): void
@@ -253,8 +253,8 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame('', $row[22]);
-        $this->assertNotSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertSame('', $row[25]);
+        $this->assertNotSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[25]);
     }
 
     public function test_commerce_cashfree_snapshot_without_support_instrument_still_classifies_cf_channel(): void
@@ -298,24 +298,24 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[25]);
     }
 
     public function test_customer_payment_hdfc_m_overrides_bank_transfer_placeholder(): void
     {
         $row = $this->invoiceWithAllocatedMethod('HDFC M', 'CP-HDFC-M');
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_M, $row[22]);
-        $this->assertSame('Paid', $row[24]);
-        $this->assertNotSame('Cash', $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_M, $row[25]);
+        $this->assertSame('Paid', $row[27]);
+        $this->assertNotSame('Cash', $row[25]);
     }
 
     public function test_customer_payment_hdfc_d_overrides_bank_transfer_placeholder(): void
     {
         $row = $this->invoiceWithAllocatedMethod('HDFC D', 'CP-HDFC-D');
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_D, $row[22]);
-        $this->assertSame('Paid', $row[24]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_HDFC_D, $row[25]);
+        $this->assertSame('Paid', $row[27]);
     }
 
     public function test_genuine_cash_without_hdfc_allocation_stays_cash(): void
@@ -329,8 +329,8 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CASH, $row[22]);
-        $this->assertSame('Paid', $row[24]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CASH, $row[25]);
+        $this->assertSame('Paid', $row[27]);
     }
 
     /**

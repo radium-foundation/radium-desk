@@ -331,7 +331,7 @@ class RdServiceInAst300CommerceSnapshotTest extends TestCase
         $this->assertNotNull($row);
         $this->assertSame('499.00', $row[19]);
         $this->assertNotSame('0.00', $row[19]);
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[25]);
     }
 
     public function test_ast300_product_identity_matches_support_and_metadata(): void

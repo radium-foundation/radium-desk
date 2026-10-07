@@ -241,7 +241,7 @@ class CaMonthlyStatutoryLineReadModel
                         $missingBranchInvoiceCount++;
                     }
 
-                    if ($this->nullableString($exportRow->parentCells[22] ?? null) === null) {
+                    if ($this->nullableString($exportRow->parentCells[25] ?? null) === null) {
                         $unclassifiedPaymentChannelCount++;
                     }
 

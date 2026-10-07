@@ -76,7 +76,7 @@ class ChangelogServiceTest extends TestCase
     {
         $entries = app(ChangelogService::class)->entries();
 
-        $this->assertSame('4.1.5', $entries[0]['version']);
+        $this->assertSame('4.1.6', $entries[0]['version']);
         $this->assertFalse($entries[0]['is_current']);
     }
 
@@ -116,6 +116,7 @@ class ChangelogServiceTest extends TestCase
         $service = app(ChangelogService::class);
 
         $this->assertTrue($service->hasEntryForVersion('4.0.0'));
+        $this->assertTrue($service->hasEntryForVersion('4.1.6'));
         $this->assertTrue($service->hasEntryForVersion('4.1.5'));
         $this->assertTrue($service->hasEntryForVersion('4.1.0'));
         $this->assertTrue($service->hasEntryForVersion('4.0.2'));

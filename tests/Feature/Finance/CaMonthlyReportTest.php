@@ -193,10 +193,10 @@ class CaMonthlyReportTest extends TestCase
         $firstDataRow = $this->readXlsxRow($path, 4);
 
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, $headers);
-        $this->assertCount(28, $headers);
+        $this->assertCount(31, $headers);
         $this->assertSame('998313', $firstDataRow[12]);
         $this->assertSame('118.00', $firstDataRow[19]);
-        $this->assertCount(28, app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0]);
+        $this->assertCount(31, app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0]);
     }
 
     public function test_service_ordertype_is_resolved_from_sac_code(): void
@@ -514,7 +514,7 @@ class CaMonthlyReportTest extends TestCase
         $this->assertSame(1, $preflight->cancelledIncludedCount);
         $this->assertSame(1, $preflight->cancelledIncludedViaPaymentReferenceCount);
         $this->assertSame('Cancelled', $row[3]);
-        $this->assertCount(28, $row);
+        $this->assertCount(31, $row);
     }
 
     public function test_cancelled_pos_invoice_with_payment_snapshot_is_included(): void
@@ -582,7 +582,7 @@ class CaMonthlyReportTest extends TestCase
         $this->assertSame(1, $preflight->cancelledIncludedCount);
         $this->assertSame(1, $preflight->cancelledIncludedViaPaymentAllocationCount);
         $this->assertSame('Cancelled', $row[3]);
-        $this->assertCount(28, $row);
+        $this->assertCount(31, $row);
     }
 
     public function test_cancelled_service_pos_invoice_without_allocation_is_still_included(): void
@@ -678,11 +678,11 @@ class CaMonthlyReportTest extends TestCase
         $this->assertSame('Credit Note', $rows[1][3]);
         $this->assertSame('118.00', $rows[0][19]);
         $this->assertSame('118.00', $rows[1][19]);
-        $this->assertCount(28, $rows[0]);
-        $this->assertCount(28, $rows[1]);
-        $this->assertNotEmpty($rows[0][22]);
+        $this->assertCount(31, $rows[0]);
+        $this->assertCount(31, $rows[1]);
+        $this->assertNotEmpty($rows[0][25]);
         $this->assertNotEmpty($rows[1][22]);
-        $this->assertSame(CaMonthlyReportDefinition::HEADERS[22], 'Payment Method');
+        $this->assertSame(CaMonthlyReportDefinition::HEADERS[25], 'Payment Method');
         $this->assertSame($original->id, $creditNote->original_statutory_invoice_id);
     }
 
@@ -815,7 +815,7 @@ class CaMonthlyReportTest extends TestCase
 
         $this->assertSame(0, $preflight->nonReconcilingLineCount);
         $this->assertSame([], $preflight->nonReconcilingInvoices);
-        $this->assertCount(28, CaMonthlyReportDefinition::HEADERS);
+        $this->assertCount(31, CaMonthlyReportDefinition::HEADERS);
     }
 
     public function test_rounding_only_invoice_still_reconciles_in_preflight(): void

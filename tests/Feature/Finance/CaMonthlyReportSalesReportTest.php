@@ -4,16 +4,19 @@ namespace Tests\Feature\Finance;
 
 use App\Enums\CaMonthlyReportExportFormat;
 use App\Enums\CommerceOrderStatus;
+use App\Enums\EInvoiceRecordStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceSourceType;
 use App\Mail\CaMonthlyReportExportMail;
 use App\Models\CaMonthlyReportExport;
 use App\Models\CommerceOrder;
+use App\Models\EInvoiceRecord;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
+use App\Reports\CaMonthly\CaMonthlyReportEInvoiceEvidenceDisplay;
 use App\Reports\CaMonthly\CaMonthlyReportInvoiceExportBuilder;
 use App\Services\Finance\CaMonthlyReportExportGenerator;
 use App\Services\Finance\CaMonthlyReportExportService;
@@ -51,6 +54,44 @@ class CaMonthlyReportSalesReportTest extends TestCase
         $this->assertSame('Sales Report', CaMonthlyReportDefinition::DISPLAY_NAME);
         $this->assertSame('Sales Report', CaMonthlyReportDefinition::SHEET_NAME);
         $this->assertSame('CA Monthly Report', CaMonthlyReportDefinition::LEGACY_DISPLAY_NAME);
+    }
+
+    public function test_parent_sheet_includes_einvoice_evidence_columns_after_acknowledgement(): void
+    {
+        $headers = CaMonthlyReportDefinition::HEADERS;
+
+        $this->assertSame('Acknowledgement', $headers[21]);
+        $this->assertSame('E-Invoice / IRN Generation Status', $headers[22]);
+        $this->assertSame('E-Invoice / IRN Response Code', $headers[23]);
+        $this->assertSame('E-Invoice / IRN Response Reason', $headers[24]);
+        $this->assertSame('Payment Method', $headers[25]);
+        $this->assertSame('GSTIN Format Status', $headers[8]);
+    }
+
+    public function test_export_row_surfaces_stored_einvoice_provider_evidence(): void
+    {
+        $invoice = $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
+        EInvoiceRecord::query()->create([
+            'invoice_id' => $invoice->id,
+            'provider' => 'whitebooks',
+            'status' => EInvoiceRecordStatus::PermanentFailure->value,
+            'response_payload' => [
+                'payload' => [
+                    'status_desc' => '[{"errorCode":"3028","errorMessage":"GSTIN -07AAAAA0000A1Z5 is invalid."}]',
+                ],
+            ],
+        ]);
+        $invoice->load('eInvoiceRecord');
+
+        $row = app(CaMonthlyReportInvoiceExportBuilder::class)
+            ->buildForInvoices(collect([$invoice]))[0];
+
+        $this->assertSame(
+            CaMonthlyReportEInvoiceEvidenceDisplay::STATUS_PROVIDER_REJECTION,
+            $row->parentCells[22],
+        );
+        $this->assertSame('3028', $row->parentCells[23]);
+        $this->assertSame('GSTIN -07AAAAA0000A1Z5 is invalid.', $row->parentCells[24]);
     }
 
     public function test_detail_headers_include_product_name_and_sku(): void
@@ -207,8 +248,8 @@ class CaMonthlyReportSalesReportTest extends TestCase
 
         $this->assertSame('Credit Note', $row[3]);
         $this->assertSame('CN-0001', $row[2]);
-        $this->assertCount(28, $row);
-        $this->assertSame('RD Service', $row[27]);
+        $this->assertCount(31, $row);
+        $this->assertSame('RD Service', $row[30]);
     }
 
     public function test_sync_xlsx_generator_uses_sales_report_title(): void
@@ -369,7 +410,7 @@ class CaMonthlyReportSalesReportTest extends TestCase
 
         $this->assertSame('Andhra Pradesh', $row[9]);
         $this->assertNotSame('Karnataka', $row[9]);
-        $this->assertSame('RD Service', $row[27]);
+        $this->assertSame('RD Service', $row[30]);
         $this->assertSame('Branch Name', CaMonthlyReportDefinition::HEADERS[0]);
         $this->assertNotSame('', $row[0]);
         $this->assertSame($invoice->invoice_number, $row[2]);

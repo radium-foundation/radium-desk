@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.6 — 2026-10-07 — CA Sales Report e-invoice / IRN evidence columns
+
+- **E-invoice evidence columns:** Sales Report parent sheet adds **E-Invoice / IRN Generation Status**, **E-Invoice / IRN Response Code**, and **E-Invoice / IRN Response Reason** after Acknowledgement. Values are read from persisted `e_invoice_records` via `StatutoryInvoice.eInvoiceRecord` — provider codes/messages are exported verbatim from stored `response_payload`; skip reasons and IRP field gaps are exported for non-submitted cases; invoices without an e-invoice record show an explicit not-available status/reason rather than implying failure.
+- **GSTIN Format Status preserved:** Local GSTIN format validation remains a separate column and is unchanged.
+- **Accounting behavior preserved:** Invoice grain, GST totals, Credit Note handling, payment channel logic, permissions/routes, and wallet/refund accounting unchanged. No migration. No IRN regeneration, wallet, refund-journal, statutory-adjustment, invoice cancellation, or Credit Note changes.
+- Regression (verified on release candidate): CaMonthly unit + feature suite; AST300 export regression; Pint PASS.
+- Rollback target: v4.1.5 / `08d30030`.
+- Prompt **RadiumDesk-P-04-10-97**.
+
 ## 4.1.5 — 2026-10-07 — CA Sales Report State, Date_of_order, and GSTIN format
 
 - **Shared State resolver:** `CaMonthlyReportStateResolver` centralizes buyer State for the Sales Report register. Precedence: invoice billing snapshot structured state → linked commerce order structured billing state → commerce `billing_state` → invoice `place_of_supply_state` → linked POS inventory sale structured billing state → linked service order structured billing state → service `billing_state` / `place_of_supply_state`. **GSTIN is not used as a State source.**

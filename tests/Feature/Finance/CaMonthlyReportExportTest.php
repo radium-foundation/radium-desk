@@ -67,7 +67,7 @@ class CaMonthlyReportExportTest extends TestCase
         });
 
         $this->assertCount(1, $rows);
-        $this->assertCount(28, $rows[0]);
+        $this->assertCount(31, $rows[0]);
         $this->assertSame(CaMonthlyReportDefinition::HEADERS, CaMonthlyReportDefinition::HEADERS);
         $this->assertSame('118.00', $rows[0][19]);
     }
@@ -226,8 +226,15 @@ class CaMonthlyReportExportTest extends TestCase
     public function test_email_attachment_mode_sends_file_without_storage_path_in_body(): void
     {
         Mail::fake();
+        Queue::fake([
+            GenerateCaMonthlyReportExportJob::class,
+        ]);
 
-        $export = $this->createExportForAdmin(CaMonthlyReportExportFormat::Csv, 'finance@example.com');
+        $export = $this->createExportForAdmin(
+            CaMonthlyReportExportFormat::Csv,
+            'finance@example.com',
+            seedInvoices: false,
+        );
         $path = app(CaMonthlyReportExportStorage::class)->allocatePath($export);
         Storage::disk('local')->put($path, "header\nvalue\n");
         $export->forceFill([

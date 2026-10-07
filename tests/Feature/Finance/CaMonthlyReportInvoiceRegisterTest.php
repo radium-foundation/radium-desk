@@ -48,7 +48,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $headers = CaMonthlyReportDefinition::HEADERS;
 
-        $this->assertCount(28, $headers);
+        $this->assertCount(31, $headers);
         $this->assertContains('Status', $headers);
         $this->assertNotContains('Document Type', $headers);
         $this->assertContains('Invoice Total', $headers);
@@ -64,7 +64,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
 
         $this->assertCount(1, $rows);
-        $this->assertCount(28, $rows[0]);
+        $this->assertCount(31, $rows[0]);
         $this->assertSame(CaMonthlyReportOrderType::SERVICE, $rows[0][5]);
     }
 
@@ -187,7 +187,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
             'Card',
             $evidenceResolver->resolvePaymentModeDisplay($invoice, null, null, null, $supportMethods[$invoice->id] ?? null),
         );
-        $this->assertCount(28, $this->firstRow());
+        $this->assertCount(31, $this->firstRow());
     }
 
     public function test_branch_resolves_from_commerce_order_branch_code_when_invoice_branch_is_missing(): void
@@ -256,7 +256,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $row = $this->firstRow();
 
-        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[22]);
+        $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[25]);
     }
 
     public function test_xlsx_workbook_has_grouped_child_rows_and_summary(): void
