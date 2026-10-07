@@ -351,6 +351,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
+            self::PERMISSION_FINANCE_WALLET_VIEW,
         ],
         self::ROLE_SUPPORT_SPECIALIST => [
             'orders.view',

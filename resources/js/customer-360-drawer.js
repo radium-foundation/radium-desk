@@ -908,6 +908,16 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
         root.dataset.walletLedgerBound = 'true';
 
+        const showWalletError = () => {
+            const error = root.querySelector('[data-wallet-ledger-error]');
+            if (!error) {
+                return;
+            }
+
+            error.textContent = 'Central Wallet is temporarily unavailable. The balance is not shown.';
+            error.classList.remove('d-none');
+        };
+
         const filterForm = root.querySelector('[data-wallet-ledger-filter-form]');
 
         filterForm?.addEventListener('submit', async (event) => {
@@ -927,6 +937,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 });
 
                 if (!response.ok) {
+                    showWalletError();
+
                     return;
                 }
 
@@ -942,62 +954,71 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             } catch (error) {
                 if (error.name !== 'AbortError') {
                     logCustomer360Failure(action, null, 'wallet-ledger-filter', error);
+                    showWalletError();
                 }
             }
         });
 
-        root.querySelector('[data-wallet-ledger-load-more]')?.addEventListener('click', async (event) => {
-            const button = event.currentTarget;
-            const loadUrl = button.dataset.loadUrl ?? '';
-            const beforeId = button.dataset.nextBeforeId ?? '';
-            const filterForm = root.querySelector('[data-wallet-ledger-filter-form]');
-            const params = new URLSearchParams(new FormData(filterForm ?? undefined));
-            params.set('before_id', beforeId);
-
-            try {
-                const response = await fetch(`${loadUrl}?${params.toString()}`, {
-                    headers: {
-                        Accept: 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    signal: subFetchController?.signal,
-                });
-
-                if (!response.ok) {
-                    return;
-                }
-
-                const payload = await response.json();
-                if (!payload.html) {
-                    return;
-                }
-
-                const temp = document.createElement('div');
-                temp.innerHTML = payload.html;
-                const nextRoot = temp.querySelector('[data-wallet-ledger-root]');
-                const currentTable = root.querySelector('tbody');
-                const nextTable = nextRoot?.querySelector('tbody');
-                const nextLoadMore = nextRoot?.querySelector('[data-wallet-ledger-load-more]');
-                const currentLoadMore = root.querySelector('[data-wallet-ledger-load-more]');
-
-                if (currentTable && nextTable) {
-                    nextTable.querySelectorAll('tr').forEach((row) => currentTable.appendChild(row));
-                }
-
-                if (currentLoadMore) {
-                    currentLoadMore.remove();
-                }
-
-                if (nextLoadMore) {
-                    root.appendChild(nextLoadMore);
-                    bindWalletLedgerInteractions(root);
-                }
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    logCustomer360Failure(loadUrl, null, 'wallet-ledger-load-more', error);
-                }
+        const bindLoadMore = (button) => {
+            if (!button || button.dataset.walletLoadMoreBound === 'true') {
+                return;
             }
-        });
+
+            button.dataset.walletLoadMoreBound = 'true';
+            button.addEventListener('click', async () => {
+                const loadUrl = button.dataset.loadUrl ?? '';
+                const cursor = button.dataset.nextCursor ?? '';
+                const activeFilterForm = root.querySelector('[data-wallet-ledger-filter-form]');
+                const params = new URLSearchParams(new FormData(activeFilterForm ?? undefined));
+                params.set('cursor', cursor);
+
+                try {
+                    const response = await fetch(`${loadUrl}?${params.toString()}`, {
+                        headers: {
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        signal: subFetchController?.signal,
+                    });
+
+                    if (!response.ok) {
+                        showWalletError();
+
+                        return;
+                    }
+
+                    const payload = await response.json();
+                    if (!payload.html) {
+                        return;
+                    }
+
+                    const temp = document.createElement('div');
+                    temp.innerHTML = payload.html;
+                    const nextRoot = temp.querySelector('[data-wallet-ledger-root]');
+                    const currentTable = root.querySelector('tbody');
+                    const nextTable = nextRoot?.querySelector('tbody');
+                    const nextLoadMore = nextRoot?.querySelector('[data-wallet-ledger-load-more]');
+
+                    if (currentTable && nextTable) {
+                        nextTable.querySelectorAll('tr').forEach((row) => currentTable.appendChild(row));
+                    }
+
+                    button.remove();
+
+                    if (nextLoadMore) {
+                        root.appendChild(nextLoadMore);
+                        bindLoadMore(nextLoadMore);
+                    }
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        logCustomer360Failure(loadUrl, null, 'wallet-ledger-load-more', error);
+                        showWalletError();
+                    }
+                }
+            });
+        };
+
+        bindLoadMore(root.querySelector('[data-wallet-ledger-load-more]'));
     };
 
     const loadWalletTab = async () => {

@@ -744,3 +744,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-105
 
 **Release v4.1.8 Central Wallet customer transaction history.** Fast-forward clean `main` from `v4.1.7` / `7ba534c3` onto reviewed commit `f37f0a74` only. CHANGELOG **4.1.8**. Annotated tag `v4.1.8`. Customer-history API **15** passed. Central Wallet plus wallet/refund regression **231** passed, **4** skipped. Production deploy of this tag is the next step of the same prompt. Rollback target remains v4.1.7 / `7ba534c3`. **No wallet, refund, reservation, or users_wallet mutation.**
+
+---
+
+## RadiumDesk-P-04-10-107
+
+**360 Wallet Ledger reads one Central Wallet.** `P-04-10-106` is the prior read-only RCA. The existing case route now resolves the verified Desk customer from the case's verified email credential, then reads that customer's CWID on the server. Balance and reservations come from `LedgerService`. Posted history comes from `listCustomerHistoryForWallet()`, across `radiumbox.com`, `rdservice.in`, and `rdservice.net`. A browser-supplied CWID is ignored. `finance.wallet.view` is sufficient for the tab, and the agent role receives only that finance permission. A failed Central Wallet read does not display ₹0. **No deploy. No wallet, refund, or users_wallet mutation.**

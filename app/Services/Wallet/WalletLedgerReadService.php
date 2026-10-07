@@ -2,19 +2,36 @@
 
 namespace App\Services\Wallet;
 
+use App\CentralWallet\Application\LedgerEntryCursor;
+use App\CentralWallet\Application\LedgerEntryReadService;
+use App\CentralWallet\Application\LedgerService;
+use App\CentralWallet\Domain\Enums\LedgerEntryType;
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
-use App\Services\RadiumBox\RadiumBoxWalletLedgerClient;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
-use Illuminate\Validation\ValidationException;
-use RuntimeException;
+use Throwable;
 
 class WalletLedgerReadService
 {
+    public const PAGE_SIZE = 25;
+
+    /**
+     * @var array<string, string>
+     */
+    private const SITE_LABELS = [
+        'radiumbox.com' => 'RadiumBox',
+        'rdservice.in' => 'rdservice.in',
+        'rdservice.net' => 'rdservice.net',
+    ];
+
     public function __construct(
-        private readonly RadiumBoxWalletLedgerClient $client,
+        private readonly DeskCustomerCentralWalletResolver $customers,
+        private readonly LedgerService $ledger,
+        private readonly LedgerEntryReadService $history,
     ) {}
 
     /**
@@ -23,205 +40,193 @@ class WalletLedgerReadService
      */
     public function forIncident(Incident $incident, User $viewer, array $filters = []): array
     {
-        $incident->loadMissing('order');
+        unset($filters['central_wallet_id'], $filters['cwid'], $filters['customer_email'], $filters['before_id']);
 
-        $email = $this->resolveCustomerEmail($incident);
+        $identity = $this->customers->forIncident($incident);
+        if ($identity['state'] !== 'resolved') {
+            return $this->terminalView($incident, 'unresolved');
+        }
 
         try {
-            $payload = $this->client->fetchLedger($email, $this->normalizeFilters($filters));
-        } catch (RuntimeException $exception) {
-            if ($exception->getCode() === 404) {
-                return $this->emptyLedgerView($email, 'No RadiumBox wallet account was found for this customer.');
-            }
-
-            throw $exception;
+            $available = $this->ledger->availableBalance($identity['central_wallet_id']);
+            $reserved = $this->ledger->reservedBalance($identity['central_wallet_id']);
+            $page = $this->history->listCustomerHistoryForWallet(
+                $identity['central_wallet_id'],
+                $this->historyParameters($filters),
+            );
+        } catch (Throwable) {
+            return $this->terminalView($incident, 'unavailable');
         }
 
-        return $this->presentLedger($payload, $viewer, $incident, $email);
-    }
-
-    private function resolveCustomerEmail(Incident $incident): string
-    {
-        $order = $incident->order;
-        $email = strtolower(trim((string) ($order?->customer_email ?? '')));
-
-        if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
-            throw ValidationException::withMessages([
-                'wallet' => 'Customer email is required before wallet ledger can be loaded.',
-            ]);
-        }
-
-        return $email;
+        return $this->presentLedger($page, $viewer, $incident, $identity, $available, $reserved);
     }
 
     /**
      * @param  array<string, mixed>  $filters
-     * @return array<string, mixed>
+     * @return array{
+     *     limit: int,
+     *     cursor: ?LedgerEntryCursor,
+     *     source_reference: ?string,
+     *     business_reference: ?string,
+     *     correlation_id: ?string,
+     *     entry_type: ?LedgerEntryType,
+     *     status: null,
+     *     status_explicit: false,
+     *     posted_from: ?CarbonImmutable,
+     *     posted_to: ?CarbonImmutable,
+     *     central_wallet_id: null,
+     *     ledger_entry_id: null,
+     * }
      */
-    private function normalizeFilters(array $filters): array
+    private function historyParameters(array $filters): array
     {
-        $type = strtolower(trim((string) ($filters['type'] ?? 'all')));
-        if (! in_array($type, ['all', 'credit', 'debit'], true)) {
-            $type = 'all';
+        $cursor = $this->nullableString($filters['cursor'] ?? null);
+        if ($cursor !== null) {
+            $cursor = LedgerEntryCursor::decode($cursor);
         }
 
+        $type = strtolower(trim((string) ($filters['type'] ?? 'all')));
+        $entryType = LedgerEntryType::tryFrom($type);
+
         return [
-            'limit' => isset($filters['limit']) ? (int) $filters['limit'] : 25,
-            'before_id' => isset($filters['before_id']) ? (int) $filters['before_id'] : null,
-            'type' => $type === 'all' ? null : $type,
-            'status' => $this->nullableString($filters['status'] ?? null),
-            'order_code' => $this->nullableString($filters['order_code'] ?? null),
-            'desk_refund_reference' => $this->nullableString($filters['desk_refund_reference'] ?? null),
-            'reference' => $this->nullableString($filters['reference'] ?? null),
-            'date_from' => $this->nullableString($filters['date_from'] ?? null),
-            'date_to' => $this->nullableString($filters['date_to'] ?? null),
+            'limit' => self::PAGE_SIZE,
+            'cursor' => $cursor,
+            'source_reference' => null,
+            'business_reference' => $this->nullableString($filters['business_reference'] ?? null),
+            'correlation_id' => null,
+            'entry_type' => $entryType,
+            'status' => null,
+            'status_explicit' => false,
+            'posted_from' => null,
+            'posted_to' => null,
+            'central_wallet_id' => null,
+            'ledger_entry_id' => null,
         ];
     }
 
     /**
-     * @param  array<string, mixed>  $payload
+     * @param  array{data: list<array<string, mixed>>, pagination: array{limit: int, next_cursor: ?string, has_more: bool}}  $page
+     * @param  array{state: 'resolved', customer_id: string, central_wallet_id: string, wallet_status: string}  $identity
      * @return array<string, mixed>
      */
-    private function presentLedger(array $payload, User $viewer, Incident $incident, string $email): array
-    {
-        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
-        $transactions = is_array($data['transactions'] ?? null) ? $data['transactions'] : [];
-        $balance = is_array($data['balance'] ?? null) ? $data['balance'] : [];
+    private function presentLedger(
+        array $page,
+        User $viewer,
+        Incident $incident,
+        array $identity,
+        string $available,
+        string $reserved,
+    ): array {
+        $entries = $page['data'];
+        $ids = array_values(array_filter(array_map(
+            static fn (array $entry): int => (int) ($entry['ledger_entry_id'] ?? 0),
+            $entries,
+        )));
 
-        $deskRefundReferences = collect($transactions)
-            ->pluck('desk_refund_reference')
-            ->filter(fn ($value) => is_string($value) && trim($value) !== '')
+        $parents = $ids === []
+            ? collect()
+            : CentralWalletLedgerEntry::query()
+                ->where('central_wallet_id', $identity['central_wallet_id'])
+                ->whereIn('id', $ids)
+                ->pluck('original_ledger_entry_id', 'id');
+
+        $businessReferences = collect($entries)
+            ->pluck('business_reference')
+            ->filter(fn (mixed $value): bool => is_string($value) && trim($value) !== '')
+            ->map(static fn (string $value): string => trim($value))
             ->unique()
             ->values()
             ->all();
 
-        $orderCodes = collect($transactions)
-            ->pluck('order_code')
-            ->filter(fn ($value) => is_string($value) && trim($value) !== '')
-            ->unique()
-            ->values()
-            ->all();
-
-        $refundMap = $deskRefundReferences === []
+        $refundMap = $businessReferences === []
             ? collect()
             : RefundRequest::query()
-                ->whereIn('reference_no', $deskRefundReferences)
+                ->whereIn('reference_no', $businessReferences)
                 ->get(['id', 'reference_no'])
                 ->keyBy('reference_no');
 
-        $deskOrderMap = $orderCodes === []
+        $orderMap = $businessReferences === []
             ? collect()
             : Order::query()
-                ->whereIn('order_id', $orderCodes)
+                ->whereIn('order_id', $businessReferences)
                 ->get(['id', 'order_id'])
                 ->keyBy('order_id');
 
-        $rows = collect($transactions)->map(function (array $transaction) use ($refundMap, $deskOrderMap, $viewer): array {
-            $deskRefundReference = is_string($transaction['desk_refund_reference'] ?? null)
-                ? trim($transaction['desk_refund_reference'])
+        $rows = array_map(function (array $entry) use ($parents, $refundMap, $orderMap, $viewer): array {
+            $businessReference = is_string($entry['business_reference'] ?? null)
+                ? trim($entry['business_reference'])
                 : '';
-
-            $refund = $deskRefundReference !== '' ? $refundMap->get($deskRefundReference) : null;
-
-            $orderCode = is_string($transaction['order_code'] ?? null)
-                ? trim($transaction['order_code'])
-                : '';
-
-            $deskOrder = $orderCode !== '' ? $deskOrderMap->get($orderCode) : null;
+            $sourceSystem = (string) ($entry['source_system'] ?? '');
+            $ledgerEntryId = (int) ($entry['ledger_entry_id'] ?? 0);
+            $parentId = $parents->get($ledgerEntryId);
+            $refund = $businessReference !== '' ? $refundMap->get($businessReference) : null;
+            $order = $businessReference !== '' ? $orderMap->get($businessReference) : null;
 
             return [
-                'id' => (int) ($transaction['id'] ?? 0),
-                'created_at' => $this->formatIst($transaction['created_at'] ?? null),
-                'type' => strtoupper((string) ($transaction['type'] ?? 'neutral')),
-                'credit' => $transaction['credit'] ?? null,
-                'debit' => $transaction['debit'] ?? null,
-                'status' => (string) ($transaction['status'] ?? ''),
-                'message' => (string) ($transaction['message'] ?? ''),
-                'order_code' => $orderCode !== '' ? $orderCode : null,
-                'desk_order_id' => $deskOrder?->id,
-                'desk_refund_reference' => $deskRefundReference !== '' ? $deskRefundReference : null,
+                'ledger_entry_id' => $ledgerEntryId,
+                'entry_type' => (string) ($entry['entry_type'] ?? ''),
+                'amount' => (string) ($entry['amount'] ?? ''),
+                'currency' => (string) ($entry['currency'] ?? ''),
+                'status' => (string) ($entry['status'] ?? ''),
+                'source_system' => $sourceSystem,
+                'source_label' => self::SITE_LABELS[$sourceSystem] ?? $sourceSystem,
+                'source_reference' => is_string($entry['source_reference'] ?? null) ? $entry['source_reference'] : null,
+                'business_reference' => $businessReference !== '' ? $businessReference : null,
+                'correlation_id' => (string) ($entry['correlation_id'] ?? ''),
+                'posted_at' => $this->formatIst($entry['posted_at'] ?? null),
+                'created_at' => $this->formatIst($entry['created_at'] ?? null),
+                'reservation_id' => is_string($entry['reservation_id'] ?? null) ? $entry['reservation_id'] : null,
+                'original_ledger_entry_id' => is_numeric($parentId) ? (int) $parentId : null,
+                'desk_order_id' => $order?->id,
                 'desk_refund_id' => $refund?->id,
                 'can_view_refund' => $refund !== null && $viewer->can('refunds.view'),
-                'reference' => $this->walletTransactionReference($transaction),
-                'badges' => $this->badgesFor($transaction, $refund, $deskOrder),
             ];
-        })->values()->all();
+        }, $entries);
 
         return [
-            'customer_email' => $email,
+            'state' => 'ready',
             'incident_id' => $incident->id,
-            'balance' => [
-                'available' => round((float) ($balance['available'] ?? 0), 2),
-                'pending_credits' => round((float) ($balance['pending_credits'] ?? 0), 2),
-                'pending_debits' => round((float) ($balance['pending_debits'] ?? 0), 2),
-                'cached_wallet_amount' => isset($balance['cached_wallet_amount'])
-                    ? round((float) $balance['cached_wallet_amount'], 2)
-                    : null,
+            'customer_id' => $identity['customer_id'],
+            'wallet' => [
+                'available' => $available,
+                'reserved' => $reserved,
+                'masked_id' => $this->maskCwid($identity['central_wallet_id']),
+                'status' => $identity['wallet_status'],
+                'source' => 'Central Wallet',
             ],
-            'last_activity_at' => $this->formatIst($data['last_activity_at'] ?? null),
             'transactions' => $rows,
-            'pagination' => is_array($data['pagination'] ?? null) ? $data['pagination'] : [
-                'has_more' => false,
-                'next_before_id' => null,
-            ],
-            'show_running_balance' => false,
+            'pagination' => $page['pagination'],
+            'empty_message' => $rows === []
+                ? 'No posted Central Wallet transactions for this customer.'
+                : null,
         ];
-    }
-
-    /**
-     * @param  array<string, mixed>  $transaction
-     * @return list<string>
-     */
-    private function badgesFor(array $transaction, ?RefundRequest $refund, ?Order $deskOrder): array
-    {
-        $badges = [];
-        $status = strtolower((string) ($transaction['status'] ?? ''));
-        $deskRefundReference = is_string($transaction['desk_refund_reference'] ?? null)
-            ? trim($transaction['desk_refund_reference'])
-            : '';
-
-        if ($status === 'pending') {
-            $badges[] = 'Pending';
-        }
-
-        if ($deskRefundReference !== '') {
-            $badges[] = 'Desk Auto Credit';
-            $badges[] = $refund !== null ? 'Refund Linked' : 'Unmatched Refund';
-        } elseif (! empty($transaction['admin_id'])) {
-            $badges[] = 'Manual/Admin';
-        }
-
-        if (($transaction['missing_order_link'] ?? false) === true) {
-            $badges[] = 'Missing Order Link';
-        } elseif ($deskOrder === null && is_string($transaction['order_code'] ?? null) && trim($transaction['order_code']) !== '') {
-            $badges[] = 'Missing Order Link';
-        }
-
-        return array_values(array_unique($badges));
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function emptyLedgerView(string $email, string $message): array
+    private function terminalView(Incident $incident, string $state): array
     {
         return [
-            'customer_email' => $email,
-            'empty_message' => $message,
-            'balance' => [
-                'available' => 0.0,
-                'pending_credits' => 0.0,
-                'pending_debits' => 0.0,
-                'cached_wallet_amount' => null,
-            ],
-            'last_activity_at' => null,
+            'state' => $state,
+            'incident_id' => $incident->id,
+            'customer_id' => null,
+            'wallet' => null,
             'transactions' => [],
             'pagination' => [
+                'limit' => self::PAGE_SIZE,
+                'next_cursor' => null,
                 'has_more' => false,
-                'next_before_id' => null,
             ],
-            'show_running_balance' => false,
+            'empty_message' => null,
         ];
+    }
+
+    private function maskCwid(string $centralWalletId): string
+    {
+        $compact = str_replace('-', '', $centralWalletId);
+
+        return '····'.substr($compact, -4);
     }
 
     private function formatIst(mixed $value): ?string
@@ -242,22 +247,5 @@ class WalletLedgerReadService
         $trimmed = trim($value);
 
         return $trimmed !== '' ? $trimmed : null;
-    }
-
-    /**
-     * @param  array<string, mixed>  $transaction
-     */
-    private function walletTransactionReference(array $transaction): string
-    {
-        $txnid = $transaction['txnid'] ?? null;
-        if (is_string($txnid) && trim($txnid) !== '') {
-            return trim($txnid);
-        }
-
-        if (is_int($txnid) && $txnid > 0) {
-            return (string) $txnid;
-        }
-
-        return 'Missing';
     }
 }

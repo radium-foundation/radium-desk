@@ -2,225 +2,357 @@
 
 namespace Tests\Feature;
 
-use App\Enums\ApprovedRefundMethod;
+use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
+use App\CentralWallet\Domain\Enums\AccountLinkStatus;
+use App\CentralWallet\Domain\Enums\CustomerIdentityCredentialType;
+use App\CentralWallet\Domain\Enums\LedgerEntryStatus;
+use App\CentralWallet\Domain\Enums\ReservationState;
+use App\CentralWallet\Infrastructure\Persistence\CentralCustomer;
+use App\CentralWallet\Infrastructure\Persistence\CentralCustomerIdentityCredential;
+use App\CentralWallet\Infrastructure\Persistence\CentralWallet;
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletReservation;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
-use App\Enums\RefundStatus;
 use App\Models\Incident;
 use App\Models\Order;
-use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class Customer360WalletLedgerTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const EMAIL = 'ravithelavi@gmail.com';
+
+    private const CUSTOMER_ID = '46c69a65-7fb9-4d36-948f-32d00475fd0e';
+
+    private const CWID = '50ff2e87-6030-4ae8-b93a-163884db90c5';
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
-
-        config([
-            'order_lookup.spokes.radiumbox_com.enabled' => true,
-            'order_lookup.spokes.radiumbox_com.base_url' => 'https://radiumbox.test',
-            'order_lookup.spokes.radiumbox_com.token' => 'desk-token',
-        ]);
     }
 
-    public function test_authorized_finance_user_can_view_wallet_ledger_tab(): void
+    public function test_agent_sees_the_verified_customers_unified_wallet(): void
     {
-        Http::fake([
-            'radiumbox.test/api/integrations/v1/wallet-ledger*' => Http::response([
-                'status' => 200,
-                'data' => [
-                    'customer' => ['userid' => 10, 'email' => 'wallet@example.com', 'name' => 'Wallet Customer'],
-                    'balance' => [
-                        'available' => 400,
-                        'pending_credits' => 50,
-                        'pending_debits' => 0,
-                        'cached_wallet_amount' => 400,
-                    ],
-                    'last_activity_at' => now()->toIso8601String(),
-                    'transactions' => [
-                        [
-                            'id' => 99,
-                            'created_at' => now()->toIso8601String(),
-                            'type' => 'credit',
-                            'credit' => 400,
-                            'debit' => null,
-                            'status' => 'success',
-                            'message' => 'Wallet refund for order RD123 (Desk REF-2026-001234)',
-                            'orderid' => 55,
-                            'order_code' => 'RD123',
-                            'txnid' => 'RD99',
-                            'desk_refund_reference' => 'REF-2026-001234',
-                            'admin_id' => null,
-                            'missing_order_link' => false,
-                        ],
-                    ],
-                    'pagination' => ['limit' => 25, 'has_more' => false, 'next_before_id' => null],
-                ],
-            ], 200),
-        ]);
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $this->createVerifiedFiveEntries();
 
-        $financeUser = $this->financeUser();
-        [$incident, $refund] = $this->walletIncident($financeUser, 'wallet@example.com', 'RD123');
+        $html = $this->walletHtml($agent, $incident);
 
-        $response = $this->actingAs($financeUser)
-            ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1')
-            ->assertOk();
-
-        $html = (string) $response->json('html');
-        $this->assertStringContainsString('Current Wallet Balance', $html);
-        $this->assertStringContainsString('₹400.00', $html);
-        $this->assertStringContainsString('REF-2026-001234', $html);
-        $this->assertStringContainsString(route('refunds.show', $refund->id), $html);
+        $this->assertStringContainsString('Central Wallet', $html);
+        $this->assertStringContainsString('One customer wallet', $html);
+        $this->assertStringContainsString('₹399.00', $html);
+        $this->assertStringContainsString('Active reservations', $html);
+        $this->assertStringContainsString('₹0.00', $html);
+        $this->assertStringContainsString('····90c5', $html);
+        $this->assertStringNotContainsString(self::CWID, $html);
+        $this->assertStringContainsString('#55', $html);
+        $this->assertStringContainsString('#56', $html);
+        $this->assertStringContainsString('#57', $html);
+        $this->assertStringContainsString('#58', $html);
+        $this->assertStringContainsString('#59', $html);
+        $this->assertStringContainsString('REF-2026-000300', $html);
+        $this->assertStringContainsString('RD13874', $html);
+        $this->assertStringContainsString('RN172', $html);
+        $this->assertStringContainsString('PROBE-NO-OP', $html);
+        $this->assertStringContainsString('PROBE-NO-OP-CORRECTION', $html);
+        $this->assertStringContainsString('rdservice.in', $html);
+        $this->assertStringContainsString('rdservice.net', $html);
+        $this->assertStringContainsString('Reverses #58', $html);
+        $this->assertStringContainsString('credit', $html);
+        $this->assertStringContainsString('debit', $html);
+        $this->assertStringContainsString('reversal', $html);
+        $this->assertStringContainsString('users_wallet:2540', $html);
     }
 
-    public function test_wallet_ledger_shows_missing_when_wallet_reference_is_absent(): void
+    public function test_browser_supplied_cwid_cannot_open_another_wallet(): void
     {
-        Http::fake([
-            'radiumbox.test/api/integrations/v1/wallet-ledger*' => Http::response([
-                'status' => 200,
-                'data' => [
-                    'balance' => [
-                        'available' => 617,
-                        'pending_credits' => 0,
-                        'pending_debits' => 0,
-                    ],
-                    'transactions' => [
-                        [
-                            'id' => 273105,
-                            'created_at' => now()->toIso8601String(),
-                            'type' => 'credit',
-                            'credit' => 617,
-                            'debit' => null,
-                            'status' => 'success',
-                            'message' => 'Wallet refund for order RB317 (Desk REF-67330)',
-                            'orderid' => null,
-                            'order_code' => 'RB317',
-                            'txnid' => null,
-                            'desk_refund_reference' => 'REF-67330',
-                            'admin_id' => null,
-                            'missing_order_link' => true,
-                        ],
-                    ],
-                    'pagination' => ['limit' => 25, 'has_more' => false, 'next_before_id' => null],
-                ],
-            ], 200),
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $this->createVerifiedFiveEntries();
+
+        $otherCwid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeaaaa';
+        $this->walletFor($otherCwid);
+        $this->ledgerRow($otherCwid, [
+            'entry_type' => 'credit',
+            'amount' => '999.00',
+            'source_system' => 'radiumbox.com',
+            'business_reference' => 'OTHER-WALLET-SECRET',
+            'posted_at' => '2026-10-07 12:00:00',
         ]);
 
-        $financeUser = $this->financeUser();
-        [$incident] = $this->walletIncident($financeUser, 'wallet@example.com', 'RB317');
+        $html = $this->walletHtml($agent, $incident, [
+            'central_wallet_id' => $otherCwid,
+            'cwid' => $otherCwid,
+            'customer_email' => 'other-customer@example.com',
+        ]);
 
-        $response = $this->actingAs($financeUser)
-            ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1')
-            ->assertOk();
-
-        $html = (string) $response->json('html');
-        $this->assertStringContainsString('Missing', $html);
-        $this->assertStringContainsString('REF-67330', $html);
+        $this->assertStringContainsString('₹399.00', $html);
+        $this->assertStringContainsString('RN172', $html);
+        $this->assertStringNotContainsString('OTHER-WALLET-SECRET', $html);
+        $this->assertStringNotContainsString($otherCwid, $html);
+        $this->assertStringNotContainsString('₹999.00', $html);
     }
 
-    public function test_unauthorized_user_receives_403(): void
+    public function test_radiumbox_source_is_labeled_without_splitting_the_wallet(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $this->ledgerRow(self::CWID, [
+            'entry_type' => 'credit',
+            'amount' => '10.00',
+            'source_system' => 'radiumbox.com',
+            'business_reference' => 'RB-ONE-WALLET',
+            'posted_at' => '2026-10-01 10:00:00',
+        ]);
 
-        [$incident] = $this->walletIncident($agent, 'wallet@example.com', 'RD999');
+        $html = $this->walletHtml($agent, $incident);
 
-        $this->actingAs($agent)
+        $this->assertStringContainsString('RadiumBox', $html);
+        $this->assertStringContainsString('RB-ONE-WALLET', $html);
+        $this->assertStringNotContainsString('separate wallet', strtolower($html));
+    }
+
+    public function test_history_paginates_with_next_cursor_newest_first(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+
+        for ($index = 1; $index <= 26; $index++) {
+            $this->ledgerRow(self::CWID, [
+                'entry_type' => 'credit',
+                'amount' => '1.00',
+                'source_system' => 'rdservice.in',
+                'business_reference' => sprintf('ROW-%03d', $index),
+                'posted_at' => now()->subMinutes(27 - $index),
+            ]);
+        }
+
+        $first = $this->walletHtml($agent, $incident);
+        $this->assertStringContainsString('ROW-026', $first);
+        $this->assertStringNotContainsString('ROW-001', $first);
+        $this->assertMatchesRegularExpression('/data-next-cursor="[^"]+"/', $first);
+
+        preg_match('/data-next-cursor="([^"]+)"/', $first, $matches);
+        $second = $this->walletHtml($agent, $incident, ['cursor' => html_entity_decode($matches[1])]);
+
+        $this->assertStringContainsString('ROW-001', $second);
+        $this->assertStringNotContainsString('ROW-026', $second);
+    }
+
+    public function test_empty_wallet_is_an_empty_state(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+
+        $html = $this->walletHtml($agent, $incident);
+
+        $this->assertStringContainsString('₹0.00', $html);
+        $this->assertStringContainsString('No posted Central Wallet transactions for this customer.', $html);
+        $this->assertStringNotContainsString('temporarily unavailable', $html);
+        $this->assertStringNotContainsString('not linked to one verified Desk customer', $html);
+    }
+
+    public function test_central_wallet_failure_does_not_render_zero_balance(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $this->createVerifiedFiveEntries();
+        config(['central_wallet.ledger_read.customer_history.authorized_source_systems' => []]);
+
+        $html = $this->walletHtml($agent, $incident);
+
+        $this->assertStringContainsString('temporarily unavailable', $html);
+        $this->assertStringContainsString('The balance is not shown.', $html);
+        $this->assertStringNotContainsString('₹', $html);
+        $this->assertStringNotContainsString('399.00', $html);
+        $this->assertStringNotContainsString('0.00', $html);
+    }
+
+    public function test_unresolved_customer_is_not_shown_as_zero_and_account_links_are_not_guessed(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->incidentFor($agent, 'unlinked-customer@example.com', 'RD1');
+
+        $otherCwid = 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff';
+        $this->walletFor($otherCwid);
+        CentralWalletAccountLink::query()->create([
+            'central_wallet_id' => $otherCwid,
+            'desk_customer_id' => null,
+            'site_code' => 'rdservice.net',
+            'local_user_id' => '3',
+            'status' => AccountLinkStatus::Active,
+            'verification_method' => 'verified_email',
+            'created_by' => 'test',
+        ]);
+        $this->ledgerRow($otherCwid, [
+            'entry_type' => 'credit',
+            'amount' => '50.00',
+            'source_system' => 'rdservice.net',
+            'business_reference' => 'UNLINKED-SHOULD-NOT-SHOW',
+            'posted_at' => '2026-10-02 22:51:49',
+        ]);
+
+        $html = $this->walletHtml($agent, $incident);
+
+        $this->assertStringContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringNotContainsString('₹', $html);
+        $this->assertStringNotContainsString('UNLINKED-SHOULD-NOT-SHOW', $html);
+        $this->assertStringNotContainsString($otherCwid, $html);
+    }
+
+    public function test_active_reservation_reduces_available_balance(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $this->ledgerRow(self::CWID, [
+            'entry_type' => 'credit',
+            'amount' => '10.00',
+            'source_system' => 'radiumbox.com',
+            'business_reference' => 'HOLD-CREDIT',
+            'posted_at' => '2026-10-01 10:00:00',
+        ]);
+        CentralWalletReservation::query()->create([
+            'id' => (string) Str::uuid(),
+            'central_wallet_id' => self::CWID,
+            'caller_id' => 'radiumbox.com',
+            'amount' => '4.00',
+            'currency' => 'INR',
+            'state' => ReservationState::Active,
+            'business_reference' => 'HOLD-1',
+            'correlation_id' => (string) Str::uuid(),
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $html = $this->walletHtml($agent, $incident);
+
+        $this->assertStringContainsString('₹6.00', $html);
+        $this->assertStringContainsString('₹4.00', $html);
+    }
+
+    public function test_operations_admin_and_superadmin_keep_wallet_access(): void
+    {
+        $this->verifiedCustomerCase($this->userWithRole(RolePermissionSeeder::ROLE_AGENT));
+        $this->createVerifiedFiveEntries();
+        $incident = Incident::query()->firstOrFail();
+
+        foreach ([
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+            RolePermissionSeeder::ROLE_SUPERADMIN,
+        ] as $role) {
+            $html = $this->walletHtml($this->userWithRole($role), $incident);
+            $this->assertStringContainsString('₹399.00', $html);
+            $this->assertStringContainsString('RN172', $html);
+        }
+    }
+
+    public function test_user_without_wallet_permission_cannot_open_the_tab(): void
+    {
+        $viewer = User::factory()->create();
+        $viewer->givePermissionTo('incidents.view');
+        $incident = $this->incidentFor($viewer, self::EMAIL, 'RD2');
+
+        $this->actingAs($viewer)
             ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1')
             ->assertForbidden();
-    }
 
-    public function test_customer_isolation_uses_incident_customer_email_not_query_override(): void
-    {
-        Http::fake([
-            'radiumbox.test/api/integrations/v1/wallet-ledger*' => Http::response([
-                'status' => 200,
-                'data' => [
-                    'balance' => ['available' => 0, 'pending_credits' => 0, 'pending_debits' => 0],
-                    'transactions' => [],
-                    'pagination' => ['has_more' => false, 'next_before_id' => null],
-                ],
-            ], 200),
-        ]);
-
-        $financeUser = $this->financeUser();
-        [$incident] = $this->walletIncident($financeUser, 'customer-a@example.com', 'RD111');
-
-        $this->actingAs($financeUser)
-            ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1&customer_email=customer-b@example.com')
-            ->assertOk();
-
-        Http::assertSent(function (Request $request): bool {
-            return str_contains($request->url(), 'customer_email=customer-a%40example.com')
-                && ! str_contains($request->url(), 'customer-b%40example.com');
-        });
-    }
-
-    public function test_wallet_tab_is_not_rendered_without_permission(): void
-    {
-        $agent = User::factory()->create();
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
-
-        [$incident] = $this->walletIncident($agent, 'wallet@example.com', 'RD222');
-
-        $this->actingAs($agent)
+        $this->actingAs($viewer)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertDontSee('data-customer-360-tab="wallet-ledger"', false);
     }
 
-    public function test_box_api_failure_returns_validation_error_payload(): void
+    public function test_wallet_permission_without_incident_access_is_forbidden(): void
     {
-        Http::fake([
-            'radiumbox.test/api/integrations/v1/wallet-ledger*' => Http::response([
-                'status' => 500,
-                'message' => 'Internal server error',
-            ], 500),
-        ]);
+        $viewer = User::factory()->create();
+        $viewer->givePermissionTo(RolePermissionSeeder::PERMISSION_FINANCE_WALLET_VIEW);
+        $owner = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->incidentFor($owner, self::EMAIL, 'RD3');
 
-        $financeUser = $this->financeUser();
-        [$incident] = $this->walletIncident($financeUser, 'wallet@example.com', 'RD333');
-
-        $this->actingAs($financeUser)
+        $this->actingAs($viewer)
             ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?tab=1')
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Internal server error');
+            ->assertForbidden();
     }
 
-    private function financeUser(): User
+    public function test_agent_drawer_includes_the_wallet_tab(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->incidentFor($agent, self::EMAIL, 'RD4');
+
+        $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('data-customer-360-tab="wallet-ledger"', false);
+    }
+
+    /**
+     * @param  array<string, string>  $query
+     */
+    private function walletHtml(User $viewer, Incident $incident, array $query = []): string
+    {
+        $query = ['tab' => '1', ...$query];
+        Http::fake();
+
+        $response = $this->actingAs($viewer)
+            ->getJson(route('dashboard.service-cases.customer-360.wallet-ledger', $incident).'?'.http_build_query($query))
+            ->assertOk();
+
+        Http::assertNothingSent();
+
+        return (string) $response->json('html');
+    }
+
+    private function userWithRole(string $role): User
     {
         $user = User::factory()->create();
-        $user->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+        $user->assignRole($role);
 
         return $user;
     }
 
-    /**
-     * @return array{0: Incident, 1: RefundRequest}
-     */
-    private function walletIncident(User $actor, string $email, string $orderCode): array
+    private function verifiedCustomerCase(User $actor): Incident
+    {
+        $this->walletFor(self::CWID);
+        CentralCustomer::query()->create([
+            'id' => self::CUSTOMER_ID,
+            'central_wallet_id' => self::CWID,
+            'status' => 'active',
+        ]);
+        CentralCustomerIdentityCredential::query()->create([
+            'desk_customer_id' => self::CUSTOMER_ID,
+            'credential_type' => CustomerIdentityCredentialType::VerifiedEmail,
+            'provider' => 'desk_email',
+            'subject_hash' => app(CustomerIdentitySubjectHasher::class)->hashVerifiedEmail(self::EMAIL),
+            'verified_at' => now(),
+        ]);
+
+        return $this->incidentFor($actor, self::EMAIL, 'RN172');
+    }
+
+    private function incidentFor(User $actor, string $email, string $orderCode): Incident
     {
         $order = Order::query()->create([
             'order_id' => $orderCode,
             'customer_email' => $email,
-            'customer_name' => 'Wallet Customer',
+            'customer_name' => 'Ravi',
             'customer_phone' => '9123456780',
             'status' => 'active',
             'created_by' => $actor->id,
         ]);
 
-        $incident = Incident::query()->create([
+        return Incident::query()->create([
             'order_id' => $order->id,
             'reference_no' => app(IncidentReferenceService::class)->generate(),
             'category' => 'General',
@@ -232,19 +364,85 @@ class Customer360WalletLedgerTest extends TestCase
             'updated_by' => $actor->id,
             'assigned_to_user_id' => $actor->id,
         ]);
+    }
 
-        $refund = RefundRequest::query()->create([
-            'order_id' => $order->id,
-            'incident_id' => $incident->id,
-            'reference_no' => 'REF-2026-001234',
-            'amount' => 400,
-            'refund_amount' => 400,
-            'reason' => 'Wallet refund',
-            'approved_refund_method' => ApprovedRefundMethod::Wallet,
-            'status' => RefundStatus::Completed,
-            'requested_by' => $actor->id,
+    private function walletFor(string $cwid): void
+    {
+        CentralWallet::query()->create([
+            'id' => $cwid,
+            'status' => 'active',
         ]);
+    }
 
-        return [$incident, $refund];
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function ledgerRow(string $cwid, array $attributes = []): CentralWalletLedgerEntry
+    {
+        $entry = new CentralWalletLedgerEntry;
+        $entry->forceFill(array_merge([
+            'central_wallet_id' => $cwid,
+            'entry_type' => 'credit',
+            'amount' => '1.00',
+            'currency' => 'INR',
+            'status' => LedgerEntryStatus::Posted,
+            'source_system' => 'rdservice.in',
+            'source_reference' => null,
+            'correlation_id' => (string) Str::uuid(),
+            'business_reference' => null,
+            'posted_at' => now(),
+        ], $attributes));
+        $entry->save();
+
+        return $entry;
+    }
+
+    private function createVerifiedFiveEntries(): void
+    {
+        $this->ledgerRow(self::CWID, [
+            'id' => 55,
+            'entry_type' => 'credit',
+            'amount' => '499.00',
+            'source_system' => 'rdservice.in',
+            'source_reference' => 'users_wallet:2540',
+            'business_reference' => 'REF-2026-000300',
+            'posted_at' => '2026-10-02 11:55:57',
+        ]);
+        $this->ledgerRow(self::CWID, [
+            'id' => 56,
+            'entry_type' => 'debit',
+            'amount' => '50.00',
+            'source_system' => 'rdservice.in',
+            'source_reference' => 'checkout:rd_service',
+            'business_reference' => 'RD13874',
+            'posted_at' => '2026-10-02 15:56:47',
+        ]);
+        $this->ledgerRow(self::CWID, [
+            'id' => 57,
+            'entry_type' => 'debit',
+            'amount' => '50.00',
+            'source_system' => 'rdservice.net',
+            'source_reference' => 'checkout:rd_service',
+            'business_reference' => 'RN172',
+            'posted_at' => '2026-10-02 22:51:49',
+        ]);
+        $this->ledgerRow(self::CWID, [
+            'id' => 58,
+            'entry_type' => 'debit',
+            'amount' => '1.00',
+            'source_system' => 'rdservice.in',
+            'business_reference' => 'PROBE-NO-OP',
+            'posted_at' => '2026-10-04 20:12:29',
+        ]);
+        $this->ledgerRow(self::CWID, [
+            'id' => 59,
+            'entry_type' => 'reversal',
+            'amount' => '1.00',
+            'source_system' => 'rdservice.in',
+            'source_reference' => 'corrective_reversal:ledger_entry:58',
+            'business_reference' => 'PROBE-NO-OP-CORRECTION',
+            'original_ledger_entry_id' => 58,
+            'posted_at' => '2026-10-04 20:17:02',
+        ]);
     }
 }

@@ -318,17 +318,12 @@ class Customer360Controller extends Controller
         abort_unless(WalletLedgerAccess::allows($request->user()), 403);
 
         $validated = $request->validate([
-            'before_id' => ['nullable', 'integer', 'min:1'],
-            'type' => ['nullable', 'string', 'in:all,credit,debit'],
-            'status' => ['nullable', 'string', 'max:32'],
-            'order_code' => ['nullable', 'string', 'max:64'],
-            'desk_refund_reference' => ['nullable', 'string', 'max:64'],
-            'reference' => ['nullable', 'string', 'max:64'],
-            'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
+            'cursor' => ['nullable', 'string', 'max:512'],
+            'type' => ['nullable', 'string', 'in:all,credit,debit,reversal'],
+            'business_reference' => ['nullable', 'string', 'max:191'],
         ]);
 
-        $loadTab = $request->query('tab') === '1' && ! $request->filled('before_id');
+        $loadTab = $request->query('tab') === '1' && ! $request->filled('cursor');
 
         try {
             $ledger = $this->walletLedgerReadService->forIncident($incident, $this->authenticatedUser(), $validated);
