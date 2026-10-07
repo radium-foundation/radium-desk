@@ -19,6 +19,8 @@ Route::post('/wallets/{cwid}/ledger-entries', [WalletController::class, 'appendL
     ->name('central-wallet.wallets.ledger-entries.store');
 Route::get('/wallets/{cwid}/ledger-entries', [LedgerEntryController::class, 'indexForWallet'])
     ->name('central-wallet.wallets.ledger-entries.index');
+Route::get('/wallets/{cwid}/ledger-history', [LedgerEntryController::class, 'indexCustomerHistoryForWallet'])
+    ->name('central-wallet.wallets.ledger-history.index');
 
 Route::get('/ledger-entries', [LedgerEntryController::class, 'index'])
     ->name('central-wallet.ledger-entries.index');

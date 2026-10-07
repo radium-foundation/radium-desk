@@ -726,3 +726,15 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-102
 
 **Integrate the rdservice.in wallet-refund parser into production release v4.1.7.** Fast-forward `main` from `v4.1.6` / `584dd066` onto reviewed commit `b04f219e` only. No other commits from `release/sales-report-v4.1.4`. CHANGELOG **4.1.7**. Annotated tag `v4.1.7`. Wallet/refund regression **65** passed, including the rdservice.in client (**15**) and wallet refund execution (**20**). **No deploy. No completion of RD14441 / RD15020. No wallet mutation.**
+
+---
+
+## RadiumDesk-P-04-10-103
+
+**Deploy v4.1.7 to KVM production.** `./tools/desk deploy --yes` from clean `main` at `7ba534c3` / tag `v4.1.7`. Deletion inventory total **0**. Composer had nothing to install. Migrations: nothing to migrate. `/up` and `/login` returned 200. Production `release.json` is **4.1.7**, build **7ba534c3**. Deployed parser hash matches the release commit and accepts `CW:86`, `CW:87`, numeric, and `RD` references; malformed `CW` forms stay rejected. RD14441 and RD15020 remain `pending_execution`. CW #86 and #87 remain the single posted credits. `users_wallet` count remains **0**. **No refund completion. No wallet credit or reversal.**
+
+---
+
+## RadiumDesk-P-04-10-104
+
+**Restore Central Wallet customer ledger-history.** Production RadiumBox `GET /wallets/{cwid}/ledger-history` returns HTTP 404 on Desk v4.1.7 because the route from `441540c0` is not on `main`. Restored that route with trusted account-link authorization and posted history for `radiumbox.com`, `rdservice.in`, and `rdservice.net`. `GET /ledger-entries` remains limited to the caller source system. Customer-history API tests **15/15**. Central Wallet plus wallet/refund regression **231** passed, **4** skipped. **No deploy. No wallet, refund, reservation, or users_wallet mutation.**

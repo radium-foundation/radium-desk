@@ -93,6 +93,23 @@ return [
         'default_page_size' => max(1, (int) env('CENTRAL_WALLET_LEDGER_READ_DEFAULT_PAGE_SIZE', 100)),
         'max_page_size' => max(1, (int) env('CENTRAL_WALLET_LEDGER_READ_MAX_PAGE_SIZE', 500)),
         'max_date_range_days' => max(1, (int) env('CENTRAL_WALLET_LEDGER_READ_MAX_DATE_RANGE_DAYS', 31)),
+        'customer_history' => [
+            'enabled' => filter_var(env('CENTRAL_WALLET_CUSTOMER_HISTORY_READ_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'authorized_callers' => array_values(array_filter(array_map(
+                static fn (string $site): string => trim($site),
+                explode(',', (string) env(
+                    'CENTRAL_WALLET_CUSTOMER_HISTORY_AUTHORIZED_CALLERS',
+                    'radiumbox.com,rdservice.in,rdservice.net',
+                )),
+            ))),
+            'authorized_source_systems' => array_values(array_filter(array_map(
+                static fn (string $site): string => trim($site),
+                explode(',', (string) env(
+                    'CENTRAL_WALLET_CUSTOMER_HISTORY_AUTHORIZED_SOURCE_SYSTEMS',
+                    'radiumbox.com,rdservice.in,rdservice.net',
+                )),
+            ))),
+        ],
     ],
 
     /*

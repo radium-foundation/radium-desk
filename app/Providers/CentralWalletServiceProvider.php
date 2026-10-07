@@ -14,6 +14,7 @@ use App\CentralWallet\Application\Contracts\WalletMigrationSpokeClient;
 use App\CentralWallet\Application\CrossSiteCeremonyCohortEligibility;
 use App\CentralWallet\Application\CrossSiteCeremonyResolver;
 use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
+use App\CentralWallet\Application\CustomerLedgerHistoryAuthorizationGate;
 use App\CentralWallet\Application\ExternalDirectLedgerDebitGate;
 use App\CentralWallet\Application\HistoricalContactIdentityMatchService;
 use App\CentralWallet\Application\HistoricalVisibilityContactIndexLoader;
@@ -57,6 +58,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(ExternalDirectLedgerDebitGate::class);
         $this->app->singleton(ReservationStateMachine::class);
         $this->app->singleton(ReservationService::class);
+        $this->app->singleton(CustomerLedgerHistoryAuthorizationGate::class);
         $this->app->singleton(LedgerEntryReadService::class);
         $this->app->singleton(BalanceMigrationStateMachine::class);
         $this->app->singleton(BalanceMigrationCutoverService::class);

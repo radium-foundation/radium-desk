@@ -2,6 +2,7 @@
 
 namespace App\CentralWallet\Infrastructure\Http\Controllers;
 
+use App\CentralWallet\Application\CustomerLedgerHistoryAuthorizationGate;
 use App\CentralWallet\Application\LedgerEntryCursor;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Domain\Cwid;
@@ -17,6 +18,7 @@ final class LedgerEntryController
 {
     public function __construct(
         private readonly LedgerEntryReadService $ledgerReads,
+        private readonly CustomerLedgerHistoryAuthorizationGate $customerHistoryAuthorization,
     ) {}
 
     public function show(Request $request, int $ledgerEntryId): JsonResponse
@@ -56,6 +58,48 @@ final class LedgerEntryController
         } catch (InvalidArgumentException $exception) {
             if ($exception->getMessage() === 'wallet_not_found') {
                 return response()->json(['error' => 'not_found'], 404);
+            }
+
+            throw $exception;
+        }
+
+        return response()->json($result);
+    }
+
+    public function indexCustomerHistoryForWallet(Request $request, string $cwid): JsonResponse
+    {
+        try {
+            Cwid::fromString($cwid);
+        } catch (InvalidArgumentException) {
+            return response()->json(['error' => 'invalid_cwid'], 422);
+        }
+
+        $callerId = (string) $request->attributes->get('central_wallet_caller_id');
+        $localUserId = trim((string) $request->query('local_user_id', ''));
+        if ($localUserId === '') {
+            return response()->json([
+                'error' => 'validation_error',
+                'message' => 'local_user_id is required.',
+            ], 422);
+        }
+
+        $authorizationError = $this->customerHistoryAuthorization->authorize($callerId, $cwid, $localUserId);
+        if ($authorizationError !== null) {
+            $status = $authorizationError === 'customer_history_read_disabled' ? 503 : 403;
+
+            return response()->json(['error' => $authorizationError], $status);
+        }
+
+        $parameters = $this->parseListParameters($request, includeWalletFilters: true, includeSweepFilters: false);
+        if ($parameters instanceof JsonResponse) {
+            return $parameters;
+        }
+
+        try {
+            $result = $this->ledgerReads->listCustomerHistoryForWallet($cwid, $parameters);
+        } catch (InvalidArgumentException $exception) {
+            if ($exception->getMessage() === 'customer_history_not_configured') {
+                return response()->json(['error' => 'customer_history_read_disabled'], 503);
             }
 
             throw $exception;
