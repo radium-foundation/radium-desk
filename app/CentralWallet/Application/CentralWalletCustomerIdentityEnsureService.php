@@ -61,6 +61,15 @@ final class CentralWalletCustomerIdentityEnsureService
 
         $existingLink = $this->activeAccountLink($siteCode, $localUserId);
         if ($existingLink !== null) {
+            $this->ensureTrustedCredentialsForLinkedCustomer(
+                $existingLink,
+                $email,
+                $mobileDigits,
+                $siteCode,
+                $localUserId,
+                $correlationId,
+            );
+
             return $this->success(
                 (string) $existingLink->central_wallet_id,
                 'account_link',
@@ -493,6 +502,227 @@ final class CentralWalletCustomerIdentityEnsureService
             'linked_at' => now(),
             'metadata' => ['source' => 'customer_identity_ensure'],
         ]);
+    }
+
+    private function ensureTrustedCredentialsForLinkedCustomer(
+        CentralWalletAccountLink $link,
+        string $email,
+        string $mobileDigits,
+        string $siteCode,
+        string $localUserId,
+        ?string $correlationId,
+    ): void {
+        if (! $this->hasSpokeAttestedIdentity($email, $mobileDigits, $siteCode, $localUserId)) {
+            return;
+        }
+
+        $deskCustomerId = trim((string) $link->desk_customer_id);
+        if ($deskCustomerId === '') {
+            return;
+        }
+
+        $customer = CentralCustomer::query()->find($deskCustomerId);
+        if ($customer === null || trim((string) $customer->central_wallet_id) === '') {
+            return;
+        }
+
+        $centralWalletId = (string) $customer->central_wallet_id;
+        if ((string) $link->central_wallet_id !== $centralWalletId) {
+            return;
+        }
+
+        $ownerIds = CentralCustomer::query()
+            ->where('central_wallet_id', $centralWalletId)
+            ->pluck('id')
+            ->map(static fn (mixed $id): string => (string) $id);
+
+        if ($ownerIds->count() !== 1 || $ownerIds->first() !== $deskCustomerId) {
+            return;
+        }
+
+        if ($email !== '' && str_contains($email, '@')) {
+            $this->ensureEmailCredentialForCustomer(
+                $customer,
+                $email,
+                $siteCode,
+                $localUserId,
+                $correlationId,
+            );
+        }
+
+        if (strlen($mobileDigits) >= 10) {
+            $this->ensureMobileCredentialForCustomer(
+                $customer,
+                $mobileDigits,
+                $siteCode,
+                $localUserId,
+                $correlationId,
+            );
+        }
+    }
+
+    private function ensureEmailCredentialForCustomer(
+        CentralCustomer $customer,
+        string $email,
+        string $siteCode,
+        string $localUserId,
+        ?string $correlationId,
+    ): void {
+        try {
+            $subjectHash = $this->subjectHasher->hashVerifiedEmail($email);
+        } catch (InvalidArgumentException) {
+            return;
+        }
+
+        if ($this->verifiedCredentialExistsForCustomer(
+            $customer,
+            CustomerIdentityCredentialType::VerifiedEmail,
+            'desk_email',
+            $subjectHash,
+        )) {
+            return;
+        }
+
+        if ($this->verifiedCredentialExistsForAnotherCustomer(
+            $customer,
+            CustomerIdentityCredentialType::VerifiedEmail,
+            'desk_email',
+            $subjectHash,
+        )) {
+            return;
+        }
+
+        $this->createVerifiedCredential(
+            $customer,
+            CustomerIdentityCredentialType::VerifiedEmail,
+            'desk_email',
+            $subjectHash,
+            $siteCode,
+            $localUserId,
+            'linked_account_credential_ensure',
+            $correlationId,
+        );
+    }
+
+    private function ensureMobileCredentialForCustomer(
+        CentralCustomer $customer,
+        string $mobileDigits,
+        string $siteCode,
+        string $localUserId,
+        ?string $correlationId,
+    ): void {
+        try {
+            $e164 = strlen($mobileDigits) === 10 ? '+91'.$mobileDigits : '+'.$mobileDigits;
+            $subjectHash = $this->subjectHasher->hashVerifiedMobileE164($e164);
+        } catch (InvalidArgumentException) {
+            return;
+        }
+
+        if ($this->verifiedCredentialExistsForCustomer(
+            $customer,
+            CustomerIdentityCredentialType::VerifiedMobile,
+            'desk_mobile',
+            $subjectHash,
+        )) {
+            return;
+        }
+
+        if ($this->verifiedCredentialExistsForAnotherCustomer(
+            $customer,
+            CustomerIdentityCredentialType::VerifiedMobile,
+            'desk_mobile',
+            $subjectHash,
+        )) {
+            return;
+        }
+
+        $this->createVerifiedCredential(
+            $customer,
+            CustomerIdentityCredentialType::VerifiedMobile,
+            'desk_mobile',
+            $subjectHash,
+            $siteCode,
+            $localUserId,
+            'linked_account_credential_ensure',
+            $correlationId,
+        );
+    }
+
+    private function verifiedCredentialExistsForCustomer(
+        CentralCustomer $customer,
+        CustomerIdentityCredentialType $type,
+        string $provider,
+        string $subjectHash,
+    ): bool {
+        return CentralCustomerIdentityCredential::query()
+            ->where('desk_customer_id', $customer->id)
+            ->where('credential_type', $type)
+            ->where('provider', $provider)
+            ->where('subject_hash', $subjectHash)
+            ->whereNotNull('verified_at')
+            ->exists();
+    }
+
+    private function verifiedCredentialExistsForAnotherCustomer(
+        CentralCustomer $customer,
+        CustomerIdentityCredentialType $type,
+        string $provider,
+        string $subjectHash,
+    ): bool {
+        return CentralCustomerIdentityCredential::query()
+            ->where('desk_customer_id', '!=', $customer->id)
+            ->where('credential_type', $type)
+            ->where('provider', $provider)
+            ->where('subject_hash', $subjectHash)
+            ->whereNotNull('verified_at')
+            ->exists();
+    }
+
+    private function createVerifiedCredential(
+        CentralCustomer $customer,
+        CustomerIdentityCredentialType $type,
+        string $provider,
+        string $subjectHash,
+        string $siteCode,
+        string $localUserId,
+        string $source,
+        ?string $correlationId,
+    ): void {
+        try {
+            CentralCustomerIdentityCredential::query()->create([
+                'desk_customer_id' => $customer->id,
+                'credential_type' => $type,
+                'provider' => $provider,
+                'subject_hash' => $subjectHash,
+                'verified_at' => now(),
+                'metadata' => [
+                    'source' => $source,
+                    'site_code' => $siteCode,
+                    'local_user_id' => $localUserId,
+                ],
+            ]);
+        } catch (QueryException $exception) {
+            if (str_contains($exception->getMessage(), 'central_customer_credentials_subject_uq')) {
+                return;
+            }
+
+            throw $exception;
+        }
+
+        $this->auditEvents->record(
+            eventType: 'customer_identity.ensure_linked_credential',
+            centralWalletId: (string) $customer->central_wallet_id,
+            actorType: AuditActorType::Service,
+            actorId: self::ACTOR_ID_PREFIX.':'.$siteCode,
+            correlationId: $correlationId,
+            payload: [
+                'desk_customer_id' => (string) $customer->id,
+                'site_code' => $siteCode,
+                'local_user_id' => $localUserId,
+                'credential_type' => $type->value,
+                'source' => $source,
+            ],
+        );
     }
 
     /**
