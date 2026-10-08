@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AssignmentOrigin;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Models\AuditLog;
@@ -41,6 +42,18 @@ class ServiceCaseOrderAssignmentRoutingTest extends TestCase
             'name' => 'Sumit',
             'email' => 'sumit@radiumbox.com',
             'is_active' => $active,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+
+        return $user;
+    }
+
+    private function createCapabilityHardwareOperator(string $email = 'hardware-capability@test.com'): User
+    {
+        $user = User::factory()->create([
+            'name' => 'Hardware Capability',
+            'email' => $email,
+            'is_active' => true,
         ]);
         $user->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
 
@@ -109,6 +122,21 @@ class ServiceCaseOrderAssignmentRoutingTest extends TestCase
 
         $this->assertSame('order_routing', $log->new_values['assignment_method'] ?? null);
         $this->assertSame('hardware_order', $log->new_values['assignment_rule'] ?? null);
+
+        $result->refresh();
+        $this->assertSame(AssignmentOrigin::HardwareFulfilment, $result->assignment_origin);
+    }
+
+    public function test_rbp_order_assigns_configured_hardware_operator(): void
+    {
+        $sumit = $this->createSumitUser();
+        $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+
+        $incident = $this->createIncident('RBP851');
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
+
+        $this->assertSame($sumit->id, $result->assigned_to_user_id);
+        $this->assertSame(AssignmentOrigin::HardwareFulfilment, $result->assignment_origin);
     }
 
     public function test_non_rde_order_continues_round_robin_assignment(): void
@@ -123,25 +151,30 @@ class ServiceCaseOrderAssignmentRoutingTest extends TestCase
         $this->assertSame($agentA->id, $result->assigned_to_user_id);
     }
 
-    public function test_inactive_sumit_falls_back_to_round_robin(): void
+    public function test_inactive_configured_assignee_uses_capability_hardware_operator(): void
     {
         $this->createSumitUser(active: false);
-        $agentA = $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        $fallback = $this->createCapabilityHardwareOperator();
+        $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
 
         $incident = $this->createIncident('RDE999001');
         $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
 
-        $this->assertSame($agentA->id, $result->assigned_to_user_id);
+        $this->assertSame($fallback->id, $result->assigned_to_user_id);
+        $this->assertSame(AssignmentOrigin::HardwareFulfilment, $result->assignment_origin);
     }
 
-    public function test_missing_sumit_falls_back_to_round_robin(): void
+    public function test_missing_configured_assignee_uses_capability_hardware_operator(): void
     {
-        $agentA = $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        config(['service_case_assignment.hardware_order.assignee_email' => '']);
+        $fallback = $this->createCapabilityHardwareOperator();
+        $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
 
         $incident = $this->createIncident('RDE888001');
         $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
 
-        $this->assertSame($agentA->id, $result->assigned_to_user_id);
+        $this->assertSame($fallback->id, $result->assigned_to_user_id);
+        $this->assertSame(AssignmentOrigin::HardwareFulfilment, $result->assignment_origin);
     }
 
     public function test_rde_order_assigns_sumit_even_when_grace_period_enabled(): void

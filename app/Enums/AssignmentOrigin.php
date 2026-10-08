@@ -6,6 +6,7 @@ enum AssignmentOrigin: string
 {
     case Auto = 'auto';
     case Manual = 'manual';
+    case HardwareFulfilment = 'hardware_fulfilment';
     case Support = 'support';
     case AppointmentSmartAssignment = 'appointment_smart_assignment';
     case Refund = 'refund';
@@ -24,6 +25,7 @@ enum AssignmentOrigin: string
     {
         return match ($this) {
             self::Support,
+            self::HardwareFulfilment,
             self::AppointmentSmartAssignment,
             self::Refund,
             self::Sales,
