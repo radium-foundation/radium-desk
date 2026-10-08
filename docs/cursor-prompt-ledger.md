@@ -391,5 +391,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-04-10-117 | 2026-10-08 | Implement Desk wallet-visibility API for spoke historical balance display | `GET /api/central-wallet/v1/wallet-visibility` via `WalletVisibilityService` + `LedgerService` (read-only). Identity: account link + verified credential attestation. Tests **7/7** + CW suite **174/174** pass (**4** skip). Companion `rdservice.in` P-04-10-16 account-link mirror. **No deploy/production wallet mutation.** |
 | RadiumDesk-P-04-10-118 | 2026-10-08 | Central Wallet Reliability Phase 1 — contract v1, runtime manifest, drift detection | Cross-project contract **1.0.0**, compatibility matrix, runtime manifest writer/verifier, provider drift checks, contract tests. **Local commit only — no production deploy/wallet mutation.** |
+| RadiumDesk-P-04-10-119 | 2026-10-08 | Read-only Central Wallet account-link reconciliation audit (Phase 2) | Desk **134** active links vs spoke local cache: rdin **89** missing, rbox **13**, rdnet **28**; **0** wallet mismatches. SELECT-only production audit + analyzer tests. **No sync/repair/wallet mutation.** |
 
 Do not renumber or overwrite earlier rows. Append only.
