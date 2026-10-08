@@ -27,6 +27,7 @@ use App\CentralWallet\Application\ReconciledHistoricalRefundFilter;
 use App\CentralWallet\Application\ReservationService;
 use App\CentralWallet\Application\ReservationStateMachine;
 use App\CentralWallet\Application\WalletRefundDestinationIdentityService;
+use App\CentralWallet\Application\WalletVisibilityService;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
 use App\CentralWallet\Infrastructure\Http\HttpWalletMigrationSpokeClient;
 use App\CentralWallet\Infrastructure\Http\Middleware\EnsureCentralWalletReservationsEnabled;
@@ -53,6 +54,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(HistoricalContactIdentityMatchService::class);
         $this->app->singleton(CentralWalletCustomerIdentityEnsureService::class);
         $this->app->singleton(WalletRefundDestinationIdentityService::class);
+        $this->app->singleton(WalletVisibilityService::class);
         $this->app->singleton(LedgerService::class);
         $this->app->singleton(IntegrationSourceSystemResolver::class);
         $this->app->singleton(ExternalDirectLedgerDebitGate::class);
