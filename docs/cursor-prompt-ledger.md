@@ -392,4 +392,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-120 | 2026-10-07 | Permanent Customer 360 identity: backfill verified credentials on linked ensure | Architecture **B** confirmed. Customer 360 keeps verified `desk_email`. `CentralWalletCustomerIdentityEnsureService` backfills verified credentials for linked customers when a spoke attests contact data. **50** cohort customers affected in production. **No production mutation. No deploy.** |
 | RadiumDesk-P-04-10-121 | 2026-10-07 | Release and deploy v4.1.12 Customer 360 identity credential backfill | Cherry-pick `f80ac5d8` onto `main` as `release/v4.1.12-customer-360-identity-ensure`. Tag **v4.1.12**. KVM `desk deploy --yes`. Customer 360 resolver unchanged. **No 50-customer credential backfill. No wallet/refund mutation.** Rollback: v4.1.11 / `997493ad`. |
 
+| RadiumDesk-P-04-10-117 | 2026-10-08 | Implement Desk wallet-visibility API for spoke historical balance display | `GET /api/central-wallet/v1/wallet-visibility` via `WalletVisibilityService` + `LedgerService` (read-only). Identity: account link + verified credential attestation. Tests **7/7** + CW suite **174/174** pass (**4** skip). Companion `rdservice.in` P-04-10-16 account-link mirror. **No deploy/production wallet mutation.** |
+
 Do not renumber or overwrite earlier rows. Append only.
