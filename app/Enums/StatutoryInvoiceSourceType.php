@@ -10,4 +10,5 @@ enum StatutoryInvoiceSourceType: string
     case ServiceOrder = 'service_order';
     case External = 'external';
     case CancellationAdjustment = 'cancellation_adjustment';
+    case InterBranchTransfer = 'inter_branch_transfer';
 }

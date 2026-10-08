@@ -786,3 +786,15 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-114
 
 **Fix RD15047 Business Timeline skipped-notification misclassification + skip-audit idempotency.** Skipped notifications classify as `SystemUpdate` instead of `OutboundEmail`. `recordSkipped()` dedupes repeated scheduler blocks via deterministic `skip_idempotency_key` (notification type, reason, source, automation action, blocking appointment id). Appointment guard preserved; reminder sends after appointment completes. Focused regression **62/62** PASS. **Local commit only — no deploy/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-116
+
+**Implement orchestrated Inter-Branch Transfer workflow (Delhi ↔ Mumbai).** New `InterBranchTransaction` domain: linked statutory invoice + inventory transfer + dispatch/receipt lifecycle + idempotency. Does NOT use POS `completeSale()` or `markSerialSold()`. Preserves existing manual transfer, PO/GR, and POS paths. **Code + tests only — no deploy/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-115
+
+**Read-only investigation: Delhi ↔ Mumbai inter-branch workflow (POS-6739 / INV-0767219 / PO-673).** Production v4.1.12 read-only on KVM8. **VERIFIED:** `inventory_transfers` count **0** (feature never used); all **7** Delhi→Mumbai Phil IGST invoices (including INV-0767219) follow POS retail sale → serials `sold` @ Delhi with **0** transfer movements; Mumbai completed POS sales **0**; PO-673 vendor GSTIN = Phil Mumbai (same as inter-branch buyer); GR-19/20/21 all **70** serials `assigned_elsewhere`. **No known-good Delhi↔Mumbai inter-branch transfer example exists.** Closest supplier receive: PO-683 / GR-18 (Venktron → Mumbai). Root cause: manual transfer never performed + POS `completeSale` marks serials sold (transfer requires `available`). PO-673/GR path wrong tool for inter-branch. Recommend new orchestrated inter-branch workflow (Option 3). **Investigation only — no mutations/deploy/commit.**

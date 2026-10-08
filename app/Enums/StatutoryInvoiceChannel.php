@@ -10,6 +10,7 @@ enum StatutoryInvoiceChannel: string
     case RdServiceNet = 'rdservice_net';
     case RadiumSignCom = 'radiumsign_com';
     case DeskService = 'desk_service';
+    case DeskInventory = 'desk_inventory';
     case Future = 'future';
 
     public function label(): string
@@ -21,6 +22,7 @@ enum StatutoryInvoiceChannel: string
             self::RdServiceNet => 'rdservice.net',
             self::RadiumSignCom => 'radiumsign.com',
             self::DeskService => 'Desk service POS',
+            self::DeskInventory => 'Desk inventory',
             self::Future => 'Future channel',
         };
     }

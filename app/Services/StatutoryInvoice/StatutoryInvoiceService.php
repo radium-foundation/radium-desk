@@ -778,6 +778,7 @@ class StatutoryInvoiceService
             StatutoryInvoiceSourceType::CommerceOrder,
             StatutoryInvoiceSourceType::ServiceOrder,
             StatutoryInvoiceSourceType::InventorySale,
+            StatutoryInvoiceSourceType::InterBranchTransfer,
         ], true)) {
             return $request;
         }

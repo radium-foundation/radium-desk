@@ -24,6 +24,11 @@
             'url' => route('inventory.transfers.index'),
             'visible' => true,
         ],
+        'inter-branch' => [
+            'label' => 'Inter-branch',
+            'url' => route('inventory.inter-branch-transfers.index'),
+            'visible' => InventoryAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_INVENTORY_STOCK_TRANSFER),
+        ],
         'reservations' => [
             'label' => 'Reservations',
             'url' => route('inventory.reservations.index'),

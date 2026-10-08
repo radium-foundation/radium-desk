@@ -62,6 +62,7 @@ use App\Http\Controllers\Inventory\ProductPackagingController as InventoryProduc
 use App\Http\Controllers\Inventory\ReservationController as InventoryReservationController;
 use App\Http\Controllers\Inventory\SerialController as InventorySerialController;
 use App\Http\Controllers\Inventory\StockController as InventoryStockController;
+use App\Http\Controllers\Inventory\InterBranchTransferController;
 use App\Http\Controllers\Inventory\TransferController as InventoryTransferController;
 use App\Http\Controllers\IraMemoryAdminController;
 use App\Http\Controllers\IraOperationsBrainController;
@@ -584,6 +585,14 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('transfers/create', [InventoryTransferController::class, 'create'])->name('transfers.create');
         Route::post('transfers', [InventoryTransferController::class, 'store'])->name('transfers.store');
         Route::get('transfers/{transfer}', [InventoryTransferController::class, 'show'])->name('transfers.show');
+
+        Route::get('inter-branch-transfers', [InterBranchTransferController::class, 'index'])->name('inter-branch-transfers.index');
+        Route::get('inter-branch-transfers/create', [InterBranchTransferController::class, 'create'])->name('inter-branch-transfers.create');
+        Route::post('inter-branch-transfers', [InterBranchTransferController::class, 'store'])->name('inter-branch-transfers.store');
+        Route::get('inter-branch-transfers/{interBranchTransfer}', [InterBranchTransferController::class, 'show'])->name('inter-branch-transfers.show');
+        Route::post('inter-branch-transfers/{interBranchTransfer}/dispatch', [InterBranchTransferController::class, 'dispatch'])->name('inter-branch-transfers.dispatch');
+        Route::post('inter-branch-transfers/{interBranchTransfer}/receive', [InterBranchTransferController::class, 'receive'])->name('inter-branch-transfers.receive');
+        Route::post('inter-branch-transfers/{interBranchTransfer}/cancel', [InterBranchTransferController::class, 'cancel'])->name('inter-branch-transfers.cancel');
 
         Route::get('adjustments', [InventoryAdjustmentController::class, 'index'])->name('adjustments.index');
         Route::get('adjustments/create', [InventoryAdjustmentController::class, 'create'])->name('adjustments.create');

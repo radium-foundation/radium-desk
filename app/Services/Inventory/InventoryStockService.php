@@ -779,6 +779,172 @@ class InventoryStockService
         ]);
     }
 
+    public function assertQuantityAvailable(
+        InventoryProduct $product,
+        InventoryBranch $branch,
+        int $qty,
+        ?InventoryProductVariant $variant = null,
+    ): void {
+        $this->assertProductQuantity($product);
+        $this->assertActive($product, $branch, $variant);
+
+        if ($qty < 1) {
+            throw ValidationException::withMessages([
+                'qty' => 'Quantity must be at least 1.',
+            ]);
+        }
+
+        $key = InventoryStockBalance::keyFor($product->id, $variant?->id, $branch->id);
+        $available = (int) InventoryStockBalance::query()
+            ->where('balance_key', $key)
+            ->value('available_qty');
+
+        if ($available < $qty) {
+            throw ValidationException::withMessages([
+                'qty' => "Insufficient stock for {$product->sku} at {$branch->code}.",
+            ]);
+        }
+    }
+
+    public function dispatchReservedSerialForInterBranch(
+        InventorySerial $serial,
+        InventoryReservation $reservation,
+        InventoryBranch $from,
+        InventoryBranch $to,
+        InventoryTransfer $transfer,
+        User $actor,
+    ): void {
+        if ($serial->branch_id !== $from->id) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$serial->serial_number} is not at {$from->code}.",
+            ]);
+        }
+
+        if ($serial->status !== InventorySerialStatus::Reserved
+            || (int) $serial->reserved_reservation_id !== (int) $reservation->id) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$serial->serial_number} is not reserved for this inter-branch transfer.",
+            ]);
+        }
+
+        $serial->update([
+            'status' => InventorySerialStatus::InTransit,
+            'reserved_reservation_id' => null,
+        ]);
+        $this->adjustBalance($serial->product, $serial->variant, $from, availableDelta: 0, reservedDelta: -1);
+
+        $this->recordMovement(
+            type: InventoryMovementType::TransferOut,
+            product: $serial->product,
+            branch: $from,
+            qty: -1,
+            actor: $actor,
+            variant: $serial->variant,
+            serial: $serial,
+            fromBranch: $from,
+            toBranch: $to,
+            transfer: $transfer,
+            fromStatus: InventorySerialStatus::Reserved,
+            toStatus: InventorySerialStatus::InTransit,
+            notes: 'Inter-branch dispatch',
+        );
+    }
+
+    public function dispatchReservedQuantityForInterBranch(
+        InventoryReservation $reservation,
+        InventoryProduct $product,
+        InventoryBranch $from,
+        InventoryBranch $to,
+        int $qty,
+        ?InventoryProductVariant $variant,
+        InventoryTransfer $transfer,
+        User $actor,
+    ): void {
+        $this->assertProductQuantity($product);
+        $this->consumeReservedQuantity($reservation, $product, $from, $qty, $variant);
+
+        $this->recordMovement(
+            type: InventoryMovementType::TransferOut,
+            product: $product,
+            branch: $from,
+            qty: -$qty,
+            actor: $actor,
+            variant: $variant,
+            fromBranch: $from,
+            toBranch: $to,
+            transfer: $transfer,
+            notes: 'Inter-branch dispatch',
+        );
+    }
+
+    public function receiveInterBranchSerial(
+        InventorySerial $serial,
+        InventoryBranch $from,
+        InventoryBranch $to,
+        InventoryTransfer $transfer,
+        User $actor,
+    ): void {
+        if ($serial->branch_id !== $from->id) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$serial->serial_number} is not in transit from {$from->code}.",
+            ]);
+        }
+
+        if ($serial->status !== InventorySerialStatus::InTransit) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$serial->serial_number} is not in transit.",
+            ]);
+        }
+
+        $serial->update([
+            'branch_id' => $to->id,
+            'status' => InventorySerialStatus::Available,
+        ]);
+        $this->adjustBalance($serial->product, $serial->variant, $to, availableDelta: 1);
+
+        $this->recordMovement(
+            type: InventoryMovementType::TransferIn,
+            product: $serial->product,
+            branch: $to,
+            qty: 1,
+            actor: $actor,
+            variant: $serial->variant,
+            serial: $serial,
+            fromBranch: $from,
+            toBranch: $to,
+            transfer: $transfer,
+            fromStatus: InventorySerialStatus::InTransit,
+            toStatus: InventorySerialStatus::Available,
+            notes: 'Inter-branch receipt',
+        );
+    }
+
+    public function receiveInterBranchQuantity(
+        InventoryProduct $product,
+        InventoryBranch $from,
+        InventoryBranch $to,
+        int $qty,
+        ?InventoryProductVariant $variant,
+        InventoryTransfer $transfer,
+        User $actor,
+    ): void {
+        $this->assertProductQuantity($product);
+        $this->adjustBalance($product, $variant, $to, availableDelta: $qty);
+
+        $this->recordMovement(
+            type: InventoryMovementType::TransferIn,
+            product: $product,
+            branch: $to,
+            qty: $qty,
+            actor: $actor,
+            variant: $variant,
+            fromBranch: $from,
+            toBranch: $to,
+            transfer: $transfer,
+            notes: 'Inter-branch receipt',
+        );
+    }
+
     public function adjustSerialStatus(
         InventorySerial $serial,
         InventorySerialStatus $toStatus,
