@@ -13,6 +13,7 @@ final class CentralWalletReleaseGateRunner
         private readonly CentralWalletSyntheticWalletProbe $syntheticProbe,
         private readonly CentralWalletAccountLinkReconciliationReader $reconciliationReader,
         private readonly CentralWalletAccountLinkVarianceEvaluator $varianceEvaluator,
+        private readonly CentralWalletOverlayIntegrityVerifier $overlayIntegrityVerifier,
     ) {}
 
     /**
@@ -25,6 +26,7 @@ final class CentralWalletReleaseGateRunner
             'contract' => $this->checkContract(),
             'routes' => $this->checkRoutes(),
             'runtime_manifest' => $this->checkRuntimeManifest($phase),
+            'overlay_integrity' => $this->checkOverlayIntegrity($phase),
             'deployment_drift' => $this->checkDeploymentDrift($phase),
             'authentication' => $this->checkAuthentication($phase),
             'semantic_invariants' => $this->wrapSection($this->semanticVerifier->verifyProvider()),
@@ -135,7 +137,7 @@ final class CentralWalletReleaseGateRunner
             ];
         }
 
-        $required = ['project', 'environment', 'contract_version', 'deployed_at'];
+        $required = ['project', 'contract_version'];
         $missing = [];
 
         foreach ($required as $key) {
@@ -144,7 +146,21 @@ final class CentralWalletReleaseGateRunner
             }
         }
 
-        $gitSha = trim((string) ($manifest['git_sha'] ?? ($manifest['git']['sha'] ?? '')));
+        if ((int) ($manifest['schema_version'] ?? 0) >= 2) {
+            foreach (['target_environment', 'release_identity', 'managed_files', 'source_identity'] as $key) {
+                if (! array_key_exists($key, $manifest)) {
+                    $missing[] = $key;
+                }
+            }
+        } elseif (! array_key_exists('deployed_at', $manifest)) {
+            $missing[] = 'deployed_at';
+        }
+
+        $gitSha = trim((string) (
+            $manifest['source_identity']['primary_source_commit']
+            ?? $manifest['git_sha']
+            ?? ($manifest['git']['sha'] ?? '')
+        ));
         if ($gitSha === '') {
             $missing[] = 'git_sha';
         }
@@ -156,6 +172,40 @@ final class CentralWalletReleaseGateRunner
                 'result' => $missing === [] ? 'PASS' : 'FAIL',
                 'details' => ['missing' => $missing, 'deployment_type' => $manifest['deployment_type'] ?? null],
             ]],
+        ];
+    }
+
+    /**
+     * @return array{status: string, checks: list<array<string, mixed>>}
+     */
+    /**
+     * @return array{status: string, checks: list<array<string, mixed>>}
+     */
+    private function checkOverlayIntegrity(string $phase): array
+    {
+        $manifest = $this->manifestStore->read();
+
+        if ($manifest === null) {
+            return [
+                'status' => $phase === 'post' ? 'FAIL' : 'WARN',
+                'checks' => [[
+                    'id' => 'overlay_integrity_deferred',
+                    'result' => $phase === 'post' ? 'FAIL' : 'WARN',
+                    'details' => ['message' => 'runtime manifest absent'],
+                ]],
+            ];
+        }
+
+        $report = $this->overlayIntegrityVerifier->verify($manifest);
+        $status = (string) ($report['status'] ?? 'FAIL');
+
+        if ($phase === 'pre' && in_array($status, ['WARN', 'UNVERIFIABLE'], true)) {
+            $status = 'PASS';
+        }
+
+        return [
+            'status' => $status,
+            'checks' => $report['checks'] ?? [],
         ];
     }
 
@@ -348,17 +398,23 @@ final class CentralWalletReleaseGateRunner
     private function resolveFinal(array $sections): array
     {
         foreach ($sections as $section) {
+            if (($section['status'] ?? '') === 'BLOCKED') {
+                return [
+                    'status' => 'BLOCKED',
+                    'message' => 'BLOCKED — FIXTURE OR RECONCILIATION NOT CONFIGURED',
+                ];
+            }
+        }
+
+        foreach ($sections as $section) {
             if (($section['status'] ?? '') === 'FAIL') {
                 return ['status' => 'FAIL', 'message' => ''];
             }
         }
 
         foreach ($sections as $section) {
-            if (($section['status'] ?? '') === 'BLOCKED') {
-                return [
-                    'status' => 'BLOCKED',
-                    'message' => 'BLOCKED — FIXTURE OR RECONCILIATION NOT CONFIGURED',
-                ];
+            if (($section['status'] ?? '') === 'WARN') {
+                return ['status' => 'WARN', 'message' => ''];
             }
         }
 

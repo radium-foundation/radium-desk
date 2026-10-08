@@ -59,11 +59,11 @@ class CentralWalletDeploymentDriftTest extends TestCase
             project: 'radium-desk',
             environment: 'testing',
             deploymentType: 'overlay',
-            runtimeFiles: ['routes/central_wallet.php'],
-            sourceCommit: 'deadbeef',
+            sourceCommit: 'abc1234567890abcdef1234567890abcdef123456',
         );
 
-        $manifest['runtime_files'][0]['sha256'] = str_repeat('a', 64);
+        $manifest['managed_files'][0]['sha256'] = str_repeat('a', 64);
+        $manifest['runtime_files'] = $manifest['managed_files'];
         $store->write($manifest);
 
         $report = app(CentralWalletDeploymentDriftVerifier::class)->verifyProvider();

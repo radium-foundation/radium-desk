@@ -9,6 +9,7 @@ final class CentralWalletDeploymentDriftVerifier
     public function __construct(
         private readonly CentralWalletContractCatalog $catalog,
         private readonly CentralWalletRuntimeManifestStore $runtimeManifestStore,
+        private readonly CentralWalletOverlayIntegrityVerifier $overlayIntegrityVerifier,
     ) {}
 
     /**
@@ -25,6 +26,7 @@ final class CentralWalletDeploymentDriftVerifier
         $checks[] = $this->checkRuntimeManifestContractVersion();
         $checks[] = $this->checkRuntimeFileHashes();
         $checks[] = $this->checkReleaseManifestDrift();
+        $checks = array_merge($checks, $this->overlayIntegrityChecks());
 
         return [
             'status' => $this->aggregateStatus($checks),
@@ -199,6 +201,24 @@ final class CentralWalletDeploymentDriftVerifier
             'result' => $mismatches === [] ? 'PASS' : 'FAIL',
             'details' => ['mismatches' => $mismatches],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function overlayIntegrityChecks(): array
+    {
+        $report = $this->overlayIntegrityVerifier->verify();
+        $checks = [];
+
+        foreach ($report['checks'] ?? [] as $check) {
+            $checks[] = $check;
+        }
+
+        return $checks;
     }
 
     /**

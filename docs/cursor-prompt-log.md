@@ -822,3 +822,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-126
 
 **Integrate Central Wallet Reliability into `main`.** Cherry-picked the production-verified CW stack from `feat/360-central-wallet-ledger` onto `main`: wallet-visibility API, contract v1, runtime manifest/drift, account-link reconciliation audit, production release gate, nested-manifest gate fix, ContractProbe dynamic site-code fix, and gate deploy scripts. Integration tests **24/24** PASS. **No production deploy. No wallet/data mutation.**
+
+---
+
+## RadiumDesk-P-04-10-127
+
+**Phase B — Central Wallet release-manifest hardening.** Runtime manifest schema v2 with deterministic `release_identity`, explicit managed-file inventory (38 files), orphan overlay detection, `central-wallet:verify-overlay-integrity`, multi-commit `source_components`, and release-gate overlay-integrity integration. Manifest/drift/gate tests **19/19** PASS. **NO production deploy.**

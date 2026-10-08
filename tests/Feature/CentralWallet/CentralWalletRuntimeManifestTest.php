@@ -44,11 +44,13 @@ class CentralWalletRuntimeManifestTest extends TestCase
 
         $manifest = (new CentralWalletRuntimeManifestStore($this->manifestPath))->read();
 
+        $this->assertSame(2, $manifest['schema_version']);
         $this->assertSame('1.0.0', $manifest['contract_version']);
         $this->assertSame('overlay', $manifest['deployment_type']);
         $this->assertSame('RadiumDesk-P-04-10-117', $manifest['overlay']['prompt_id']);
         $this->assertSame('ae25e178', $manifest['overlay']['source_commit']);
-        $this->assertNotEmpty($manifest['runtime_files']);
+        $this->assertNotEmpty($manifest['managed_files']);
+        $this->assertNotEmpty($manifest['release_identity']);
     }
 
     public function test_builder_hashes_default_runtime_files(): void
@@ -57,12 +59,11 @@ class CentralWalletRuntimeManifestTest extends TestCase
             project: 'radium-desk',
             environment: 'testing',
             deploymentType: 'git',
-            runtimeFiles: app(CentralWalletRuntimeManifestBuilder::class)->defaultDeskRuntimeFiles(),
-            gitSha: 'testsha',
+            gitSha: 'abc1234567890abcdef1234567890abcdef123456',
         );
 
         $this->assertSame('1.0.0', $manifest['contract_version']);
-        $this->assertTrue(collect($manifest['runtime_files'])->every(
+        $this->assertTrue(collect($manifest['managed_files'])->every(
             fn (array $entry): bool => ($entry['exists'] ?? false) === true && is_string($entry['sha256'] ?? null),
         ));
     }

@@ -41,6 +41,7 @@ deploy_desk() {
     app/Console/Commands/CentralWalletVerifyReleaseGateCommand.php \
     app/Console/Commands/CentralWalletWriteRuntimeManifestCommand.php \
     app/Console/Commands/CentralWalletVerifyDeploymentDriftCommand.php \
+    app/Console/Commands/CentralWalletVerifyOverlayIntegrityCommand.php \
     app/Providers/CentralWalletServiceProvider.php \
     config/central_wallet.php \
     contracts/central-wallet
@@ -50,6 +51,7 @@ deploy_desk() {
     app/Console/Commands/CentralWalletVerifyReleaseGateCommand.php \
     app/Console/Commands/CentralWalletWriteRuntimeManifestCommand.php \
     app/Console/Commands/CentralWalletVerifyDeploymentDriftCommand.php \
+    app/Console/Commands/CentralWalletVerifyOverlayIntegrityCommand.php \
     "${SSH_USER}@${SSH_HOST}:${PROD}/app/Console/Commands/")
   (cd "$DESK_ROOT" && "${RSYNC[@]}" app/Providers/CentralWalletServiceProvider.php "${SSH_USER}@${SSH_HOST}:${PROD}/app/Providers/")
   (cd "$DESK_ROOT" && "${RSYNC[@]}" config/central_wallet.php "${SSH_USER}@${SSH_HOST}:${PROD}/config/")
@@ -86,6 +88,7 @@ deploy_consumer() {
     app/Console/Commands/CentralWalletVerifyReleaseGateCommand.php \
     app/Console/Commands/CentralWalletWriteRuntimeManifestCommand.php \
     app/Console/Commands/CentralWalletVerifyDeploymentDriftCommand.php \
+    app/Console/Commands/CentralWalletVerifyOverlayIntegrityCommand.php \
     "${SSH_USER}@${SSH_HOST}:${PROD}/app/Console/Commands/")
   (cd "$ROOT" && "${RSYNC[@]}" app/Providers/CentralWalletServiceProvider.php "${SSH_USER}@${SSH_HOST}:${PROD}/app/Providers/")
   (cd "$ROOT" && "${RSYNC[@]}" config/central_wallet.php "${SSH_USER}@${SSH_HOST}:${PROD}/config/")

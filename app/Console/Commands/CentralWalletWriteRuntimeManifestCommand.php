@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\CentralWallet\Reliability\CentralWalletGitWorktreeInspector;
 use App\CentralWallet\Reliability\CentralWalletRuntimeManifestBuilder;
 use App\CentralWallet\Reliability\CentralWalletRuntimeManifestStore;
 use Illuminate\Console\Command;
@@ -18,40 +19,82 @@ final class CentralWalletWriteRuntimeManifestCommand extends Command
                             {--overlay-prompt-id= : Overlay prompt/deployment ID}
                             {--overlay-deployment-id= : Overlay deployment identifier}
                             {--source-commit= : Source commit for overlay files}
+                            {--source-component=* : Additional source component as commit:label}
                             {--rollback-reference= : Rollback artifact/reference}
-                            {--file=* : Runtime file path relative to project root}';
+                            {--require-clean-worktree : Fail if git worktree is dirty}';
 
-    protected $description = 'Write Central Wallet runtime deployment manifest (coexists with release.json)';
+    protected $description = 'Write Central Wallet runtime deployment manifest v2 (deterministic release identity)';
 
     public function handle(
         CentralWalletRuntimeManifestBuilder $builder,
         CentralWalletRuntimeManifestStore $store,
+        CentralWalletGitWorktreeInspector $gitInspector,
     ): int {
-        $files = $this->option('file');
-        if (! is_array($files) || $files === []) {
-            $files = $builder->defaultDeskRuntimeFiles();
+        if ($this->option('require-clean-worktree') && ! $gitInspector->isClean()) {
+            $this->error('Git worktree is dirty; resolve changes or omit --require-clean-worktree.');
+
+            return SymfonyCommand::FAILURE;
         }
+
+        $gitSha = $this->nullableOption('git-sha') ?? $gitInspector->headSha();
+        $gitBranch = $this->nullableOption('git-branch') ?? $gitInspector->branch();
 
         $manifest = $builder->build(
             project: (string) $this->option('project'),
             environment: (string) ($this->option('environment') ?: config('app.env', 'production')),
             deploymentType: (string) $this->option('deployment-type'),
-            runtimeFiles: array_values(array_map('strval', $files)),
-            gitSha: $this->nullableOption('git-sha'),
-            gitBranch: $this->nullableOption('git-branch'),
+            gitSha: $gitSha,
+            gitBranch: $gitBranch,
             overlayPromptId: $this->nullableOption('overlay-prompt-id'),
             overlayDeploymentId: $this->nullableOption('overlay-deployment-id'),
             sourceCommit: $this->nullableOption('source-commit'),
             rollbackReference: $this->nullableOption('rollback-reference'),
+            gitWorktreeClean: $gitInspector->isClean(),
+            sourceComponents: $this->parseSourceComponents(),
         );
 
         $store->write($manifest);
 
         $this->info('Runtime manifest written to '.$store->path());
-        $this->line('contract_version='.$manifest['contract_version']);
-        $this->line('runtime_files='.count($manifest['runtime_files'] ?? []));
+        $this->line('schema_version='.($manifest['schema_version'] ?? null));
+        $this->line('release_identity='.($manifest['release_identity'] ?? null));
+        $this->line('managed_file_count='.($manifest['managed_file_count'] ?? 0));
 
         return SymfonyCommand::SUCCESS;
+    }
+
+    /**
+     * @return list<array{commit: string, label: string}>
+     */
+    private function parseSourceComponents(): array
+    {
+        $components = [];
+        $raw = $this->option('source-component');
+
+        if (! is_array($raw)) {
+            return $components;
+        }
+
+        foreach ($raw as $entry) {
+            if (! is_string($entry) || trim($entry) === '') {
+                continue;
+            }
+
+            [$commit, $label] = array_pad(explode(':', $entry, 2), 2, 'component');
+            $commit = trim($commit);
+            $label = trim($label);
+
+            if ($commit === '') {
+                continue;
+            }
+
+            $components[] = [
+                'commit' => $commit,
+                'label' => $label !== '' ? $label : 'component',
+            ];
+        }
+
+        return $components;
     }
 
     private function nullableOption(string $name): ?string
