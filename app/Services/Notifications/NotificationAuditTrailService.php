@@ -20,6 +20,20 @@ class NotificationAuditTrailService
 
     public function recordSkipped(NotificationMessage $message, string $reason): AuditLog
     {
+        $idempotencyKey = $this->skipIdempotencyKey($message, $reason);
+
+        $existing = AuditLog::query()
+            ->where('auditable_type', $message->incident->getMorphClass())
+            ->where('auditable_id', $message->incident->id)
+            ->where('event', self::EVENT_SKIPPED)
+            ->where('new_values->skip_idempotency_key', $idempotencyKey)
+            ->latest('id')
+            ->first();
+
+        if ($existing instanceof AuditLog) {
+            return $existing;
+        }
+
         return $this->auditLogService->log(
             userId: $message->actor?->id,
             event: self::EVENT_SKIPPED,
@@ -28,10 +42,30 @@ class NotificationAuditTrailService
                 'notification_type' => $message->type->value,
                 'source' => $message->metadata['source'] ?? null,
                 'trigger_source' => $message->metadata['trigger_source'] ?? null,
+                'automation_action' => $message->metadata['automation_action'] ?? null,
+                'policy_key' => $message->metadata['policy_key'] ?? null,
+                'action_key' => $message->metadata['action_key'] ?? null,
+                'blocking_appointment_id' => $message->metadata['blocking_appointment_id'] ?? null,
                 'skip_reason' => $reason,
+                'skip_idempotency_key' => $idempotencyKey,
             ],
             request: $message->httpRequest,
         );
+    }
+
+    private function skipIdempotencyKey(NotificationMessage $message, string $reason): string
+    {
+        $parts = [
+            $message->type->value,
+            $reason,
+            (string) ($message->metadata['source'] ?? ''),
+            (string) ($message->metadata['automation_action'] ?? ''),
+            (string) ($message->metadata['policy_key'] ?? ''),
+            (string) ($message->metadata['action_key'] ?? ''),
+            (string) ($message->metadata['blocking_appointment_id'] ?? ''),
+        ];
+
+        return hash('sha256', implode('|', $parts));
     }
 
     public function recordUnhandledFailure(

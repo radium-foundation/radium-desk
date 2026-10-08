@@ -40,7 +40,15 @@ class SerialNotificationAppointmentEligibilityService
         array $metadata = [],
         ?Request $request = null,
     ): void {
-        $incident->loadMissing('order');
+        $incident->loadMissing(['order', 'supportAppointments']);
+
+        $blockingAppointmentId = $incident->supportAppointments
+            ->first(fn ($appointment): bool => $appointment->isScheduled())
+            ?->id;
+
+        if ($blockingAppointmentId !== null) {
+            $metadata['blocking_appointment_id'] = $blockingAppointmentId;
+        }
 
         $this->auditTrail->recordSkipped(
             new NotificationMessage(

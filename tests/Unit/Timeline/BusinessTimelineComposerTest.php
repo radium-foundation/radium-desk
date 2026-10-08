@@ -11,6 +11,39 @@ use Tests\TestCase;
 
 class BusinessTimelineComposerTest extends TestCase
 {
+    public function test_does_not_cluster_skipped_notifications_as_support_emails(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-07 18:00:00', 'Asia/Kolkata'));
+
+        $events = collect([
+            $this->skippedNotification(1, now()->subMinutes(10)),
+            $this->skippedNotification(2, now()->subMinutes(25)),
+            $this->skippedNotification(3, now()->subMinutes(40)),
+        ]);
+
+        $viewModel = app(BusinessTimelineComposer::class)->compose($events);
+
+        $titles = $viewModel->items()->pluck('title')->all();
+
+        $this->assertNotContains('3 support emails', $titles);
+        $this->assertContains('3 system updates', $titles);
+    }
+
+    public function test_outbound_email_events_still_cluster_as_support_emails(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-07 18:00:00', 'Asia/Kolkata'));
+
+        $events = collect([
+            $this->outboundNotification(1, now()->subMinutes(10)),
+            $this->outboundNotification(2, now()->subMinutes(25)),
+        ]);
+
+        $viewModel = app(BusinessTimelineComposer::class)->compose($events);
+
+        $this->assertSame(1, $viewModel->totalCount);
+        $this->assertSame('2 support emails', $viewModel->items()->first()?->title);
+    }
+
     public function test_clusters_same_day_whatsapp_reminders(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-01 18:00:00', 'Asia/Kolkata'));
@@ -264,6 +297,36 @@ class BusinessTimelineComposerTest extends TestCase
             summaryFields: [
                 ['label' => 'Template', 'value' => $summary],
             ],
+        );
+    }
+
+    private function skippedNotification(int $index, Carbon $at): TimelineEvent
+    {
+        return new TimelineEvent(
+            type: TimelineEventType::Notification,
+            occurredAt: $at,
+            title: 'Support Reminder Sent skipped',
+            actor: new TimelineActor('IRA', isAutomation: true),
+            dedupeKey: "notification-skipped:audit:{$index}",
+            detail: 'Active support appointment scheduled; serial notification skipped.',
+            filterTags: ['notifications'],
+            storyKey: "notification:customer_waiting_followup:{$index}:skipped",
+        );
+    }
+
+    private function outboundNotification(int $index, Carbon $at): TimelineEvent
+    {
+        return new TimelineEvent(
+            type: TimelineEventType::Notification,
+            occurredAt: $at,
+            title: 'Support Reminder Sent',
+            actor: new TimelineActor('IRA', isAutomation: true),
+            dedupeKey: "notification:audit:{$index}",
+            filterTags: ['notifications'],
+            communicationChannels: [
+                ['label' => 'Email', 'success' => true, 'detail' => 'Delivered'],
+            ],
+            storyKey: "notification:customer_waiting_followup:{$index}",
         );
     }
 }

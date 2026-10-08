@@ -111,6 +111,10 @@ final class BusinessMilestoneClassifier
             return BusinessMilestoneType::OutboundWhatsApp;
         }
 
+        if ($this->isSkippedNotification($event)) {
+            return BusinessMilestoneType::SystemUpdate;
+        }
+
         if ($event->type === TimelineEventType::Email
             || $event->type === TimelineEventType::Notification
             || $this->channelLooksLike('email', $event)
@@ -183,5 +187,18 @@ final class BusinessMilestoneClassifier
         return str_contains($haystack, 'repair started')
             || str_contains($haystack, 'in progress')
             || str_contains($haystack, 'diagnostics');
+    }
+
+    private function isSkippedNotification(TimelineEvent $event): bool
+    {
+        if ($event->type !== TimelineEventType::Notification) {
+            return false;
+        }
+
+        if (str_starts_with(strtolower($event->dedupeKey), 'notification-skipped:')) {
+            return true;
+        }
+
+        return str_ends_with(strtolower(trim($event->title)), ' skipped');
     }
 }

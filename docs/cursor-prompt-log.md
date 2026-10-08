@@ -768,3 +768,21 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-111
 
 **Local checkpoint of the 360 customer veto.** A recorded `customer_id` that is a different Desk customer leaves the wallet unresolved, and neither wallet is shown. A verified customer whose `central_wallet_id` is null stays unresolved: no balance, no ₹0, and no other customer's history. Dedicated 360 tests **17** passed. Central Wallet regression **166** passed, **4** skipped. Wallet/refund regression **78** passed and **1** known parent failure. Customer 360 regression **25** passed and **1** known parent failure. **Local commit only. No push. No deploy. No wallet mutation.**
+
+---
+
+## RadiumDesk-P-04-10-112
+
+**Release-readiness review only.** Compared `ca6d59fd` with checkpoint `c3f945b1` and re-ran the dedicated 360 suite, Central Wallet regression, wallet/refund regression, Customer 360 regression, and the twelve previously red statutory/PDF tests on both this branch and a detached parent checkout. The 360 tests passed. Every red statutory test failed the same way on parent `ca6d59fd`. No statutory file is in the diff. Classification **GREEN**. This log row is uncommitted. **No code change. No commit. No push. No deploy. No wallet mutation.**
+
+---
+
+## RadiumDesk-P-04-10-113
+
+**Read-only investigation: RD15047 dashboard “support emails” / Support Reminder Sent skipped.** Production v4.1.12 @ `aae7ddcd`. Verified **94** distinct `notification.skipped` audit logs for `customer_waiting_followup` (41 on 2026-10-06, 53 on 2026-10-07), **0** follow-up `notification.dispatched`, **0** `outgoing_email_messages`. ~15-minute interval matches `missing-serial:process` schedule. Business Timeline clusters skipped notification events as OutboundEmail “support emails”. Classification **G** (display misclassification + scheduler retry without skip idempotency). **Investigation only — completed. No mutations/deploy.**
+
+---
+
+## RadiumDesk-P-04-10-114
+
+**Fix RD15047 Business Timeline skipped-notification misclassification + skip-audit idempotency.** Skipped notifications classify as `SystemUpdate` instead of `OutboundEmail`. `recordSkipped()` dedupes repeated scheduler blocks via deterministic `skip_idempotency_key` (notification type, reason, source, automation action, blocking appointment id). Appointment guard preserved; reminder sends after appointment completes. Focused regression **62/62** PASS. **Local commit only — no deploy/production mutation.**

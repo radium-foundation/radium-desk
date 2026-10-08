@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\MissingSerialAutomationStatus;
 use App\Enums\NotificationType;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SupportAppointmentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SupportAppointment;
@@ -209,6 +211,89 @@ class SerialNotificationAppointmentEligibilityTest extends TestCase
         $this->assertDatabaseHas('audit_logs', [
             'auditable_id' => $incident->id,
             'event' => NotificationAuditTrailService::EVENT_SKIPPED,
+        ]);
+    }
+
+    public function test_blocked_reminder_records_single_skip_audit_on_repeated_scheduler_runs(): void
+    {
+        $this->enableNotificationChannels();
+        Mail::fake();
+
+        $order = $this->createEligibleMissingSerialOrder(paymentMinutesAgo: 60);
+        $incident = $order->latestIncident();
+        $firstRequestedAt = now()->subHours(25);
+
+        $order->update([
+            'missing_serial_automation_status' => MissingSerialAutomationStatus::Requested->value,
+            'missing_serial_first_requested_at' => $firstRequestedAt,
+            'missing_serial_last_contacted_at' => $firstRequestedAt,
+        ]);
+
+        $this->createAppointment($incident, SupportAppointmentStatus::Scheduled);
+
+        Artisan::call('missing-serial:process');
+        Carbon::setTestNow(now()->addMinutes(15));
+        Artisan::call('missing-serial:process');
+        Carbon::setTestNow(now()->addMinutes(15));
+        Artisan::call('missing-serial:process');
+
+        $order->refresh();
+
+        $this->assertSame(MissingSerialAutomationStatus::Requested->value, $order->missing_serial_automation_status);
+        $this->assertSame(
+            0,
+            WhatsAppTemplateDispatch::query()
+                ->where('order_id', $order->id)
+                ->where('template_key', NotificationType::CustomerWaitingFollowup->value)
+                ->count(),
+        );
+
+        $this->assertSame(1, AuditLog::query()
+            ->where('auditable_id', $incident->id)
+            ->where('event', NotificationAuditTrailService::EVENT_SKIPPED)
+            ->where('new_values->notification_type', NotificationType::CustomerWaitingFollowup->value)
+            ->count());
+    }
+
+    public function test_reminder_still_sends_after_blocking_appointment_completes(): void
+    {
+        $this->enableNotificationChannels();
+        Mail::fake();
+
+        $order = $this->createEligibleMissingSerialOrder(paymentMinutesAgo: 60);
+        $incident = $order->latestIncident();
+        $firstRequestedAt = now()->subHours(25);
+
+        $order->update([
+            'missing_serial_automation_status' => MissingSerialAutomationStatus::Requested->value,
+            'missing_serial_first_requested_at' => $firstRequestedAt,
+            'missing_serial_last_contacted_at' => $firstRequestedAt,
+        ]);
+
+        $appointment = $this->createAppointment($incident, SupportAppointmentStatus::Scheduled);
+
+        Artisan::call('missing-serial:process');
+
+        $this->assertSame(1, AuditLog::query()
+            ->where('auditable_id', $incident->id)
+            ->where('event', NotificationAuditTrailService::EVENT_SKIPPED)
+            ->where('new_values->notification_type', NotificationType::CustomerWaitingFollowup->value)
+            ->count());
+
+        $appointment->update(['status' => SupportAppointmentStatus::Completed]);
+
+        Artisan::call('missing-serial:process');
+
+        $order->refresh();
+
+        $this->assertSame(MissingSerialAutomationStatus::Reminded->value, $order->missing_serial_automation_status);
+        $this->assertSame(1, WhatsAppTemplateDispatch::query()
+            ->where('order_id', $order->id)
+            ->where('template_key', NotificationType::CustomerWaitingFollowup->value)
+            ->count());
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => NotificationAuditTrailService::EVENT_DISPATCHED,
+            'auditable_id' => $incident->id,
         ]);
     }
 
