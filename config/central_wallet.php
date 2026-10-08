@@ -186,4 +186,21 @@ return [
         ),
     ],
 
+    'release_gate' => [
+        'role' => 'provider',
+        'project_key' => 'radium-desk',
+        'synthetic_probe' => [
+            'base_url' => rtrim((string) env('CENTRAL_WALLET_RELEASE_GATE_PROBE_BASE_URL', ''), '/'),
+            'integration_token' => env('CENTRAL_WALLET_RELEASE_GATE_PROBE_TOKEN'),
+            'site_code' => env('CENTRAL_WALLET_RELEASE_GATE_PROBE_SITE_CODE'),
+            'local_user_id' => env('CENTRAL_WALLET_RELEASE_GATE_PROBE_LOCAL_USER_ID'),
+            'email' => env('CENTRAL_WALLET_RELEASE_GATE_PROBE_EMAIL'),
+        ],
+        'account_link_reconciliation' => [
+            'enabled' => filter_var(env('CENTRAL_WALLET_RELEASE_GATE_RECONCILIATION_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'desk_env_path' => env('CENTRAL_WALLET_RELEASE_GATE_DESK_ENV_PATH'),
+            'spoke_env_path' => env('CENTRAL_WALLET_RELEASE_GATE_SPOKE_ENV_PATH'),
+        ],
+    ],
+
 ];
