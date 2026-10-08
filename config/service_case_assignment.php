@@ -83,17 +83,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Hardware (RDE) Product Order Assignment
+    | Hardware product order assignment (RBP/RDE/RDP/…)
     |--------------------------------------------------------------------------
     |
-    | Product orders whose order_id starts with the hardware prefix (RDE) are
-    | routed to this assignee before round-robin or smart workload balancing.
-    | Assignee is resolved by email — do not hardcode names in application code.
+    | Paid hardware product orders awaiting internal serial allocation route to
+    | a hardware fulfilment operator — never generic support round-robin.
+    |
+    | Resolution order:
+    | 1. assignee_email when set AND the user has hardware.fulfilment.operate
+    | 2. otherwise the lowest-id active user with hardware.fulfilment.operate
+    | 3. otherwise routing fails closed (unassigned until ingest retry / ops)
+    |
+    | Leave assignee_email empty to use capability-based routing only.
     |
     */
 
     'hardware_order' => [
-        'assignee_email' => env('SERVICE_CASE_HARDWARE_ORDER_ASSIGNEE_EMAIL', 'sumit@radiumbox.com'),
+        'assignee_email' => env('SERVICE_CASE_HARDWARE_ORDER_ASSIGNEE_EMAIL', ''),
     ],
 
     /*

@@ -12,6 +12,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\ServiceCaseAssignedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
+use App\Services\Assignment\HardwareOrderServiceCaseAssignmentCoordinator;
 use App\Services\Assignment\ReadyQueueAdminAssignmentService;
 use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Dashboard\DashboardSnapshotStore;
@@ -182,6 +183,11 @@ class ServiceCaseAssignmentService
             return $routed;
         }
 
+        if (app(HardwareOrderServiceCaseAssignmentCoordinator::class)->shouldBlockSupportRoundRobin($incident)) {
+            return app(HardwareOrderServiceCaseAssignmentCoordinator::class)
+                ->routeHardwareSerialAllocationCase($incident, $actor, 'grace_period_round_robin');
+        }
+
         if (! config('service_case_assignment.round_robin_enabled', true)) {
             if ($incident->order?->isInquiryOrder()) {
                 return $this->logUnassignedAfterGracePeriod($incident, $actor);
@@ -327,6 +333,11 @@ class ServiceCaseAssignmentService
         ?Carbon $at = null,
     ): Incident {
         $incident = $incident->fresh(['assignee', 'order']);
+
+        if (app(HardwareOrderServiceCaseAssignmentCoordinator::class)->shouldBlockSupportRoundRobin($incident)) {
+            return app(HardwareOrderServiceCaseAssignmentCoordinator::class)
+                ->routeHardwareSerialAllocationCase($incident, $actor, 'validation_failed_support_queue');
+        }
 
         $currentAssignee = $incident->assignee;
 
@@ -605,6 +616,11 @@ class ServiceCaseAssignmentService
         );
     }
 
+    public function tryAssignViaHardwareOrderRouting(Incident $incident, User $actor, ?Carbon $at = null): ?Incident
+    {
+        return $this->tryAssignViaOrderRouting($incident, $actor, $at);
+    }
+
     private function tryAssignViaOrderRouting(Incident $incident, User $actor, ?Carbon $at = null): ?Incident
     {
         $incident = $incident->fresh(['order', 'assignee']);
@@ -619,6 +635,7 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.assigned',
+            assignmentOrigin: AssignmentOrigin::HardwareFulfilment,
             extraNewValues: [
                 'assignment_method' => 'order_routing',
                 'assignment_rule' => 'hardware_order',

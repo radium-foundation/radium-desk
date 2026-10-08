@@ -7,6 +7,7 @@ use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentEvent;
 use App\Models\Order;
+use App\Services\Assignment\HardwareOrderServiceCaseAssignmentCoordinator;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +18,7 @@ class HardwareFulfilmentFoundationService
     public function __construct(
         private readonly HardwareFulfilmentPaymentCorrelationService $paymentCorrelation,
         private readonly HardwareFulfilmentWorkflowService $workflow,
+        private readonly HardwareOrderServiceCaseAssignmentCoordinator $hardwareAssignmentCoordinator,
     ) {}
 
     public function ensureIngested(CommerceOrder $order, ChannelOrderIngestRequest $request): ?HardwareFulfilment
@@ -195,7 +197,10 @@ class HardwareFulfilmentFoundationService
         }
 
         try {
-            return $this->workflow->markReady($fresh);
+            $ready = $this->workflow->markReady($fresh);
+            $this->hardwareAssignmentCoordinator->retryAfterFulfilmentIngest($ready);
+
+            return $ready;
         } catch (ValidationException $exception) {
             Log::notice('Hardware fulfilment remained ingested after readiness gate', [
                 'hardware_fulfilment_id' => $fresh->id,
@@ -203,7 +208,10 @@ class HardwareFulfilmentFoundationService
                 'errors' => $exception->errors(),
             ]);
 
-            return $fresh->fresh() ?? $fresh;
+            $persisted = $fresh->fresh() ?? $fresh;
+            $this->hardwareAssignmentCoordinator->retryAfterFulfilmentIngest($persisted);
+
+            return $persisted;
         }
     }
 

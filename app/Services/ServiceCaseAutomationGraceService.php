@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Data\Assignment\AssignmentRequest;
 use App\Enums\Assignment\AssignmentTrigger;
 use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
+use App\Services\Assignment\HardwareOrderServiceCaseAssignmentCoordinator;
 use App\Support\Assignment\Strategies\ReadyQueueAssignmentStrategy;
 use App\Support\Assignment\Strategies\SupportQueueAssignmentStrategy;
 use Illuminate\Support\Carbon;
@@ -26,6 +27,7 @@ class ServiceCaseAutomationGraceService
         private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
         private readonly AutomationOperationsSnapshotInvalidator $snapshotInvalidator,
+        private readonly HardwareOrderServiceCaseAssignmentCoordinator $hardwareAssignmentCoordinator,
     ) {}
 
     public function beginGracePeriod(Incident $incident, User $actor, ?Carbon $at = null): Incident
@@ -208,6 +210,16 @@ class ServiceCaseAutomationGraceService
             }
 
             $this->automationMonitor->recordWaitingManualCorrection($incident, $actor);
+
+            if ($order !== null && $this->hardwareAssignmentCoordinator->isAwaitingInternalSerialAllocation($order)) {
+                $this->hardwareAssignmentCoordinator->routeHardwareSerialAllocationCase(
+                    incident: $incident,
+                    actor: $actor,
+                    trigger: AssignmentTrigger::GraceExpired->value,
+                );
+
+                return true;
+            }
 
             $this->supportQueueStrategy->assign(
                 AssignmentRequest::make(
