@@ -816,3 +816,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-121
 
 **Release and deploy v4.1.12 Customer 360 identity credential backfill.** Deploys linked-account verified credential backfill in `CentralWalletCustomerIdentityEnsureService` only. Customer 360 resolver unchanged. **No 50-customer credential backfill. No wallet/refund mutation.**
+
+---
+
+## RadiumDesk-P-04-10-126
+
+**Integrate Central Wallet Reliability into `main`.** Cherry-picked the production-verified CW stack from `feat/360-central-wallet-ledger` onto `main`: wallet-visibility API, contract v1, runtime manifest/drift, account-link reconciliation audit, production release gate, nested-manifest gate fix, ContractProbe dynamic site-code fix, and gate deploy scripts. Integration tests **24/24** PASS. **No production deploy. No wallet/data mutation.**
