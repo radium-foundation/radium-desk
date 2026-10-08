@@ -1,0 +1,95 @@
+{
+  "contract_id": "central-wallet-integration",
+  "contract_version": "1.0.0",
+  "schema_version": 1,
+  "provider": "radium-desk",
+  "description": "Central Wallet integration contract between Radium Desk (SSOT ledger) and spoke sites.",
+  "invariants": [
+    "UNAVAILABLE != ZERO",
+    "Desk LedgerService / central_wallet_ledger_entries remain the financial source of truth.",
+    "A spoke must not treat HTTP 404, 503, timeout, or transport failure as an authoritative zero balance.",
+    "Missing wallet-visibility route is a contract failure, not a zero balance."
+  ],
+  "authentication": {
+    "type": "bearer",
+    "header": "Authorization",
+    "format": "Bearer {CENTRAL_WALLET_INTEGRATION_TOKEN}",
+    "required_headers": [
+      "X-Site-Code",
+      "Accept"
+    ],
+    "optional_headers": [
+      "X-Correlation-Id"
+    ],
+    "site_isolation": "X-Site-Code must equal query site_code"
+  },
+  "endpoints": [
+    {
+      "id": "wallet-visibility",
+      "method": "GET",
+      "path": "/api/central-wallet/v1/wallet-visibility",
+      "route_name": "central-wallet.wallet-visibility.show",
+      "middleware": [
+        "central_wallet.enabled",
+        "central_wallet.auth",
+        "central_wallet.historical_wallet_visibility"
+      ],
+      "query_parameters": {
+        "site_code": { "required": true, "type": "string" },
+        "local_user_id": { "required": true, "type": "string" },
+        "email": { "required_one_of": ["email", "mobile"], "type": "string" },
+        "mobile": { "required_one_of": ["email", "mobile"], "type": "string" },
+        "email_verified": { "required": false, "type": "boolean_string" }
+      },
+      "responses": {
+        "200": {
+          "required_fields": [
+            "wallet_balance",
+            "available_balance",
+            "currency",
+            "balance_status",
+            "balance_source",
+            "spendable",
+            "verification_required"
+          ],
+          "balance_status_values": [
+            "verified",
+            "unverified",
+            "verification_required"
+          ]
+        },
+        "401": { "error": "unauthenticated" },
+        "403": { "error": "site_mismatch" },
+        "404": { "error": "not_found" },
+        "409": { "error": "identity_ambiguous" },
+        "422": { "error": "contact_data_required" },
+        "503": { "error": "historical_wallet_visibility_disabled" }
+      }
+    },
+    {
+      "id": "wallet-balance",
+      "method": "GET",
+      "path": "/api/central-wallet/v1/wallets/{cwid}/balance",
+      "route_name": "central-wallet.wallets.balance"
+    },
+    {
+      "id": "account-links-index",
+      "method": "GET",
+      "path": "/api/central-wallet/v1/account-links",
+      "route_name": "central-wallet.account-links.index"
+    },
+    {
+      "id": "wallet-refund-destination",
+      "method": "GET",
+      "path": "/api/central-wallet/v1/wallet-refund-destination",
+      "route_name": "central-wallet.wallet-refund-destination.show"
+    }
+  ],
+  "spoke_failure_semantics": {
+    "http_404": "unresolved",
+    "http_409": "unresolved",
+    "http_503_feature_disabled": "unresolved_or_unavailable",
+    "transport_failure": "unavailable",
+    "must_not_map_to_zero_balance": true
+  }
+}

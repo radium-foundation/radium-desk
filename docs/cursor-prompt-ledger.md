@@ -393,5 +393,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-121 | 2026-10-07 | Release and deploy v4.1.12 Customer 360 identity credential backfill | Cherry-pick `f80ac5d8` onto `main` as `release/v4.1.12-customer-360-identity-ensure`. Tag **v4.1.12**. KVM `desk deploy --yes`. Customer 360 resolver unchanged. **No 50-customer credential backfill. No wallet/refund mutation.** Rollback: v4.1.11 / `997493ad`. |
 
 | RadiumDesk-P-04-10-117 | 2026-10-08 | Implement Desk wallet-visibility API for spoke historical balance display | `GET /api/central-wallet/v1/wallet-visibility` via `WalletVisibilityService` + `LedgerService` (read-only). Identity: account link + verified credential attestation. Tests **7/7** + CW suite **174/174** pass (**4** skip). Companion `rdservice.in` P-04-10-16 account-link mirror. **No deploy/production wallet mutation.** |
+| RadiumDesk-P-04-10-118 | 2026-10-08 | Central Wallet Reliability Phase 1 — contract v1, runtime manifest, drift detection | Cross-project contract **1.0.0**, compatibility matrix, runtime manifest writer/verifier, provider drift checks, contract tests. **Local commit only — no production deploy/wallet mutation.** |
 
 Do not renumber or overwrite earlier rows. Append only.
