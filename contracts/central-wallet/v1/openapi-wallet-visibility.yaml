@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: Central Wallet Integration Contract v1 — wallet-visibility
+  version: 1.0.0
+paths:
+  /api/central-wallet/v1/wallet-visibility:
+    get:
+      summary: Read-only spoke wallet visibility
+      parameters:
+        - in: query
+          name: site_code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: local_user_id
+          required: true
+          schema: { type: string }
+        - in: query
+          name: email
+          schema: { type: string }
+        - in: query
+          name: mobile
+          schema: { type: string }
+        - in: query
+          name: email_verified
+          schema: { type: string }
+        - in: header
+          name: Authorization
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-Site-Code
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Authoritative visibility payload
+        '401':
+          description: Unauthenticated
+        '403':
+          description: site_mismatch
+        '404':
+          description: not_found
+        '409':
+          description: identity_ambiguous
+        '422':
+          description: contact_data_required
+        '503':
+          description: historical_wallet_visibility_disabled

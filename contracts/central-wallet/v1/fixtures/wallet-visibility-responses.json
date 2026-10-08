@@ -1,0 +1,35 @@
+{
+  "unverified_positive": {
+    "wallet_balance": "499.00",
+    "available_balance": "499.00",
+    "currency": "INR",
+    "balance_status": "unverified",
+    "balance_source": "historical_wallet_refund",
+    "spendable": false,
+    "verification_required": true,
+    "display_label": "Wallet Balance — Unverified",
+    "display_hint": "Verify your account to use this balance."
+  },
+  "verified_spendable": {
+    "wallet_balance": "100.00",
+    "available_balance": "100.00",
+    "currency": "INR",
+    "balance_status": "verified",
+    "balance_source": "central_wallet",
+    "spendable": true,
+    "verification_required": false,
+    "display_label": "Wallet",
+    "display_hint": "Available balance"
+  },
+  "authoritative_zero": {
+    "wallet_balance": "0.00",
+    "available_balance": "0.00",
+    "currency": "INR",
+    "balance_status": "verification_required",
+    "balance_source": "central_wallet",
+    "spendable": false,
+    "verification_required": true,
+    "display_label": "Wallet",
+    "display_hint": "Connect and verify your account to view your wallet balance."
+  }
+}

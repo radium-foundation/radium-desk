@@ -1,0 +1,52 @@
+{
+  "central_wallet_contract_version": "1.0.0",
+  "providers": {
+    "radium-desk": {
+      "repository": "radium-foundation/radium-desk",
+      "role": "provider",
+      "implements_contract": "1.0.0",
+      "required_capabilities": [
+        "wallet-visibility",
+        "wallet-balance",
+        "account-links-index",
+        "wallet-refund-destination"
+      ]
+    }
+  },
+  "consumers": {
+    "rdservice.in": {
+      "repository": "radium-foundation/rdservice.in",
+      "site_code": "rdservice.in",
+      "requires_contract": "1.0.0",
+      "required_endpoints": [
+        "wallet-visibility",
+        "wallet-balance",
+        "account-links-index",
+        "wallet-refund-destination"
+      ]
+    },
+    "radiumbox.com": {
+      "repository": "radium-foundation/radiumbox.com",
+      "site_code": "radiumbox.com",
+      "requires_contract": "1.0.0",
+      "required_endpoints": [
+        "wallet-visibility",
+        "wallet-balance",
+        "account-links-index",
+        "wallet-refund-destination"
+      ]
+    },
+    "rdservice.net": {
+      "repository": "radium-foundation/rdservice.net",
+      "site_code": "rdservice.net",
+      "requires_contract": "1.0.0",
+      "required_endpoints": [
+        "wallet-visibility",
+        "wallet-balance",
+        "account-links-index",
+        "wallet-refund-destination"
+      ]
+    }
+  },
+  "compatibility_rule": "A consumer requiring contract 1.0.0 is compatible with a Desk provider implementing contract 1.0.0 when all required endpoints are present at runtime."
+}
