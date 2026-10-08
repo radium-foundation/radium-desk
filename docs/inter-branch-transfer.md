@@ -30,7 +30,26 @@ Move stock between Delhi and Mumbai (and other configured branches) with a linke
 - Inter-branch movement must **not** use POS at the source branch.
 - Serials must be **available** at the source when issuing.
 - PO/GR cannot receive serials that already exist in Desk inventory.
-- Historical transactions (including INV-0767219 / POS-6739) are **not** auto-repaired by this feature.
+- Historical Delhi→Mumbai POS movements (including INV-0767219 / POS-6739) require **legacy reconciliation** — see below.
+
+## Legacy reconciliation (historical POS movements)
+
+Historical Delhi→Mumbai stock was incorrectly completed through POS. Legacy reconciliation:
+
+- Reuses the **existing** statutory invoice and IRN (no `StatutoryInvoiceService::mint()`)
+- Preserves the existing POS sale and finance journal (no `cancelSale()` / no journal reversal)
+- Creates a completed `InterBranchTransaction` + inventory transfer
+- Moves serials: sold @ Delhi → in transit → available @ Mumbai
+- Does **not** generate Desk e-way bills or invoke PO/GR
+
+**Admin command (not POS/GR UI):**
+
+```bash
+php artisan inventory:reconcile-legacy-inter-branch --sale=39 --dry-run
+php artisan inventory:reconcile-legacy-inter-branch --discover
+```
+
+Production execution requires explicit owner approval after dry-run and accounting review.
 
 ## Reconciliation
 

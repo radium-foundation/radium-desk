@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\InterBranchEwayBillStatus;
+use App\Enums\InterBranchReconciliationMode;
 use App\Enums\InterBranchTransactionStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,10 @@ class InterBranchTransaction extends Model
         'statutory_invoice_id',
         'inventory_transfer_id',
         'inventory_reservation_id',
+        'legacy_inventory_sale_id',
+        'reconciliation_mode',
+        'reconciled_at',
+        'reconciled_by',
         'notes',
         'created_by',
         'issued_at',
@@ -41,7 +46,9 @@ class InterBranchTransaction extends Model
     {
         return [
             'status' => InterBranchTransactionStatus::class,
+            'reconciliation_mode' => InterBranchReconciliationMode::class,
             'eway_bill_status' => InterBranchEwayBillStatus::class,
+            'reconciled_at' => 'datetime',
             'issued_at' => 'datetime',
             'dispatched_at' => 'datetime',
             'received_at' => 'datetime',
@@ -91,8 +98,35 @@ class InterBranchTransaction extends Model
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
+    public function legacyInventorySale(): BelongsTo
+    {
+        return $this->belongsTo(InventorySale::class, 'legacy_inventory_sale_id');
+    }
+
+    public function reconciledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reconciled_by');
+    }
+
+    public function reconciliationAudits(): HasMany
+    {
+        return $this->hasMany(InterBranchReconciliationAudit::class);
+    }
+
+    public function isLegacyReconciliation(): bool
+    {
+        return $this->reconciliation_mode === InterBranchReconciliationMode::LegacyPosInterBranch;
+    }
+
     public function isReconciled(): bool
     {
+        if ($this->isLegacyReconciliation()) {
+            return $this->legacy_inventory_sale_id !== null
+                && $this->statutory_invoice_id !== null
+                && $this->inventory_transfer_id !== null
+                && $this->status === InterBranchTransactionStatus::Completed;
+        }
+
         return $this->statutory_invoice_id !== null
             && $this->inventory_transfer_id !== null
             && in_array($this->status, [

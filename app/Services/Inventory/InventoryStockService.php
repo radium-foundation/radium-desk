@@ -919,6 +919,121 @@ class InventoryStockService
         );
     }
 
+    public function dispatchLegacySoldSerialForInterBranch(
+        InventorySerial $serial,
+        InventoryBranch $from,
+        InventoryBranch $to,
+        InventoryTransfer $transfer,
+        InventorySale $legacySale,
+        User $actor,
+    ): void {
+        if ($serial->branch_id !== $from->id) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$serial->serial_number} is not at {$from->code}.",
+            ]);
+        }
+
+        if ($serial->status !== InventorySerialStatus::Sold) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$serial->serial_number} must be sold at {$from->code} for legacy reconciliation.",
+            ]);
+        }
+
+        $serial->update([
+            'status' => InventorySerialStatus::InTransit,
+            'reserved_reservation_id' => null,
+        ]);
+
+        $this->recordMovement(
+            type: InventoryMovementType::TransferOut,
+            product: $serial->product,
+            branch: $from,
+            qty: -1,
+            actor: $actor,
+            variant: $serial->variant,
+            serial: $serial,
+            fromBranch: $from,
+            toBranch: $to,
+            transfer: $transfer,
+            sale: $legacySale,
+            fromStatus: InventorySerialStatus::Sold,
+            toStatus: InventorySerialStatus::InTransit,
+            notes: 'Legacy inter-branch reconciliation dispatch',
+        );
+    }
+
+    public function receiveLegacyInterBranchSerial(
+        InventorySerial $serial,
+        InventoryBranch $from,
+        InventoryBranch $to,
+        InventoryTransfer $transfer,
+        InventorySale $legacySale,
+        User $actor,
+    ): void {
+        if ($serial->branch_id !== $from->id) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$serial->serial_number} is not in transit from {$from->code}.",
+            ]);
+        }
+
+        if ($serial->status !== InventorySerialStatus::InTransit) {
+            throw ValidationException::withMessages([
+                'serials' => "Serial {$serial->serial_number} is not in transit.",
+            ]);
+        }
+
+        $serial->update([
+            'branch_id' => $to->id,
+            'status' => InventorySerialStatus::Available,
+        ]);
+        $this->adjustBalance($serial->product, $serial->variant, $to, availableDelta: 1);
+
+        $this->recordMovement(
+            type: InventoryMovementType::TransferIn,
+            product: $serial->product,
+            branch: $to,
+            qty: 1,
+            actor: $actor,
+            variant: $serial->variant,
+            serial: $serial,
+            fromBranch: $from,
+            toBranch: $to,
+            transfer: $transfer,
+            sale: $legacySale,
+            fromStatus: InventorySerialStatus::InTransit,
+            toStatus: InventorySerialStatus::Available,
+            notes: 'Legacy inter-branch reconciliation receipt',
+        );
+    }
+
+    public function receiveLegacyInterBranchQuantity(
+        InventoryProduct $product,
+        InventoryBranch $from,
+        InventoryBranch $to,
+        int $qty,
+        ?InventoryProductVariant $variant,
+        InventoryTransfer $transfer,
+        InventorySale $legacySale,
+        User $actor,
+    ): void {
+        $this->assertProductQuantity($product);
+        $this->adjustBalance($product, $variant, $to, availableDelta: $qty);
+
+        $this->recordMovement(
+            type: InventoryMovementType::TransferIn,
+            product: $product,
+            branch: $to,
+            qty: $qty,
+            actor: $actor,
+            variant: $variant,
+            fromBranch: $from,
+            toBranch: $to,
+            transfer: $transfer,
+            sale: $legacySale,
+            notes: 'Legacy inter-branch reconciliation receipt',
+        );
+    }
+
     public function receiveInterBranchQuantity(
         InventoryProduct $product,
         InventoryBranch $from,

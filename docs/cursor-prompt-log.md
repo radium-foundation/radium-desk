@@ -791,10 +791,34 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 
 ## RadiumDesk-P-04-10-116
 
-**Implement orchestrated Inter-Branch Transfer workflow (Delhi ↔ Mumbai).** New `InterBranchTransaction` domain: linked statutory invoice + inventory transfer + dispatch/receipt lifecycle + idempotency. Does NOT use POS `completeSale()` or `markSerialSold()`. Preserves existing manual transfer, PO/GR, and POS paths. **Code + tests only — no deploy/production mutation.**
+**Implement orchestrated Inter-Branch Transfer workflow (Delhi ↔ Mumbai).** New `InterBranchTransaction` domain: linked statutory invoice + inventory transfer + dispatch/receipt lifecycle + idempotency. Does NOT use POS `completeSale()` or `markSerialSold()`. Preserves existing manual transfer, PO/GR, and POS paths. Focused regression **63/63** PASS; new suite **11/11** PASS. Commit `7a4efa13`. **Local commit only — no deploy/production mutation.**
 
 ---
 
 ## RadiumDesk-P-04-10-115
 
 **Read-only investigation: Delhi ↔ Mumbai inter-branch workflow (POS-6739 / INV-0767219 / PO-673).** Production v4.1.12 read-only on KVM8. **VERIFIED:** `inventory_transfers` count **0** (feature never used); all **7** Delhi→Mumbai Phil IGST invoices (including INV-0767219) follow POS retail sale → serials `sold` @ Delhi with **0** transfer movements; Mumbai completed POS sales **0**; PO-673 vendor GSTIN = Phil Mumbai (same as inter-branch buyer); GR-19/20/21 all **70** serials `assigned_elsewhere`. **No known-good Delhi↔Mumbai inter-branch transfer example exists.** Closest supplier receive: PO-683 / GR-18 (Venktron → Mumbai). Root cause: manual transfer never performed + POS `completeSale` marks serials sold (transfer requires `available`). PO-673/GR path wrong tool for inter-branch. Recommend new orchestrated inter-branch workflow (Option 3). **Investigation only — no mutations/deploy/commit.**
+
+---
+
+## RadiumDesk-P-04-10-117
+
+**Staging/UAT deploy: Inter-Branch Transfer @ `7a4efa13`.** Target verified isolated Desk UAT on KVM8 (`/var/www/radium-desk-uat`, `radium_desk_uat`, `desk-uat.radiumbox.com`, `APP_ENV=staging`). Production `/var/www/radium-desk` + `radium_desk` explicitly out of scope. Deploy via established KVM rsync pattern (worktree @ `7a4efa13`, migrate, cache rebuild). Migration failed: index name `inter_branch_transactions_from_branch_id_to_branch_id_status_index` exceeds MySQL 64-char limit; partial `inter_branch_transactions` table left on UAT. **No production deploy/migration/data mutation.**
+
+---
+
+## RadiumDesk-P-04-10-118
+
+**Fix Inter-Branch migration index names + redeploy to UAT only.** Short explicit index names (`ibt_from_to_status_idx`, `ibt_lines_txn_product_idx`) for MySQL/MariaDB 64-char limit. Clean partial UAT schema, redeploy, migrate on `radium_desk_uat` only. **No production deploy/migration/data mutation.**
+
+---
+
+## RadiumDesk-P-04-10-119
+
+**Read-only production analysis: legacy inter-branch reconciliation for INV-0767219 / POS-6739 / PO-673.** Production `radium_desk` SELECT-only on KVM8. Trace statutory invoice, POS sale, 70 serials, PO-673 draft GRs, historical Delhi→Mumbai POS pattern (7 invoices). Evaluate Options A–D for retaining existing GST invoice while reconciling inventory into Inter-Branch Transfer workflow. **No mutations/deploy/commit.**
+
+---
+
+## RadiumDesk-P-04-10-120
+
+**Implement permanent Legacy Inter-Branch Reconciliation mechanism.** `LegacyInterBranchReconciliationService` + additive migration (`legacy_inventory_sale_id`, reconciliation audit table) + stock transitions for sold→in-transit→available + `inventory:reconcile-legacy-inter-branch` command with dry-run/discover. Reuses existing statutory invoice/IRN; preserves POS sale and finance journal (metadata-only finance treatment — no GL reclassification; architecture lacks safe reclass path). Does not mint invoice, cancel sale, reverse journal, generate e-way, or invoke PO/GR. Focused tests **13/13** PASS; IBT regression **11/11** PASS; POS/finance regression **12/12** PASS. **No production deploy/migration/reconciliation.**
