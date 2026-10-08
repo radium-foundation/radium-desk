@@ -39,11 +39,13 @@ final class CentralWalletContractProbe
             'details' => ['http_status' => $unauth->status()],
         ];
 
+        $mismatchSiteCode = $siteCode === 'radiumbox.com' ? 'rdservice.in' : 'radiumbox.com';
+
         $mismatch = Http::acceptJson()
             ->withToken($integrationToken)
             ->withHeaders(['X-Site-Code' => $siteCode])
             ->get($url, [
-                'site_code' => 'radiumbox.com',
+                'site_code' => $mismatchSiteCode,
                 'local_user_id' => $localUserId,
                 'email' => $email,
             ]);
