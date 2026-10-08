@@ -36,12 +36,16 @@ return new class extends Migration
             $table->text('eway_bill_notes')->nullable();
             $table->timestamps();
 
-            $table->index(['from_branch_id', 'to_branch_id', 'status']);
+            $table->index(['from_branch_id', 'to_branch_id', 'status'], 'ibt_from_to_status_idx');
         });
 
         Schema::create('inter_branch_transaction_lines', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('inter_branch_transaction_id')->constrained('inter_branch_transactions')->cascadeOnDelete();
+            $table->foreignId('inter_branch_transaction_id');
+            $table->foreign('inter_branch_transaction_id', 'ibt_lines_txn_fk')
+                ->references('id')
+                ->on('inter_branch_transactions')
+                ->cascadeOnDelete();
             $table->foreignId('product_id')->constrained('inventory_products');
             $table->foreignId('variant_id')->nullable()->constrained('inventory_product_variants')->nullOnDelete();
             $table->foreignId('serial_id')->nullable()->constrained('inventory_serials')->nullOnDelete();
@@ -50,7 +54,7 @@ return new class extends Migration
             $table->decimal('gst_percentage', 5, 2);
             $table->timestamps();
 
-            $table->index(['inter_branch_transaction_id', 'product_id']);
+            $table->index(['inter_branch_transaction_id', 'product_id'], 'ibt_lines_txn_product_idx');
         });
     }
 
