@@ -53,7 +53,7 @@ final class CentralWalletReleaseGateRunner
     private function checkRepository(string $phase): array
     {
         $manifest = $this->manifestStore->read();
-        $hasSha = is_array($manifest) && trim((string) ($manifest['git_sha'] ?? '')) !== '';
+        $hasSha = is_array($manifest) && trim((string) ($manifest['git_sha'] ?? ($manifest['git']['sha'] ?? ''))) !== '';
 
         $result = $phase === 'post' && ! $hasSha ? 'WARN' : ($hasSha ? 'PASS' : 'PASS');
 
@@ -135,13 +135,18 @@ final class CentralWalletReleaseGateRunner
             ];
         }
 
-        $required = ['project', 'environment', 'contract_version', 'deployed_at', 'git_sha'];
+        $required = ['project', 'environment', 'contract_version', 'deployed_at'];
         $missing = [];
 
         foreach ($required as $key) {
             if (! array_key_exists($key, $manifest) || trim((string) $manifest[$key]) === '') {
                 $missing[] = $key;
             }
+        }
+
+        $gitSha = trim((string) ($manifest['git_sha'] ?? ($manifest['git']['sha'] ?? '')));
+        if ($gitSha === '') {
+            $missing[] = 'git_sha';
         }
 
         return [
