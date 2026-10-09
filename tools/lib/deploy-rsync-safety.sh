@@ -202,13 +202,13 @@ deploy_rsync_classify_deletion_path() {
     rel_path="${rel_path#./}"
     rel_path="${rel_path#/}"
 
-    if deploy_rsync_is_protected_path "$rel_path"; then
-        printf 'protected'
+    if [[ "$rel_path" == public/build/* ]]; then
+        printf 'expected'
         return 0
     fi
 
-    if [[ "$rel_path" == public/build/* ]]; then
-        printf 'expected'
+    if deploy_rsync_is_protected_path "$rel_path"; then
+        printf 'protected'
         return 0
     fi
 
