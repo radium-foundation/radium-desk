@@ -20,6 +20,7 @@ use App\Services\Wallet\DeskCustomerCentralWalletResolver;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -181,7 +182,7 @@ class CashfreeCentralCustomerBindingTest extends TestCase
 
     public function test_ambiguous_email_identity_does_not_bind_order(): void
     {
-        \Illuminate\Support\Facades\Schema::table('central_customer_identity_credentials', function ($table): void {
+        Schema::table('central_customer_identity_credentials', function ($table): void {
             $table->dropUnique('central_customer_credentials_subject_uq');
         });
 
