@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.14 — 2026-10-09 — Sales Report order-line quantities
+
+- **Total Quantity on parent row:** CA Monthly / Sales Report (`finance/reports/ca-monthly`) sums statutory invoice line `qty` for each invoice group and shows **Total Quantity** on the parent register row.
+- **Product / Quantity preview:** Single-line orders show product name and quantity; multi-line orders show **Total Quantity** on the parent row with per-line quantities on expand.
+- **Excel export:** Parent sheet includes **Total Quantity** column; existing financial columns and totals unchanged.
+- **No schema change:** Reporting and export only. No Central Wallet, hardware routing, or wallet behavior change.
+- Regression (verified on release candidate): CaMonthlyReport suite **199** passed; quantity cases **1**, **10**, and **16 + 10 = 26**; XLSX **Total Quantity** present.
+- Rollback target: v4.1.13 / `9d2ff84c`.
+- Prompt **RadiumDesk-P-04-10-143**.
+
 ## 4.1.13 — 2026-10-09 — Hardware order service-case routing
 
 - **Capability-based hardware routing:** Paid hardware product orders awaiting internal serial allocation route to an active user with `hardware.fulfilment.operate`, not generic Support round-robin.

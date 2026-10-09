@@ -822,3 +822,63 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-133
 
 **Production rollout — hardware-order service-case routing fix.** Release branch `release/v4.1.13-hardware-routing` from **v4.1.12** / `aae7ddcd` with cherry-pick of hardware routing only; tag **v4.1.13**; KVM deploy. Prevents new hardware-awaiting-serial cases from generic Support RR or ineligible assignees. **No historical reassignment/backfill. No Central Wallet deploy from this release tree.**
+
+---
+
+## RadiumDesk-P-04-10-134
+
+**Post-deployment hardware routing verification & worker check.** Read-only production verification of v4.1.13 overlay; investigate Supervisor queue workers for stale PHP class retention; restart via documented `kvm_restart_supervisor_worker` if required; confirm release/hardware code/historical cases unchanged; document first-natural-order monitoring. **No business-data mutation.**
+
+---
+
+## RadiumDesk-P-04-10-135
+
+**Investigation-only — hardware-sales priority mapping for RBP675 / RBEVOL250P (Evolis YMCKOKO ribbon).** Read-only repo + production (`radium_desk`, `radiumbox_prod`) trace of mapping/priority rules. **No code/DB/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-136
+
+**Authoritative SKU identity investigation — RBP675 / RadiumBox model_id 915.** Read-only Desk inventory master, Box catalog, cross-mapping comparables, historical orders, serialized vs consumable semantics. **No mapping implementation or DB writes.**
+
+---
+
+## RadiumDesk-P-04-10-137
+
+**Read-only verification — Owner map PEV250PRIN (Box model 915) → Desk RBEVOL250P; serialized/UQC master-data; channel_sku convention; RBP675 / HF 1076 impact.** Production read-only SELECTs on `radium_desk` + `radiumbox_prod`. **Conclusion: VERIFIED IDENTITY / MASTER-DATA ISSUE** (`is_serialized=1` + UQC NULL inconsistent with consumable/ribbon semantics). **No mapping, config, or master-data mutation.**
+
+---
+
+## RadiumDesk-P-04-10-138
+
+**Production master-data correction — `inventory_products.id=12` / RBEVOL250P:** set `is_serialized=0`, `uqc=PCS` via application Eloquent (same fields as Inventory Product admin update). Pre-change row backup + rollback SQL documented. **No model 915 mapping, no RBP675/HF/order changes, no deploy.**
+
+---
+
+## RadiumDesk-P-04-10-139
+
+**Hardware SKU mapping — radiumbox_com model_id 915 / PEV250PRIN → Desk RBEVOL250P (inventory_product_id 12).** Config entry + production seed via `desk:seed-radiumbox-hardware-sku-maps --apply`. **No product master-data change, no stock, no fulfilment.**
+
+---
+
+## RadiumDesk-P-04-10-140
+
+**Owner correction — model 345 / PEV2CR250P → RBEVOL250P (RBP832); model 915 / PEV250PRIN → RBEVO1250P (RBP675).** Config + seed command sync update; production seed apply. **No historical order/HF/stock/master-data changes.**
+
+---
+
+## RadiumDesk-P-04-10-141
+
+**Read-only investigation — RBP675 cannot allocate quantity stock for RBEVO1250P (product 93).** Trace Desk stock tables, receipts, reservations, branch eligibility vs allocation service. **No production writes.**
+
+---
+
+## RadiumDesk-P-04-10-142
+
+**Sales Report quantity enhancement** — per-order total quantity (SUM statutory line qty) and visible Product/Quantity columns in preview; expandable line quantities; Excel **Total Quantity** parent column.
+
+---
+
+## RadiumDesk-P-04-10-143
+
+**Production release v4.1.14 — Sales Report quantity.** Deploy reporting-only CA monthly quantity columns and XLSX **Total Quantity** from commit `4a4ec0fb` onto production baseline **v4.1.13** / `9d2ff84c`. **No Evolis SKU map or Central Wallet scope.**
