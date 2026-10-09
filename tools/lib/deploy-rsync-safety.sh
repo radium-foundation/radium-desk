@@ -136,6 +136,10 @@ storage/app/*
 storage/*
 --exclude
 public/build/
+--exclude
+docs/ca-evidence/
+--exclude
+assets/
 EOF
 }
 
