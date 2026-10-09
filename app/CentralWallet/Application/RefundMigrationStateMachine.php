@@ -58,7 +58,9 @@ final class RefundMigrationStateMachine
                 RefundMigrationStatus::Reversed,
                 RefundMigrationStatus::ReconciliationRequired,
             ],
-            RefundMigrationStatus::ReconciliationRequired,
+            RefundMigrationStatus::ReconciliationRequired => [
+                RefundMigrationStatus::Prepared,
+            ],
             RefundMigrationStatus::Reversed => [],
         };
     }

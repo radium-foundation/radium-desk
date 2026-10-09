@@ -22,6 +22,7 @@ final class CentralWalletBalanceMigration extends Model
         'source_site_code',
         'source_local_user_id',
         'source_users_wallet_id',
+        'source_wallet_attempt',
         'source_order_reference',
         'source_business_reference',
         'source_amount',

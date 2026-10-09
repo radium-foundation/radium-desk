@@ -117,10 +117,14 @@ final class BalanceMigrationCutoverService
             );
         }
 
+        $migrationOperationId = trim((string) ($input['migration_operation_id'] ?? ''));
+        $sourceWalletAttempt = max(0, (int) ($input['source_wallet_attempt'] ?? 0));
+
         return [
             'source_site_code' => $sourceSiteCode,
             'source_local_user_id' => $sourceLocalUserId,
             'source_users_wallet_id' => $sourceUsersWalletId,
+            'source_wallet_attempt' => $sourceWalletAttempt,
             'source_order_reference' => $sourceOrderReference,
             'source_business_reference' => $sourceBusinessReference,
             'source_amount' => $sourceAmount,
@@ -129,6 +133,7 @@ final class BalanceMigrationCutoverService
             'destination_central_wallet_id' => $destinationCwid,
             'migration_batch_id' => $migrationBatchId !== '' ? $migrationBatchId : null,
             'idempotency_key' => $idempotencyKey,
+            'migration_operation_id' => $migrationOperationId !== '' ? $migrationOperationId : null,
         ];
     }
 
@@ -141,7 +146,10 @@ final class BalanceMigrationCutoverService
         string $actorId,
         string $ownerApprovalRef,
     ): CentralWalletBalanceMigration {
-        $migrationOperationId = (string) Str::uuid();
+        $migrationOperationId = (string) ($normalized['migration_operation_id'] ?? '');
+        if ($migrationOperationId === '') {
+            $migrationOperationId = (string) Str::uuid();
+        }
 
         $migration = CentralWalletBalanceMigration::query()->create([
             'migration_operation_id' => $migrationOperationId,
@@ -150,6 +158,7 @@ final class BalanceMigrationCutoverService
             'source_site_code' => $normalized['source_site_code'],
             'source_local_user_id' => $normalized['source_local_user_id'],
             'source_users_wallet_id' => $normalized['source_users_wallet_id'],
+            'source_wallet_attempt' => (int) ($normalized['source_wallet_attempt'] ?? 0),
             'source_order_reference' => $normalized['source_order_reference'],
             'source_business_reference' => $normalized['source_business_reference'],
             'source_amount' => $normalized['source_amount'],

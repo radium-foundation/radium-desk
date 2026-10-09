@@ -4,7 +4,6 @@ namespace App\CentralWallet\Application;
 
 use App\CentralWallet\Domain\Enums\BalanceMigrationStatus;
 use App\CentralWallet\Domain\Enums\RefundMigrationStatus;
-use App\CentralWallet\Domain\RefundMigrationIdempotencyKey;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletBalanceMigration;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletRefundMigration;
 use Illuminate\Support\Facades\DB;
@@ -58,7 +57,7 @@ final class RefundMigrationLane1Executor
 
         $migration = $this->transition($migration, RefundMigrationStatus::SourceDebitPending);
 
-        $cutoverPayload = [
+        $cutoverPayload = array_merge([
             'source_site_code' => $migration->source_application,
             'source_local_user_id' => $localUserId,
             'source_users_wallet_id' => (int) $migration->source_wallet_id,
@@ -68,9 +67,8 @@ final class RefundMigrationLane1Executor
             'source_currency' => 'INR',
             'destination_central_wallet_id' => $migration->cwid,
             'migration_batch_id' => $migration->batch_id,
-            'idempotency_key' => RefundMigrationIdempotencyKey::forRefund((int) $migration->refund_id),
             'owner_approval_ref' => $ownerApprovalRef,
-        ];
+        ], RefundMigrationBalanceAttempt::cutoverOverrides($migration));
 
         $result = $this->cutoverService->execute($cutoverPayload, 'refund_migration', $correlationId, $actorId);
 
