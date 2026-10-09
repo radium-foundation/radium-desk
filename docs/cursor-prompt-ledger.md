@@ -402,5 +402,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-141 | 2026-10-09 | Investigate RBP675 quantity stock allocation failure | Read-only prod trace: RBEVO1250P / product 93 balances, branches, reservations, receipts vs UI. **No mutation.** |
 | RadiumDesk-P-04-10-142 | 2026-10-09 | Sales Report order-line quantity column + totals | CA monthly Sales Report: total_quantity + per-line qty in preview/expand/export. **Reporting only.** |
 | RadiumDesk-P-04-10-143 | 2026-10-09 | Release/deploy v4.1.14 Sales Report quantity to KVM production | Cherry-pick `4a4ec0fb` onto **v4.1.13** / `9d2ff84c` only. Tag **v4.1.14**. KVM `desk deploy --yes`. **No hardware SKU map commits. No migration. No sales-data mutation.** Rollback: v4.1.13 / `9d2ff84c`. |
+| RadiumDesk-P-04-10-144 | 2026-10-09 | Sales Report expanded line — separate product and quantity cells | Excel expandable detail rows: **Product Name** and **Total Quantity** columns hold product/SKU and line qty separately; remove `(Qty: X)` from product text. Preview already split. Commit **`97a14f63`**. **No qty/total calculation change. No deploy in prompt.** |
 
 Do not renumber or overwrite earlier rows. Append only.

@@ -882,3 +882,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-143
 
 **Production release v4.1.14 — Sales Report quantity.** Deploy reporting-only CA monthly quantity columns and XLSX **Total Quantity** from commit `4a4ec0fb` onto production baseline **v4.1.13** / `9d2ff84c`. **No Evolis SKU map or Central Wallet scope.**
+
+---
+
+## RadiumDesk-P-04-10-144
+
+**Sales Report expanded line formatting — product vs quantity.** Stop appending `(Qty: X)` to expandable detail product labels in Excel export; write line `statutory_invoice_items.qty` into the **Total Quantity** column and product/SKU into **Product Name**. Web preview unchanged (already separate cells). Implementation commit **`97a14f63`** on `release/v4.1.14-sales-report-quantity`. **No calculation, schema, or production changes in this prompt.**
