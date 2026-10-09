@@ -1,0 +1,12 @@
+{
+  "unauthenticated": { "status": 401 },
+  "site_mismatch": { "status": 403, "body": { "error": "site_mismatch" } },
+  "not_found": { "status": 404, "body": { "error": "not_found" } },
+  "identity_ambiguous": { "status": 409, "body": { "error": "identity_ambiguous" } },
+  "contact_data_required": { "status": 422, "body": { "error": "contact_data_required" } },
+  "feature_disabled": { "status": 503, "body": { "error": "historical_wallet_visibility_disabled" } },
+  "route_missing": {
+    "status": 404,
+    "note": "Laravel route-not-found HTML/JSON must be treated as unresolved/unavailable by spokes, never as zero balance."
+  }
+}

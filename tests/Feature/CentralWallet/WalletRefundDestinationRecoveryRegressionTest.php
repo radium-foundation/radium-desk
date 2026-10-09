@@ -14,6 +14,13 @@ class WalletRefundDestinationRecoveryRegressionTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_wallet_visibility_route_is_registered(): void
+    {
+        $this->assertTrue(
+            \Illuminate\Support\Facades\Route::has('central-wallet.wallet-visibility.show'),
+        );
+    }
+
     public function test_wallet_refund_destination_route_is_registered(): void
     {
         $this->assertTrue(Route::has('central-wallet.wallet-refund-destination.show'));

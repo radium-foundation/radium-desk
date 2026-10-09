@@ -819,6 +819,48 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 
 ---
 
+## RadiumDesk-P-04-10-126
+
+**Integrate Central Wallet Reliability into `main`.** Cherry-picked the production-verified CW stack from `feat/360-central-wallet-ledger` onto `main`: wallet-visibility API, contract v1, runtime manifest/drift, account-link reconciliation audit, production release gate, nested-manifest gate fix, ContractProbe dynamic site-code fix, and gate deploy scripts. Integration tests **24/24** PASS. **No production deploy. No wallet/data mutation.**
+
+---
+
+## RadiumDesk-P-04-10-127
+
+**Phase B — Central Wallet release-manifest hardening.** Runtime manifest schema v2 with deterministic `release_identity`, explicit managed-file inventory (38 files), orphan overlay detection, `central-wallet:verify-overlay-integrity`, multi-commit `source_components`, and release-gate overlay-integrity integration. Manifest/drift/gate tests **19/19** PASS. **NO production deploy.**
+
+---
+
+## RadiumDesk-P-04-10-128
+
+**Production manifest v2 overlay — Radium Desk (provider).** Surgical overlay from `managed-file-inventory.json` (38 files) @ source `b430125d` → `/var/www/radium-desk` (KVM8). Backup `storage/app/backups/cw-manifest-v2-pre-20261008T175956Z`. Runtime manifest schema **v2**; `release_identity=b6c1017a7327d2bede15400dfc54d1b75a2b69a97e728d0c94aae3846e2f7a55`. Overlay integrity **PASS**; POST release gate **PASS**; health **200**; synthetic wallet **PASS**. RD10575 ledger **#48** **₹499.00** posted, reserved **0**, ledger row count unchanged (**1**). **No wallet/ledger/checkout mutation.**
+
+---
+
+## RadiumDesk-P-04-10-129
+
+**Production dependency closure & overlay compatibility gate.** Versioned `production-dependency-contract.json`, semantic config/binding overlay comparator, release-gate `overlay_compatibility` + `production_dependency_closure`, customer-display synthetic hook, manifest metadata. CW tests **203/203** pass (**4** skip). **NO production deploy.**
+
+---
+
+## RadiumDesk-P-04-10-130
+
+**Finalize Central Wallet dependency-closure release gate for production readiness.** Read-only production baseline capture script (`capture-overlay-production-baseline.sh`), `CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT` pre-gate wiring, deployment-readiness matrix tests, mandatory deployment sequence doc (§ K.1). CW suite **207/207** pass (**8** skip). **NO production deploy.**
+
+---
+
+## RadiumDesk-P-04-10-131
+
+**Production deploy — Central Wallet dependency-closure & overlay-compatibility gate (provider).** Baseline capture `radium-desk-20261009T024130Z`; pre-gate **PASS** (prod baseline → candidate @ `255023ee`); overlay @ `255023ee` → `/var/www/radium-desk`; backup `cw-manifest-v2-pre-20261009T024241Z`; manifest v2 `release_identity=6718ecf7950f628c05613617fb001264d61effcb81d62a9f2c9d7a6774ca1136`; overlay integrity **PASS**; post-gate **WARN** (provider customer-display lane deferred); RD10575 ledger **#48** **₹499.00** posted unchanged (**1** row). **No wallet/ledger mutation.**
+
+---
+
+## RadiumDesk-P-04-10-132
+
+**Documentation — Central Wallet production deployment runbook (post-gate baseline).** Expanded `docs/central-wallet-release-manifest-v2.md` § K.1: mandatory reuse of captured pre-deploy baseline for post-gate (`CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT`), WARN vs FAIL interpretation, Desk provider customer-display N/A, operator checklist, financial invariants. **Docs only; no code/production change.**
+
+---
+
 ## RadiumDesk-P-04-10-133
 
 **Production rollout — hardware-order service-case routing fix.** Release branch `release/v4.1.13-hardware-routing` from **v4.1.12** / `aae7ddcd` with cherry-pick of hardware routing only; tag **v4.1.13**; KVM deploy. Prevents new hardware-awaiting-serial cases from generic Support RR or ineligible assignees. **No historical reassignment/backfill. No Central Wallet deploy from this release tree.**

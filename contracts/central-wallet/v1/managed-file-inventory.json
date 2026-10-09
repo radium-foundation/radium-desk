@@ -1,0 +1,193 @@
+{
+    "inventory_version": "1.0.0",
+    "project": "radium-desk",
+    "role": "provider",
+    "release_branch": "main",
+    "managed_scan_roots": [
+        {
+            "path": "app/CentralWallet/Reliability",
+            "extensions": [
+                "php"
+            ],
+            "purpose": "Reliability and release-gate runtime code"
+        }
+    ],
+    "files": [
+        {
+            "path": "app/CentralWallet/Application/WalletVisibilityService.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Infrastructure/Http/Controllers/WalletVisibilityController.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletAccountLinkReconciliationAnalyzer.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletAccountLinkReconciliationReader.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletAccountLinkVarianceEvaluator.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletContractCatalog.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletContractProbe.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletCustomerDisplaySynthetic.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletDeploymentDriftVerifier.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletEffectiveConfigResolver.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletGitWorktreeInspector.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletManagedFileInventory.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletOverlayCompatibilityVerifier.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletOverlayIntegrityVerifier.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletProductionDependencyCatalog.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletReleaseGateConfiguration.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletReleaseGateReporter.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletReleaseGateRunner.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletReleaseIdentityCalculator.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletRuntimeManifestBuilder.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletRuntimeManifestStore.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletSemanticInvariantVerifier.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletServiceProviderRegistrationExtractor.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletSyntheticWalletProbe.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/WalletVisibilityContractValidator.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/Console/Commands/CentralWalletVerifyDeploymentDriftCommand.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/Console/Commands/CentralWalletVerifyOverlayIntegrityCommand.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/Console/Commands/CentralWalletVerifyReleaseGateCommand.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/Console/Commands/CentralWalletWriteRuntimeManifestCommand.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/Providers/CentralWalletServiceProvider.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "config/central_wallet.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "contracts/central-wallet/v1/compatibility-matrix.json",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "contracts/central-wallet/v1/contract.json",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "contracts/central-wallet/v1/fixtures/wallet-visibility-errors.json",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "contracts/central-wallet/v1/fixtures/wallet-visibility-responses.json",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "contracts/central-wallet/v1/managed-file-inventory.json",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "contracts/central-wallet/v1/openapi-wallet-visibility.yaml",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "contracts/central-wallet/v1/production-dependency-contract.json",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "contracts/central-wallet/v1/release-manifest-schema.json",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "routes/central_wallet.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "tools/commands/central-wallet-release-gate-all.sh",
+            "classification": "deployment_support_file"
+        },
+        {
+            "path": "tools/commands/central-wallet-release-gate.sh",
+            "classification": "deployment_support_file"
+        },
+        {
+            "path": "tools/commands/central-wallet-runtime-manifest.sh",
+            "classification": "deployment_support_file"
+        },
+        {
+            "path": "tools/commands/deploy-central-wallet-prod-gate.sh",
+            "classification": "deployment_support_file"
+        }
+    ]
+}

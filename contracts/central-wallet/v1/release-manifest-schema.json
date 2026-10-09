@@ -1,0 +1,75 @@
+{
+  "schema_version": 2,
+  "manifest_contract_version": "2.0.0",
+  "description": "Central Wallet runtime release manifest contract shared across Desk provider and spoke consumers.",
+  "hash_algorithm": "sha256",
+  "deterministic_release_identity": {
+    "algorithm": "sha256",
+    "canonical_fields": [
+      "schema_version",
+      "manifest_contract_version",
+      "project",
+      "deployment_type",
+      "contract_version",
+      "release_branch",
+      "source_identity.primary_source_commit",
+      "source_identity.source_components",
+      "managed_file_inventory_version",
+      "managed_files.path",
+      "managed_files.sha256",
+      "managed_files.classification"
+    ],
+    "excluded_from_identity": [
+      "audit.generated_at",
+      "deployed_at",
+      "audit.previous_manifest_sha256",
+      "audit.previous_manifest_present",
+      "audit.rollback_reference",
+      "release_manifest.deployed_at"
+    ]
+  },
+  "required_fields": [
+    "schema_version",
+    "manifest_contract_version",
+    "project",
+    "target_environment",
+    "deployment_type",
+    "contract_version",
+    "source_identity",
+    "release_identity",
+    "managed_file_inventory_version",
+    "managed_files",
+    "managed_file_count",
+    "production_dependency_contract"
+  ],
+  "production_dependency_contract": {
+    "version": "Version of contracts/central-wallet/v1/production-dependency-contract.json represented by this runtime manifest."
+  },
+  "source_identity": {
+    "primary_source_commit": "Primary Git commit SHA represented by this release state.",
+    "source_components": "Ordered list of {commit, label} when overlay spans multiple commits.",
+    "git_worktree_clean": "Audit-only flag; not part of release identity."
+  },
+  "file_classifications": [
+    "tracked_release_file",
+    "deployment_support_file",
+    "generated_runtime_file"
+  ],
+  "verification_status_vocabulary": [
+    "PASS",
+    "FAIL",
+    "WARN",
+    "UNVERIFIABLE",
+    "BLOCKED"
+  ],
+  "finding_categories": [
+    "missing",
+    "changed",
+    "unexpected",
+    "orphan",
+    "manifest_errors",
+    "release_identity_mismatch",
+    "source_identity_issues",
+    "unverifiable"
+  ]
+}
