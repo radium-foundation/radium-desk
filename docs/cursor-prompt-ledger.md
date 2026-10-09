@@ -443,5 +443,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-170 | 2026-10-09 | Owner-authorized pilot execute REF-67392 | **FAILED** — import `identity_class` length defect; lock flag gap; false **Reconciled** without ledger/spoke retirement. **Financial credit/retirement NOT completed.** |
 | RadiumDesk-P-04-10-171 | 2026-10-09 | Investigate/repair REF-67392 false reconcile (no re-execute) | Idempotency fix (aborted ≠ success); lane-1 financial evidence gate; pilot `identity_class` in Git; false-reconcile repair CLI; prod migration 387 → **reconciliation_required**. **No ledger/spoke mutation.** |
 | RadiumDesk-P-04-10-173 | 2026-10-09 | Gated pilot re-prepare recovery REF-67392 | `reconciliation_required` → `prepared` CLI; balance attempt slot + cutover identity; lane-1 uses retry metadata. **No prod reprepare/execute/deploy in prompt unless noted.** |
+| RadiumDesk-P-04-10-174 | 2026-10-09 | Deploy v4.1.19 recovery code (8149349a+) | KVM deploy + migration only. **No reprepare/execute; flags OFF.** |
 
 Do not renumber or overwrite earlier rows. Append only.

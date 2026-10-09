@@ -1,10 +1,11 @@
 # Changelog
 
-## Unreleased — Pilot REF-67392 gated re-prepare recovery
+## 4.1.19 — 2026-10-09 — Pilot REF-67392 gated re-prepare recovery
 
 - **Central Wallet:** Owner-gated `central-wallet:pilot-refund-migration-reprepare` for refund **387** only (`reconciliation_required` → `prepared`); records new balance cutover attempt identity without mutating aborted operation **bf9f4dda-…**.
 - **Schema:** `source_wallet_attempt` on `central_wallet_balance_migrations` so historical aborted attempt **0** and future attempt **1+** can coexist for the same spoke wallet row.
-- **No financial execution** in this change set.
+- **No financial execution** in this release.
+- Rollback target: v4.1.18 / `fc31513f`.
 - Prompt **RadiumDesk-P-04-10-173**.
 
 ## 4.1.18 — 2026-10-09 — REF-67392 false-reconcile repair + idempotency hardening
