@@ -166,6 +166,7 @@ final class CaMonthlyReportInvoiceExportBuilder
             $creditNoteSummary['number'],
             $creditNoteSummary['status'],
             $this->productNameSummary($exportableItems),
+            $this->totalQuantitySummary($exportableItems),
         ];
 
         return new CaMonthlyReportInvoiceExportRow(
@@ -380,6 +381,40 @@ final class CaMonthlyReportInvoiceExportBuilder
         }
 
         return implode('; ', $names);
+    }
+
+    /**
+     * @param  list<StatutoryInvoiceItem>  $items
+     */
+    private function totalQuantitySummary(array $items): string
+    {
+        return $this->formatQuantitySum($this->sumItemQuantities($items));
+    }
+
+    /**
+     * @param  list<StatutoryInvoiceItem>  $items
+     */
+    private function sumItemQuantities(array $items): float
+    {
+        $sum = 0.0;
+        foreach ($items as $item) {
+            $sum += (float) $item->qty;
+        }
+
+        return $sum;
+    }
+
+    private function formatQuantitySum(float $sum): string
+    {
+        if ($sum <= 0) {
+            return '0';
+        }
+
+        if (fmod($sum, 1.0) === 0.0) {
+            return (string) (int) $sum;
+        }
+
+        return rtrim(rtrim(number_format($sum, 2, '.', ''), '0'), '.');
     }
 
     private function formatDate(mixed $value): string

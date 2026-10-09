@@ -48,7 +48,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
 
         $headers = CaMonthlyReportDefinition::HEADERS;
 
-        $this->assertCount(31, $headers);
+        $this->assertCount(32, $headers);
         $this->assertContains('Status', $headers);
         $this->assertNotContains('Document Type', $headers);
         $this->assertContains('Invoice Total', $headers);
@@ -64,7 +64,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
         $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
 
         $this->assertCount(1, $rows);
-        $this->assertCount(31, $rows[0]);
+        $this->assertCount(32, $rows[0]);
         $this->assertSame(CaMonthlyReportOrderType::SERVICE, $rows[0][5]);
     }
 
@@ -187,7 +187,7 @@ class CaMonthlyReportInvoiceRegisterTest extends TestCase
             'Card',
             $evidenceResolver->resolvePaymentModeDisplay($invoice, null, null, null, $supportMethods[$invoice->id] ?? null),
         );
-        $this->assertCount(31, $this->firstRow());
+        $this->assertCount(32, $this->firstRow());
     }
 
     public function test_branch_resolves_from_commerce_order_branch_code_when_invoice_branch_is_missing(): void

@@ -239,6 +239,8 @@
                             <th scope="col" class="text-nowrap">Invoice No.</th>
                             <th scope="col" class="text-nowrap">Date of Invoice</th>
                             <th scope="col" class="text-nowrap">Customer</th>
+                            <th scope="col" class="text-nowrap">Product</th>
+                            <th scope="col" class="text-nowrap text-end">Quantity</th>
                             <th scope="col" class="text-nowrap d-none d-md-table-cell">Ordertype</th>
                             <th scope="col" class="text-nowrap text-end">Taxable</th>
                             <th scope="col" class="text-nowrap text-end d-none d-lg-table-cell">Shipping</th>
@@ -264,6 +266,8 @@
                                     <td>{{ $group->invoiceNumber }}</td>
                                     <td class="text-nowrap">{{ $group->issuedDate }}</td>
                                     <td>{{ $group->buyerName !== '' ? $group->buyerName : '—' }}</td>
+                                    <td>{{ $group->productSummary }}</td>
+                                    <td class="text-end">{{ $group->totalQuantity }}</td>
                                     <td class="d-none d-md-table-cell">{{ $group->orderType !== '' ? $group->orderType : '—' }}</td>
                                     <td class="text-end">{{ $group->taxableAmount }}</td>
                                     <td class="text-end d-none d-lg-table-cell">{{ $group->shippingAmount !== '' ? $group->shippingAmount : '—' }}</td>
@@ -278,12 +282,17 @@
                                         data-parent-invoice="{{ $group->invoiceId }}"
                                     >
                                         <td></td>
-                                        <td colspan="4" class="ps-4 small text-muted">
+                                        <td></td>
+                                        <td></td>
+                                        <td></td>
+                                        <td class="ps-4 small text-muted">
                                             {{ $child->productName }}
                                             @if ($child->productCodeSku !== '')
                                                 <span class="text-muted">· {{ $child->productCodeSku }}</span>
                                             @endif
                                         </td>
+                                        <td class="text-end small">{{ $child->quantity }}</td>
+                                        <td class="d-none d-md-table-cell"></td>
                                         <td class="text-end small">{{ $child->taxableAmount }}</td>
                                         <td class="text-end small d-none d-lg-table-cell">{{ $child->shipping !== '' ? $child->shipping : '—' }}</td>
                                         <td class="text-end small d-none d-lg-table-cell">
@@ -293,7 +302,7 @@
                                             {{ $lineTax !== [] ? implode(' / ', $lineTax) : '—' }}
                                         </td>
                                         <td class="text-end small">{{ $child->lineTotal !== '' ? $child->lineTotal : '—' }}</td>
-                                        <td class="small text-muted d-none d-xl-table-cell">Qty {{ $child->quantity }} · {{ $child->hsnSac !== '' ? $child->hsnSac : '—' }}</td>
+                                        <td class="d-none d-xl-table-cell small text-muted">{{ $child->hsnSac !== '' ? $child->hsnSac : '—' }}</td>
                                     </tr>
                                 @endforeach
                             @else
@@ -301,17 +310,18 @@
                                     <td></td>
                                     <td>{{ $group->invoiceNumber }}</td>
                                     <td class="text-nowrap">{{ $group->issuedDate }}</td>
+                                    <td>{{ $group->buyerName !== '' ? $group->buyerName : '—' }}</td>
                                     <td>
-                                        {{ $group->buyerName !== '' ? $group->buyerName : '—' }}
                                         @if (($group->children[0] ?? null) !== null)
-                                            <div class="small text-muted">
-                                                {{ $group->children[0]->productName }}
-                                                @if ($group->children[0]->productCodeSku !== '')
-                                                    · {{ $group->children[0]->productCodeSku }}
-                                                @endif
-                                            </div>
+                                            {{ $group->children[0]->productName }}
+                                            @if ($group->children[0]->productCodeSku !== '')
+                                                <div class="small text-muted">{{ $group->children[0]->productCodeSku }}</div>
+                                            @endif
+                                        @else
+                                            —
                                         @endif
                                     </td>
+                                    <td class="text-end">{{ $group->totalQuantity }}</td>
                                     <td class="d-none d-md-table-cell">{{ $group->orderType !== '' ? $group->orderType : '—' }}</td>
                                     <td class="text-end">{{ $group->taxableAmount }}</td>
                                     <td class="text-end d-none d-lg-table-cell">{{ $group->shippingAmount !== '' ? $group->shippingAmount : '—' }}</td>
@@ -322,7 +332,7 @@
                             @endif
                         @empty
                             <tr>
-                                <td colspan="10" class="text-muted p-3">No statutory invoices for the selected date range.</td>
+                                <td colspan="12" class="text-muted p-3">No statutory invoices for the selected date range.</td>
                             </tr>
                         @endforelse
                     </tbody>

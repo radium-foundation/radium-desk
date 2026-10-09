@@ -159,6 +159,91 @@ class CaMonthlyReportSalesReportTest extends TestCase
         $this->assertSame('ADDON', $groups[0]->children[1]->productCodeSku);
     }
 
+    public function test_single_product_invoice_exposes_line_quantity_and_total_quantity(): void
+    {
+        $invoice = $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00'], ['qty' => 1]);
+
+        $row = app(CaMonthlyReportInvoiceExportBuilder::class)->buildForInvoices(collect([$invoice]))[0];
+        $group = app(CaMonthlyStatutoryLineReadModel::class)->paginateInvoiceGroups($this->request(), 50)->items()[0];
+
+        $this->assertSame('1', $row->parentCells[31]);
+        $this->assertSame('1', $row->detailRows[0][2]);
+        $this->assertSame('1', $group->totalQuantity);
+        $this->assertSame('1', $group->children[0]->quantity);
+        $this->assertFalse($group->expandable);
+    }
+
+    public function test_single_product_invoice_with_quantity_ten(): void
+    {
+        $invoice = $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00'], [
+            'qty' => 10,
+            'description' => 'Evolis Color Ribbon for 250 prints (YMCKOKO)',
+        ]);
+
+        $row = app(CaMonthlyReportInvoiceExportBuilder::class)->buildForInvoices(collect([$invoice]))[0];
+        $group = app(CaMonthlyStatutoryLineReadModel::class)->paginateInvoiceGroups($this->request(), 50)->items()[0];
+
+        $this->assertSame('10', $row->parentCells[31]);
+        $this->assertSame('10', $row->detailRows[0][2]);
+        $this->assertSame('10', $group->totalQuantity);
+        $this->assertSame('Evolis Color Ribbon for 250 prints (YMCKOKO)', $group->productSummary);
+    }
+
+    public function test_multi_product_invoice_total_quantity_equals_sum_of_line_quantities(): void
+    {
+        $invoice = $this->makeTaxInvoice(['issued_at' => '2026-09-15 12:00:00'], ['qty' => 16, 'description' => 'Product A']);
+
+        StatutoryInvoiceItem::query()->create([
+            'invoice_id' => $invoice->id,
+            'line_no' => 2,
+            'sku' => 'PROD-B',
+            'description' => 'Product B',
+            'hsn_sac' => '998313',
+            'qty' => 10,
+            'unit_price' => '50.00',
+            'discount' => '0.00',
+            'gst_percentage' => '18.00',
+            'taxable_value' => '50.00',
+            'tax_total' => '9.00',
+            'cgst' => '4.50',
+            'sgst' => '4.50',
+            'igst' => '0.00',
+            'line_total' => '59.00',
+        ]);
+
+        $invoice->load('items');
+        $row = app(CaMonthlyReportInvoiceExportBuilder::class)->buildForInvoices(collect([$invoice]))[0];
+        $group = app(CaMonthlyStatutoryLineReadModel::class)->paginateInvoiceGroups($this->request(), 50)->items()[0];
+
+        $this->assertSame('26', $row->parentCells[31]);
+        $this->assertSame('26', $group->totalQuantity);
+        $this->assertTrue($group->expandable);
+        $this->assertSame('2 products', $group->productSummary);
+        $this->assertSame('16', $group->children[0]->quantity);
+        $this->assertSame('10', $group->children[1]->quantity);
+        $this->assertSame(
+            (float) $group->totalQuantity,
+            array_sum(array_map(static fn ($child) => (float) $child->quantity, $group->children)),
+        );
+        $this->assertSame('118.00', $row->parentCells[19]);
+    }
+
+    public function test_xlsx_parent_row_includes_total_quantity_column(): void
+    {
+        $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00'], ['qty' => 10]);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $response = $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.export.xlsx', self::RANGE));
+
+        $response->assertOk();
+
+        $headers = $this->readXlsxRow($response->baseResponse->getFile()->getPathname(), 3);
+        $this->assertSame('Total Quantity', end($headers));
+    }
+
     public function test_xlsx_child_row_includes_sku_in_expandable_detail_label(): void
     {
         $invoice = $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00']);
@@ -248,7 +333,7 @@ class CaMonthlyReportSalesReportTest extends TestCase
 
         $this->assertSame('Credit Note', $row[3]);
         $this->assertSame('CN-0001', $row[2]);
-        $this->assertCount(31, $row);
+        $this->assertCount(32, $row);
         $this->assertSame('RD Service', $row[30]);
     }
 
@@ -494,5 +579,48 @@ class CaMonthlyReportSalesReportTest extends TestCase
         $zip->close();
 
         return $xml !== false ? $xml : '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function readXlsxRow(string $path, int $rowNumber): array
+    {
+        $zip = new ZipArchive;
+        $zip->open($path);
+        $xml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        $sheet = simplexml_load_string((string) $xml);
+        $ns = $sheet->getNamespaces(true);
+        $main = $ns[''] ?? 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+        $sheet->registerXPathNamespace('m', $main);
+        $cells = $sheet->xpath('//m:sheetData/m:row[@r="'.$rowNumber.'"]/m:c');
+
+        $values = [];
+        foreach ($cells as $cell) {
+            $attributes = $cell->attributes();
+            $ref = (string) $attributes['r'];
+            preg_match('/([A-Z]+)/', $ref, $matches);
+            $col = $matches[1];
+            $colIndex = 0;
+            foreach (str_split($col) as $char) {
+                $colIndex = $colIndex * 26 + (ord($char) - 64);
+            }
+            $type = (string) ($attributes['t'] ?? '');
+            $values[$colIndex - 1] = $type === 'inlineStr' ? (string) $cell->is->t : (string) $cell->v;
+        }
+
+        if ($values === []) {
+            return [];
+        }
+
+        $max = max(array_keys($values));
+        $row = [];
+        for ($i = 0; $i <= $max; $i++) {
+            $row[] = $values[$i] ?? '';
+        }
+
+        return $row;
     }
 }

@@ -23,6 +23,8 @@ final class CaMonthlyReportInvoiceGroup
         public readonly string $status,
         public readonly string $documentType,
         public readonly bool $expandable,
+        public readonly string $totalQuantity,
+        public readonly string $productSummary,
         public readonly array $children,
         public readonly array $exportRows,
         public readonly ?CaMonthlyReportLineRow $singleLineRow = null,

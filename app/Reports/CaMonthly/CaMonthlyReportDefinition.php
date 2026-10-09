@@ -31,7 +31,7 @@ final class CaMonthlyReportDefinition
 
     public const SHEET_NAME = 'Sales Report';
 
-    public const TEMPLATE_VERSION = '2026-10-07-einvoice-evidence';
+    public const TEMPLATE_VERSION = '2026-10-09-order-quantity';
 
     /**
      * Invoice-level CA register columns (parent rows).
@@ -70,6 +70,7 @@ final class CaMonthlyReportDefinition
         'Credit Note Number',
         'Credit Note Status',
         'Product Name',
+        'Total Quantity',
     ];
 
     /**

@@ -57,6 +57,10 @@ final class CaMonthlyReportInvoiceGroupBuilder
             }
 
             $taxAmount = round($exportRow->igst + $exportRow->cgst + $exportRow->sgst, 2);
+            $totalQuantity = (string) ($exportRow->parentCells[31] ?? '0');
+            $productSummary = count($children) === 1
+                ? $children[0]->productName
+                : count($children).' products';
 
             $groups[] = new CaMonthlyReportInvoiceGroup(
                 invoiceId: $invoice->id,
@@ -72,6 +76,8 @@ final class CaMonthlyReportInvoiceGroupBuilder
                 status: $exportRow->parentCells[3],
                 documentType: $invoice->document_type->label(),
                 expandable: $exportRow->expandable,
+                totalQuantity: $totalQuantity,
+                productSummary: $productSummary,
                 children: $children,
                 exportRows: [$exportRow->parentCells],
                 singleLineRow: count($children) === 1 ? null : null,

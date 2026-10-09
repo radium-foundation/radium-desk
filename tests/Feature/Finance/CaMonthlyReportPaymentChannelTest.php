@@ -65,7 +65,7 @@ class CaMonthlyReportPaymentChannelTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[25]);
-        $this->assertCount(31, $row);
+        $this->assertCount(32, $row);
         $this->assertNotContains('Payment Channel', CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Reference', CaMonthlyReportDefinition::HEADERS);
     }

@@ -58,7 +58,7 @@ class CaMonthlyReportCaReadyExportTest extends TestCase
         $this->assertContains('Payment Method', $headers);
         $this->assertContains('Credit Note Number', $headers);
         $this->assertContains('Credit Note Status', $headers);
-        $this->assertCount(31, $headers);
+        $this->assertCount(32, $headers);
     }
 
     public function test_invoice_export_includes_b2b_customer_type_and_total_gst(): void

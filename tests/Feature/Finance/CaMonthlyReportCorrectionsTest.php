@@ -207,7 +207,7 @@ class CaMonthlyReportCorrectionsTest extends TestCase
         $row = $this->firstRow();
 
         $this->assertSame(CaMonthlyReportPaymentChannelResolver::CHANNEL_CF, $row[25]);
-        $this->assertCount(31, $row);
+        $this->assertCount(32, $row);
     }
 
     public function test_upi_without_cashfree_evidence_leaves_payment_channel_unclassified(): void
@@ -311,7 +311,7 @@ class CaMonthlyReportCorrectionsTest extends TestCase
         $this->assertContains('Payment Method', CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Channel', CaMonthlyReportDefinition::HEADERS);
         $this->assertNotContains('Payment Reference', CaMonthlyReportDefinition::HEADERS);
-        $this->assertCount(31, CaMonthlyReportDefinition::HEADERS);
+        $this->assertCount(32, CaMonthlyReportDefinition::HEADERS);
     }
 
     public function test_workbook_meta_formats_reporting_period_as_dd_mmm_yyyy(): void
