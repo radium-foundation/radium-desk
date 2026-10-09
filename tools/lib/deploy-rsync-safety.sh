@@ -60,6 +60,8 @@ deploy_rsync_protected_patterns() {
 ^storage/app/tmp/
 ^storage/app/[^/]+$
 ^storage/[^/]+$
+^docs/ca-evidence/
+^assets/
 EOF
 }
 
