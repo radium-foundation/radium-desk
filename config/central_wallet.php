@@ -186,6 +186,15 @@ return [
         ),
     ],
 
+    'historical_identity_repair' => [
+        /** UTC instant when v4.1.15 Cashfree binder went live on production (P-04-10-156). */
+        'deploy_cutoff_utc' => env('CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_DEPLOY_CUTOFF_UTC', '2026-10-09 12:51:27'),
+        'apply_enabled' => filter_var(env('CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_APPLY_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'apply_confirm_token' => env('CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_APPLY_CONFIRM', 'CASHFREE_HISTORICAL_IDENTITY_REPAIR'),
+        'lock_seconds' => max(30, (int) env('CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_LOCK_SECONDS', 120)),
+        'lock_wait_seconds' => max(1, (int) env('CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_LOCK_WAIT_SECONDS', 30)),
+    ],
+
     'release_gate' => [
         'role' => 'provider',
         'project_key' => 'radium-desk',
