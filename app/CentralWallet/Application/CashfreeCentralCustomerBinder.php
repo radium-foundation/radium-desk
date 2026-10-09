@@ -19,9 +19,10 @@ use InvalidArgumentException;
  */
 final class CashfreeCentralCustomerBinder
 {
-    public const PROVIDER_CASHFREE_ORDER_EMAIL = 'cashfree_order_email';
-
     public const PROVIDER_DESK_EMAIL = 'desk_email';
+
+    /** Legacy rows only; new Cashfree binds use {@see PROVIDER_DESK_EMAIL} with payment metadata. */
+    public const PROVIDER_CASHFREE_ORDER_EMAIL = 'cashfree_order_email';
 
     public const ACTOR_ID = 'cashfree_central_customer_binder';
 
@@ -249,11 +250,12 @@ final class CashfreeCentralCustomerBinder
                 CentralCustomerIdentityCredential::query()->create([
                     'desk_customer_id' => $customerId,
                     'credential_type' => CustomerIdentityCredentialType::VerifiedEmail,
-                    'provider' => self::PROVIDER_CASHFREE_ORDER_EMAIL,
+                    'provider' => self::PROVIDER_DESK_EMAIL,
                     'subject_hash' => $subjectHash,
                     'verified_at' => now(),
                     'metadata' => [
                         'source' => 'cashfree_webhook',
+                        'identity_authority' => 'cashfree_payment',
                         'order_id' => $order->order_id,
                         'cf_payment_id' => $cfPaymentId,
                     ],
