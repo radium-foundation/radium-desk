@@ -165,6 +165,16 @@ deploy_rsync_parse_deletion_paths() {
     ' "$dry_run_log" | sort -u
 }
 
+# public/build rsync is rooted at public/build/, so deletion paths need that prefix for classification.
+deploy_rsync_parse_public_build_deletion_paths() {
+    local dry_run_log="$1"
+
+    deploy_rsync_parse_deletion_paths "$dry_run_log" | while IFS= read -r path; do
+        [[ -z "$path" ]] && continue
+        printf 'public/build/%s\n' "${path#./}"
+    done
+}
+
 deploy_rsync_previous_release_tag() {
     local current_tag="$1"
     local tags tag
@@ -378,7 +388,7 @@ deploy_rsync_analyze_deletions() {
 
     {
         deploy_rsync_parse_deletion_paths "$dry_run_log"
-        deploy_rsync_parse_deletion_paths "$build_dry_log"
+        deploy_rsync_parse_public_build_deletion_paths "$build_dry_log"
     } | sort -u >"${inventory_dir}/deletion-paths-${stamp}.txt"
 
     while IFS= read -r path; do
@@ -448,7 +458,7 @@ deploy_rsync_run_deletion_safety_gate() {
 
     {
         deploy_rsync_parse_deletion_paths "$dry_run_log"
-        deploy_rsync_parse_deletion_paths "$build_dry_log"
+        deploy_rsync_parse_public_build_deletion_paths "$build_dry_log"
     } | sort -u >"${inventory_dir}/deletion-paths-${stamp}.txt"
 
     while IFS= read -r path; do
