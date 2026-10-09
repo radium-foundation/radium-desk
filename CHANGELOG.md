@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.18 — 2026-10-09 — REF-67392 false-reconcile repair + idempotency hardening
+
+- **Central Wallet:** Treat **aborted** balance migrations as failed idempotency replay (not HTTP 200 success); require destination ledger + source retirement evidence before refund migration may reach **reconciled**.
+- **Pilot repair:** `central-wallet:pilot-refund-migration-repair-false-reconcile` state-only repair for falsely reconciled pilot rows (confirm token gated).
+- **Pilot import:** Persist `identity_class` as `cashfree` (fits `string(8)` schema).
+- **No pilot re-execution** in this release.
+- Rollback target: v4.1.17 / `596ce477`.
+- Prompt **RadiumDesk-P-04-10-171**.
+
 ## 4.1.17 — 2026-10-09 — Pilot REF-67392 deploy prerequisites
 
 - **KVM deploy:** Rsync includes only `storage/app/private/cw-pilot-refund-ref-67392-manifest.json` (pilot allowlist `[387]`) alongside `release.json`; other private storage remains excluded.

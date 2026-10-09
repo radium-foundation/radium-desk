@@ -162,6 +162,7 @@ return [
         'execute_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_EXECUTE_CONFIRM'),
         'import_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_IMPORT_CONFIRM'),
         'rollback_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_ROLLBACK_CONFIRM'),
+        'repair_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_REPAIR_CONFIRM'),
     ],
 
     /*

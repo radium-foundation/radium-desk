@@ -43,6 +43,7 @@ final class RefundMigrationStateMachine
                 RefundMigrationStatus::Compensating,
             ],
             RefundMigrationStatus::Reconciled => [
+                RefundMigrationStatus::ReconciliationRequired,
                 RefundMigrationStatus::Compensating,
                 RefundMigrationStatus::Reversed,
             ],

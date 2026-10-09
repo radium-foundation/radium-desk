@@ -141,6 +141,24 @@ class BalanceMigrationCutoverTest extends TestCase
         ]);
     }
 
+    public function test_aborted_migration_idempotency_replay_is_not_successful(): void
+    {
+        $cwid = $this->createWallet();
+        $payload = $this->payload($cwid);
+        $payload['idempotency_key'] = 'aborted-replay-test';
+
+        $this->spoke->lockShouldFail = true;
+        $this->authenticated()->postJson('/api/central-wallet/v1/balance-migrations/execute', $payload)
+            ->assertStatus(422);
+
+        $this->spoke->lockShouldFail = false;
+        $this->authenticated()->postJson('/api/central-wallet/v1/balance-migrations/execute', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'spoke_lock_failed');
+
+        $this->assertSame(0, CentralWalletLedgerEntry::query()->count());
+    }
+
     public function test_wrong_destination_cwid_returns_422(): void
     {
         $this->createWallet();

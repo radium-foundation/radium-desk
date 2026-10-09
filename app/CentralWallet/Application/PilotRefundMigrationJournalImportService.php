@@ -59,7 +59,8 @@ final class PilotRefundMigrationJournalImportService
                     'status' => RefundMigrationStatus::Prepared,
                     'idempotency_key' => RefundMigrationIdempotencyKey::forRefund($refundId),
                     'order_number' => (string) $row['order_number'],
-                    'identity_class' => (string) ($row['identity_mode'] ?? 'cashfree_desk_customer'),
+                    // DB column is string(8); manifest identity_mode is descriptive only.
+                    'identity_class' => 'cashfree',
                     'prepared_at' => now(),
                     'metadata' => [
                         'order_resolved_user_id' => (string) $row['order_resolved_user_id'],

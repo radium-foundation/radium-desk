@@ -63,6 +63,10 @@ final class PilotRefundMigrationOrchestrator
         $this->assertAllowlistedRefundId((int) $migration->refund_id, $manifestPath);
 
         if ($migration->status === RefundMigrationStatus::Reconciled) {
+            if (! RefundMigrationFinancialEvidence::isReconciledWithEvidence($migration)) {
+                throw new InvalidArgumentException('refund_migration_reconciled_without_evidence');
+            }
+
             return [
                 'status' => $migration->status->value,
                 'migration_operation_id' => $migration->balance_migration_operation_id,

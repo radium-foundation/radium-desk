@@ -200,8 +200,18 @@ final class BalanceMigrationCutoverService
             return $this->error('idempotency_key_reused_with_different_request', 409);
         }
 
-        if ($this->stateMachine->isTerminal($existing->status)) {
+        if ($existing->status === BalanceMigrationStatus::Reconciled) {
+            if (! BalanceMigrationFinancialEvidence::isReconciledWithEvidence($existing)) {
+                return $this->error('migration_reconciled_without_financial_evidence', 409, $existing);
+            }
+
             return $this->successResponse($existing, true);
+        }
+
+        if ($existing->status === BalanceMigrationStatus::Aborted) {
+            $failureCode = trim((string) ($existing->failure_code ?? ''));
+
+            return $this->error($failureCode !== '' ? $failureCode : 'migration_aborted', 422, $existing);
         }
 
         return $this->advance($existing, $normalized, $correlationId, $actorId);

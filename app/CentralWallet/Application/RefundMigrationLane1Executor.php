@@ -2,6 +2,7 @@
 
 namespace App\CentralWallet\Application;
 
+use App\CentralWallet\Domain\Enums\BalanceMigrationStatus;
 use App\CentralWallet\Domain\Enums\RefundMigrationStatus;
 use App\CentralWallet\Domain\RefundMigrationIdempotencyKey;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletBalanceMigration;
@@ -34,6 +35,10 @@ final class RefundMigrationLane1Executor
         }
 
         if ($migration->status === RefundMigrationStatus::Reconciled) {
+            if (! RefundMigrationFinancialEvidence::isReconciledWithEvidence($migration)) {
+                throw new InvalidArgumentException('refund_migration_reconciled_without_evidence');
+            }
+
             return [
                 'status' => $migration->status->value,
                 'migration_operation_id' => $migration->balance_migration_operation_id,
@@ -88,6 +93,16 @@ final class RefundMigrationLane1Executor
             ? CentralWalletBalanceMigration::query()->where('migration_operation_id', $operationId)->first()
             : null;
 
+        if (! $this->cutoverFinanciallyComplete($balanceMigration, $result['body'])) {
+            $errorCode = 'balance_migration_financial_evidence_missing';
+            $this->transition($migration, RefundMigrationStatus::Failed, [
+                'error_code' => $errorCode,
+                'error_message' => json_encode($result['body'], JSON_THROW_ON_ERROR),
+            ]);
+
+            throw new InvalidArgumentException($errorCode);
+        }
+
         $migration = $this->transition($migration, RefundMigrationStatus::SourceDebited, [
             'balance_migration_operation_id' => $operationId !== '' ? $operationId : null,
             'source_debit_reference' => $balanceMigration?->source_retirement_reference,
@@ -131,5 +146,30 @@ final class RefundMigrationLane1Executor
 
             return $locked->refresh();
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $cutoverBody
+     */
+    private function cutoverFinanciallyComplete(
+        ?CentralWalletBalanceMigration $balanceMigration,
+        array $cutoverBody,
+    ): bool {
+        if ($balanceMigration === null) {
+            return false;
+        }
+
+        if ($balanceMigration->status !== BalanceMigrationStatus::Reconciled) {
+            return false;
+        }
+
+        $ledgerId = $balanceMigration->destination_ledger_entry_id
+            ?? $cutoverBody['destination_ledger_entry_id']
+            ?? null;
+        $retirementRef = $balanceMigration->source_retirement_reference
+            ?? $cutoverBody['source_retirement_reference']
+            ?? null;
+
+        return filled($ledgerId) && filled($retirementRef);
     }
 }

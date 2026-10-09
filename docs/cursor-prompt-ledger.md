@@ -439,5 +439,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-153 | 2026-10-09 | Release-gate aggregate — non-blocking WARN (§ F provider customer_display) | `CentralWalletReleaseGateFinalResolver`; documented WARN no longer forces `final=WARN`. **No wallet/Cashfree/deploy changes.** |
 | RadiumDesk-P-04-10-154 | 2026-10-09 | Production deploy v4.1.15 @ `bd4a8e70` — Cashfree CW bind + gate fix | KVM `desk deploy --yes`; § K.1 post-gate; § G financial checks; tag **v4.1.15**. Rollback: v4.1.14 / `f855fcf9`. |
 | RadiumDesk-P-04-10-168 | 2026-10-09 | Pilot REF-67392 prerequisite — manifest KVM rsync + spoke env docs | Reproducible pilot manifest in KVM deploy; document `CENTRAL_WALLET_MIGRATION_SPOKE_*` (shared `DESK_ORDER_API_TOKEN`). **No import/execute; execution flags remain false.** |
+| RadiumDesk-P-04-10-169 | 2026-10-09 | Final read-only preflight REF-67392 | **READY_FOR_IMPORT_AND_EXECUTION_AUTHORIZATION** (technical gates). **No mutation.** |
+| RadiumDesk-P-04-10-170 | 2026-10-09 | Owner-authorized pilot execute REF-67392 | **FAILED** — import `identity_class` length defect; lock flag gap; false **Reconciled** without ledger/spoke retirement. **Financial credit/retirement NOT completed.** |
+| RadiumDesk-P-04-10-171 | 2026-10-09 | Investigate/repair REF-67392 false reconcile (no re-execute) | Idempotency fix (aborted ≠ success); lane-1 financial evidence gate; pilot `identity_class` in Git; false-reconcile repair CLI; prod migration 387 → **reconciliation_required**. **No ledger/spoke mutation.** |
 
 Do not renumber or overwrite earlier rows. Append only.

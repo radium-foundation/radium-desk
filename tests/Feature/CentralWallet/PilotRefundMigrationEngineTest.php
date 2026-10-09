@@ -96,6 +96,7 @@ class PilotRefundMigrationEngineTest extends TestCase
 
         $migration = CentralWalletRefundMigration::query()->where('refund_id', 387)->firstOrFail();
         $this->assertSame('562976', $migration->metadata['order_resolved_user_id'] ?? null);
+        $this->assertSame('cashfree', $migration->identity_class);
     }
 
     public function test_preflight_passes_for_ref_67392_fixture(): void
