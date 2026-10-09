@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.1.15 — (release candidate, not tagged) — Cashfree Central Customer binding
+## 4.1.15 — 2026-10-09 — Cashfree Central Customer binding
 
 - **Production baseline:** v4.1.14 / `f855fcf9` (Sales Report quantity and Excel line formatting preserved).
 - **Central Wallet:** Full provider stack from `origin/main` @ `ed30d807` integrated into the production release line (same managed overlay inventory as production, plus CHANGE 1+2 application paths).
@@ -8,7 +8,9 @@
 - **CHANGE 2 — Customer 360 display:** Resolve wallet from authoritative `orders.customer_id` before legacy verified `desk_email`; conflict veto unchanged; spend gates unchanged.
 - **Preserved:** v4.1.13 hardware-order service-case routing; v4.1.14 Sales Report behavior; existing refund/spoke/reservation/debit gates; no schema migration.
 - **Not in scope:** CHANGE 3–5, historical backfill, refund destination changes.
-- Prompt **RadiumDesk-P-04-10-151**. Branch **`release/v4.1.15-cashfree-central-wallet`**.
+- **Release gate:** Non-blocking aggregate classification for documented Desk provider `customer_display` WARN (P-04-10-153).
+- Rollback target: v4.1.14 / `f855fcf9`.
+- Prompt **RadiumDesk-P-04-10-154**.
 
 ## 4.1.14 — 2026-10-09 — Sales Report order-line quantities
 

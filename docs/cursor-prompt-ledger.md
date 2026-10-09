@@ -437,5 +437,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-151 | 2026-10-09 | Release branch v4.1.15 RC — prod `f855fcf9` + CW + Cashfree CHANGE 1+2 | Branch `release/v4.1.15-cashfree-central-wallet`. Integrate overlay-complete CW + commits `c913cf2c`/`01072fdb`/`a531a500`. Extend manifest. **No deploy/tag/main merge.** |
 | RadiumDesk-P-04-10-152 | 2026-10-09 | § K.1 candidate pre-gate PASS — prod probe + retained baseline @ `5551098a` | Run `verify-release-gate --phase=pre` from live app root with `/tmp` baseline/candidate; **no live-path deploy/mutation.** |
 | RadiumDesk-P-04-10-153 | 2026-10-09 | Release-gate aggregate — non-blocking WARN (§ F provider customer_display) | `CentralWalletReleaseGateFinalResolver`; documented WARN no longer forces `final=WARN`. **No wallet/Cashfree/deploy changes.** |
+| RadiumDesk-P-04-10-154 | 2026-10-09 | Production deploy v4.1.15 @ `bd4a8e70` — Cashfree CW bind + gate fix | KVM `desk deploy --yes`; § K.1 post-gate; § G financial checks; tag **v4.1.15**. Rollback: v4.1.14 / `f855fcf9`. |
 
 Do not renumber or overwrite earlier rows. Append only.

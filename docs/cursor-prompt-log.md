@@ -978,3 +978,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-153
 
 **Release-gate aggregation fix:** Explicit non-blocking WARN classification (§ F Desk provider `customer_display`, existing `account_link_variance` NON-BLOCKING). **`final=PASS`** when only documented non-blocking WARNs remain. **No application wallet/Cashfree/refund changes; no deploy.**
+
+---
+
+## RadiumDesk-P-04-10-154
+
+**Owner-authorized production deploy v4.1.15 @ `bd4a8e70`:** Cashfree CHANGE 1+2, full CW release line, release-gate final resolver. KVM deploy, post § K.1 gate, § G RD10575 spot check, tag **v4.1.15**. **No historical backfill.**
