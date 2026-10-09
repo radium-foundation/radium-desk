@@ -433,5 +433,7 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-147 | 2026-10-09 | READ-ONLY: Central Wallet identity architecture gap analysis (Owner display vs use) | Trace Cashfree→Desk→wallet; RD16854/SC63673; display vs spend coupling; spokes; systemic unresolved rate; implementation plan only. **No code/DB/wallet/deploy/spoke changes.** |
 | RadiumDesk-P-04-10-148 | 2026-10-09 | FINAL implementation design — Central Wallet / Cashfree customer binding (Owner rules) | Design-only from P-04-10-147 + exact-email reuse, display vs spend, refund SSOT, spokes, historical repair eligibility. **No implementation/mutation/deploy.** |
 | RadiumDesk-P-04-10-149 | 2026-10-09 | Implement CHANGE 1+2 — Cashfree customer/wallet bind + C360 order-bound display | Branch `feat/cashfree-central-customer-bind` from `origin/main`. **No CHANGE 3–5, no deploy, no historical backfill.** |
+| RadiumDesk-P-04-10-150 | 2026-10-09 | READ-ONLY production deployment-readiness review @ `a531a500` | Compare branch vs prod v4.1.14/f855fcf9 + CW overlay; deletion-safety; manifest; migration/config. **No deploy/mutation.** |
+| RadiumDesk-P-04-10-151 | 2026-10-09 | Release branch v4.1.15 RC — prod `f855fcf9` + CW + Cashfree CHANGE 1+2 | Branch `release/v4.1.15-cashfree-central-wallet`. Integrate overlay-complete CW + commits `c913cf2c`/`01072fdb`/`a531a500`. Extend manifest. **No deploy/tag/main merge.** |
 
 Do not renumber or overwrite earlier rows. Append only.

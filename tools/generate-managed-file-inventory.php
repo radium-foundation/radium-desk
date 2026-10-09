@@ -10,9 +10,13 @@ $lists = [
     'radium-desk' => <<<'LIST'
 app/CentralWallet/Reliability
 routes/central_wallet.php
+app/CentralWallet/Application/CashfreeCentralCustomerBinder.php
 app/CentralWallet/Application/WalletVisibilityService.php
 app/CentralWallet/Infrastructure/Http/Controllers/WalletVisibilityController.php
 app/Providers/CentralWalletServiceProvider.php
+app/Services/Cashfree/CashfreeWebhookProcessorService.php
+app/Services/Wallet/DeskCustomerCentralWalletResolver.php
+resources/views/customer-360/partials/wallet-tab.blade.php
 config/central_wallet.php
 contracts/central-wallet/v1
 app/Console/Commands/CentralWalletVerifyReleaseGateCommand.php

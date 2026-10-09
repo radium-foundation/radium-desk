@@ -14,6 +14,10 @@
     ],
     "files": [
         {
+            "path": "app/CentralWallet/Application/CashfreeCentralCustomerBinder.php",
+            "classification": "tracked_release_file"
+        },
+        {
             "path": "app/CentralWallet/Application/WalletVisibilityService.php",
             "classification": "tracked_release_file"
         },
@@ -131,6 +135,18 @@
         },
         {
             "path": "app/Providers/CentralWalletServiceProvider.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/Services/Cashfree/CashfreeWebhookProcessorService.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/Services/Wallet/DeskCustomerCentralWalletResolver.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "resources/views/customer-360/partials/wallet-tab.blade.php",
             "classification": "tracked_release_file"
         },
         {

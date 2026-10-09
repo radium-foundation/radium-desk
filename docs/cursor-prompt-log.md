@@ -954,3 +954,15 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-149
 
 **Implement CHANGE 1+2:** `CashfreeCentralCustomerBinder` on Cashfree order create/link; C360 resolver order-bound display. Branch `feat/cashfree-central-customer-bind` from `origin/main`. **No refund/spoke/historical changes; no deploy.**
+
+---
+
+## RadiumDesk-P-04-10-150
+
+**READ-ONLY production deployment-readiness review** for `feat/cashfree-central-customer-bind` @ `a531a500` vs prod **v4.1.14 / `f855fcf9`** + CW overlay (KVM `/var/www/radium-desk`). Deletion-safety, manifest coverage, CHANGE 1+2 readiness, migration/config. **No deploy/mutation.**
+
+---
+
+## RadiumDesk-P-04-10-151
+
+**Release integration:** `release/v4.1.15-cashfree-central-wallet` from prod **`f855fcf9`**, merge CW-complete **`origin/main` @ `ed30d807`**, cherry-pick CHANGE 1+2 **`c913cf2c` / `01072fdb` / `a531a500`**, extend managed-file inventory (+4 paths), CHANGELOG v4.1.15 RC. **No deploy/tag/production mutation.**
