@@ -228,6 +228,84 @@ class CaMonthlyReportSalesReportTest extends TestCase
         $this->assertSame('118.00', $row->parentCells[19]);
     }
 
+    public function test_expanded_child_product_name_never_embeds_qty_suffix(): void
+    {
+        $invoice = $this->makeTaxInvoice(['issued_at' => '2026-09-15 12:00:00'], [
+            'qty' => 2,
+            'description' => 'Morpho MSO 1300 e3 L0 / L1 Single Fingerprint Biometric USB Device',
+            'sku' => '951',
+        ]);
+
+        StatutoryInvoiceItem::query()->create([
+            'invoice_id' => $invoice->id,
+            'line_no' => 2,
+            'sku' => 'ADDON',
+            'description' => 'Add-on Service',
+            'hsn_sac' => '998313',
+            'qty' => 16,
+            'unit_price' => '50.00',
+            'discount' => '0.00',
+            'gst_percentage' => '18.00',
+            'taxable_value' => '50.00',
+            'tax_total' => '9.00',
+            'cgst' => '4.50',
+            'sgst' => '4.50',
+            'igst' => '0.00',
+            'line_total' => '59.00',
+        ]);
+
+        $group = app(CaMonthlyStatutoryLineReadModel::class)->paginateInvoiceGroups($this->request(), 50)->items()[0];
+
+        $this->assertTrue($group->expandable);
+        $this->assertSame('18', $group->totalQuantity);
+        $this->assertSame('2', $group->children[0]->quantity);
+        $this->assertSame('16', $group->children[1]->quantity);
+        $this->assertStringNotContainsString('(Qty:', $group->children[0]->productName);
+        $this->assertStringNotContainsString('(Qty:', $group->children[1]->productName);
+        $this->assertSame(
+            'Morpho MSO 1300 e3 L0 / L1 Single Fingerprint Biometric USB Device',
+            $group->children[0]->productName,
+        );
+    }
+
+    public function test_sales_report_preview_html_does_not_embed_qty_in_product_text(): void
+    {
+        $invoice = $this->makeTaxInvoice(['issued_at' => '2026-09-15 12:00:00'], [
+            'qty' => 2,
+            'description' => 'Morpho MSO 1300 e3 L0 / L1 Single Fingerprint Biometric USB Device',
+        ]);
+
+        StatutoryInvoiceItem::query()->create([
+            'invoice_id' => $invoice->id,
+            'line_no' => 2,
+            'sku' => 'PROD-B',
+            'description' => 'Product B',
+            'hsn_sac' => '998313',
+            'qty' => 10,
+            'unit_price' => '50.00',
+            'discount' => '0.00',
+            'gst_percentage' => '18.00',
+            'taxable_value' => '50.00',
+            'tax_total' => '9.00',
+            'cgst' => '4.50',
+            'sgst' => '4.50',
+            'igst' => '0.00',
+            'line_total' => '59.00',
+        ]);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $response = $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.index', self::RANGE));
+
+        $response->assertOk();
+        $response->assertDontSee('(Qty:', false);
+        $response->assertSee('Morpho MSO 1300 e3 L0 / L1 Single Fingerprint Biometric USB Device', false);
+        $response->assertSee('Product B', false);
+        $response->assertSee('ca-monthly-child-row', false);
+    }
+
     public function test_xlsx_parent_row_includes_total_quantity_column(): void
     {
         $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00'], ['qty' => 10]);
@@ -280,6 +358,57 @@ class CaMonthlyReportSalesReportTest extends TestCase
         $this->assertStringContainsString('RD Service [RD-SVC]', $xml);
         $this->assertStringContainsString('Add-on Service [ADDON]', $xml);
         $this->assertStringContainsString('Sales Report', $xml);
+        $this->assertStringNotContainsString('(Qty:', $xml);
+    }
+
+    public function test_xlsx_expanded_detail_row_separates_product_name_and_line_quantity(): void
+    {
+        $invoice = $this->makeTaxInvoice(['issued_at' => '2026-09-10 10:00:00'], [
+            'qty' => 2,
+            'description' => 'Morpho MSO 1300 e3 L0 / L1 Single Fingerprint Biometric USB Device',
+            'sku' => '951',
+        ]);
+
+        StatutoryInvoiceItem::query()->create([
+            'invoice_id' => $invoice->id,
+            'line_no' => 2,
+            'sku' => 'ADDON',
+            'description' => 'Add-on Service',
+            'hsn_sac' => '998313',
+            'qty' => 16,
+            'unit_price' => '50.00',
+            'discount' => '0.00',
+            'gst_percentage' => '18.00',
+            'taxable_value' => '50.00',
+            'tax_total' => '9.00',
+            'cgst' => '4.50',
+            'sgst' => '4.50',
+            'igst' => '0.00',
+            'line_total' => '59.00',
+        ]);
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $response = $this->actingAs($user)
+            ->get(route('finance.reports.ca-monthly.export.xlsx', self::RANGE));
+
+        $response->assertOk();
+
+        $path = $response->baseResponse->getFile()->getPathname();
+        $parentRow = $this->readXlsxRow($path, CaMonthlyReportDefinition::DATA_START_ROW);
+        $firstChildRow = $this->readXlsxRow($path, CaMonthlyReportDefinition::DATA_START_ROW + 1);
+        $secondChildRow = $this->readXlsxRow($path, CaMonthlyReportDefinition::DATA_START_ROW + 2);
+
+        $this->assertSame('18', $parentRow[31]);
+        $this->assertSame(
+            'Morpho MSO 1300 e3 L0 / L1 Single Fingerprint Biometric USB Device [951]',
+            $firstChildRow[30],
+        );
+        $this->assertSame('2', $firstChildRow[31]);
+        $this->assertStringNotContainsString('(Qty:', $firstChildRow[30]);
+        $this->assertSame('Add-on Service [ADDON]', $secondChildRow[30]);
+        $this->assertSame('16', $secondChildRow[31]);
     }
 
     public function test_csv_export_preserves_invoice_grain_with_parent_headers_only(): void

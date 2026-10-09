@@ -368,16 +368,16 @@ XML);
         $product = $detail[0] ?? '';
         $sku = $detail[1] ?? '';
         $qty = $detail[2] ?? '';
-        $label = $product;
+        $productLabel = $product;
         if ($sku !== '') {
-            $label .= ' ['.$sku.']';
-        }
-        if ($qty !== '' && $qty !== '1') {
-            $label .= ' (Qty: '.$qty.')';
+            $productLabel .= ' ['.$sku.']';
         }
 
         $row = array_fill(0, count(CaMonthlyReportDefinition::HEADERS), '');
-        $row[count(CaMonthlyReportDefinition::HEADERS) - 1] = $label;
+        $productNameIndex = count(CaMonthlyReportDefinition::HEADERS) - 2;
+        $totalQuantityIndex = count(CaMonthlyReportDefinition::HEADERS) - 1;
+        $row[$productNameIndex] = $productLabel;
+        $row[$totalQuantityIndex] = $qty;
         $row[11] = $detail[5] ?? '';
         $row[12] = $detail[7] ?? '';
         $row[13] = $detail[8] ?? '';
