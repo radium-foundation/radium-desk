@@ -42,7 +42,15 @@
             "classification": "tracked_release_file"
         },
         {
+            "path": "app/CentralWallet/Reliability/CentralWalletCustomerDisplaySynthetic.php",
+            "classification": "tracked_release_file"
+        },
+        {
             "path": "app/CentralWallet/Reliability/CentralWalletDeploymentDriftVerifier.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletEffectiveConfigResolver.php",
             "classification": "tracked_release_file"
         },
         {
@@ -54,7 +62,15 @@
             "classification": "tracked_release_file"
         },
         {
+            "path": "app/CentralWallet/Reliability/CentralWalletOverlayCompatibilityVerifier.php",
+            "classification": "tracked_release_file"
+        },
+        {
             "path": "app/CentralWallet/Reliability/CentralWalletOverlayIntegrityVerifier.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletProductionDependencyCatalog.php",
             "classification": "tracked_release_file"
         },
         {
@@ -83,6 +99,10 @@
         },
         {
             "path": "app/CentralWallet/Reliability/CentralWalletSemanticInvariantVerifier.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Reliability/CentralWalletServiceProviderRegistrationExtractor.php",
             "classification": "tracked_release_file"
         },
         {
@@ -139,6 +159,10 @@
         },
         {
             "path": "contracts/central-wallet/v1/openapi-wallet-visibility.yaml",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "contracts/central-wallet/v1/production-dependency-contract.json",
             "classification": "tracked_release_file"
         },
         {

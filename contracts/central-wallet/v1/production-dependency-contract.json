@@ -1,0 +1,63 @@
+{
+    "contract_version": "1.0.0",
+    "project": "radium-desk",
+    "role": "provider",
+    "overlay_baseline_fixture_root": "contracts/central-wallet/v1/fixtures/overlay-baseline",
+    "config_scenarios": [
+        {
+            "id": "provider_api_enabled",
+            "env": {
+                "CENTRAL_WALLET_ENABLED": "true",
+                "CENTRAL_WALLET_API_ENABLED": "true",
+                "CENTRAL_WALLET_HISTORICAL_WALLET_VISIBILITY_ENABLED": "true"
+            },
+            "required_paths": [
+                {
+                    "path": "enabled",
+                    "classification": "VERIFIED",
+                    "required_type": "boolean",
+                    "require_resolvable_when_env_enabled": true,
+                    "env_enable_key": "CENTRAL_WALLET_ENABLED"
+                },
+                {
+                    "path": "api_enabled",
+                    "classification": "VERIFIED",
+                    "required_type": "boolean",
+                    "require_resolvable_when_env_enabled": true,
+                    "env_enable_key": "CENTRAL_WALLET_API_ENABLED"
+                },
+                {
+                    "path": "historical_wallet_visibility.enabled",
+                    "classification": "VERIFIED",
+                    "required_type": "boolean",
+                    "require_resolvable_when_env_enabled": true,
+                    "env_enable_key": "CENTRAL_WALLET_HISTORICAL_WALLET_VISIBILITY_ENABLED"
+                }
+            ]
+        }
+    ],
+    "required_bindings": [
+        {
+            "class": "App\\CentralWallet\\Application\\WalletVisibilityService",
+            "classification": "VERIFIED",
+            "required_in_target": true
+        },
+        {
+            "class": "App\\CentralWallet\\Application\\LedgerService",
+            "classification": "VERIFIED",
+            "required_in_target": true
+        }
+    ],
+    "required_capabilities": [
+        {
+            "id": "provider_wallet_visibility_api",
+            "classification": "VERIFIED",
+            "requires_bindings": [
+                "App\\CentralWallet\\Application\\WalletVisibilityService"
+            ]
+        }
+    ],
+    "production_dependency_contract": {
+        "version": "1.0.0"
+    }
+}

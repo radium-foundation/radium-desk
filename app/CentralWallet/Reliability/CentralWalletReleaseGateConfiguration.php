@@ -61,4 +61,26 @@ final class CentralWalletReleaseGateConfiguration
 
         return $path !== '' ? $path : null;
     }
+
+    public function overlayCompatibilityEnabled(): bool
+    {
+        return filter_var(
+            config('central_wallet.release_gate.overlay_compatibility.enabled', true),
+            FILTER_VALIDATE_BOOLEAN,
+        );
+    }
+
+    public function overlayCompatibilityBaselineRoot(): ?string
+    {
+        $path = trim((string) config('central_wallet.release_gate.overlay_compatibility.baseline_root', ''));
+
+        return $path !== '' && is_dir($path) ? $path : null;
+    }
+
+    public function overlayCompatibilityTargetRoot(): ?string
+    {
+        $path = trim((string) config('central_wallet.release_gate.overlay_compatibility.target_root', ''));
+
+        return $path !== '' && is_dir($path) ? $path : null;
+    }
 }

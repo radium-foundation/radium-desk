@@ -828,3 +828,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-127
 
 **Phase B — Central Wallet release-manifest hardening.** Runtime manifest schema v2 with deterministic `release_identity`, explicit managed-file inventory (38 files), orphan overlay detection, `central-wallet:verify-overlay-integrity`, multi-commit `source_components`, and release-gate overlay-integrity integration. Manifest/drift/gate tests **19/19** PASS. **NO production deploy.**
+
+---
+
+## RadiumDesk-P-04-10-128
+
+**Production manifest v2 overlay — Radium Desk (provider).** Surgical overlay from `managed-file-inventory.json` (38 files) @ source `b430125d` → `/var/www/radium-desk` (KVM8). Backup `storage/app/backups/cw-manifest-v2-pre-20261008T175956Z`. Runtime manifest schema **v2**; `release_identity=b6c1017a7327d2bede15400dfc54d1b75a2b69a97e728d0c94aae3846e2f7a55`. Overlay integrity **PASS**; POST release gate **PASS**; health **200**; synthetic wallet **PASS**. RD10575 ledger **#48** **₹499.00** posted, reserved **0**, ledger row count unchanged (**1**). **No wallet/ledger/checkout mutation.**

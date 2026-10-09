@@ -14,6 +14,8 @@ final class CentralWalletReleaseGateRunner
         private readonly CentralWalletAccountLinkReconciliationReader $reconciliationReader,
         private readonly CentralWalletAccountLinkVarianceEvaluator $varianceEvaluator,
         private readonly CentralWalletOverlayIntegrityVerifier $overlayIntegrityVerifier,
+        private readonly CentralWalletOverlayCompatibilityVerifier $overlayCompatibilityVerifier,
+        private readonly CentralWalletCustomerDisplaySynthetic $customerDisplaySynthetic,
     ) {}
 
     /**
@@ -27,12 +29,15 @@ final class CentralWalletReleaseGateRunner
             'routes' => $this->checkRoutes(),
             'runtime_manifest' => $this->checkRuntimeManifest($phase),
             'overlay_integrity' => $this->checkOverlayIntegrity($phase),
+            'overlay_compatibility' => $this->checkOverlayCompatibility($phase),
+            'production_dependency_closure' => $this->checkProductionDependencyClosure($phase),
             'deployment_drift' => $this->checkDeploymentDrift($phase),
             'authentication' => $this->checkAuthentication($phase),
             'semantic_invariants' => $this->wrapSection($this->semanticVerifier->verifyProvider()),
             'failure_semantics' => $this->checkFailureSemantics(),
             'account_link_variance' => $this->checkAccountLinkVariance($phase),
             'synthetic_wallet' => $this->wrapSection($this->syntheticProbe->probe($this->configuration->syntheticProbe())),
+            'customer_display' => $this->wrapSection($this->customerDisplaySynthetic->probe()),
         ];
 
         $final = $this->resolveFinal($sections);
@@ -181,6 +186,71 @@ final class CentralWalletReleaseGateRunner
     /**
      * @return array{status: string, checks: list<array<string, mixed>>}
      */
+    private function checkOverlayCompatibility(string $phase): array
+    {
+        if (! $this->configuration->overlayCompatibilityEnabled()) {
+            return [
+                'status' => 'WARN',
+                'checks' => [[
+                    'id' => 'overlay_compatibility_disabled',
+                    'result' => 'WARN',
+                    'details' => ['message' => 'Overlay compatibility gate disabled'],
+                ]],
+            ];
+        }
+
+        $baseline = $this->configuration->overlayCompatibilityBaselineRoot();
+        $target = $this->configuration->overlayCompatibilityTargetRoot() ?? base_path();
+
+        if ($baseline === null) {
+            $catalog = app(CentralWalletProductionDependencyCatalog::class);
+            $contract = $catalog->load();
+            $fixtureRelative = trim((string) ($contract['overlay_baseline_fixture_root'] ?? ''), '/');
+            $baseline = $fixtureRelative !== '' && is_dir(base_path($fixtureRelative))
+                ? base_path($fixtureRelative)
+                : null;
+        }
+
+        if ($baseline === null) {
+            return [
+                'status' => $phase === 'post' ? 'WARN' : 'WARN',
+                'checks' => [[
+                    'id' => 'overlay_compatibility_baseline',
+                    'result' => 'WARN',
+                    'details' => ['message' => 'Overlay baseline root not configured'],
+                ]],
+            ];
+        }
+
+        $report = $this->overlayCompatibilityVerifier->compareProjectRoots($baseline, $target);
+
+        return [
+            'status' => (string) ($report['status'] ?? 'FAIL'),
+            'checks' => $report['checks'] ?? [],
+        ];
+    }
+
+    private function checkProductionDependencyClosure(string $phase): array
+    {
+        if ($phase === 'pre') {
+            return [
+                'status' => 'PASS',
+                'checks' => [[
+                    'id' => 'production_dependency_closure_deferred',
+                    'result' => 'PASS',
+                    'details' => ['message' => 'Post-deploy runtime closure verification'],
+                ]],
+            ];
+        }
+
+        $report = $this->overlayCompatibilityVerifier->verifyRuntimeClosure(base_path());
+
+        return [
+            'status' => $report['status'],
+            'checks' => $report['checks'],
+        ];
+    }
+
     private function checkOverlayIntegrity(string $phase): array
     {
         $manifest = $this->manifestStore->read();

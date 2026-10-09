@@ -70,6 +70,7 @@ final class CentralWalletRuntimeManifestBuilder
             'managed_file_inventory_version' => $this->managedFileInventory->inventoryVersion(),
             'managed_files' => $managedFiles,
             'managed_file_count' => count($managedFiles),
+            'production_dependency_contract' => $this->productionDependencyContractMetadata(),
             'git' => [
                 'sha' => $gitSha,
                 'branch' => $gitBranch,
@@ -191,5 +192,19 @@ final class CentralWalletRuntimeManifestBuilder
         }
 
         return null;
+    }
+
+    /**
+     * @return array{version: string|null}
+     */
+    private function productionDependencyContractMetadata(): array
+    {
+        try {
+            $catalog = app(CentralWalletProductionDependencyCatalog::class);
+
+            return ['version' => $catalog->version()];
+        } catch (\Throwable) {
+            return ['version' => null];
+        }
     }
 }

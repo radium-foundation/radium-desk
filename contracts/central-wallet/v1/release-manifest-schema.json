@@ -39,8 +39,12 @@
     "release_identity",
     "managed_file_inventory_version",
     "managed_files",
-    "managed_file_count"
+    "managed_file_count",
+    "production_dependency_contract"
   ],
+  "production_dependency_contract": {
+    "version": "Version of contracts/central-wallet/v1/production-dependency-contract.json represented by this runtime manifest."
+  },
   "source_identity": {
     "primary_source_commit": "Primary Git commit SHA represented by this release state.",
     "source_components": "Ordered list of {commit, label} when overlay spans multiple commits.",
