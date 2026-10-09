@@ -858,3 +858,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-132
 
 **Documentation — Central Wallet production deployment runbook (post-gate baseline).** Expanded `docs/central-wallet-release-manifest-v2.md` § K.1: mandatory reuse of captured pre-deploy baseline for post-gate (`CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT`), WARN vs FAIL interpretation, Desk provider customer-display N/A, operator checklist, financial invariants. **Docs only; no code/production change.**
+
+---
+
+## RadiumDesk-P-04-10-133
+
+**Production rollout — hardware-order service-case routing fix.** Cherry-pick hardware routing commit onto `origin/main` as `fix/hardware-order-service-case-routing`; tag **v4.1.13**; KVM deploy. Prevents new hardware-awaiting-serial cases from generic Support RR or ineligible assignees. **No historical reassignment/backfill. No Central Wallet deploy.**

@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.1.13 — 2026-10-09 — Hardware order service-case routing
+
+- **Capability-based hardware routing:** Paid hardware product orders awaiting internal serial allocation route to an active user with `hardware.fulfilment.operate`, not generic Support round-robin.
+- **Defer until ingest:** When hardware fulfilment is not yet ingested, routing defers (`service_case.hardware_routing_deferred`) and retries after fulfilment becomes ready.
+- **Fail closed:** When no eligible hardware operator exists, the case stays unassigned and records `service_case.hardware_routing_unresolved`.
+- **Manual assignments preserved:** Existing manual or valid hardware fulfilment assignments are not overwritten by automated retry.
+- **Config fail-safe:** Default `SERVICE_CASE_HARDWARE_ORDER_ASSIGNEE_EMAIL` is empty; optional email is honored only when that user can operate hardware fulfilment.
+- **No historical reassignment:** This release does not backfill or reassign existing service cases.
+- **No schema change:** No migration. No Central Wallet, finance, or wallet behavior change.
+- Regression (verified on release candidate): hardware order service-case routing **21** passed; ServiceCaseOrderAssignmentRouting **14** passed.
+- Rollback target: v4.1.12 / `aae7ddcd`.
+- Prompt **RadiumDesk-P-04-10-133**.
+
 ## 4.1.12 — 2026-10-07 — Customer 360 identity credential backfill
 
 - **Linked ensure backfill:** When a spoke calls wallet-refund-destination with attested email or mobile and an active account link already exists, Desk adds the missing verified `desk_email` or `desk_mobile` credential to that linked Desk customer only.
