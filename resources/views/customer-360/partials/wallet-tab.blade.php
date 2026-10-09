@@ -22,7 +22,7 @@
 <div class="c360-wallet customer-360-wallet-ledger" data-wallet-ledger-root data-c360-wallet-layout="compact">
     @if($state === 'unresolved')
         <div class="alert alert-warning mb-0" role="status">
-            This case is not linked to one verified Desk customer, so the Central Wallet is not shown.
+            This case is not linked to a Desk customer for this order, so the Central Wallet is not shown.
         </div>
     @elseif($state !== 'ready' || $wallet === null)
         <div class="alert alert-danger mb-0" role="alert">

@@ -930,3 +930,27 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-144
 
 **Sales Report expanded line formatting — product vs quantity.** Stop appending `(Qty: X)` to expandable detail product labels in Excel export; write line `statutory_invoice_items.qty` into the **Total Quantity** column and product/SKU into **Product Name**. Web preview unchanged (already separate cells). Implementation commit **`97a14f63`** on `release/v4.1.14-sales-report-quantity`. **No calculation, schema, or production changes in this prompt.**
+
+---
+
+## RadiumDesk-P-04-10-145
+
+**Production opening stock — RBEVOL250P (product 12) quantity 4 at DELHI-RETAIL (branch 1).** Owner-confirmed physical location. Pre-change Desk stock **0**. Mechanism: minimal opening-import workbook → preview (quantity units **4**) → `php artisan inventory:opening-import --apply --actor=avinash@radiumbox.com`. Post-change: **4** available @ branch 1, movement type **`opening`**, opening import batch **2**, **0** serials. Backup **`storage/app/backups/p-04-10-145-rbevol250p-opening-20261009T103201Z`**. Product **93** unchanged. **No application code deploy.**
+
+---
+
+## RadiumDesk-P-04-10-147
+
+**READ-ONLY architecture + production investigation:** Central Wallet / customer identity flow vs Owner clarified rules (Cashfree SSOT, Desk wallet authority, separate display vs spend). End-to-end trace, RD16854/SC63673, spoke read paths, systemic unresolved rate, gap analysis, implementation plan (no implementation). **No code, DB, wallet, refund, deploy, or spoke mutations.**
+
+---
+
+## RadiumDesk-P-04-10-148
+
+**FINAL implementation design (no code):** Central Wallet simplified flow — Cashfree order-bound customer binding, exact-email reuse (one customer / one wallet), display without verification vs spend with trusted controls, Desk-only refund ledger credits, spoke read-only, historical repair eligibility, overlay drift note. Awaiting Owner approval before implementation prompt. **No mutation/deploy.**
+
+---
+
+## RadiumDesk-P-04-10-149
+
+**Implement CHANGE 1+2:** `CashfreeCentralCustomerBinder` on Cashfree order create/link; C360 resolver order-bound display. Branch `feat/cashfree-central-customer-bind` from `origin/main`. **No refund/spoke/historical changes; no deploy.**

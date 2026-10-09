@@ -164,7 +164,7 @@ class Customer360WalletLedgerTest extends TestCase
         $this->assertStringContainsString('₹0.00', $html);
         $this->assertStringContainsString('No posted Central Wallet transactions for this customer.', $html);
         $this->assertStringNotContainsString('temporarily unavailable', $html);
-        $this->assertStringNotContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringNotContainsString('not linked to a Desk customer for this order', $html);
     }
 
     public function test_central_wallet_failure_does_not_render_zero_balance(): void
@@ -209,7 +209,7 @@ class Customer360WalletLedgerTest extends TestCase
 
         $html = $this->walletHtml($agent, $incident);
 
-        $this->assertStringContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringContainsString('not linked to a Desk customer for this order', $html);
         $this->assertStringNotContainsString('₹', $html);
         $this->assertStringNotContainsString('UNLINKED-SHOULD-NOT-SHOW', $html);
         $this->assertStringNotContainsString($otherCwid, $html);
@@ -256,7 +256,7 @@ class Customer360WalletLedgerTest extends TestCase
 
         $html = $this->walletHtml($agent, $incident);
 
-        $this->assertStringContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringContainsString('not linked to a Desk customer for this order', $html);
         $this->assertStringNotContainsString('₹', $html);
         $this->assertStringNotContainsString('KNOWN-WALLET', $html);
         $this->assertStringNotContainsString('OTHER-WALLET-SECRET', $html);
@@ -287,7 +287,7 @@ class Customer360WalletLedgerTest extends TestCase
 
         $html = $this->walletHtml($agent, $incident->fresh());
 
-        $this->assertStringContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringContainsString('not linked to a Desk customer for this order', $html);
         $this->assertStringNotContainsString('₹', $html);
         $this->assertStringNotContainsString('RN172', $html);
         $this->assertStringNotContainsString('OTHER-WALLET-SECRET', $html);
@@ -349,7 +349,7 @@ class Customer360WalletLedgerTest extends TestCase
 
         $html = $this->walletHtml($agent, $incident);
 
-        $this->assertStringContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringContainsString('not linked to a Desk customer for this order', $html);
         $this->assertStringNotContainsString('temporarily unavailable', $html);
         $this->assertStringNotContainsString('₹', $html);
         $this->assertStringNotContainsString('0.00', $html);
@@ -530,7 +530,7 @@ class Customer360WalletLedgerTest extends TestCase
         ]);
 
         $hidden = $this->walletHtml($agent, $incident);
-        $this->assertStringContainsString('not linked to one verified Desk customer', $hidden);
+        $this->assertStringContainsString('not linked to a Desk customer for this order', $hidden);
 
         app(CentralWalletCustomerIdentityEnsureService::class)->ensure(
             'rdservice.in',
@@ -542,7 +542,7 @@ class Customer360WalletLedgerTest extends TestCase
         $html = $this->walletHtml($agent, $incident);
         $this->assertStringContainsString('₹499.00', $html);
         $this->assertStringContainsString('REF-67345', $html);
-        $this->assertStringNotContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringNotContainsString('not linked to a Desk customer for this order', $html);
     }
 
     public function test_case_without_verified_email_stays_hidden_when_an_account_link_exists(): void
@@ -586,7 +586,7 @@ class Customer360WalletLedgerTest extends TestCase
 
         $html = $this->walletHtml($agent, $incident);
 
-        $this->assertStringContainsString('not linked to one verified Desk customer', $html);
+        $this->assertStringContainsString('not linked to a Desk customer for this order', $html);
         $this->assertStringNotContainsString('₹', $html);
         $this->assertStringNotContainsString('499.00', $html);
         $this->assertStringNotContainsString('LINKED-WALLET-MUST-STAY-HIDDEN', $html);
