@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.17 — 2026-10-09 — Pilot REF-67392 deploy prerequisites
+
+- **KVM deploy:** Rsync includes only `storage/app/private/cw-pilot-refund-ref-67392-manifest.json` (pilot allowlist `[387]`) alongside `release.json`; other private storage remains excluded.
+- **Ops:** Document spoke migration env (`CENTRAL_WALLET_MIGRATION_SPOKE_BASE_URL` / `CENTRAL_WALLET_MIGRATION_SPOKE_TOKEN` ↔ rdservice.in `DESK_ORDER_API_TOKEN`).
+- **No financial execution:** balance/refund migration execution flags unchanged (default false).
+- Prompt **RadiumDesk-P-04-10-168**.
+
 ## 4.1.16 — 2026-10-09 — Pilot single-refund Central Wallet migration engine
 
 - **Central Wallet:** Gated pilot Type-1 refund migration path for individually owner-authorized refunds (REF-67392 fixture manifest); restores lane-1 executor, rollback, and spoke `restoreSourceCredit`; preflight/import/execute/rollback CLI; execution disabled by default.

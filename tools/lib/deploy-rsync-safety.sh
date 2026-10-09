@@ -128,6 +128,8 @@ storage/app/
 storage/app/private/
 --include
 storage/app/private/release.json
+--include
+storage/app/private/cw-pilot-refund-ref-67392-manifest.json
 --exclude
 storage/app/private/*
 --exclude
