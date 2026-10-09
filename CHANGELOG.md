@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.16 — 2026-10-09 — Pilot single-refund Central Wallet migration engine
+
+- **Central Wallet:** Gated pilot Type-1 refund migration path for individually owner-authorized refunds (REF-67392 fixture manifest); restores lane-1 executor, rollback, and spoke `restoreSourceCredit`; preflight/import/execute/rollback CLI; execution disabled by default.
+- **Financial firewall:** No production migration execution in this release; owner approval and manifest hash gates required before any future execute.
+- Rollback target: v4.1.15 / `83d3cea3`.
+- Prompt **RadiumDesk-P-04-10-166**.
+
 ## 4.1.15 — 2026-10-09 — Cashfree Central Customer binding
 
 - **Production baseline:** v4.1.14 / `f855fcf9` (Sales Report quantity and Excel line formatting preserved).
