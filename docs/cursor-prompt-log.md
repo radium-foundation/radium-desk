@@ -984,3 +984,15 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-154
 
 **Owner-authorized production deploy v4.1.15 @ `bd4a8e70`:** Cashfree CHANGE 1+2, full CW release line, release-gate final resolver. KVM deploy, post § K.1 gate, § G RD10575 spot check, tag **v4.1.15**. **No historical backfill.**
+
+---
+
+## RadiumDesk-P-04-10-160
+
+**Owner-authorized identity-only historical repair pilot:** Small gated `runApply` cohort set (EXACT existing, multi-order NEW, single NEW, RD16854) on production v4.1.15 / `f16bfb56`. **No refund/ledger/spoke financial mutation.**
+
+---
+
+## RadiumDesk-P-04-10-161
+
+**Reconcile applicator UUID `correlation_id` fix with Git; gated CLI apply + tests; KVM deploy (no SCP).** Preserve P-04-10-160 pilot bindings. **No full repair / no financial mutation.**

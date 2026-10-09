@@ -13,6 +13,7 @@ use App\CentralWallet\Domain\Enums\CustomerIdentityCredentialType;
 use App\CentralWallet\Infrastructure\Persistence\CentralCustomer;
 use App\CentralWallet\Infrastructure\Persistence\CentralCustomerIdentityCredential;
 use App\CentralWallet\Infrastructure\Persistence\CentralWallet;
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletAuditEvent;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Order;
@@ -91,11 +92,62 @@ class CashfreeHistoricalIdentityRepairTest extends TestCase
         $this->assertStringContainsString('--mode', Artisan::output());
     }
 
-    public function test_apply_mode_rejected_from_cli_by_default(): void
+    public function test_apply_mode_rejected_from_cli_when_apply_disabled(): void
     {
         config(['central_wallet.historical_identity_repair.apply_enabled' => false]);
-        $exit = Artisan::call('cashfree:repair-historical-identity', ['--mode' => 'apply']);
+        $exit = Artisan::call('cashfree:repair-historical-identity', [
+            '--mode' => 'apply',
+            '--confirm' => 'TEST_CONFIRM',
+            '--order' => ['RD-H-1'],
+        ]);
         $this->assertSame(1, $exit);
+        $this->assertStringContainsString('disabled', Artisan::output());
+    }
+
+    public function test_apply_mode_rejected_from_cli_without_confirm_token(): void
+    {
+        $exit = Artisan::call('cashfree:repair-historical-identity', [
+            '--mode' => 'apply',
+            '--order' => ['RD-H-1'],
+        ]);
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('--confirm', Artisan::output());
+    }
+
+    public function test_apply_mode_cli_binds_when_gated(): void
+    {
+        $this->seedHistoricalOrder('RD-H-CLI', 'cli-apply@example.com', null, 'cf-h-cli');
+        $exit = Artisan::call('cashfree:repair-historical-identity', [
+            '--mode' => 'apply',
+            '--confirm' => 'TEST_CONFIRM',
+            '--order' => ['RD-H-CLI'],
+            '--run-id' => 'cli-run-1',
+        ]);
+        $this->assertSame(0, $exit);
+        $this->assertNotNull(Order::query()->where('order_id', 'RD-H-CLI')->value('customer_id'));
+    }
+
+    public function test_apply_passes_uuid_correlation_id_to_wallet_audit_events(): void
+    {
+        $before = CentralWalletAuditEvent::query()->count();
+        $this->seedHistoricalOrder('RD-H-UUID', 'uuid-corr@example.com', null, 'cf-h-uuid');
+
+        app(CashfreeHistoricalIdentityRepairRunner::class)->runApply(
+            'TEST_CONFIRM',
+            null,
+            ['RD-H-UUID'],
+            null,
+            'run-uuid',
+        );
+
+        $newEvents = CentralWalletAuditEvent::query()->orderByDesc('id')->limit(5)->get();
+        $this->assertGreaterThan($before, $newEvents->count());
+        foreach ($newEvents as $event) {
+            $this->assertTrue(
+                Str::isUuid((string) $event->correlation_id),
+                'Expected UUID correlation_id on audit event '.$event->event_type,
+            );
+        }
     }
 
     public function test_existing_customer_binds_multiple_orders(): void

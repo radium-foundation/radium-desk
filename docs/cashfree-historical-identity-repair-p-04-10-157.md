@@ -27,7 +27,7 @@ php artisan cashfree:repair-historical-identity --mode=dry-run --email=visheshp4
 - Confirm token matching `CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_APPLY_CONFIRM`
 - Separate Owner authorization (not enabled in this release)
 
-The CLI **rejects `--mode=apply`** until explicitly enabled in a future authorized prompt.
+The CLI **`--mode=apply`** is fail-closed unless **`CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_APPLY_ENABLED=true`**, a matching **`--confirm`** token, and (for each run) an explicit **preflight dry-run summary** printed before any mutation. Unrestricted full-population apply is never implied.
 
 ## Email-level deduplication
 
@@ -72,7 +72,7 @@ Before any apply pilot:
 ## Future pilot (NOT executed in P-04-10-157)
 
 ```bash
-# Example only — DO NOT RUN without Owner authorization
+# Example only — DO NOT RUN without Owner authorization and apply_enabled in .env
 php artisan cashfree:repair-historical-identity --mode=apply \
   --limit=5 \
   --order=RD16854 \
@@ -80,6 +80,11 @@ php artisan cashfree:repair-historical-identity --mode=apply \
   --run-id=pilot-20261009T001 \
   --confirm=CASHFREE_HISTORICAL_IDENTITY_REPAIR
 ```
+
+**Supported execution paths (same gates):**
+
+1. **CLI** — `--mode=apply` + `--confirm` + `apply_enabled` (prints preflight dry-run, then `runApply()`).
+2. **Programmatic** — `CashfreeHistoricalIdentityRepairRunner::runApply()` with confirm token (used by tests and authorized ops scripts); not a bypass — same config token and applicator.
 
 Suggested pilot cohort:
 

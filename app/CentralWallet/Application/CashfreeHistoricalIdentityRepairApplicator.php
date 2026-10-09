@@ -65,7 +65,7 @@ final class CashfreeHistoricalIdentityRepairApplicator
         $centralWalletId = null;
         $lastError = null;
 
-        DB::transaction(function () use ($plan, $runId, &$deskCustomerId, &$centralWalletId, &$lastError): void {
+        DB::transaction(function () use ($plan, &$deskCustomerId, &$centralWalletId, &$lastError): void {
             foreach ($plan->orderPrimaryKeys() as $orderPk) {
                 /** @var Order|null $order */
                 $order = Order::query()->whereKey($orderPk)->lockForUpdate()->first();
@@ -89,7 +89,7 @@ final class CashfreeHistoricalIdentityRepairApplicator
                 $status = $this->binder->bindOrder(
                     order: $order,
                     cfPaymentId: $order->cashfree_payment_id,
-                    correlationId: self::CORRELATION_PREFIX.$runId,
+                    correlationId: (string) Str::uuid(),
                 );
 
                 if (in_array($status, [

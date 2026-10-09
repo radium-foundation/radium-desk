@@ -15,7 +15,8 @@ class CashfreeHistoricalIdentityRepairCommand extends Command
         {--limit= : Maximum email cohorts to process (never splits one email across runs)}
         {--order=* : Restrict to business order id(s), e.g. RD16854}
         {--email= : Restrict to one normalized email}
-        {--run-id= : Optional run identifier for audit correlation}';
+        {--run-id= : Optional run identifier for audit correlation}
+        {--confirm= : Required for apply mode; must match CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_APPLY_CONFIRM}';
 
     public function __construct(
         private readonly CashfreeHistoricalIdentityRepairRunner $runner,
@@ -38,12 +39,6 @@ class CashfreeHistoricalIdentityRepairCommand extends Command
             return self::FAILURE;
         }
 
-        if ($mode === 'apply') {
-            $this->error('Apply mode is implemented but disabled by default. Set CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_APPLY_ENABLED=true and pass --confirm on a future authorized run. This prompt does not execute apply.');
-
-            return self::FAILURE;
-        }
-
         $limit = $this->option('limit');
         $cohortLimit = ($limit !== null && $limit !== '') ? max(1, (int) $limit) : null;
 
@@ -56,6 +51,15 @@ class CashfreeHistoricalIdentityRepairCommand extends Command
         $email = $this->filledOption('email');
         $runId = $this->filledOption('run-id');
 
+        if ($mode === 'apply') {
+            return $this->handleApply(
+                cohortLimit: $cohortLimit,
+                businessOrderIds: $orders !== [] ? $orders : null,
+                normalizedEmail: $email,
+                runId: $runId,
+            );
+        }
+
         $summary = $this->runner->run(
             mode: 'dry-run',
             cohortLimit: $cohortLimit,
@@ -65,6 +69,69 @@ class CashfreeHistoricalIdentityRepairCommand extends Command
         );
 
         $this->renderSummary($summary);
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  list<string>|null  $businessOrderIds
+     */
+    private function handleApply(
+        ?int $cohortLimit,
+        ?array $businessOrderIds,
+        ?string $normalizedEmail,
+        ?string $runId,
+    ): int {
+        if (! (bool) config('central_wallet.historical_identity_repair.apply_enabled', false)) {
+            $this->error('Apply mode is disabled. Set CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_APPLY_ENABLED=true for an authorized run.');
+
+            return self::FAILURE;
+        }
+
+        $confirm = $this->filledOption('confirm');
+        if ($confirm === null) {
+            $this->error('Apply mode requires --confirm matching CENTRAL_WALLET_HISTORICAL_IDENTITY_REPAIR_APPLY_CONFIRM.');
+
+            return self::FAILURE;
+        }
+
+        $preflight = $this->runner->run(
+            mode: 'dry-run',
+            cohortLimit: $cohortLimit,
+            businessOrderIds: $businessOrderIds,
+            normalizedEmail: $normalizedEmail,
+            runId: $runId,
+        );
+
+        $this->info('Preflight (dry-run — no writes)');
+        $this->renderSummary($preflight);
+
+        $this->newLine();
+        $this->warn('Apply will update orders.customer_id and may create Desk customers/wallets only. Refunds, ledger credits, and spoke wallets are not modified.');
+
+        try {
+            $summary = $this->runner->runApply(
+                confirmToken: $confirm,
+                cohortLimit: $cohortLimit,
+                businessOrderIds: $businessOrderIds,
+                normalizedEmail: $normalizedEmail,
+                runId: $runId ?? $preflight->runId,
+            );
+        } catch (\RuntimeException $exception) {
+            $this->error($exception->getMessage());
+
+            return self::FAILURE;
+        }
+
+        $this->newLine();
+        $this->info('Apply result');
+        $this->line('Run: '.$summary->runId);
+        $this->line('Orders bound this run: '.$summary->plannedMutations);
+        $this->line('Cohort errors: '.$summary->errors);
+
+        if ($summary->errors > 0) {
+            return self::FAILURE;
+        }
 
         return self::SUCCESS;
     }
