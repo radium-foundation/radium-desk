@@ -7,6 +7,7 @@ use App\CentralWallet\Application\AuditEventRecorder;
 use App\CentralWallet\Application\BalanceMigrationCutoverService;
 use App\CentralWallet\Application\BalanceMigrationStateMachine;
 use App\CentralWallet\Application\CashfreeCentralCustomerBinder;
+use App\CentralWallet\Application\CashfreeOrderCentralCustomerBindingService;
 use App\CentralWallet\Application\CentralWalletCustomerIdentityEnsureService;
 use App\CentralWallet\Application\CentralWalletService;
 use App\CentralWallet\Application\CeremonyCompleteService;
@@ -75,6 +76,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(IdempotencyService::class);
         $this->app->singleton(CentralWalletService::class);
         $this->app->singleton(CashfreeCentralCustomerBinder::class);
+        $this->app->singleton(CashfreeOrderCentralCustomerBindingService::class);
         $this->app->singleton(AccountLinkService::class);
         $this->app->singleton(CeremonyVerificationProofValidator::class);
         $this->app->singleton(CrossSiteCeremonyCohortEligibility::class);

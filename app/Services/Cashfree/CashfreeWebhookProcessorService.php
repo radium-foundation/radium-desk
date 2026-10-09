@@ -2,7 +2,7 @@
 
 namespace App\Services\Cashfree;
 
-use App\CentralWallet\Application\CashfreeCentralCustomerBinder;
+use App\CentralWallet\Application\CashfreeOrderCentralCustomerBindingService;
 use App\Data\CashfreeWebhookDeferredContext;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
@@ -59,7 +59,7 @@ class CashfreeWebhookProcessorService
         private readonly AuditLogService $auditLogService,
         private readonly RadiumBoxOrderSearchResponseMapper $fieldNormalizer,
         private readonly OrderIdentityLifecycleService $identityLifecycle,
-        private readonly CashfreeCentralCustomerBinder $cashfreeCentralCustomerBinder,
+        private readonly CashfreeOrderCentralCustomerBindingService $cashfreeOrderCentralCustomerBindingService,
     ) {}
 
     public function process(CashfreeWebhookLog $webhookLog): CashfreeWebhookLog
@@ -159,6 +159,7 @@ class CashfreeWebhookProcessorService
         $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
 
         if ($existingIncident !== null) {
+            $this->attemptBindForExistingPaidOrder($existingIncident, $payload, $cfPaymentId);
             $this->markProcessed($webhookLog, $existingIncident);
 
             return null;
@@ -184,6 +185,7 @@ class CashfreeWebhookProcessorService
             $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
 
             if ($existingIncident !== null) {
+                $this->attemptBindForExistingPaidOrder($existingIncident, $payload, $cfPaymentId);
                 $this->markProcessed($webhookLog, $existingIncident);
 
                 return null;
@@ -219,10 +221,11 @@ class CashfreeWebhookProcessorService
                 cfPaymentId: $cfPaymentId,
             );
 
-            $this->cashfreeCentralCustomerBinder->bindOrder(
+            $this->cashfreeOrderCentralCustomerBindingService->bindPaidOrder(
                 order: $order->fresh() ?? $order,
                 cfPaymentId: $cfPaymentId,
-                correlationId: 'cashfree:'.$cfPaymentId,
+                cashfreePayload: $payload,
+                actor: $systemUser,
             );
 
             $this->markProcessed($webhookLog, $incident);
@@ -329,6 +332,7 @@ class CashfreeWebhookProcessorService
             $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
 
             if ($existingIncident !== null) {
+                $this->attemptBindForExistingPaidOrder($existingIncident, $payload, $cfPaymentId, $systemUser);
                 $this->markProcessed($webhookLog, $existingIncident);
 
                 return null;
@@ -342,6 +346,13 @@ class CashfreeWebhookProcessorService
 
             $actor = $systemUser ?? $this->cashfreeHealthService->assertSystemUserReady();
             $linkedOrder = $this->applyCashfreePaymentFieldsToExistingOrder($order, $payload, $cfPaymentId, $actor);
+
+            $this->cashfreeOrderCentralCustomerBindingService->bindPaidOrder(
+                order: $linkedOrder,
+                cfPaymentId: $cfPaymentId,
+                cashfreePayload: $payload,
+                actor: $actor,
+            );
 
             $incident = $linkedOrder->latestIncident();
 
@@ -493,6 +504,32 @@ class CashfreeWebhookProcessorService
             'processing_error' => $exception->getMessage(),
             'processed_at' => now(),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function attemptBindForExistingPaidOrder(
+        Incident $incident,
+        array $payload,
+        string $cfPaymentId,
+        ?User $systemUser = null,
+    ): void {
+        $incident->loadMissing('order');
+        $order = $incident->order;
+
+        if ($order === null || trim((string) ($order->cashfree_payment_id ?? '')) === '') {
+            return;
+        }
+
+        $actor = $systemUser ?? $this->cashfreeHealthService->assertSystemUserReady();
+
+        $this->cashfreeOrderCentralCustomerBindingService->bindPaidOrder(
+            order: $order,
+            cfPaymentId: $cfPaymentId,
+            cashfreePayload: $payload,
+            actor: $actor,
+        );
     }
 
     private function findExistingIncidentForPayment(string $cfPaymentId): ?Incident

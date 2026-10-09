@@ -11,6 +11,7 @@ $lists = [
 app/CentralWallet/Reliability
 routes/central_wallet.php
 app/CentralWallet/Application/CashfreeCentralCustomerBinder.php
+app/CentralWallet/Application/CashfreeOrderCentralCustomerBindingService.php
 app/CentralWallet/Application/WalletVisibilityService.php
 app/CentralWallet/Infrastructure/Http/Controllers/WalletVisibilityController.php
 app/Providers/CentralWalletServiceProvider.php

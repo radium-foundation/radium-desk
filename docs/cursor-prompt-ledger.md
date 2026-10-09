@@ -444,5 +444,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-171 | 2026-10-09 | Investigate/repair REF-67392 false reconcile (no re-execute) | Idempotency fix (aborted ≠ success); lane-1 financial evidence gate; pilot `identity_class` in Git; false-reconcile repair CLI; prod migration 387 → **reconciliation_required**. **No ledger/spoke mutation.** |
 | RadiumDesk-P-04-10-173 | 2026-10-09 | Gated pilot re-prepare recovery REF-67392 | `reconciliation_required` → `prepared` CLI; balance attempt slot + cutover identity; lane-1 uses retry metadata. **No prod reprepare/execute/deploy in prompt unless noted.** |
 | RadiumDesk-P-04-10-174 | 2026-10-09 | Deploy v4.1.19 recovery code (8149349a+) | KVM deploy + migration only. **No reprepare/execute; flags OFF.** |
+| RadiumDesk-P-04-10-175 | 2026-10-09 | Read-only reprepare preflight REF-67392 | **READY_FOR_REPREPARE_AUTHORIZATION**; confirm env unset; negative CLI tests. **No reprepare.** |
+| RadiumDesk-P-04-10-176 | 2026-10-09 | Owner-authorized reprepare REF-67392 only | Production `central-wallet:pilot-refund-migration-reprepare` for refund **387**. **No import/execute/financial mutation.** |
+| RadiumDesk-P-04-10-181 | 2026-10-09 | Cashfree existing-order binding lifecycle fix (P-04-10-180) | `CashfreeOrderCentralCustomerBindingService`; bind on link + replay paths. Tests **38** Cashfree suites PASS. **No prod repair/deploy.** |
 
 Do not renumber or overwrite earlier rows. Append only.

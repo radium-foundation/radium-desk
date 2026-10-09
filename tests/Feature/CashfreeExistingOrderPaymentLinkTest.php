@@ -15,6 +15,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class CashfreeExistingOrderPaymentLinkTest extends TestCase
@@ -133,6 +134,7 @@ class CashfreeExistingOrderPaymentLinkTest extends TestCase
         $this->assertSame(CashfreeWebhookProcessorService::STATUS_PROCESSED, $log->processing_status);
         $this->assertNull($log->processing_error);
         $this->assertSame($existingIncident->id, $log->incident_id);
+        $this->assertTrue(Str::isUuid((string) $order->customer_id));
     }
 
     public function test_repeated_webhook_link_is_idempotent(): void
@@ -142,6 +144,7 @@ class CashfreeExistingOrderPaymentLinkTest extends TestCase
         $existingOrder = Order::query()->create([
             'order_id' => 'rd3483568',
             'customer_name' => 'Legacy Customer',
+            'customer_email' => 'legacy@example.com',
             'status' => OrderStatus::Active,
             'created_by' => $systemUser->id,
             'updated_by' => $systemUser->id,
