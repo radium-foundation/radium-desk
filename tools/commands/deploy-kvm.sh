@@ -19,6 +19,10 @@ source "$SCRIPT_DIR/../lib.sh"
 # shellcheck source=tools/lib/deploy-rsync-safety.sh
 source "$SCRIPT_DIR/../lib/deploy-rsync-safety.sh"
 
+if [[ -n "${DEPLOY_KVM_BRANCH_OVERRIDE:-}" ]]; then
+    DEFAULT_BRANCH="${DEPLOY_KVM_BRANCH_OVERRIDE}"
+fi
+
 PROJECT_ROOT="${DEPLOY_KVM_PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 ALLOWED_UNTRACKED="docs/redis-vps-preinstall-inspection.md"
 
