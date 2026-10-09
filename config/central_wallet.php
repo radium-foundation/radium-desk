@@ -136,6 +136,36 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Refund migration engine (default OFF — fail-closed)
+    |--------------------------------------------------------------------------
+    */
+
+    'refund_migration' => [
+        'execution_enabled' => filter_var(env('CENTRAL_WALLET_REFUND_MIGRATION_EXECUTION_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pilot single-refund migration (immutable manifest + allowlist)
+    |--------------------------------------------------------------------------
+    */
+
+    'pilot_refund_migration' => [
+        'manifest_path' => env(
+            'CENTRAL_WALLET_PILOT_REFUND_MIGRATION_MANIFEST_PATH',
+            storage_path('app/private/cw-pilot-refund-ref-67392-manifest.json'),
+        ),
+        'manifest_rows_sha256' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_MANIFEST_SHA256'),
+        'allowed_refund_ids' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_ALLOWED_REFUND_IDS', '387'),
+        'max_rows' => max(1, (int) env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_MAX_ROWS', 1)),
+        'required_owner_approval_ref' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_REQUIRED_OWNER_APPROVAL_REF'),
+        'execute_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_EXECUTE_CONFIRM'),
+        'import_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_IMPORT_CONFIRM'),
+        'rollback_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_ROLLBACK_CONFIRM'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Historical wallet visibility (contact index for refund destination)
     |--------------------------------------------------------------------------
     */

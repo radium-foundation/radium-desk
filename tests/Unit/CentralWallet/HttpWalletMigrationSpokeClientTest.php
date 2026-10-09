@@ -200,4 +200,29 @@ class HttpWalletMigrationSpokeClientTest extends TestCase
         $this->assertSame(200, $result['status']);
         $this->assertSame('released', $result['body']['lock_status']);
     }
+
+    public function test_restore_source_credit_success(): void
+    {
+        Http::fake([
+            self::BASE_URL.'/api/integrations/v1/wallet-migration-restorations' => Http::response([
+                'wallet_transaction_id' => '9100',
+            ], 201),
+        ]);
+
+        $result = $this->client->restoreSourceCredit(
+            migrationOperationId: 'op-9',
+            sourceSiteCode: 'rdservice.in',
+            sourceLocalUserId: '562976',
+            sourceUsersWalletId: 2663,
+            amount: '499.00',
+            sourceBusinessReference: 'REF-67392',
+            rollbackIdempotencyKey: 'desk-refund-migration-rollback:refund_requests:387',
+        );
+
+        $this->assertSame(201, $result['status']);
+        Http::assertSent(function ($request): bool {
+            return $request->url() === self::BASE_URL.'/api/integrations/v1/wallet-migration-restorations'
+                && $request['desk_refund_reference'] === 'REF-67392';
+        });
+    }
 }

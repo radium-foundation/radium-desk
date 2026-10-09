@@ -62,4 +62,17 @@ interface WalletMigrationSpokeClient
         string $sourceBusinessReference,
         string $retirementReference,
     ): array;
+
+    /**
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function restoreSourceCredit(
+        string $migrationOperationId,
+        string $sourceSiteCode,
+        string $sourceLocalUserId,
+        int $sourceUsersWalletId,
+        string $amount,
+        string $sourceBusinessReference,
+        string $rollbackIdempotencyKey,
+    ): array;
 }

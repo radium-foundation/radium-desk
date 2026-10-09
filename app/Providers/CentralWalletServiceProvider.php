@@ -24,7 +24,14 @@ use App\CentralWallet\Application\IntegrationSourceSystemResolver;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
 use App\CentralWallet\Application\NullWalletMigrationSpokeClient;
+use App\CentralWallet\Application\PilotRefundMigrationJournalImportService;
+use App\CentralWallet\Application\PilotRefundMigrationManifestLoader;
+use App\CentralWallet\Application\PilotRefundMigrationOrchestrator;
+use App\CentralWallet\Application\PilotRefundMigrationPreflightGate;
 use App\CentralWallet\Application\ReconciledHistoricalRefundFilter;
+use App\CentralWallet\Application\RefundMigrationLane1Executor;
+use App\CentralWallet\Application\RefundMigrationRollbackService;
+use App\CentralWallet\Application\RefundMigrationStateMachine;
 use App\CentralWallet\Application\ReservationService;
 use App\CentralWallet\Application\ReservationStateMachine;
 use App\CentralWallet\Application\WalletRefundDestinationIdentityService;
@@ -112,6 +119,13 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(LedgerEntryReadService::class);
         $this->app->singleton(BalanceMigrationStateMachine::class);
         $this->app->singleton(BalanceMigrationCutoverService::class);
+        $this->app->singleton(RefundMigrationStateMachine::class);
+        $this->app->singleton(RefundMigrationLane1Executor::class);
+        $this->app->singleton(RefundMigrationRollbackService::class);
+        $this->app->singleton(PilotRefundMigrationManifestLoader::class);
+        $this->app->singleton(PilotRefundMigrationPreflightGate::class);
+        $this->app->singleton(PilotRefundMigrationJournalImportService::class);
+        $this->app->singleton(PilotRefundMigrationOrchestrator::class);
 
         $this->app->singleton(WalletMigrationSpokeClient::class, function (): WalletMigrationSpokeClient {
             $migrationConfig = config('central_wallet.balance_migration', []);

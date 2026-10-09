@@ -23,6 +23,11 @@ final class FakeWalletMigrationSpokeClient implements WalletMigrationSpokeClient
     /** @var list<array<string, mixed>> */
     public array $releaseCalls = [];
 
+    /** @var list<array<string, mixed>> */
+    public array $restoreCalls = [];
+
+    public bool $restoreShouldFail = false;
+
     public function acquireLock(
         string $migrationOperationId,
         string $sourceSiteCode,
@@ -129,5 +134,31 @@ final class FakeWalletMigrationSpokeClient implements WalletMigrationSpokeClient
                 'migration_operation_id' => $migrationOperationId,
             ],
         ];
+    }
+
+    public function restoreSourceCredit(
+        string $migrationOperationId,
+        string $sourceSiteCode,
+        string $sourceLocalUserId,
+        int $sourceUsersWalletId,
+        string $amount,
+        string $sourceBusinessReference,
+        string $rollbackIdempotencyKey,
+    ): array {
+        $this->restoreCalls[] = compact(
+            'migrationOperationId',
+            'sourceSiteCode',
+            'sourceLocalUserId',
+            'sourceUsersWalletId',
+            'amount',
+            'sourceBusinessReference',
+            'rollbackIdempotencyKey',
+        );
+
+        if ($this->restoreShouldFail) {
+            return ['status' => 502, 'body' => ['error' => 'restore_failed']];
+        }
+
+        return ['status' => 201, 'body' => ['wallet_transaction_id' => '9002']];
     }
 }
