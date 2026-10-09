@@ -966,3 +966,15 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-151
 
 **Release integration:** `release/v4.1.15-cashfree-central-wallet` from prod **`f855fcf9`**, merge CW-complete **`origin/main` @ `ed30d807`**, cherry-pick CHANGE 1+2 **`c913cf2c` / `01072fdb` / `a531a500`**, extend managed-file inventory (+4 paths), CHANGELOG v4.1.15 RC. **No deploy/tag/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-152
+
+**§ K.1 pre-gate environment fix:** Run `central-wallet:verify-release-gate --phase=pre` with retained baseline, candidate **`5551098a`** in isolated KVM `/tmp` path, production probe via live `/var/www/radium-desk` artisan root. **No deploy/production mutation.**
+
+---
+
+## RadiumDesk-P-04-10-153
+
+**Release-gate aggregation fix:** Explicit non-blocking WARN classification (§ F Desk provider `customer_display`, existing `account_link_variance` NON-BLOCKING). **`final=PASS`** when only documented non-blocking WARNs remain. **No application wallet/Cashfree/refund changes; no deploy.**

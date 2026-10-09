@@ -2,6 +2,8 @@
 
 namespace App\CentralWallet\Reliability;
 
+use App\CentralWallet\Services\CentralWalletBalanceReadService;
+
 final class CentralWalletCustomerDisplaySynthetic
 {
     public function __construct(
@@ -18,15 +20,21 @@ final class CentralWalletCustomerDisplaySynthetic
         if ($this->configuration->role() === 'provider') {
             return [
                 'status' => 'WARN',
+                'blocking' => false,
+                'reason' => 'Customer display synthetic is N/A on Desk provider lane (§ F); probe not executed.',
                 'checks' => [[
                     'id' => 'customer_display_provider_lane',
                     'result' => 'WARN',
-                    'details' => ['message' => 'Customer display synthetic applies to spoke consumers'],
+                    'details' => [
+                        'message' => 'Customer display synthetic applies to spoke consumers',
+                        'blocking' => false,
+                        'reason' => 'Customer display synthetic is N/A on Desk provider lane (§ F); probe not executed.',
+                    ],
                 ]],
             ];
         }
 
-        if (! class_exists(\App\CentralWallet\Services\CentralWalletBalanceReadService::class)) {
+        if (! class_exists(CentralWalletBalanceReadService::class)) {
             return [
                 'status' => 'WARN',
                 'checks' => [[
@@ -54,8 +62,8 @@ final class CentralWalletCustomerDisplaySynthetic
         }
 
         try {
-            /** @var \App\CentralWallet\Services\CentralWalletBalanceReadService $service */
-            $service = app(\App\CentralWallet\Services\CentralWalletBalanceReadService::class);
+            /** @var CentralWalletBalanceReadService $service */
+            $service = app(CentralWalletBalanceReadService::class);
             $result = $service->readForUser($localUserId);
         } catch (\Throwable $exception) {
             return [

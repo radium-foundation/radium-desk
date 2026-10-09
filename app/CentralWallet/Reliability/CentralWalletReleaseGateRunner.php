@@ -16,6 +16,7 @@ final class CentralWalletReleaseGateRunner
         private readonly CentralWalletOverlayIntegrityVerifier $overlayIntegrityVerifier,
         private readonly CentralWalletOverlayCompatibilityVerifier $overlayCompatibilityVerifier,
         private readonly CentralWalletCustomerDisplaySynthetic $customerDisplaySynthetic,
+        private readonly CentralWalletReleaseGateFinalResolver $finalResolver,
     ) {}
 
     /**
@@ -40,7 +41,8 @@ final class CentralWalletReleaseGateRunner
             'customer_display' => $this->wrapSection($this->customerDisplaySynthetic->probe()),
         ];
 
-        $final = $this->resolveFinal($sections);
+        $sections = $this->finalResolver->enrichSections($sections);
+        $final = $this->finalResolver->resolve($sections);
 
         return [
             'project' => $this->configuration->projectKey(),
@@ -370,10 +372,17 @@ final class CentralWalletReleaseGateRunner
         if (! $this->configuration->accountLinkReconciliationEnabled()) {
             return [
                 'status' => $phase === 'post' ? 'BLOCKED' : 'WARN',
+                'blocking' => $phase === 'post',
+                'reason' => $phase === 'post'
+                    ? 'Account-link reconciliation required post-deploy when enabled.'
+                    : 'Account-link reconciliation deferred on pre-deploy gate when not configured.',
                 'checks' => [[
                     'id' => 'account_link_reconciliation_configured',
                     'result' => $phase === 'post' ? 'BLOCKED' : 'WARN',
-                    'details' => ['message' => 'Account-link reconciliation paths not configured'],
+                    'details' => [
+                        'message' => 'Account-link reconciliation paths not configured',
+                        'blocking' => $phase === 'post',
+                    ],
                 ]],
             ];
         }
@@ -415,6 +424,7 @@ final class CentralWalletReleaseGateRunner
 
         return [
             'status' => $gateStatus,
+            'blocking' => $gateStatus !== 'NON-BLOCKING',
             'checks' => [[
                 'id' => 'account_link_variance',
                 'result' => $evaluation['status'] === 'FAIL' ? 'FAIL' : 'PASS',
@@ -429,10 +439,20 @@ final class CentralWalletReleaseGateRunner
      */
     private function wrapSection(array $section): array
     {
-        return [
+        $wrapped = [
             'status' => $section['status'] ?? 'FAIL',
             'checks' => $section['checks'] ?? [],
         ];
+
+        if (array_key_exists('blocking', $section)) {
+            $wrapped['blocking'] = $section['blocking'];
+        }
+
+        if (isset($section['reason'])) {
+            $wrapped['reason'] = $section['reason'];
+        }
+
+        return $wrapped;
     }
 
     /**
@@ -459,35 +479,5 @@ final class CentralWalletReleaseGateRunner
         }
 
         return 'PASS';
-    }
-
-    /**
-     * @param  array<string, array{status: string}>  $sections
-     * @return array{status: string, message: string}
-     */
-    private function resolveFinal(array $sections): array
-    {
-        foreach ($sections as $section) {
-            if (($section['status'] ?? '') === 'BLOCKED') {
-                return [
-                    'status' => 'BLOCKED',
-                    'message' => 'BLOCKED — FIXTURE OR RECONCILIATION NOT CONFIGURED',
-                ];
-            }
-        }
-
-        foreach ($sections as $section) {
-            if (($section['status'] ?? '') === 'FAIL') {
-                return ['status' => 'FAIL', 'message' => ''];
-            }
-        }
-
-        foreach ($sections as $section) {
-            if (($section['status'] ?? '') === 'WARN') {
-                return ['status' => 'WARN', 'message' => ''];
-            }
-        }
-
-        return ['status' => 'PASS', 'message' => ''];
     }
 }

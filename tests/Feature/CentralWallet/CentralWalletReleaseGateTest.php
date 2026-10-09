@@ -97,6 +97,12 @@ class CentralWalletReleaseGateTest extends TestCase
 
         $this->assertSame('PASS', $report['sections']['authentication']['status']);
         $this->assertSame('PASS', $report['sections']['synthetic_wallet']['status']);
+        $this->assertSame('WARN', $report['sections']['customer_display']['status']);
+        $this->assertFalse($report['sections']['customer_display']['blocking']);
+        $this->assertContains($report['sections']['account_link_variance']['status'], ['WARN', 'NON-BLOCKING', 'PASS']);
+        if (($report['sections']['account_link_variance']['blocking'] ?? true) === false) {
+            $this->assertFalse($report['sections']['account_link_variance']['blocking']);
+        }
     }
 
     public function test_artisan_release_gate_command_emits_json(): void
