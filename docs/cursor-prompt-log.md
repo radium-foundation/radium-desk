@@ -816,3 +816,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-121
 
 **Release and deploy v4.1.12 Customer 360 identity credential backfill.** Deploys linked-account verified credential backfill in `CentralWalletCustomerIdentityEnsureService` only. Customer 360 resolver unchanged. **No 50-customer credential backfill. No wallet/refund mutation.**
+
+---
+
+## RadiumDesk-P-04-10-133
+
+**Production rollout — hardware-order service-case routing fix.** Release branch `release/v4.1.13-hardware-routing` from **v4.1.12** / `aae7ddcd` with cherry-pick of hardware routing only; tag **v4.1.13**; KVM deploy. Prevents new hardware-awaiting-serial cases from generic Support RR or ineligible assignees. **No historical reassignment/backfill. No Central Wallet deploy from this release tree.**
