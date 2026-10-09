@@ -102,6 +102,30 @@ Pre phase defers overlay integrity when manifest is absent (**WARN**, non-blocki
 2. On target host: `central-wallet:write-runtime-manifest --deployment-type=overlay --overlay-prompt-id=... --source-commit=... [--source-component=sha:label ...]`
 3. `central-wallet:verify-release-gate --phase=post`
 
+## K.1 Mandatory deployment sequence (production overlay)
+
+A checked-in Git fixture (`contracts/central-wallet/v1/fixtures/overlay-baseline`) is **not** sufficient evidence of live production compatibility when production contains overlay-only functionality (commerce config, extended `CentralWalletServiceProvider`, etc.).
+
+**Operator steps:**
+
+1. **Capture production baseline (read-only)** using `tools/commands/capture-overlay-production-baseline.sh` from an operator workstation with SSH access. This copies `config/central_wallet.php`, `CentralWalletServiceProvider.php`, runtime manifest, and records overlay integrity + `release_identity` without modifying production.
+2. **Verify baseline identity** — read `release-identity-at-capture.txt` and `overlay-integrity-at-capture.json` in the capture directory.
+3. **Prepare candidate overlay** — local checkout at the reviewed release SHA with managed-file inventory only (no `.env`, no secrets).
+4. **Production → candidate compatibility (pre)** on the deploy host or CI runner with:
+   - `CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT=/path/to/captured/baseline`
+   - `CENTRAL_WALLET_RELEASE_GATE_OVERLAY_TARGET_ROOT=/path/to/candidate/checkout`
+   - `php artisan central-wallet:verify-release-gate --phase=pre --json`  
+   Must **FAIL closed** if required config paths, bindings, or capabilities are **REMOVED** or semantically **CHANGED**.
+5. **Manifest integrity (pre)** — overlay integrity section must pass on candidate when manifest present locally.
+6. **Customer-display synthetic (pre/post as configured)** — non-mutating BalanceReadService / Desk visibility probe when fixtures configured.
+7. **Deploy** surgical overlay only (managed inventory files).
+8. **Generate runtime v2 manifest** — `central-wallet:write-runtime-manifest --deployment-type=overlay ...`
+9. **Post-deploy integrity** — `central-wallet:verify-overlay-integrity --json`
+10. **Post-deploy dependency closure** — `central-wallet:verify-release-gate --phase=post --json` (`production_dependency_closure` section).
+11. **Post-deploy customer-display synthetic** — confirm display path not `disabled` when production requires it.
+12. **Financial invariants** — read-only ledger/account-link checks (no mutation).
+13. **Retain rollback backup** — pre-deploy capture directory + prior runtime manifest.
+
 ## L. Migration path
 
 1. Phase A integrated Reliability onto release branches.
