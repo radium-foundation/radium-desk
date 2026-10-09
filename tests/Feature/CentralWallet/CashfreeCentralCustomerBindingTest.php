@@ -108,13 +108,13 @@ class CashfreeCentralCustomerBindingTest extends TestCase
         );
 
         $hash = app(CustomerIdentitySubjectHasher::class)->hashVerifiedEmail(self::EMAIL);
-        $this->assertTrue(
-            CentralCustomerIdentityCredential::query()
-                ->where('desk_customer_id', $customer->id)
-                ->where('provider', CashfreeCentralCustomerBinder::PROVIDER_CASHFREE_ORDER_EMAIL)
-                ->where('subject_hash', $hash)
-                ->exists(),
-        );
+        $credential = CentralCustomerIdentityCredential::query()
+            ->where('desk_customer_id', $customer->id)
+            ->where('provider', CashfreeCentralCustomerBinder::PROVIDER_DESK_EMAIL)
+            ->where('subject_hash', $hash)
+            ->first();
+        $this->assertNotNull($credential);
+        $this->assertSame('cashfree_webhook', $credential->metadata['source'] ?? null);
     }
 
     public function test_existing_exact_email_customer_is_reused_without_duplicate_wallet(): void
@@ -181,12 +181,12 @@ class CashfreeCentralCustomerBindingTest extends TestCase
 
     public function test_ambiguous_email_identity_does_not_bind_order(): void
     {
+        \Illuminate\Support\Facades\Schema::table('central_customer_identity_credentials', function ($table): void {
+            $table->dropUnique('central_customer_credentials_subject_uq');
+        });
+
         $hash = app(CustomerIdentitySubjectHasher::class)->hashVerifiedEmail(self::EMAIL);
-        $pairs = [
-            ['11111111-1111-4111-8111-111111111111', 'desk_email'],
-            ['22222222-2222-4222-8222-222222222222', CashfreeCentralCustomerBinder::PROVIDER_CASHFREE_ORDER_EMAIL],
-        ];
-        foreach ($pairs as [$customerId, $provider]) {
+        foreach (['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'] as $customerId) {
             $walletId = (string) Str::uuid();
             CentralWallet::query()->create(['id' => $walletId, 'status' => 'active']);
             CentralCustomer::query()->create([
@@ -197,7 +197,7 @@ class CashfreeCentralCustomerBindingTest extends TestCase
             CentralCustomerIdentityCredential::query()->create([
                 'desk_customer_id' => $customerId,
                 'credential_type' => CustomerIdentityCredentialType::VerifiedEmail,
-                'provider' => $provider,
+                'provider' => 'desk_email',
                 'subject_hash' => $hash,
                 'verified_at' => now(),
             ]);
@@ -261,6 +261,33 @@ class CashfreeCentralCustomerBindingTest extends TestCase
         $this->assertSame('resolved', $resolved['state']);
         $this->assertSame($customerId, $resolved['customer_id']);
         $this->assertSame($walletId, $resolved['central_wallet_id']);
+    }
+
+    public function test_cashfree_bind_reuses_desk_email_customer_instead_of_creating_second_wallet(): void
+    {
+        $existingCustomerId = (string) Str::uuid();
+        $existingWalletId = (string) Str::uuid();
+        CentralWallet::query()->create(['id' => $existingWalletId, 'status' => 'active']);
+        CentralCustomer::query()->create([
+            'id' => $existingCustomerId,
+            'central_wallet_id' => $existingWalletId,
+            'status' => 'active',
+        ]);
+        CentralCustomerIdentityCredential::query()->create([
+            'desk_customer_id' => $existingCustomerId,
+            'credential_type' => CustomerIdentityCredentialType::VerifiedEmail,
+            'provider' => 'desk_email',
+            'subject_hash' => app(CustomerIdentitySubjectHasher::class)->hashVerifiedEmail(self::EMAIL),
+            'verified_at' => now(),
+            'metadata' => ['source' => 'linked_account_credential_ensure'],
+        ]);
+
+        $this->postJson('/api/webhooks/cashfree', $this->successfulPayload('1453002803', 'RD90010'))
+            ->assertOk();
+
+        $this->assertSame(1, CentralCustomer::query()->count());
+        $order = Order::query()->where('order_id', 'RD90010')->first();
+        $this->assertSame($existingCustomerId, (string) $order?->customer_id);
     }
 
     public function test_end_to_end_cashfree_to_c360_wallet_display(): void
