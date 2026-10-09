@@ -2,6 +2,7 @@
 
 namespace App\Services\Cashfree;
 
+use App\CentralWallet\Application\CashfreeCentralCustomerBinder;
 use App\Data\CashfreeWebhookDeferredContext;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
@@ -11,12 +12,12 @@ use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Assignment\UniversalAssignmentEngine;
 use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
 use App\Services\Inquiry\InquiryOrderLinkService;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\Outbox\OutboxProcessorService;
-use App\Services\Assignment\UniversalAssignmentEngine;
 use App\Services\RadiumBox\RadiumBoxOrderSearchResponseMapper;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -58,6 +59,7 @@ class CashfreeWebhookProcessorService
         private readonly AuditLogService $auditLogService,
         private readonly RadiumBoxOrderSearchResponseMapper $fieldNormalizer,
         private readonly OrderIdentityLifecycleService $identityLifecycle,
+        private readonly CashfreeCentralCustomerBinder $cashfreeCentralCustomerBinder,
     ) {}
 
     public function process(CashfreeWebhookLog $webhookLog): CashfreeWebhookLog
@@ -215,6 +217,12 @@ class CashfreeWebhookProcessorService
                 importedFields: $importedFields,
                 invalidTags: $invalidTags,
                 cfPaymentId: $cfPaymentId,
+            );
+
+            $this->cashfreeCentralCustomerBinder->bindOrder(
+                order: $order->fresh() ?? $order,
+                cfPaymentId: $cfPaymentId,
+                correlationId: 'cashfree:'.$cfPaymentId,
             );
 
             $this->markProcessed($webhookLog, $incident);
@@ -794,6 +802,4 @@ class CashfreeWebhookProcessorService
 
         return $webhookLog->fresh(['incident']);
     }
-
 }
-

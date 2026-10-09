@@ -858,3 +858,59 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-132
 
 **Documentation — Central Wallet production deployment runbook (post-gate baseline).** Expanded `docs/central-wallet-release-manifest-v2.md` § K.1: mandatory reuse of captured pre-deploy baseline for post-gate (`CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT`), WARN vs FAIL interpretation, Desk provider customer-display N/A, operator checklist, financial invariants. **Docs only; no code/production change.**
+
+**Hardware SKU mapping — radiumbox_com model_id 915 / PEV250PRIN → Desk RBEVOL250P (inventory_product_id 12).** Config entry + production seed via `desk:seed-radiumbox-hardware-sku-maps --apply`. **No product master-data change, no stock, no fulfilment.**
+
+---
+
+## RadiumDesk-P-04-10-140
+
+**Owner correction — model 345 / PEV2CR250P → RBEVOL250P (RBP832); model 915 / PEV250PRIN → RBEVO1250P (RBP675).** Config + seed command sync update; production seed apply. **No historical order/HF/stock/master-data changes.**
+
+---
+
+## RadiumDesk-P-04-10-141
+
+**Read-only investigation — RBP675 cannot allocate quantity stock for RBEVO1250P (product 93).** Trace Desk stock tables, receipts, reservations, branch eligibility vs allocation service. **No production writes.**
+
+---
+
+## RadiumDesk-P-04-10-142
+
+**Sales Report quantity enhancement** — per-order total quantity (SUM statutory line qty) and visible Product/Quantity columns in preview; expandable line quantities; Excel **Total Quantity** parent column.
+
+---
+
+## RadiumDesk-P-04-10-143
+
+**Production release v4.1.14 — Sales Report quantity.** Deploy reporting-only CA monthly quantity columns and XLSX **Total Quantity** from commit `4a4ec0fb` onto production baseline **v4.1.13** / `9d2ff84c`. **No Evolis SKU map or Central Wallet scope.**
+
+---
+
+## RadiumDesk-P-04-10-144
+
+**Sales Report expanded line formatting — product vs quantity.** Stop appending `(Qty: X)` to expandable detail product labels in Excel export; write line `statutory_invoice_items.qty` into the **Total Quantity** column and product/SKU into **Product Name**. Web preview unchanged (already separate cells). Implementation commit **`97a14f63`** on `release/v4.1.14-sales-report-quantity`. **No calculation, schema, or production changes in this prompt.**
+
+---
+
+## RadiumDesk-P-04-10-145
+
+**Production opening stock — RBEVOL250P (product 12) quantity 4 at DELHI-RETAIL (branch 1).** Owner-confirmed physical location. Pre-change Desk stock **0**. Mechanism: minimal opening-import workbook → preview (quantity units **4**) → `php artisan inventory:opening-import --apply --actor=avinash@radiumbox.com`. Post-change: **4** available @ branch 1, movement type **`opening`**, opening import batch **2**, **0** serials. Backup **`storage/app/backups/p-04-10-145-rbevol250p-opening-20261009T103201Z`**. Product **93** unchanged. **No application code deploy.**
+
+---
+
+## RadiumDesk-P-04-10-147
+
+**READ-ONLY architecture + production investigation:** Central Wallet / customer identity flow vs Owner clarified rules (Cashfree SSOT, Desk wallet authority, separate display vs spend). End-to-end trace, RD16854/SC63673, spoke read paths, systemic unresolved rate, gap analysis, implementation plan (no implementation). **No code, DB, wallet, refund, deploy, or spoke mutations.**
+
+---
+
+## RadiumDesk-P-04-10-148
+
+**FINAL implementation design (no code):** Central Wallet simplified flow — Cashfree order-bound customer binding, exact-email reuse (one customer / one wallet), display without verification vs spend with trusted controls, Desk-only refund ledger credits, spoke read-only, historical repair eligibility, overlay drift note. Awaiting Owner approval before implementation prompt. **No mutation/deploy.**
+
+---
+
+## RadiumDesk-P-04-10-149
+
+**Implement CHANGE 1+2:** `CashfreeCentralCustomerBinder` on Cashfree order create/link; C360 resolver order-bound display. Branch `feat/cashfree-central-customer-bind` from `origin/main`. **No refund/spoke/historical changes; no deploy.**
