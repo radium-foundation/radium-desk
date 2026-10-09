@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.20 — 2026-10-09 — Cashfree existing-order customer binding
+
+- **Cashfree lifecycle:** `CashfreeOrderCentralCustomerBindingService` binds `orders.customer_id` on new-order create, **existing-order payment link**, and safe processed-payment replay (including duplicate-order-id recovery via link path).
+- **Identity:** Unchanged exact-email / fail-closed semantics via `CashfreeCentralCustomerBinder`; optional Cashfree payload email when order email is blank and not identity-locked.
+- **Out of scope:** Historical identity repair CLI (`cashfree:repair-historical-identity`); no ledger/refund/spoke behavior change.
+- Rollback target: v4.1.19 / `5089d9e2`.
+- Prompt **RadiumDesk-P-04-10-182**.
+
 ## 4.1.19 — 2026-10-09 — Pilot REF-67392 gated re-prepare recovery
 
 - **Central Wallet:** Owner-gated `central-wallet:pilot-refund-migration-reprepare` for refund **387** only (`reconciliation_required` → `prepared`); records new balance cutover attempt identity without mutating aborted operation **bf9f4dda-…**.

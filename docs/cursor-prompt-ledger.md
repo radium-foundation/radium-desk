@@ -447,5 +447,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-175 | 2026-10-09 | Read-only reprepare preflight REF-67392 | **READY_FOR_REPREPARE_AUTHORIZATION**; confirm env unset; negative CLI tests. **No reprepare.** |
 | RadiumDesk-P-04-10-176 | 2026-10-09 | Owner-authorized reprepare REF-67392 only | Production `central-wallet:pilot-refund-migration-reprepare` for refund **387**. **No import/execute/financial mutation.** |
 | RadiumDesk-P-04-10-181 | 2026-10-09 | Cashfree existing-order binding lifecycle fix (P-04-10-180) | `CashfreeOrderCentralCustomerBindingService`; bind on link + replay paths. Tests **38** Cashfree suites PASS. **No prod repair/deploy.** |
+| RadiumDesk-P-04-10-182 | 2026-10-09 | Release/deploy v4.1.20 Cashfree link binding @ `4779830b+` | Tag **v4.1.20**; KVM `desk deploy --yes`. **No historical identity repair.** |
 
 Do not renumber or overwrite earlier rows. Append only.

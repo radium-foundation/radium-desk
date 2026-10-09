@@ -1010,3 +1010,4 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 **Adapt single-refund Type-1 pilot Central Wallet refund migration engine (REF-67392 fixture).** Restore lane-1/rollback/spoke restore; gated pilot CLI + preflight; tests. **No production financial execution / no REF-67392 migration.**
 
 | RadiumDesk-P-04-10-181 | 2026-10-09 | Cashfree existing-order customer binding lifecycle fix | Shared `CashfreeOrderCentralCustomerBindingService`; link + replay paths; tests PASS. **No historical repair / no deploy.** |
+| RadiumDesk-P-04-10-182 | 2026-10-09 | Release/deploy v4.1.20 Cashfree existing-order binding | KVM deploy from tag **v4.1.20**; post-deploy read-only Cashfree NULL-customer checks. **No `cashfree:repair-historical-identity`.** |
