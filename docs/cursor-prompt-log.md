@@ -852,3 +852,9 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 ## RadiumDesk-P-04-10-131
 
 **Production deploy — Central Wallet dependency-closure & overlay-compatibility gate (provider).** Baseline capture `radium-desk-20261009T024130Z`; pre-gate **PASS** (prod baseline → candidate @ `255023ee`); overlay @ `255023ee` → `/var/www/radium-desk`; backup `cw-manifest-v2-pre-20261009T024241Z`; manifest v2 `release_identity=6718ecf7950f628c05613617fb001264d61effcb81d62a9f2c9d7a6774ca1136`; overlay integrity **PASS**; post-gate **WARN** (provider customer-display lane deferred); RD10575 ledger **#48** **₹499.00** posted unchanged (**1** row). **No wallet/ledger mutation.**
+
+---
+
+## RadiumDesk-P-04-10-132
+
+**Documentation — Central Wallet production deployment runbook (post-gate baseline).** Expanded `docs/central-wallet-release-manifest-v2.md` § K.1: mandatory reuse of captured pre-deploy baseline for post-gate (`CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT`), WARN vs FAIL interpretation, Desk provider customer-display N/A, operator checklist, financial invariants. **Docs only; no code/production change.**

@@ -94,37 +94,144 @@ Pre phase defers overlay integrity when manifest is absent (**WARN**, non-blocki
 3. `php artisan central-wallet:write-runtime-manifest --deployment-type=git --require-clean-worktree`
 4. Run PHPUnit Central Wallet suite + `central-wallet:verify-overlay-integrity`.
 5. Deploy via normal project release process (separate authorization).
-6. Post-deploy: `central-wallet:verify-release-gate --phase=post`.
+6. Post-deploy: `central-wallet:verify-release-gate --phase=post` **with the retained pre-deploy baseline** (see § K.1).
 
 ## K. Surgical overlay procedure (temporary)
 
-1. Run named-file overlay script (Desk: `tools/commands/deploy-central-wallet-prod-gate.sh`).
+1. Run named-file overlay script (Desk: `tools/commands/deploy-central-wallet-prod-gate.sh` or `tools/commands/deploy-cw-manifest-v2-overlay.sh` per project).
 2. On target host: `central-wallet:write-runtime-manifest --deployment-type=overlay --overlay-prompt-id=... --source-commit=... [--source-component=sha:label ...]`
-3. `central-wallet:verify-release-gate --phase=post`
+3. Post-deploy gates per **§ K.1** (baseline env required for overlay compatibility / dependency closure).
 
 ## K.1 Mandatory deployment sequence (production overlay)
 
-A checked-in Git fixture (`contracts/central-wallet/v1/fixtures/overlay-baseline`) is **not** sufficient evidence of live production compatibility when production contains overlay-only functionality (commerce config, extended `CentralWalletServiceProvider`, etc.).
+A checked-in Git fixture (`contracts/central-wallet/v1/fixtures/overlay-baseline`) is **not** a substitute for a **captured live production baseline**. Git fixtures are for CI/regression only. Production hosts typically **do not** ship that directory; overlay compatibility and production dependency closure need a **retained capture or pre-deploy backup** at post-gate time.
 
-**Operator steps:**
+Managed overlays also write `storage/app/backups/cw-manifest-v2-pre-<timestamp>/` on the target host and record `audit.rollback_reference` (or equivalent) on the runtime v2 manifest — that backup is the **pre-overlay production tree** for managed files and may be used as the post-gate baseline when it contains the same artifacts as capture (config, provider, contracts).
 
-1. **Capture production baseline (read-only)** using `tools/commands/capture-overlay-production-baseline.sh` from an operator workstation with SSH access. This copies `config/central_wallet.php`, `CentralWalletServiceProvider.php`, runtime manifest, and records overlay integrity + `release_identity` without modifying production.
-2. **Verify baseline identity** — read `release-identity-at-capture.txt` and `overlay-integrity-at-capture.json` in the capture directory.
-3. **Prepare candidate overlay** — local checkout at the reviewed release SHA with managed-file inventory only (no `.env`, no secrets).
-4. **Production → candidate compatibility (pre)** on the deploy host or CI runner with:
-   - `CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT=/path/to/captured/baseline`
-   - `CENTRAL_WALLET_RELEASE_GATE_OVERLAY_TARGET_ROOT=/path/to/candidate/checkout`
-   - `php artisan central-wallet:verify-release-gate --phase=pre --json`  
-   Must **FAIL closed** if required config paths, bindings, or capabilities are **REMOVED** or semantically **CHANGED**.
-5. **Manifest integrity (pre)** — overlay integrity section must pass on candidate when manifest present locally.
-6. **Customer-display synthetic (pre/post as configured)** — non-mutating BalanceReadService / Desk visibility probe when fixtures configured.
-7. **Deploy** surgical overlay only (managed inventory files).
-8. **Generate runtime v2 manifest** — `central-wallet:write-runtime-manifest --deployment-type=overlay ...`
-9. **Post-deploy integrity** — `central-wallet:verify-overlay-integrity --json`
-10. **Post-deploy dependency closure** — `central-wallet:verify-release-gate --phase=post --json` (`production_dependency_closure` section).
-11. **Post-deploy customer-display synthetic** — confirm display path not `disabled` when production requires it.
-12. **Financial invariants** — read-only ledger/account-link checks (no mutation).
-13. **Retain rollback backup** — pre-deploy capture directory + prior runtime manifest.
+### A. Before deployment — capture live production baseline
+
+1. **Capture (read-only)** from an operator machine with SSH access:
+
+   ```bash
+   ./tools/commands/capture-overlay-production-baseline.sh \
+     <project-key> <ssh_host> <remote_prod_path> [local_output_dir]
+   ```
+
+   Example (Desk):
+
+   ```bash
+   ./tools/commands/capture-overlay-production-baseline.sh \
+     radium-desk 187.127.129.16 /var/www/radium-desk \
+     ./storage/app/local-baselines/radium-desk-pre-deploy
+   ```
+
+2. **Retain** the entire output directory for the deployment report.
+3. **Record** in the deployment report:
+   - absolute path to the capture directory;
+   - `BASELINE-META.txt`, `release-identity-at-capture.txt`, `overlay-integrity-at-capture.json`;
+   - prior production `release_identity` before overlay.
+4. **Do not** delete the capture until post-gate and financial checks complete.
+
+### B. Pre-gate — captured live baseline → candidate release
+
+On the deploy host or CI runner (candidate = reviewed release checkout or staged tree):
+
+```bash
+export CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT=/absolute/path/to/captured-live-baseline
+export CENTRAL_WALLET_RELEASE_GATE_OVERLAY_TARGET_ROOT=/absolute/path/to/candidate-checkout   # optional; defaults to project root when running artisan in candidate tree
+php artisan central-wallet:verify-release-gate --phase=pre --json
+```
+
+- **Require `final=PASS`** (and no **FAIL** in any section) before deployment.
+- Comparison semantics: **captured live production baseline → candidate overlay**.
+- **FAIL** on removed/changed production-required dependencies is a **release blocker**. Do not deploy.
+
+Optional: upload capture and candidate to the production host under `/tmp/cw-baseline-*` and `/tmp/cw-candidate-*` and run `artisan` from the live app root with the env vars above (same semantics as local pre-gate).
+
+### C. Deploy — managed-file overlay
+
+1. Create/verify **pre-overlay backup** on the target host (overlay scripts copy managed files into `storage/app/backups/cw-manifest-v2-pre-<timestamp>/`).
+2. Deploy **only** managed inventory files from the approved release SHA (no `.env`, secrets, customer data, logs, or unrelated app changes).
+3. `php artisan optimize:clear` (or project-standard cache clear) on the host.
+4. **Generate runtime v2 manifest** on the host:
+
+   ```bash
+   php artisan central-wallet:write-runtime-manifest \
+     --deployment-type=overlay \
+     --project=<project-key> \
+     --environment=production \
+     --overlay-prompt-id=<prompt-id> \
+     --source-commit=<git-sha> \
+     --rollback-reference=<backup-path> \
+     --git-sha=<git-sha> \
+     --git-branch=<branch>
+   ```
+
+5. Record backup path and new `release_identity` in the deployment report.
+
+### D. Post-gate — reuse the same retained baseline
+
+**Do not** run post-gate for overlay compatibility / production dependency closure with the baseline **unset**. That produces **WARN** (`overlay_compatibility_baseline`, `overlay_baseline_unconfigured`) — an **evidence/configuration gap**, not proof of compatibility.
+
+Reuse **the same** directory as pre-gate:
+
+- **Preferred:** the **captured live baseline** from § A (copy retained on operator machine or synced read-only to the host), **or**
+- **Equivalent:** the **pre-deploy overlay backup** on the host (`storage/app/backups/cw-manifest-v2-pre-<timestamp>/`) when it contains the pre-overlay production config/provider/contracts needed for comparison.
+
+On the **deployed** production app root:
+
+```bash
+export CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT=/absolute/path/to/retained-pre-deploy-baseline
+# TARGET defaults to current production tree (base_path) when artisan runs on the host
+php artisan central-wallet:verify-release-gate --phase=post --json
+php artisan central-wallet:verify-overlay-integrity --json
+```
+
+- For **overlay compatibility** and **production_dependency_closure**, expect **PASS** when the baseline env points at the retained capture/backup and the overlay preserved required production behavior.
+- **`final=WARN`** with only baseline-unconfigured messages means the operator skipped the env — **fix the procedure**, not the gate.
+- Any section **`FAIL`** is still a **release blocker** (rollback per § K.1.I). Do not weaken FAIL interpretation.
+
+Then run **customer-display** validation on **consumer spokes** (see § F). Run **financial invariants** (§ G).
+
+### E. Post-gate interpretation (WARN vs FAIL)
+
+| Symptom | Meaning | Action |
+|--------|---------|--------|
+| `overlay_compatibility` / `production_dependency_closure` **WARN**, details *baseline not configured* | Post-gate ran **without** `CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT` (and no valid fixture on host) | Re-run post-gate with retained capture or pre-deploy backup path |
+| Same sections **FAIL** | Semantic dependency removed/changed vs baseline | **Stop.** Rollback. Do not report deploy success |
+| `overlay_integrity` **FAIL** | Manifest/hash/orphan mismatch on deployed tree | **Stop.** Rollback |
+| Aggregate **`final=WARN`** with only provider `customer_display_provider_lane` on Desk | Expected for **provider** role (§ F) | Document in report; do not treat as compatibility failure if oc/pdc/integrity passed |
+
+### F. Radium Desk (provider) vs consumer spokes
+
+- **Radium Desk (`role=provider`):** the release-gate **customer-display synthetic is intentionally N/A** on the provider lane. It reports **WARN** (`customer_display_provider_lane` — “applies to spoke consumers”). **Do not** suppress or reinterpret that WARN in tooling; document it in the deployment report.
+- **rdservice.in, radiumbox.com, rdservice.net (consumers):** **customer-display synthetic is required** post-deploy when configured (`central_wallet.release_gate.customer_display.local_user_id` / synthetic probe settings). Confirm display path is not erroneously `disabled` when production requires wallet UI.
+
+### G. Financial safety (read-only, all projects)
+
+After post-gate, verify **without mutation**:
+
+- **Radium Desk:** RD10575 — ledger **#48** remains **₹499.00** `posted`, reserved **0**, expected single ledger row for that wallet; no duplicate credit; no new wallet transactions from the overlay.
+- **All projects:** no unexpected wallet, account-link, order, or payment mutation attributable to the overlay.
+- **Do not** report deployment success if required validation **FAIL**ed or mandatory checks were skipped.
+
+### H. Operator checklist
+
+- [ ] Capture live production baseline (`capture-overlay-production-baseline.sh`); record path + identities
+- [ ] Pre-gate **PASS** with `CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT=<capture>` → candidate
+- [ ] Pre-overlay **backup** on host verified readable
+- [ ] Deploy managed overlay + write runtime manifest v2
+- [ ] Post-gate with **same** retained baseline (capture or `cw-manifest-v2-pre-*` backup); require oc/pdc **PASS** (not baseline-unconfigured **WARN**)
+- [ ] `central-wallet:verify-overlay-integrity` **PASS**
+- [ ] Consumer **customer-display** checks (spokes); note Desk provider WARN if applicable
+- [ ] Financial invariants (RD10575 on Desk; link/order/payment spot checks)
+- [ ] Health / auth / site-isolation smoke as per project runbook
+- [ ] Final release report (baseline path, backup path, before/after `release_identity`, gate JSON summaries)
+- [ ] **Rollback** if any genuine release-blocking **FAIL** (restore backup tree + prior manifest; re-verify)
+
+### I. Rollback
+
+If a mandatory gate **FAIL**s: stop further projects, restore the recorded pre-overlay backup, restore prior runtime manifest if needed, re-run health and wallet/display checks, document failure. Do not improvise production fixes without a new authorized release.
 
 ## L. Migration path
 
