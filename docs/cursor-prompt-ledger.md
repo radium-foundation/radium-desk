@@ -452,5 +452,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-184 | 2026-10-09 | HIR `deploy_cutoff_utc` prod config + dry-run (111 binds) | Cutoff aligned to **v4.1.20** `deployed_at`; **no apply**. **READY_FOR_HISTORICAL_IDENTITY_REPAIR_AUTHORIZATION.** |
 | RadiumDesk-P-04-10-185 | 2026-10-09 | Owner-authorized production HIR apply @ v4.1.20 | **111** orders bound; **+102** customers/wallets; financial firewall **PASS**; apply disabled post-run. **EXECUTED_AND_RECONCILED.** |
 | RadiumDesk-P-04-10-186 | 2026-10-10 | C360 Central Wallet tab for escalation/support roles | Grant `finance.wallet.view` (display-only) to match agent; prod Shubhanshi verified missing permission. |
+| RadiumDesk-P-04-10-187 | 2026-10-10 | Production deploy **v4.1.21** @ `04f16a54` | C360 wallet view migration + role seed; health **200**. Rollback: **v4.1.20 / b040cd98**. |
 
 Do not renumber or overwrite earlier rows. Append only.
