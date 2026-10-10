@@ -444,6 +444,43 @@ class Customer360WalletLedgerTest extends TestCase
             ->assertSee('data-customer-360-tab="wallet-ledger"', false);
     }
 
+    public function test_escalation_specialist_sees_central_wallet_in_c360_without_finance_module_access(): void
+    {
+        $specialist = User::factory()->create([
+            'email' => 'shubhanshi@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $specialist->assignRole(RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST);
+
+        $this->assertTrue($specialist->can(RolePermissionSeeder::PERMISSION_FINANCE_WALLET_VIEW));
+        $this->assertFalse($specialist->can(RolePermissionSeeder::PERMISSION_FINANCE_VIEW));
+        $this->assertFalse($specialist->can('refunds.execute'));
+
+        $incident = $this->verifiedCustomerCase($specialist);
+        $this->createVerifiedFiveEntries();
+
+        $this->actingAs($specialist)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('data-customer-360-tab="wallet-ledger"', false);
+
+        $html = $this->walletHtml($specialist, $incident);
+        $this->assertStringContainsString('Central Wallet', $html);
+        $this->assertStringContainsString('₹399.00', $html);
+    }
+
+    public function test_support_specialist_and_coordinator_roles_receive_wallet_view_only(): void
+    {
+        foreach ([
+            RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
+            RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
+        ] as $role) {
+            $user = $this->userWithRole($role);
+            $this->assertTrue($user->can(RolePermissionSeeder::PERMISSION_FINANCE_WALLET_VIEW));
+            $this->assertFalse($user->can(RolePermissionSeeder::PERMISSION_FINANCE_VIEW));
+        }
+    }
+
     public function test_compact_drawer_rows_keep_long_identifiers_available(): void
     {
         $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);

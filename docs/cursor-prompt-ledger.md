@@ -448,5 +448,9 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-176 | 2026-10-09 | Owner-authorized reprepare REF-67392 only | Production `central-wallet:pilot-refund-migration-reprepare` for refund **387**. **No import/execute/financial mutation.** |
 | RadiumDesk-P-04-10-181 | 2026-10-09 | Cashfree existing-order binding lifecycle fix (P-04-10-180) | `CashfreeOrderCentralCustomerBindingService`; bind on link + replay paths. Tests **38** Cashfree suites PASS. **No prod repair/deploy.** |
 | RadiumDesk-P-04-10-182 | 2026-10-09 | Release/deploy v4.1.20 Cashfree link binding @ `4779830b+` | Tag **v4.1.20**; KVM `desk deploy --yes`. **No historical identity repair.** |
+| RadiumDesk-P-04-10-183 | 2026-10-09 | READ-ONLY preflight HIR for 113 NULL-customer Cashfree cohort | Official dry-run **0** planned binds; **111/113** excluded by v4.1.15 population cutoff. **BLOCKED.** |
+| RadiumDesk-P-04-10-184 | 2026-10-09 | HIR `deploy_cutoff_utc` prod config + dry-run (111 binds) | Cutoff aligned to **v4.1.20** `deployed_at`; **no apply**. **READY_FOR_HISTORICAL_IDENTITY_REPAIR_AUTHORIZATION.** |
+| RadiumDesk-P-04-10-185 | 2026-10-09 | Owner-authorized production HIR apply @ v4.1.20 | **111** orders bound; **+102** customers/wallets; financial firewall **PASS**; apply disabled post-run. **EXECUTED_AND_RECONCILED.** |
+| RadiumDesk-P-04-10-186 | 2026-10-10 | C360 Central Wallet tab for escalation/support roles | Grant `finance.wallet.view` (display-only) to match agent; prod Shubhanshi verified missing permission. |
 
 Do not renumber or overwrite earlier rows. Append only.

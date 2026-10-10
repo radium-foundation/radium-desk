@@ -1011,3 +1011,7 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 
 | RadiumDesk-P-04-10-181 | 2026-10-09 | Cashfree existing-order customer binding lifecycle fix | Shared `CashfreeOrderCentralCustomerBindingService`; link + replay paths; tests PASS. **No historical repair / no deploy.** |
 | RadiumDesk-P-04-10-182 | 2026-10-09 | Release/deploy v4.1.20 Cashfree existing-order binding | KVM deploy from tag **v4.1.20**; post-deploy read-only Cashfree NULL-customer checks. **No `cashfree:repair-historical-identity`.** |
+| RadiumDesk-P-04-10-183 | 2026-10-09 | READ-ONLY preflight historical Cashfree identity repair (113 cohort) | Prod **v4.1.20 / b040cd98** verified; cohort **113** reconciled; official HIR dry-run **0** binds (111 rows outside `deploy_cutoff_utc`). **BLOCKED — no apply/mutation.** |
+| RadiumDesk-P-04-10-184 | 2026-10-09 | HIR population cutoff prep + production dry-run (no apply) | Prod `.env` cutoff **2026-10-09 23:42:40** (v4.1.20 deploy boundary); dry-run **111** binds / **18** invalid; **READY** for separate apply authorization. |
+| RadiumDesk-P-04-10-185 | 2026-10-09 | Owner-authorized HIR apply (111 Cashfree orders) | Run **hir-apply-p04-10-185-20261009T183015Z**; **111** bound, **0** errors; ledger/refunds unchanged; apply flag restored **false**. |
+| RadiumDesk-P-04-10-186 | 2026-10-10 | C360 Wallet visibility for Shubhanshi / support roles | Root cause: missing `finance.wallet.view` on escalation/support/coordinator roles; seeder + migration + tests. **No deploy.** |

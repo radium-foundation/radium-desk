@@ -372,6 +372,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
+            self::PERMISSION_FINANCE_WALLET_VIEW,
         ],
         self::ROLE_CUSTOMER_COORDINATOR => [
             'orders.view',
@@ -392,6 +393,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_EMAIL_INTAKE_VIEW,
             self::PERMISSION_EMAIL_INTAKE_MANAGE,
+            self::PERMISSION_FINANCE_WALLET_VIEW,
         ],
         self::ROLE_ESCALATION_SPECIALIST => [
             'orders.view',
@@ -410,6 +412,7 @@ class RolePermissionSeeder extends Seeder
             ...self::TODO_BASELINE_PERMISSIONS,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
+            self::PERMISSION_FINANCE_WALLET_VIEW,
         ],
         self::ROLE_HARDWARE_TEAM => [
             'dashboard.hardware.view',
