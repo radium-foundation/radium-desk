@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.21 — 2026-10-10 — C360 Central Wallet tab visibility (support roles)
+
+- **Permissions:** Grant display-only `finance.wallet.view` to `escalation_specialist`, `support_specialist`, and `customer_coordinator` (matches agent C360 Wallet Ledger access; does not grant `finance.view` or wallet financial operations).
+- **Migration:** `2026_10_10_094500_grant_c360_wallet_view_to_support_roles`.
+- Rollback target: v4.1.20 / `b040cd98`.
+- Prompt **RadiumDesk-P-04-10-186**.
+
 ## 4.1.20 — 2026-10-09 — Cashfree existing-order customer binding
 
 - **Cashfree lifecycle:** `CashfreeOrderCentralCustomerBindingService` binds `orders.customer_id` on new-order create, **existing-order payment link**, and safe processed-payment replay (including duplicate-order-id recovery via link path).
