@@ -113,4 +113,28 @@ return [
             'RD3483242',
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Legacy import Cashfree payment reconciliation (P-04-10-198)
+    |--------------------------------------------------------------------------
+    |
+    | Post-import queue: verify Cashfree before Desk payment authority is set.
+    | Does not bulk-scan pre-existing legacy populations (118 AMBIGUOUS / 15 NO_CF).
+    |
+    */
+    'legacy_payment_reconciliation' => [
+        'enabled' => filter_var(
+            env('CASHFREE_LEGACY_PAYMENT_RECONCILIATION_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        'execution_enabled' => filter_var(
+            env('CASHFREE_LEGACY_PAYMENT_RECONCILIATION_EXECUTION_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        'schedule_interval_minutes' => max(1, (int) env('CASHFREE_LEGACY_PAYMENT_RECONCILIATION_INTERVAL_MINUTES', 5)),
+        'schedule_max_per_run' => max(1, (int) env('CASHFREE_LEGACY_PAYMENT_RECONCILIATION_MAX_PER_RUN', 10)),
+        'max_attempts' => max(1, (int) env('CASHFREE_LEGACY_PAYMENT_RECONCILIATION_MAX_ATTEMPTS', 12)),
+        'retry_base_minutes' => max(1, (int) env('CASHFREE_LEGACY_PAYMENT_RECONCILIATION_RETRY_BASE_MINUTES', 15)),
+    ],
 ];

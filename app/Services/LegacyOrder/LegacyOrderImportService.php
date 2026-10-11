@@ -13,6 +13,8 @@ use App\Services\AuditLogService;
 use App\Services\DashboardBroadcastService;
 use App\Services\IncidentReferenceService;
 use App\Services\Interakt\InteraktCustomerMatcher;
+use App\Jobs\Cashfree\ProcessLegacyCashfreePaymentReconciliationJob;
+use App\Services\Cashfree\LegacyCashfreePaymentReconciliationService;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\OrderLookup\OrderEnrichmentLookupService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
@@ -154,6 +156,28 @@ class LegacyOrderImportService
                 actor: $user,
                 source: 'legacy_order_import',
             );
+
+            $orderId = $order->id;
+            DB::afterCommit(function () use ($orderId): void {
+                $freshOrder = Order::query()->find($orderId);
+
+                if ($freshOrder === null) {
+                    return;
+                }
+
+                $reconciliation = app(LegacyCashfreePaymentReconciliationService::class)
+                    ->enqueueForImportedLegacyOrder($freshOrder);
+
+                if ($reconciliation === null) {
+                    return;
+                }
+
+                $service = app(LegacyCashfreePaymentReconciliationService::class);
+                ProcessLegacyCashfreePaymentReconciliationJob::dispatch(
+                    $reconciliation->id,
+                    execute: $service->executionEnabled(),
+                );
+            });
 
             return $incident->fresh(['order', 'assignee']);
         });

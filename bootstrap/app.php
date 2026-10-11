@@ -272,6 +272,27 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/cashfree-auto-recover.log'));
 
+        $schedule->command(
+            'cashfree:reconcile-legacy-payments',
+            array_filter([
+                '--limit' => max(1, (int) config('cashfree.legacy_payment_reconciliation.schedule_max_per_run', 10)),
+                '--execute' => filter_var(
+                    config('cashfree.legacy_payment_reconciliation.execution_enabled', false),
+                    FILTER_VALIDATE_BOOLEAN,
+                ) ?: null,
+            ]),
+        )
+            ->cron(sprintf(
+                '3-59/%d * * * *',
+                max(1, (int) config('cashfree.legacy_payment_reconciliation.schedule_interval_minutes', 5)),
+            ))
+            ->when(fn (): bool => filter_var(
+                config('cashfree.legacy_payment_reconciliation.enabled', false),
+                FILTER_VALIDATE_BOOLEAN,
+            ))
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_five_minutes', 5)))
+            ->appendOutputTo(storage_path('logs/cashfree-legacy-payment-reconciliation.log'));
+
         // Legacy backfill remains available for manual/admin use.
         // $schedule->command('radiumbox:backfill-orders --limit=50')
         //     ->hourly()
