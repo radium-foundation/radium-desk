@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.22 — 2026-10-11 — Legacy Cashfree payment discovery, linking, and import reconciliation
+
+- **Discovery (read-only):** `cashfree:discover-legacy-order-payments` classifies legacy Desk orders with missing payment authority vs Cashfree PG (order/payments/refunds GET). Refunds lookup failures classify as **AMBIGUOUS**, not `NO_CASHFREE_PAYMENT`.
+- **Gated link (operator):** `cashfree:link-legacy-safe-payments` links only explicit approved `SAFE_TO_LINK` discovery report rows via existing `CashfreeWebhookProcessorService` / `order_payment:{id}` journal idempotency (P-04-10-194 path). Includes Cashfree 429 retry/throttle.
+- **Future imports:** Post-import reconciliation queue (`legacy_cashfree_payment_reconciliations`), job, and `cashfree:reconcile-legacy-payments` (dry-run by default). **Disabled by default** via `CASHFREE_LEGACY_PAYMENT_RECONCILIATION_ENABLED` / `EXECUTION_ENABLED`.
+- **Importer protection:** Legacy import does not set Desk payment authority; payments tab shows “Payment not verified in Desk” for legacy orders without verified payment.
+- **Migration:** `2026_10_11_200000_create_legacy_cashfree_payment_reconciliations_table`.
+- **Out of scope in this release:** Auto-processing historical 118 AMBIGUOUS / 15 NO_CASHFREE_PAYMENT cohorts; enabling reconciliation execution in production without separate approval.
+- Rollback target: v4.1.21 / `04f16a54`.
+- Prompts **RadiumDesk-P-04-10-195** through **P-04-10-198**.
+
 ## 4.1.21 — 2026-10-10 — C360 Central Wallet tab visibility (support roles)
 
 - **Permissions:** Grant display-only `finance.wallet.view` to `escalation_specialist`, `support_specialist`, and `customer_coordinator` (matches agent C360 Wallet Ledger access; does not grant `finance.view` or wallet financial operations).
