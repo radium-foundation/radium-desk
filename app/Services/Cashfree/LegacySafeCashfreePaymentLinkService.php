@@ -60,22 +60,10 @@ final class LegacySafeCashfreePaymentLinkService
         }
 
         $results = [];
-        $consecutiveRefundsFailures = 0;
 
-        foreach ($eligible as $evidence) {
+        foreach ($eligible as $index => $evidence) {
             try {
                 $results[] = $this->linkOne($evidence, $dryRun);
-                if ($results[count($results) - 1]->result === LegacySafeCashfreePaymentLinkResult::SkippedRevalidationFailure
-                    && str_contains($results[count($results) - 1]->reason, 'refunds lookup failed')) {
-                    $consecutiveRefundsFailures++;
-                    if ($consecutiveRefundsFailures >= 3) {
-                        throw new RuntimeException(
-                            'Systemic Cashfree refunds lookup failures; stopping batch per safety policy.',
-                        );
-                    }
-                } else {
-                    $consecutiveRefundsFailures = 0;
-                }
             } catch (RuntimeException $exception) {
                 if (str_contains($exception->getMessage(), 'Systemic Cashfree')) {
                     throw $exception;
@@ -87,6 +75,10 @@ final class LegacySafeCashfreePaymentLinkService
                     result: LegacySafeCashfreePaymentLinkResult::FailedMutation,
                     reason: $exception->getMessage(),
                 );
+            }
+
+            if ($index < count($eligible) - 1) {
+                usleep(1_500_000);
             }
         }
 
@@ -236,10 +228,16 @@ final class LegacySafeCashfreePaymentLinkService
 
         if ($apiError === null) {
             try {
-                $refunds = $this->apiClient->getOrderRefunds($orderNumber);
-            } catch (CashfreeApiException) {
+                $refunds = $this->getOrderRefundsWithRetry($orderNumber);
+            } catch (CashfreeApiException $exception) {
                 $refunds = [];
                 $refundsLookupFailed = true;
+
+                if ($this->isNonRetryableRefundsFailure($exception)) {
+                    throw new RuntimeException(
+                        'Systemic Cashfree refunds lookup failure: '.$exception->getMessage(),
+                    );
+                }
             }
         }
 
@@ -551,5 +549,45 @@ final class LegacySafeCashfreePaymentLinkService
         }
 
         return round((float) $value, 2);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function getOrderRefundsWithRetry(string $orderNumber): array
+    {
+        $attempts = 0;
+        $maxAttempts = 6;
+
+        while (true) {
+            $attempts++;
+
+            try {
+                return $this->apiClient->getOrderRefunds($orderNumber);
+            } catch (CashfreeApiException $exception) {
+                if ($attempts >= $maxAttempts || ! $this->isRateLimited($exception)) {
+                    throw $exception;
+                }
+
+                usleep((int) (500_000 * (2 ** ($attempts - 1))));
+            }
+        }
+    }
+
+    private function isRateLimited(CashfreeApiException $exception): bool
+    {
+        return str_contains($exception->getMessage(), 'HTTP 429');
+    }
+
+    private function isNonRetryableRefundsFailure(CashfreeApiException $exception): bool
+    {
+        $message = $exception->getMessage();
+
+        if ($this->isRateLimited($exception)) {
+            return false;
+        }
+
+        return str_contains($message, 'HTTP 401')
+            || str_contains($message, 'HTTP 403');
     }
 }
