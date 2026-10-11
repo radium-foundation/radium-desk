@@ -1029,4 +1029,5 @@ Create clean Central Wallet reservation integration branch `feat/central-wallet-
 | RadiumDesk-P-04-10-198 | 2026-10-11 | Permanent post-import legacy Cashfree payment reconciliation | Queue + `cashfree:reconcile-legacy-payments`; importer cannot declare paid; **no production deploy/mutation**. |
 | RadiumDesk-P-04-10-199 | 2026-10-11 | READ-ONLY: P-04-10-198 production rollout preflight | Release gates, prod overlay vs tag, dry-run prerequisites; **no deploy/mutation**. |
 | RadiumDesk-P-04-10-200 | 2026-10-11 | Prepare coherent release v4.1.22 for P-04-10-195–198 (cherry-pick from v4.1.21) | Isolated branch + CHANGELOG; reconciliation remains disabled by default; **no tag/push/deploy**. |
-| RadiumDesk-P-04-10-198 | 2026-10-11 | Permanent post-import legacy Cashfree payment reconciliation | Queue + `cashfree:reconcile-legacy-payments`; importer cannot declare paid; **no production deploy/mutation**. |
+| RadiumDesk-P-04-10-201 | 2026-10-11 | READ-ONLY: v4.1.22 integration strategy (main vs v4.1.21 vs prepared branch) | FF main→e8327359 recommended; **no git mutation**. |
+| RadiumDesk-P-04-10-202 | 2026-10-11 | Integrate v4.1.22 into main (FF), regression gates, push main + tag v4.1.22 | **No deploy / no prod env / no reconciliation execute**. |
