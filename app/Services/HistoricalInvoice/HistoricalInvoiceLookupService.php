@@ -29,10 +29,46 @@ class HistoricalInvoiceLookupService
         return preg_match('/^(RDE|RIN|RA|RD)\d{3,20}$/', self::normalizeLookupQuery($identifier)) === 1;
     }
 
+    /**
+     * Pattern gate for historical invoice numbers (INV/INVS…).
+     *
+     * Order IDs (RD*, RDE*, …) are not historical from shape alone — eligibility
+     * requires a spoke/desk lookup ({@see shouldExposeHistoricalFinanceFallback}).
+     */
     public static function shouldOfferHistoricalLookup(string $identifier): bool
     {
-        return self::looksLikeHistoricalInvoiceNumber($identifier)
-            || self::looksLikeHistoricalOrderId($identifier);
+        return self::looksLikeHistoricalInvoiceNumber($identifier);
+    }
+
+    public static function mayResolveHistoricalCustomer360(string $identifier): bool
+    {
+        $trimmed = self::normalizeLookupQuery($identifier);
+
+        return self::looksLikeHistoricalInvoiceNumber($trimmed)
+            || self::looksLikeHistoricalOrderId($trimmed);
+    }
+
+    /**
+     * Whether Global Search / Finance should surface the historical reprint entry
+     * point for this identifier (not merely whether it matches an RD* pattern).
+     */
+    public function shouldExposeHistoricalFinanceFallback(string $identifier): bool
+    {
+        $trimmed = self::normalizeLookupQuery($identifier);
+
+        if ($trimmed === '') {
+            return false;
+        }
+
+        if (self::looksLikeHistoricalInvoiceNumber($trimmed)) {
+            return true;
+        }
+
+        if (! self::looksLikeHistoricalOrderId($trimmed)) {
+            return false;
+        }
+
+        return $this->lookupForCustomer360($trimmed)->canReprint();
     }
 
     public function lookup(string $identifier): HistoricalInvoiceResult

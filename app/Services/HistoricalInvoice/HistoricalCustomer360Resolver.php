@@ -17,7 +17,7 @@ class HistoricalCustomer360Resolver
      */
     public function resolve(string $identifier, User $user): ?array
     {
-        if (! HistoricalInvoiceLookupService::shouldOfferHistoricalLookup($identifier)) {
+        if (! HistoricalInvoiceLookupService::mayResolveHistoricalCustomer360($identifier)) {
             return null;
         }
 

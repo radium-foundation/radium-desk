@@ -80,7 +80,7 @@ class SearchController extends Controller
         $results = $this->globalSearchService->search($user, $query);
         $payload = $results->map(fn ($result) => $result->toArray())->values();
 
-        if ($payload->isEmpty() && HistoricalInvoiceLookupService::shouldOfferHistoricalLookup($query)) {
+        if ($payload->isEmpty() && HistoricalInvoiceLookupService::mayResolveHistoricalCustomer360($query)) {
             $historicalMatch = $this->historicalCustomer360Resolver->resolve($query, $user);
             if ($historicalMatch !== null) {
                 $payload = collect([
@@ -105,7 +105,7 @@ class SearchController extends Controller
         if (
             $payload->isEmpty()
             && FinanceAccess::allowsInvoices($user)
-            && HistoricalInvoiceLookupService::shouldOfferHistoricalLookup($query)
+            && app(HistoricalInvoiceLookupService::class)->shouldExposeHistoricalFinanceFallback($query)
         ) {
             $normalized = HistoricalInvoiceLookupService::normalizeLookupQuery($query);
             $response['historical'] = [
