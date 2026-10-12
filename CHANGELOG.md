@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.23 — 2026-10-12 — Historical invoice search eligibility (RD2579)
+
+- **Global search / finance:** Pending live `RD*` orders no longer surface the historical invoice banner or reprint entry point from identifier shape alone; `RD*` fallback requires `canReprint()` via spoke lookup (`HistoricalInvoiceLookupService::shouldExposeHistoricalFinanceFallback`). **INV/INVS** behavior unchanged.
+- **Regression:** RD2579 pending-order case, spoke not-found/timeout negatives, statutory index redirect, Customer 360 mapping, and dashboard search banner JSON contract tests.
+- **Migrations:** None in this release.
+- Rollback target: v4.1.22 / `ea1a232`.
+- Prompts **RadiumDesk-P-04-10-227** through **P-04-10-232**.
+
 ## 4.1.22 — 2026-10-11 — Legacy Cashfree payment discovery, linking, and import reconciliation
 
 - **Discovery (read-only):** `cashfree:discover-legacy-order-payments` classifies legacy Desk orders with missing payment authority vs Cashfree PG (order/payments/refunds GET). Refunds lookup failures classify as **AMBIGUOUS**, not `NO_CASHFREE_PAYMENT`.
