@@ -15,6 +15,7 @@ use Illuminate\Validation\ValidationException;
 class WalletRefundExecutor implements RefundExecutor
 {
     public function __construct(
+        private readonly DeskFirstWalletRefundOrchestrator $deskFirstOrchestrator,
         private readonly RdServiceInWalletRefundClient $rdServiceInWalletRefundClient,
         private readonly RdServiceNetWalletRefundClient $rdServiceNetWalletRefundClient,
         private readonly RadiumBoxWalletRefundClient $radiumBoxWalletRefundClient,
@@ -43,6 +44,17 @@ class WalletRefundExecutor implements RefundExecutor
             throw ValidationException::withMessages([
                 'refund' => 'A positive refund amount is required before wallet credit can be posted.',
             ]);
+        }
+
+        if ($this->deskFirstOrchestrator->isEnabled()) {
+            if ($this->destinations->isRdServiceNet($orderId)
+                && ! $this->destinations->supportsAutomatedWalletCredit($orderId)) {
+                throw ValidationException::withMessages([
+                    'refund' => $this->destinations->unsupportedAutomatedWalletCreditMessage($orderId),
+                ]);
+            }
+
+            return $this->deskFirstOrchestrator->execute($refund, $actor, $payload, $orderId, $amount);
         }
 
         if ($this->destinations->isRdServiceIn($orderId)) {

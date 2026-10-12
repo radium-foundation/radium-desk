@@ -104,6 +104,32 @@ class RadiumBoxWalletRefundClientTest extends TestCase
         $this->assertSame(273105, $result['wallet_transaction_id']);
     }
 
+    public function test_derives_rd_reference_when_wallet_reference_is_zero_from_integer_txnid_column(): void
+    {
+        Http::fake([
+            'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::response([
+                'status' => 201,
+                'message' => 'Wallet credit created',
+                'data' => [
+                    'wallet_transaction_id' => 2579,
+                    'wallet_reference' => 0,
+                    'desk_refund_reference' => 'REF-67398',
+                    'credit' => 119,
+                    'balance' => 119,
+                ],
+            ], 201),
+        ]);
+
+        $result = app(RadiumBoxWalletRefundClient::class)->creditWalletRefund(
+            deskRefundReference: 'REF-67398',
+            orderId: 'RBP858',
+            amount: 119.00,
+        );
+
+        $this->assertSame('RD2579', $result['wallet_reference']);
+        $this->assertSame(2579, $result['wallet_transaction_id']);
+    }
+
     public function test_accepts_txnid_alias_when_wallet_reference_missing(): void
     {
         Http::fake([

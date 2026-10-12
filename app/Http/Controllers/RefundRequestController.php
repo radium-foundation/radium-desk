@@ -24,6 +24,7 @@ use App\Services\Refunds\RefundExecutionMethodRerouteService;
 use App\Services\Refunds\RefundListingQuery;
 use App\Services\Refunds\RefundRevokeService;
 use App\Services\RemarkTimelineService;
+use App\Support\Refunds\DeskFirstWalletRefundRecoveryInspector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,7 @@ class RefundRequestController extends Controller
         private readonly RefundListingQuery $refundListingQuery,
         private readonly RefundRevokeService $refundRevokeService,
         private readonly RefundExecutionMethodRerouteService $refundExecutionMethodRerouteService,
+        private readonly DeskFirstWalletRefundRecoveryInspector $deskFirstRecoveryInspector,
     ) {
         $this->authorizeResource(RefundRequest::class, 'refund', [
             'except' => ['edit', 'update'],
@@ -132,6 +134,8 @@ class RefundRequestController extends Controller
             'canRevokeRefund' => $this->refundRevokeService->canRevoke($refund),
             'canRerouteExecutionMethod' => $this->refundExecutionMethodRerouteService->canReroute($refund),
             'revokeOutcomes' => RefundRevokeCustomerOutcome::cases(),
+            'deskFirstCompletionRecoveryNotice' => $this->deskFirstRecoveryInspector->completionRecoveryNotice($refund),
+            'deskFirstRevocationRecoveryNotice' => $this->deskFirstRecoveryInspector->revocationRecoveryNotice($refund),
         ]);
     }
 

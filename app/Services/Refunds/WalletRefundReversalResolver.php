@@ -6,6 +6,7 @@ use App\Contracts\Refunds\WalletRefundReversalClient;
 use App\Models\RefundRequest;
 use App\Services\RadiumBox\RadiumBoxWalletRefundReversalClient;
 use App\Services\RdService\RdServiceInWalletRefundReversalClient;
+use App\Support\Refunds\DeskFirstWalletRefundSupport;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Validation\ValidationException;
 
@@ -14,6 +15,7 @@ class WalletRefundReversalResolver
     public function __construct(
         private readonly Container $container,
         private readonly WalletRefundDestinationResolver $destinations,
+        private readonly DeskFirstWalletRefundRevokeCoordinator $deskFirstRevokeCoordinator,
     ) {}
 
     public function forOrderId(?string $orderId): WalletRefundReversalClient
@@ -35,6 +37,10 @@ class WalletRefundReversalResolver
         RefundRequest $refund,
         string $idempotencyKey,
     ): array {
+        if (DeskFirstWalletRefundSupport::isDeskFirstCompletedExecution($refund)) {
+            return $this->deskFirstRevokeCoordinator->reverse($refund, $idempotencyKey);
+        }
+
         $refund->loadMissing('order');
 
         $orderId = $refund->order?->order_id;
