@@ -453,4 +453,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-185 | 2026-10-09 | Owner-authorized production HIR apply @ v4.1.20 | **111** orders bound; **+102** customers/wallets; financial firewall **PASS**; apply disabled post-run. **EXECUTED_AND_RECONCILED.** |
 | RadiumDesk-P-04-10-186 | 2026-10-10 | C360 Central Wallet tab for escalation/support roles | Grant `finance.wallet.view` (display-only) to match agent; prod Shubhanshi verified missing permission. |
 
+| RadiumDesk-P-04-10-227 | 2026-10-12 | RD2579 historical invoice lookup misclassification — root cause + regression hardening | **VERIFIED:** `shouldOfferHistoricalLookup` regex on RD* caused empty-search `historical` JSON for live pending RD2579. **Fix:** INV/INVS pattern-only for banner; `shouldExposeHistoricalFinanceFallback()` requires `lookupForCustomer360()->canReprint()` for order IDs; C360 gate `mayResolveHistoricalCustomer360`. **PHPUnit** eligibility + reprint suites PASS. **No push/deploy/prod mutation.** |
+| RadiumDesk-P-04-10-228 | 2026-10-12 | RD2579 — release-ready validation + regression hardening (follow-up to P-04-10-227) | Spoke not-found/timeout negative tests, RD2579 single-spoke-fetch assertion, JS banner priority contract tests. **PHPUnit** **23/23** + **Vitest** **54/54** PASS; **Pint** PASS. **No push/deploy.** |
+| RadiumDesk-P-04-10-229 | 2026-10-12 | RD2579 — isolated local commit (historical invoice lookup fix) | Isolated commit on `release/v4.1.22-cashfree-legacy-payment` from `ea1a232`; see commit message for SHA. **Pushed/deployed:** NO. |
+
 Do not renumber or overwrite earlier rows. Append only.

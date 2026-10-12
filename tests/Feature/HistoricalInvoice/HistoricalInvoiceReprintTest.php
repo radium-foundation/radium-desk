@@ -111,7 +111,14 @@ class HistoricalInvoiceReprintTest extends TestCase
 
     public function test_statutory_invoice_search_redirects_historical_identifiers(): void
     {
-        Http::fake();
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD268507' => Http::response(
+                $this->spokeOrderPayload('RD268507', 'INV6745886'),
+                200,
+            ),
+            'https://rdservice.in/*' => Http::response(['status' => 404], 404),
+            'https://radiumbox.com/*' => Http::response(['status' => 404], 404),
+        ]);
 
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.index', ['q' => 'INV6745886']))
@@ -121,6 +128,20 @@ class HistoricalInvoiceReprintTest extends TestCase
             ->get(route('finance.invoices.index', ['q' => 'rd268507']))
             ->assertRedirect(route('finance.invoices.historical', ['q' => 'RD268507']));
 
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD2579' => Http::response(
+                $this->pendingCurrentOrderPayload('RD2579'),
+                200,
+            ),
+            'https://rdservice.in/*' => Http::response(['status' => 404], 404),
+            'https://radiumbox.com/*' => Http::response(['status' => 404], 404),
+        ]);
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.index', ['q' => 'RD2579']))
+            ->assertOk()
+            ->assertSee('Statutory invoices', false);
+
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.index', ['q' => 'INV-07671']))
             ->assertOk()
@@ -129,8 +150,6 @@ class HistoricalInvoiceReprintTest extends TestCase
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.index', ['q' => 'Nareshkumar']))
             ->assertOk();
-
-        Http::assertNothingSent();
     }
 
     public function test_header_search_offers_historical_reprint_when_no_desk_case_exists(): void
@@ -197,6 +216,7 @@ class HistoricalInvoiceReprintTest extends TestCase
         ]);
 
         $incident = $this->createMappedHistoricalCase();
+        $incident->order->update(['invoice_number' => 'INV6745886']);
         $customer360Url = route('dashboard.service-cases.customer-360', [
             'incident' => $incident,
             'historical_invoice' => 'INV6745886',
@@ -345,6 +365,7 @@ class HistoricalInvoiceReprintTest extends TestCase
         ]);
 
         $incident = $this->createMappedHistoricalCase();
+        $incident->order->update(['invoice_number' => 'INV6745886']);
 
         $this->actingAs($this->actor)
             ->getJson(route('search.index', ['q' => 'RD268507']))
@@ -373,7 +394,55 @@ class HistoricalInvoiceReprintTest extends TestCase
             ->assertOk()
             ->assertJsonPath('match_count', 0)
             ->assertJsonPath('incident_ids', [])
-            ->assertJsonMissingPath('results.0');
+            ->assertJsonMissingPath('results.0')
+            ->assertJsonMissingPath('historical');
+    }
+
+    public function test_rd2579_pending_current_order_is_not_misclassified_as_historical_invoice_lookup(): void
+    {
+        $this->seed(SettingsSeeder::class);
+
+        Http::fake([
+            'https://rdservice.net/api/integrations/v1/rd-orders/RD2579' => Http::response(
+                $this->pendingCurrentOrderPayload('RD2579'),
+                200,
+            ),
+            'https://rdservice.in/*' => Http::response(['status' => 404], 404),
+            'https://radiumbox.com/api/integrations/v1/rd-orders/*' => Http::response(['status' => 404], 404),
+            'https://radiumbox.com/api/integrations/v1/historical-invoices/*' => Http::response(['status' => 404], 404),
+        ]);
+
+        $this->actingAs($this->actor)
+            ->getJson(route('search.index', ['q' => 'RD2579']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0)
+            ->assertJsonMissingPath('historical')
+            ->assertJsonPath('intake.classification', 'legacy')
+            ->assertJsonPath('intake.legacy_preview.order_id', 'RD2579')
+            ->assertJsonPath('intake.legacy_preview.legacy_order_status', 'Pending');
+
+        $invoiceFetches = collect(Http::recorded())
+            ->filter(fn (array $pair): bool => str_contains($pair[0]->url(), '/historical-invoices/'));
+        $this->assertCount(0, $invoiceFetches);
+
+        $orderFetches = collect(Http::recorded())
+            ->filter(fn (array $pair): bool => str_contains($pair[0]->url(), '/rd-orders/RD2579'));
+        $this->assertCount(1, $orderFetches, 'RD2579 eligibility and intake must reuse one spoke fetch per request.');
+    }
+
+    public function test_rd_order_spoke_timeout_does_not_expose_historical_search_fallback(): void
+    {
+        $this->seed(SettingsSeeder::class);
+
+        Http::fake(function () {
+            throw new ConnectionException('cURL error 28: timed out');
+        });
+
+        $this->actingAs($this->actor)
+            ->getJson(route('search.index', ['q' => 'RD2579']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0)
+            ->assertJsonMissingPath('historical');
     }
 
     public function test_lowercase_historical_invoice_is_normalized(): void
@@ -540,5 +609,48 @@ class HistoricalInvoiceReprintTest extends TestCase
         $payload['data']['invoice']['rdorderid'] = 'RD3396720';
 
         return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pendingCurrentOrderPayload(string $orderId): array
+    {
+        return [
+            'status' => 200,
+            'spec_version' => '1.0',
+            'website_id' => 'rdservice.net',
+            'message' => 'OK',
+            'data' => [
+                'correlation' => ['rdorderid' => $orderId],
+                'rd_order' => [
+                    'rdorderid' => $orderId,
+                    'order_id' => $orderId,
+                    'serial_no' => null,
+                    'product_name' => 'MFS110',
+                    'status' => 'Pending',
+                    'payment_status' => 'Pending',
+                    'userdetails' => json_encode([
+                        'name' => 'Sandeep Kumar Singh',
+                        'phone' => '9955559929',
+                    ]),
+                ],
+                'order' => [
+                    'id' => 2579,
+                    'ordercode' => $orderId,
+                    'invoicecode' => null,
+                    'payment_status' => 'Pending',
+                    'status' => 'Pending',
+                ],
+                'snapshot' => [
+                    'rdorderid' => $orderId,
+                    'serial_number' => null,
+                    'invoice_number' => null,
+                    'payment_status' => 'Pending',
+                    'model' => 'MFS110',
+                    'legacy_order_date' => '2026-09-14 09:44:00',
+                ],
+            ],
+        ];
     }
 }

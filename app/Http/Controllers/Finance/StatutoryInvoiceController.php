@@ -54,10 +54,16 @@ class StatutoryInvoiceController extends Controller
     public function index(Request $request): View|RedirectResponse
     {
         $query = trim((string) $request->input('q', ''));
-        if (HistoricalInvoiceLookupService::shouldOfferHistoricalLookup($query)) {
-            return redirect()->route('finance.invoices.historical', [
-                'q' => HistoricalInvoiceLookupService::normalizeLookupQuery($query),
-            ]);
+        if ($query !== '') {
+            $historicalLookup = app(HistoricalInvoiceLookupService::class);
+            if (
+                HistoricalInvoiceLookupService::shouldOfferHistoricalLookup($query)
+                || $historicalLookup->shouldExposeHistoricalFinanceFallback($query)
+            ) {
+                return redirect()->route('finance.invoices.historical', [
+                    'q' => HistoricalInvoiceLookupService::normalizeLookupQuery($query),
+                ]);
+            }
         }
 
         $period = ReportPeriod::fromRequest($request);

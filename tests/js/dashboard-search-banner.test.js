@@ -63,6 +63,45 @@ describe('dashboard search banner', () => {
             .toBe('No record found for RD3437143');
     });
 
+    it('prefers historical hint over legacy intake when both are present', () => {
+        const card = document.querySelector('.dashboard-service-cases-card');
+
+        showSearchBanner(card, {
+            matchCount: 0,
+            query: 'RD2579',
+            historical: {
+                query: 'RD2579',
+                url: '/finance/invoices/historical?q=RD2579',
+                kind: 'order',
+            },
+            intake: {
+                classification: 'legacy',
+                requires_confirmation: true,
+                legacy_preview: { order_id: 'RD2579', legacy_order_status: 'Pending' },
+            },
+        });
+
+        expect(document.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('Historical invoice lookup available for RD2579');
+    });
+
+    it('shows legacy intake banner when historical hint is omitted (RD2579 server contract)', () => {
+        const card = document.querySelector('.dashboard-service-cases-card');
+
+        showSearchBanner(card, {
+            matchCount: 0,
+            query: 'RD2579',
+            intake: {
+                classification: 'legacy',
+                requires_confirmation: true,
+                legacy_preview: { order_id: 'RD2579', legacy_order_status: 'Pending' },
+            },
+        });
+
+        expect(document.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('Legacy order found — create service request');
+    });
+
     it('shows legacy intake banner message without duplicate no-record text', () => {
         const card = document.querySelector('.dashboard-service-cases-card');
 
