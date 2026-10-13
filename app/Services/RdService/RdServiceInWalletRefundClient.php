@@ -39,6 +39,7 @@ class RdServiceInWalletRefundClient
         string $orderId,
         string $amount,
         ?string $customerEmail = null,
+        ?int $centralWalletLedgerEntryId = null,
     ): array {
         if (! $this->isConfigured()) {
             throw ValidationException::withMessages([
@@ -74,6 +75,9 @@ class RdServiceInWalletRefundClient
             ];
             if (is_string($customerEmail) && trim($customerEmail) !== '') {
                 $body['customer_email'] = trim($customerEmail);
+            }
+            if ($centralWalletLedgerEntryId !== null && $centralWalletLedgerEntryId > 0) {
+                $body['central_wallet_ledger_entry_id'] = $centralWalletLedgerEntryId;
             }
 
             $response = $request->post('/api/integrations/v1/wallet-refunds', $body);

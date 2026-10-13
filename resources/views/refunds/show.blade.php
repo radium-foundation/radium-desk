@@ -29,6 +29,18 @@
         </div>
     </div>
 
+    @if(filled($deskFirstCompletionRecoveryNotice ?? null))
+        <div class="alert alert-warning border-0 shadow-sm" role="status">
+            <strong>Desk-first recovery:</strong> {{ $deskFirstCompletionRecoveryNotice }}
+        </div>
+    @endif
+
+    @if(filled($deskFirstRevocationRecoveryNotice ?? null))
+        <div class="alert alert-warning border-0 shadow-sm" role="status">
+            <strong>Desk-first revoke recovery:</strong> {{ $deskFirstRevocationRecoveryNotice }}
+        </div>
+    @endif
+
     <div class="row g-3">
         <div class="col-lg-7">
             <div class="card border-0 shadow-sm mb-3">

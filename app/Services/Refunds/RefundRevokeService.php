@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\BusinessHoldService;
 use App\Services\Commercial\CommercialServiceRestorationService;
+use App\Support\Refunds\DeskFirstWalletRefundSupport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +22,7 @@ class RefundRevokeService
 {
     public function __construct(
         private readonly WalletRefundReversalResolver $walletReversalResolver,
+        private readonly DeskFirstWalletRefundRevokeCoordinator $deskFirstRevokeCoordinator,
         private readonly CommercialServiceRestorationService $commercialRestorationService,
         private readonly BusinessHoldService $businessHoldService,
         private readonly AuditLogService $auditLogService,
@@ -86,7 +88,10 @@ class RefundRevokeService
             return $lockedRefund->fresh(['order', 'revoker', 'executor', 'reviewer']) ?? $lockedRefund;
         }
 
-        if (! $attempt->hasWalletReversal()) {
+        if (DeskFirstWalletRefundSupport::isDeskFirstCompletedExecution($lockedRefund)) {
+            $this->performDeskFirstWalletReversal($lockedRefund, $attempt, $idempotencyKey);
+            $attempt = $attempt->fresh() ?? $attempt;
+        } elseif (! $attempt->hasWalletReversal()) {
             $this->performWalletReversal($lockedRefund, $attempt, $idempotencyKey);
             $attempt = $attempt->fresh() ?? $attempt;
         }
@@ -131,6 +136,44 @@ class RefundRevokeService
         });
     }
 
+    private function performDeskFirstWalletReversal(
+        RefundRequest $refund,
+        RefundRevocationAttempt $attempt,
+        string $idempotencyKey,
+    ): void {
+        try {
+            if (! $attempt->hasWalletReversal()) {
+                $ledger = $this->deskFirstRevokeCoordinator->reverseCentralWalletLedger($refund, $idempotencyKey);
+                $attempt->update([
+                    'status' => RefundRevocationAttemptStatus::WalletReversed,
+                    'wallet_reversal_reference' => $ledger['wallet_reversal_reference'],
+                    'wallet_reversal_transaction_id' => $ledger['wallet_reversal_transaction_id'],
+                    'metadata' => [
+                        'wallet_balance' => $ledger['balance'] ?? null,
+                        'desk_first_cw_reversal_ledger_entry_id' => $ledger['reversal_ledger_entry_id'],
+                        'desk_first_cw_reversal_idempotent_replay' => $ledger['idempotent_replay'] ?? false,
+                    ],
+                    'error_message' => null,
+                ]);
+            }
+
+            $this->deskFirstRevokeCoordinator->retireSpokeAudit($refund, $idempotencyKey);
+        } catch (ValidationException $exception) {
+            $attempt = $attempt->fresh() ?? $attempt;
+            $errorMessage = collect($exception->errors())->flatten()->first();
+            if ($attempt->hasWalletReversal()) {
+                $attempt->update(['error_message' => $errorMessage]);
+            } else {
+                $attempt->update([
+                    'status' => RefundRevocationAttemptStatus::Failed,
+                    'error_message' => $errorMessage,
+                ]);
+            }
+
+            throw $exception;
+        }
+    }
+
     private function performWalletReversal(
         RefundRequest $refund,
         RefundRevocationAttempt $attempt,
@@ -139,10 +182,16 @@ class RefundRevokeService
         try {
             $reversal = $this->walletReversalResolver->reverse($refund, $idempotencyKey);
         } catch (ValidationException $exception) {
-            $attempt->update([
-                'status' => RefundRevocationAttemptStatus::Failed,
-                'error_message' => collect($exception->errors())->flatten()->first(),
-            ]);
+            $attempt = $attempt->fresh() ?? $attempt;
+            $errorMessage = collect($exception->errors())->flatten()->first();
+            if ($attempt->hasWalletReversal()) {
+                $attempt->update(['error_message' => $errorMessage]);
+            } else {
+                $attempt->update([
+                    'status' => RefundRevocationAttemptStatus::Failed,
+                    'error_message' => $errorMessage,
+                ]);
+            }
 
             throw $exception;
         }

@@ -386,7 +386,7 @@ class RefundRequestService
         array $data,
         Request $request,
     ): RefundRequest {
-        $completed = DB::transaction(function () use ($refund, $user, $data, $request): RefundRequest {
+        DB::transaction(function () use ($refund): void {
             $locked = RefundRequest::query()->lockForUpdate()->findOrFail($refund->id);
 
             if ($locked->status !== RefundStatus::PendingExecution) {
@@ -394,14 +394,31 @@ class RefundRequestService
                     'refund' => 'Only refunds pending execution can be completed.',
                 ]);
             }
+        });
 
-            $data = RefundExecutionInputGuard::sanitizeForCompletion($locked, $data);
-
-            $execution = $this->executorResolver->execute($locked, $user, [
-                'reference_number' => $data['execution_reference_no'] ?? null,
-                'transaction_id' => $data['execution_transaction_id'] ?? null,
-                'remarks' => $data['execution_remarks'] ?? null,
+        $lockedForExecution = $refund->fresh(['order']);
+        if ($lockedForExecution === null) {
+            throw ValidationException::withMessages([
+                'refund' => 'Refund could not be loaded for execution.',
             ]);
+        }
+
+        $data = RefundExecutionInputGuard::sanitizeForCompletion($lockedForExecution, $data);
+
+        $execution = $this->executorResolver->execute($lockedForExecution, $user, [
+            'reference_number' => $data['execution_reference_no'] ?? null,
+            'transaction_id' => $data['execution_transaction_id'] ?? null,
+            'remarks' => $data['execution_remarks'] ?? null,
+        ]);
+
+        $completed = DB::transaction(function () use ($lockedForExecution, $user, $execution, $request): RefundRequest {
+            $locked = RefundRequest::query()->lockForUpdate()->findOrFail($lockedForExecution->id);
+
+            if ($locked->status !== RefundStatus::PendingExecution) {
+                throw ValidationException::withMessages([
+                    'refund' => 'Only refunds pending execution can be completed.',
+                ]);
+            }
 
             $oldValues = $this->executionSnapshot($locked);
 

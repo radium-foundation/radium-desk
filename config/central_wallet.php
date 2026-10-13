@@ -207,6 +207,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Desk-first wallet refunds (authoritative ledger on Desk before spoke audit)
+    |--------------------------------------------------------------------------
+    */
+
+    'wallet_refund' => [
+        'desk_first_enabled' => filter_var(
+            env('CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        /** Comma-separated order owners allowed for desk-first spoke audit (default: rdservice.in only). */
+        'desk_first_spoke_allowlist' => env('CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_SPOKES', 'rdservice.in'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Customer identity ensure (canonical CWID for refund destination)
     |--------------------------------------------------------------------------
     */
