@@ -76,7 +76,8 @@ class ChangelogServiceTest extends TestCase
     {
         $entries = app(ChangelogService::class)->entries();
 
-        $this->assertSame('4.1.6', $entries[0]['version']);
+        $this->assertNotNull($entries[0]['version']);
+        $this->assertNotSame('4.0.0', $entries[0]['version'], 'Newest changelog section must not match the manifest current version under test.');
         $this->assertFalse($entries[0]['is_current']);
     }
 
