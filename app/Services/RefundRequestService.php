@@ -15,6 +15,7 @@ use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\Operations\TeamMemberActivityService;
+use App\Services\Refunds\DeskFirstWalletRefundCompletionGate;
 use App\Services\Refunds\RefundExecutionInputGuard;
 use App\Services\Refunds\RefundExecutorResolver;
 use App\Services\Refunds\WalletRefundDestinationResolver;
@@ -36,6 +37,7 @@ class RefundRequestService
         private readonly BusinessHoldService $businessHoldService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly WalletRefundDestinationResolver $walletRefundDestinations,
+        private readonly DeskFirstWalletRefundCompletionGate $deskFirstWalletRefundCompletionGate,
     ) {}
 
     /**
@@ -410,6 +412,8 @@ class RefundRequestService
             'transaction_id' => $data['execution_transaction_id'] ?? null,
             'remarks' => $data['execution_remarks'] ?? null,
         ]);
+
+        $this->deskFirstWalletRefundCompletionGate->assertMayComplete($lockedForExecution, $execution);
 
         $completed = DB::transaction(function () use ($lockedForExecution, $user, $execution, $request): RefundRequest {
             $locked = RefundRequest::query()->lockForUpdate()->findOrFail($lockedForExecution->id);

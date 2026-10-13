@@ -457,4 +457,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-04-10-228 | 2026-10-12 | RD2579 — release-ready validation + regression hardening (follow-up to P-04-10-227) | Spoke not-found/timeout negative tests, RD2579 single-spoke-fetch assertion, JS banner priority contract tests. **PHPUnit** **23/23** + **Vitest** **54/54** PASS; **Pint** PASS. **No push/deploy.** |
 | RadiumDesk-P-04-10-229 | 2026-10-12 | RD2579 — isolated local commit (historical invoice lookup fix) | Isolated commit on `release/v4.1.22-cashfree-legacy-payment` from `ea1a232`; see commit message for SHA. **Pushed/deployed:** NO. |
 
+| RadiumDesk-P-12-10-031 | 2026-10-13 | Desk-first wallet refund authority gate + unique ledger index (production-oriented RC) | Branch `feat/desk-first-wallet-refund-rc` merged `f5af6ce7` recovery; `DeskFirstWalletRefundCompletionGate`; migration `2026_10_13_220000_*`; tests **53+4** gate + desk-first/migration focused PASS. Prod duplicate scan **0** groups. **Not deployed**; desk-first flag remains **false** until owner cutover. |
+
 Do not renumber or overwrite earlier rows. Append only.

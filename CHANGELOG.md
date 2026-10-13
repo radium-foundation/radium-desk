@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.29 — 2026-10-13 — Desk-first wallet refund authority gate (RDIN)
+
+- **Wallet refunds:** Fail-closed `DeskFirstWalletRefundCompletionGate` verifies posted Central Wallet credit, amount/currency, customer CWID, execution binding, and spoke audit metadata before `RefundRequestService::complete` when `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED` is true. Legacy path unchanged when flag is false.
+- **Schema:** Unique index on `(business_reference, entry_type)` for `central_wallet_ledger_entries` to block duplicate refund credits under concurrency.
+- **Migrations:** `2026_10_13_220000_add_unique_business_reference_to_central_wallet_ledger_entries`.
+- **Production cutover:** Deploy with desk-first flag **off**; enable `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED=true` only after owner-authorized migration + verification (no staging platform).
+- Prompt **RadiumDesk-P-12-10-031**.
+
 ## 4.1.23 — 2026-10-12 — Historical invoice search eligibility (RD2579)
 
 - **Global search / finance:** Pending live `RD*` orders no longer surface the historical invoice banner or reprint entry point from identifier shape alone; `RD*` fallback requires `canReprint()` via spoke lookup (`HistoricalInvoiceLookupService::shouldExposeHistoricalFinanceFallback`). **INV/INVS** behavior unchanged.
