@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.28 — 2026-10-13 — RadiumBox hardware SKU mapping (Bluprints Vriddhi L1)
+
+- Add Owner-approved radiumbox.com `channel_sku_maps` seed configuration for `model_id` **1616** (`RBBPVRIDL1` → Desk inventory SKU `RBBPVRIDL1`; `channel_sku` wire value `1616`).
+- Resolves **Product mapping required** for Box hardware fulfilment lines carrying Vriddhi L1 `model_id` 1616 (main PDP product id 1615 unchanged).
+- **Migrations:** None in this release.
+- **Out of scope:** RadiumBox `products.sku_code` update, Desk-first/Central Wallet, Customer 360, Gmail, refund routing.
+- Production requires `php artisan desk:seed-radiumbox-hardware-sku-maps --dry-run` then `--apply` after deploy (separate Owner gate). Verify `channel_sku_maps` row for `model_id` 1616 points at inventory SKU `RBBPVRIDL1` (expected production `inventory_product_id` **50** — confirm on server before apply).
+- Rollback target: v4.1.27 / `d576d0df`.
+- Prompts **RadiumDesk-P-12-10-008** (isolate on release line), **P-12-10-009** (release-readiness review).
+
 ## 4.1.27 — 2026-10-13 — Wallet refund reconciliation safeguards and Customer 360 clarity
 
 - **Central Wallet:** `WalletRefundAuthoritativeCreditGuard` blocks unpaired desk-first and integration API refund credits when spoke execution exists without reconciled migration evidence.

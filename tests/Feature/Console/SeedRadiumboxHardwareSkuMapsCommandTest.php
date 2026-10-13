@@ -26,6 +26,7 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
             ['RBMFS500FP', 625],
             ['RBWM112MZ', 340],
             ['RBSMOOTHED', 1753],
+            ['RBBPVRIDL1', 1616],
         ] as [$sku, $modelId]) {
             $product = InventoryProduct::query()->create([
                 'sku' => $sku,
@@ -33,7 +34,7 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
                 'hsn_code' => '85444299',
                 'gst_percentage' => 18,
                 'unit_price' => 100,
-                'is_serialized' => in_array($sku, ['RBHYP2003T', 'RBBIOC600C', 'RBAST300L1', 'RBMFS500FP', 'RBSMOOTHED'], true),
+                'is_serialized' => in_array($sku, ['RBHYP2003T', 'RBBIOC600C', 'RBAST300L1', 'RBMFS500FP', 'RBSMOOTHED', 'RBBPVRIDL1'], true),
                 'is_active' => true,
             ]);
             ChannelSkuMap::query()->create([
@@ -51,7 +52,7 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
         $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--dry-run' => true])
             ->assertSuccessful();
 
-        $this->assertSame(0, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 1412, 1420, 625, 340, 1753])->count());
+        $this->assertSame(0, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 1412, 1420, 625, 340, 1753, 1616])->count());
     }
 
     public function test_wm112_maps_to_rbwm112mz_not_keyboard_mouse_combo(): void
@@ -80,12 +81,12 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
         $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
             ->assertSuccessful();
 
-        $this->assertSame(9, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 1412, 1420, 625, 340, 1753])->count());
+        $this->assertSame(10, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 1412, 1420, 625, 340, 1753, 1616])->count());
 
         $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
             ->assertSuccessful();
 
-        $this->assertSame(9, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 1412, 1420, 625, 340, 1753])->count());
+        $this->assertSame(10, ChannelSkuMap::query()->whereIn('model_id', [347, 1749, 1409, 1410, 1412, 1420, 625, 340, 1753, 1616])->count());
     }
 
     public function test_mfs500_lx_maps_to_rbmfs500fp(): void
@@ -122,6 +123,18 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
         $this->assertSame('PIDMORUCBL', $map->catalog_sku);
         $this->assertSame('1420', $map->channel_sku);
         $this->assertFalse($map->product->is_serialized);
+    }
+
+    public function test_vriddhi_l1_maps_to_rbbpvridl1(): void
+    {
+        $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
+            ->assertSuccessful();
+
+        $map = ChannelSkuMap::query()->where('model_id', 1616)->with('product')->firstOrFail();
+        $this->assertSame('RBBPVRIDL1', $map->product->sku);
+        $this->assertSame('RBBPVRIDL1', $map->catalog_sku);
+        $this->assertSame('1616', $map->channel_sku);
+        $this->assertTrue($map->product->is_serialized);
     }
 
     public function test_mbp401_map_is_created_idempotently(): void

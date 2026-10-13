@@ -80,6 +80,22 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
         $this->assertNotSame('Product mapping required', $row->operatorStatus());
     }
 
+    public function test_vriddhi_model_id_1616_resolves_to_rbbpvridl1(): void
+    {
+        $product = app(HardwareSkuMapService::class)->requireProduct(
+            StatutoryInvoiceChannel::RadiumBoxCom,
+            1616,
+        );
+
+        $this->assertSame('RBBPVRIDL1', $product->sku);
+        $this->assertTrue($product->is_serialized);
+
+        $row = $this->classifyReadyFulfilment('RBPVRD', 1616, $product->is_serialized);
+
+        $this->assertSame('Allocate Serial', $row->nextAction);
+        $this->assertNotSame('Product mapping required', $row->operatorStatus());
+    }
+
     public function test_unmapped_model_id_still_shows_product_mapping_required(): void
     {
         $row = $this->classifyReadyFulfilment('RBP999', 99999, true);
@@ -212,6 +228,7 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
             ['RBMFS500FP', 625, true],
             ['RBWM112MZ', 340, false],
             ['RBSMOOTHED', 1753, true],
+            ['RBBPVRIDL1', 1616, true],
         ] as [$sku, $modelId, $serialized]) {
             $product = InventoryProduct::query()->create([
                 'sku' => $sku,
