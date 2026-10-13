@@ -73,6 +73,18 @@ class WalletRefundAccountingDiscrepancyClassifierTest extends TestCase
         $this->assertFalse($row['policy_violation']);
     }
 
+    public function test_authority_gaps_for_desk_order_lists_policy_violations_only(): void
+    {
+        $refund = $this->makeClosedWalletRefund('2667');
+
+        $gaps = app(WalletRefundAccountingDiscrepancyClassifier::class)
+            ->authorityGapsForDeskOrder((int) $refund->order_id);
+
+        $this->assertCount(1, $gaps);
+        $this->assertSame($refund->reference_no, $gaps[0]['reference_no']);
+        $this->assertTrue($gaps[0]['policy_violation']);
+    }
+
     public function test_migration_reconciled_is_not_policy_violation(): void
     {
         $refund = $this->makeClosedWalletRefund('1');

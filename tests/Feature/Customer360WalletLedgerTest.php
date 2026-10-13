@@ -14,10 +14,13 @@ use App\CentralWallet\Infrastructure\Persistence\CentralWallet;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletReservation;
+use App\Enums\ApprovedRefundMethod;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\RefundStatus;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
@@ -77,6 +80,37 @@ class Customer360WalletLedgerTest extends TestCase
         $this->assertStringContainsString('debit', $html);
         $this->assertStringContainsString('reversal', $html);
         $this->assertStringContainsString('users_wallet:2540', $html);
+    }
+
+    public function test_wallet_tab_explains_authority_gap_without_inflating_balance(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $reference = 'REF-'.Str::upper(Str::random(6));
+
+        RefundRequest::query()->create([
+            'order_id' => $incident->order_id,
+            'incident_id' => $incident->id,
+            'reference_no' => $reference,
+            'amount' => '597.00',
+            'refund_amount' => '597.00',
+            'reason' => 'Regression gap notice',
+            'status' => RefundStatus::Closed,
+            'approved_refund_method' => ApprovedRefundMethod::Wallet,
+            'execution_transaction_id' => '2667',
+            'requested_by' => $agent->id,
+            'reviewed_by' => $agent->id,
+            'reviewed_at' => now(),
+            'communication_channels' => [],
+        ]);
+
+        $html = $this->walletHtml($agent, $incident);
+
+        $this->assertStringContainsString('₹0.00', $html);
+        $this->assertStringContainsString('Desk ledger is authoritative', $html);
+        $this->assertStringContainsString($reference, $html);
+        $this->assertStringContainsString('Historical reconciliation is required', $html);
+        $this->assertStringContainsString('<p class="c360-wallet-balance">₹0.00</p>', $html);
     }
 
     public function test_browser_supplied_cwid_cannot_open_another_wallet(): void

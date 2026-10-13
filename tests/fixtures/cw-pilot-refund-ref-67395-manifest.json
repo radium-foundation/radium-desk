@@ -1,0 +1,29 @@
+{
+  "prompt_id": "RadiumDesk-P-04-10-205-fixture",
+  "batch_id": "desk-refund-wallet-migration-pilot-ref-67395",
+  "cohort_id": "pilot-ref-67395",
+  "immutable": true,
+  "refund_count": 1,
+  "refund_amount": "597.00",
+  "manifest_rows_sha256": "052076aa8f61071e68d46b204f6bdee9c560a98a6fe99841c77f45b6df1a5305",
+  "allowed_refund_ids": [390],
+  "rows": [
+    {
+      "refund_id": 390,
+      "refund_amount": "597.00",
+      "desk_refund_reference": "REF-67395",
+      "order_number": "RD17641",
+      "order_id": 62928,
+      "site": "rdservice.in",
+      "order_resolved_user_id": "563447",
+      "desk_customer_id": "c51247d0-bb8a-4924-8389-8503ba32f5bc",
+      "cwid": "d1852026-d8c2-4af4-818c-d3151549f614",
+      "source_lane": "LANE_A_SPOKE_DEBIT",
+      "source_wallet_id": 2667,
+      "execution_transaction_id": "2667",
+      "source_balance_before": "597.00",
+      "identity_mode": "cashfree_desk_customer",
+      "status": "prepared"
+    }
+  ]
+}

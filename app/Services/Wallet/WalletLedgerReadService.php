@@ -5,6 +5,7 @@ namespace App\Services\Wallet;
 use App\CentralWallet\Application\LedgerEntryCursor;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
+use App\CentralWallet\Application\WalletRefundAccountingDiscrepancyClassifier;
 use App\CentralWallet\Domain\Enums\LedgerEntryType;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use App\Models\Incident;
@@ -32,6 +33,7 @@ class WalletLedgerReadService
         private readonly DeskCustomerCentralWalletResolver $customers,
         private readonly LedgerService $ledger,
         private readonly LedgerEntryReadService $history,
+        private readonly WalletRefundAccountingDiscrepancyClassifier $refundAccountingClassifier,
     ) {}
 
     /**
@@ -59,6 +61,20 @@ class WalletLedgerReadService
         }
 
         return $this->presentLedger($page, $viewer, $incident, $identity, $available, $reserved);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function walletAuthorityGapNotices(Incident $incident): array
+    {
+        $incident->loadMissing('order');
+        $order = $incident->order;
+        if ($order === null) {
+            return [];
+        }
+
+        return $this->refundAccountingClassifier->authorityGapsForDeskOrder((int) $order->id);
     }
 
     /**
@@ -183,10 +199,13 @@ class WalletLedgerReadService
             ];
         }, $entries);
 
+        $authorityGaps = $this->walletAuthorityGapNotices($incident);
+
         return [
             'state' => 'ready',
             'incident_id' => $incident->id,
             'customer_id' => $identity['customer_id'],
+            'wallet_authority_gaps' => $authorityGaps,
             'wallet' => [
                 'available' => $available,
                 'reserved' => $reserved,

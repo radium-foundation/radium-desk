@@ -28,6 +28,75 @@ final class WalletRefundAccountingDiscrepancyClassifier
      *     rows: list<array<string, mixed>>,
      * }
      */
+    /**
+     * Desk Customer 360 / order context: wallet refunds that lack posted CW credits (target-policy gap).
+     *
+     * @return list<array{
+     *     refund_id: int,
+     *     reference_no: string,
+     *     refund_amount: string,
+     *     classification: string,
+     *     policy_violation: bool,
+     * }>
+     */
+    public function authorityGapsForDeskOrder(int $deskOrderId): array
+    {
+        if ($deskOrderId <= 0) {
+            return [];
+        }
+
+        $refunds = DB::table('refund_requests')
+            ->where('order_id', $deskOrderId)
+            ->where('approved_refund_method', 'wallet')
+            ->whereIn('status', self::TERMINAL_STATUSES)
+            ->whereNull('revoked_at')
+            ->orderBy('id')
+            ->get([
+                'id',
+                'reference_no',
+                'order_id',
+                'status',
+                'refund_amount',
+                'amount',
+                'execution_reference_no',
+                'execution_transaction_id',
+                'refund_transaction_id',
+                'revoked_at',
+                'updated_at',
+            ]);
+
+        if ($refunds->isEmpty()) {
+            return [];
+        }
+
+        $refNos = $refunds->pluck('reference_no')->filter()->unique()->values()->all();
+        $ledgerByRef = $this->ledgerCreditsByBusinessReference($refNos);
+
+        $migrationByRefundId = CentralWalletRefundMigration::query()
+            ->whereIn('refund_id', $refunds->pluck('id')->map(static fn ($id): int => (int) $id)->all())
+            ->get()
+            ->keyBy('refund_id');
+
+        $notices = [];
+
+        foreach ($refunds as $refund) {
+            $class = $this->classifyRow($refund, $ledgerByRef, $migrationByRefundId);
+            if (! $this->isPolicyViolation($class)) {
+                continue;
+            }
+
+            $notices[] = [
+                'refund_id' => (int) $refund->id,
+                'reference_no' => (string) $refund->reference_no,
+                'refund_amount' => (string) ($refund->refund_amount ?? $refund->amount ?? '0'),
+                'classification' => $class->value,
+                'policy_violation' => true,
+            ];
+        }
+
+        return $notices;
+    }
+
     public function buildReport(?int $limit = null, ?int $afterRefundId = null): array
     {
         $query = DB::table('refund_requests')

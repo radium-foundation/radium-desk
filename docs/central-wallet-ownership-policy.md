@@ -45,6 +45,22 @@ Desk-first allowlist defaults to **`rdservice.in` only** (`CENTRAL_WALLET_DESK_F
 
 REF-67395 (`refund_id` 390): `spoke_execution_without_desk_ledger` — one row in the 229 cohort; remediation only via manifest + paired migration, not ad-hoc credits.
 
+### RD17641 / REF-67395 diagnostic chain (prod verified 2026-10-13, Desk v4.1.25)
+
+| Step | Evidence |
+|------|----------|
+| A. Canonical CWID | Order `RD17641` → `customer_id` `c51247d0-…` → `central_wallet_id` `d1852026-d8c2-4af4-818c-d3151549f614` (active). |
+| B. Wallet link | Central customer row present and linked to CW wallet above. |
+| C. Desk ledger | **0** posted entries on that wallet; **0** ledger rows for `business_reference=REF-67395`. |
+| D. Balance API / C360 | `WalletLedgerReadService` uses `LedgerService::availableBalance` → **₹0.00** (correct for empty authoritative ledger). |
+| E. UI | Customer 360 shows authoritative **₹0.00**; from v4.1.25+ (when deployed) shows **authority-gap notice** for closed wallet refunds without Desk credits — not a fabricated balance. |
+| F. Auth / email | Separate from ₹0; wallet tab requires resolved Desk customer + permissions (`finance.wallet.view`). |
+| G. Root cause | **Not** “missing UI balance” — **legacy spoke credit without Desk ledger credit** under desk-first-off mode. |
+| H. RDIN spendable | `users_wallet` **#2667**: ₹597, `source_system=radium_desk`, `desk_refund_reference=REF-67395` (still spendable on spoke). |
+| I. Duplicates / migration | No `central_wallet_refund_migrations` row for refund **390**; no Desk reversal detected in this read-only pass. |
+
+Pilot manifest fixture: `tests/fixtures/cw-pilot-refund-ref-67395-manifest.json` (`manifest_rows_sha256` `052076aa…`).
+
 ## Legacy paths that mint or imply spendable wallet balance
 
 | Location | Path | Spendable? | Retire when |

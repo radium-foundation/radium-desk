@@ -29,6 +29,18 @@
             Central Wallet is temporarily unavailable. The balance is not shown.
         </div>
     @else
+        @if(!empty($ledger['wallet_authority_gaps']))
+            <div class="alert alert-warning mb-3" role="status">
+                <strong>Desk ledger is authoritative.</strong>
+                The balance above reflects posted Central Wallet entries only.
+                @foreach($ledger['wallet_authority_gaps'] as $gap)
+                    Refund <code>{{ $gap['reference_no'] }}</code> (₹{{ number_format((float) $gap['refund_amount'], 2) }})
+                    was executed on a spoke before a matching Desk ledger credit was posted.
+                    Historical reconciliation is required; this is not a missing UI balance.
+                @endforeach
+            </div>
+        @endif
+
         <header class="c360-wallet-head">
             <div>
                 <p class="c360-wallet-kicker">Central Wallet</p>
