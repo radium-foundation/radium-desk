@@ -243,6 +243,142 @@ class PilotRefundMigrationRecoverAbortedCutoverTest extends TestCase
         $this->assertNull(RefundMigrationBalanceAttempt::fromMigration($migration));
     }
 
+    public function test_spoke_status_http_400_fails_closed_without_journal_mutation(): void
+    {
+        $this->assertSpokeHttpErrorFailsClosedWithoutJournalMutation(400);
+    }
+
+    public function test_spoke_status_http_401_fails_closed_without_journal_mutation(): void
+    {
+        $this->assertSpokeHttpErrorFailsClosedWithoutJournalMutation(401);
+    }
+
+    public function test_spoke_status_http_403_fails_closed_without_journal_mutation(): void
+    {
+        $this->assertSpokeHttpErrorFailsClosedWithoutJournalMutation(403);
+    }
+
+    public function test_spoke_status_http_404_fails_closed_without_journal_mutation(): void
+    {
+        $this->assertSpokeHttpErrorFailsClosedWithoutJournalMutation(404);
+    }
+
+    public function test_spoke_status_http_503_fails_closed_without_journal_mutation(): void
+    {
+        $this->assertSpokeHttpErrorFailsClosedWithoutJournalMutation(503);
+    }
+
+    private function assertSpokeHttpErrorFailsClosedWithoutJournalMutation(int $httpStatus): void
+    {
+        $this->seedPilot390Failed();
+        $this->seedAbortedParentBalanceMigration();
+        $this->spoke->statusHttpCode = $httpStatus;
+
+        try {
+            $this->service()->recover(390, self::OWNER, (string) Str::uuid(), 'test', $this->manifestPath);
+            $this->fail('Expected spoke_status_unavailable');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('spoke_status_unavailable', $exception->getMessage());
+        }
+
+        $migration = CentralWalletRefundMigration::query()->where('refund_id', 390)->firstOrFail();
+        $this->assertSame(RefundMigrationStatus::Failed, $migration->status);
+        $this->assertNull(RefundMigrationBalanceAttempt::fromMigration($migration));
+        $this->assertSame(0, CentralWalletAuditEvent::query()->count());
+    }
+
+    public function test_spoke_status_missing_lock_status_rejected(): void
+    {
+        $this->seedPilot390Failed();
+        $this->seedAbortedParentBalanceMigration();
+        $this->spoke->statusOmitLockStatus = true;
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('spoke_lock_status_missing');
+
+        $this->service()->recover(390, self::OWNER, (string) Str::uuid(), 'test', $this->manifestPath);
+    }
+
+    public function test_spoke_status_retired_allows_recovery(): void
+    {
+        $this->seedPilot390Failed();
+        $this->seedAbortedParentBalanceMigration();
+        $this->spoke->statusLockStatus = 'retired';
+
+        $result = $this->service()->recover(390, self::OWNER, (string) Str::uuid(), 'test', $this->manifestPath);
+
+        $this->assertSame(RefundMigrationStatus::Prepared->value, $result['status']);
+    }
+
+    public function test_replay_rejects_when_spoke_lock_becomes_active(): void
+    {
+        $this->seedPilot390Failed();
+        $this->seedAbortedParentBalanceMigration();
+
+        $first = $this->service()->recover(390, self::OWNER, (string) Str::uuid(), 'test', $this->manifestPath);
+        $this->spoke->statusLockStatus = 'active';
+
+        try {
+            $this->service()->recover(390, self::OWNER, (string) Str::uuid(), 'test', $this->manifestPath);
+            $this->fail('Expected spoke_migration_lock_active on replay');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('spoke_migration_lock_active', $exception->getMessage());
+        }
+
+        $migration = CentralWalletRefundMigration::query()->where('refund_id', 390)->firstOrFail();
+        $this->assertSame(RefundMigrationStatus::Prepared, $migration->status);
+        $attempt = RefundMigrationBalanceAttempt::fromMigration($migration);
+        $this->assertNotNull($attempt);
+        $this->assertSame($first['attempt_operation_id'], $attempt['attempt_operation_id']);
+        $this->assertSame(
+            1,
+            CentralWalletAuditEvent::query()->where('event_type', 'refund_migration.recovered_aborted_cutover')->count(),
+        );
+        $this->assertSame(0, CentralWalletLedgerEntry::query()->count());
+    }
+
+    public function test_replay_rejects_when_spoke_status_becomes_unavailable(): void
+    {
+        $this->seedPilot390Failed();
+        $this->seedAbortedParentBalanceMigration();
+
+        $first = $this->service()->recover(390, self::OWNER, (string) Str::uuid(), 'test', $this->manifestPath);
+        $this->spoke->statusHttpCode = 503;
+
+        try {
+            $this->service()->recover(390, self::OWNER, (string) Str::uuid(), 'test', $this->manifestPath);
+            $this->fail('Expected spoke_status_unavailable on replay');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('spoke_status_unavailable', $exception->getMessage());
+        }
+
+        $migration = CentralWalletRefundMigration::query()->where('refund_id', 390)->firstOrFail();
+        $this->assertSame(RefundMigrationStatus::Prepared, $migration->status);
+        $this->assertSame($first['attempt_operation_id'], RefundMigrationBalanceAttempt::fromMigration($migration)['attempt_operation_id']);
+    }
+
+    public function test_replay_rejects_when_live_refund_data_no_longer_matches(): void
+    {
+        $this->seedPilot390Failed();
+        $this->seedAbortedParentBalanceMigration();
+
+        $first = $this->service()->recover(390, self::OWNER, (string) Str::uuid(), 'test', $this->manifestPath);
+
+        RefundRequest::query()->where('id', 390)->update(['refund_amount' => '1.00']);
+
+        try {
+            $this->service()->recover(390, self::OWNER, (string) Str::uuid(), 'test', $this->manifestPath);
+            $this->fail('Expected live_refund_amount_mismatch on replay');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('live_refund_amount_mismatch', $exception->getMessage());
+        }
+
+        $migration = CentralWalletRefundMigration::query()->where('refund_id', 390)->firstOrFail();
+        $this->assertSame(RefundMigrationStatus::Prepared, $migration->status);
+        $this->assertSame($first['attempt_operation_id'], RefundMigrationBalanceAttempt::fromMigration($migration)['attempt_operation_id']);
+        $this->assertSame(1, CentralWalletAuditEvent::query()->where('event_type', 'refund_migration.recovered_aborted_cutover')->count());
+    }
+
     private function service(): PilotRefundMigrationRecoverAbortedCutoverService
     {
         return app(PilotRefundMigrationRecoverAbortedCutoverService::class);

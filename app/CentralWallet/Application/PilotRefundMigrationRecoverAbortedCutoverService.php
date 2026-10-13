@@ -87,6 +87,8 @@ final class PilotRefundMigrationRecoverAbortedCutoverService
             if ($migration->status === RefundMigrationStatus::Prepared
                 && $existingAttempt !== null
                 && ($existingAttempt['reason'] ?? '') === self::RECOVERY_REASON) {
+                $this->assertRecoverySafetyForPreparedReplay($migration, $manifestRow, $existingAttempt);
+
                 return $this->idempotentResponse($migration, $existingAttempt, true);
             }
 
@@ -345,18 +347,65 @@ final class PilotRefundMigrationRecoverAbortedCutoverService
             sourceBusinessReference: (string) $parent->source_business_reference,
         );
 
-        if ($response['status'] >= 500) {
+        if ($response['status'] >= 400) {
             throw new InvalidArgumentException('spoke_status_unavailable');
         }
 
-        if ($response['status'] >= 400) {
-            return;
+        if ($response['status'] < 200 || $response['status'] >= 300) {
+            throw new InvalidArgumentException('spoke_status_unavailable');
         }
 
         $lockStatus = strtolower(trim((string) ($response['body']['lock_status'] ?? '')));
-        if ($lockStatus !== '' && in_array($lockStatus, self::ACTIVE_SPOKE_LOCK_STATUSES, true)) {
+        if ($lockStatus === '') {
+            throw new InvalidArgumentException('spoke_lock_status_missing');
+        }
+
+        if (in_array($lockStatus, self::ACTIVE_SPOKE_LOCK_STATUSES, true)) {
             throw new InvalidArgumentException('spoke_migration_lock_active');
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $manifestRow
+     * @param  array<string, mixed>  $attempt
+     */
+    private function assertRecoverySafetyForPreparedReplay(
+        CentralWalletRefundMigration $migration,
+        array $manifestRow,
+        array $attempt,
+    ): void {
+        $this->assertJournalMatchesManifest($migration, $manifestRow);
+        $this->assertNoLiveBlockers($manifestRow);
+
+        if ($migration->destination_ledger_entry_id !== null) {
+            throw new InvalidArgumentException('destination_ledger_already_present');
+        }
+
+        if ($migration->source_debit_reference !== null) {
+            throw new InvalidArgumentException('source_retirement_already_present');
+        }
+
+        if (RefundMigrationFinancialEvidence::isReconciledWithEvidence($migration)) {
+            throw new InvalidArgumentException('refund_migration_has_financial_evidence');
+        }
+
+        $this->assertNoDestinationLedgerCredit($migration);
+
+        $parentOperationId = trim((string) ($attempt['parent_operation_id'] ?? ''));
+        if ($parentOperationId === '') {
+            throw new InvalidArgumentException('recovery_replay_parent_operation_missing');
+        }
+
+        $parent = CentralWalletBalanceMigration::query()
+            ->where('migration_operation_id', $parentOperationId)
+            ->first();
+
+        if ($parent === null) {
+            throw new InvalidArgumentException('parent_balance_operation_not_found');
+        }
+
+        $this->assertParentMatchesJournalAndManifest($parent, $migration, $manifestRow);
+        $this->assertNoActiveSpokeLock($parent, $manifestRow);
     }
 
     private function assertNoDestinationLedgerCredit(CentralWalletRefundMigration $migration): void
