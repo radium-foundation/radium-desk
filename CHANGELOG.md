@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.25 — 2026-10-13 — Central Wallet refund discrepancy inventory (read-only)
+
+- **Central Wallet policy:** `docs/central-wallet-ownership-policy.md` — Desk-authoritative contract, legacy-path inventory, compliance matrix (partial).
+- **Read-only tooling:** `WalletRefundAccountingDiscrepancyClassifier` and `php artisan central-wallet:wallet-refund-discrepancy-report` (`--limit`, `--after-refund-id`, `--violations-only`). No wallet/refund/ledger writes; no migration execution.
+- **Migrations:** None in this release.
+- **Out of scope:** Desk-first flag enablement, spoke deploys, pilot migration execute, REF-67395 correction, global policy completion.
+- Rollback target: v4.1.24 / `6ccaf445`.
+- Prompt **RadiumDesk-P-04-10-203** (implementation), **P-04-10-204** (release/deploy).
+
 ## 4.1.24 — 2026-10-13 — Desk-first wallet refunds (flag off by default)
 
 - **Wallet refunds:** Desk Central Wallet as spendable authority when `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED=true` (default **false**). Idempotent Desk CW ledger credit, then spoke audit via `central_wallet_ledger_entry_id` on supported integrations.
