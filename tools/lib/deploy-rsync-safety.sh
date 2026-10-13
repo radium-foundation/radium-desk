@@ -40,6 +40,7 @@ deploy_rsync_assert_dry_run_command() {
 deploy_rsync_protected_patterns() {
     cat <<'EOF'
 ^\.env$
+^\.env\.bak
 ^\.env\.(mysql|sqlite|sqlite\.backup|local|production|testing\.local)$
 ^\.git/?$
 ^\.cursor/
@@ -88,6 +89,8 @@ deploy_kvm_rsync_application_filters() {
 .git
 --exclude
 .env
+--exclude
+.env.bak*
 --exclude
 .env.mysql
 --exclude

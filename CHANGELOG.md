@@ -1,12 +1,56 @@
 # Changelog
 
-## 4.1.29 — 2026-10-13 — Desk-first wallet refund authority gate (RDIN)
+## 4.1.29 — 2026-10-13 — Desk-first wallet refund RC (authority gate + production C360 overlay parity)
 
 - **Wallet refunds:** Fail-closed `DeskFirstWalletRefundCompletionGate` verifies posted Central Wallet credit, amount/currency, customer CWID, execution binding, and spoke audit metadata before `RefundRequestService::complete` when `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED` is true. Legacy path unchanged when flag is false.
-- **Schema:** Unique index on `(business_reference, entry_type)` for `central_wallet_ledger_entries` to block duplicate refund credits under concurrency.
-- **Migrations:** `2026_10_13_220000_add_unique_business_reference_to_central_wallet_ledger_entries`.
+- **Central Wallet (read/reporting):** Production-parity overlay for discrepancy classifier, C360 wallet tab, authoritative credit guard, integration ledger gate, and historical reconciliation cohort tooling (integrated from main overlay commits **85ab898b**, **ad9ac106**, **d576d0df**).
+- **Schema:** Unique index on `(business_reference, entry_type)` for `central_wallet_ledger_entries` to block duplicate refund credits under concurrency (migration present in source; **not** executed in application-only deploy).
 - **Production cutover:** Deploy with desk-first flag **off**; enable `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED=true` only after owner-authorized migration + verification (no staging platform).
-- Prompt **RadiumDesk-P-12-10-031**.
+- **Deploy safety:** Rsync excludes `.env.bak*`; `release.json` written only by `release:snapshot` at deploy time.
+- Rollback target: v4.1.28 / `0404bb3d` (current production identity).
+- Prompts **RadiumDesk-P-12-10-031** through **P-12-10-041**.
+
+## 4.1.27 — 2026-10-13 — Wallet refund reconciliation safeguards and Customer 360 clarity
+
+- **Central Wallet:** `WalletRefundAuthoritativeCreditGuard` blocks unpaired desk-first and integration API refund credits when spoke execution exists without reconciled migration evidence.
+- **Central Wallet:** `IntegrationRefundLedgerCreditGate` on `POST /wallets/{cwid}/ledger-entries` for external refund `business_reference` values tied to Desk `refund_requests`, including blocking duplicate posted credits when a different idempotency key is used.
+- **Customer 360:** Wallet tab distinguishes true empty ledger, filter-no-match, and unavailable states; authority-gap copy warns against duplicate credits without inflating balance.
+- **Operations:** `central-wallet:wallet-refund-discrepancy-report --reconciliation-cohort` read-only eligible/blocked cohort analysis with unresolved migration journal states excluded from execution-ready.
+- **Tests:** REF-67395-shaped paired-migration regression, integration ledger-append gate, and expanded Customer 360 wallet-tab coverage.
+- **Migrations:** None in this release.
+- **Out of scope:** Desk-first enablement, production migration execute, RDIN deploy, global cohort batch execution.
+- Rollback target: v4.1.26 / `0d41ee1c`.
+- Prompts **RadiumDesk-P-04-10-208**, **P-04-10-209** (review), **P-04-10-210** (release blockers), **P-04-10-211** (integration duplicate-refund-credit guard).
+
+## 4.1.26 — 2026-10-13 — Customer 360 wallet authority-gap notices
+
+- **Customer 360:** Wallet tab shows an authoritative **₹0** balance when the Desk ledger has no posted credits, plus a **reconciliation notice** when closed wallet refunds have spoke execution evidence without a matching Desk ledger credit (does not inflate displayed balance).
+- **Reconciliation prep:** `tests/fixtures/cw-pilot-refund-ref-67395-manifest.json` and regression tests for pilot migration journal import (no execution).
+- **Classifier:** `WalletRefundAccountingDiscrepancyClassifier::authorityGapsForDeskOrder()` for order-scoped gap detection.
+- **Migrations:** None in this release.
+- **Out of scope:** Desk-first enablement, spoke deploys, financial migration execute, global policy completion.
+- Rollback target: v4.1.25 / `69a6d67b`.
+- Prompt **RadiumDesk-P-04-10-205** (implementation), **P-04-10-206** (release/deploy).
+
+## 4.1.25 — 2026-10-13 — Central Wallet refund discrepancy inventory (read-only)
+
+- **Central Wallet policy:** `docs/central-wallet-ownership-policy.md` — Desk-authoritative contract, legacy-path inventory, compliance matrix (partial).
+- **Read-only tooling:** `WalletRefundAccountingDiscrepancyClassifier` and `php artisan central-wallet:wallet-refund-discrepancy-report` (`--limit`, `--after-refund-id`, `--violations-only`). No wallet/refund/ledger writes; no migration execution.
+- **Migrations:** None in this release.
+- **Out of scope:** Desk-first flag enablement, spoke deploys, pilot migration execute, REF-67395 correction, global policy completion.
+- Rollback target: v4.1.24 / `6ccaf445`.
+- Prompt **RadiumDesk-P-04-10-203** (implementation), **P-04-10-204** (release/deploy).
+
+## 4.1.24 — 2026-10-13 — Desk-first wallet refunds (flag off by default)
+
+- **Wallet refunds:** Desk Central Wallet as spendable authority when `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED=true` (default **false**). Idempotent Desk CW ledger credit, then spoke audit via `central_wallet_ledger_entry_id` on supported integrations.
+- **Policy:** `DeskFirstWalletRefundSpokePolicy` defaults to **`rdservice.in` only** (fail-closed for RDNET/RadiumBox until spoke audit contract is verified). Legacy wallet refund execution (spoke spendable credit) unchanged when the flag is off.
+- **Recovery:** Refund detail banners and recovery inspector for partial complete/revoke; desk-first revoke coordinator (RDIN-only spoke retirement in this release).
+- **Docs:** `docs/desk-first-wallet-refund-release-plan.md`, `docs/desk-first-wallet-refund-state-machine.md`, `docs/release/desk-first-wallet-refund-v4.1.24-rc.md`.
+- **Migrations:** None in this release.
+- **Out of scope:** Production flag enablement, spoke allowlist expansion, Gmail/C360, REF-67395 pilot migration bundle.
+- Rollback target: v4.1.23 / `da7f221b`.
+- Prompts **RadiumDesk-P-12-10-004** through **P-12-10-007**, **P-12-10-011** (merge PR #26).
 
 ## 4.1.23 — 2026-10-12 — Historical invoice search eligibility (RD2579)
 

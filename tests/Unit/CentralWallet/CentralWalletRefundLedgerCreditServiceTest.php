@@ -25,6 +25,48 @@ class CentralWalletRefundLedgerCreditServiceTest extends TestCase
         config(['central_wallet.wallet_refund.desk_first_enabled' => true]);
     }
 
+    public function test_blocks_standalone_desk_credit_when_spoke_execution_without_ledger(): void
+    {
+        $user = User::factory()->create();
+        $customerId = (string) Str::uuid();
+        $cwid = (string) Str::uuid();
+        CentralWallet::query()->create(['id' => $cwid, 'status' => 'active']);
+        CentralCustomer::query()->create([
+            'id' => $customerId,
+            'central_wallet_id' => $cwid,
+            'status' => 'active',
+        ]);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD17641',
+            'customer_id' => $customerId,
+            'serial_number' => 'SN',
+            'product_name' => 'Device',
+            'device_model' => 'X',
+            'status' => 'active',
+            'payment_amount' => '597.00',
+            'customer_email' => 'unit@example.com',
+            'created_by' => $user->id,
+        ]);
+
+        $refund = RefundRequest::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'REF-67395',
+            'amount' => '597.00',
+            'refund_amount' => '597.00',
+            'reason' => 'unit test',
+            'status' => RefundStatus::Closed,
+            'approved_refund_method' => ApprovedRefundMethod::Wallet,
+            'execution_transaction_id' => '2667',
+            'requested_by' => $user->id,
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('wallet_refund_requires_paired_reconciliation');
+
+        app(CentralWalletRefundLedgerCreditService::class)->creditForRefund($refund, (string) Str::uuid());
+    }
+
     public function test_credits_once_and_replays_idempotently(): void
     {
         $refund = $this->refundForOrder('RD90010', 'REF-IDEM-1', '75.00');

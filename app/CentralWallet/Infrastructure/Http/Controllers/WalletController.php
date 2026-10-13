@@ -5,6 +5,7 @@ namespace App\CentralWallet\Infrastructure\Http\Controllers;
 use App\CentralWallet\Application\CentralWalletService;
 use App\CentralWallet\Application\ExternalDirectLedgerDebitGate;
 use App\CentralWallet\Application\IdempotencyService;
+use App\CentralWallet\Application\IntegrationRefundLedgerCreditGate;
 use App\CentralWallet\Application\IntegrationSourceSystemResolver;
 use App\CentralWallet\Application\LedgerService;
 use App\CentralWallet\Domain\Cwid;
@@ -21,6 +22,7 @@ final class WalletController
         private readonly IdempotencyService $idempotency,
         private readonly IntegrationSourceSystemResolver $sourceSystemResolver,
         private readonly ExternalDirectLedgerDebitGate $directLedgerDebitGate,
+        private readonly IntegrationRefundLedgerCreditGate $refundLedgerCreditGate,
     ) {}
 
     public function store(Request $request): JsonResponse
@@ -127,6 +129,19 @@ final class WalletController
 
         $validated['source_system'] = $sourceSystem;
         $entryType = LedgerEntryType::from($validated['entry_type']);
+
+        $refundCreditRejection = $this->refundLedgerCreditGate->rejectionErrorCode(
+            $callerId,
+            $entryType,
+            $validated['business_reference'] ?? null,
+        );
+
+        if ($refundCreditRejection !== null) {
+            return response()->json([
+                'error' => $refundCreditRejection,
+                'message' => 'Refund-related ledger credits require paired historical reconciliation.',
+            ], 422);
+        }
 
         if ($this->directLedgerDebitGate->rejectsExternalDirectDebit($callerId, $entryType)) {
             Log::channel((string) config('central_wallet.log_channel', 'stack'))->info(
