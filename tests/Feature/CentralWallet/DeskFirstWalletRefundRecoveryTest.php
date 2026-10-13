@@ -6,19 +6,20 @@ use App\CentralWallet\Infrastructure\Persistence\CentralCustomer;
 use App\CentralWallet\Infrastructure\Persistence\CentralWallet;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use App\Enums\ApprovedRefundMethod;
+use App\Enums\RefundRevokeCustomerOutcome;
 use App\Enums\RefundStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
-use App\Enums\RefundRevokeCustomerOutcome;
 use App\Models\User;
-use App\Services\Refunds\DeskFirstWalletRefundOrchestrator;
 use App\Services\RdService\RdServiceInWalletRefundReversalClient;
+use App\Services\Refunds\DeskFirstWalletRefundOrchestrator;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class DeskFirstWalletRefundRecoveryTest extends TestCase
@@ -131,7 +132,7 @@ class DeskFirstWalletRefundRecoveryTest extends TestCase
         try {
             $orchestrator->execute($refund, $ops, [], 'RD90103', '99.00');
             $this->fail('Expected spoke timeout');
-        } catch (\Illuminate\Validation\ValidationException) {
+        } catch (ValidationException) {
             // expected
         }
 

@@ -5,6 +5,7 @@ namespace App\Services\Refunds;
 use App\CentralWallet\Application\CentralWalletRefundLedgerReversalService;
 use App\Models\RefundRequest;
 use App\Services\RdService\RdServiceInWalletRefundReversalClient;
+use App\Support\Money\WalletMoney;
 use App\Support\Refunds\DeskFirstWalletRefundSupport;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -80,7 +81,7 @@ final class DeskFirstWalletRefundRevokeCoordinator
 
         $refund->loadMissing('order');
         $orderId = trim((string) ($refund->order?->order_id ?? ''));
-        $amount = \App\Support\Money\WalletMoney::normalize($refund->refund_amount ?? $refund->amount);
+        $amount = WalletMoney::normalize($refund->refund_amount ?? $refund->amount);
         if ($amount === null) {
             throw ValidationException::withMessages([
                 'refund' => 'A positive refund amount is required before wallet reversal can be posted.',
