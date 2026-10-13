@@ -85,6 +85,13 @@ return [
                 'desk_sku' => 'RBSMOOTHED',
                 'notes' => 'Smooth Edges MBP-401 Desktop Barcode Printer',
             ],
+            [
+                'model_id' => 1616,
+                'channel_sku' => '1616',
+                'catalog_sku' => 'RBBPVRIDL1',
+                'desk_sku' => 'RBBPVRIDL1',
+                'notes' => 'Bluprints Vriddhi L1 Aadhaar enabled printer (Box model_id 1616)',
+            ],
         ],
     ],
 
