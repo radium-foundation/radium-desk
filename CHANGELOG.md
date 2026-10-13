@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.26 — 2026-10-13 — Customer 360 wallet authority-gap notices
+
+- **Customer 360:** Wallet tab shows an authoritative **₹0** balance when the Desk ledger has no posted credits, plus a **reconciliation notice** when closed wallet refunds have spoke execution evidence without a matching Desk ledger credit (does not inflate displayed balance).
+- **Reconciliation prep:** `tests/fixtures/cw-pilot-refund-ref-67395-manifest.json` and regression tests for pilot migration journal import (no execution).
+- **Classifier:** `WalletRefundAccountingDiscrepancyClassifier::authorityGapsForDeskOrder()` for order-scoped gap detection.
+- **Migrations:** None in this release.
+- **Out of scope:** Desk-first enablement, spoke deploys, financial migration execute, global policy completion.
+- Rollback target: v4.1.25 / `69a6d67b`.
+- Prompt **RadiumDesk-P-04-10-205** (implementation), **P-04-10-206** (release/deploy).
+
 ## 4.1.25 — 2026-10-13 — Central Wallet refund discrepancy inventory (read-only)
 
 - **Central Wallet policy:** `docs/central-wallet-ownership-policy.md` — Desk-authoritative contract, legacy-path inventory, compliance matrix (partial).
