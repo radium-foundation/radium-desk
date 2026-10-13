@@ -194,6 +194,15 @@ final class PilotRefundMigrationPreflightGate
      * @param  array<string, mixed>  $manifestRow
      * @return list<array{code: string, refund_id?: int, message: string}>
      */
+    public function liveRefundBlockersForManifestRow(array $manifestRow): array
+    {
+        return $this->evaluateLiveRefundOnly($manifestRow);
+    }
+
+    /**
+     * @param  array<string, mixed>  $manifestRow
+     * @return list<array{code: string, refund_id?: int, message: string}>
+     */
     private function evaluateLiveRefundOnly(array $manifestRow): array
     {
         $blockers = [];

@@ -164,6 +164,7 @@ return [
         'rollback_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_ROLLBACK_CONFIRM'),
         'repair_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_REPAIR_CONFIRM'),
         'reprepare_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_REPREPARE_CONFIRM'),
+        'recover_aborted_cutover_confirm_token' => env('CENTRAL_WALLET_PILOT_REFUND_MIGRATION_RECOVER_ABORTED_CUTOVER_CONFIRM'),
     ],
 
     /*
