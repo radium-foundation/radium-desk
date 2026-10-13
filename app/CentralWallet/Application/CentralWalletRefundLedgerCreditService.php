@@ -22,6 +22,7 @@ final class CentralWalletRefundLedgerCreditService
         private readonly CashfreeCentralCustomerBinder $customerBinder,
         private readonly LedgerService $ledger,
         private readonly WalletRefundDestinationResolver $destinations,
+        private readonly WalletRefundAuthoritativeCreditGuard $authoritativeCreditGuard,
     ) {}
 
     public function isEnabled(): bool
@@ -77,6 +78,8 @@ final class CentralWalletRefundLedgerCreditService
 
         $centralWalletId = (string) $resolved['central_wallet_id'];
         $sourceSystem = $this->sourceSystemForOrder($orderId);
+
+        $this->authoritativeCreditGuard->assertMayPostStandaloneDeskCredit($refund);
 
         $existing = $this->findExistingCredit($refund, $reference);
         if ($existing !== null) {

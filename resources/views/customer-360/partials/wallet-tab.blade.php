@@ -29,18 +29,6 @@
             Central Wallet is temporarily unavailable. The balance is not shown.
         </div>
     @else
-        @if(!empty($ledger['wallet_authority_gaps']))
-            <div class="alert alert-warning mb-3" role="status">
-                <strong>Desk ledger is authoritative.</strong>
-                The balance above reflects posted Central Wallet entries only.
-                @foreach($ledger['wallet_authority_gaps'] as $gap)
-                    Refund <code>{{ $gap['reference_no'] }}</code> (₹{{ number_format((float) $gap['refund_amount'], 2) }})
-                    was executed on a spoke before a matching Desk ledger credit was posted.
-                    Historical reconciliation is required; this is not a missing UI balance.
-                @endforeach
-            </div>
-        @endif
-
         <header class="c360-wallet-head">
             <div>
                 <p class="c360-wallet-kicker">Central Wallet</p>
@@ -53,6 +41,20 @@
                 <div>{{ $wallet['status'] }} · {{ $wallet['source'] }}</div>
             </div>
         </header>
+
+        @if(!empty($ledger['wallet_authority_gaps']))
+            <div class="alert alert-warning mb-3" role="status">
+                <p class="mb-2 fw-semibold">Refund reconciliation required</p>
+                @foreach($ledger['wallet_authority_gaps'] as $gap)
+                    <p class="mb-2">
+                        Refund <code>{{ $gap['reference_no'] }}</code> for ₹{{ number_format((float) $gap['refund_amount'], 2) }}
+                        was processed through the original website's wallet, but the matching Desk Central Wallet credit has not been recorded.
+                        The Central Wallet balance shown here is ₹{{ number_format((float) ($wallet['available'] ?? 0), 2) }}.
+                        Do not issue another credit until the existing wallet records have been reconciled.
+                    </p>
+                @endforeach
+            </div>
+        @endif
 
         <p class="small text-danger mb-0 d-none" data-wallet-ledger-error role="alert"></p>
 
@@ -169,8 +171,8 @@
             @endforeach
         </ul>
 
-        @if($transactions === [])
-            <p class="c360-wallet-empty">No posted Central Wallet transactions for the current filters.</p>
+        @if($transactions === [] && ($ledger['ledger_display_state'] ?? '') === 'no_filter_matches')
+            <p class="c360-wallet-empty">No transactions match the current filters.</p>
         @endif
 
         @if(!empty($pagination['has_more']) && !empty($pagination['next_cursor']))

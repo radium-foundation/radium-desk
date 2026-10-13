@@ -107,9 +107,10 @@ class Customer360WalletLedgerTest extends TestCase
         $html = $this->walletHtml($agent, $incident);
 
         $this->assertStringContainsString('₹0.00', $html);
-        $this->assertStringContainsString('Desk ledger is authoritative', $html);
+        $this->assertStringContainsString('Refund reconciliation required', $html);
         $this->assertStringContainsString($reference, $html);
-        $this->assertStringContainsString('Historical reconciliation is required', $html);
+        $this->assertStringContainsString('original website\'s wallet', $html);
+        $this->assertStringContainsString('Do not issue another credit', $html);
         $this->assertStringContainsString('<p class="c360-wallet-balance">₹0.00</p>', $html);
     }
 
@@ -196,9 +197,99 @@ class Customer360WalletLedgerTest extends TestCase
         $html = $this->walletHtml($agent, $incident);
 
         $this->assertStringContainsString('₹0.00', $html);
-        $this->assertStringContainsString('No posted Central Wallet transactions for this customer.', $html);
+        $this->assertStringContainsString('No Central Wallet transactions recorded yet', $html);
+        $this->assertStringContainsString('another website', $html);
+        $this->assertStringContainsString('wallet are not included', $html);
         $this->assertStringNotContainsString('temporarily unavailable', $html);
         $this->assertStringNotContainsString('not linked to a Desk customer for this order', $html);
+    }
+
+    public function test_filtered_ledger_with_no_matches_shows_filter_empty_state(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $this->ledgerRow(self::CWID, [
+            'entry_type' => 'credit',
+            'amount' => '10.00',
+            'source_system' => 'rdservice.in',
+            'business_reference' => 'REF-VISIBLE-ROW',
+            'posted_at' => '2026-10-01 10:00:00',
+        ]);
+
+        $html = $this->walletHtml($agent, $incident, ['business_reference' => 'REF-NO-MATCH']);
+
+        $this->assertStringContainsString('No transactions match the current filters', $html);
+        $this->assertStringNotContainsString('No Central Wallet transactions recorded yet', $html);
+        $this->assertStringNotContainsString('REF-VISIBLE-ROW', $html);
+    }
+
+    public function test_reconciled_refund_with_posted_desk_credit_shows_no_authority_gap(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+        $reference = 'REF-RECONCILED-9001';
+
+        RefundRequest::query()->create([
+            'order_id' => $incident->order_id,
+            'incident_id' => $incident->id,
+            'reference_no' => $reference,
+            'amount' => '120.00',
+            'refund_amount' => '120.00',
+            'reason' => 'Reconciled fixture',
+            'status' => RefundStatus::Closed,
+            'approved_refund_method' => ApprovedRefundMethod::Wallet,
+            'execution_transaction_id' => '88001',
+            'requested_by' => $agent->id,
+            'reviewed_by' => $agent->id,
+            'reviewed_at' => now(),
+            'communication_channels' => [],
+        ]);
+
+        $this->ledgerRow(self::CWID, [
+            'entry_type' => 'credit',
+            'amount' => '120.00',
+            'source_system' => 'rdservice.in',
+            'business_reference' => $reference,
+            'posted_at' => '2026-10-02 12:00:00',
+        ]);
+
+        $html = $this->walletHtml($agent, $incident);
+
+        $this->assertStringContainsString($reference, $html);
+        $this->assertStringContainsString('₹120.00', $html);
+        $this->assertStringNotContainsString('Refund reconciliation required', $html);
+        $this->assertStringNotContainsString('Do not issue another credit', $html);
+    }
+
+    public function test_ref_67395_shaped_authority_gap_shows_zero_balance_and_duplicate_credit_warning(): void
+    {
+        $agent = $this->userWithRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->verifiedCustomerCase($agent);
+
+        RefundRequest::query()->create([
+            'order_id' => $incident->order_id,
+            'incident_id' => $incident->id,
+            'reference_no' => 'REF-67395',
+            'amount' => '597.00',
+            'refund_amount' => '597.00',
+            'reason' => 'Regression-shaped fixture',
+            'status' => RefundStatus::Closed,
+            'approved_refund_method' => ApprovedRefundMethod::Wallet,
+            'execution_transaction_id' => '2667',
+            'requested_by' => $agent->id,
+            'reviewed_by' => $agent->id,
+            'reviewed_at' => now(),
+            'communication_channels' => [],
+        ]);
+
+        $html = $this->walletHtml($agent, $incident);
+
+        $this->assertStringContainsString('<p class="c360-wallet-balance">₹0.00</p>', $html);
+        $this->assertStringContainsString('REF-67395', $html);
+        $this->assertStringContainsString('597.00', $html);
+        $this->assertStringContainsString('Refund reconciliation required', $html);
+        $this->assertStringContainsString('Do not issue another credit', $html);
+        $this->assertStringNotContainsString('temporarily unavailable', $html);
     }
 
     public function test_central_wallet_failure_does_not_render_zero_balance(): void

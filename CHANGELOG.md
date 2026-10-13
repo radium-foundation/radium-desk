@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.1.27 — 2026-10-13 — Wallet refund reconciliation safeguards and Customer 360 clarity
+
+- **Central Wallet:** `WalletRefundAuthoritativeCreditGuard` blocks unpaired desk-first and integration API refund credits when spoke execution exists without reconciled migration evidence.
+- **Central Wallet:** `IntegrationRefundLedgerCreditGate` on `POST /wallets/{cwid}/ledger-entries` for external refund `business_reference` values tied to Desk `refund_requests`, including blocking duplicate posted credits when a different idempotency key is used.
+- **Customer 360:** Wallet tab distinguishes true empty ledger, filter-no-match, and unavailable states; authority-gap copy warns against duplicate credits without inflating balance.
+- **Operations:** `central-wallet:wallet-refund-discrepancy-report --reconciliation-cohort` read-only eligible/blocked cohort analysis with unresolved migration journal states excluded from execution-ready.
+- **Tests:** REF-67395-shaped paired-migration regression, integration ledger-append gate, and expanded Customer 360 wallet-tab coverage.
+- **Migrations:** None in this release.
+- **Out of scope:** Desk-first enablement, production migration execute, RDIN deploy, global cohort batch execution.
+- Rollback target: v4.1.26 / `0d41ee1c`.
+- Prompts **RadiumDesk-P-04-10-208**, **P-04-10-209** (review), **P-04-10-210** (release blockers), **P-04-10-211** (integration duplicate-refund-credit guard).
+
 ## 4.1.26 — 2026-10-13 — Customer 360 wallet authority-gap notices
 
 - **Customer 360:** Wallet tab shows an authoritative **₹0** balance when the Desk ledger has no posted credits, plus a **reconciliation notice** when closed wallet refunds have spoke execution evidence without a matching Desk ledger credit (does not inflate displayed balance).

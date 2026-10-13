@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\CentralWallet\Application\HistoricalWalletRefundReconciliationCohortAnalyzer;
 use App\CentralWallet\Application\WalletRefundAccountingDiscrepancyClassifier;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Command;
@@ -12,10 +13,12 @@ class CentralWalletWalletRefundDiscrepancyReportCommand extends Command
     protected $signature = 'central-wallet:wallet-refund-discrepancy-report
         {--limit= : Max terminal wallet refunds to scan (default: all)}
         {--after-refund-id= : Scan refunds with id greater than this value}
-        {--violations-only : Include only policy_violation rows in output}';
+        {--violations-only : Include only policy_violation rows in output}
+        {--reconciliation-cohort : Read-only eligible vs blocked paired-reconciliation cohort (dry-run)}';
 
     public function __construct(
         private readonly WalletRefundAccountingDiscrepancyClassifier $classifier,
+        private readonly HistoricalWalletRefundReconciliationCohortAnalyzer $cohortAnalyzer,
     ) {
         parent::__construct();
     }
@@ -28,6 +31,13 @@ class CentralWalletWalletRefundDiscrepancyReportCommand extends Command
 
         $limitInt = is_numeric($limit) ? (int) $limit : null;
         $afterInt = is_numeric($after) ? (int) $after : null;
+
+        if ((bool) $this->option('reconciliation-cohort')) {
+            $report = $this->cohortAnalyzer->analyze($limitInt, $afterInt);
+            $this->line(json_encode($report, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+
+            return self::SUCCESS;
+        }
 
         $report = $this->classifier->buildReport($limitInt, $afterInt);
 
