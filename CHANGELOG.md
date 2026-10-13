@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.24 — 2026-10-13 — Desk-first wallet refunds (flag off by default)
+
+- **Wallet refunds:** Desk Central Wallet as spendable authority when `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED=true` (default **false**). Idempotent Desk CW ledger credit, then spoke audit via `central_wallet_ledger_entry_id` on supported integrations.
+- **Policy:** `DeskFirstWalletRefundSpokePolicy` defaults to **`rdservice.in` only** (fail-closed for RDNET/RadiumBox until spoke audit contract is verified). Legacy wallet refund execution (spoke spendable credit) unchanged when the flag is off.
+- **Recovery:** Refund detail banners and recovery inspector for partial complete/revoke; desk-first revoke coordinator (RDIN-only spoke retirement in this release).
+- **Docs:** `docs/desk-first-wallet-refund-release-plan.md`, `docs/desk-first-wallet-refund-state-machine.md`, `docs/release/desk-first-wallet-refund-v4.1.24-rc.md`.
+- **Migrations:** None in this release.
+- **Out of scope:** Production flag enablement, spoke allowlist expansion, Gmail/C360, REF-67395 pilot migration bundle.
+- Rollback target: v4.1.23 / `da7f221b`.
+- Prompts **RadiumDesk-P-12-10-004** through **P-12-10-007**, **P-12-10-011** (merge PR #26).
+
 ## 4.1.23 — 2026-10-12 — Historical invoice search eligibility (RD2579)
 
 - **Global search / finance:** Pending live `RD*` orders no longer surface the historical invoice banner or reprint entry point from identifier shape alone; `RD*` fallback requires `canReprint()` via spoke lookup (`HistoricalInvoiceLookupService::shouldExposeHistoricalFinanceFallback`). **INV/INVS** behavior unchanged.
