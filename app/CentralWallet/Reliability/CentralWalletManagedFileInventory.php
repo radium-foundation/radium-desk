@@ -8,13 +8,48 @@ final class CentralWalletManagedFileInventory
 {
     public const INVENTORY_RELATIVE_PATH = 'contracts/central-wallet/v1/managed-file-inventory.json';
 
+    public const WALLET_DISPLAY_INVENTORY_RELATIVE_PATH = 'contracts/central-wallet/v1/managed-file-inventory-wallet-display.json';
+
     public function __construct(
         private readonly CentralWalletContractCatalog $catalog,
     ) {}
 
     public function path(): string
     {
+        $configured = trim((string) config('central_wallet.release_gate.managed_file_inventory.path', ''));
+        if ($configured !== '') {
+            return $this->isAbsolutePath($configured)
+                ? $configured
+                : base_path($configured);
+        }
+
         return base_path(self::INVENTORY_RELATIVE_PATH);
+    }
+
+    /**
+     * Root directory used to resolve declared overlay file paths (defaults to Laravel base_path).
+     * Set CENTRAL_WALLET_RELEASE_GATE_OVERLAY_TARGET_ROOT for off-production sandbox validation.
+     */
+    public function projectRoot(): string
+    {
+        $target = trim((string) config('central_wallet.release_gate.overlay_compatibility.target_root', ''));
+        if ($target !== '' && is_dir($target)) {
+            return rtrim($target, '/');
+        }
+
+        return base_path();
+    }
+
+    public function resolveProjectPath(string $relativePath): string
+    {
+        $relativePath = ltrim($relativePath, '/');
+
+        return $this->projectRoot().'/'.$relativePath;
+    }
+
+    private function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/') || (strlen($path) > 1 && $path[1] === ':');
     }
 
     /**
@@ -123,7 +158,7 @@ final class CentralWalletManagedFileInventory
         $hashes = [];
 
         foreach ($this->declaredFiles() as $entry) {
-            $absolute = base_path($entry['path']);
+            $absolute = $this->resolveProjectPath($entry['path']);
             $hashes[] = [
                 'path' => $entry['path'],
                 'sha256' => is_file($absolute) ? hash_file('sha256', $absolute) : null,

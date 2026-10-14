@@ -271,6 +271,9 @@ return [
             'baseline_root' => env('CENTRAL_WALLET_RELEASE_GATE_OVERLAY_BASELINE_ROOT'),
             'target_root' => env('CENTRAL_WALLET_RELEASE_GATE_OVERLAY_TARGET_ROOT'),
         ],
+        'managed_file_inventory' => [
+            'path' => env('CENTRAL_WALLET_MANAGED_FILE_INVENTORY_PATH'),
+        ],
         'customer_display' => [
             'local_user_id' => env('CENTRAL_WALLET_RELEASE_GATE_CUSTOMER_DISPLAY_USER_ID'),
             'require_display_when_enabled' => filter_var(env('CENTRAL_WALLET_RELEASE_GATE_CUSTOMER_DISPLAY_REQUIRED', false), FILTER_VALIDATE_BOOLEAN),
