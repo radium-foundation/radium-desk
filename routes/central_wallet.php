@@ -1,6 +1,7 @@
 <?php
 
 use App\CentralWallet\Infrastructure\Http\Controllers\AccountLinkController;
+use App\CentralWallet\Infrastructure\Http\Controllers\CustomerIdentityResolveController;
 use App\CentralWallet\Infrastructure\Http\Controllers\BalanceMigrationController;
 use App\CentralWallet\Infrastructure\Http\Controllers\CeremonyCompleteController;
 use App\CentralWallet\Infrastructure\Http\Controllers\HealthController;
@@ -40,6 +41,9 @@ Route::get('/account-links', [AccountLinkController::class, 'index'])->name('cen
 
 Route::post('/ceremony/complete', [CeremonyCompleteController::class, 'store'])
     ->name('central-wallet.ceremony.complete');
+
+Route::post('/customer-identity/resolve', [CustomerIdentityResolveController::class, 'store'])
+    ->name('central-wallet.customer-identity.resolve');
 
 Route::middleware('central_wallet.historical_wallet_visibility')->group(function (): void {
     Route::get('/wallet-refund-destination', [WalletRefundDestinationController::class, 'show'])

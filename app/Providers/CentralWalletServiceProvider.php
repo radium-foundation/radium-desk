@@ -9,6 +9,7 @@ use App\CentralWallet\Application\BalanceMigrationStateMachine;
 use App\CentralWallet\Application\CashfreeCentralCustomerBinder;
 use App\CentralWallet\Application\CashfreeOrderCentralCustomerBindingService;
 use App\CentralWallet\Application\CentralWalletCustomerIdentityEnsureService;
+use App\CentralWallet\Application\CentralWalletCustomerIdentityResolveService;
 use App\CentralWallet\Application\CentralWalletRefundLedgerCreditService;
 use App\CentralWallet\Application\CentralWalletRefundLedgerReversalService;
 use App\CentralWallet\Application\CentralWalletService;
@@ -89,6 +90,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(ReconciledHistoricalRefundFilter::class);
         $this->app->singleton(HistoricalContactIdentityMatchService::class);
         $this->app->singleton(CentralWalletCustomerIdentityEnsureService::class);
+        $this->app->singleton(CentralWalletCustomerIdentityResolveService::class);
         $this->app->singleton(WalletRefundDestinationIdentityService::class);
         $this->app->singleton(CentralWalletRefundLedgerCreditService::class);
         $this->app->singleton(CentralWalletRefundLedgerReversalService::class);
