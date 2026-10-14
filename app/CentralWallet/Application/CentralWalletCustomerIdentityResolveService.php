@@ -17,8 +17,8 @@ use Throwable;
 
 /**
  * Trusted spoke identity resolution: verified email or Google subject attested by the
- * authenticated integration caller. Creates or returns a Desk account link with a
- * trusted verification method (not canonical/migration identity).
+ * authenticated integration caller. Links only to an existing Desk customer/wallet
+ * credential match; does not provision new customers or wallets on this path.
  */
 final class CentralWalletCustomerIdentityResolveService
 {
@@ -107,30 +107,20 @@ final class CentralWalletCustomerIdentityResolveService
                     return $this->ambiguous($siteCode, $localUserId, $correlationId);
                 }
 
-                $provisioned = false;
-                if (count($cwids) === 1) {
-                    $cwid = $cwids[0];
-                    $customer = CentralCustomer::query()
-                        ->where('central_wallet_id', $cwid)
-                        ->lockForUpdate()
-                        ->first();
-                    if ($customer === null) {
-                        return [
-                            'status' => 404,
-                            'body' => ['error' => 'not_found'],
-                        ];
-                    }
-                } else {
-                    $customer = $this->provisionCustomerWithCredential(
-                        $credential['credential_type'],
-                        $credential['provider'],
-                        $credential['subject_hash'],
-                        $siteCode,
-                        $localUserId,
-                        $correlationId,
-                    );
-                    $cwid = (string) $customer->central_wallet_id;
-                    $provisioned = true;
+                if (count($cwids) === 0) {
+                    return $this->noMatchingCustomerWallet($siteCode, $localUserId, $correlationId);
+                }
+
+                $cwid = $cwids[0];
+                $customer = CentralCustomer::query()
+                    ->where('central_wallet_id', $cwid)
+                    ->lockForUpdate()
+                    ->first();
+                if ($customer === null) {
+                    return [
+                        'status' => 404,
+                        'body' => ['error' => 'not_found'],
+                    ];
                 }
 
                 if ($existingLink !== null) {
@@ -153,7 +143,7 @@ final class CentralWalletCustomerIdentityResolveService
                     return $this->successBody(
                         $link,
                         $customer,
-                        $provisioned ? 'created_customer' : 'resolved_existing_link',
+                        'resolved_existing_link',
                         200,
                     );
                 }
@@ -169,7 +159,7 @@ final class CentralWalletCustomerIdentityResolveService
                 return $this->successBody(
                     $link,
                     $customer,
-                    $provisioned ? 'created_customer' : 'linked_existing',
+                    'linked_existing',
                     201,
                 );
             });
@@ -405,6 +395,29 @@ final class CentralWalletCustomerIdentityResolveService
     /**
      * @return array{status: int, body: array<string, mixed>}
      */
+    /**
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    private function noMatchingCustomerWallet(string $siteCode, string $localUserId, ?string $correlationId): array
+    {
+        $this->auditEvents->record(
+            eventType: 'customer_identity.resolve_no_match',
+            centralWalletId: null,
+            actorType: AuditActorType::Service,
+            actorId: self::ACTOR_ID_PREFIX.':'.$siteCode,
+            correlationId: $correlationId,
+            payload: [
+                'site_code' => $siteCode,
+                'local_user_id' => $localUserId,
+            ],
+        );
+
+        return [
+            'status' => 404,
+            'body' => ['error' => 'no_matching_customer_wallet'],
+        ];
+    }
+
     private function ambiguous(string $siteCode, string $localUserId, ?string $correlationId): array
     {
         $this->auditEvents->record(

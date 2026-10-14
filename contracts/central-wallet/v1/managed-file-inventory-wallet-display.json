@@ -1,0 +1,30 @@
+{
+    "inventory_version": "1.0.0",
+    "profile": "wallet-display-overlay",
+    "project": "radium-desk",
+    "role": "desk",
+    "release_branch": "main",
+    "path_list_source": "manifests/runtime-production-desk.txt",
+    "files": [
+        {
+            "path": "app/CentralWallet/Application/CentralWalletCustomerIdentityResolveService.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/CentralWallet/Infrastructure/Http/Controllers/CustomerIdentityResolveController.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "app/Providers/CentralWalletServiceProvider.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "config/central_wallet.php",
+            "classification": "tracked_release_file"
+        },
+        {
+            "path": "routes/central_wallet.php",
+            "classification": "tracked_release_file"
+        }
+    ]
+}

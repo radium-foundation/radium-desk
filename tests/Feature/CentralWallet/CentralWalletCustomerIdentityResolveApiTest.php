@@ -31,14 +31,16 @@ class CentralWalletCustomerIdentityResolveApiTest extends TestCase
         ]);
     }
 
-    public function test_verified_email_identity_creates_trusted_link(): void
+    public function test_verified_email_identity_links_existing_customer_wallet(): void
     {
+        $this->seedVerifiedEmailCustomer('fixture-user@example.com');
+
         $response = $this->resolveVerifiedEmail('fixture-user@example.com', '42');
 
         $response->assertCreated()
             ->assertJsonPath('verification_method', 'verified_email')
             ->assertJsonPath('link_status', AccountLinkStatus::Active->value)
-            ->assertJsonPath('provision_action', 'created_customer');
+            ->assertJsonPath('provision_action', 'linked_existing');
 
         $cwid = (string) $response->json('central_wallet_id');
         $this->assertNotSame('', $cwid);
@@ -52,8 +54,27 @@ class CentralWalletCustomerIdentityResolveApiTest extends TestCase
         ]);
     }
 
+    public function test_verified_email_without_existing_customer_fails_closed_without_provisioning(): void
+    {
+        $customersBefore = CentralCustomer::query()->count();
+        $credentialsBefore = CentralCustomerIdentityCredential::query()->count();
+        $linksBefore = CentralWalletAccountLink::query()->count();
+        $walletsBefore = \Illuminate\Support\Facades\DB::table('central_wallets')->count();
+
+        $this->resolveVerifiedEmail('brand-new@example.com', '42')
+            ->assertNotFound()
+            ->assertJsonPath('error', 'no_matching_customer_wallet');
+
+        $this->assertSame($customersBefore, CentralCustomer::query()->count());
+        $this->assertSame($credentialsBefore, CentralCustomerIdentityCredential::query()->count());
+        $this->assertSame($linksBefore, CentralWalletAccountLink::query()->count());
+        $this->assertSame($walletsBefore, \Illuminate\Support\Facades\DB::table('central_wallets')->count());
+    }
+
     public function test_repeated_resolution_is_idempotent_without_duplicate_links(): void
     {
+        $this->seedVerifiedEmailCustomer('repeat@example.com');
+
         $first = $this->resolveVerifiedEmail('repeat@example.com', '77', 'idem-repeat-1');
         $first->assertCreated();
 
@@ -198,18 +219,34 @@ class CentralWalletCustomerIdentityResolveApiTest extends TestCase
             ->assertJsonPath('error', 'customer_identity_resolve_disabled');
     }
 
-    public function test_google_identity_creates_trusted_link(): void
+    public function test_google_identity_links_existing_customer_wallet(): void
     {
+        $this->seedGoogleCustomer('google-subject-42');
+
         $response = $this->resolveGoogle('google-subject-42', '88');
 
         $response->assertCreated()
             ->assertJsonPath('verification_method', 'trusted_google')
             ->assertJsonPath('link_status', AccountLinkStatus::Active->value)
-            ->assertJsonPath('provision_action', 'created_customer');
+            ->assertJsonPath('provision_action', 'linked_existing');
+    }
+
+    public function test_google_without_existing_customer_fails_closed_without_provisioning(): void
+    {
+        $this->resolveGoogle('google-subject-never-seen', '90')
+            ->assertNotFound()
+            ->assertJsonPath('error', 'no_matching_customer_wallet');
+
+        $this->assertDatabaseMissing('central_wallet_account_links', [
+            'site_code' => self::SITE,
+            'local_user_id' => '90',
+        ]);
     }
 
     public function test_google_resolution_is_idempotent_without_duplicate_links(): void
     {
+        $this->seedGoogleCustomer('google-subject-idem');
+
         $first = $this->resolveGoogle('google-subject-idem', '89', 'google-idem-1');
         $first->assertCreated();
         $linkId = (int) $first->json('link_id');
@@ -306,6 +343,8 @@ class CentralWalletCustomerIdentityResolveApiTest extends TestCase
             'central_wallet.ledger_read.customer_history.authorized_source_systems' => [self::SITE],
         ]);
 
+        $this->seedVerifiedEmailCustomer('statement@example.com');
+
         $resolve = $this->resolveVerifiedEmail('statement@example.com', '3');
         $resolve->assertCreated();
         $cwid = (string) $resolve->json('central_wallet_id');
@@ -314,6 +353,48 @@ class CentralWalletCustomerIdentityResolveApiTest extends TestCase
             ->getJson("/api/central-wallet/v1/wallets/{$cwid}/ledger-history?local_user_id=3")
             ->assertOk()
             ->assertJsonCount(0, 'data');
+    }
+
+    private function seedVerifiedEmailCustomer(string $email): CentralCustomer
+    {
+        $wallet = app(\App\CentralWallet\Application\CentralWalletService::class)->create();
+        $customerId = (string) Str::uuid();
+        $customer = CentralCustomer::query()->create([
+            'id' => $customerId,
+            'central_wallet_id' => $wallet->id,
+            'status' => 'active',
+        ]);
+        $hasher = app(\App\CentralWallet\Application\CustomerIdentitySubjectHasher::class);
+        CentralCustomerIdentityCredential::query()->create([
+            'desk_customer_id' => $customerId,
+            'credential_type' => CustomerIdentityCredentialType::VerifiedEmail,
+            'provider' => 'desk_email',
+            'subject_hash' => $hasher->hashVerifiedEmail($email),
+            'verified_at' => now(),
+        ]);
+
+        return $customer;
+    }
+
+    private function seedGoogleCustomer(string $googleSubject): CentralCustomer
+    {
+        $wallet = app(\App\CentralWallet\Application\CentralWalletService::class)->create();
+        $customerId = (string) Str::uuid();
+        $customer = CentralCustomer::query()->create([
+            'id' => $customerId,
+            'central_wallet_id' => $wallet->id,
+            'status' => 'active',
+        ]);
+        $hasher = app(\App\CentralWallet\Application\CustomerIdentitySubjectHasher::class);
+        CentralCustomerIdentityCredential::query()->create([
+            'desk_customer_id' => $customerId,
+            'credential_type' => CustomerIdentityCredentialType::Google,
+            'provider' => 'google',
+            'subject_hash' => $hasher->hashGoogleSubject($googleSubject),
+            'verified_at' => now(),
+        ]);
+
+        return $customer;
     }
 
     private function resolveVerifiedEmail(string $email, string $localUserId, string $idempotencyKey = 'resolve-1'): \Illuminate\Testing\TestResponse
