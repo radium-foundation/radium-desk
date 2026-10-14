@@ -172,8 +172,9 @@ final class PilotRefundMigrationManifestLoader
             throw new InvalidArgumentException('pilot_refund_migration_source_balance_mismatch');
         }
 
-        if (($row['site'] ?? '') !== 'rdservice.in') {
-            throw new InvalidArgumentException('pilot_refund_migration_requires_rdservice_in');
-        }
+        PilotRefundMigrationSitePolicy::assertPreparedRowSiteMatchesOrder(
+            (string) ($row['site'] ?? ''),
+            (string) ($row['order_number'] ?? ''),
+        );
     }
 }
