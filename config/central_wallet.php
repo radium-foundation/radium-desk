@@ -109,6 +109,15 @@ return [
                     'radiumbox.com,rdservice.in,rdservice.net',
                 )),
             ))),
+            'display_email_match' => [
+                'enabled' => filter_var(
+                    env(
+                        'CENTRAL_WALLET_CUSTOMER_HISTORY_DISPLAY_EMAIL_MATCH_ENABLED',
+                        env('CENTRAL_WALLET_HISTORICAL_WALLET_VISIBILITY_ENABLED', false),
+                    ),
+                    FILTER_VALIDATE_BOOLEAN,
+                ),
+            ],
         ],
     ],
 

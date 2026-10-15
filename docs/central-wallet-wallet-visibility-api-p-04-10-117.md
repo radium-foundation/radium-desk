@@ -52,6 +52,11 @@ Query parameters:
 | `spendable` | `true` only for trusted verification + spoke email verified |
 | `verification_required` | Display/spend gate hint for spoke UI |
 | `display_label` / `display_hint` | UI copy |
+| `central_wallet_id` | **Desk-asserted** wallet id for the resolved identity (read-only display). Spokes must **not** treat path/query CWIDs as authoritative; re-validate with `email` on `ledger-history` (P-12-10-061). |
+
+## Customer ledger history (display email match)
+
+`GET /api/central-wallet/v1/wallets/{cwid}/ledger-history` accepts optional query `email` when `CENTRAL_WALLET_CUSTOMER_HISTORY_DISPLAY_EMAIL_MATCH_ENABLED` is on (display lane is **email-only** per owner policy P-10-10-34; mobile-only is rejected with `display_email_required`). Desk re-resolves identity server-side and rejects requests where `{cwid}` does not match the resolved wallet. Does **not** grant spend, reservations, or mutations. Spokes must supply `email` from the authenticated server-side user record, not from customer-editable request fields exposed to browsers.
 
 ## Identity security
 

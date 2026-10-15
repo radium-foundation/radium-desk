@@ -83,9 +83,22 @@ final class LedgerEntryController
             ], 422);
         }
 
-        $authorizationError = $this->customerHistoryAuthorization->authorize($callerId, $cwid, $localUserId);
+        $displayEmail = trim((string) $request->query('email', ''));
+        $correlationId = (string) $request->attributes->get('central_wallet_correlation_id');
+
+        $authorizationError = $this->customerHistoryAuthorization->authorize(
+            $callerId,
+            $cwid,
+            $localUserId,
+            $displayEmail !== '' ? $displayEmail : null,
+            $correlationId !== '' ? $correlationId : null,
+        );
         if ($authorizationError !== null) {
-            $status = $authorizationError === 'customer_history_read_disabled' ? 503 : 403;
+            $status = match ($authorizationError) {
+                'customer_history_read_disabled', 'display_ledger_history_disabled' => 503,
+                'identity_ambiguous' => 409,
+                default => 403,
+            };
 
             return response()->json(['error' => $authorizationError], $status);
         }

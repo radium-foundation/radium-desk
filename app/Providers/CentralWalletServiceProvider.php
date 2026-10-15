@@ -39,6 +39,7 @@ use App\CentralWallet\Application\RefundMigrationStateMachine;
 use App\CentralWallet\Application\ReservationService;
 use App\CentralWallet\Application\ReservationStateMachine;
 use App\CentralWallet\Application\WalletRefundDestinationIdentityService;
+use App\CentralWallet\Application\WalletDisplayIdentityResolver;
 use App\CentralWallet\Application\WalletVisibilityService;
 use App\CentralWallet\Infrastructure\Auth\CentralWalletIntegrationAuthenticator;
 use App\CentralWallet\Infrastructure\Http\HttpWalletMigrationSpokeClient;
@@ -94,6 +95,7 @@ final class CentralWalletServiceProvider extends ServiceProvider
         $this->app->singleton(WalletRefundDestinationIdentityService::class);
         $this->app->singleton(CentralWalletRefundLedgerCreditService::class);
         $this->app->singleton(CentralWalletRefundLedgerReversalService::class);
+        $this->app->singleton(WalletDisplayIdentityResolver::class);
         $this->app->singleton(WalletVisibilityService::class);
         $this->app->singleton(CentralWalletContractCatalog::class);
         $this->app->singleton(WalletVisibilityContractValidator::class);

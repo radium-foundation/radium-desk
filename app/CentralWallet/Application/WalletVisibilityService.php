@@ -2,13 +2,8 @@
 
 namespace App\CentralWallet\Application;
 
-use App\CentralWallet\Domain\Enums\AccountLinkStatus;
 use App\CentralWallet\Domain\Enums\AuditActorType;
-use App\CentralWallet\Domain\Enums\CustomerIdentityCredentialType;
-use App\CentralWallet\Infrastructure\Persistence\CentralCustomer;
-use App\CentralWallet\Infrastructure\Persistence\CentralCustomerIdentityCredential;
 use App\CentralWallet\Infrastructure\Persistence\CentralWallet;
-use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
 use App\CentralWallet\Support\TrustedVerificationMethod;
 use InvalidArgumentException;
 use Throwable;
@@ -20,7 +15,7 @@ use Throwable;
 final class WalletVisibilityService
 {
     public function __construct(
-        private readonly CustomerIdentitySubjectHasher $subjectHasher,
+        private readonly WalletDisplayIdentityResolver $displayIdentityResolver,
         private readonly LedgerService $ledger,
         private readonly AuditEventRecorder $auditEvents,
     ) {}
@@ -54,7 +49,7 @@ final class WalletVisibilityService
         }
 
         try {
-            $resolution = $this->resolveWalletIdentity($siteCode, $localUserId, $email, $mobileDigits);
+            $resolution = $this->displayIdentityResolver->resolve($siteCode, $localUserId, $email, $mobile !== '' ? $mobile : null);
         } catch (InvalidArgumentException $exception) {
             if (in_array($exception->getMessage(), [
                 'ambiguous_email_identity',
@@ -115,6 +110,7 @@ final class WalletVisibilityService
                 currency: $currency,
                 verificationMethod: $verificationMethod,
                 emailVerifiedBySpoke: $emailVerifiedBySpoke,
+                centralWalletId: $cwid,
             ),
         ];
     }
@@ -128,184 +124,6 @@ final class WalletVisibilityService
     }
 
     /**
-     * @return array{central_wallet_id: string, verification_method: ?string, match_basis: string}|null
-     */
-    private function resolveWalletIdentity(
-        string $siteCode,
-        string $localUserId,
-        string $email,
-        string $mobileDigits,
-    ): ?array {
-        $link = CentralWalletAccountLink::query()
-            ->where('site_code', $siteCode)
-            ->where('local_user_id', $localUserId)
-            ->where('status', AccountLinkStatus::Active)
-            ->first();
-
-        if ($link !== null) {
-            if (! $this->contactMatchesLinkedCustomer((string) $link->desk_customer_id, $email, $mobileDigits)) {
-                return null;
-            }
-
-            return [
-                'central_wallet_id' => (string) $link->central_wallet_id,
-                'verification_method' => $link->verification_method,
-                'match_basis' => 'account_link',
-            ];
-        }
-
-        $credentialCwids = $this->resolveCwidsFromCredentials($email, $mobileDigits);
-        if (count($credentialCwids) > 1) {
-            throw new InvalidArgumentException('credential_conflict');
-        }
-
-        if (count($credentialCwids) === 1) {
-            $customer = CentralCustomer::query()
-                ->where('central_wallet_id', $credentialCwids[0])
-                ->first();
-
-            $linkForCustomer = $customer !== null
-                ? CentralWalletAccountLink::query()
-                    ->where('site_code', $siteCode)
-                    ->where('local_user_id', $localUserId)
-                    ->where('desk_customer_id', $customer->id)
-                    ->where('status', AccountLinkStatus::Active)
-                    ->first()
-                : null;
-
-            return [
-                'central_wallet_id' => $credentialCwids[0],
-                'verification_method' => $linkForCustomer?->verification_method,
-                'match_basis' => 'credential',
-            ];
-        }
-
-        return null;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function resolveCwidsFromCredentials(string $email, string $mobileDigits): array
-    {
-        $customerIds = collect();
-
-        if ($email !== '') {
-            try {
-                $emailHash = $this->subjectHasher->hashVerifiedEmail($email);
-            } catch (InvalidArgumentException) {
-                $emailHash = null;
-            }
-
-            if ($emailHash !== null) {
-                $emailMatches = CentralCustomerIdentityCredential::query()
-                    ->where('credential_type', CustomerIdentityCredentialType::VerifiedEmail)
-                    ->where('provider', 'desk_email')
-                    ->where('subject_hash', $emailHash)
-                    ->whereNotNull('verified_at')
-                    ->pluck('desk_customer_id');
-
-                if ($emailMatches->count() > 1) {
-                    throw new InvalidArgumentException('ambiguous_email_identity');
-                }
-
-                $customerIds = $customerIds->merge($emailMatches);
-            }
-        }
-
-        if (strlen($mobileDigits) >= 10) {
-            $e164 = '+91'.ltrim($mobileDigits, '0');
-            if (strlen($mobileDigits) === 10) {
-                $e164 = '+91'.$mobileDigits;
-            }
-
-            try {
-                $mobileHash = $this->subjectHasher->hashVerifiedMobileE164($e164);
-            } catch (InvalidArgumentException) {
-                $mobileHash = null;
-            }
-
-            if ($mobileHash !== null) {
-                $mobileMatches = CentralCustomerIdentityCredential::query()
-                    ->where('credential_type', CustomerIdentityCredentialType::VerifiedMobile)
-                    ->where('provider', 'desk_mobile')
-                    ->where('subject_hash', $mobileHash)
-                    ->whereNotNull('verified_at')
-                    ->pluck('desk_customer_id');
-
-                if ($mobileMatches->count() > 1) {
-                    throw new InvalidArgumentException('ambiguous_mobile_identity');
-                }
-
-                if ($mobileMatches->isNotEmpty()) {
-                    if ($customerIds->isNotEmpty() && $mobileMatches->first() !== $customerIds->first()) {
-                        throw new InvalidArgumentException('credential_conflict');
-                    }
-
-                    $customerIds = $customerIds->merge($mobileMatches);
-                }
-            }
-        }
-
-        if ($customerIds->unique()->count() > 1) {
-            throw new InvalidArgumentException('credential_conflict');
-        }
-
-        if ($customerIds->isEmpty()) {
-            return [];
-        }
-
-        $cwid = CentralCustomer::query()
-            ->where('id', $customerIds->first())
-            ->value('central_wallet_id');
-
-        return is_string($cwid) && trim($cwid) !== '' ? [(string) $cwid] : [];
-    }
-
-    private function contactMatchesLinkedCustomer(string $deskCustomerId, string $email, string $mobileDigits): bool
-    {
-        if ($email !== '') {
-            try {
-                $emailHash = $this->subjectHasher->hashVerifiedEmail($email);
-            } catch (InvalidArgumentException) {
-                return false;
-            }
-
-            $emailMatch = CentralCustomerIdentityCredential::query()
-                ->where('desk_customer_id', $deskCustomerId)
-                ->where('credential_type', CustomerIdentityCredentialType::VerifiedEmail)
-                ->where('provider', 'desk_email')
-                ->where('subject_hash', $emailHash)
-                ->whereNotNull('verified_at')
-                ->exists();
-
-            if ($emailMatch) {
-                return true;
-            }
-        }
-
-        if (strlen($mobileDigits) >= 10) {
-            $e164 = '+91'.$mobileDigits;
-
-            try {
-                $mobileHash = $this->subjectHasher->hashVerifiedMobileE164($e164);
-            } catch (InvalidArgumentException) {
-                return false;
-            }
-
-            return CentralCustomerIdentityCredential::query()
-                ->where('desk_customer_id', $deskCustomerId)
-                ->where('credential_type', CustomerIdentityCredentialType::VerifiedMobile)
-                ->where('provider', 'desk_mobile')
-                ->where('subject_hash', $mobileHash)
-                ->whereNotNull('verified_at')
-                ->exists();
-        }
-
-        return false;
-    }
-
-    /**
      * @return array<string, mixed>
      */
     private function visibilityBody(
@@ -313,9 +131,10 @@ final class WalletVisibilityService
         string $currency,
         ?string $verificationMethod,
         bool $emailVerifiedBySpoke,
+        ?string $centralWalletId = null,
     ): array {
         if (bccomp($availableBalance, '0', 2) <= 0) {
-            return [
+            return $this->withDeskAssertedCentralWalletId([
                 'wallet_balance' => $availableBalance,
                 'available_balance' => $availableBalance,
                 'currency' => $currency,
@@ -325,13 +144,13 @@ final class WalletVisibilityService
                 'verification_required' => true,
                 'display_label' => 'Wallet',
                 'display_hint' => 'Connect and verify your account to view your wallet balance.',
-            ];
+            ], $centralWalletId);
         }
 
         $trusted = TrustedVerificationMethod::isTrusted($verificationMethod) && $emailVerifiedBySpoke;
 
         if ($trusted) {
-            return [
+            return $this->withDeskAssertedCentralWalletId([
                 'wallet_balance' => $availableBalance,
                 'available_balance' => $availableBalance,
                 'currency' => $currency,
@@ -341,10 +160,10 @@ final class WalletVisibilityService
                 'verification_required' => false,
                 'display_label' => 'Wallet',
                 'display_hint' => 'Available balance',
-            ];
+            ], $centralWalletId);
         }
 
-        return [
+        return $this->withDeskAssertedCentralWalletId([
             'wallet_balance' => $availableBalance,
             'available_balance' => $availableBalance,
             'currency' => $currency,
@@ -354,7 +173,20 @@ final class WalletVisibilityService
             'verification_required' => true,
             'display_label' => 'Wallet Balance — Unverified',
             'display_hint' => 'Verify your account to use this balance.',
-        ];
+        ], $centralWalletId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     */
+    private function withDeskAssertedCentralWalletId(array $body, ?string $centralWalletId): array
+    {
+        if (is_string($centralWalletId) && trim($centralWalletId) !== '') {
+            $body['central_wallet_id'] = trim($centralWalletId);
+        }
+
+        return $body;
     }
 
     /**
