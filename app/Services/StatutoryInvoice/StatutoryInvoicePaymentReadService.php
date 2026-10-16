@@ -125,6 +125,32 @@ final class StatutoryInvoicePaymentReadService
         );
     }
 
+    /**
+     * @param  list<int>  $invoiceIds
+     * @return array<int, float>
+     */
+    public function allocatedTotalsForInvoices(array $invoiceIds): array
+    {
+        if ($invoiceIds === []) {
+            return [];
+        }
+
+        return PaymentAllocation::query()
+            ->selectRaw('statutory_invoice_id, SUM(amount) as allocated_total')
+            ->whereIn('statutory_invoice_id', array_values(array_unique($invoiceIds)))
+            ->groupBy('statutory_invoice_id')
+            ->pluck('allocated_total', 'statutory_invoice_id')
+            ->map(fn (mixed $total): float => round((float) $total, 2))
+            ->all();
+    }
+
+    public function allocationBackedPaymentStatus(
+        float $invoiceValue,
+        float $amountReceived,
+    ): StatutoryInvoicePaymentStatus {
+        return $this->allocationBackedStatus($invoiceValue, $amountReceived);
+    }
+
     private function allocationBackedStatus(float $invoiceValue, float $amountReceived): StatutoryInvoicePaymentStatus
     {
         if ($invoiceValue <= 0) {
