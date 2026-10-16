@@ -196,7 +196,204 @@ class WalletRefundOpmConversionTest extends TestCase
         $this->assertSame(600.0, $max);
     }
 
-    private function completedWalletRefund(string $orderId, float $amount = 500.0, ?Order $order = null): RefundRequest
+    public function test_rdservice_in_legacy_local_lifecycle_with_mocked_spoke_and_cashfree(): void
+    {
+        $baseUrl = 'https://rdin.test';
+        config([
+            'wallet_refund_opm_conversion.sites.rdservice.in.enabled' => true,
+            'order_lookup.spokes.rdservice_in' => [
+                'enabled' => true,
+                'base_url' => $baseUrl,
+                'token' => 'rdin-token',
+            ],
+            'cashfree.api.app_id' => 'app',
+            'cashfree.api.secret' => 'secret',
+            'cashfree.api.base_url' => 'https://api.cashfree.test/pg',
+        ]);
+
+        $this->fakeSpokeOpmHttp($baseUrl, '33333333-3333-3333-3333-333333333333', [
+            'https://api.cashfree.test/pg/orders/RD5777001/refunds/REF_cf_rdin' => Http::response([
+                'refund_id' => 'REF_cf_rdin',
+                'refund_amount' => 350,
+                'refund_status' => 'SUCCESS',
+            ], 200),
+        ]);
+
+        $refund = $this->completedWalletRefund('RD5777001', 350.00, null, 'rdservice_in_wallet');
+        $service = app(WalletRefundOpmConversionService::class);
+        $conversion = $service->approve(
+            $this->financeApprover(),
+            $service->submit($this->agentUser(), $refund),
+        );
+        $this->assertSame('rdservice.in', $conversion->site_code);
+        $this->assertSame(WalletRefundCreditSource::LegacyLocal, $conversion->wallet_credit_source);
+
+        $conversion = $service->recordPayout(
+            $this->financePayoutOperator(),
+            $conversion,
+            'RD5777001',
+            'REF_cf_rdin',
+            '350.00',
+        );
+        $this->assertSame(WalletRefundOpmConversionStatus::Completed, $conversion->status);
+    }
+
+    public function test_rdservice_net_central_wallet_lifecycle_with_mocked_spoke_and_cashfree(): void
+    {
+        $baseUrl = 'https://rnet.test';
+        config([
+            'wallet_refund_opm_conversion.sites.rdservice.net.enabled' => true,
+            'order_lookup.spokes.rdservice_net' => [
+                'enabled' => true,
+                'base_url' => $baseUrl,
+                'token' => 'rnet-token',
+            ],
+            'cashfree.api.app_id' => 'app',
+            'cashfree.api.secret' => 'secret',
+            'cashfree.api.base_url' => 'https://api.cashfree.test/pg',
+        ]);
+
+        $this->fakeSpokeOpmHttp($baseUrl, '44444444-4444-4444-4444-444444444444', [
+            'https://api.cashfree.test/pg/orders/RN920001/refunds/REF_cf_net' => Http::response([
+                'refund_id' => 'REF_cf_net',
+                'refund_amount' => 275,
+                'refund_status' => 'SUCCESS',
+            ], 200),
+        ]);
+
+        $refund = $this->completedWalletRefund('RN920001', 275.00, null, 'rdservice_net_central_wallet');
+        $service = app(WalletRefundOpmConversionService::class);
+        $conversion = $service->approve(
+            $this->financeApprover(),
+            $service->submit($this->agentUser(), $refund),
+        );
+        $this->assertSame('rdservice.net', $conversion->site_code);
+        $this->assertSame(WalletRefundCreditSource::CentralWallet, $conversion->wallet_credit_source);
+
+        $conversion = $service->recordPayout(
+            $this->financePayoutOperator(),
+            $conversion,
+            'RN920001',
+            'REF_cf_net',
+            '275.00',
+        );
+        $this->assertSame(WalletRefundOpmConversionStatus::Completed, $conversion->status);
+    }
+
+    public function test_retry_verify_finalize_from_reconciliation_hold_after_cashfree_success(): void
+    {
+        config([
+            'wallet_refund_opm_conversion.sites.radiumbox.com.enabled' => true,
+            'order_lookup.spokes.radiumbox_com' => [
+                'enabled' => true,
+                'base_url' => 'https://box.test',
+                'token' => 'token',
+            ],
+            'cashfree.api.app_id' => 'app',
+            'cashfree.api.secret' => 'secret',
+            'cashfree.api.base_url' => 'https://api.cashfree.test/pg',
+        ]);
+
+        $this->fakeSpokeOpmHttp('https://box.test', '55555555-5555-5555-5555-555555555555', [
+            'https://api.cashfree.test/pg/orders/RB1000006/refunds/REF_cf_retry' => Http::sequence()
+                ->push([
+                    'refund_id' => 'REF_cf_retry',
+                    'refund_amount' => 450,
+                    'refund_status' => 'PENDING',
+                ], 200)
+                ->push([
+                    'refund_id' => 'REF_cf_retry',
+                    'refund_amount' => 450,
+                    'refund_status' => 'SUCCESS',
+                ], 200),
+        ]);
+
+        $refund = $this->completedWalletRefund('RB1000006', 450.00);
+        $service = app(WalletRefundOpmConversionService::class);
+        $conversion = $service->recordPayout(
+            $this->financePayoutOperator(),
+            $service->approve($this->financeApprover(), $service->submit($this->agentUser(), $refund)),
+            'RB1000006',
+            'REF_cf_retry',
+            '450.00',
+        );
+        $this->assertSame(WalletRefundOpmConversionStatus::ReconciliationHold, $conversion->status);
+
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'finalize-reversal'));
+
+        $conversion = $service->verifyAndFinalize($this->financePayoutOperator(), $conversion->fresh());
+        $this->assertSame(WalletRefundOpmConversionStatus::Completed, $conversion->status);
+
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'finalize-reversal'));
+    }
+
+    public function test_reconciliation_hold_retry_still_blocks_finalize_when_cashfree_not_successful(): void
+    {
+        config([
+            'wallet_refund_opm_conversion.sites.radiumbox.com.enabled' => true,
+            'order_lookup.spokes.radiumbox_com' => [
+                'enabled' => true,
+                'base_url' => 'https://box.test',
+                'token' => 'token',
+            ],
+            'cashfree.api.app_id' => 'app',
+            'cashfree.api.secret' => 'secret',
+            'cashfree.api.base_url' => 'https://api.cashfree.test/pg',
+        ]);
+
+        $this->fakeSpokeOpmHttp('https://box.test', '66666666-6666-6666-6666-666666666666', [
+            'https://api.cashfree.test/pg/orders/RB1000007/refunds/REF_cf_fail' => Http::response([
+                'refund_id' => 'REF_cf_fail',
+                'refund_amount' => 500,
+                'refund_status' => 'FAILED',
+            ], 200),
+        ]);
+
+        $refund = $this->completedWalletRefund('RB1000007', 500.00);
+        $service = app(WalletRefundOpmConversionService::class);
+        $conversion = $service->recordPayout(
+            $this->financePayoutOperator(),
+            $service->approve($this->financeApprover(), $service->submit($this->agentUser(), $refund)),
+            'RB1000007',
+            'REF_cf_fail',
+            '500.00',
+        );
+        $this->assertSame(WalletRefundOpmConversionStatus::ReconciliationHold, $conversion->status);
+
+        $conversion = $service->verifyAndFinalize($this->financePayoutOperator(), $conversion->fresh());
+        $this->assertSame(WalletRefundOpmConversionStatus::ReconciliationHold, $conversion->status);
+
+        Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'finalize-reversal'));
+    }
+
+    /**
+     * @param  non-empty-string  $baseUrl
+     * @param  non-empty-string  $reservationId
+     */
+    /**
+     * @param  array<string, mixed>  $additionalFakes
+     */
+    private function fakeSpokeOpmHttp(string $baseUrl, string $reservationId, array $additionalFakes = []): void
+    {
+        Http::fake(array_merge([
+            $baseUrl.'/api/integrations/v1/wallet-opm-conversion-reservations' => Http::response([
+                'data' => ['reservation_id' => $reservationId, 'status' => 'reserved', 'idempotent_replay' => false],
+            ], 201),
+            $baseUrl.'/api/integrations/v1/wallet-opm-conversion-reservations/*/confirm' => Http::response([
+                'data' => ['reservation_id' => $reservationId, 'status' => 'reserved'],
+            ], 200),
+            $baseUrl.'/api/integrations/v1/wallet-opm-conversion-reservations/*/finalize-reversal' => Http::response([
+                'data' => ['wallet_reversal_reference' => 'rev-'.$reservationId, 'idempotent_replay' => false],
+            ], 200),
+        ], $additionalFakes));
+    }
+
+    private function completedWalletRefund(
+        string $orderId,
+        float $amount = 500.0,
+        ?Order $order = null,
+        string $walletProvider = 'radiumbox_wallet',
+    ): RefundRequest
     {
         $user = User::factory()->create();
         $order ??= $this->order($orderId, $amount + 100, $user);
@@ -223,7 +420,7 @@ class WalletRefundOpmConversionTest extends TestCase
             'reason' => 'Wallet refund completed.',
         ]);
 
-        $this->seedWalletRefundCompletionAudit($refund, 'radiumbox_wallet');
+        $this->seedWalletRefundCompletionAudit($refund, $walletProvider);
 
         return $refund;
     }
