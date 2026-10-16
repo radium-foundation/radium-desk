@@ -7,8 +7,10 @@ use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\HistoricalInvoice\IndReducedCopyDisclosure;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Http\Client\Request;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -25,6 +27,7 @@ class HistoricalInvoiceReprintTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->disableRetiredAdminOrderFallback();
         $this->seed(RolePermissionSeeder::class);
         $this->actor = User::factory()->create(['is_active' => true]);
@@ -468,6 +471,50 @@ class HistoricalInvoiceReprintTest extends TestCase
             ->get(route('finance.invoices.historical', ['q' => 'INV6745886']))
             ->assertOk()
             ->assertSee('temporarily unavailable', false);
+    }
+
+    public function test_inv_historical_fetch_uses_loopback_http_with_host_header(): void
+    {
+        config([
+            'order_lookup.spokes.radiumbox_com.base_url' => 'http://127.0.0.1',
+            'order_lookup.spokes.radiumbox_com.host' => 'radiumbox.com',
+        ]);
+
+        Http::fake([
+            'http://127.0.0.1/api/integrations/v1/historical-invoices/INV6745886' => Http::response($this->invoicePayload(), 200),
+        ]);
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.historical', ['q' => 'INV6745886']))
+            ->assertOk()
+            ->assertSee('INV6745886', false);
+
+        Http::assertSent(function (Request $request): bool {
+            return $request->method() === 'GET'
+                && str_starts_with($request->url(), 'http://127.0.0.1/')
+                && str_contains($request->url(), 'historical-invoices/INV6745886')
+                && $request->hasHeader('Host', 'radiumbox.com');
+        });
+    }
+
+    public function test_poisoned_ind_reduced_copy_on_inv_payload_stays_ordinary_reprint(): void
+    {
+        $payload = $this->invoicePayload();
+        $payload['data']['invoice']['ind_reduced_copy'] = true;
+        $payload['data']['invoice']['disclosed_omissions'] = ['Fabricated omission'];
+
+        Http::fake([
+            'https://radiumbox.com/api/integrations/v1/historical-invoices/INV6745886' => Http::response($payload, 200),
+        ]);
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.historical.print', 'INV6745886'))
+            ->assertOk()
+            ->assertSee('Tax invoice', false)
+            ->assertSee('Historical reprint', false)
+            ->assertDontSee(IndReducedCopyDisclosure::PRIMARY_DISCLAIMER, false)
+            ->assertDontSee('Fabricated omission', false)
+            ->assertDontSee('Reduced copy reference', false);
     }
 
     public function test_lookup_does_not_create_invoices(): void

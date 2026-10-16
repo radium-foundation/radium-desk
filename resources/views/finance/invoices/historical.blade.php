@@ -23,11 +23,28 @@
 
     @if($result)
         @if($result->eligibility === 'historical_invoice' && $result->canReprint())
-            <div class="alert alert-success">
-                Historical invoice <strong>{{ $result->invoiceNumber }}</strong> is eligible for reprint. The number is unchanged.
-            </div>
+            @if($result->isReducedIndCopy())
+                <div class="alert alert-warning">
+                    <strong>{{ $indReducedCopyDisclaimer ?? 'Reprint copy from stored order data.' }}</strong>
+                </div>
+                @php($omissions = $result->disclosedOmissions())
+                @if(!empty($omissions))
+                    <div class="alert alert-secondary small mb-3">
+                        <p class="mb-2 fw-semibold">Fields omitted from this copy (not fabricated):</p>
+                        <ul class="mb-0">
+                            @foreach($omissions as $omission)
+                                <li>{{ $omission }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+            @else
+                <div class="alert alert-success">
+                    Historical invoice <strong>{{ $result->invoiceNumber }}</strong> is eligible for reprint. The number is unchanged.
+                </div>
+            @endif
             <p>
-                <a class="btn btn-outline-primary" href="{{ route('finance.invoices.historical.print', $result->invoiceNumber) }}" target="_blank" rel="noopener">Print</a>
+                <a class="btn btn-outline-primary" href="{{ route('finance.invoices.historical.print', $result->isReducedIndCopy() ? ($result->orderId ?? $result->invoiceNumber) : $result->invoiceNumber) }}" target="_blank" rel="noopener">Print</a>
             </p>
             <dl class="row">
                 <dt class="col-sm-3">Invoice</dt><dd class="col-sm-9">{{ $result->invoiceNumber }}</dd>
