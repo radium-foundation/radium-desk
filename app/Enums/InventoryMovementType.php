@@ -14,6 +14,7 @@ enum InventoryMovementType: string
     case SaleCancel = 'sale_cancel';
     case Return = 'return';
     case Adjustment = 'adjustment';
+    case SerialExchange = 'serial_exchange';
 
     public function label(): string
     {
@@ -28,6 +29,7 @@ enum InventoryMovementType: string
             self::SaleCancel => 'Sale cancelled',
             self::Return => 'Return',
             self::Adjustment => 'Adjustment',
+            self::SerialExchange => 'POS serial exchange',
         };
     }
 }

@@ -24,6 +24,7 @@ use App\Support\Inventory\InventorySerialNumber;
 use App\Support\Inventory\PosSalePaymentState;
 use App\Support\Inventory\PosRetailShippingGst;
 use App\Support\Inventory\PosSaleLineNormalizer;
+use App\Support\Inventory\PosSaleStatutoryReversalGuard;
 use App\Support\StatutoryInvoice\InvoiceRoundOff;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -399,6 +400,8 @@ class PosSaleService
 
     public function returnSale(InventorySale $sale, User $actor, string $reason): InventorySale
     {
+        PosSaleStatutoryReversalGuard::assertReturnAllowed($sale);
+
         return $this->reverseSale($sale, $actor, $reason, InventorySaleStatus::Returned, InventoryMovementType::Return);
     }
 

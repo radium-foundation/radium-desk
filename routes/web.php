@@ -55,6 +55,7 @@ use App\Http\Controllers\Inventory\AdjustmentController as InventoryAdjustmentCo
 use App\Http\Controllers\Inventory\BranchController as InventoryBranchController;
 use App\Http\Controllers\Inventory\HardwareFulfilmentBulkDocumentsController as InventoryHardwareFulfilmentBulkDocumentsController;
 use App\Http\Controllers\Inventory\HardwareFulfilmentSerialController as InventoryHardwareFulfilmentSerialController;
+use App\Http\Controllers\Inventory\InterBranchTransferController;
 use App\Http\Controllers\Inventory\MovementController as InventoryMovementController;
 use App\Http\Controllers\Inventory\OpeningImportController as InventoryOpeningImportController;
 use App\Http\Controllers\Inventory\ProductController as InventoryProductController;
@@ -62,7 +63,6 @@ use App\Http\Controllers\Inventory\ProductPackagingController as InventoryProduc
 use App\Http\Controllers\Inventory\ReservationController as InventoryReservationController;
 use App\Http\Controllers\Inventory\SerialController as InventorySerialController;
 use App\Http\Controllers\Inventory\StockController as InventoryStockController;
-use App\Http\Controllers\Inventory\InterBranchTransferController;
 use App\Http\Controllers\Inventory\TransferController as InventoryTransferController;
 use App\Http\Controllers\IraMemoryAdminController;
 use App\Http\Controllers\IraOperationsBrainController;
@@ -659,6 +659,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('sales/{sale}/statutory/email', [PosSaleStatutoryInvoiceController::class, 'email'])->name('sales.statutory.email');
         Route::post('sales/{sale}/cancel', [PosSaleController::class, 'cancel'])->name('sales.cancel');
         Route::post('sales/{sale}/return', [PosSaleController::class, 'returnSale'])->name('sales.return');
+        Route::post('sales/{sale}/serial-exchange', [PosSaleController::class, 'exchangeSerial'])->name('sales.serial-exchange');
         Route::get('upi/intents', [PosUpiIntentController::class, 'index'])->name('upi.intents.index');
         Route::get('upi/intents/{intent}', [PosUpiIntentController::class, 'show'])->name('upi.intents.show');
         Route::post('upi/intents/{intent}/abandon', [PosUpiIntentController::class, 'abandon'])->name('upi.intents.abandon');

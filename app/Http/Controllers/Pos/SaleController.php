@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Pos;
 use App\Enums\StatutoryInvoiceStatus;
 use App\Http\Controllers\Controller;
 use App\Models\InventorySale;
+use App\Services\Inventory\PosSaleSerialExchangeService;
 use App\Services\Inventory\PosSaleService;
 use App\Services\Pos\PosSaleStatutoryInvoicePresenter;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
@@ -19,6 +20,7 @@ class SaleController extends Controller
 {
     public function __construct(
         private readonly PosSaleService $sales,
+        private readonly PosSaleSerialExchangeService $serialExchanges,
         private readonly PosSaleStatutoryInvoicePresenter $statutoryPresentation,
     ) {
         $this->middleware(function ($request, $next) {
@@ -76,6 +78,7 @@ class SaleController extends Controller
         return view('pos.sales.show', [
             'sale' => $sale->loadMissing('statutoryInvoice'),
             'canCancel' => PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_CANCEL),
+            'canExchangeSerials' => PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_SERIAL_EXCHANGE),
             'statutoryPresentation' => $this->statutoryPresentation->forSale($sale, $request->user()),
         ]);
     }
@@ -131,5 +134,32 @@ class SaleController extends Controller
         $this->sales->returnSale($sale, $request->user(), $data['reason']);
 
         return redirect()->route('pos.sales.show', $sale)->with('status', 'Sale returned and stock restored.');
+    }
+
+    public function exchangeSerial(Request $request, InventorySale $sale): RedirectResponse
+    {
+        abort_unless(
+            PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_SERIAL_EXCHANGE),
+            403,
+        );
+        InventoryBranchScope::assertCanOperate($request->user(), $sale->branch);
+
+        $data = $request->validate([
+            'from_serial' => ['required', 'string', 'max:128'],
+            'to_serial' => ['required', 'string', 'max:128'],
+            'reason' => ['required', 'string', 'max:500'],
+            'idempotency_key' => ['required', 'string', 'max:120'],
+        ]);
+
+        $this->serialExchanges->exchange(
+            sale: $sale,
+            fromSerialNumber: $data['from_serial'],
+            toSerialNumber: $data['to_serial'],
+            actor: $request->user(),
+            reason: $data['reason'],
+            idempotencyKey: $data['idempotency_key'],
+        );
+
+        return redirect()->route('pos.sales.show', $sale)->with('status', 'Serial exchanged on this sale. Payment and GST documents were not changed.');
     }
 }
