@@ -215,6 +215,72 @@ class SpokeOrderClient
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function fetchHistoricalInvoiceByOrderId(string $orderId): ?array
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+
+        $baseUrl = $this->historicalIntegrationBaseUrl();
+        $path = $this->config()['historical_invoice_path'] ?? null;
+        if ($baseUrl === null || ! is_string($path) || $path === '') {
+            return [
+                '_http_status' => 0,
+                'eligibility' => 'source_unavailable',
+                'message' => 'Historical invoice source requires a configured HTTPS base URL.',
+            ];
+        }
+
+        try {
+            $request = Http::baseUrl($baseUrl)
+                ->acceptJson()
+                ->withToken($this->token())
+                ->connectTimeout((int) ($this->config()['connect_timeout_seconds'] ?? 3))
+                ->timeout((int) ($this->config()['timeout_seconds'] ?? 8));
+
+            $host = $this->requestHostHeader();
+            if ($host !== null) {
+                $request = $request->withHeaders(['Host' => $host]);
+            }
+
+            $response = $request->get(rtrim($path, '/'), [
+                'orderid' => $orderId,
+            ]);
+            $payload = $response->json();
+
+            return is_array($payload) ? $payload + ['_http_status' => $response->status()] : [
+                '_http_status' => $response->status(),
+            ];
+        } catch (ConnectionException|RequestException) {
+            return [
+                '_http_status' => 0,
+                'eligibility' => 'source_unavailable',
+                'message' => 'Historical invoice source is temporarily unavailable.',
+            ];
+        }
+    }
+
+    private function historicalIntegrationBaseUrl(): ?string
+    {
+        $baseUrl = rtrim((string) ($this->config()['base_url'] ?? ''), '/');
+        if ($baseUrl === '') {
+            return null;
+        }
+
+        $parsed = parse_url($baseUrl);
+        $scheme = strtolower((string) (is_array($parsed) ? ($parsed['scheme'] ?? '') : ''));
+        $host = trim((string) (is_array($parsed) ? ($parsed['host'] ?? '') : ''));
+
+        if ($scheme === 'https' && $host !== '') {
+            return $baseUrl;
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function config(): array
