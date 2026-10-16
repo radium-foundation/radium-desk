@@ -22,6 +22,8 @@ final class LegacySpokeWalletRefundOpmClient
             ]);
         }
 
+        $this->assertHttpsSpokeBaseUrl($baseUrl);
+
         try {
             $request = Http::baseUrl($baseUrl)
                 ->acceptJson()
@@ -55,5 +57,20 @@ final class LegacySpokeWalletRefundOpmClient
         }
 
         return $payload;
+    }
+
+    private function assertHttpsSpokeBaseUrl(string $baseUrl): void
+    {
+        $parsed = parse_url($baseUrl);
+        $scheme = strtolower((string) (is_array($parsed) ? ($parsed['scheme'] ?? '') : ''));
+        $host = trim((string) (is_array($parsed) ? ($parsed['host'] ?? '') : ''));
+
+        if ($scheme === 'https' && $host !== '') {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'conversion' => 'Site integration base URL must use HTTPS for wallet OPM conversion.',
+        ]);
     }
 }
