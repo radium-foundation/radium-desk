@@ -85,6 +85,27 @@ return [
                 'desk_sku' => 'RBSMOOTHED',
                 'notes' => 'Smooth Edges MBP-401 Desktop Barcode Printer',
             ],
+            [
+                'model_id' => 1738,
+                'channel_sku' => '1738',
+                'catalog_sku' => 'RBPBIOG2AA',
+                'desk_sku' => 'RBBIOGPSG2',
+                'notes' => 'BioEnable G2 GPS Receiver (Box hardware model_id 1738)',
+            ],
+            [
+                'model_id' => 338,
+                'channel_sku' => '338',
+                'catalog_sku' => 'PDLKB212KB',
+                'desk_sku' => 'RBDELKB216',
+                'notes' => 'Dell KB216 Wired USB Keyboard (Box hardware model_id 338)',
+            ],
+            [
+                'model_id' => 566,
+                'channel_sku' => '566',
+                'catalog_sku' => 'PITMK2121Z',
+                'desk_sku' => 'RBIBK2121U',
+                'notes' => 'Iritech IriShield USB BK 2121U Dual IRIS Scanner (Box hardware model_id 566)',
+            ],
         ],
     ],
 
