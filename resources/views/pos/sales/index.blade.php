@@ -50,11 +50,15 @@
                         <th>Customer</th>
                         <th>Branch</th>
                         <th>Total</th>
-                        <th>Status</th>
+                        <th>Sale status</th>
+                        <th>Payment</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($sales as $sale)
+                        @php
+                            $paymentStatus = $paymentStatuses[$sale->id] ?? null;
+                        @endphp
                         <tr>
                             <td><a href="{{ route('pos.sales.show', $sale) }}">{{ $sale->sale_no }}</a></td>
                             <td>{{ $sale->statutoryInvoice?->invoice_number ?: '—' }}</td>
@@ -62,9 +66,28 @@
                             <td>{{ $sale->branch?->code }}</td>
                             <td>{{ number_format((float) $sale->total, 2) }}</td>
                             <td>{{ $sale->status->label() }}</td>
+                            <td>
+                                @if($paymentStatus)
+                                    @if(str_starts_with($paymentStatus->badgeClass, 'bg-'))
+                                        <span class="badge {{ $paymentStatus->badgeClass }}"
+                                              @if($paymentStatus->accessibleTitle) title="{{ $paymentStatus->accessibleTitle }}" @endif
+                                              aria-label="Payment status: {{ $paymentStatus->label }}@if($paymentStatus->accessibleTitle). {{ $paymentStatus->accessibleTitle }}@endif">
+                                            {{ $paymentStatus->label }}
+                                        </span>
+                                    @else
+                                        <span class="{{ $paymentStatus->badgeClass }}"
+                                              @if($paymentStatus->accessibleTitle) title="{{ $paymentStatus->accessibleTitle }}" @endif
+                                              aria-label="{{ $paymentStatus->accessibleTitle ?: $paymentStatus->label }}">
+                                            {{ $paymentStatus->label }}
+                                        </span>
+                                    @endif
+                                @else
+                                    <span class="text-muted" aria-label="Payment status unavailable">—</span>
+                                @endif
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-muted p-4">No POS sales yet.</td></tr>
+                        <tr><td colspan="7" class="text-muted p-4">No POS sales yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

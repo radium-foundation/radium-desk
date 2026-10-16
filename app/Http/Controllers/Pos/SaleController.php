@@ -6,6 +6,7 @@ use App\Enums\StatutoryInvoiceStatus;
 use App\Http\Controllers\Controller;
 use App\Models\InventorySale;
 use App\Services\Inventory\PosSaleService;
+use App\Services\Pos\PosSalePaymentListPresenter;
 use App\Services\Pos\PosSaleStatutoryInvoicePresenter;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
 use App\Support\Inventory\InventoryBranchScope;
@@ -20,6 +21,7 @@ class SaleController extends Controller
     public function __construct(
         private readonly PosSaleService $sales,
         private readonly PosSaleStatutoryInvoicePresenter $statutoryPresentation,
+        private readonly PosSalePaymentListPresenter $paymentListPresentation,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(PosAccess::allows($request->user()), 403);
@@ -61,6 +63,7 @@ class SaleController extends Controller
 
         return view('pos.sales.index', [
             'sales' => $sales,
+            'paymentStatuses' => $this->paymentListPresentation->forSales($sales),
             'branches' => InventoryBranchScope::allowedBranches($user, activeOnly: false),
             'filters' => $request->only(['q', 'branch_id', 'status']),
             'canSell' => PosAccess::allowsPermission($user, RolePermissionSeeder::PERMISSION_POS_SELL),
