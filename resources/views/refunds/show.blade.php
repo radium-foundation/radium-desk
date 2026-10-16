@@ -280,6 +280,10 @@
 
             @can('rerouteExecutionMethod', $refund)
                 @if($canRerouteExecutionMethod ?? false)
+                    @include('refunds.partials.wallet-opm-conversion-panel', [
+                        'refund' => $refund,
+                        'opm' => $walletOpmConversionUi ?? [],
+                    ])
                     @include('refunds.partials.reroute-execution-panel', ['refund' => $refund])
                 @endif
             @endcan

@@ -109,6 +109,12 @@ class RolePermissionSeeder extends Seeder
     /** Re-route a pending_execution wallet refund to Cashfree when wallet credit is unsupported. */
     public const PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD = 'refunds.reroute_execution_method';
 
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE = 'refunds.wallet_opm_conversion.approve';
+
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT = 'refunds.wallet_opm_conversion.payout';
+
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE = 'refunds.wallet_opm_conversion.release';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -493,6 +499,9 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_REFUNDS_REVOKE,
             self::PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
             self::PERMISSION_HARDWARE_FULFILMENT_CANCEL_HISTORICAL_DUPLICATE,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
             ...self::PURCHASING_ADMIN_PERMISSIONS,
@@ -551,6 +560,9 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_REFUNDS_REVOKE,
             self::PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
             ...self::PURCHASING_ADMIN_PERMISSIONS,
         ],
@@ -617,6 +629,9 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_REFUNDS_REVOKE,
             self::PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
             self::PERMISSION_BACKUPS_VIEW,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
             ...self::PURCHASING_ADMIN_PERMISSIONS,

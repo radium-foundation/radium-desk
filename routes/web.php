@@ -299,6 +299,18 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('refunds/{refund}/reject', [RefundRequestController::class, 'reject'])->name('refunds.reject');
     Route::post('refunds/{refund}/complete', [RefundRequestController::class, 'complete'])->name('refunds.complete');
     Route::post('refunds/{refund}/revoke', [RefundRequestController::class, 'revoke'])->name('refunds.revoke');
+    Route::post('refunds/{refund}/wallet-opm-conversions', [\App\Http\Controllers\WalletRefundOpmConversionController::class, 'store'])
+        ->name('refunds.wallet-opm-conversions.store');
+    Route::post('wallet-opm-conversions/{conversion}/approve', [\App\Http\Controllers\WalletRefundOpmConversionController::class, 'approve'])
+        ->name('wallet-opm-conversions.approve');
+    Route::post('wallet-opm-conversions/{conversion}/reject', [\App\Http\Controllers\WalletRefundOpmConversionController::class, 'reject'])
+        ->name('wallet-opm-conversions.reject');
+    Route::post('wallet-opm-conversions/{conversion}/record-payout', [\App\Http\Controllers\WalletRefundOpmConversionController::class, 'recordPayout'])
+        ->name('wallet-opm-conversions.record-payout');
+    Route::post('wallet-opm-conversions/{conversion}/verify', [\App\Http\Controllers\WalletRefundOpmConversionController::class, 'verify'])
+        ->name('wallet-opm-conversions.verify');
+    Route::post('wallet-opm-conversions/{conversion}/release', [\App\Http\Controllers\WalletRefundOpmConversionController::class, 'release'])
+        ->name('wallet-opm-conversions.release');
     Route::post('refunds/{refund}/reroute-execution-method', [RefundRequestController::class, 'rerouteExecutionMethod'])
         ->name('refunds.reroute-execution-method');
     Route::resource('refunds', RefundRequestController::class)->except(['edit', 'update']);
