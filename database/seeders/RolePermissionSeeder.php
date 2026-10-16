@@ -149,6 +149,9 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_POS_CANCEL = 'pos.cancel';
 
+    /** Swap a sold serial on a completed POS sale without changing totals or GST documents. */
+    public const PERMISSION_POS_SERIAL_EXCHANGE = 'pos.serials.exchange';
+
     /** Confirm a pending UPI POS intent after checking the live bank. Assigned to no role. */
     public const PERMISSION_POS_PAYMENTS_VERIFY = 'pos.payments.verify';
 
@@ -208,6 +211,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_POS_VIEW,
         self::PERMISSION_POS_SELL,
         self::PERMISSION_POS_CANCEL,
+        self::PERMISSION_POS_SERIAL_EXCHANGE,
         self::PERMISSION_INVENTORY_OPERATE_ALL_BRANCHES,
         self::PERMISSION_HARDWARE_FULFILMENT_OPERATE,
         self::PERMISSION_HARDWARE_FULFILMENT_CORRECT_COUNTRY,

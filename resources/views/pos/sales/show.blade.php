@@ -114,6 +114,34 @@
         </div>
     </div>
 
+    @if(($canExchangeSerials ?? false) && $sale->status === \App\Enums\InventorySaleStatus::Completed && $sale->serials->isNotEmpty())
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h6">Serial exchange</h2>
+                <p class="text-muted small">Replace one sold serial with another available unit of the same product at this branch. Does not change payment, sale totals, or GST invoice documents.</p>
+                <form method="POST" action="{{ route('pos.sales.serial-exchange', $sale) }}" class="row g-2 align-items-end" data-once-submit>
+                    @csrf
+                    <input type="hidden" name="idempotency_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
+                    <div class="col-md-3">
+                        <label class="form-label small" for="from-serial">Current serial on sale</label>
+                        <input type="text" name="from_serial" id="from-serial" class="form-control" required placeholder="e.g. LN2505154833">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small" for="to-serial">Replacement serial</label>
+                        <input type="text" name="to_serial" id="to-serial" class="form-control" required placeholder="e.g. LN2505155964">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small" for="exchange-reason">Reason</label>
+                        <input type="text" name="reason" id="exchange-reason" class="form-control" required placeholder="Why this serial is being swapped">
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-outline-primary w-100">Exchange serial</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+
     @if($canCancel && $sale->status === \App\Enums\InventorySaleStatus::Completed)
         <div class="card border-0 shadow-sm">
             <div class="card-body">
