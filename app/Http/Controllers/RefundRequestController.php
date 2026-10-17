@@ -16,7 +16,9 @@ use App\Http\Requests\StoreRefundRequestRequest;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
+use App\Models\ReturnExchangeCase;
 use App\Services\RefundCalculationService;
+use App\Services\Refunds\HardwareOrderRefundCaseGate;
 use App\Services\RefundProfileRegistry;
 use App\Services\RefundReferenceService;
 use App\Services\RefundRequestService;
@@ -76,8 +78,19 @@ class RefundRequestController extends Controller
             $selectedOrder ??= $selectedIncident?->order;
         }
 
+        $hardwareRefundBlocked = false;
+        $returnCasesForOrder = collect();
+
         if ($selectedOrder instanceof Order) {
             $calculation = $this->calculationService->calculate($selectedOrder);
+            $hardwareGate = app(HardwareOrderRefundCaseGate::class);
+            $hardwareRefundBlocked = $hardwareGate->isHardwareRefundOrder($selectedOrder);
+            $returnCasesForOrder = ReturnExchangeCase::query()
+                ->where('order_id', $selectedOrder->id)
+                ->orWhereHas('hardwareFulfilment', fn ($q) => $q->where('support_order_id', $selectedOrder->id))
+                ->orderByDesc('id')
+                ->limit(5)
+                ->get();
         }
 
         $nextRefundReference = app(RefundReferenceService::class)->peekNext();
@@ -87,6 +100,9 @@ class RefundRequestController extends Controller
             'selectedOrder' => $selectedOrder,
             'selectedIncident' => $selectedIncident,
             'calculation' => $calculation,
+            'hardwareRefundBlocked' => $hardwareRefundBlocked,
+            'returnCasesForOrder' => $returnCasesForOrder,
+            'paymentBreakdown' => null,
             'profiles' => $this->profileRegistry->all(),
             'preferredMethods' => CustomerPreferredRefundMethod::cases(),
             'differenceReasons' => RefundDifferenceReason::cases(),

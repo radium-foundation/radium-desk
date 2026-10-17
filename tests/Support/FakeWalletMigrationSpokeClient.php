@@ -28,6 +28,15 @@ final class FakeWalletMigrationSpokeClient implements WalletMigrationSpokeClient
 
     public bool $restoreShouldFail = false;
 
+    /** When set, getMigrationStatus returns this lock_status (e.g. active). */
+    public ?string $statusLockStatus = null;
+
+    /** When set, getMigrationStatus returns this HTTP status (body is minimal error stub). */
+    public ?int $statusHttpCode = null;
+
+    /** When true, getMigrationStatus returns 200 without lock_status in the body. */
+    public bool $statusOmitLockStatus = false;
+
     public function acquireLock(
         string $migrationOperationId,
         string $sourceSiteCode,
@@ -104,12 +113,30 @@ final class FakeWalletMigrationSpokeClient implements WalletMigrationSpokeClient
         string $amount,
         string $sourceBusinessReference,
     ): array {
+        if ($this->statusHttpCode !== null) {
+            return [
+                'status' => $this->statusHttpCode,
+                'body' => ['error' => 'migration_status_stub'],
+            ];
+        }
+
+        if ($this->statusOmitLockStatus) {
+            return [
+                'status' => 200,
+                'body' => [
+                    'migration_operation_id' => $migrationOperationId,
+                ],
+            ];
+        }
+
+        $lockStatus = $this->statusLockStatus ?? 'none';
+
         return [
             'status' => 200,
             'body' => [
                 'migration_operation_id' => $migrationOperationId,
-                'lock_status' => 'retired',
-                'source_retired' => true,
+                'lock_status' => $lockStatus,
+                'source_retired' => $lockStatus === 'retired',
             ],
         ];
     }

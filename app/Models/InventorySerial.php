@@ -60,4 +60,9 @@ class InventorySerial extends Model
     {
         return $this->hasMany(InventorySaleSerial::class, 'serial_id');
     }
+
+    public function returnExchangeCaseReceipts(): HasMany
+    {
+        return $this->hasMany(ReturnExchangeCaseReceipt::class, 'inventory_serial_id');
+    }
 }

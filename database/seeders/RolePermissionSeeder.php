@@ -109,6 +109,59 @@ class RolePermissionSeeder extends Seeder
     /** Re-route a pending_execution wallet refund to Cashfree when wallet credit is unsupported. */
     public const PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD = 'refunds.reroute_execution_method';
 
+    /** View internal return/exchange cases (intake; no stock or tax effects). */
+    public const PERMISSION_RETURNS_CASES_VIEW = 'returns.cases.view';
+
+    /** Create internal return/exchange cases (intake only). */
+    public const PERMISSION_RETURNS_CASES_CREATE = 'returns.cases.create';
+
+    /**
+     * Cross-branch return-case queue and central operations (read-only queue uses this alone).
+     * Seeded on {@see self::ROLE_ADMIN}, {@see self::ROLE_OPERATIONS_ADMIN}, and {@see self::ROLE_SUPERADMIN}.
+     */
+    public const PERMISSION_RETURNS_CASES_CENTRAL = 'returns.cases.central';
+
+    /** Receive returned goods on a case at an assigned branch (quarantine only). */
+    public const PERMISSION_RETURNS_CASES_RECEIVE = 'returns.cases.receive';
+
+    /** Record inspection results on received goods (no stock release). */
+    public const PERMISSION_RETURNS_CASES_INSPECT = 'returns.cases.inspect';
+
+    /** Submit POS return-case Finance refund request (branch; no payout). */
+    public const PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT = 'returns.cases.pos_refund.submit';
+
+    /** Review approve/reject POS return-case refund requests (central Finance; no payout). */
+    public const PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW = 'returns.cases.pos_refund.review';
+
+    /** Submit order-based refund request for inspected online hardware return cases. */
+    public const PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT = 'returns.cases.order_refund.submit';
+
+    /** Record equal-value serial replacement on an inspected return case (branch). */
+    public const PERMISSION_RETURNS_CASES_SERIAL_REPLACE = 'returns.cases.serial_replace';
+
+    /** Submit online return-case Finance refund allocation (split tender; no payout). */
+    public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT = 'returns.cases.order_refund.allocation.submit';
+
+    /** Review approve/reject online return-case Finance refund allocations (central). */
+    public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW = 'returns.cases.order_refund.allocation.review';
+
+    /** Execute approved online return-case Finance refund allocation lines (central; gated by config flag). */
+    public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE = 'returns.cases.order_refund.allocation.execute';
+
+    /** Request wallet-to-OPM conversion for a succeeded allocation wallet credit (branch or central). */
+    public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_OPM_CONVERSION_REQUEST = 'returns.cases.order_refund.allocation.opm_conversion.request';
+
+    /** Approve or reject return-case allocation wallet-to-OPM conversion (central Finance). */
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE = 'refunds.wallet_opm_conversion.approve';
+
+    /** Record manual Cashfree payout evidence and drive verification for wallet-to-OPM conversion (central Finance). */
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT = 'refunds.wallet_opm_conversion.payout';
+
+    /** Release a wallet OPM reservation before payout (central Finance). */
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE = 'refunds.wallet_opm_conversion.release';
+
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE = 'refunds.wallet_opm_conversion.reconcile';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -229,6 +282,10 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_POS_VIEW,
         self::PERMISSION_POS_SELL,
         self::PERMISSION_HARDWARE_FULFILMENT_OPERATE,
+        self::PERMISSION_RETURNS_CASES_VIEW,
+        self::PERMISSION_RETURNS_CASES_RECEIVE,
+        self::PERMISSION_RETURNS_CASES_INSPECT,
+        self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
     ];
 
     /**
@@ -342,6 +399,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
             'leave-requests.view',
             'leave-requests.create',
             'workforce.view',
@@ -363,6 +422,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
             'leave-requests.view',
             'leave-requests.create',
             'workforce.view',
@@ -384,6 +445,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
             'leave-requests.view',
             'leave-requests.create',
             'workforce.view',
@@ -405,6 +468,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
             'leave-requests.view',
             'leave-requests.create',
             'workforce.view',
@@ -458,6 +523,23 @@ class RolePermissionSeeder extends Seeder
             'refunds.create',
             'refunds.review',
             'refunds.execute',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
+            self::PERMISSION_RETURNS_CASES_CENTRAL,
+            self::PERMISSION_RETURNS_CASES_RECEIVE,
+            self::PERMISSION_RETURNS_CASES_INSPECT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_OPM_CONVERSION_REQUEST,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
+            self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -515,6 +597,23 @@ class RolePermissionSeeder extends Seeder
             'refunds.create',
             'refunds.review',
             'refunds.execute',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
+            self::PERMISSION_RETURNS_CASES_CENTRAL,
+            self::PERMISSION_RETURNS_CASES_RECEIVE,
+            self::PERMISSION_RETURNS_CASES_INSPECT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_OPM_CONVERSION_REQUEST,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
+            self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -577,6 +676,23 @@ class RolePermissionSeeder extends Seeder
             'refunds.review',
             'refunds.execute',
             'refunds.delete',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
+            self::PERMISSION_RETURNS_CASES_CENTRAL,
+            self::PERMISSION_RETURNS_CASES_RECEIVE,
+            self::PERMISSION_RETURNS_CASES_INSPECT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_OPM_CONVERSION_REQUEST,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
+            self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',

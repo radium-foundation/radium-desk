@@ -6,6 +6,9 @@
     'preferredMethods' => [],
     'profiles' => [],
     'differenceReasons' => [],
+    'hardwareRefundBlocked' => false,
+    'returnCasesForOrder' => collect(),
+    'paymentBreakdown' => null,
 ])
 
 @php
@@ -35,6 +38,13 @@
     @include('refunds.partials.order-incident-select', [
         'selectedOrder' => $selectedOrder,
         'selectedIncident' => $selectedIncident,
+    ])
+
+    @include('refunds.partials.hardware-order-context', [
+        'paymentBreakdown' => $paymentBreakdown,
+        'hardwareRefundBlocked' => $hardwareRefundBlocked,
+        'returnCasesForOrder' => $returnCasesForOrder,
+        'calculation' => $calculation,
     ])
 
     <div class="col-12">
