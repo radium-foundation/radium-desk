@@ -7,6 +7,7 @@ use App\Enums\ReturnExchangeCaseStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ReturnExchangeCase extends Model
 {
@@ -65,5 +66,10 @@ class ReturnExchangeCase extends Model
     public function receipts(): HasMany
     {
         return $this->hasMany(ReturnExchangeCaseReceipt::class, 'return_exchange_case_id');
+    }
+
+    public function posRefundRequest(): HasOne
+    {
+        return $this->hasOne(PosReturnRefundRequest::class, 'return_exchange_case_id');
     }
 }
