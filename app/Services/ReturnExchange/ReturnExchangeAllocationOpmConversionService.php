@@ -2,26 +2,31 @@
 
 namespace App\Services\ReturnExchange;
 
+use App\Enums\AllocationOpmWalletFinalizationState;
 use App\Enums\WalletRefundOpmConversionStatus;
 use App\Models\OnlineReturnRefundAllocationLine;
 use App\Models\OnlineReturnRefundAllocationLineExecution;
 use App\Models\OnlineReturnRefundAllocationOpmConversion;
-use App\Models\Order;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\WalletRefundOpmConversion\WalletRefundOpmConversionCashfreeVerifier;
 use App\Services\WalletRefundOpmConversion\WalletRefundOpmSiteAdapterResolver;
 use App\Support\Money\WalletMoney;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Wallet OPM spoke contract (reserve / release / finalize-reversal) is implemented on site adapters
+ * and verified on RadiumBox in DeskWalletOpmConversionReservationService: finalize returns
+ * idempotent_replay when the reservation is already finalized; release replays when status is released.
+ */
 final class ReturnExchangeAllocationOpmConversionService
 {
     public function __construct(
         private readonly ReturnExchangeAllocationOpmConversionEligibilityService $eligibility,
-        private readonly ReturnExchangeAllocationOpmCreditSourceResolver $creditSources,
-        private readonly ReturnExchangeAllocationWalletCreditService $walletReferences,
+        private readonly ReturnExchangeAllocationWalletCreditEvidenceVerifier $walletEvidence,
         private readonly WalletRefundOpmSiteAdapterResolver $adapterResolver,
         private readonly WalletRefundOpmConversionCashfreeVerifier $cashfreeVerifier,
         private readonly AuditLogService $auditLogService,
@@ -37,58 +42,33 @@ final class ReturnExchangeAllocationOpmConversionService
         array $payload,
     ): OnlineReturnRefundAllocationOpmConversion {
         $idempotencyKey = trim((string) ($payload['idempotency_key'] ?? ''));
+        $amount = WalletMoney::normalize((string) ($payload['amount'] ?? '')) ?? '';
+
         if ($idempotencyKey !== '') {
             $existing = OnlineReturnRefundAllocationOpmConversion::query()
                 ->where('submit_idempotency_key', $idempotencyKey)
                 ->first();
             if ($existing !== null) {
+                $this->assertSubmitReplayAuthorized($requester, $line, $existing);
+
                 return $existing;
             }
         }
 
-        $amount = WalletMoney::normalize((string) ($payload['amount'] ?? '')) ?? '';
-
-        return DB::transaction(function () use ($requester, $line, $execution, $amount, $idempotencyKey): OnlineReturnRefundAllocationOpmConversion {
-            $lockedExecution = OnlineReturnRefundAllocationLineExecution::query()
-                ->whereKey($execution->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            $this->eligibility->assertCanRequest($line, $lockedExecution, $amount);
-
-            $line->loadMissing(['allocation.order', 'allocation.returnCase']);
-            $allocation = $line->allocation;
-            $order = $allocation?->order;
-            if ($allocation === null || ! $order instanceof Order || $allocation->returnCase === null) {
-                throw ValidationException::withMessages(['line' => 'Allocation linkage is incomplete.']);
+        try {
+            return $this->createConversion($requester, $line, $execution, $amount, $idempotencyKey);
+        } catch (UniqueConstraintViolationException $exception) {
+            if ($idempotencyKey === '') {
+                throw $exception;
             }
 
-            $creditSource = $this->creditSources->resolveFromExecution($lockedExecution);
-            $siteCode = $this->eligibility->siteCodeForExecution($lockedExecution, $order);
+            $existing = OnlineReturnRefundAllocationOpmConversion::query()
+                ->where('submit_idempotency_key', $idempotencyKey)
+                ->firstOrFail();
+            $this->assertSubmitReplayAuthorized($requester, $line, $existing);
 
-            $conversion = OnlineReturnRefundAllocationOpmConversion::query()->create([
-                'public_id' => (string) Str::uuid(),
-                'return_exchange_case_id' => $allocation->returnCase->id,
-                'online_return_refund_allocation_id' => $allocation->id,
-                'online_return_refund_allocation_line_id' => $line->id,
-                'online_return_refund_allocation_line_execution_id' => $lockedExecution->id,
-                'desk_wallet_reference' => $this->walletReferences->deskReference($allocation, $line),
-                'wallet_executor_provider' => (string) $lockedExecution->executor_provider,
-                'wallet_execution_reference' => $lockedExecution->execution_reference,
-                'wallet_transaction_id' => $lockedExecution->transaction_id,
-                'submit_idempotency_key' => $idempotencyKey !== '' ? $idempotencyKey : null,
-                'status' => WalletRefundOpmConversionStatus::PendingApproval,
-                'site_code' => $siteCode,
-                'wallet_credit_source' => $creditSource,
-                'amount' => $amount,
-                'currency' => 'INR',
-                'requester_id' => $requester->id,
-            ]);
-
-            $this->audit($conversion, 'return_allocation_opm_conversion.submitted', $requester);
-
-            return $conversion;
-        });
+            return $existing;
+        }
     }
 
     public function approve(User $approver, OnlineReturnRefundAllocationOpmConversion $conversion): OnlineReturnRefundAllocationOpmConversion
@@ -99,12 +79,13 @@ final class ReturnExchangeAllocationOpmConversionService
             ]);
         }
 
-        return DB::transaction(function () use ($approver, $conversion): OnlineReturnRefundAllocationOpmConversion {
+        DB::transaction(function () use ($approver, $conversion): void {
             $conversion = $this->lockConversion($conversion);
             $this->assertStatus($conversion, WalletRefundOpmConversionStatus::PendingApproval);
 
             $execution = $conversion->walletExecution()->lockForUpdate()->firstOrFail();
             $line = $conversion->line()->firstOrFail();
+            $this->walletEvidence->assertConversionMatchesExecution($conversion, $line, $execution);
             $this->eligibility->assertCanRequest($line, $execution, (string) $conversion->amount, $conversion->id);
 
             $conversion->update([
@@ -113,9 +94,9 @@ final class ReturnExchangeAllocationOpmConversionService
             ]);
 
             $this->audit($conversion, 'return_allocation_opm_conversion.approved', $approver);
-
-            return $this->reserveAfterApproval($conversion->fresh() ?? $conversion, $approver);
         });
+
+        return $this->reserveAfterApproval($conversion->fresh() ?? $conversion, $approver);
     }
 
     public function reject(User $approver, OnlineReturnRefundAllocationOpmConversion $conversion, string $reason): OnlineReturnRefundAllocationOpmConversion
@@ -166,7 +147,7 @@ final class ReturnExchangeAllocationOpmConversionService
             ]);
         }
 
-        return DB::transaction(function () use ($operator, $conversion, $cashfreeOrderId, $cashfreeRefundId, $cashfreeAmount): OnlineReturnRefundAllocationOpmConversion {
+        DB::transaction(function () use ($operator, $conversion, $cashfreeOrderId, $cashfreeRefundId, $cashfreeAmount): void {
             $conversion = $this->lockConversion($conversion);
             $this->assertStatus($conversion, WalletRefundOpmConversionStatus::Reserved);
 
@@ -186,18 +167,26 @@ final class ReturnExchangeAllocationOpmConversionService
             ]);
 
             $this->audit($conversion, 'return_allocation_opm_conversion.payout_recorded', $operator);
-
-            return $this->verifyAndFinalize($operator, $conversion->fresh() ?? $conversion);
         });
+
+        return $this->verifyAndFinalize($operator, $conversion->fresh() ?? $conversion);
     }
 
     public function verifyAndFinalize(User $actor, OnlineReturnRefundAllocationOpmConversion $conversion): OnlineReturnRefundAllocationOpmConversion
     {
-        return DB::transaction(function () use ($actor, $conversion): OnlineReturnRefundAllocationOpmConversion {
+        $conversionId = (int) $conversion->id;
+
+        $cashfreeReady = DB::transaction(function () use ($actor, $conversion): bool {
             $conversion = $this->lockConversion($conversion);
             if ($conversion->status !== WalletRefundOpmConversionStatus::PayoutRecorded
                 && $conversion->status !== WalletRefundOpmConversionStatus::ReconciliationHold) {
                 $this->assertStatus($conversion, WalletRefundOpmConversionStatus::PayoutRecorded);
+            }
+
+            if ($this->walletFinalizationIsConfirmed($conversion)) {
+                $this->markCompleted($conversion, $actor);
+
+                return false;
             }
 
             $verify = $this->cashfreeVerifier->verify($conversion);
@@ -207,45 +196,29 @@ final class ReturnExchangeAllocationOpmConversionService
             ]);
 
             if (! ($verify['verified'] ?? false)) {
-                return $this->enterReconciliation($conversion, $actor, $verify['message'] ?? 'Cashfree verification did not succeed.', $verify['status'] ?? 'ambiguous');
+                $this->enterReconciliation($conversion, $actor, $verify['message'] ?? 'Cashfree verification did not succeed.', $verify['status'] ?? 'ambiguous');
+
+                return false;
             }
 
             $conversion->update(['cashfree_verified_at' => now()]);
 
-            $subject = $this->spokeSubject($conversion);
-
-            try {
-                $adapter = $this->adapterResolver->forOrderAndCreditSource(
-                    $subject->order()?->order_id,
-                    $conversion->wallet_credit_source,
-                );
-                $result = $adapter->finalizeWalletReversal($conversion, $subject);
-                $conversion->update([
-                    'wallet_reversal_reference' => $result['wallet_reversal_reference'] ?? null,
-                ]);
-            } catch (ValidationException $exception) {
-                return $this->enterReconciliation(
-                    $conversion,
-                    $actor,
-                    collect($exception->errors())->flatten()->first() ?? 'Wallet finalization failed.',
-                    'wallet_finalization_failed',
-                );
-            }
-
-            $conversion->update([
-                'status' => WalletRefundOpmConversionStatus::Completed,
-            ]);
-
-            $this->audit($conversion, 'return_allocation_opm_conversion.completed', $actor);
-
-            return $conversion;
+            return true;
         });
+
+        if (! $cashfreeReady) {
+            return OnlineReturnRefundAllocationOpmConversion::query()->findOrFail($conversionId);
+        }
+
+        return $this->performWalletFinalization($actor, $conversionId);
     }
 
     public function authorizeRelease(User $actor, OnlineReturnRefundAllocationOpmConversion $conversion, string $reason): OnlineReturnRefundAllocationOpmConversion
     {
-        return DB::transaction(function () use ($actor, $conversion, $reason): OnlineReturnRefundAllocationOpmConversion {
-            $conversion = $this->lockConversion($conversion);
+        $conversionId = (int) $conversion->id;
+
+        DB::transaction(function () use ($conversionId): void {
+            $conversion = $this->lockConversionById($conversionId);
             if ($conversion->status !== WalletRefundOpmConversionStatus::Reserved
                 && $conversion->status !== WalletRefundOpmConversionStatus::ReservationFailed) {
                 throw ValidationException::withMessages([
@@ -259,22 +232,234 @@ final class ReturnExchangeAllocationOpmConversionService
                 ]);
             }
 
-            $subject = $this->spokeSubject($conversion);
-            if ($conversion->site_reservation_id !== null && $conversion->status->holdsSiteReservation()) {
-                $adapter = $this->adapterResolver->forOrderAndCreditSource(
-                    $subject->order()?->order_id,
-                    $conversion->wallet_credit_source,
-                );
-                $adapter->releaseReservation($conversion, $subject);
+            if ($conversion->site_reservation_released_at !== null) {
+                throw ValidationException::withMessages([
+                    'conversion' => 'This reservation was already released.',
+                ]);
+            }
+        });
+
+        $conversion = OnlineReturnRefundAllocationOpmConversion::query()->findOrFail($conversionId);
+
+        if ($this->siteReservationNeedsRelease($conversion)) {
+            DB::transaction(function () use ($actor, $conversionId): void {
+                $locked = $this->lockConversionById($conversionId);
+                $this->releaseSiteReservation($locked, $actor);
+            });
+            $conversion = $conversion->fresh() ?? $conversion;
+            if ($conversion->site_reservation_release_outcome === 'release_failed') {
+                throw ValidationException::withMessages([
+                    'conversion' => $conversion->site_reservation_release_error ?? 'Site reservation release failed.',
+                ]);
+            }
+        }
+
+        return DB::transaction(function () use ($actor, $conversionId, $reason): OnlineReturnRefundAllocationOpmConversion {
+            $conversion = $this->lockConversionById($conversionId);
+
+            if ($this->siteReservationNeedsRelease($conversion)) {
+                throw ValidationException::withMessages([
+                    'conversion' => 'Site reservation must be released before cancellation can complete.',
+                ]);
+            }
+
+            if ($conversion->site_reservation_release_outcome === null && trim((string) $conversion->site_reservation_id) === '') {
+                $conversion->update(['site_reservation_release_outcome' => 'not_required']);
             }
 
             $conversion->update([
                 'status' => WalletRefundOpmConversionStatus::Cancelled,
                 'failure_code' => 'released',
                 'failure_message' => $reason,
+                'site_reservation_may_exist' => false,
             ]);
 
             $this->audit($conversion, 'return_allocation_opm_conversion.released', $actor, ['reason' => $reason]);
+
+            return $conversion;
+        });
+    }
+
+    private function createConversion(
+        User $requester,
+        OnlineReturnRefundAllocationLine $line,
+        OnlineReturnRefundAllocationLineExecution $execution,
+        string $amount,
+        string $idempotencyKey,
+    ): OnlineReturnRefundAllocationOpmConversion {
+        return DB::transaction(function () use ($requester, $line, $execution, $amount, $idempotencyKey): OnlineReturnRefundAllocationOpmConversion {
+            if ($idempotencyKey !== '') {
+                $dup = OnlineReturnRefundAllocationOpmConversion::query()
+                    ->where('submit_idempotency_key', $idempotencyKey)
+                    ->lockForUpdate()
+                    ->first();
+                if ($dup !== null) {
+                    $this->assertSubmitReplayAuthorized($requester, $line, $dup);
+
+                    return $dup;
+                }
+            }
+
+            $lockedExecution = OnlineReturnRefundAllocationLineExecution::query()
+                ->whereKey($execution->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $this->eligibility->assertCanRequest($line, $lockedExecution, $amount);
+            $snapshot = $this->walletEvidence->verifyAndSnapshot($line, $lockedExecution);
+
+            $line->loadMissing(['allocation.returnCase']);
+            $allocation = $line->allocation;
+            if ($allocation === null || $allocation->returnCase === null) {
+                throw ValidationException::withMessages(['line' => 'Allocation linkage is incomplete.']);
+            }
+
+            if (bccomp($amount, $snapshot['bound_wallet_credit_amount'], 2) > 0) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Conversion amount cannot exceed the wallet credit amount.',
+                ]);
+            }
+
+            $conversion = OnlineReturnRefundAllocationOpmConversion::query()->create([
+                'public_id' => (string) Str::uuid(),
+                'return_exchange_case_id' => $allocation->returnCase->id,
+                'online_return_refund_allocation_id' => $allocation->id,
+                'online_return_refund_allocation_line_id' => $line->id,
+                'online_return_refund_allocation_line_execution_id' => $lockedExecution->id,
+                'desk_wallet_reference' => $snapshot['desk_wallet_reference'],
+                'bound_order_id' => $snapshot['bound_order_id'],
+                'bound_wallet_credit_amount' => $snapshot['bound_wallet_credit_amount'],
+                'wallet_executor_provider' => $snapshot['wallet_executor_provider'],
+                'wallet_execution_reference' => $snapshot['wallet_execution_reference'],
+                'wallet_transaction_id' => $snapshot['wallet_transaction_id'],
+                'submit_idempotency_key' => $idempotencyKey !== '' ? $idempotencyKey : null,
+                'status' => WalletRefundOpmConversionStatus::PendingApproval,
+                'site_code' => $snapshot['site_code'],
+                'wallet_credit_source' => $snapshot['wallet_credit_source'],
+                'amount' => $amount,
+                'currency' => 'INR',
+                'requester_id' => $requester->id,
+                'wallet_finalization_state' => AllocationOpmWalletFinalizationState::NotSent,
+            ]);
+
+            $this->audit($conversion, 'return_allocation_opm_conversion.submitted', $requester);
+
+            return $conversion;
+        });
+    }
+
+    private function performWalletFinalization(User $actor, int $conversionId): OnlineReturnRefundAllocationOpmConversion
+    {
+        $prepared = DB::transaction(function () use ($conversionId, $actor): array {
+            $conversion = $this->lockConversionById($conversionId);
+
+            if ($this->walletFinalizationIsConfirmed($conversion)) {
+                return ['skip_http' => true, 'conversion' => $conversion];
+            }
+
+            $state = $conversion->wallet_finalization_state;
+            if ($state === AllocationOpmWalletFinalizationState::Ambiguous) {
+                $this->enterReconciliation(
+                    $conversion,
+                    $actor,
+                    'Wallet finalization outcome is ambiguous. Manual reconciliation is required before any retry.',
+                    'wallet_finalization_ambiguous',
+                );
+
+                return ['skip_http' => true, 'conversion' => $conversion->fresh() ?? $conversion];
+            }
+
+            if ($state === AllocationOpmWalletFinalizationState::InFlight) {
+                $this->enterReconciliation(
+                    $conversion,
+                    $actor,
+                    'A wallet finalization attempt is already in flight. Reconcile with the site before retrying.',
+                    'wallet_finalization_in_flight',
+                );
+
+                return ['skip_http' => true, 'conversion' => $conversion->fresh() ?? $conversion];
+            }
+
+            $conversion->update([
+                'wallet_finalization_state' => AllocationOpmWalletFinalizationState::InFlight,
+                'wallet_finalization_attempted_at' => now(),
+            ]);
+
+            return ['skip_http' => false, 'conversion' => $conversion->fresh() ?? $conversion];
+        });
+
+        /** @var OnlineReturnRefundAllocationOpmConversion $conversion */
+        $conversion = $prepared['conversion'];
+
+        if ($prepared['skip_http']) {
+            if ($this->walletFinalizationIsConfirmed($conversion)) {
+                return DB::transaction(function () use ($actor, $conversion): OnlineReturnRefundAllocationOpmConversion {
+                    $conversion = $this->lockConversion($conversion);
+                    $this->markCompleted($conversion, $actor);
+
+                    return $conversion;
+                });
+            }
+
+            return $conversion;
+        }
+
+        $subject = $this->spokeSubject($conversion);
+
+        try {
+            $adapter = $this->adapterResolver->forOrderAndCreditSource(
+                $subject->order()?->order_id,
+                $conversion->wallet_credit_source,
+            );
+            $result = $adapter->finalizeWalletReversal($conversion, $subject);
+        } catch (ValidationException $exception) {
+            return DB::transaction(function () use ($actor, $conversion, $exception): OnlineReturnRefundAllocationOpmConversion {
+                $conversion = $this->lockConversion($conversion);
+                $message = collect($exception->errors())->flatten()->first() ?? 'Wallet finalization failed.';
+                if ($this->isAmbiguousSpokeFailure($message)) {
+                    $conversion->update([
+                        'wallet_finalization_state' => AllocationOpmWalletFinalizationState::Ambiguous,
+                        'wallet_finalization_last_error' => $message,
+                    ]);
+
+                    return $this->enterReconciliation($conversion, $actor, $message, 'wallet_finalization_ambiguous');
+                }
+
+                $conversion->update([
+                    'wallet_finalization_state' => AllocationOpmWalletFinalizationState::Failed,
+                    'wallet_finalization_last_error' => $message,
+                ]);
+
+                return $this->enterReconciliation($conversion, $actor, $message, 'wallet_finalization_failed');
+            });
+        }
+
+        return DB::transaction(function () use ($actor, $conversion, $result): OnlineReturnRefundAllocationOpmConversion {
+            $conversion = $this->lockConversion($conversion);
+            $replay = (bool) ($result['idempotent_replay'] ?? false);
+            $reference = trim((string) ($result['wallet_reversal_reference'] ?? ''));
+            if ($reference === '') {
+                $conversion->update([
+                    'wallet_finalization_state' => AllocationOpmWalletFinalizationState::Ambiguous,
+                    'wallet_finalization_last_error' => 'Wallet finalization returned without a reversal reference.',
+                ]);
+
+                return $this->enterReconciliation(
+                    $conversion,
+                    $actor,
+                    'Wallet finalization returned without a reversal reference.',
+                    'wallet_finalization_ambiguous',
+                );
+            }
+
+            $conversion->update([
+                'wallet_reversal_reference' => $reference,
+                'wallet_finalization_state' => AllocationOpmWalletFinalizationState::Confirmed,
+                'wallet_finalization_confirmed_at' => now(),
+                'wallet_finalization_idempotent_replay' => $replay,
+            ]);
+
+            $this->markCompleted($conversion, $actor);
 
             return $conversion;
         });
@@ -297,12 +482,14 @@ final class ReturnExchangeAllocationOpmConversionService
             $conversion->update([
                 'site_reservation_id' => $result['reservation_id'],
                 'site_reservation_status' => $result['status'],
+                'site_reservation_may_exist' => true,
             ]);
             $confirm = $adapter->confirmReservation($conversion->fresh() ?? $conversion);
 
             $conversion->update([
                 'status' => WalletRefundOpmConversionStatus::Reserved,
                 'site_reservation_status' => $confirm['status'],
+                'site_reservation_may_exist' => true,
             ]);
 
             $this->audit($conversion, 'return_allocation_opm_conversion.reserved', $actor);
@@ -323,6 +510,94 @@ final class ReturnExchangeAllocationOpmConversionService
         }
 
         return $conversion->fresh() ?? $conversion;
+    }
+
+    private function releaseSiteReservation(OnlineReturnRefundAllocationOpmConversion $conversion, User $actor): void
+    {
+        $subject = $this->spokeSubject($conversion);
+
+        try {
+            $adapter = $this->adapterResolver->forOrderAndCreditSource(
+                $subject->order()?->order_id,
+                $conversion->wallet_credit_source,
+            );
+            $result = $adapter->releaseReservation($conversion, $subject);
+            $conversion->update([
+                'site_reservation_released_at' => now(),
+                'site_reservation_release_outcome' => ($result['idempotent_replay'] ?? false) ? 'release_replay' : 'released',
+                'site_reservation_release_error' => null,
+                'site_reservation_may_exist' => false,
+            ]);
+            $this->audit($conversion, 'return_allocation_opm_conversion.reservation_released', $actor, $result);
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first() ?? 'Site reservation release failed.';
+            $conversion->update([
+                'site_reservation_release_outcome' => 'release_failed',
+                'site_reservation_release_error' => $message,
+            ]);
+            $this->audit($conversion, 'return_allocation_opm_conversion.reservation_release_failed', $actor, ['message' => $message]);
+        }
+    }
+
+    private function siteReservationNeedsRelease(OnlineReturnRefundAllocationOpmConversion $conversion): bool
+    {
+        if ($conversion->site_reservation_released_at !== null) {
+            return false;
+        }
+
+        $reservationId = trim((string) $conversion->site_reservation_id);
+
+        return $reservationId !== '' && ($conversion->site_reservation_may_exist || $conversion->site_reservation_id !== null);
+    }
+
+    private function walletFinalizationIsConfirmed(OnlineReturnRefundAllocationOpmConversion $conversion): bool
+    {
+        if ($conversion->wallet_finalization_state === AllocationOpmWalletFinalizationState::Confirmed) {
+            return true;
+        }
+
+        return trim((string) $conversion->wallet_reversal_reference) !== '';
+    }
+
+    private function markCompleted(OnlineReturnRefundAllocationOpmConversion $conversion, User $actor): void
+    {
+        if ($conversion->status === WalletRefundOpmConversionStatus::Completed) {
+            return;
+        }
+
+        $conversion->update([
+            'status' => WalletRefundOpmConversionStatus::Completed,
+            'wallet_finalization_state' => AllocationOpmWalletFinalizationState::Confirmed,
+        ]);
+
+        $this->audit($conversion, 'return_allocation_opm_conversion.completed', $actor);
+    }
+
+    private function isAmbiguousSpokeFailure(string $message): bool
+    {
+        $normalized = strtolower($message);
+
+        return str_contains($normalized, 'unreachable')
+            || str_contains($normalized, 'connection')
+            || str_contains($normalized, 'timeout');
+    }
+
+    private function assertSubmitReplayAuthorized(
+        User $requester,
+        OnlineReturnRefundAllocationLine $line,
+        OnlineReturnRefundAllocationOpmConversion $existing,
+    ): void {
+        if ((int) $existing->online_return_refund_allocation_line_id !== (int) $line->id) {
+            throw ValidationException::withMessages([
+                'idempotency_key' => 'This idempotency key is already used for a different allocation line.',
+            ]);
+        }
+
+        if (! $requester->can('requestOpmConversion', $line)) {
+            throw ValidationException::withMessages([
+                'conversion' => 'You are not authorized to access this conversion request.',
+            ]);
+        }
     }
 
     private function enterReconciliation(
@@ -356,6 +631,13 @@ final class ReturnExchangeAllocationOpmConversionService
             ]);
         }
 
+        if ($conversion->bound_order_id !== null
+            && trim((string) $order->order_id) !== trim((string) $conversion->bound_order_id)) {
+            throw ValidationException::withMessages([
+                'order' => 'Order binding does not match the conversion record.',
+            ]);
+        }
+
         return new ReturnExchangeAllocationWalletOpmSpokeSubject(
             (string) $conversion->desk_wallet_reference,
             $order,
@@ -364,8 +646,13 @@ final class ReturnExchangeAllocationOpmConversionService
 
     private function lockConversion(OnlineReturnRefundAllocationOpmConversion $conversion): OnlineReturnRefundAllocationOpmConversion
     {
+        return $this->lockConversionById((int) $conversion->id);
+    }
+
+    private function lockConversionById(int $id): OnlineReturnRefundAllocationOpmConversion
+    {
         return OnlineReturnRefundAllocationOpmConversion::query()
-            ->whereKey($conversion->id)
+            ->whereKey($id)
             ->lockForUpdate()
             ->firstOrFail();
     }
@@ -402,6 +689,7 @@ final class ReturnExchangeAllocationOpmConversionService
                 'amount' => (string) $conversion->amount,
                 'status' => $conversion->status->value,
                 'site_reservation_id' => $conversion->site_reservation_id,
+                'wallet_finalization_state' => $conversion->wallet_finalization_state?->value,
             ], $context),
         );
     }

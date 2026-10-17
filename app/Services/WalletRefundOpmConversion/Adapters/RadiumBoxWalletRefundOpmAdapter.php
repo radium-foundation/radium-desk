@@ -77,9 +77,9 @@ class RadiumBoxWalletRefundOpmAdapter implements WalletRefundOpmSiteAdapter
         ];
     }
 
-    public function releaseReservation(WalletRefundOpmSpokeConversion $conversion, WalletRefundOpmSpokeSubject $subject): void
+    public function releaseReservation(WalletRefundOpmSpokeConversion $conversion, WalletRefundOpmSpokeSubject $subject): array
     {
-        $this->client->post(
+        $data = $this->client->post(
             'wallet-opm-conversion-reservations/'.$conversion->getSiteReservationId().'/release',
             [
                 'source_system' => 'radium_desk',
@@ -88,6 +88,11 @@ class RadiumBoxWalletRefundOpmAdapter implements WalletRefundOpmSiteAdapter
             ],
             $this->spokeConfig(),
         );
+
+        return [
+            'idempotent_replay' => (bool) data_get($data, 'data.idempotent_replay', false),
+            'status' => (string) data_get($data, 'data.status', 'released'),
+        ];
     }
 
     /**
