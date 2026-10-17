@@ -148,6 +148,18 @@ class RolePermissionSeeder extends Seeder
     /** Execute approved online return-case Finance refund allocation lines (central; gated by config flag). */
     public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE = 'returns.cases.order_refund.allocation.execute';
 
+    /** Request wallet-to-OPM conversion for a succeeded allocation wallet credit (branch or central). */
+    public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_OPM_CONVERSION_REQUEST = 'returns.cases.order_refund.allocation.opm_conversion.request';
+
+    /** Approve or reject return-case allocation wallet-to-OPM conversion (central Finance). */
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE = 'refunds.wallet_opm_conversion.approve';
+
+    /** Record manual Cashfree payout evidence and drive verification for wallet-to-OPM conversion (central Finance). */
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT = 'refunds.wallet_opm_conversion.payout';
+
+    /** Release a wallet OPM reservation before payout (central Finance). */
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE = 'refunds.wallet_opm_conversion.release';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -520,6 +532,10 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_OPM_CONVERSION_REQUEST,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
@@ -589,6 +605,10 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_OPM_CONVERSION_REQUEST,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
@@ -663,6 +683,10 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_OPM_CONVERSION_REQUEST,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',

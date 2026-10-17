@@ -24,6 +24,9 @@
             @if (! ($onlineRefundAllocationExecutionEnabled ?? false))
                 <p class="text-warning small mb-2">Allocation execution is disabled in this environment.</p>
             @endif
+            @if (! ($onlineRefundAllocationOpmConversionEnabled ?? false))
+                <p class="text-warning small mb-2">Allocation wallet-to-OPM conversion is disabled in this environment.</p>
+            @endif
 
             @if ($case->onlineRefundAllocation)
                 <dl class="row mb-2">
@@ -51,6 +54,47 @@
                                     <span class="text-muted">(planned ref: {{ $line->execution_reference }})</span>
                                 @endif
                             </div>
+                            @if ($succeeded && $line->destination === OnlineReturnRefundAllocationDestination::Wallet)
+                                @foreach ($line->opmConversions as $conversion)
+                                    <div class="small border rounded p-2 mt-1 bg-white">
+                                        <div>OPM conversion <code>{{ $conversion->public_id }}</code> — {{ $conversion->status->value }} — ₹{{ number_format((float) $conversion->amount, 2) }}</div>
+                                        @if ($conversion->site_reservation_id)
+                                            <div class="text-muted">Reservation {{ $conversion->site_reservation_id }}</div>
+                                        @endif
+                                        @can('approve', $conversion)
+                                            <form method="post" action="{{ route('online-return-refund-allocation-opm-conversions.approve', $conversion) }}" class="d-inline">@csrf<button type="submit" class="btn btn-sm btn-outline-success">Approve & reserve</button></form>
+                                            <form method="post" action="{{ route('online-return-refund-allocation-opm-conversions.reject', $conversion) }}" class="d-inline-flex gap-1">@csrf<input type="text" name="reason" class="form-control form-control-sm" placeholder="Reject reason" required><button type="submit" class="btn btn-sm btn-outline-danger">Reject</button></form>
+                                        @endcan
+                                        @can('recordPayout', $conversion)
+                                            <form method="post" action="{{ route('online-return-refund-allocation-opm-conversions.record-payout', $conversion) }}" class="vstack gap-1 mt-1">
+                                                @csrf
+                                                <input type="text" name="cashfree_order_id" class="form-control form-control-sm" placeholder="Cashfree order id" required>
+                                                <input type="text" name="cashfree_refund_id" class="form-control form-control-sm" placeholder="Cashfree refund id" required>
+                                                <input type="text" name="cashfree_refund_amount" class="form-control form-control-sm" value="{{ $conversion->amount }}" required>
+                                                <button type="submit" class="btn btn-sm btn-outline-primary align-self-start">Record manual payout & verify</button>
+                                            </form>
+                                        @endcan
+                                        @can('verifyAndFinalize', $conversion)
+                                            <form method="post" action="{{ route('online-return-refund-allocation-opm-conversions.verify-finalize', $conversion) }}" class="d-inline">@csrf<button type="submit" class="btn btn-sm btn-outline-secondary">Retry verify / finalize</button></form>
+                                        @endcan
+                                        @can('release', $conversion)
+                                            <form method="post" action="{{ route('online-return-refund-allocation-opm-conversions.release', $conversion) }}" class="d-inline-flex gap-1 mt-1">@csrf<input type="text" name="reason" class="form-control form-control-sm" placeholder="Release reason" required><button type="submit" class="btn btn-sm btn-outline-warning">Release reservation</button></form>
+                                        @endcan
+                                    </div>
+                                @endforeach
+                                @if (
+                                    ($onlineRefundAllocationOpmConversionEnabled ?? false)
+                                    && auth()->user()?->can('requestOpmConversion', $line)
+                                )
+                                    <form method="post" action="{{ route('online-return-refund-allocation-lines.opm-conversions.store', $line) }}" class="vstack gap-1 mt-1 border rounded p-2">
+                                        @csrf
+                                        <input type="hidden" name="idempotency_key" value="{{ Str::uuid() }}">
+                                        <label class="form-label small mb-0">Request wallet-to-OPM conversion (₹)</label>
+                                        <input type="text" name="amount" class="form-control form-control-sm" value="{{ $line->amount }}" required>
+                                        <button type="submit" class="btn btn-sm btn-outline-dark align-self-start">Submit conversion request</button>
+                                    </form>
+                                @endif
+                            @endif
                             @if ($succeeded)
                                 <span class="badge bg-success">Executed</span>
                                 @if ($succeeded->execution_reference)
