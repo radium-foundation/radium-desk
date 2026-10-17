@@ -40,6 +40,11 @@
             'canReviewPosRefund' => $canReviewPosRefund ?? false,
         ])
 
+        @include('return-cases.partials.online-refund-request', [
+            'case' => $case,
+            'canSubmitOnlineRefund' => $canSubmitOnlineRefund ?? false,
+        ])
+
         <div class="card mb-3">
             <div class="card-body small">
                 <dl class="row mb-0">

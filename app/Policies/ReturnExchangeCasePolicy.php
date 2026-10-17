@@ -66,4 +66,9 @@ class ReturnExchangeCasePolicy
     {
         return app(PosReturnRefundRequestPolicy::class)->submit($user, $case);
     }
+
+    public function submitOrderRefund(User $user, ReturnExchangeCase $case): bool
+    {
+        return app(ReturnExchangeCaseOnlineRefundPolicy::class)->submitOrderRefund($user, $case);
+    }
 }

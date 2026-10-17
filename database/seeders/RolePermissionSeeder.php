@@ -133,6 +133,9 @@ class RolePermissionSeeder extends Seeder
     /** Review approve/reject POS return-case refund requests (central Finance; no payout). */
     public const PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW = 'returns.cases.pos_refund.review';
 
+    /** Submit order-based refund request for inspected online hardware return cases. */
+    public const PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT = 'returns.cases.order_refund.submit';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -500,6 +503,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_INSPECT,
             self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
             self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -564,6 +568,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_INSPECT,
             self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
             self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -633,6 +638,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_INSPECT,
             self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
             self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',

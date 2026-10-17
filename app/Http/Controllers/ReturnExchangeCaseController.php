@@ -70,6 +70,7 @@ class ReturnExchangeCaseController extends Controller
             'receipts.inspector',
             'posRefundRequest.requester',
             'posRefundRequest.reviewer',
+            'refundRequest',
         ]);
 
         $user = $request->user();
@@ -82,6 +83,9 @@ class ReturnExchangeCaseController extends Controller
             'canReviewPosRefund' => $returnCase->posRefundRequest !== null
                 && $user !== null
                 && $user->can('review', $returnCase->posRefundRequest),
+            'canSubmitOnlineRefund' => $user !== null
+                && $returnCase->refund_request_id === null
+                && $user->can('submitOrderRefund', $returnCase),
         ]);
     }
 

@@ -15,6 +15,7 @@ use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\Operations\TeamMemberActivityService;
+use App\Services\Refunds\HardwareOrderRefundCaseGate;
 use App\Services\Refunds\RefundExecutionInputGuard;
 use App\Services\Refunds\RefundExecutorResolver;
 use App\Services\Refunds\WalletRefundDestinationResolver;
@@ -36,6 +37,7 @@ class RefundRequestService
         private readonly BusinessHoldService $businessHoldService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly WalletRefundDestinationResolver $walletRefundDestinations,
+        private readonly HardwareOrderRefundCaseGate $hardwareRefundCaseGate,
     ) {}
 
     /**
@@ -47,6 +49,7 @@ class RefundRequestService
 
         $refund = DB::transaction(function () use ($user, $data, $referenceNo): RefundRequest {
             $order = Order::query()->lockForUpdate()->findOrFail($data['order_id']);
+            $this->hardwareRefundCaseGate->assertMayCreateRefund($order, $data);
 
             if (! empty($data['incident_id'])) {
                 $incident = Incident::query()->lockForUpdate()->findOrFail($data['incident_id']);

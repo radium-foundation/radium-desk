@@ -98,6 +98,7 @@ use App\Http\Controllers\RealtimeAdminActionsController;
 use App\Http\Controllers\RealtimeConnectionStatusController;
 use App\Http\Controllers\RefundRequestController;
 use App\Http\Controllers\PosReturnRefundRequestController;
+use App\Http\Controllers\ReturnExchangeCaseOnlineRefundController;
 use App\Http\Controllers\ReturnExchangeCaseCentralQueueController;
 use App\Http\Controllers\ReturnExchangeCaseController;
 use App\Http\Controllers\RemarkController;
@@ -310,6 +311,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('return-cases.central-queue');
     Route::post('return-cases/{return_case}/pos-refund-request', [PosReturnRefundRequestController::class, 'store'])
         ->name('return-cases.pos-refund-request.store');
+    Route::post('return-cases/{return_case}/online-refund-request', [ReturnExchangeCaseOnlineRefundController::class, 'store'])
+        ->name('return-cases.online-refund-request.store');
     Route::post('pos-return-refund-requests/{pos_return_refund_request}/review', [PosReturnRefundRequestController::class, 'review'])
         ->name('pos-return-refund-requests.review');
     Route::post('return-cases/{return_case}/receive', [ReturnExchangeCaseController::class, 'receive'])
