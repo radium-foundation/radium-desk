@@ -97,6 +97,12 @@ use App\Http\Controllers\QuickServiceRequestController;
 use App\Http\Controllers\RealtimeAdminActionsController;
 use App\Http\Controllers\RealtimeConnectionStatusController;
 use App\Http\Controllers\RefundRequestController;
+use App\Http\Controllers\PosReturnRefundRequestController;
+use App\Http\Controllers\ReturnExchangeCaseOnlineRefundController;
+use App\Http\Controllers\ReturnExchangeCaseSerialReplacementController;
+use App\Http\Controllers\OnlineReturnRefundAllocationController;
+use App\Http\Controllers\OnlineReturnRefundAllocationOpmConversionController;
+use App\Http\Controllers\ReturnExchangeCaseCentralQueueController;
 use App\Http\Controllers\ReturnExchangeCaseController;
 use App\Http\Controllers\RemarkController;
 use App\Http\Controllers\SearchController;
@@ -304,6 +310,42 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('refunds.reroute-execution-method');
     Route::resource('refunds', RefundRequestController::class)->except(['edit', 'update']);
 
+    Route::get('return-cases/central-queue', [ReturnExchangeCaseCentralQueueController::class, 'index'])
+        ->name('return-cases.central-queue');
+    Route::post('return-cases/{return_case}/pos-refund-request', [PosReturnRefundRequestController::class, 'store'])
+        ->name('return-cases.pos-refund-request.store');
+    Route::post('return-cases/{return_case}/online-refund-request', [ReturnExchangeCaseOnlineRefundController::class, 'store'])
+        ->name('return-cases.online-refund-request.store');
+    Route::post('return-cases/{return_case}/serial-replacement', [ReturnExchangeCaseSerialReplacementController::class, 'store'])
+        ->name('return-cases.serial-replacement.store');
+    Route::post('return-cases/{return_case}/online-refund-allocation', [OnlineReturnRefundAllocationController::class, 'store'])
+        ->name('return-cases.online-refund-allocation.store');
+    Route::post('online-return-refund-allocations/{online_return_refund_allocation}/review', [OnlineReturnRefundAllocationController::class, 'review'])
+        ->name('online-return-refund-allocations.review');
+    Route::post('online-return-refund-allocation-lines/{line}/execute', [OnlineReturnRefundAllocationController::class, 'executeLine'])
+        ->name('online-return-refund-allocation-lines.execute');
+    Route::post('online-return-refund-allocation-lines/{line}/opm-conversions', [OnlineReturnRefundAllocationOpmConversionController::class, 'store'])
+        ->name('online-return-refund-allocation-lines.opm-conversions.store');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/approve', [OnlineReturnRefundAllocationOpmConversionController::class, 'approve'])
+        ->name('online-return-refund-allocation-opm-conversions.approve');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/reject', [OnlineReturnRefundAllocationOpmConversionController::class, 'reject'])
+        ->name('online-return-refund-allocation-opm-conversions.reject');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/record-payout', [OnlineReturnRefundAllocationOpmConversionController::class, 'recordPayout'])
+        ->name('online-return-refund-allocation-opm-conversions.record-payout');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/verify-finalize', [OnlineReturnRefundAllocationOpmConversionController::class, 'verifyAndFinalize'])
+        ->name('online-return-refund-allocation-opm-conversions.verify-finalize');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/release', [OnlineReturnRefundAllocationOpmConversionController::class, 'release'])
+        ->name('online-return-refund-allocation-opm-conversions.release');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/reconcile-reservation', [OnlineReturnRefundAllocationOpmConversionController::class, 'reconcileReservation'])
+        ->name('online-return-refund-allocation-opm-conversions.reconcile-reservation');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/reconcile-finalization', [OnlineReturnRefundAllocationOpmConversionController::class, 'reconcileFinalization'])
+        ->name('online-return-refund-allocation-opm-conversions.reconcile-finalization');
+    Route::post('pos-return-refund-requests/{pos_return_refund_request}/review', [PosReturnRefundRequestController::class, 'review'])
+        ->name('pos-return-refund-requests.review');
+    Route::post('return-cases/{return_case}/receive', [ReturnExchangeCaseController::class, 'receive'])
+        ->name('return-cases.receive');
+    Route::post('return-cases/{return_case}/receipts/{receipt}/inspect', [ReturnExchangeCaseController::class, 'inspect'])
+        ->name('return-cases.receipts.inspect');
     Route::resource('return-cases', ReturnExchangeCaseController::class)->only(['index', 'create', 'store', 'show']);
 
     Route::prefix('cash-book')->name('cash-book.')->group(function () {

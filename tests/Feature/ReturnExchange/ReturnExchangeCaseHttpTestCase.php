@@ -68,6 +68,7 @@ abstract class ReturnExchangeCaseHttpTestCase extends TestCase
         return Order::query()->create(array_merge([
             'order_id' => 'RB'.random_int(10000, 99999),
             'customer_name' => 'Test Customer',
+            'customer_email' => 'customer@example.com',
             'customer_phone' => '9999900999',
             'payment_amount' => 0,
             'status' => 'active',

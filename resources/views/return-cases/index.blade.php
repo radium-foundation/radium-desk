@@ -7,6 +7,9 @@
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <h1 class="h4 mb-0">Return / exchange cases</h1>
             <div class="d-flex flex-wrap gap-2">
+                @can('viewCentralQueue', \App\Models\ReturnExchangeCase::class)
+                    <a href="{{ route('return-cases.central-queue') }}" class="btn btn-outline-secondary btn-sm">Central queue</a>
+                @endcan
                 @can('create', \App\Models\ReturnExchangeCase::class)
                     <a href="{{ route('return-cases.create') }}" class="btn btn-primary btn-sm">New case</a>
                 @endcan

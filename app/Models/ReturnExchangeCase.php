@@ -7,6 +7,7 @@ use App\Enums\ReturnExchangeCaseStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ReturnExchangeCase extends Model
 {
@@ -22,6 +23,9 @@ class ReturnExchangeCase extends Model
         'reason',
         'requester_remarks',
         'requested_by',
+        'refund_request_id',
+        'recorded_tax_statutory_invoice_id',
+        'recorded_tax_outcome_type',
     ];
 
     protected function casts(): array
@@ -60,5 +64,35 @@ class ReturnExchangeCase extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(ReturnExchangeCaseLine::class)->orderBy('line_no');
+    }
+
+    public function receipts(): HasMany
+    {
+        return $this->hasMany(ReturnExchangeCaseReceipt::class, 'return_exchange_case_id');
+    }
+
+    public function posRefundRequest(): HasOne
+    {
+        return $this->hasOne(PosReturnRefundRequest::class, 'return_exchange_case_id');
+    }
+
+    public function refundRequest(): BelongsTo
+    {
+        return $this->belongsTo(RefundRequest::class, 'refund_request_id');
+    }
+
+    public function recordedTaxStatutoryInvoice(): BelongsTo
+    {
+        return $this->belongsTo(StatutoryInvoice::class, 'recorded_tax_statutory_invoice_id');
+    }
+
+    public function serialReplacements(): HasMany
+    {
+        return $this->hasMany(ReturnExchangeCaseSerialReplacement::class, 'return_exchange_case_id');
+    }
+
+    public function onlineRefundAllocation(): HasOne
+    {
+        return $this->hasOne(OnlineReturnRefundAllocation::class, 'return_exchange_case_id');
     }
 }

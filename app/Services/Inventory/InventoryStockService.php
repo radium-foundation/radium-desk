@@ -18,6 +18,8 @@ use App\Models\InventorySale;
 use App\Models\InventorySerial;
 use App\Models\InventoryStockBalance;
 use App\Models\InventoryTransfer;
+use App\Models\ReturnExchangeCase;
+use App\Models\ReturnExchangeCaseReceipt;
 use App\Models\User;
 use App\Support\Inventory\InventorySerialNumber;
 use DateTimeInterface;
@@ -796,6 +798,8 @@ class InventoryStockService
             $serial = $this->lockSerialById($serial->id);
             $fromStatus = $serial->status;
 
+            $this->assertGenericAdjustmentMayReleaseSerialToAvailable($serial, $toStatus);
+
             if ($fromStatus === $toStatus) {
                 throw ValidationException::withMessages([
                     'status' => 'Serial is already in that status.',
@@ -1014,6 +1018,7 @@ class InventoryStockService
         ?string $notes = null,
         ?DateTimeInterface $occurredAt = null,
         ?int $openingImportBatchId = null,
+        ?ReturnExchangeCase $returnExchangeCase = null,
     ): InventoryMovement {
         return InventoryMovement::query()->create([
             'occurred_at' => $occurredAt ?? now(),
@@ -1026,6 +1031,7 @@ class InventoryStockService
             'to_branch_id' => $toBranch?->id,
             'qty' => $qty,
             'sale_id' => $sale?->id,
+            'return_exchange_case_id' => $returnExchangeCase?->id,
             'transfer_id' => $transfer?->id,
             'reservation_id' => $reservation?->id,
             'adjustment_id' => $adjustment?->id,
@@ -1035,6 +1041,25 @@ class InventoryStockService
             'notes' => $notes,
             'actor_user_id' => $actor->id,
         ]);
+    }
+
+    private function assertGenericAdjustmentMayReleaseSerialToAvailable(
+        InventorySerial $serial,
+        InventorySerialStatus $toStatus,
+    ): void {
+        if ($toStatus !== InventorySerialStatus::Available) {
+            return;
+        }
+
+        $linkedToReturnCase = ReturnExchangeCaseReceipt::query()
+            ->where('inventory_serial_id', $serial->id)
+            ->exists();
+
+        if ($linkedToReturnCase) {
+            throw ValidationException::withMessages([
+                'status' => 'This serial was received on a return case and cannot be released to sellable stock through inventory adjustment. Use the return case workflow when stock disposition is authorized.',
+            ]);
+        }
     }
 
     public function lockSerialByNumber(string $serialNumber): InventorySerial
