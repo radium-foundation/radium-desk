@@ -49,6 +49,8 @@
             'case' => $case,
             'canSubmitOnlineRefundAllocation' => $canSubmitOnlineRefundAllocation ?? false,
             'canReviewOnlineRefundAllocation' => $canReviewOnlineRefundAllocation ?? false,
+            'canExecuteOnlineRefundAllocation' => $canExecuteOnlineRefundAllocation ?? false,
+            'onlineRefundAllocationExecutionEnabled' => $onlineRefundAllocationExecutionEnabled ?? false,
         ])
 
         @include('return-cases.partials.serial-replacement', [

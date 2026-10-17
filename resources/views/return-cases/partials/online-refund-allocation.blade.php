@@ -1,7 +1,9 @@
 @php
+    use App\Enums\OnlineReturnRefundAllocationLineExecutionStatus;
     use App\Enums\OnlineReturnRefundAllocationStatus;
     use App\Enums\OnlineReturnRefundAllocationDestination;
     use App\Enums\ReturnExchangeCaseSourceKind;
+    use Illuminate\Support\Str;
 
     $isOnline = in_array($case->source_kind, [
         ReturnExchangeCaseSourceKind::EcommerceOrder,
@@ -16,9 +18,12 @@
         </div>
         <div class="card-body small">
             <p class="text-muted mb-2">
-                Finance approval records destination amounts only — no wallet credit, Cashfree payout, or RefundRequest is created here.
+                Finance approval records destination amounts. Execution (wallet credit or manual payout evidence) is separate, disabled by default, and never creates a generic RefundRequest.
                 Direct refund request remains blocked until tender can be allocated safely.
             </p>
+            @if (! ($onlineRefundAllocationExecutionEnabled ?? false))
+                <p class="text-warning small mb-2">Allocation execution is disabled in this environment.</p>
+            @endif
 
             @if ($case->onlineRefundAllocation)
                 <dl class="row mb-2">
@@ -33,12 +38,71 @@
                 </dl>
                 <ul class="list-unstyled mb-2">
                     @foreach ($case->onlineRefundAllocation->lines as $line)
-                        <li>
-                            Line {{ $line->line_no }}:
-                            {{ $line->destination->label() }}
-                            — ₹{{ number_format((float) $line->amount, 2) }}
-                            @if ($line->execution_reference)
-                                <span class="text-muted">({{ $line->execution_reference }})</span>
+                        @php
+                            $latestExecution = $line->executions->sortByDesc('id')->first();
+                            $succeeded = $line->successfulExecution;
+                        @endphp
+                        <li class="mb-2">
+                            <div>
+                                Line {{ $line->line_no }}:
+                                {{ $line->destination->label() }}
+                                — ₹{{ number_format((float) $line->amount, 2) }}
+                                @if ($line->execution_reference)
+                                    <span class="text-muted">(planned ref: {{ $line->execution_reference }})</span>
+                                @endif
+                            </div>
+                            @if ($succeeded)
+                                <span class="badge bg-success">Executed</span>
+                                @if ($succeeded->execution_reference)
+                                    <span class="text-muted small">Ref {{ $succeeded->execution_reference }}</span>
+                                @endif
+                                @if ($succeeded->transaction_id)
+                                    <span class="text-muted small">Txn {{ $succeeded->transaction_id }}</span>
+                                @endif
+                            @elseif ($latestExecution)
+                                <span class="badge bg-secondary">{{ $latestExecution->status->label() }}</span>
+                                @if ($latestExecution->held_reason)
+                                    <span class="text-muted small d-block">{{ $latestExecution->held_reason }}</span>
+                                @endif
+                                @if ($latestExecution->failure_reason)
+                                    <span class="text-danger small d-block">{{ $latestExecution->failure_reason }}</span>
+                                @endif
+                            @elseif ($case->onlineRefundAllocation->status === OnlineReturnRefundAllocationStatus::Approved)
+                                <span class="badge bg-light text-dark border">Approved — not executed</span>
+                            @endif
+
+                            @if (
+                                ($canExecuteOnlineRefundAllocation ?? false)
+                                && ($onlineRefundAllocationExecutionEnabled ?? false)
+                                && $case->onlineRefundAllocation->status === OnlineReturnRefundAllocationStatus::Approved
+                                && $succeeded === null
+                                && ($latestExecution === null || in_array($latestExecution->status, [
+                                    OnlineReturnRefundAllocationLineExecutionStatus::Failed,
+                                    OnlineReturnRefundAllocationLineExecutionStatus::ManualPending,
+                                ], true))
+                            )
+                                <form method="post" action="{{ route('online-return-refund-allocation-lines.execute', $line) }}" class="vstack gap-1 mt-1 border rounded p-2 bg-light">
+                                    @csrf
+                                    <input type="hidden" name="idempotency_key" value="{{ Str::uuid() }}">
+                                    @if (in_array($line->destination, [
+                                        OnlineReturnRefundAllocationDestination::Cashfree,
+                                        OnlineReturnRefundAllocationDestination::BankTransfer,
+                                        OnlineReturnRefundAllocationDestination::Upi,
+                                    ], true))
+                                        <label class="form-label small mb-0">Payout reference or transaction ID (required to complete)</label>
+                                        <input type="text" name="execution_reference" class="form-control form-control-sm" maxlength="128" value="{{ old('execution_reference', $line->execution_reference) }}">
+                                        <input type="text" name="transaction_id" class="form-control form-control-sm" maxlength="128" placeholder="Transaction ID (optional)">
+                                    @endif
+                                    <button type="submit" class="btn btn-sm btn-outline-primary align-self-start">
+                                        @if ($line->destination === OnlineReturnRefundAllocationDestination::Wallet)
+                                            Execute wallet credit
+                                        @elseif ($line->destination === OnlineReturnRefundAllocationDestination::Opm)
+                                            Record execution attempt (OPM)
+                                        @else
+                                            Record manual payout evidence
+                                        @endif
+                                    </button>
+                                </form>
                             @endif
                         </li>
                     @endforeach

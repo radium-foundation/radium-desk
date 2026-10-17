@@ -145,6 +145,9 @@ class RolePermissionSeeder extends Seeder
     /** Review approve/reject online return-case Finance refund allocations (central). */
     public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW = 'returns.cases.order_refund.allocation.review';
 
+    /** Execute approved online return-case Finance refund allocation lines (central; gated by config flag). */
+    public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE = 'returns.cases.order_refund.allocation.execute';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -516,6 +519,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
@@ -584,6 +588,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
@@ -657,6 +662,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',

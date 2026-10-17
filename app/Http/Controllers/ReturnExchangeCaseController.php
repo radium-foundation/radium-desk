@@ -8,9 +8,11 @@ use App\Http\Requests\ReceiveReturnExchangeCaseRequest;
 use App\Http\Requests\StoreReturnExchangeCaseRequest;
 use App\Models\ReturnExchangeCase;
 use App\Models\ReturnExchangeCaseReceipt;
+use App\Services\ReturnExchange\OnlineReturnRefundAllocationExecutionService;
 use App\Services\ReturnExchange\ReturnExchangeCaseGoodsReceiptService;
 use App\Services\ReturnExchange\ReturnExchangeCaseIntakeService;
 use App\Support\ReturnExchange\ReturnExchangeCaseBranchAccess;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -71,7 +73,8 @@ class ReturnExchangeCaseController extends Controller
             'posRefundRequest.requester',
             'posRefundRequest.reviewer',
             'refundRequest',
-            'onlineRefundAllocation.lines',
+            'onlineRefundAllocation.lines.executions.executor',
+            'onlineRefundAllocation.lines.successfulExecution',
             'onlineRefundAllocation.requester',
             'onlineRefundAllocation.reviewer',
             'serialReplacements.returnedSerial',
@@ -100,6 +103,11 @@ class ReturnExchangeCaseController extends Controller
             'canReviewOnlineRefundAllocation' => $returnCase->onlineRefundAllocation !== null
                 && $user !== null
                 && $user->can('review', $returnCase->onlineRefundAllocation),
+            'canExecuteOnlineRefundAllocation' => $user !== null
+                && $returnCase->onlineRefundAllocation !== null
+                && $user->can(RolePermissionSeeder::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_EXECUTE)
+                && ReturnExchangeCaseBranchAccess::hasCentralAccess($user),
+            'onlineRefundAllocationExecutionEnabled' => app(OnlineReturnRefundAllocationExecutionService::class)->isExecutionEnabled(),
         ]);
     }
 
