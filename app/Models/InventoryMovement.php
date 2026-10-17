@@ -19,6 +19,7 @@ class InventoryMovement extends Model
         'to_branch_id',
         'qty',
         'sale_id',
+        'return_exchange_case_id',
         'transfer_id',
         'reservation_id',
         'adjustment_id',

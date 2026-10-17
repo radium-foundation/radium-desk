@@ -3,8 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ReturnExchangeCaseSourceKind;
+use App\Http\Requests\InspectReturnExchangeCaseReceiptRequest;
+use App\Http\Requests\ReceiveReturnExchangeCaseRequest;
 use App\Http\Requests\StoreReturnExchangeCaseRequest;
 use App\Models\ReturnExchangeCase;
+use App\Models\ReturnExchangeCaseReceipt;
+use App\Services\ReturnExchange\ReturnExchangeCaseGoodsReceiptService;
 use App\Services\ReturnExchange\ReturnExchangeCaseIntakeService;
 use App\Support\ReturnExchange\ReturnExchangeCaseBranchAccess;
 use Illuminate\Http\RedirectResponse;
@@ -15,6 +19,7 @@ class ReturnExchangeCaseController extends Controller
 {
     public function __construct(
         private readonly ReturnExchangeCaseIntakeService $intakeService,
+        private readonly ReturnExchangeCaseGoodsReceiptService $goodsReceiptService,
     ) {
         $this->authorizeResource(ReturnExchangeCase::class, 'return_case', [
             'except' => ['edit', 'update', 'destroy'],
@@ -59,10 +64,39 @@ class ReturnExchangeCaseController extends Controller
             'inventorySale',
             'order',
             'hardwareFulfilment',
+            'receipts.line',
+            'receipts.serial',
+            'receipts.receiver',
+            'receipts.inspector',
         ]);
+
+        $user = $request->user();
 
         return view('return-cases.show', [
             'case' => $returnCase,
+            'canReceive' => $user !== null && $user->can('receive', $returnCase),
+            'canInspect' => $user !== null && $user->can('inspect', $returnCase),
         ]);
+    }
+
+    public function receive(ReceiveReturnExchangeCaseRequest $request, ReturnExchangeCase $returnCase): RedirectResponse
+    {
+        $this->goodsReceiptService->receive($returnCase, $request->user(), $request->validated());
+
+        return redirect()
+            ->route('return-cases.show', $returnCase)
+            ->with('status', 'Goods receipt recorded for '.$returnCase->case_no.'.');
+    }
+
+    public function inspect(
+        InspectReturnExchangeCaseReceiptRequest $request,
+        ReturnExchangeCase $returnCase,
+        ReturnExchangeCaseReceipt $receipt,
+    ): RedirectResponse {
+        $this->goodsReceiptService->inspect($returnCase, $receipt, $request->user(), $request->validated());
+
+        return redirect()
+            ->route('return-cases.show', $returnCase)
+            ->with('status', 'Inspection recorded for '.$returnCase->case_no.'.');
     }
 }
