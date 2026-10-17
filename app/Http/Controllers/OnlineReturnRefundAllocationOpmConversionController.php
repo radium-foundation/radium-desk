@@ -10,7 +10,9 @@ use App\Http\Requests\ReleaseOnlineReturnRefundAllocationOpmConversionRequest;
 use App\Http\Requests\SubmitOnlineReturnRefundAllocationOpmConversionRequest;
 use App\Models\OnlineReturnRefundAllocationLine;
 use App\Models\OnlineReturnRefundAllocationOpmConversion;
+use App\Http\Requests\ReconcileOnlineReturnRefundAllocationOpmConversionRequest;
 use App\Services\ReturnExchange\ReturnExchangeAllocationOpmConversionService;
+use App\Services\ReturnExchange\ReturnExchangeAllocationOpmReconciliationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
 
@@ -18,6 +20,7 @@ class OnlineReturnRefundAllocationOpmConversionController extends Controller
 {
     public function __construct(
         private readonly ReturnExchangeAllocationOpmConversionService $conversions,
+        private readonly ReturnExchangeAllocationOpmReconciliationService $reconciliation,
     ) {}
 
     public function store(
@@ -91,7 +94,7 @@ class OnlineReturnRefundAllocationOpmConversionController extends Controller
                 (string) $request->validated('cashfree_refund_amount'),
             );
         } catch (ValidationException $exception) {
-            return $this->redirectWithErrors($conversion, $exception);
+            return $this->redirectWithErrors($conversion->fresh() ?? $conversion, $exception);
         }
 
         return redirect()
@@ -118,15 +121,57 @@ class OnlineReturnRefundAllocationOpmConversionController extends Controller
         ReleaseOnlineReturnRefundAllocationOpmConversionRequest $request,
         OnlineReturnRefundAllocationOpmConversion $conversion,
     ): RedirectResponse {
-        $updated = $this->conversions->authorizeRelease(
-            $request->user(),
-            $conversion,
-            (string) $request->validated('reason'),
-        );
+        try {
+            $updated = $this->conversions->authorizeRelease(
+                $request->user(),
+                $conversion,
+                (string) $request->validated('reason'),
+            );
+        } catch (ValidationException $exception) {
+            return $this->redirectWithErrors($conversion, $exception);
+        }
 
         return redirect()
             ->route('return-cases.show', $updated->returnCase)
             ->with('status', 'Reservation released; conversion cancelled.');
+    }
+
+    public function reconcileReservation(
+        ReconcileOnlineReturnRefundAllocationOpmConversionRequest $request,
+        OnlineReturnRefundAllocationOpmConversion $conversion,
+    ): RedirectResponse {
+        try {
+            $updated = $this->reconciliation->recoverReservation(
+                $request->user(),
+                $conversion,
+                (string) $request->validated('notes'),
+            );
+        } catch (ValidationException $exception) {
+            return $this->redirectWithErrors($conversion, $exception);
+        }
+
+        return redirect()
+            ->route('return-cases.show', $updated->returnCase)
+            ->with('status', 'Reservation recovered at site. Status: '.$updated->status->value);
+    }
+
+    public function reconcileFinalization(
+        ReconcileOnlineReturnRefundAllocationOpmConversionRequest $request,
+        OnlineReturnRefundAllocationOpmConversion $conversion,
+    ): RedirectResponse {
+        try {
+            $updated = $this->reconciliation->recoverFinalization(
+                $request->user(),
+                $conversion,
+                (string) $request->validated('notes'),
+            );
+        } catch (ValidationException $exception) {
+            return $this->redirectWithErrors($conversion, $exception);
+        }
+
+        return redirect()
+            ->route('return-cases.show', $updated->returnCase)
+            ->with('status', 'Wallet finalization reconciled. Status: '.$updated->status->value);
     }
 
     private function redirectWithErrors(

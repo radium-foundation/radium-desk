@@ -57,6 +57,18 @@ final class ReturnExchangeAllocationOpmConversionEligibilityService
             ]);
         }
 
+        $ambiguousReservation = OnlineReturnRefundAllocationOpmConversion::query()
+            ->where('online_return_refund_allocation_line_execution_id', $execution->id)
+            ->when($excludeConversionId !== null, fn ($q) => $q->where('id', '!=', $excludeConversionId))
+            ->where('failure_code', 'reservation_ambiguous')
+            ->where('status', WalletRefundOpmConversionStatus::ReconciliationHold)
+            ->exists();
+        if ($ambiguousReservation) {
+            throw ValidationException::withMessages([
+                'conversion' => 'A prior conversion for this wallet credit is awaiting reservation reconciliation.',
+            ]);
+        }
+
         if ((int) $execution->online_return_refund_allocation_line_id !== (int) $line->id) {
             throw ValidationException::withMessages([
                 'execution' => 'Execution does not belong to this allocation line.',
