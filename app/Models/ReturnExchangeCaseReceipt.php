@@ -64,4 +64,9 @@ class ReturnExchangeCaseReceipt extends Model
     {
         return $this->belongsTo(User::class, 'inspected_by');
     }
+
+    public function serialReplacement(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ReturnExchangeCaseSerialReplacement::class, 'return_exchange_case_receipt_id');
+    }
 }

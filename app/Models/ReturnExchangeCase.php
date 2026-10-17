@@ -85,4 +85,9 @@ class ReturnExchangeCase extends Model
     {
         return $this->belongsTo(StatutoryInvoice::class, 'recorded_tax_statutory_invoice_id');
     }
+
+    public function serialReplacements(): HasMany
+    {
+        return $this->hasMany(ReturnExchangeCaseSerialReplacement::class, 'return_exchange_case_id');
+    }
 }

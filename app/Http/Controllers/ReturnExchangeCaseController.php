@@ -71,6 +71,9 @@ class ReturnExchangeCaseController extends Controller
             'posRefundRequest.requester',
             'posRefundRequest.reviewer',
             'refundRequest',
+            'serialReplacements.returnedSerial',
+            'serialReplacements.replacementSerial',
+            'receipts.serialReplacement',
         ]);
 
         $user = $request->user();
@@ -86,6 +89,7 @@ class ReturnExchangeCaseController extends Controller
             'canSubmitOnlineRefund' => $user !== null
                 && $returnCase->refund_request_id === null
                 && $user->can('submitOrderRefund', $returnCase),
+            'canPerformSerialReplacement' => $user !== null && $user->can('performSerialReplacement', $returnCase),
         ]);
     }
 

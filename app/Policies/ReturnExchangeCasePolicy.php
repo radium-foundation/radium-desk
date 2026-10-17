@@ -71,4 +71,9 @@ class ReturnExchangeCasePolicy
     {
         return app(ReturnExchangeCaseOnlineRefundPolicy::class)->submitOrderRefund($user, $case);
     }
+
+    public function performSerialReplacement(User $user, ReturnExchangeCase $case): bool
+    {
+        return app(ReturnExchangeCaseSerialReplacementPolicy::class)->perform($user, $case);
+    }
 }
