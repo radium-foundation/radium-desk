@@ -61,4 +61,9 @@ class ReturnExchangeCase extends Model
     {
         return $this->hasMany(ReturnExchangeCaseLine::class)->orderBy('line_no');
     }
+
+    public function receipts(): HasMany
+    {
+        return $this->hasMany(ReturnExchangeCaseReceipt::class, 'return_exchange_case_id');
+    }
 }

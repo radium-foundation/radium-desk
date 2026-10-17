@@ -304,6 +304,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('refunds.reroute-execution-method');
     Route::resource('refunds', RefundRequestController::class)->except(['edit', 'update']);
 
+    Route::post('return-cases/{return_case}/receive', [ReturnExchangeCaseController::class, 'receive'])
+        ->name('return-cases.receive');
+    Route::post('return-cases/{return_case}/receipts/{receipt}/inspect', [ReturnExchangeCaseController::class, 'inspect'])
+        ->name('return-cases.receipts.inspect');
     Route::resource('return-cases', ReturnExchangeCaseController::class)->only(['index', 'create', 'store', 'show']);
 
     Route::prefix('cash-book')->name('cash-book.')->group(function () {

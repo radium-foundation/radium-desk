@@ -121,6 +121,12 @@ class RolePermissionSeeder extends Seeder
      */
     public const PERMISSION_RETURNS_CASES_CENTRAL = 'returns.cases.central';
 
+    /** Receive returned goods on a case at an assigned branch (quarantine only). */
+    public const PERMISSION_RETURNS_CASES_RECEIVE = 'returns.cases.receive';
+
+    /** Record inspection results on received goods (no stock release). */
+    public const PERMISSION_RETURNS_CASES_INSPECT = 'returns.cases.inspect';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -241,6 +247,9 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_POS_VIEW,
         self::PERMISSION_POS_SELL,
         self::PERMISSION_HARDWARE_FULFILMENT_OPERATE,
+        self::PERMISSION_RETURNS_CASES_VIEW,
+        self::PERMISSION_RETURNS_CASES_RECEIVE,
+        self::PERMISSION_RETURNS_CASES_INSPECT,
     ];
 
     /**
@@ -481,6 +490,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_VIEW,
             self::PERMISSION_RETURNS_CASES_CREATE,
             self::PERMISSION_RETURNS_CASES_CENTRAL,
+            self::PERMISSION_RETURNS_CASES_RECEIVE,
+            self::PERMISSION_RETURNS_CASES_INSPECT,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -541,6 +552,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_VIEW,
             self::PERMISSION_RETURNS_CASES_CREATE,
             self::PERMISSION_RETURNS_CASES_CENTRAL,
+            self::PERMISSION_RETURNS_CASES_RECEIVE,
+            self::PERMISSION_RETURNS_CASES_INSPECT,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -606,6 +619,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_VIEW,
             self::PERMISSION_RETURNS_CASES_CREATE,
             self::PERMISSION_RETURNS_CASES_CENTRAL,
+            self::PERMISSION_RETURNS_CASES_RECEIVE,
+            self::PERMISSION_RETURNS_CASES_INSPECT,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
