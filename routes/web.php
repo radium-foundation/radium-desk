@@ -101,6 +101,7 @@ use App\Http\Controllers\PosReturnRefundRequestController;
 use App\Http\Controllers\ReturnExchangeCaseOnlineRefundController;
 use App\Http\Controllers\ReturnExchangeCaseSerialReplacementController;
 use App\Http\Controllers\OnlineReturnRefundAllocationController;
+use App\Http\Controllers\OnlineReturnRefundAllocationOpmConversionController;
 use App\Http\Controllers\ReturnExchangeCaseCentralQueueController;
 use App\Http\Controllers\ReturnExchangeCaseController;
 use App\Http\Controllers\RemarkController;
@@ -323,6 +324,18 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('online-return-refund-allocations.review');
     Route::post('online-return-refund-allocation-lines/{line}/execute', [OnlineReturnRefundAllocationController::class, 'executeLine'])
         ->name('online-return-refund-allocation-lines.execute');
+    Route::post('online-return-refund-allocation-lines/{line}/opm-conversions', [OnlineReturnRefundAllocationOpmConversionController::class, 'store'])
+        ->name('online-return-refund-allocation-lines.opm-conversions.store');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/approve', [OnlineReturnRefundAllocationOpmConversionController::class, 'approve'])
+        ->name('online-return-refund-allocation-opm-conversions.approve');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/reject', [OnlineReturnRefundAllocationOpmConversionController::class, 'reject'])
+        ->name('online-return-refund-allocation-opm-conversions.reject');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/record-payout', [OnlineReturnRefundAllocationOpmConversionController::class, 'recordPayout'])
+        ->name('online-return-refund-allocation-opm-conversions.record-payout');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/verify-finalize', [OnlineReturnRefundAllocationOpmConversionController::class, 'verifyAndFinalize'])
+        ->name('online-return-refund-allocation-opm-conversions.verify-finalize');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/release', [OnlineReturnRefundAllocationOpmConversionController::class, 'release'])
+        ->name('online-return-refund-allocation-opm-conversions.release');
     Route::post('pos-return-refund-requests/{pos_return_refund_request}/review', [PosReturnRefundRequestController::class, 'review'])
         ->name('pos-return-refund-requests.review');
     Route::post('return-cases/{return_case}/receive', [ReturnExchangeCaseController::class, 'receive'])

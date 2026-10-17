@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\OnlineReturnRefundAllocationDestination;
 use App\Enums\OnlineReturnRefundAllocationLineExecutionStatus;
+use App\Models\OnlineReturnRefundAllocationOpmConversion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -38,5 +39,10 @@ class OnlineReturnRefundAllocationLine extends Model
     {
         return $this->hasOne(OnlineReturnRefundAllocationLineExecution::class, 'online_return_refund_allocation_line_id')
             ->where('status', OnlineReturnRefundAllocationLineExecutionStatus::Succeeded->value);
+    }
+
+    public function opmConversions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(OnlineReturnRefundAllocationOpmConversion::class, 'online_return_refund_allocation_line_id');
     }
 }
