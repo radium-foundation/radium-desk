@@ -2,6 +2,7 @@
 
 namespace App\Services\ReturnExchange;
 
+use App\Enums\AllocationOpmReservationState;
 use App\Enums\AllocationOpmWalletFinalizationState;
 use App\Enums\WalletRefundOpmConversionStatus;
 use App\Models\OnlineReturnRefundAllocationLine;
@@ -29,6 +30,7 @@ final class ReturnExchangeAllocationOpmConversionService
         private readonly ReturnExchangeAllocationWalletCreditEvidenceVerifier $walletEvidence,
         private readonly WalletRefundOpmSiteAdapterResolver $adapterResolver,
         private readonly WalletRefundOpmConversionCashfreeVerifier $cashfreeVerifier,
+        private readonly ReturnExchangeAllocationOpmSpokeFailureClassifier $spokeFailures,
         private readonly AuditLogService $auditLogService,
     ) {}
 
@@ -49,7 +51,7 @@ final class ReturnExchangeAllocationOpmConversionService
                 ->where('submit_idempotency_key', $idempotencyKey)
                 ->first();
             if ($existing !== null) {
-                $this->assertSubmitReplayAuthorized($requester, $line, $existing);
+                $this->assertSubmitReplayAuthorized($requester, $line, $existing, $amount);
 
                 return $existing;
             }
@@ -65,7 +67,7 @@ final class ReturnExchangeAllocationOpmConversionService
             $existing = OnlineReturnRefundAllocationOpmConversion::query()
                 ->where('submit_idempotency_key', $idempotencyKey)
                 ->firstOrFail();
-            $this->assertSubmitReplayAuthorized($requester, $line, $existing);
+            $this->assertSubmitReplayAuthorized($requester, $line, $existing, $amount);
 
             return $existing;
         }
@@ -150,6 +152,7 @@ final class ReturnExchangeAllocationOpmConversionService
         DB::transaction(function () use ($operator, $conversion, $cashfreeOrderId, $cashfreeRefundId, $cashfreeAmount): void {
             $conversion = $this->lockConversion($conversion);
             $this->assertStatus($conversion, WalletRefundOpmConversionStatus::Reserved);
+            $this->assertWalletEvidenceForConversion($conversion);
 
             if (bccomp($cashfreeAmount, (string) $conversion->amount, 2) !== 0) {
                 throw ValidationException::withMessages([
@@ -188,6 +191,8 @@ final class ReturnExchangeAllocationOpmConversionService
 
                 return false;
             }
+
+            $this->assertWalletEvidenceForConversion($conversion);
 
             $verify = $this->cashfreeVerifier->verify($conversion);
 
@@ -235,6 +240,13 @@ final class ReturnExchangeAllocationOpmConversionService
             if ($conversion->site_reservation_released_at !== null) {
                 throw ValidationException::withMessages([
                     'conversion' => 'This reservation was already released.',
+                ]);
+            }
+
+            if ($conversion->failure_code === 'reservation_ambiguous'
+                || $conversion->site_reservation_state === AllocationOpmReservationState::Ambiguous) {
+                throw ValidationException::withMessages([
+                    'conversion' => 'Reservation outcome is ambiguous. Use Finance reconciliation to recover before release or cancellation.',
                 ]);
             }
         });
@@ -294,7 +306,7 @@ final class ReturnExchangeAllocationOpmConversionService
                     ->lockForUpdate()
                     ->first();
                 if ($dup !== null) {
-                    $this->assertSubmitReplayAuthorized($requester, $line, $dup);
+                    $this->assertSubmitReplayAuthorized($requester, $line, $dup, $amount);
 
                     return $dup;
                 }
@@ -340,6 +352,7 @@ final class ReturnExchangeAllocationOpmConversionService
                 'currency' => 'INR',
                 'requester_id' => $requester->id,
                 'wallet_finalization_state' => AllocationOpmWalletFinalizationState::NotSent,
+                'site_reservation_state' => AllocationOpmReservationState::NotSent,
             ]);
 
             $this->audit($conversion, 'return_allocation_opm_conversion.submitted', $requester);
@@ -416,7 +429,7 @@ final class ReturnExchangeAllocationOpmConversionService
             return DB::transaction(function () use ($actor, $conversion, $exception): OnlineReturnRefundAllocationOpmConversion {
                 $conversion = $this->lockConversion($conversion);
                 $message = collect($exception->errors())->flatten()->first() ?? 'Wallet finalization failed.';
-                if ($this->isAmbiguousSpokeFailure($message)) {
+                if ($this->spokeFailures->shouldTreatAsAmbiguous($message, 'finalize', true)) {
                     $conversion->update([
                         'wallet_finalization_state' => AllocationOpmWalletFinalizationState::Ambiguous,
                         'wallet_finalization_last_error' => $message,
@@ -469,9 +482,21 @@ final class ReturnExchangeAllocationOpmConversionService
         OnlineReturnRefundAllocationOpmConversion $conversion,
         User $actor,
     ): OnlineReturnRefundAllocationOpmConversion {
-        $conversion->update(['status' => WalletRefundOpmConversionStatus::Reserving]);
+        $reservationKey = 'reserve:'.$conversion->public_id;
+
+        $conversion->update([
+            'status' => WalletRefundOpmConversionStatus::Reserving,
+            'site_reservation_idempotency_key' => $reservationKey,
+            'site_reservation_state' => AllocationOpmReservationState::IntentRecorded,
+        ]);
+
+        $conversion->update([
+            'site_reservation_state' => AllocationOpmReservationState::InFlight,
+            'site_reservation_attempted_at' => now(),
+        ]);
 
         $subject = $this->spokeSubject($conversion);
+        $requestDispatched = true;
 
         try {
             $adapter = $this->adapterResolver->forOrderAndCreditSource(
@@ -479,37 +504,93 @@ final class ReturnExchangeAllocationOpmConversionService
                 $conversion->wallet_credit_source,
             );
             $result = $adapter->reserve($conversion, $subject);
+            $reservationId = trim((string) ($result['reservation_id'] ?? ''));
+            if ($reservationId === '') {
+                return $this->enterReservationAmbiguous(
+                    $conversion,
+                    $actor,
+                    'Site reserve returned without a reservation id.',
+                );
+            }
+
             $conversion->update([
-                'site_reservation_id' => $result['reservation_id'],
+                'site_reservation_id' => $reservationId,
                 'site_reservation_status' => $result['status'],
                 'site_reservation_may_exist' => true,
+                'site_reservation_state' => AllocationOpmReservationState::Confirmed,
             ]);
-            $confirm = $adapter->confirmReservation($conversion->fresh() ?? $conversion);
+
+            try {
+                $confirm = $adapter->confirmReservation($conversion->fresh() ?? $conversion);
+            } catch (ValidationException $confirmException) {
+                $confirmMessage = collect($confirmException->errors())->flatten()->first() ?? 'Reservation confirm failed.';
+                $this->handleReservationSpokeFailure($conversion, $actor, $confirmMessage, true, 'confirm');
+
+                return $conversion->fresh() ?? $conversion;
+            }
 
             $conversion->update([
                 'status' => WalletRefundOpmConversionStatus::Reserved,
                 'site_reservation_status' => $confirm['status'],
                 'site_reservation_may_exist' => true,
+                'site_reservation_state' => AllocationOpmReservationState::Confirmed,
             ]);
 
-            $this->audit($conversion, 'return_allocation_opm_conversion.reserved', $actor);
+            $this->audit($conversion, 'return_allocation_opm_conversion.reserved', $actor, [
+                'idempotency_key' => $reservationKey,
+                'idempotent_replay' => $result['idempotent_replay'] ?? false,
+            ]);
         } catch (ValidationException $exception) {
-            $conversion->update([
-                'status' => WalletRefundOpmConversionStatus::ReservationFailed,
-                'failure_code' => 'reservation_failed',
-                'failure_message' => collect($exception->errors())->flatten()->first(),
-            ]);
-            $this->audit($conversion, 'return_allocation_opm_conversion.reservation_failed', $actor);
+            $message = collect($exception->errors())->flatten()->first() ?? 'Reservation failed.';
+            $this->handleReservationSpokeFailure($conversion, $actor, $message, $requestDispatched, 'reserve');
         } catch (\Throwable $exception) {
-            $conversion->update([
-                'status' => WalletRefundOpmConversionStatus::ReservationFailed,
-                'failure_code' => 'reservation_failed',
-                'failure_message' => $exception->getMessage(),
-            ]);
-            $this->audit($conversion, 'return_allocation_opm_conversion.reservation_failed', $actor);
+            $this->handleReservationSpokeFailure($conversion, $actor, $exception->getMessage(), $requestDispatched, 'reserve');
         }
 
         return $conversion->fresh() ?? $conversion;
+    }
+
+    private function handleReservationSpokeFailure(
+        OnlineReturnRefundAllocationOpmConversion $conversion,
+        User $actor,
+        string $message,
+        bool $requestDispatched,
+        string $operation = 'reserve',
+    ): void {
+        if ($this->spokeFailures->shouldTreatAsAmbiguous($message, $operation, $requestDispatched)) {
+            $this->enterReservationAmbiguous($conversion, $actor, $message);
+
+            return;
+        }
+
+        $conversion->update([
+            'status' => WalletRefundOpmConversionStatus::ReservationFailed,
+            'site_reservation_state' => AllocationOpmReservationState::Failed,
+            'failure_code' => 'reservation_failed',
+            'failure_message' => $message,
+        ]);
+        $this->audit($conversion, 'return_allocation_opm_conversion.reservation_failed', $actor, ['message' => $message]);
+    }
+
+    private function enterReservationAmbiguous(
+        OnlineReturnRefundAllocationOpmConversion $conversion,
+        User $actor,
+        string $message,
+    ): OnlineReturnRefundAllocationOpmConversion {
+        $conversion->update([
+            'status' => WalletRefundOpmConversionStatus::ReconciliationHold,
+            'site_reservation_state' => AllocationOpmReservationState::Ambiguous,
+            'failure_code' => 'reservation_ambiguous',
+            'failure_message' => $message,
+            'reconciliation_entered_at' => $conversion->reconciliation_entered_at ?? now(),
+        ]);
+
+        $this->audit($conversion, 'return_allocation_opm_conversion.reservation_ambiguous', $actor, [
+            'message' => $message,
+            'idempotency_key' => $conversion->site_reservation_idempotency_key,
+        ]);
+
+        return $conversion;
     }
 
     private function releaseSiteReservation(OnlineReturnRefundAllocationOpmConversion $conversion, User $actor): void
@@ -573,19 +654,22 @@ final class ReturnExchangeAllocationOpmConversionService
         $this->audit($conversion, 'return_allocation_opm_conversion.completed', $actor);
     }
 
-    private function isAmbiguousSpokeFailure(string $message): bool
+    private function assertWalletEvidenceForConversion(OnlineReturnRefundAllocationOpmConversion $conversion): void
     {
-        $normalized = strtolower($message);
+        $execution = $conversion->walletExecution()->first();
+        $line = $conversion->line()->first();
+        if ($execution === null || $line === null) {
+            throw ValidationException::withMessages(['conversion' => 'Wallet execution linkage is missing.']);
+        }
 
-        return str_contains($normalized, 'unreachable')
-            || str_contains($normalized, 'connection')
-            || str_contains($normalized, 'timeout');
+        $this->walletEvidence->assertConversionMatchesExecution($conversion, $line, $execution);
     }
 
     private function assertSubmitReplayAuthorized(
         User $requester,
         OnlineReturnRefundAllocationLine $line,
         OnlineReturnRefundAllocationOpmConversion $existing,
+        string $requestedAmount,
     ): void {
         if ((int) $existing->online_return_refund_allocation_line_id !== (int) $line->id) {
             throw ValidationException::withMessages([
@@ -596,6 +680,15 @@ final class ReturnExchangeAllocationOpmConversionService
         if (! $requester->can('requestOpmConversion', $line)) {
             throw ValidationException::withMessages([
                 'conversion' => 'You are not authorized to access this conversion request.',
+            ]);
+        }
+
+        $normalizedRequest = WalletMoney::normalize($requestedAmount);
+        $normalizedStored = WalletMoney::normalize((string) $existing->amount);
+        if ($normalizedRequest === null || $normalizedStored === null
+            || bccomp($normalizedRequest, $normalizedStored, 2) !== 0) {
+            throw ValidationException::withMessages([
+                'amount' => 'This idempotency key is already used with a different conversion amount.',
             ]);
         }
     }

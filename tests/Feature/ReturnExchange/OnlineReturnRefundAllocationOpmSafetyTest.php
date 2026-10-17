@@ -31,8 +31,8 @@ class OnlineReturnRefundAllocationOpmSafetyTest extends ReturnExchangeCaseHttpTe
                 'data' => ['reservation_id' => 'res-fail-1', 'status' => 'reserved'],
             ], 201),
             'https://radiumbox.test/api/integrations/v1/wallet-opm-conversion-reservations/res-fail-1/confirm' => Http::response([
-                'message' => 'confirm failed',
-            ], 422),
+                'message' => 'Reservation not found',
+            ], 404),
             'https://radiumbox.test/api/integrations/v1/wallet-opm-conversion-reservations/res-fail-1/release' => Http::response([
                 'data' => ['reservation_id' => 'res-fail-1', 'status' => 'released', 'idempotent_replay' => false],
             ], 200),

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AllocationOpmReservationState;
 use App\Enums\AllocationOpmWalletFinalizationState;
 use App\Enums\WalletRefundCreditSource;
 use App\Enums\WalletRefundOpmConversionStatus;
@@ -35,6 +36,9 @@ class OnlineReturnRefundAllocationOpmConversion extends Model implements Cashfre
         'payout_operator_id',
         'site_reservation_id',
         'site_reservation_status',
+        'site_reservation_idempotency_key',
+        'site_reservation_state',
+        'site_reservation_attempted_at',
         'site_reservation_may_exist',
         'site_reservation_released_at',
         'site_reservation_release_outcome',
@@ -54,6 +58,11 @@ class OnlineReturnRefundAllocationOpmConversion extends Model implements Cashfre
         'failure_code',
         'failure_message',
         'reconciliation_entered_at',
+        'last_reconciliation_at',
+        'last_reconciliation_by_id',
+        'last_reconciliation_action',
+        'last_reconciliation_outcome',
+        'last_reconciliation_detail',
     ];
 
     protected function casts(): array
@@ -62,6 +71,7 @@ class OnlineReturnRefundAllocationOpmConversion extends Model implements Cashfre
             'status' => WalletRefundOpmConversionStatus::class,
             'wallet_credit_source' => WalletRefundCreditSource::class,
             'wallet_finalization_state' => AllocationOpmWalletFinalizationState::class,
+            'site_reservation_state' => AllocationOpmReservationState::class,
             'site_reservation_may_exist' => 'boolean',
             'wallet_finalization_idempotent_replay' => 'boolean',
             'amount' => 'decimal:2',
@@ -69,7 +79,14 @@ class OnlineReturnRefundAllocationOpmConversion extends Model implements Cashfre
             'cashfree_refund_amount' => 'decimal:2',
             'cashfree_verified_at' => 'datetime',
             'reconciliation_entered_at' => 'datetime',
+            'site_reservation_attempted_at' => 'datetime',
+            'last_reconciliation_at' => 'datetime',
         ];
+    }
+
+    public function lastReconciliationBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'last_reconciliation_by_id');
     }
 
     public function returnCase(): BelongsTo

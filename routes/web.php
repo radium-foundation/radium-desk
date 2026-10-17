@@ -336,6 +336,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('online-return-refund-allocation-opm-conversions.verify-finalize');
     Route::post('online-return-refund-allocation-opm-conversions/{conversion}/release', [OnlineReturnRefundAllocationOpmConversionController::class, 'release'])
         ->name('online-return-refund-allocation-opm-conversions.release');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/reconcile-reservation', [OnlineReturnRefundAllocationOpmConversionController::class, 'reconcileReservation'])
+        ->name('online-return-refund-allocation-opm-conversions.reconcile-reservation');
+    Route::post('online-return-refund-allocation-opm-conversions/{conversion}/reconcile-finalization', [OnlineReturnRefundAllocationOpmConversionController::class, 'reconcileFinalization'])
+        ->name('online-return-refund-allocation-opm-conversions.reconcile-finalization');
     Route::post('pos-return-refund-requests/{pos_return_refund_request}/review', [PosReturnRefundRequestController::class, 'review'])
         ->name('pos-return-refund-requests.review');
     Route::post('return-cases/{return_case}/receive', [ReturnExchangeCaseController::class, 'receive'])

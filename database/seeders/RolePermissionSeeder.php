@@ -160,6 +160,8 @@ class RolePermissionSeeder extends Seeder
     /** Release a wallet OPM reservation before payout (central Finance). */
     public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE = 'refunds.wallet_opm_conversion.release';
 
+    public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE = 'refunds.wallet_opm_conversion.reconcile';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -536,6 +538,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
@@ -609,6 +612,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
@@ -687,6 +691,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE,
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_PAYOUT,
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
+            self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',

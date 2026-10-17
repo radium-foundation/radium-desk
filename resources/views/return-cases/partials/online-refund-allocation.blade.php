@@ -80,6 +80,12 @@
                                         @can('release', $conversion)
                                             <form method="post" action="{{ route('online-return-refund-allocation-opm-conversions.release', $conversion) }}" class="d-inline-flex gap-1 mt-1">@csrf<input type="text" name="reason" class="form-control form-control-sm" placeholder="Release reason" required><button type="submit" class="btn btn-sm btn-outline-warning">Release reservation</button></form>
                                         @endcan
+                                        @can('reconcileReservation', $conversion)
+                                            <form method="post" action="{{ route('online-return-refund-allocation-opm-conversions.reconcile-reservation', $conversion) }}" class="d-inline-flex gap-1 mt-1">@csrf<input type="text" name="notes" class="form-control form-control-sm" placeholder="Reconciliation notes" required><button type="submit" class="btn btn-sm btn-outline-dark">Recover reservation (replay idempotency key)</button></form>
+                                        @endcan
+                                        @can('reconcileFinalization', $conversion)
+                                            <form method="post" action="{{ route('online-return-refund-allocation-opm-conversions.reconcile-finalization', $conversion) }}" class="d-inline-flex gap-1 mt-1">@csrf<input type="text" name="notes" class="form-control form-control-sm" placeholder="Reconciliation notes" required><button type="submit" class="btn btn-sm btn-outline-dark">Recover wallet finalization (replay idempotency key)</button></form>
+                                        @endcan
                                     </div>
                                 @endforeach
                                 @if (
