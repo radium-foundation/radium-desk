@@ -20,6 +20,7 @@ final class ReturnExchangeCaseOnlineRefundSubmitService
         private readonly ReturnExchangeCaseOnlineHardwareContext $hardwareContext,
         private readonly ReturnExchangeCaseRecordedTaxOutcomeVerifier $taxOutcome,
         private readonly ReturnExchangeCaseReturnedHardwareEligibleRefundService $eligibleAmounts,
+        private readonly ReturnExchangeCaseOnlineRefundTenderEligibilityGuard $tenderGuard,
         private readonly RefundRequestService $refundRequests,
     ) {}
 
@@ -60,6 +61,7 @@ final class ReturnExchangeCaseOnlineRefundSubmitService
                 }
 
                 $eligible = $this->eligibleAmounts->resolve($lockedCase, $context, $tax->invoice);
+                $this->tenderGuard->assertMaySubmit($context, $eligible->amount);
 
                 $reason = trim((string) ($payload['reason'] ?? 'Online hardware return — case '.$lockedCase->case_no));
                 if ($reason === '') {
