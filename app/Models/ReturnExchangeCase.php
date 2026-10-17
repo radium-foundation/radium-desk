@@ -90,4 +90,9 @@ class ReturnExchangeCase extends Model
     {
         return $this->hasMany(ReturnExchangeCaseSerialReplacement::class, 'return_exchange_case_id');
     }
+
+    public function onlineRefundAllocation(): HasOne
+    {
+        return $this->hasOne(OnlineReturnRefundAllocation::class, 'return_exchange_case_id');
+    }
 }

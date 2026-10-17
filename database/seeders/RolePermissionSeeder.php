@@ -139,6 +139,12 @@ class RolePermissionSeeder extends Seeder
     /** Record equal-value serial replacement on an inspected return case (branch). */
     public const PERMISSION_RETURNS_CASES_SERIAL_REPLACE = 'returns.cases.serial_replace';
 
+    /** Submit online return-case Finance refund allocation (split tender; no payout). */
+    public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT = 'returns.cases.order_refund.allocation.submit';
+
+    /** Review approve/reject online return-case Finance refund allocations (central). */
+    public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW = 'returns.cases.order_refund.allocation.review';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -508,6 +514,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
             self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
@@ -574,6 +582,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
             self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',
@@ -645,6 +655,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
             self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
             self::PERMISSION_RETURNS_CASES_ORDER_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_REVIEW,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
             'audit-logs.view',
             'automation-operations.view',

@@ -45,6 +45,12 @@
             'canSubmitOnlineRefund' => $canSubmitOnlineRefund ?? false,
         ])
 
+        @include('return-cases.partials.online-refund-allocation', [
+            'case' => $case,
+            'canSubmitOnlineRefundAllocation' => $canSubmitOnlineRefundAllocation ?? false,
+            'canReviewOnlineRefundAllocation' => $canReviewOnlineRefundAllocation ?? false,
+        ])
+
         @include('return-cases.partials.serial-replacement', [
             'case' => $case,
             'canPerformSerialReplacement' => $canPerformSerialReplacement ?? false,

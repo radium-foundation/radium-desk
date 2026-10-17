@@ -21,6 +21,9 @@ class ReferenceSequence extends Model
     /** POS return-case Finance refund request references (PRR-1000+). */
     public const POS_RETURN_REFUND_OPERATIONAL = 'pos_return_refund_operational';
 
+    /** Online return-case Finance refund allocation references (ORA-1000+). */
+    public const ONLINE_RETURN_REFUND_ALLOCATION_OPERATIONAL = 'online_return_refund_allocation_operational';
+
     /** Independent purchase order operational series (PO-671+ for FY 2026-27). */
     public const PURCHASE_ORDER_OPERATIONAL_PREFIX = 'purchase_order_operational';
 
