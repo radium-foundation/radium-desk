@@ -137,6 +137,14 @@
                                     —
                                 @endif
                             </dd>
+                            @if ($case->refundRequest)
+                                <dt class="col-5 col-sm-3">Online refund request</dt>
+                                <dd class="col-7 col-sm-9">
+                                    <a href="{{ route('refunds.show', $case->refundRequest) }}">{{ $case->refundRequest->reference_no }}</a>
+                                    · {{ $case->refundRequest->status->label() }}
+                                    · ₹{{ number_format((float) $case->refundRequest->refund_amount, 2) }}
+                                </dd>
+                            @endif
                             @if ($case->posRefundRequest)
                                 <dt class="col-5 col-sm-3">POS refund request</dt>
                                 <dd class="col-7 col-sm-9">

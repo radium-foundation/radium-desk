@@ -23,6 +23,9 @@ class ReturnExchangeCase extends Model
         'reason',
         'requester_remarks',
         'requested_by',
+        'refund_request_id',
+        'recorded_tax_statutory_invoice_id',
+        'recorded_tax_outcome_type',
     ];
 
     protected function casts(): array
@@ -71,5 +74,15 @@ class ReturnExchangeCase extends Model
     public function posRefundRequest(): HasOne
     {
         return $this->hasOne(PosReturnRefundRequest::class, 'return_exchange_case_id');
+    }
+
+    public function refundRequest(): BelongsTo
+    {
+        return $this->belongsTo(RefundRequest::class, 'refund_request_id');
+    }
+
+    public function recordedTaxStatutoryInvoice(): BelongsTo
+    {
+        return $this->belongsTo(StatutoryInvoice::class, 'recorded_tax_statutory_invoice_id');
     }
 }

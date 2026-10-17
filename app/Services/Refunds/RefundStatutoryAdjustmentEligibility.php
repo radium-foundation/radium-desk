@@ -26,6 +26,12 @@ final class RefundStatutoryAdjustmentEligibility
             return RefundStatutoryAdjustmentEligibilityResult::skip('refund_not_terminal_success');
         }
 
+        $refund->loadMissing('returnExchangeCase');
+        $returnCase = $refund->returnExchangeCase;
+        if ($returnCase !== null && $returnCase->recorded_tax_statutory_invoice_id !== null) {
+            return RefundStatutoryAdjustmentEligibilityResult::skip('return_case_tax_outcome_already_recorded');
+        }
+
         $order = $refund->order;
         if ($order === null) {
             return RefundStatutoryAdjustmentEligibilityResult::skip('missing_order');

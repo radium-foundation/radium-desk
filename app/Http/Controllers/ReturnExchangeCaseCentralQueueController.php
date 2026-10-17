@@ -40,6 +40,7 @@ class ReturnExchangeCaseCentralQueueController extends Controller
                 'order' => fn ($query) => $query->withCount('refundRequests'),
                 'posRefundRequest.requester',
                 'posRefundRequest.reviewer',
+                'refundRequest',
             ])
             ->withCount(['lines', 'receipts'])
             ->orderByDesc('id');
