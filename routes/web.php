@@ -97,6 +97,7 @@ use App\Http\Controllers\QuickServiceRequestController;
 use App\Http\Controllers\RealtimeAdminActionsController;
 use App\Http\Controllers\RealtimeConnectionStatusController;
 use App\Http\Controllers\RefundRequestController;
+use App\Http\Controllers\ReturnExchangeCaseController;
 use App\Http\Controllers\RemarkController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Service\ServiceCategoryController;
@@ -302,6 +303,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('refunds/{refund}/reroute-execution-method', [RefundRequestController::class, 'rerouteExecutionMethod'])
         ->name('refunds.reroute-execution-method');
     Route::resource('refunds', RefundRequestController::class)->except(['edit', 'update']);
+
+    Route::resource('return-cases', ReturnExchangeCaseController::class)->only(['index', 'create', 'store', 'show']);
 
     Route::prefix('cash-book')->name('cash-book.')->group(function () {
         Route::get('/', [CashBookController::class, 'index'])->name('index');

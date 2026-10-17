@@ -109,6 +109,18 @@ class RolePermissionSeeder extends Seeder
     /** Re-route a pending_execution wallet refund to Cashfree when wallet credit is unsupported. */
     public const PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD = 'refunds.reroute_execution_method';
 
+    /** View internal return/exchange cases (intake; no stock or tax effects). */
+    public const PERMISSION_RETURNS_CASES_VIEW = 'returns.cases.view';
+
+    /** Create internal return/exchange cases (intake only). */
+    public const PERMISSION_RETURNS_CASES_CREATE = 'returns.cases.create';
+
+    /**
+     * Cross-branch return-case queue and central operations (read-only queue uses this alone).
+     * Seeded on {@see self::ROLE_ADMIN}, {@see self::ROLE_OPERATIONS_ADMIN}, and {@see self::ROLE_SUPERADMIN}.
+     */
+    public const PERMISSION_RETURNS_CASES_CENTRAL = 'returns.cases.central';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -342,6 +354,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
             'leave-requests.view',
             'leave-requests.create',
             'workforce.view',
@@ -363,6 +377,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
             'leave-requests.view',
             'leave-requests.create',
             'workforce.view',
@@ -384,6 +400,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
             'leave-requests.view',
             'leave-requests.create',
             'workforce.view',
@@ -405,6 +423,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
             'leave-requests.view',
             'leave-requests.create',
             'workforce.view',
@@ -458,6 +478,9 @@ class RolePermissionSeeder extends Seeder
             'refunds.create',
             'refunds.review',
             'refunds.execute',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
+            self::PERMISSION_RETURNS_CASES_CENTRAL,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -515,6 +538,9 @@ class RolePermissionSeeder extends Seeder
             'refunds.create',
             'refunds.review',
             'refunds.execute',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
+            self::PERMISSION_RETURNS_CASES_CENTRAL,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -577,6 +603,9 @@ class RolePermissionSeeder extends Seeder
             'refunds.review',
             'refunds.execute',
             'refunds.delete',
+            self::PERMISSION_RETURNS_CASES_VIEW,
+            self::PERMISSION_RETURNS_CASES_CREATE,
+            self::PERMISSION_RETURNS_CASES_CENTRAL,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
