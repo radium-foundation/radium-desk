@@ -45,6 +45,11 @@
             'canSubmitOnlineRefund' => $canSubmitOnlineRefund ?? false,
         ])
 
+        @include('return-cases.partials.serial-replacement', [
+            'case' => $case,
+            'canPerformSerialReplacement' => $canPerformSerialReplacement ?? false,
+        ])
+
         <div class="card mb-3">
             <div class="card-body small">
                 <dl class="row mb-0">
