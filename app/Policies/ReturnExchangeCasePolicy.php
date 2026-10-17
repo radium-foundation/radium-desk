@@ -61,4 +61,9 @@ class ReturnExchangeCasePolicy
     {
         return ReturnExchangeCaseBranchAccess::hasCentralAccess($user);
     }
+
+    public function submitPosRefund(User $user, ReturnExchangeCase $case): bool
+    {
+        return app(PosReturnRefundRequestPolicy::class)->submit($user, $case);
+    }
 }

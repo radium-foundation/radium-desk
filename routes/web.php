@@ -97,6 +97,8 @@ use App\Http\Controllers\QuickServiceRequestController;
 use App\Http\Controllers\RealtimeAdminActionsController;
 use App\Http\Controllers\RealtimeConnectionStatusController;
 use App\Http\Controllers\RefundRequestController;
+use App\Http\Controllers\PosReturnRefundRequestController;
+use App\Http\Controllers\ReturnExchangeCaseCentralQueueController;
 use App\Http\Controllers\ReturnExchangeCaseController;
 use App\Http\Controllers\RemarkController;
 use App\Http\Controllers\SearchController;
@@ -304,6 +306,12 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('refunds.reroute-execution-method');
     Route::resource('refunds', RefundRequestController::class)->except(['edit', 'update']);
 
+    Route::get('return-cases/central-queue', [ReturnExchangeCaseCentralQueueController::class, 'index'])
+        ->name('return-cases.central-queue');
+    Route::post('return-cases/{return_case}/pos-refund-request', [PosReturnRefundRequestController::class, 'store'])
+        ->name('return-cases.pos-refund-request.store');
+    Route::post('pos-return-refund-requests/{pos_return_refund_request}/review', [PosReturnRefundRequestController::class, 'review'])
+        ->name('pos-return-refund-requests.review');
     Route::post('return-cases/{return_case}/receive', [ReturnExchangeCaseController::class, 'receive'])
         ->name('return-cases.receive');
     Route::post('return-cases/{return_case}/receipts/{receipt}/inspect', [ReturnExchangeCaseController::class, 'inspect'])

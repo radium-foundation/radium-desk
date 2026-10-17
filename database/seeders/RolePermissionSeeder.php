@@ -127,6 +127,12 @@ class RolePermissionSeeder extends Seeder
     /** Record inspection results on received goods (no stock release). */
     public const PERMISSION_RETURNS_CASES_INSPECT = 'returns.cases.inspect';
 
+    /** Submit POS return-case Finance refund request (branch; no payout). */
+    public const PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT = 'returns.cases.pos_refund.submit';
+
+    /** Review approve/reject POS return-case refund requests (central Finance; no payout). */
+    public const PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW = 'returns.cases.pos_refund.review';
+
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
@@ -492,6 +498,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_CENTRAL,
             self::PERMISSION_RETURNS_CASES_RECEIVE,
             self::PERMISSION_RETURNS_CASES_INSPECT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -554,6 +562,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_CENTRAL,
             self::PERMISSION_RETURNS_CASES_RECEIVE,
             self::PERMISSION_RETURNS_CASES_INSPECT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -621,6 +631,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_CENTRAL,
             self::PERMISSION_RETURNS_CASES_RECEIVE,
             self::PERMISSION_RETURNS_CASES_INSPECT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_SUBMIT,
+            self::PERMISSION_RETURNS_CASES_POS_REFUND_REVIEW,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
