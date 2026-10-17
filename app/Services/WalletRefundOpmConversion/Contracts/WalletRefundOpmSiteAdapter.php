@@ -29,5 +29,8 @@ interface WalletRefundOpmSiteAdapter
      */
     public function finalizeWalletReversal(WalletRefundOpmSpokeConversion $conversion, WalletRefundOpmSpokeSubject $subject): array;
 
-    public function releaseReservation(WalletRefundOpmSpokeConversion $conversion, WalletRefundOpmSpokeSubject $subject): void;
+    /**
+     * @return array{idempotent_replay: bool, status?: string}
+     */
+    public function releaseReservation(WalletRefundOpmSpokeConversion $conversion, WalletRefundOpmSpokeSubject $subject): array;
 }

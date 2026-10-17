@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AllocationOpmWalletFinalizationState;
 use App\Enums\WalletRefundCreditSource;
 use App\Enums\WalletRefundOpmConversionStatus;
 use App\Services\WalletRefundOpmConversion\Contracts\CashfreeOpmPayoutEvidence;
@@ -21,6 +22,8 @@ class OnlineReturnRefundAllocationOpmConversion extends Model implements Cashfre
         'wallet_executor_provider',
         'wallet_execution_reference',
         'wallet_transaction_id',
+        'bound_order_id',
+        'bound_wallet_credit_amount',
         'submit_idempotency_key',
         'status',
         'site_code',
@@ -32,12 +35,21 @@ class OnlineReturnRefundAllocationOpmConversion extends Model implements Cashfre
         'payout_operator_id',
         'site_reservation_id',
         'site_reservation_status',
+        'site_reservation_may_exist',
+        'site_reservation_released_at',
+        'site_reservation_release_outcome',
+        'site_reservation_release_error',
         'cashfree_order_id',
         'cashfree_refund_id',
         'cashfree_refund_amount',
         'cashfree_refund_status',
         'cashfree_verified_at',
         'wallet_finalization_idempotency_key',
+        'wallet_finalization_state',
+        'wallet_finalization_attempted_at',
+        'wallet_finalization_confirmed_at',
+        'wallet_finalization_idempotent_replay',
+        'wallet_finalization_last_error',
         'wallet_reversal_reference',
         'failure_code',
         'failure_message',
@@ -49,7 +61,11 @@ class OnlineReturnRefundAllocationOpmConversion extends Model implements Cashfre
         return [
             'status' => WalletRefundOpmConversionStatus::class,
             'wallet_credit_source' => WalletRefundCreditSource::class,
+            'wallet_finalization_state' => AllocationOpmWalletFinalizationState::class,
+            'site_reservation_may_exist' => 'boolean',
+            'wallet_finalization_idempotent_replay' => 'boolean',
             'amount' => 'decimal:2',
+            'bound_wallet_credit_amount' => 'decimal:2',
             'cashfree_refund_amount' => 'decimal:2',
             'cashfree_verified_at' => 'datetime',
             'reconciliation_entered_at' => 'datetime',
