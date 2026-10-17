@@ -31,15 +31,12 @@ use App\Services\ReturnExchange\ReturnExchangeCaseIntakeService;
 use App\Services\ReturnExchange\ReturnExchangeCaseOnlineRefundSubmitService;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\PermissionRegistrar;
 
 class OnlineReturnRefundAllocationTest extends ReturnExchangeCaseHttpTestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         parent::setUp();
@@ -333,7 +330,7 @@ class OnlineReturnRefundAllocationTest extends ReturnExchangeCaseHttpTestCase
     /**
      * @return array{0: \App\Models\ReturnExchangeCase, 1: User, 2: Order, 3: CommerceOrder}
      */
-    private function inspectedSplitTenderCase(
+    protected function inspectedSplitTenderCase(
         bool $withCancellation = true,
         bool $multiItem = false,
         ?string $walletAmount = '499.00',
@@ -393,7 +390,7 @@ class OnlineReturnRefundAllocationTest extends ReturnExchangeCaseHttpTestCase
     /**
      * @return array{0: \App\Models\ReturnExchangeCase, 1: User, 2: Order, 3: CommerceOrder, 4: StatutoryInvoice}
      */
-    private function splitTenderFulfilmentReady(
+    protected function splitTenderFulfilmentReady(
         bool $multiItem = false,
         ?string $walletAmount = '499.00',
     ): array {
@@ -403,7 +400,7 @@ class OnlineReturnRefundAllocationTest extends ReturnExchangeCaseHttpTestCase
         $orderValue = $wallet > 0 ? $external + $wallet : $external;
 
         $order = $this->createOrder([
-            'order_id' => 'RB-SPLIT-'.random_int(1000, 9999),
+            'order_id' => 'RB'.random_int(10000, 99999),
             'payment_amount' => $external,
             'cashfree_payment_id' => 'cf_split_'.random_int(10000, 99999),
         ]);
@@ -478,7 +475,7 @@ class OnlineReturnRefundAllocationTest extends ReturnExchangeCaseHttpTestCase
         ]);
     }
 
-    private function createCommerceOrderForSplitTender(Order $order, ?string $walletAmount, float $orderValue): CommerceOrder
+    protected function createCommerceOrderForSplitTender(Order $order, ?string $walletAmount, float $orderValue): CommerceOrder
     {
         return CommerceOrder::query()->create([
             'order_no' => 'CO-SPLIT-'.$order->order_id,
@@ -499,7 +496,7 @@ class OnlineReturnRefundAllocationTest extends ReturnExchangeCaseHttpTestCase
         ]);
     }
 
-    private function branchAdminFor(int $branchId): User
+    protected function branchAdminFor(int $branchId): User
     {
         $user = User::factory()->create(['is_active' => true]);
         $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -511,7 +508,7 @@ class OnlineReturnRefundAllocationTest extends ReturnExchangeCaseHttpTestCase
         return $user;
     }
 
-    private function createOrderInvoice(Order $order, HardwareFulfilment $fulfilment, string $invoiceNumber): StatutoryInvoice
+    protected function createOrderInvoice(Order $order, HardwareFulfilment $fulfilment, string $invoiceNumber): StatutoryInvoice
     {
         return StatutoryInvoice::query()->create([
             'invoice_number' => $invoiceNumber,
@@ -540,7 +537,7 @@ class OnlineReturnRefundAllocationTest extends ReturnExchangeCaseHttpTestCase
         ]);
     }
 
-    private function attachCancellation(StatutoryInvoice $invoice, User $actor): void
+    protected function attachCancellation(StatutoryInvoice $invoice, User $actor): void
     {
         StatutoryInvoiceCancellation::query()->create([
             'statutory_invoice_id' => $invoice->id,

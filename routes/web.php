@@ -321,6 +321,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('return-cases.online-refund-allocation.store');
     Route::post('online-return-refund-allocations/{online_return_refund_allocation}/review', [OnlineReturnRefundAllocationController::class, 'review'])
         ->name('online-return-refund-allocations.review');
+    Route::post('online-return-refund-allocation-lines/{line}/execute', [OnlineReturnRefundAllocationController::class, 'executeLine'])
+        ->name('online-return-refund-allocation-lines.execute');
     Route::post('pos-return-refund-requests/{pos_return_refund_request}/review', [PosReturnRefundRequestController::class, 'review'])
         ->name('pos-return-refund-requests.review');
     Route::post('return-cases/{return_case}/receive', [ReturnExchangeCaseController::class, 'receive'])
