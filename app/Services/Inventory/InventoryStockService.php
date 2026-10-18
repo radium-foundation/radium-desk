@@ -1167,7 +1167,27 @@ class InventoryStockService
             'reserved_qty' => $reserved,
         ]);
 
+        $this->maybeDispatchStorefrontAvailabilitySync($product, $availableDelta);
+
         return $balance;
+    }
+
+    private function maybeDispatchStorefrontAvailabilitySync(InventoryProduct $product, int $availableDelta): void
+    {
+        if ($availableDelta === 0) {
+            return;
+        }
+
+        $productId = $product->id;
+
+        DB::afterCommit(function () use ($productId): void {
+            $fresh = InventoryProduct::query()->find($productId);
+            if ($fresh === null) {
+                return;
+            }
+
+            app(InventoryAvailabilitySyncService::class)->dispatchIfEligible($fresh);
+        });
     }
 
     private function assertProductSerialized(InventoryProduct $product): void
