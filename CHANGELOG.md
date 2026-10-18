@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.1.30 — 2026-10-18 — Return / refund stack (schema) + MariaDB migration-order fix
+
+- **Return / exchange cases:** Case intake, lines, goods receipt and inspection, serial replacements, and inventory movement linkage for hardware return workflows.
+- **POS return refunds:** `pos_return_refund_requests` operational sequence and Finance review flow (execution remains gated by existing permissions and feature flags).
+- **Online return refunds:** Allocation requests/lines, tender guards, and schema for line-level execution and OPM conversion records (Cashfree / wallet executor fields).
+- **Desk-first integration (PR #45):** Return-stack code merged on `main` with desk-first wallet refund gates; production deploy brings migrations and application code together for the first time since v4.1.29.
+- **Migrations (12× `2026_10_17_*`, PR #46):** Reordered and renamed three migrations so `online_return_refund_allocation_opm_conversions` is created after allocation, line, and line-execution tables; shortened MariaDB index/FK names for 64-character limits; rollback-safe `down()` methods. Verified on disposable MariaDB 11.8.8 (P-18-3 rehearsal).
+- **Schema deploy:** `desk deploy` runs `migrate --force` — applies all pending return-stack migrations on production. Pre-deploy: confirm no long-lived database applied **pre-rename** migration filenames; query `migrations` for `2026_10_17_%` on every environment you migrate.
+- **Feature flags (default off):** `RETURN_EXCHANGE_ONLINE_REFUND_ALLOCATION_EXECUTION_ENABLED` and `RETURN_EXCHANGE_ONLINE_REFUND_ALLOCATION_OPM_CONVERSION_ENABLED` remain **false** — Finance may approve allocations but execution and OPM conversion endpoints stay fail-closed until owner enables.
+- **Out of scope:** Enabling return execution/OPM in production, desk-first wallet refund flag enablement, RadiumBox/spoke deploys, financial mutations.
+- Rollback target: v4.1.29 / `cb9c53af` (redeploy prior tag; DB rollback only via approved backup restore).
+- Prompts **RadiumDesk-P-12-10-171** through **P-12-10-181**, **P-18-2** through **P-18-9**.
+
 ## 4.1.29 — 2026-10-13 — Desk-first wallet refund RC (authority gate + production C360 overlay parity)
 
 - **Wallet refunds:** Fail-closed `DeskFirstWalletRefundCompletionGate` verifies posted Central Wallet credit, amount/currency, customer CWID, execution binding, and spoke audit metadata before `RefundRequestService::complete` when `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED` is true. Legacy path unchanged when flag is false.
