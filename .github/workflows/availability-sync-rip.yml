@@ -1,0 +1,41 @@
+name: Availability sync RIP
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  rip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Pint (availability scope)
+        run: |
+          ./vendor/bin/pint --test \
+            app/Services/RadiumBox/RadiumBoxCatalogAvailabilityClient.php \
+            app/Services/RadiumBox/RadiumBoxCatalogAvailabilitySyncException.php \
+            app/Services/Inventory/InventoryAvailabilitySyncService.php \
+            app/Jobs/SyncStorefrontAvailabilityJob.php \
+            app/Console/Commands/BackfillRadiumboxCatalogAvailabilityCommand.php \
+            tests/Feature/Inventory
+
+      - name: PHPUnit (RIP suites)
+        run: |
+          php artisan test --filter='ChannelSkuMapAvailabilitySyncTest|InventoryAvailabilitySyncTest|InventoryStockServiceTest|BackfillRadiumboxCatalogAvailabilityCommandTest'
