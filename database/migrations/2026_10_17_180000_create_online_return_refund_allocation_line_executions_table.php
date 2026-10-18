@@ -21,7 +21,7 @@ return new class extends Migration
             $table->text('failure_reason')->nullable();
             $table->text('held_reason')->nullable();
             $table->json('metadata')->nullable();
-            $table->foreignId('executed_by')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('executed_by')->constrained('users', indexName: 'ora_line_exec_user_fk')->cascadeOnDelete();
             $table->timestamp('executed_at');
             $table->timestamps();
 

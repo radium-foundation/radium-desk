@@ -42,7 +42,7 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
 
-            $table->unique(['return_exchange_case_id', 'line_no']);
+            $table->unique(['return_exchange_case_id', 'line_no'], 'rec_case_lines_case_line_unique');
         });
     }
 

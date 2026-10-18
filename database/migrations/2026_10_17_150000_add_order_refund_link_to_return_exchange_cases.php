@@ -28,7 +28,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('return_exchange_cases', function (Blueprint $table): void {
-            $table->dropUnique('return_case_refund_request_unique');
             $table->dropConstrainedForeignId('recorded_tax_statutory_invoice_id');
             $table->dropConstrainedForeignId('refund_request_id');
             $table->dropColumn('recorded_tax_outcome_type');
