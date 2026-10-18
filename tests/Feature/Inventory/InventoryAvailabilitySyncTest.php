@@ -2,13 +2,18 @@
 
 namespace Tests\Feature\Inventory;
 
+use App\Enums\InventoryAdjustmentReason;
 use App\Enums\InventoryAvailabilitySyncStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Jobs\SyncStorefrontAvailabilityJob;
 use App\Models\ChannelSkuMap;
 use App\Models\InventoryAvailabilitySyncLog;
+use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
+use App\Models\User;
 use App\Services\Inventory\InventoryAvailabilitySyncService;
+use App\Services\Inventory\InventoryStockService;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -98,6 +103,73 @@ class InventoryAvailabilitySyncTest extends TestCase
 
         Queue::assertPushed(SyncStorefrontAvailabilityJob::class, function (SyncStorefrontAvailabilityJob $job) use ($product): bool {
             return $job->inventoryProductId === $product->id && $job->radiumboxModelId === 946;
+        });
+    }
+
+    public function test_quantity_adjustment_dispatches_availability_job_when_enabled(): void
+    {
+        Queue::fake();
+
+        $this->seed(RolePermissionSeeder::class);
+        $actor = User::factory()->create(['is_active' => true]);
+        $branch = InventoryBranch::query()->create([
+            'code' => 'HQ',
+            'name' => 'Head Office',
+            'is_active' => true,
+        ]);
+
+        $product = InventoryProduct::query()->create([
+            'sku' => 'RBTEST003',
+            'name' => 'Qty mapped',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 1753,
+            'inventory_product_id' => $product->id,
+            'catalog_sku' => 'CAT',
+            'channel_sku' => '1753',
+        ]);
+
+        app(InventoryStockService::class)->adjustQuantity(
+            $product,
+            $branch,
+            2,
+            InventoryAdjustmentReason::Found,
+            $actor,
+        );
+
+        Queue::assertPushed(SyncStorefrontAvailabilityJob::class, function (SyncStorefrontAvailabilityJob $job) use ($product): bool {
+            return $job->inventoryProductId === $product->id && $job->radiumboxModelId === 1753;
+        });
+    }
+
+    public function test_channel_map_create_dispatches_availability_job_when_enabled(): void
+    {
+        Queue::fake();
+
+        $product = InventoryProduct::query()->create([
+            'sku' => 'RBTEST004',
+            'name' => 'New map',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_active' => true,
+        ]);
+
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 99,
+            'inventory_product_id' => $product->id,
+            'catalog_sku' => 'Z',
+            'channel_sku' => '99',
+        ]);
+
+        Queue::assertPushed(SyncStorefrontAvailabilityJob::class, function (SyncStorefrontAvailabilityJob $job) use ($product): bool {
+            return $job->inventoryProductId === $product->id && $job->radiumboxModelId === 99;
         });
     }
 }
