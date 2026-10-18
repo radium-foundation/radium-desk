@@ -4,12 +4,19 @@ namespace App\CentralWallet\Application;
 
 use App\CentralWallet\Domain\Enums\AccountLinkStatus;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
-use App\CentralWallet\Support\TrustedVerificationMethod;
-
 final class CustomerLedgerHistoryAuthorizationGate
 {
-    public function authorize(string $siteCode, string $centralWalletId, ?string $localUserId): ?string
-    {
+    public function __construct(
+        private readonly WalletVisibilityService $walletVisibility,
+    ) {}
+
+    public function authorize(
+        string $siteCode,
+        string $centralWalletId,
+        ?string $localUserId,
+        ?string $email = null,
+        ?string $mobile = null,
+    ): ?string {
         if (! filter_var(config('central_wallet.ledger_read.customer_history.enabled', false), FILTER_VALIDATE_BOOLEAN)) {
             return 'customer_history_read_disabled';
         }
@@ -32,14 +39,16 @@ final class CustomerLedgerHistoryAuthorizationGate
             ->where('status', AccountLinkStatus::Active)
             ->first();
 
-        if ($link === null) {
-            return 'trusted_account_link_required';
+        if ($link !== null) {
+            return null;
         }
 
-        if (! TrustedVerificationMethod::isTrusted($link->verification_method)) {
-            return 'trusted_identity_required';
-        }
-
-        return null;
+        return $this->walletVisibility->authorizeCustomerLedgerDisplay(
+            $siteCode,
+            $localUserId,
+            $centralWalletId,
+            $email,
+            $mobile,
+        );
     }
 }
