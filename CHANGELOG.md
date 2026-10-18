@@ -13,6 +13,14 @@
 - Rollback target: v4.1.29 / `cb9c53af` (redeploy prior tag; DB rollback only via approved backup restore).
 - Prompts **RadiumDesk-P-12-10-171** through **P-12-10-181**, **P-18-2** through **P-18-9**.
 
+## 4.1.31 — 2026-10-18 — Spoke wallet display API (balance visibility and ledger history)
+
+- **Central Wallet:** Wallet visibility responses include `central_wallet_id` for authorized spokes; customer ledger-history supports active Desk account bindings and email-attested display fallback (display ≠ spend).
+- **Authorization:** Tightened ledger-history scope checks (site, local user, CWID, and session email attestation) for spoke read paths.
+- **Out of scope:** No wallet spend, reservation, migration, or spoke checkout changes.
+- Rollback target: v4.1.30 / `2effc871`.
+- Prompts **RadiumDesk-P-12-10-133** through **P-12-10-134**; release **P-18-44**.
+
 ## 4.1.29 — 2026-10-13 — Desk-first wallet refund RC (authority gate + production C360 overlay parity)
 
 - **Wallet refunds:** Fail-closed `DeskFirstWalletRefundCompletionGate` verifies posted Central Wallet credit, amount/currency, customer CWID, execution binding, and spoke audit metadata before `RefundRequestService::complete` when `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED` is true. Legacy path unchanged when flag is false.
