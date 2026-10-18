@@ -624,5 +624,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-12-10-144 | 2026-10-18 | **P-18-81** Availability sync triggers + backfill (paired Box **P-02-10-191**) | `InventoryStockService::adjustBalance` + `ChannelSkuMap` hooks; `radiumbox:backfill-catalog-availability`. Flag still default off. **Draft PR #49; no deploy.** |
 | RadiumDesk-P-12-10-145 | 2026-10-18 | **P-18-82** Validate PR **#49** in isolated checkout | Checkout `/private/tmp/p1837-prep/desk` @ **`f39c6f0c`**, local `vendor`. `InventoryAvailabilitySyncTest` **4/4** + `InventoryStockServiceTest` **13/13**; Pint scoped PASS. Box blocked (~125 MiB free). **Local ledger only; no commit.** |
 | RadiumDesk-P-12-10-146 | 2026-10-18 | **P-18-84** Backfill command tests (paired Box **P-02-10-192**) | `BackfillRadiumboxCatalogAvailabilityCommandTest` **4/4**; availability+stock **21/21** PASS. **Draft PR #49; no deploy.** |
+| RadiumDesk-P-12-10-147 | 2026-10-18 | **P-18-86** Channel map afterCommit + observer tests (paired Box **P-02-10-193**) | `ChannelSkuMap` availability dispatch deferred to `DB::afterCommit`; **5** observer tests. **26** focused PHPUnit PASS. **Draft PR #49; no deploy.** |
 
 Do not renumber or overwrite earlier rows. Append only.

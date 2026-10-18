@@ -6,6 +6,7 @@ use App\Enums\StatutoryInvoiceChannel;
 use App\Services\Inventory\InventoryAvailabilitySyncService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 
 class ChannelSkuMap extends Model
 {
@@ -54,11 +55,18 @@ class ChannelSkuMap extends Model
             return;
         }
 
-        $product = $map->product;
-        if ($product === null) {
+        $productId = (int) $map->inventory_product_id;
+        if ($productId < 1) {
             return;
         }
 
-        app(InventoryAvailabilitySyncService::class)->dispatchIfEligible($product);
+        DB::afterCommit(function () use ($productId): void {
+            $product = InventoryProduct::query()->find($productId);
+            if ($product === null) {
+                return;
+            }
+
+            app(InventoryAvailabilitySyncService::class)->dispatchIfEligible($product);
+        });
     }
 }
