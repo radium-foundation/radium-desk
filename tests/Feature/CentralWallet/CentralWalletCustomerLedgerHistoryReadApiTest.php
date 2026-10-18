@@ -2,8 +2,13 @@
 
 namespace Tests\Feature\CentralWallet;
 
+use App\CentralWallet\Application\CustomerIdentitySubjectHasher;
 use App\CentralWallet\Domain\Enums\AccountLinkStatus;
+use App\CentralWallet\Domain\Enums\CustomerIdentityCredentialType;
 use App\CentralWallet\Domain\Enums\LedgerEntryStatus;
+use App\CentralWallet\Infrastructure\Persistence\CentralCustomer;
+use App\CentralWallet\Infrastructure\Persistence\CentralCustomerIdentityCredential;
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,15 +100,83 @@ class CentralWalletCustomerLedgerHistoryReadApiTest extends TestCase
             ->assertJsonPath('error', 'trusted_account_link_required');
     }
 
-    public function test_customer_history_rejects_untrusted_verification_method(): void
+    public function test_customer_history_allows_active_account_link_without_trusted_spend_verification(): void
     {
         $cwid = $this->createWalletAs('radiumbox.com');
-        $this->createTrustedLink($cwid, 'radiumbox.com', '3', 'm4_expedited');
+        $this->createTrustedLink($cwid, 'radiumbox.com', '3', 'owner_migration_cohort');
+        $this->createLedgerRow($cwid, 'radiumbox.com', '2026-10-04 10:00:00', 'display:1', [
+            'business_reference' => 'DISPLAY-1',
+        ]);
 
         $this->authenticatedAs('radiumbox.com')
             ->getJson("/api/central-wallet/v1/wallets/{$cwid}/ledger-history?local_user_id=3")
+            ->assertOk()
+            ->assertJsonPath('data.0.business_reference', 'DISPLAY-1');
+    }
+
+    public function test_customer_history_rejects_email_display_when_central_wallet_id_mismatches_resolution(): void
+    {
+        config(['central_wallet.historical_wallet_visibility.enabled' => true]);
+
+        $email = 'scoped-display@example.test';
+        [, $cwidOwned] = $this->seedCustomerWithVerifiedEmail($email);
+        $cwidOther = $this->createWalletAs('rdservice.in');
+
+        $this->authenticatedAs('rdservice.in')
+            ->getJson("/api/central-wallet/v1/wallets/{$cwidOther}/ledger-history?".http_build_query([
+                'local_user_id' => '9001',
+                'email' => $email,
+            ]))
             ->assertForbidden()
-            ->assertJsonPath('error', 'trusted_identity_required');
+            ->assertJsonPath('error', 'trusted_account_link_required');
+    }
+
+    public function test_customer_history_rejects_attested_email_that_does_not_resolve_to_wallet(): void
+    {
+        config(['central_wallet.historical_wallet_visibility.enabled' => true]);
+
+        $cwid = $this->createWalletAs('rdservice.in');
+
+        $this->authenticatedAs('rdservice.in')
+            ->getJson("/api/central-wallet/v1/wallets/{$cwid}/ledger-history?".http_build_query([
+                'local_user_id' => '999',
+                'email' => 'no-desk-match@example.test',
+            ]))
+            ->assertForbidden()
+            ->assertJsonPath('error', 'trusted_account_link_required');
+    }
+
+    public function test_migration_cohort_user_reads_history_with_email_without_trusted_link(): void
+    {
+        config(['central_wallet.historical_wallet_visibility.enabled' => true]);
+
+        $email = 'display-history@example.test';
+        [$customerId, $cwid] = $this->seedCustomerWithVerifiedEmail($email);
+
+        CentralWalletAccountLink::query()->create([
+            'central_wallet_id' => $cwid,
+            'desk_customer_id' => $customerId,
+            'site_code' => 'rdservice.in',
+            'local_user_id' => '556775',
+            'status' => AccountLinkStatus::Active->value,
+            'verification_method' => 'owner_migration_cohort',
+            'created_by' => 'test',
+            'linked_at' => now(),
+        ]);
+
+        $this->createLedgerRow($cwid, 'rdservice.in', '2026-10-04 10:00:00', 'refund:67341', [
+            'amount' => '599.00',
+            'business_reference' => 'REF-67341',
+        ]);
+
+        $response = $this->authenticatedAs('rdservice.in')
+            ->getJson("/api/central-wallet/v1/wallets/{$cwid}/ledger-history?".http_build_query([
+                'local_user_id' => '556775',
+                'email' => $email,
+            ]));
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.business_reference', 'REF-67341');
     }
 
     public function test_customer_history_rejects_revoked_account_link(): void
@@ -414,5 +487,37 @@ class CentralWalletCustomerLedgerHistoryReadApiTest extends TestCase
             'Authorization' => 'Bearer '.self::TOKEN,
             'X-Site-Code' => $siteCode,
         ]);
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function seedCustomerWithVerifiedEmail(string $email): array
+    {
+        $cwid = (string) Str::uuid();
+        $customerId = (string) Str::uuid();
+
+        DB::table('central_wallets')->insert([
+            'id' => $cwid,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        CentralCustomer::query()->create([
+            'id' => $customerId,
+            'central_wallet_id' => $cwid,
+            'status' => 'active',
+        ]);
+
+        CentralCustomerIdentityCredential::query()->create([
+            'desk_customer_id' => $customerId,
+            'credential_type' => CustomerIdentityCredentialType::VerifiedEmail,
+            'provider' => 'desk_email',
+            'subject_hash' => app(CustomerIdentitySubjectHasher::class)->hashVerifiedEmail($email),
+            'verified_at' => now(),
+        ]);
+
+        return [$customerId, $cwid];
     }
 }

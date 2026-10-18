@@ -83,7 +83,15 @@ final class LedgerEntryController
             ], 422);
         }
 
-        $authorizationError = $this->customerHistoryAuthorization->authorize($callerId, $cwid, $localUserId);
+        $email = trim((string) $request->query('email', ''));
+        $mobile = trim((string) $request->query('mobile', ''));
+        $authorizationError = $this->customerHistoryAuthorization->authorize(
+            $callerId,
+            $cwid,
+            $localUserId,
+            $email !== '' ? $email : null,
+            $mobile !== '' ? $mobile : null,
+        );
         if ($authorizationError !== null) {
             $status = $authorizationError === 'customer_history_read_disabled' ? 503 : 403;
 
