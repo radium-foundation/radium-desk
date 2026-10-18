@@ -4,6 +4,7 @@ namespace App\CentralWallet\Application;
 
 use App\CentralWallet\Domain\Enums\AccountLinkStatus;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
+
 final class CustomerLedgerHistoryAuthorizationGate
 {
     public function __construct(

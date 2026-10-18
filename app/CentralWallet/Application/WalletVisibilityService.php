@@ -393,8 +393,8 @@ final class WalletVisibilityService
             'balance_source' => 'historical_wallet_refund',
             'spendable' => false,
             'verification_required' => true,
-                'display_label' => 'Wallet',
-                'display_hint' => 'Verify your email or sign in with Google on RadiumBox to spend this balance.',
+            'display_label' => 'Wallet',
+            'display_hint' => 'Verify your email or sign in with Google on RadiumBox to spend this balance.',
         ];
     }
 
