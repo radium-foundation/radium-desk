@@ -118,25 +118,29 @@ test_e_inventory_persisted() {
     pass "TEST E deletion inventory artifacts persisted"
 }
 
-# TEST F: protected paths never classified as expected/unexpected deletions
+# TEST F: persistent/runtime paths are protected; public/build churn is expected on deploy
 test_f_protected_paths() {
     local protected_path classification
 
     for protected_path in \
         '.env' \
+        '.env.bak-p-12-10-026-20261013T144016Z' \
         'vendor/autoload.php' \
         'storage/logs/laravel.log' \
         'storage/framework/cache/data/foo' \
         'storage/app/backups/pre-deploy/release.json' \
         'storage/app/private/cw-migration-manifest.json' \
-        'public/build/manifest.json' \
         'node_modules/laravel/framework/package.json'; do
         classification="$(deploy_rsync_classify_deletion_path "$protected_path" HEAD "")"
         [[ "$classification" == "protected" ]] \
             || fail "TEST F ${protected_path} should be protected, got ${classification}"
     done
 
-    pass "TEST F protected paths are never deletable application files"
+    classification="$(deploy_rsync_classify_deletion_path "public/build/manifest.json" HEAD "")"
+    [[ "$classification" == "expected" ]] \
+        || fail "TEST F public/build/manifest.json should be expected (rebuilt asset tree), got ${classification}"
+
+    pass "TEST F protected paths and public/build deploy semantics"
 }
 
 test_a_no_unexpected_deletions

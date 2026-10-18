@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.29 — 2026-10-13 — Desk-first wallet refund RC (authority gate + production C360 overlay parity)
+
+- **Wallet refunds:** Fail-closed `DeskFirstWalletRefundCompletionGate` verifies posted Central Wallet credit, amount/currency, customer CWID, execution binding, and spoke audit metadata before `RefundRequestService::complete` when `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED` is true. Legacy path unchanged when flag is false.
+- **Central Wallet (read/reporting):** Production-parity overlay for discrepancy classifier, C360 wallet tab, authoritative credit guard, integration ledger gate, and historical reconciliation cohort tooling (integrated from main overlay commits **85ab898b**, **ad9ac106**, **d576d0df**).
+- **Schema:** Unique index on `(business_reference, entry_type)` for `central_wallet_ledger_entries` to block duplicate refund credits under concurrency (migration present in source; **not** executed in application-only deploy).
+- **Production cutover:** Deploy with desk-first flag **off**; enable `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED=true` only after owner-authorized migration + verification (no staging platform).
+- **Deploy safety:** Rsync excludes `.env.bak*`; `release.json` written only by `release:snapshot` at deploy time.
+- Rollback target: v4.1.28 / `0404bb3d` (current production identity).
+- Prompts **RadiumDesk-P-12-10-031** through **P-12-10-041**.
+
 ## 4.1.28 — 2026-10-13 — RadiumBox hardware SKU mapping (Bluprints Vriddhi L1)
 
 - Add Owner-approved radiumbox.com `channel_sku_maps` seed configuration for `model_id` **1616** (`RBBPVRIDL1` → Desk inventory SKU `RBBPVRIDL1`; `channel_sku` wire value `1616`).

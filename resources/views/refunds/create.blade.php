@@ -30,10 +30,13 @@
                     'preferredMethods' => $preferredMethods ?? \App\Enums\CustomerPreferredRefundMethod::cases(),
                     'profiles' => $profiles ?? [],
                     'differenceReasons' => $differenceReasons ?? \App\Enums\RefundDifferenceReason::cases(),
+                    'hardwareRefundBlocked' => $hardwareRefundBlocked ?? false,
+                    'returnCasesForOrder' => $returnCasesForOrder ?? collect(),
+                    'paymentBreakdown' => $paymentBreakdown ?? null,
                 ])
 
                 <div class="d-flex flex-wrap gap-2 mt-4">
-                    <button type="submit" class="btn btn-primary">Submit Refund Request</button>
+                    <button type="submit" class="btn btn-primary" @disabled($hardwareRefundBlocked ?? false)>Submit Refund Request</button>
                     <a href="{{ route('refunds.index') }}" class="btn btn-outline-secondary">Cancel</a>
                 </div>
             </form>

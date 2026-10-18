@@ -128,6 +128,11 @@ class RefundRequest extends Model
         return $this->hasOne(RefundStatutoryAdjustment::class, 'refund_request_id');
     }
 
+    public function returnExchangeCase(): HasOne
+    {
+        return $this->hasOne(ReturnExchangeCase::class, 'refund_request_id');
+    }
+
     public function displayAmount(): float
     {
         if ($this->refund_amount !== null) {
