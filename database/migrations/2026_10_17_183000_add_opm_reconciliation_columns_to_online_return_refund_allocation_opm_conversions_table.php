@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('site_reservation_state', 32)->default('not_sent')->after('site_reservation_idempotency_key');
             $table->timestamp('site_reservation_attempted_at')->nullable()->after('site_reservation_state');
             $table->timestamp('last_reconciliation_at')->nullable()->after('wallet_finalization_last_error');
-            $table->foreignId('last_reconciliation_by_id')->nullable()->after('last_reconciliation_at')->constrained('users')->nullOnDelete();
+            $table->foreignId('last_reconciliation_by_id')->nullable()->after('last_reconciliation_at')->constrained('users', indexName: 'ora_opm_last_recon_by_fk')->nullOnDelete();
             $table->string('last_reconciliation_action', 64)->nullable()->after('last_reconciliation_by_id');
             $table->string('last_reconciliation_outcome', 64)->nullable()->after('last_reconciliation_action');
             $table->text('last_reconciliation_detail')->nullable()->after('last_reconciliation_outcome');
@@ -23,7 +23,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('online_return_refund_allocation_opm_conversions', function (Blueprint $table): void {
-            $table->dropConstrainedForeignId('last_reconciliation_by_id');
+            $table->dropForeign('ora_opm_last_recon_by_fk');
+            $table->dropColumn('last_reconciliation_by_id');
             $table->dropColumn([
                 'site_reservation_idempotency_key',
                 'site_reservation_state',
