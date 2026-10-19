@@ -13,8 +13,10 @@ use App\Models\InventoryProduct;
 use App\Models\User;
 use App\Services\Inventory\InventoryAvailabilitySyncService;
 use App\Services\Inventory\InventoryStockService;
+use App\Services\RadiumBox\RadiumBoxCatalogAvailabilitySyncException;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -146,6 +148,76 @@ class InventoryAvailabilitySyncTest extends TestCase
         Queue::assertPushed(SyncStorefrontAvailabilityJob::class, function (SyncStorefrontAvailabilityJob $job) use ($product): bool {
             return $job->inventoryProductId === $product->id && $job->radiumboxModelId === 1753;
         });
+    }
+
+    public function test_repeat_sync_keeps_quantity_and_records_each_delivery(): void
+    {
+        Queue::fake();
+        Http::fake([
+            'radiumbox.test/api/integrations/v1/catalog-availability' => Http::response(['data' => ['created' => true]], 201),
+        ]);
+
+        $product = InventoryProduct::query()->create([
+            'sku' => 'RBTEST-REPEAT',
+            'name' => 'Repeat',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 945,
+            'inventory_product_id' => $product->id,
+            'catalog_sku' => 'MFS100',
+            'channel_sku' => '945',
+        ]);
+
+        $service = app(InventoryAvailabilitySyncService::class);
+        Carbon::setTestNow('2026-10-19 08:02:00');
+        $service->syncProduct($product->id, 945);
+        Carbon::setTestNow('2026-10-19 08:12:00');
+        $service->syncProduct($product->id, 945);
+
+        $logs = InventoryAvailabilitySyncLog::query()->orderBy('id')->get();
+        $this->assertCount(2, $logs);
+        $this->assertTrue($logs->every(fn (InventoryAvailabilitySyncLog $log): bool => $log->status === InventoryAvailabilitySyncStatus::Synced));
+        $this->assertSame((int) $logs[0]->available_qty, (int) $logs[1]->available_qty);
+        $this->assertNotSame($logs[0]->idempotency_key, $logs[1]->idempotency_key);
+        Carbon::setTestNow();
+    }
+
+    public function test_failed_delivery_is_visible_and_not_marked_synced(): void
+    {
+        Queue::fake();
+        Http::fake([
+            'radiumbox.test/api/integrations/v1/catalog-availability' => Http::response(['message' => 'unavailable'], 503),
+        ]);
+
+        $product = InventoryProduct::query()->create([
+            'sku' => 'RBTEST-FAIL',
+            'name' => 'Fail',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => false,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 946,
+            'inventory_product_id' => $product->id,
+            'catalog_sku' => 'MFS110',
+            'channel_sku' => '946',
+        ]);
+
+        try {
+            app(InventoryAvailabilitySyncService::class)->syncProduct($product->id, 946);
+            $this->fail('Retriable delivery failure should surface to the queue.');
+        } catch (RadiumBoxCatalogAvailabilitySyncException) {
+            $log = InventoryAvailabilitySyncLog::query()->firstOrFail();
+            $this->assertSame(InventoryAvailabilitySyncStatus::Failed, $log->status);
+            $this->assertNotNull($log->error_summary);
+        }
     }
 
     public function test_channel_map_create_dispatches_availability_job_when_enabled(): void
