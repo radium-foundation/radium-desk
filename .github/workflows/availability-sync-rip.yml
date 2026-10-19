@@ -34,8 +34,9 @@ jobs:
             app/Services/Inventory/InventoryAvailabilitySyncService.php \
             app/Jobs/SyncStorefrontAvailabilityJob.php \
             app/Console/Commands/BackfillRadiumboxCatalogAvailabilityCommand.php \
+            app/Console/Commands/PruneRadiumboxAvailabilitySyncLogsCommand.php \
             tests/Feature/Inventory
 
       - name: PHPUnit (RIP suites)
         run: |
-          php artisan test --filter='ChannelSkuMapAvailabilitySyncTest|InventoryAvailabilitySyncTest|InventoryStockServiceTest|BackfillRadiumboxCatalogAvailabilityCommandTest'
+          php artisan test --filter='ChannelSkuMapAvailabilitySyncTest|InventoryAvailabilitySyncTest|InventoryStockServiceTest|BackfillRadiumboxCatalogAvailabilityCommandTest|AvailabilityRefreshScheduleTest'

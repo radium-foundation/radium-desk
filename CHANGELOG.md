@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.33 — 2026-10-19 — Scheduled RadiumBox availability refresh
+
+- **Availability refresh:** `radiumbox:backfill-catalog-availability` runs every 10 minutes at :02/:12/:22/:32/:42/:52 while `RADIUMBOX_AVAILABILITY_SYNC_ENABLED` is true, with scheduler overlap locking. Active `radiumbox_com` maps only. Stale window and enforcement flags are unchanged.
+- **Sync log retention:** `radiumbox:prune-availability-sync-logs` daily at 03:40 deletes logs older than 14 days. It does not change snapshots, stock, or mappings.
+- **Out of scope:** inventory quantities, product data, Box enforcement, and Cloudflare cache.
+- Rollback target: v4.1.32.
+- Prompt **P-18-110**.
+
 ## 4.1.30 — 2026-10-18 — Return / refund stack (schema) + MariaDB migration-order fix
 
 - **Return / exchange cases:** Case intake, lines, goods receipt and inspection, serial replacements, and inventory movement linkage for hardware return workflows.

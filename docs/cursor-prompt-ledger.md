@@ -626,5 +626,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-12-10-146 | 2026-10-18 | **P-18-84** Backfill command tests (paired Box **P-02-10-192**) | `BackfillRadiumboxCatalogAvailabilityCommandTest` **4/4**; availability+stock **21/21** PASS. **Draft PR #49; no deploy.** |
 | RadiumDesk-P-12-10-147 | 2026-10-18 | **P-18-86** Channel map afterCommit + observer tests (paired Box **P-02-10-193**) | `ChannelSkuMap` availability dispatch deferred to `DB::afterCommit`; **5** observer tests. **26** focused PHPUnit PASS. **Draft PR #49; no deploy.** |
 | RadiumDesk-P-12-10-148 | 2026-10-18 | **P-18-91** Codify RIP + CI for availability sync (paired Box **P-02-10-194**) | `docs/desk-radiumbox-availability-regression-integration-policy.md`, rollout doc, `.github/workflows/availability-sync-rip.yml`. **Follow-up PR; no deploy/flags.** |
+| RadiumDesk-P-12-10-185 | 2026-10-19 | **P-18-110** Scheduled availability refresh (paired Box **P-02-10-205**) | Every 10 minutes at :02/:12/:22/:32/:42/:52, `withoutOverlapping(15)`, active `radiumbox_com` only. Daily 14-day sync-log prune. Stale window unchanged. Scheduler runner already `bin/schedule-run.sh` each minute; heartbeat verified. |
 
 Do not renumber or overwrite earlier rows. Append only.

@@ -61,6 +61,39 @@ class BackfillRadiumboxCatalogAvailabilityCommandTest extends TestCase
         });
     }
 
+    public function test_backfill_skips_inactive_products_and_other_channels(): void
+    {
+        $inactive = $this->seedMappedProduct('RB-BF-OFF', 401);
+        $inactive->update(['is_active' => false]);
+
+        $other = InventoryProduct::query()->create([
+            'sku' => 'RB-BF-OTHER',
+            'name' => 'Other channel',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::DeskPos,
+            'model_id' => 402,
+            'inventory_product_id' => $other->id,
+            'catalog_sku' => 'RB-BF-OTHER',
+            'channel_sku' => '402',
+        ]);
+
+        $active = $this->seedMappedProduct('RB-BF-ON', 403);
+
+        Queue::fake();
+        config(['radiumbox.availability_sync.enabled' => true]);
+
+        Artisan::call('radiumbox:backfill-catalog-availability');
+
+        Queue::assertPushed(SyncStorefrontAvailabilityJob::class, 1);
+        Queue::assertPushed(SyncStorefrontAvailabilityJob::class, function (SyncStorefrontAvailabilityJob $job) use ($active): bool {
+            return $job->inventoryProductId === $active->id && $job->radiumboxModelId === 403;
+        });
+    }
+
     public function test_enabled_backfill_dispatches_for_active_mapped_products(): void
     {
         $product = $this->seedMappedProduct('RB-BF-5', 303);
