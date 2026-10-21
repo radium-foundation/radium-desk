@@ -1,0 +1,58 @@
+name: Release RIP
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  release-rip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install system dependencies (zstd for capture archive tests)
+        run: sudo apt-get update && sudo apt-get install -y zstd
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Shell syntax (Release RIP scripts)
+        run: |
+          set -euo pipefail
+          for script in \
+            tools/lib/rip-capture-archive.sh \
+            tools/lib/rip-pre-deploy-gate.sh \
+            tools/commands/capture-release-recovery-checkpoint.sh \
+            tools/commands/capture-release-recovery-checkpoint-remote.sh \
+            tools/commands/validate-rip-checkpoint-id.sh \
+            tools/commands/verify-rip-checkpoint.sh \
+            tests/scripts/rip-capture-remote.test.sh \
+            tests/scripts/rip-pre-deploy-gate.test.sh
+          do
+            bash -n "${script}"
+          done
+
+      - name: PHPUnit (Release RIP unit tests)
+        run: ./vendor/bin/phpunit tests/Unit/Release/
+
+      - name: Validate RIP checkpoint ID policy (dry-run)
+        run: bash tools/commands/validate-rip-checkpoint-id.sh
+
+      - name: Release RIP capture tests (local fake tree; not production)
+        run: bash tests/scripts/rip-capture-remote.test.sh
+
+      - name: Release RIP pre-deploy gate tests (mocked SSH)
+        run: bash tests/scripts/rip-pre-deploy-gate.test.sh
