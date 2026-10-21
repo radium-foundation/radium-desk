@@ -49,7 +49,7 @@ Local operator staging (tests / drills): `storage/app/local-release-checkpoints/
 
 ### Archive contents (`desk-application.tar.zst`)
 
-**Included (explicit allowlist only):** `app/`, `bootstrap/app.php`, `bootstrap/providers.php`, `config/`, `database/` (migrations/seeders/factories; not `*.sqlite`), `public/`, `resources/`, `routes/`, `tools/`, `contracts/`, `docs/`, root manifests (`composer.json`, `package.json`, `artisan`, front-end config files). See `rip_capture_tar_include_paths()` in `tools/lib/rip-capture-archive.sh`.
+**Included (explicit allowlist only):** `app/`, `bootstrap/app.php`, `bootstrap/providers.php`, `config/`, `database/` (migrations/seeders/factories, `database/.gitignore` when present; not ad-hoc SQL dumps or `*.sqlite`), `public/`, `resources/`, `routes/`, `tools/`, `contracts/`, `docs/`, root manifests (`composer.json`, `package.json`, `artisan`, front-end config files). See `rip_capture_path_allowed_in_archive()` in `tools/lib/rip-capture-archive.sh`.
 
 **Never archived:** `storage/`, `vendor/`, `node_modules/`, `.git/`, `.env*`, `tests/`, `.cursor/`, ad-hoc repo-root files, `bootstrap/cache/`, SQLite DB files, customer uploads, private overlays, nested `release-checkpoints/`.
 
@@ -77,7 +77,7 @@ It does **not** compare the checkpoint to the Git commit you are about to deploy
 
 Dry-run ID only: `--dry-run`
 
-The operator wrapper stages `capture-release-recovery-checkpoint-remote.sh` and `tools/lib/rip-capture-archive.sh` on the host under a temporary directory (via `scp`), runs the remote script by **absolute path** (not SSH stdin), then removes the staging directory. This keeps `BASH_SOURCE`-relative sourcing reliable under `set -euo pipefail`.
+The operator wrapper stages `capture-release-recovery-checkpoint-remote.sh` and `tools/lib/rip-capture-archive.sh` on the host under a temporary directory (via `scp`), runs the remote script by **absolute path** (not SSH stdin), then removes the staging directory. This keeps `BASH_SOURCE`-relative sourcing reliable under `set -euo pipefail`. Post-capture verification runs `rip:verify-checkpoint` via `ssh … bash -s --` with `LARAVEL_ROOT`, `PHP_BIN`, and `CHECKPOINT_ID` as positional arguments (not `env` + `bash -c`), so `PHP_BIN` is not lost across the SSH command line.
 
 Verify:
 

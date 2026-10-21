@@ -13,6 +13,22 @@ fi
 
 RIP_CAPTURE_REMOTE_TOOL_STAGE=""
 
+rip_capture_operator_require_php_bin() {
+    local php_bin="$1"
+
+    if [[ -z "${php_bin//[[:space:]]/}" ]]; then
+        echo "rip-capture: PHP_BIN is empty (set DESK_PHP_BIN to the remote PHP executable path)" >&2
+        return 2
+    fi
+
+    if [[ "${php_bin}" != "${php_bin//$'\n'/}" ]]; then
+        echo "rip-capture: PHP_BIN contains invalid characters" >&2
+        return 2
+    fi
+
+    return 0
+}
+
 rip_capture_operator_remote_cleanup() {
     if [[ -z "${RIP_CAPTURE_REMOTE_TOOL_STAGE}" ]]; then
         return 0

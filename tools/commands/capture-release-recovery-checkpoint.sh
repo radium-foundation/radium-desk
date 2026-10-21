@@ -55,6 +55,8 @@ done
   exit 2
 }
 
+rip_capture_operator_require_php_bin "${PHP_BIN}" || exit 2
+
 SHORT_SHA="${GIT_SHA:0:7}"
 FULL_SHA="$(git -C "${REPO_ROOT}" rev-parse "${GIT_SHA}^{commit}" 2>/dev/null || true)"
 if [[ -z "$FULL_SHA" ]]; then
@@ -132,10 +134,17 @@ rip_capture_operator_remote_cleanup
 trap - EXIT INT TERM
 
 echo "==> Verify (operator machine path via SSH)"
-remote -- env \
-  "LARAVEL_ROOT=${LARAVEL_ROOT}" \
-  "PHP_BIN=${PHP_BIN}" \
-  "CHECKPOINT_ID=${CHECKPOINT_ID}" \
-  bash -c 'cd "$LARAVEL_ROOT" && exec "$PHP_BIN" artisan rip:verify-checkpoint "storage/app/private/release-checkpoints/${CHECKPOINT_ID}"'
+remote -- bash -s -- "${LARAVEL_ROOT}" "${PHP_BIN}" "${CHECKPOINT_ID}" <<'VERIFY_CHECKPOINT'
+set -euo pipefail
+LARAVEL_ROOT="$1"
+PHP_BIN="$2"
+CHECKPOINT_ID="$3"
+if [[ -z "${PHP_BIN//[[:space:]]/}" ]]; then
+  echo "rip-capture: PHP_BIN is empty on remote verify step" >&2
+  exit 2
+fi
+cd "${LARAVEL_ROOT}"
+exec "${PHP_BIN}" artisan rip:verify-checkpoint "storage/app/private/release-checkpoints/${CHECKPOINT_ID}"
+VERIFY_CHECKPOINT
 
 echo "==> Record checkpoint in docs/cursor-prompt-ledger.md (private path only)."

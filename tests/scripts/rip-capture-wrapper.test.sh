@@ -197,6 +197,12 @@ grep -q 'capture-release-recovery-checkpoint-remote.sh' "${SCP_LOG}" || fail "re
 grep -q 'rip-capture-archive.sh' "${SCP_LOG}" || fail "archive helper not transferred"
 grep -q 'bash --' "${SSH_LOG}" || fail "remote capture not invoked via bash path"
 grep -q 'rm -rf' "${SSH_LOG}" || fail "remote staging not cleaned up"
+CKPT_ID="$(echo "${OUT}" | sed -n 's/^checkpoint_id=//p')"
+[[ -n "${CKPT_ID}" ]] || fail "checkpoint_id missing from wrapper output"
+grep -qF "${CKPT_ID}" "${SSH_LOG}" || fail "post-capture verify must pass CHECKPOINT_ID via bash -s argv"
+grep -qF "${MOCK_PHP}" "${SSH_LOG}" || fail "post-capture verify must pass PHP_BIN via bash -s argv"
+bash_verify_count="$(grep -c 'bash -s' "${SSH_LOG}" || true)"
+[[ "${bash_verify_count}" -ge 2 ]] || fail "expected preflight and post-capture bash -s SSH invocations"
 pass "wrapper stages tooling and invokes remote script by path"
 
 # 4) scp failure cleans staging
@@ -253,6 +259,15 @@ export DESK_LARAVEL_ROOT="${FAKE_APP_SPACE}"
 OUT_SPACE="$(bash "${WRAPPER}" --change 'a-b' --git-sha 7441de0 2>&1)" || fail "wrapper with spaced root failed: ${OUT_SPACE}"
 grep -qF "laravel space" "${SSH_LOG}" || fail "spaced LARAVEL_ROOT must appear in ssh argv log"
 pass "arguments passed safely (spaced application root)"
+
+# 8) reject whitespace-only PHP_BIN before SSH
+set +e
+OUT_BAD_PHP="$(DESK_PHP_BIN='   ' bash "${WRAPPER}" --change bad-php --git-sha 7441de0 2>&1)"
+rc_bad_php=$?
+set -e
+[[ "$rc_bad_php" -ne 0 ]] || fail "wrapper must reject whitespace-only PHP_BIN"
+echo "${OUT_BAD_PHP}" | grep -q 'PHP_BIN is empty' || fail "expected PHP_BIN validation message"
+pass "wrapper rejects empty PHP_BIN configuration"
 
 bash "${CAPTURE_TEST}" || fail "rip-capture-remote.test.sh regression"
 
