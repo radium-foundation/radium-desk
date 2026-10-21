@@ -6,7 +6,7 @@ See paired document on `radiumbox.com`: `docs/architecture/desk-central-driver-m
 
 - **Permission:** `drivers.manage.radiumbox` (`RolePermissionSeeder::PERMISSION_DRIVERS_MANAGE_RADIUMBOX`)
 - **Routes:** `/driver-management/radiumbox` (auth + active + permission middleware)
-- **Navigation:** Control & Admin workspace tab **Driver files (RadiumBox)** (`control-and-admin-workspace-nav.blade.php`), visible only with `drivers.manage.radiumbox`
+- **Navigation:** Control & Admin tab **Driver files (RadiumBox)** (`control-and-admin-workspace-nav.blade.php`) when `RADIUMBOX_DRIVER_MANAGEMENT_ENABLED=true` **and** the user has `drivers.manage.radiumbox` (authorized users may still open the route when the flag is off; page shows not configured).
 - **Client:** `RadiumBoxDriverUploadClient` — server-side Bearer token; browser never sees secrets
 - **Config:** `config/driver_management.php` — `RADIUMBOX_DRIVER_MANAGEMENT_ENABLED`
 

@@ -155,11 +155,14 @@ Route::middleware('signed')->group(function () {
 });
 
 Route::middleware(['auth', 'active'])->group(function () {
-    Route::prefix('driver-management/radiumbox')->name('driver-management.radiumbox.')->group(function () {
-        Route::get('/', [RadiumBoxDriverManagementController::class, 'index'])->name('index');
-        Route::post('/quarantine', [RadiumBoxDriverManagementController::class, 'store'])->name('store');
-        Route::post('/publish', [RadiumBoxDriverManagementController::class, 'publish'])->name('publish');
-    });
+    Route::prefix('driver-management/radiumbox')
+        ->name('driver-management.radiumbox.')
+        ->middleware('permission:'.RolePermissionSeeder::PERMISSION_DRIVERS_MANAGE_RADIUMBOX)
+        ->group(function () {
+            Route::get('/', [RadiumBoxDriverManagementController::class, 'index'])->name('index');
+            Route::post('/quarantine', [RadiumBoxDriverManagementController::class, 'store'])->name('store');
+            Route::post('/publish', [RadiumBoxDriverManagementController::class, 'publish'])->name('publish');
+        });
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/live', [DashboardLiveController::class, 'refresh'])->name('dashboard.live');

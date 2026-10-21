@@ -92,7 +92,10 @@
         ];
     }
 
-    if ($user?->can(RolePermissionSeeder::PERMISSION_DRIVERS_MANAGE_RADIUMBOX)) {
+    if (
+        config('driver_management.radiumbox_com.enabled')
+        && $user?->can(RolePermissionSeeder::PERMISSION_DRIVERS_MANAGE_RADIUMBOX)
+    ) {
         $tabs['driver_management_radiumbox'] = [
             'label' => 'Driver files (RadiumBox)',
             'url' => route('driver-management.radiumbox.index'),
