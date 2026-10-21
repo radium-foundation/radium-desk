@@ -15,6 +15,7 @@ class RadiumBoxDriverManagementAuthorizationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
     }
 
