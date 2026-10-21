@@ -38,18 +38,29 @@ If any mismatch exists, **stop and explain the mismatch**.
 
 To verify production release identity, read `storage/app/private/release.json` (or the in-app version footer / What's New).
 
+## RIP (Release Integrity Protocol)
+
+Every **approved production release** should use a verified private recovery checkpoint. See [`docs/rip-release-checkpoint.md`](rip-release-checkpoint.md).
+
+1. **Pre-deploy:** Capture and verify pre-RIP on production (current `release.json` `build`).
+2. **Deploy:** Enable `RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1` and `RIP_PRE_DEPLOY_CHECKPOINT_ID` when gates are active.
+3. **Post-deploy:** Capture post-RIP for the deployed commit; run smoke checks; record `smoke-verified` only with evidence.
+4. **`known-good`:** Owner sign-off + protected customer journeys — never from CI/tag alone.
+
 ## Final Release Checklist
 
 Before every release, confirm:
 
 - [ ] `CHANGELOG.md` updated
 - [ ] Version reviewed
+- [ ] Pre-deploy RIP captured and verified (when RIP gates enabled)
 - [ ] Commit created
 - [ ] Tag created
 - [ ] Push main
 - [ ] Push tag
 - [ ] Run `deskd`
 - [ ] Verify `release.json`
+- [ ] Post-deploy RIP captured (separate authorized step)
 - [ ] Verify What's New
 - [ ] Verify footer version/build
 

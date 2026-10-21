@@ -1,3 +1,6 @@
 *
 !.gitignore
 !cw-pilot-refund-ref-67392-manifest.json
+!release-checkpoints/
+release-checkpoints/*
+!release-checkpoints/.gitkeep
