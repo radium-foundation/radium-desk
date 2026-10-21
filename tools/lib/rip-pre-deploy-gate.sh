@@ -14,9 +14,45 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
+# True only when deploy target matches canonical KVM production pins in tools/config.sh.
+rip_is_verified_kvm_production_deploy_target() {
+    if [[ "${DEPLOY_MODE:-}" != "kvm" ]]; then
+        return 1
+    fi
+
+    if [[ -z "${RIP_KVM_PRODUCTION_SSH_HOST:-}" || -z "${RIP_KVM_PRODUCTION_REMOTE_PROJECT:-}" ]]; then
+        return 1
+    fi
+
+    if [[ -z "${SSH_HOST:-}" || -z "${REMOTE_PROJECT:-}" ]]; then
+        return 1
+    fi
+
+    [[ "${SSH_HOST}" == "${RIP_KVM_PRODUCTION_SSH_HOST}" ]] \
+        && [[ "${REMOTE_PROJECT}" == "${RIP_KVM_PRODUCTION_REMOTE_PROJECT}" ]]
+}
+
+# Non-blocking: remind operators when deploying to KVM production without the RIP gate.
+rip_warn_if_production_deploy_without_rip_gate() {
+    if ! rip_is_verified_kvm_production_deploy_target; then
+        return 0
+    fi
+
+    if [[ "${RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT:-0}" == "1" ]]; then
+        return 0
+    fi
+
+    print_warning "RIP pre-deploy checkpoint gate is DISABLED (RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT is not 1)."
+    print_warning "Capture and verify a recovery checkpoint for the current live build before deploying."
+    print_warning "Follow the pre-deploy operator checklist in docs/rip-release-checkpoint.md (Pre-deploy operator checklist)."
+    return 0
+}
+
 rip_verify_pre_deploy_gate_if_required() {
     if [[ "${RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT:-0}" != "1" ]]; then
-        print_warning "RIP pre-deploy gate skipped (set RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1 to enforce)"
+        if ! rip_is_verified_kvm_production_deploy_target; then
+            print_warning "RIP pre-deploy gate skipped (set RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1 to enforce)"
+        fi
         return 0
     fi
 

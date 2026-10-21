@@ -145,6 +145,7 @@ Exits `0` on success, `1` on failure.
 **RIP (Release Integrity Protocol):**
 
 - See [`docs/rip-release-checkpoint.md`](../docs/rip-release-checkpoint.md).
+- Pre-deploy checklist: `docs/rip-release-checkpoint.md` (**Pre-deploy operator checklist**). `desk deploy` warns (non-blocking) when the canonical KVM production target is used and the gate is off.
 - Pre-deploy gate (optional): `RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1` and `RIP_PRE_DEPLOY_CHECKPOINT_ID=<RIP-…>` must match **current** production `release.json` `build` (not the next deploy commit). `desk deploy --dry-run` does not run this gate.
 - Capture on production (Owner-authorized SSH): `./tools/commands/capture-release-recovery-checkpoint.sh` (application tar excludes entire `storage/`; `release.json` only as `release.json.snapshot`).
 - Validate IDs locally: `./tools/commands/validate-rip-checkpoint-id.sh`.
