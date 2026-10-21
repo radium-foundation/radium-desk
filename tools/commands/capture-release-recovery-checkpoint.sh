@@ -19,7 +19,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_BODY="${SCRIPT_DIR}/capture-release-recovery-checkpoint-remote.sh"
+ARCHIVE_LIB="${SCRIPT_DIR}/../lib/rip-capture-archive.sh"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=tools/lib/rip-capture-operator-remote.sh
+source "${SCRIPT_DIR}/../lib/rip-capture-operator-remote.sh"
+
+RIP_CAPTURE_SSH_BIN="${RIP_CAPTURE_SSH_BIN:-ssh}"
+RIP_CAPTURE_SCP_BIN="${RIP_CAPTURE_SCP_BIN:-scp}"
 
 DEPLOY_HOST="${DESK_DEPLOY_HOST:-ravi@187.127.129.16}"
 LARAVEL_ROOT="${DESK_LARAVEL_ROOT:-/var/www/radium-desk}"
@@ -83,11 +89,11 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 remote() {
-  ssh -o BatchMode=yes "${DEPLOY_HOST}" "$@"
+  "${RIP_CAPTURE_SSH_BIN}" -o BatchMode=yes "${DEPLOY_HOST}" "$@"
 }
 
 echo "==> Pre-flight verify (read-only)"
-remote bash -s -- "${LARAVEL_ROOT}" "${PHP_BIN}" <<'VERIFY'
+remote -- bash -s -- "${LARAVEL_ROOT}" "${PHP_BIN}" <<'VERIFY'
 set -euo pipefail
 LARAVEL_ROOT="$1"
 PHP_BIN="$2"
@@ -99,18 +105,37 @@ test -f "${LARAVEL_ROOT}/storage/app/private/release.json" || echo "warn: releas
 VERIFY
 
 [[ -f "${REMOTE_BODY}" ]] || { echo "missing remote body: ${REMOTE_BODY}" >&2; exit 2; }
+[[ -f "${ARCHIVE_LIB}" ]] || { echo "missing archive helper: ${ARCHIVE_LIB}" >&2; exit 2; }
 
-if remote "test -e '${LARAVEL_ROOT}/storage/app/private/release-checkpoints/${CHECKPOINT_ID}'"; then
+if remote -- test -e "${LARAVEL_ROOT}/storage/app/private/release-checkpoints/${CHECKPOINT_ID}"; then
   echo "checkpoint already exists — will not overwrite: ${CHECKPOINT_ID}" >&2
   exit 2
 fi
 
+trap rip_capture_operator_remote_cleanup EXIT INT TERM
+
+echo "==> Stage RIP capture tooling on ${DEPLOY_HOST}"
+if ! rip_capture_operator_remote_stage; then
+  echo "rip-capture: failed to stage remote capture scripts" >&2
+  exit 1
+fi
+
 echo "==> Capture checkpoint ${CHECKPOINT_ID} on ${DEPLOY_HOST}"
-ssh -o BatchMode=yes "${DEPLOY_HOST}" bash -s -- \
+if ! rip_capture_operator_remote_invoke \
   "${CHECKPOINT_ID}" "${CHANGE}" "${SHORT_SHA}" "${FULL_SHA}" "${STATUS}" \
-  "${LARAVEL_ROOT}" "${PHP_BIN}" < "${REMOTE_BODY}"
+  "${LARAVEL_ROOT}" "${PHP_BIN}"; then
+  echo "rip-capture: remote capture failed" >&2
+  exit 1
+fi
+
+rip_capture_operator_remote_cleanup
+trap - EXIT INT TERM
 
 echo "==> Verify (operator machine path via SSH)"
-remote "cd '${LARAVEL_ROOT}' && ${PHP_BIN} artisan rip:verify-checkpoint 'storage/app/private/release-checkpoints/${CHECKPOINT_ID}'"
+remote -- env \
+  "LARAVEL_ROOT=${LARAVEL_ROOT}" \
+  "PHP_BIN=${PHP_BIN}" \
+  "CHECKPOINT_ID=${CHECKPOINT_ID}" \
+  bash -c 'cd "$LARAVEL_ROOT" && exec "$PHP_BIN" artisan rip:verify-checkpoint "storage/app/private/release-checkpoints/${CHECKPOINT_ID}"'
 
 echo "==> Record checkpoint in docs/cursor-prompt-ledger.md (private path only)."

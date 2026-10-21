@@ -635,5 +635,7 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-12-10-191 | 2026-10-21 | **P-21-13** Fix Release RIP CI PHPUnit (`php -n` → normal phpunit) | Owner-authorized commit+push; **no merge/tag/deploy/prod.** |
 | RadiumDesk-P-12-10-192 | 2026-10-21 | **P-21-15** Commit/push validate-rip-checkpoint-id CI fix (`php artisan` without `-n`) | Owner-authorized; **no merge/tag/deploy/prod.** |
 | RadiumDesk-P-12-10-193 | 2026-10-21 | **P-21-16** Merge PR **#53** RIP checkpoints into `main` | Owner-authorized merge commit **`46895245`** @ **`2026-10-21T03:37:59Z`**. Post-merge **`rip`** + **`release-rip`** on `main` **SUCCESS**. **No tag/deploy/prod capture/RIP gate enable.** |
+| RadiumDesk-P-12-10-194 | 2026-10-21 | **P-21-20** Fix RIP remote capture invocation (stage + path, not SSH stdin) | Worktree **`.worktrees/p2116-ledger`**, branch **`feature/p21-20-rip-capture-invocation`**. `rip-capture-operator-remote.sh`; wrapper **scp** staging + **`bash --` absolute path**; tests **`rip-capture-wrapper.test.sh`**. PHPUnit **13/13** + shell RIP tests PASS. **No prod SSH/capture/deploy/gate enable.** |
+| RadiumDesk-P-12-10-195 | 2026-10-21 | **P-21-21** Review, commit, push RIP capture wrapper fix | Branch **`feature/p21-20-rip-capture-invocation`** → PR to **`main`**. Full-diff review + CI-equivalent tests PASS. **No merge/tag/deploy/prod capture/gate enable.** |
 
 Do not renumber or overwrite earlier rows. Append only.

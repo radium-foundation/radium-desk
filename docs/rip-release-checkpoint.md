@@ -77,6 +77,8 @@ It does **not** compare the checkpoint to the Git commit you are about to deploy
 
 Dry-run ID only: `--dry-run`
 
+The operator wrapper stages `capture-release-recovery-checkpoint-remote.sh` and `tools/lib/rip-capture-archive.sh` on the host under a temporary directory (via `scp`), runs the remote script by **absolute path** (not SSH stdin), then removes the staging directory. This keeps `BASH_SOURCE`-relative sourcing reliable under `set -euo pipefail`.
+
 Verify:
 
 ```bash
