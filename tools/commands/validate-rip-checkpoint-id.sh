@@ -21,7 +21,7 @@ ID="$(echo "${OUT}" | sed -n 's/^checkpoint_id=//p')"
 DIR="$(echo "${OUT}" | sed -n 's|^private_checkpoint_path=storage/app/private/release-checkpoints/||p')"
 [[ "${DIR}" == "${ID}" ]]
 
-(cd "${ROOT}" && php -n artisan rip:compose-checkpoint-id --change=smoke-test --git-sha=7441de0d | grep -q 'RIP-.*-radium-desk-smoke-test-7441de0')
+(cd "${ROOT}" && php artisan rip:compose-checkpoint-id --change=smoke-test --git-sha=7441de0d | grep -q 'RIP-.*-radium-desk-smoke-test-7441de0')
 
 if "${CAPTURE}" --dry-run --change 'Bad Change' --git-sha 7441de0d 2>/dev/null; then
   echo "expected invalid change slug to fail" >&2
