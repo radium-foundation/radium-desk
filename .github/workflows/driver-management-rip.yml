@@ -1,0 +1,52 @@
+name: Driver management RIP
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/Http/Controllers/DriverManagement/**'
+      - 'app/Services/RadiumBox/RadiumBoxDriverUploadClient.php'
+      - 'app/Support/Navigation/NavigationContextResolver.php'
+      - 'config/driver_management.php'
+      - 'database/seeders/RolePermissionSeeder.php'
+      - 'resources/views/driver-management/**'
+      - 'resources/views/navigation/control-and-admin-workspace-nav.blade.php'
+      - 'routes/web.php'
+      - 'tests/Feature/DriverManagement/**'
+      - '.github/workflows/driver-management-rip.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/Http/Controllers/DriverManagement/**'
+      - 'app/Services/RadiumBox/RadiumBoxDriverUploadClient.php'
+      - 'app/Support/Navigation/NavigationContextResolver.php'
+      - 'config/driver_management.php'
+      - 'database/seeders/RolePermissionSeeder.php'
+      - 'resources/views/driver-management/**'
+      - 'resources/views/navigation/control-and-admin-workspace-nav.blade.php'
+      - 'routes/web.php'
+      - 'tests/Feature/DriverManagement/**'
+      - '.github/workflows/driver-management-rip.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  driver-management-rip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHPUnit (Driver management regression)
+        run: ./vendor/bin/phpunit tests/Feature/DriverManagement/
