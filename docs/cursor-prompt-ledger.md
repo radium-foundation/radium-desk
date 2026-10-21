@@ -634,5 +634,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-12-10-190 | 2026-10-21 | **P-21-11** Commit/push Release RIP CI to PR **#53** | Owner-authorized commit+push on **`feature/p21-04-rip-checkpoints`**; **no merge/tag/deploy/prod capture/gate enable.** |
 | RadiumDesk-P-12-10-191 | 2026-10-21 | **P-21-13** Fix Release RIP CI PHPUnit (`php -n` → normal phpunit) | Owner-authorized commit+push; **no merge/tag/deploy/prod.** |
 | RadiumDesk-P-12-10-192 | 2026-10-21 | **P-21-15** Commit/push validate-rip-checkpoint-id CI fix (`php artisan` without `-n`) | Owner-authorized; **no merge/tag/deploy/prod.** |
+| RadiumDesk-P-12-10-193 | 2026-10-21 | **P-21-16** Merge PR **#53** RIP checkpoints into `main` | Owner-authorized merge commit **`46895245`** @ **`2026-10-21T03:37:59Z`**. Post-merge **`rip`** + **`release-rip`** on `main` **SUCCESS**. **No tag/deploy/prod capture/RIP gate enable.** |
 
 Do not renumber or overwrite earlier rows. Append only.
