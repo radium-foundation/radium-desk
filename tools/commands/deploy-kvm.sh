@@ -346,11 +346,14 @@ main() {
             "${PROJECT_ROOT}/public/build/" \
             "${SSH_USER}@${SSH_HOST}:${REMOTE_PROJECT}/public/build/"
         print_warning "Dry-run: RIP production-baseline gate is not exercised (only live deploy when RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1)."
+        rip_warn_if_production_deploy_without_rip_gate
         print_success "Dry-run completed (no changes made on KVM)"
         exit 0
     fi
 
     validate_release_metadata
+
+    rip_warn_if_production_deploy_without_rip_gate
 
     if ! rip_verify_pre_deploy_gate_if_required; then
         print_error "Deployment stopped by RIP pre-deploy gate."

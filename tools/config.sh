@@ -9,6 +9,10 @@ SSH_PORT="22"
 SSH_USER="ravi"
 REMOTE_PROJECT="/var/www/radium-desk"
 
+# Canonical KVM production identity for RIP deploy warnings (must match SSH_HOST / REMOTE_PROJECT above).
+RIP_KVM_PRODUCTION_SSH_HOST="${RIP_KVM_PRODUCTION_SSH_HOST:-187.127.129.16}"
+RIP_KVM_PRODUCTION_REMOTE_PROJECT="${RIP_KVM_PRODUCTION_REMOTE_PROJECT:-/var/www/radium-desk}"
+
 # Runtime binaries on the KVM
 PHP_BIN="/usr/local/lsws/lsphp84/bin/php"
 COMPOSER_BIN="/usr/local/bin/composer"

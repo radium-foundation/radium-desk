@@ -87,6 +87,24 @@ Verify:
 php artisan rip:verify-checkpoint storage/app/private/release-checkpoints/<id>
 ```
 
+## Pre-deploy operator checklist
+
+Use this checklist before each **separately authorized** KVM production deployment. Capture is **operator-initiated**; this list does not enforce capture by itself. When `RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1`, the deploy gate adds verification but does not replace capture.
+
+1. **Pin operator tooling** to a verified `main` commit (record the full Git SHA in the release record or Cursor ledger).
+2. **Confirm production target** (`tools/config.sh`: `SSH_HOST`, `REMOTE_PROJECT`, `DEPLOY_MODE=kvm`) and read live `storage/app/private/release.json` (version, tag, `build`).
+3. **Capture a checkpoint** of the **currently live** build before deploying:  
+   `./tools/commands/capture-release-recovery-checkpoint.sh --change <short-label> --git-sha <live build> --status deployed`
+4. Require the capture wrapper to exit **0** and the **actual SSH post-capture** `rip:verify-checkpoint` step to pass (`checksum_ok=true`).
+5. **Record** checkpoint ID, source pin, live build, verification result, and status (`deployed` unless smoke/Owner evidence exists) in the ledger or release record.
+6. **Preserve** all earlier checkpoint directories under `storage/app/private/release-checkpoints/`; never overwrite or prune during ordinary capture.
+7. **If using the pre-deploy gate:** set `RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1` and `RIP_PRE_DEPLOY_CHECKPOINT_ID` to the verified checkpoint whose suffix matches the **current** live `release.json` `build` (not the commit you are about to deploy).
+8. **Recovery scope:** application archive only — plan MariaDB, `.env`, uploads, runtime `storage/`, and Central Wallet overlay recovery separately (`docs/central-wallet-release-manifest-v2.md` § K.1).
+9. **Approvals:** deployment and gate enablement are separate Owner decisions.
+10. **Status:** never label a checkpoint `known-good` from archive/checksum success alone; require `RipCheckpointStatusPolicy` evidence (`smoke-verified`, Owner sign-off, protected customer journeys).
+
+`desk deploy` prints a **non-blocking warning** when the canonical KVM production target is configured and the gate is disabled.
+
 ## Deploy integration
 
 Set on operator machine for gated releases:
