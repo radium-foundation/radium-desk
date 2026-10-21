@@ -3,8 +3,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ARCHIVE_LIB="${SCRIPT_DIR}/../lib/rip-capture-archive.sh"
+if [[ ! -f "${ARCHIVE_LIB}" ]]; then
+    echo "rip-capture: missing archive helper at ${ARCHIVE_LIB}" >&2
+    exit 1
+fi
 # shellcheck source=tools/lib/rip-capture-archive.sh
-source "${SCRIPT_DIR}/../lib/rip-capture-archive.sh"
+source "${ARCHIVE_LIB}"
 
 CHECKPOINT_ID="$1"
 CHANGE="$2"

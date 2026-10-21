@@ -34,12 +34,14 @@ jobs:
           set -euo pipefail
           for script in \
             tools/lib/rip-capture-archive.sh \
+            tools/lib/rip-capture-operator-remote.sh \
             tools/lib/rip-pre-deploy-gate.sh \
             tools/commands/capture-release-recovery-checkpoint.sh \
             tools/commands/capture-release-recovery-checkpoint-remote.sh \
             tools/commands/validate-rip-checkpoint-id.sh \
             tools/commands/verify-rip-checkpoint.sh \
             tests/scripts/rip-capture-remote.test.sh \
+            tests/scripts/rip-capture-wrapper.test.sh \
             tests/scripts/rip-pre-deploy-gate.test.sh
           do
             bash -n "${script}"
@@ -53,6 +55,9 @@ jobs:
 
       - name: Release RIP capture tests (local fake tree; not production)
         run: bash tests/scripts/rip-capture-remote.test.sh
+
+      - name: Release RIP capture wrapper tests (mocked SSH/SCP)
+        run: bash tests/scripts/rip-capture-wrapper.test.sh
 
       - name: Release RIP pre-deploy gate tests (mocked SSH)
         run: bash tests/scripts/rip-pre-deploy-gate.test.sh
