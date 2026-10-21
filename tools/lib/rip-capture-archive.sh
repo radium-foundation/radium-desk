@@ -178,7 +178,7 @@ rip_capture_path_allowed_in_archive() {
         app|app/*|config|config/*|public|public/*|resources|resources/*|routes|routes/*|tools|tools/*|contracts|contracts/*|docs|docs/*)
             return 0
             ;;
-        database|database/migrations|database/migrations/*|database/seeders|database/seeders/*|database/factories|database/factories/*)
+        database|database/.gitignore|database/migrations|database/migrations/*|database/seeders|database/seeders/*|database/factories|database/factories/*)
             return 0
             ;;
         bootstrap/app.php|bootstrap/providers.php)

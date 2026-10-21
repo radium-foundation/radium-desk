@@ -59,6 +59,22 @@ echo "${LISTING}" | grep -qE '(^|/)\.cursor/' && fail "archive must not include 
 echo "${LISTING}" | grep -q 'OPERATOR-NOTES' && fail "archive must not include repo-root operator files outside allowlist"
 pass "archive allowlist policy"
 
+echo 'keep sqlite out of VCS' >"${FAKE}/database/.gitignore"
+ARCHIVE_GITIGNORE="${TMP}/test-gitignore.tar.zst"
+rip_capture_build_application_archive "${FAKE}" "${ARCHIVE_GITIGNORE}" || fail "build archive with database/.gitignore"
+rip_capture_assert_archive_policy "${ARCHIVE_GITIGNORE}" || fail "database/.gitignore must be allowlisted"
+LISTING_GI="$(rip_capture_list_archive_paths "${ARCHIVE_GITIGNORE}")"
+echo "${LISTING_GI}" | grep -q 'database/.gitignore' || fail "archive must include database/.gitignore when present"
+if rip_capture_path_allowed_in_archive "database/operator-notes.sql"; then
+    fail "database/operator-notes.sql must not be allowlisted"
+fi
+if rip_capture_path_allowed_in_archive "database/migrations/0001_test.php"; then
+    pass "database/migrations remain allowlisted"
+else
+    fail "database/migrations must remain allowlisted"
+fi
+pass "database/.gitignore allowlist regression"
+
 RIP_CAPTURE_MIN_FREE_MB=1 BASE="${FAKE}/storage/app/private/release-checkpoints"
 export RIP_CAPTURE_MIN_FREE_MB
 ID="RIP-211026-1200-radium-desk-test-capture-7441de0"
