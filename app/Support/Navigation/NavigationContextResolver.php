@@ -149,6 +149,10 @@ class NavigationContextResolver
             return [NavigationMenu::Commerce, 'commerce.destination', null];
         }
 
+        if ($request->routeIs('driver-management.*')) {
+            return [NavigationMenu::ControlAndAdmin, 'control_and_admin.driver_management', null];
+        }
+
         if ($request->routeIs('inventory.*')) {
             return [NavigationMenu::Inventory, 'inventory.destination', null];
         }

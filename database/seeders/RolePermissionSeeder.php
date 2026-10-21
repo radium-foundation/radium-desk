@@ -165,6 +165,9 @@ class RolePermissionSeeder extends Seeder
     /** Read-only backup status in Administration (Super Admin only). */
     public const PERMISSION_BACKUPS_VIEW = 'backups.view';
 
+    /** Quarantine/publish RadiumBox catalogue driver binaries via Desk UI (site-scoped). */
+    public const PERMISSION_DRIVERS_MANAGE_RADIUMBOX = 'drivers.manage.radiumbox';
+
     public const PERMISSION_INVENTORY_VIEW = 'inventory.view';
 
     public const PERMISSION_INVENTORY_PRODUCTS_MANAGE = 'inventory.products.manage';
@@ -325,6 +328,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_EMAIL_REPLY,
         self::PERMISSION_EMAIL_INTAKE_VIEW,
         self::PERMISSION_EMAIL_INTAKE_MANAGE,
+        self::PERMISSION_DRIVERS_MANAGE_RADIUMBOX,
     ];
 
     /**
@@ -650,6 +654,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_COMMERCIAL_SERVICE_RESTORE,
             self::PERMISSION_REFUNDS_REVOKE,
             self::PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD,
+            self::PERMISSION_DRIVERS_MANAGE_RADIUMBOX,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
             ...self::PURCHASING_ADMIN_PERMISSIONS,
         ],
@@ -734,6 +739,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_REVOKE,
             self::PERMISSION_REFUNDS_REROUTE_EXECUTION_METHOD,
             self::PERMISSION_BACKUPS_VIEW,
+            self::PERMISSION_DRIVERS_MANAGE_RADIUMBOX,
             ...self::INVENTORY_ADMIN_PERMISSIONS,
             ...self::PURCHASING_ADMIN_PERMISSIONS,
         ],
@@ -758,6 +764,7 @@ class RolePermissionSeeder extends Seeder
                 self::PERMISSION_FINANCE_RECEIVABLES_VIEW,
                 self::PERMISSION_FINANCE_PAYMENTS_RECORD,
                 self::PERMISSION_FINANCE_INVOICES_PAYMENT_BACKFILL,
+                self::PERMISSION_DRIVERS_MANAGE_RADIUMBOX,
             ])
             ->merge(self::PURCHASING_ADMIN_PERMISSIONS)
             ->unique()
