@@ -46,7 +46,7 @@ jobs:
           done
 
       - name: PHPUnit (Release RIP unit tests)
-        run: php -n ./vendor/bin/phpunit tests/Unit/Release/
+        run: ./vendor/bin/phpunit tests/Unit/Release/
 
       - name: Validate RIP checkpoint ID policy (dry-run)
         run: bash tools/commands/validate-rip-checkpoint-id.sh

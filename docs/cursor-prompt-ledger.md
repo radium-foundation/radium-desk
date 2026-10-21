@@ -632,5 +632,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-12-10-188 | 2026-10-21 | **P-21-08** RIP PR preparation | Branch **`feature/p21-04-rip-checkpoints`** → **`main`**. Explicit tar allowlist in **`rip-capture-archive.sh`**; full test suite PASS; commit + push + PR (see P-21-08 report). **No deploy/prod capture/RIP gate enable.** |
 | RadiumDesk-P-12-10-189 | 2026-10-21 | **P-21-10** Release RIP GitHub CI | Add **`.github/workflows/release-rip-ci.yml`** job **`release-rip`** (PHPUnit + shell RIP tests; `zstd` on runner). Preserves **`availability-sync-rip.yml`** unchanged. Local validation PASS; commit/push per Owner authorization. |
 | RadiumDesk-P-12-10-190 | 2026-10-21 | **P-21-11** Commit/push Release RIP CI to PR **#53** | Owner-authorized commit+push on **`feature/p21-04-rip-checkpoints`**; **no merge/tag/deploy/prod capture/gate enable.** |
+| RadiumDesk-P-12-10-191 | 2026-10-21 | **P-21-13** Fix Release RIP CI PHPUnit (`php -n` → normal phpunit) | Owner-authorized commit+push; **no merge/tag/deploy/prod.** |
 
 Do not renumber or overwrite earlier rows. Append only.
