@@ -19,12 +19,38 @@ final class RadiumBoxDriverUploadClient
             && $this->baseUrl() !== null;
     }
 
+    public function mediaUploadEnabled(): bool
+    {
+        return $this->isConfigured()
+            && filter_var(config('driver_management.radiumbox_com.media_upload_enabled', false), FILTER_VALIDATE_BOOLEAN);
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function fetchCatalog(): array
     {
         $response = $this->request()->get('/api/integrations/v1/driver-upload/catalog');
+        $response->throw();
+
+        return $response->json();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function authorizeMediaUpload(User $actor, int $productDriverId): array
+    {
+        $response = $this->request()->post('/api/integrations/v1/driver-upload/authorize', $this->actorPayload($actor) + [
+            'product_driver_id' => $productDriverId,
+        ]);
+
+        if ($response->status() === 422) {
+            throw ValidationException::withMessages($response->json('errors') ?? [
+                'product_driver_id' => $response->json('message', 'Authorization rejected.'),
+            ]);
+        }
+
         $response->throw();
 
         return $response->json();
@@ -55,13 +81,19 @@ final class RadiumBoxDriverUploadClient
     /**
      * @return array<string, mixed>
      */
-    public function publish(User $actor, string $uploadId, int $productDriverId, string $idempotencyKey): array
+    public function publish(User $actor, string $uploadId, int $productDriverId, string $idempotencyKey, ?string $sha256 = null): array
     {
-        $response = $this->request()->post('/api/integrations/v1/driver-upload/publish', $this->actorPayload($actor) + [
+        $payload = $this->actorPayload($actor) + [
             'upload_id' => $uploadId,
             'product_driver_id' => $productDriverId,
             'idempotency_key' => $idempotencyKey,
-        ]);
+        ];
+
+        if ($sha256 !== null && $sha256 !== '') {
+            $payload['sha256'] = $sha256;
+        }
+
+        $response = $this->request()->post('/api/integrations/v1/driver-upload/publish', $payload);
 
         if ($response->status() === 422) {
             throw ValidationException::withMessages($response->json('errors') ?? [
