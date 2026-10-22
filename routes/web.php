@@ -160,7 +160,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->middleware('permission:'.RolePermissionSeeder::PERMISSION_DRIVERS_MANAGE_RADIUMBOX)
         ->group(function () {
             Route::get('/', [RadiumBoxDriverManagementController::class, 'index'])->name('index');
+            Route::post('/authorize-media', [RadiumBoxDriverManagementController::class, 'authorizeMedia'])->name('authorize-media');
             Route::post('/quarantine', [RadiumBoxDriverManagementController::class, 'store'])->name('store');
+            Route::post('/complete-media', [RadiumBoxDriverManagementController::class, 'completeMediaQuarantine'])->name('complete-media');
             Route::post('/publish', [RadiumBoxDriverManagementController::class, 'publish'])->name('publish');
         });
 
