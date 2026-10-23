@@ -60,7 +60,7 @@ Capture publishes the checkpoint directory **atomically** (staging dir + `mv` on
 The KVM gate (`RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1`) verifies:
 
 1. Checkpoint integrity on production (`rip:verify-checkpoint`).
-2. Checkpoint ID suffix and manifest commit match **current** `release.json` `build` on production.
+2. Production-baseline match via `rip:verify-pre-deploy-gate` (manifest + checkpoint ID suffix vs **current** `release.json` `build`, using the same 7-character commit normalization as RIP checkpoint IDs).
 
 It does **not** compare the checkpoint to the Git commit you are about to deploy. Use `php artisan rip:verify-pre-deploy-gate {path} --production-build=<live build>` for the same semantics locally.
 

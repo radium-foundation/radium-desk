@@ -85,10 +85,9 @@ rip_verify_pre_deploy_gate_if_required() {
         return 1
     fi
 
-    local checkpoint_short="${checkpoint_id##*-}"
-
-    if [[ "$(echo "$live_build" | tr '[:upper:]' '[:lower:]')" != "$(echo "$checkpoint_short" | tr '[:upper:]' '[:lower:]')" ]]; then
-        print_error "Pre-deploy checkpoint suffix (${checkpoint_short}) does not match production release.json build (${live_build})"
+    # Production-baseline match uses RipPreDeployGate (7-char commit normalization; manifest + ID suffix).
+    if ! ssh_exec "cd '${REMOTE_PROJECT}' && ${PHP_BIN} artisan rip:verify-pre-deploy-gate 'storage/app/private/release-checkpoints/${checkpoint_id}' --production-build='${live_build}' --checkpoint-id='${checkpoint_id}'"; then
+        print_error "RIP production-baseline gate failed for ${checkpoint_id} (live build ${live_build})"
         print_error "Capture a fresh pre-deploy RIP for the current production commit before deploying."
         return 1
     fi

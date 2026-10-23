@@ -36,6 +36,9 @@ ssh_exec() {
         *rip:verify-checkpoint*)
             return 0
             ;;
+        *rip:verify-pre-deploy-gate*)
+            return 0
+            ;;
         *release.json*)
             echo -n "7441de0"
             return 0
@@ -71,10 +74,55 @@ if ! rip_verify_pre_deploy_gate_if_required; then
 fi
 pass "gate passes when production build matches checkpoint suffix"
 
+export RIP_PRE_DEPLOY_CHECKPOINT_ID="RIP-221026-1048-radium-desk-p22-16-driver-media-pre-34477be"
+SSH_CALLS=()
+VERIFY_PRE_DEPLOY_GATE_FAIL=0
+ssh_exec() {
+    SSH_CALLS+=("$*")
+    case "$*" in
+        *"test -d"*) return 0 ;;
+        *rip:verify-checkpoint*) return 0 ;;
+        *rip:verify-pre-deploy-gate*) return 0 ;;
+        *release.json*) echo -n "34477beb"; return 0 ;;
+    esac
+    return 1
+}
+if ! rip_verify_pre_deploy_gate_if_required; then
+    fail "gate should pass when PHP pre-deploy verifier accepts 8-char build + 7-char checkpoint suffix"
+fi
+pass "gate passes when release.json build is 8 chars and checkpoint suffix is 7 (delegates to artisan)"
+
+export RIP_PRE_DEPLOY_CHECKPOINT_ID="RIP-211026-1200-radium-desk-pre-deploy-gate-7441de0"
+SSH_CALLS=()
+ssh_exec() {
+    SSH_CALLS+=("$*")
+    case "$*" in
+        *"test -d"*) return 0 ;;
+        *rip:verify-checkpoint*) return 0 ;;
+        *rip:verify-pre-deploy-gate*) return 1 ;;
+        *release.json*) echo -n "7441de0"; return 0 ;;
+    esac
+    return 1
+}
+if rip_verify_pre_deploy_gate_if_required; then
+    fail "gate must fail when rip:verify-pre-deploy-gate fails"
+fi
+pass "gate fails when production-baseline artisan verifier fails"
+
 export RIP_PRE_DEPLOY_CHECKPOINT_ID="RIP-211026-1200-radium-desk-pre-deploy-gate-aaaaaaaa"
 SSH_CALLS=()
+ssh_exec() {
+    SSH_CALLS+=("$*")
+    case "$*" in
+        *"test -d"*) return 0 ;;
+        *rip:verify-checkpoint*) return 0 ;;
+        *rip:verify-pre-deploy-gate*) return 1 ;;
+        *release.json*) echo -n "7441de0"; return 0 ;;
+    esac
+    return 1
+}
 if rip_verify_pre_deploy_gate_if_required; then
-    fail "gate must fail when production build mismatches checkpoint suffix"
+    fail "gate must fail when production build mismatches checkpoint"
 fi
 pass "gate fails on production build mismatch"
 
@@ -124,6 +172,16 @@ RIP_KVM_PRODUCTION_SSH_HOST="187.127.129.16"
 pass "production identity requires canonical pins"
 
 # Gate enforcement unchanged when enabled
+ssh_exec() {
+    SSH_CALLS+=("$*")
+    case "$*" in
+        *"test -d"*) return 0 ;;
+        *rip:verify-checkpoint*) return 0 ;;
+        *rip:verify-pre-deploy-gate*) return 0 ;;
+        *release.json*) echo -n "7441de0"; return 0 ;;
+    esac
+    return 1
+}
 export RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1
 export RIP_PRE_DEPLOY_CHECKPOINT_ID="RIP-211026-1200-radium-desk-pre-deploy-gate-7441de0"
 SSH_CALLS=()

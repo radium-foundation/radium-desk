@@ -23,7 +23,7 @@ abstract class RipCheckpointTestCase extends TestCase
      */
     protected function createMinimalCheckpoint(array $manifestOverrides = []): string
     {
-        $id = 'RIP-211026-1200-radium-desk-test-fixture-7441de0';
+        $id = (string) ($manifestOverrides['checkpoint_id'] ?? 'RIP-211026-1200-radium-desk-test-fixture-7441de0');
         $parent = storage_path('framework/testing/rip-'.uniqid());
         $this->checkpointDir = $parent.'/'.$id;
         File::makeDirectory($this->checkpointDir, 0755, true);
