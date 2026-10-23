@@ -1,0 +1,47 @@
+name: Hardware SKU map RIP
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'config/hardware_fulfilment.php'
+      - 'app/Console/Commands/SeedRadiumboxHardwareSkuMapsCommand.php'
+      - 'app/Services/HardwareFulfilment/HardwareSkuMapService.php'
+      - 'tests/Feature/HardwareFulfilment/RadiumboxHardwareSkuMapResolutionTest.php'
+      - 'tests/Feature/Console/SeedRadiumboxHardwareSkuMapsCommandTest.php'
+      - '.github/workflows/hardware-sku-map-rip.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'config/hardware_fulfilment.php'
+      - 'app/Console/Commands/SeedRadiumboxHardwareSkuMapsCommand.php'
+      - 'app/Services/HardwareFulfilment/HardwareSkuMapService.php'
+      - 'tests/Feature/HardwareFulfilment/RadiumboxHardwareSkuMapResolutionTest.php'
+      - 'tests/Feature/Console/SeedRadiumboxHardwareSkuMapsCommandTest.php'
+      - '.github/workflows/hardware-sku-map-rip.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  hardware-sku-map-rip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHPUnit (radiumbox hardware SKU map regression)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Feature/HardwareFulfilment/RadiumboxHardwareSkuMapResolutionTest.php \
+            tests/Feature/Console/SeedRadiumboxHardwareSkuMapsCommandTest.php
