@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.35 — 2026-10-23 — KVM RIP pre-deploy gate baseline fix (ships with 4.1.34 scope)
+
+- **RIP deploy gate:** KVM `rip-pre-deploy-gate.sh` delegates production-baseline matching to `php artisan rip:verify-pre-deploy-gate` so checkpoint ID **7-character** commit suffixes match `release.json` **build** values that may be **8** characters (e.g. `34477beb` vs `…-34477be`). Merge PR **#64** (`96603d0e`).
+- **Release content:** This tag is the production deploy vehicle for **v4.1.34** application changes (Pragati `model_id` **1503** mapping configuration, driver management, availability scheduler, RIP tooling, permissions/seeder updates, and other commits since production build **`34477beb`**). Tag **v4.1.34** remains on **`f93497e8`** without the gate fix; do not move or retag **v4.1.34**.
+- **Migrations:** Same as 4.1.34 scope — deploy runs `migrate --force` and `RolePermissionSeeder` per `deploy-kvm.sh`; confirm pending migrations on production before deploy.
+- **Pre-deploy RIP:** Use verified checkpoint **`RIP-221026-1048-radium-desk-p22-16-driver-media-pre-34477be`** with `RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1`.
+- **SKU maps:** Still requires separate Owner-approved `desk:seed-radiumbox-hardware-sku-maps --apply` after dry-run (not part of this deploy).
+- Rollback target: **v4.1.32** / `34477beb` (last verified live `release.json` before this deploy) or redeploy tag **v4.1.34** only if gate fix is not required.
+- Prompts **P-23-33**, **P-23-34**, **P-23-35**.
+
 ## 4.1.34 — 2026-10-23 — RadiumBox hardware SKU mapping (Pragati Regular, model 1503)
 
 - Add Owner-approved radiumbox.com hardware fulfilment seed configuration for Box `model_id` **1503** (catalog SKU **PBPPRAREG2**) → Desk inventory SKU **RBPRAGATI2** (`channel_sku` wire value `1503`; serialized).
