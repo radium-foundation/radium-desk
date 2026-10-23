@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.1.34 — 2026-10-23 — RadiumBox hardware SKU mapping (Pragati Regular, model 1503)
+
+- Add Owner-approved radiumbox.com hardware fulfilment seed configuration for Box `model_id` **1503** (catalog SKU **PBPPRAREG2**) → Desk inventory SKU **RBPRAGATI2** (`channel_sku` wire value `1503`; serialized).
+- **Economy variant:** `model_id` **1502** / `PBPPRAECO2` remains **unmapped** in this release.
+- **Migrations:** None in this release.
+- **Production mapping:** Deploying this configuration alone does **not** insert `channel_sku_maps` rows. After deploy, run `php artisan desk:seed-radiumbox-hardware-sku-maps --dry-run`, review JSON, then apply only under separate Owner approval (`--apply`). Verify `channel_sku_maps` for `model_id` **1503** resolves to inventory SKU `RBPRAGATI2` (expected production `inventory_product_id` **96** — confirm on server before apply).
+- **Verification journey:** Order **RBP1183** is the target post-deploy hardware queue check (expect **Allocate Serial** once map + seed are correct); not confirmed unblocked until production mapping and queue state are verified.
+- **CI:** Path-scoped `hardware-sku-map-rip` workflow runs `RadiumboxHardwareSkuMapResolutionTest` and `SeedRadiumboxHardwareSkuMapsCommandTest`.
+- **Deploy note:** KVM `desk deploy` syncs the current `main` tree; production `release.json` at preparation time reported **v4.1.32** / build **`34477beb`**, which is behind current `main` (includes merged PR **#62** and other commits since that build). Review full release diff and smoke scope before authorizing deployment — not limited to this mapping line item alone.
+- Rollback target: **v4.1.32** / `34477beb` (production `release.json` at preparation time); prior Git tag on `main` is **v4.1.33** / `7441de0d`. Redeploy a verified prior tag/build per `docs/release-workflow.md`.
+- Merge PR **#62** (`8a16425e`). Prompts **P-23-20** through **P-23-26**.
+
 ## 4.1.33 — 2026-10-19 — Scheduled RadiumBox availability refresh
 
 - **Availability refresh:** `radiumbox:backfill-catalog-availability` runs every 10 minutes at :02/:12/:22/:32/:42/:52 while `RADIUMBOX_AVAILABILITY_SYNC_ENABLED` is true, with scheduler overlap locking. Active `radiumbox_com` maps only. Stale window and enforcement flags are unchanged.
