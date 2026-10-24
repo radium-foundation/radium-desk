@@ -127,7 +127,7 @@ class HistoricalInvoiceIndReducedCopyTest extends TestCase
         Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'historical-invoices'));
     }
 
-    public function test_print_records_audit_and_discloses_omissions(): void
+    public function test_print_records_audit_and_shows_duplicate_footer_only(): void
     {
         Http::fake([
             'https://radiumbox.com/api/integrations/v1/rd-orders/RDE287954' => Http::response($this->boxOrderPayload('RDE287954', 'IND671362'), 200),
@@ -137,10 +137,15 @@ class HistoricalInvoiceIndReducedCopyTest extends TestCase
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.historical.print', 'RDE287954'))
             ->assertOk()
-            ->assertSee(IndReducedCopyDisclosure::PRIMARY_DISCLAIMER, false)
-            ->assertSee('CGST / SGST / IGST split', false)
+            ->assertSee(IndReducedCopyDisclosure::PRINT_FOOTER_DUPLICATE_NOTICE, false)
             ->assertSee('Scanner Product', false)
-            ->assertSee('2,799.00', false);
+            ->assertSee('2,799.00', false)
+            ->assertDontSee(IndReducedCopyDisclosure::PRIMARY_DISCLAIMER, false)
+            ->assertDontSee('CGST / SGST / IGST split', false)
+            ->assertDontSee('Reduced copy reference', false)
+            ->assertDontSee('Legacy IND reference', false)
+            ->assertDontSee('Amounts shown as returned by the source invoice', false)
+            ->assertDontSee('border: 2px solid #c8102e', false);
 
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $this->actor->id,
@@ -160,7 +165,7 @@ class HistoricalInvoiceIndReducedCopyTest extends TestCase
         $this->assertSame(0, AuditLog::query()->count());
     }
 
-    public function test_ind_print_uses_reduced_copy_kicker_not_tax_invoice(): void
+    public function test_ind_print_does_not_use_tax_invoice_kicker(): void
     {
         Http::fake([
             'https://radiumbox.com/api/integrations/v1/rd-orders/RDE287954' => Http::response($this->boxOrderPayload('RDE287954', 'IND671362'), 200),
@@ -170,10 +175,9 @@ class HistoricalInvoiceIndReducedCopyTest extends TestCase
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.historical.print', 'RDE287954'))
             ->assertOk()
-            ->assertSee('Reduced copy reference', false)
-            ->assertSee('Legacy IND reference — not a tax invoice', false)
+            ->assertSee('IND671362', false)
             ->assertDontSee('doc-kicker">Tax invoice', false)
-            ->assertSee(IndReducedCopyDisclosure::PRIMARY_DISCLAIMER, false);
+            ->assertSee(IndReducedCopyDisclosure::PRINT_FOOTER_DUPLICATE_NOTICE, false);
     }
 
     public function test_box_invoice_number_mismatch_versus_enrichment_fails_closed(): void
@@ -228,10 +232,14 @@ class HistoricalInvoiceIndReducedCopyTest extends TestCase
         $this->actingAs($this->actor)
             ->get(route('finance.invoices.historical.print', 'RDE152000'))
             ->assertOk()
-            ->assertSee('Reduced copy reference', false)
-            ->assertSee('Legacy IND reference — not a tax invoice', false)
+            ->assertSee('IND567881', false)
+            ->assertSee('RDE152000', false)
             ->assertSee('28 Nov 2025', false)
-            ->assertSee(IndReducedCopyDisclosure::PRIMARY_DISCLAIMER, false);
+            ->assertSee('Hardware line item', false)
+            ->assertSee(IndReducedCopyDisclosure::PRINT_FOOTER_DUPLICATE_NOTICE, false)
+            ->assertDontSee(IndReducedCopyDisclosure::PRIMARY_DISCLAIMER, false)
+            ->assertDontSee('Reduced copy reference', false)
+            ->assertDontSee('Amounts shown as returned by the source invoice', false);
 
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $this->actor->id,

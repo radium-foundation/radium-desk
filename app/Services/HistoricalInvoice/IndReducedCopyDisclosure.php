@@ -6,6 +6,9 @@ final class IndReducedCopyDisclosure
 {
     public const PRIMARY_DISCLAIMER = 'Reprint copy generated from stored order data — not the original tax invoice and not a new tax invoice.';
 
+    /** Single notice on IND reduced-copy print output (screen view keeps full disclosure). */
+    public const PRINT_FOOTER_DUPLICATE_NOTICE = 'DUPLICATE — Reprint copy generated from stored order data.';
+
     /**
      * @return list<string>
      */
