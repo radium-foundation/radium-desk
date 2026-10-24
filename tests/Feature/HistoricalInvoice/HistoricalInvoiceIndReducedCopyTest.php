@@ -197,6 +197,48 @@ class HistoricalInvoiceIndReducedCopyTest extends TestCase
         ]);
     }
 
+    public function test_rde152000_production_shape_ind567881_uses_order_lookup_and_reprint(): void
+    {
+        Http::fake([
+            'https://radiumbox.com/api/integrations/v1/rd-orders/RDE152000' => Http::response($this->rde152000BoxOrderPayload(), 200),
+            'https://radiumbox.com/api/integrations/v1/historical-invoices*' => Http::response($this->rde152000HistoricalInvoicePayload(), 200),
+        ]);
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.historical', ['q' => 'RDE152000']))
+            ->assertOk()
+            ->assertSee('IND567881', false)
+            ->assertSee(IndReducedCopyDisclosure::PRIMARY_DISCLAIMER, false)
+            ->assertSee('Fields omitted from this copy', false)
+            ->assertSee('Hardware serial numbers', false)
+            ->assertSee('3048', false)
+            ->assertDontSee('eligible for reprint. The number is unchanged', false);
+
+        Http::assertSent(function (Request $request): bool {
+            return $request->method() === 'GET'
+                && str_contains($request->url(), 'historical-invoices')
+                && str_contains($request->url(), 'orderid=RDE152000');
+        });
+
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $this->actor->id,
+            'event' => HistoricalInvoiceIndReducedCopyAudit::EVENT_VIEWED,
+        ]);
+
+        $this->actingAs($this->actor)
+            ->get(route('finance.invoices.historical.print', 'RDE152000'))
+            ->assertOk()
+            ->assertSee('Reduced copy reference', false)
+            ->assertSee('Legacy IND reference — not a tax invoice', false)
+            ->assertSee('28 Nov 2025', false)
+            ->assertSee(IndReducedCopyDisclosure::PRIMARY_DISCLAIMER, false);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $this->actor->id,
+            'event' => HistoricalInvoiceIndReducedCopyAudit::EVENT_PRINTED,
+        ]);
+    }
+
     public function test_inv_historical_lookup_still_uses_invoice_path(): void
     {
         Http::fake([
@@ -260,8 +302,65 @@ class HistoricalInvoiceIndReducedCopyTest extends TestCase
     }
 
     /**
+     * Sanitized production-shaped fixture (P-24-16/17); generic buyer label only.
+     *
      * @return array<string, mixed>
      */
+    private function rde152000BoxOrderPayload(): array
+    {
+        $payload = $this->boxOrderPayload('RDE152000', 'IND567881');
+        $payload['data']['order']['id'] = 152000;
+        $payload['data']['correlation']['orders_id'] = 152000;
+
+        return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rde152000HistoricalInvoicePayload(): array
+    {
+        return [
+            'status' => 200,
+            'eligibility' => 'historical_invoice',
+            'data' => [
+                'invoice' => [
+                    'invoice_number' => 'IND567881',
+                    'invoice_date' => '2025-11-28 10:00:26',
+                    'orders_id' => 152000,
+                    'ordercode' => 'RDE152000',
+                    'seller' => [
+                        'legal_name' => 'Phil Technologies (P) Limited',
+                        'gstin' => '07AAICP1128M1Z9',
+                        'address' => 'Delhi address',
+                    ],
+                    'buyer' => ['name' => 'Buyer Example'],
+                    'lines' => [[
+                        'id' => 1,
+                        'product_name' => 'Hardware line item',
+                        'hsn_code' => '8471',
+                        'productid' => 1,
+                        'qty' => 1,
+                        'price' => '3048',
+                        'tax' => '464.949',
+                        'total' => '3048',
+                    ]],
+                    'totals' => [
+                        'subtotal' => '3048',
+                        'shipping' => null,
+                        'discount' => '0',
+                        'tax' => '464.949',
+                        'total' => '3048',
+                    ],
+                    'payment_status' => 'Paid',
+                    'status' => 'Shipped',
+                    'einvoice' => null,
+                    'read_only' => true,
+                ],
+            ],
+        ];
+    }
+
     private function indReducedInvoicePayload(): array
     {
         return [
