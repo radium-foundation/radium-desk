@@ -24,4 +24,23 @@ final class HistoricalInvoiceResult
             && $this->invoiceNumber !== ''
             && is_array($this->reprint);
     }
+
+    public function isReducedIndCopy(): bool
+    {
+        return $this->source === HistoricalInvoiceLookupService::SOURCE_IND_REDUCED_COPY;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function disclosedOmissions(): array
+    {
+        if (! $this->isReducedIndCopy() || ! is_array($this->reprint)) {
+            return [];
+        }
+
+        $omissions = $this->reprint['disclosed_omissions'] ?? [];
+
+        return is_array($omissions) ? array_values(array_filter($omissions, is_string(...))) : [];
+    }
 }

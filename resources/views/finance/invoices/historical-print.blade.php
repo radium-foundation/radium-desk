@@ -371,14 +371,34 @@
     <div class="sheet">
         <p class="no-print"><button type="button" onclick="window.print()">Print</button></p>
 
+        @if($result->isReducedIndCopy())
+            <div style="margin: 0 0 16px; padding: 12px 14px; border: 2px solid #c8102e; background: #fff5f5; font-size: 10.5pt; break-inside: avoid;">
+                <p style="margin: 0 0 8px; font-weight: 700;">{{ $indReducedCopyDisclaimer }}</p>
+                @if(!empty($disclosedOmissions))
+                    <p style="margin: 0 0 4px; font-weight: 650;">This copy may omit fields that appeared on the legacy Admin invoice, including:</p>
+                    <ul style="margin: 0; padding-left: 18px;">
+                        @foreach($disclosedOmissions as $omission)
+                            <li>{{ $omission }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+        @endif
+
         <header class="header">
             <div>
                 <img class="brand-mark" src="{{ $logoUrl }}" alt="Radium">
                 <p class="seller-legal">{{ $sellerName }}</p>
             </div>
             <div class="doc-meta">
-                <p class="doc-kicker">Tax invoice</p>
-                <h1 class="doc-title">{{ $result->invoiceNumber }}</h1>
+                @if($result->isReducedIndCopy())
+                    <p class="doc-kicker">Reduced copy reference</p>
+                    <h1 class="doc-title">{{ $result->invoiceNumber }}</h1>
+                    <p class="seller-legal" style="margin: 4px 0 0; font-weight: 650; color: var(--accent);">Legacy IND reference — not a tax invoice</p>
+                @else
+                    <p class="doc-kicker">Tax invoice</p>
+                    <h1 class="doc-title">{{ $result->invoiceNumber }}</h1>
+                @endif
                 <dl class="meta-grid">
                     @if($dateDisplay !== null)
                         <dt>Date</dt>
@@ -518,7 +538,11 @@
         @endif
 
         <footer class="footer">
-            <p>Historical reprint — existing invoice {{ $result->invoiceNumber }}. Not a new tax invoice. Number unchanged.</p>
+            @if($result->isReducedIndCopy())
+                <p>{{ $indReducedCopyDisclaimer }}</p>
+            @else
+                <p>Historical reprint — existing invoice {{ $result->invoiceNumber }}. Not a new tax invoice. Number unchanged.</p>
+            @endif
             <p>{{ $sellerName }}</p>
         </footer>
     </div>
