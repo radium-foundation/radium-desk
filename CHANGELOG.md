@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.36 — 2026-10-24 — IND reduced-copy historical invoice reprint (default-off)
+
+- **Finance:** Hardware `RDE*` orders with legacy `IND…` invoice codes can retrieve a clearly disclosed reduced-copy reprint from Box order data when `HISTORICAL_INVOICE_IND_REDUCED_COPY_ENABLED=true` (default **false**). No statutory invoice minting.
+- **Regression:** `RDE152000` / `IND567881` production-shaped fixture.
+- **Migrations:** None.
+- **Rollout:** Deploy application only; enable flag only after Owner authorization (P-24-21). Rollback: disable flag or redeploy **v4.1.35** / build `d6a46b00`.
+- Merge PR **#66** (`d776240f`). Prompts **P-24-16** through **P-24-21**.
+
 ## 4.1.35 — 2026-10-23 — KVM RIP pre-deploy gate baseline fix (ships with 4.1.34 scope)
 
 - **RIP deploy gate:** KVM `rip-pre-deploy-gate.sh` delegates production-baseline matching to `php artisan rip:verify-pre-deploy-gate` so checkpoint ID **7-character** commit suffixes match `release.json` **build** values that may be **8** characters (e.g. `34477beb` vs `…-34477be`). Merge PR **#64** (`96603d0e`).
