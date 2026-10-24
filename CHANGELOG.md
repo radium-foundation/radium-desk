@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.37 — 2026-10-24 — IND reduced-copy print layout (DUPLICATE footer)
+
+- **Finance:** IND reduced-copy **print** view shows a single footer notice (`DUPLICATE — Reprint copy generated from stored order data.`) instead of repeated disclaimer blocks in the invoice body. On-screen historical disclosure and INV/INVS print paths unchanged.
+- **Migrations:** None. No feature-flag or integration env changes required for this release.
+- **Rollout:** Deploy application only. Rollback: redeploy **v4.1.36** / build `b60fd367`.
+- Merge PR **#67** (`5c1f2961`). Prompts **P-24-24**, **P-24-26**.
+
 ## 4.1.36 — 2026-10-24 — IND reduced-copy historical invoice reprint (default-off)
 
 - **Finance:** Hardware `RDE*` orders with legacy `IND…` invoice codes can retrieve a clearly disclosed reduced-copy reprint from Box order data when `HISTORICAL_INVOICE_IND_REDUCED_COPY_ENABLED=true` (default **false**). No statutory invoice minting.
