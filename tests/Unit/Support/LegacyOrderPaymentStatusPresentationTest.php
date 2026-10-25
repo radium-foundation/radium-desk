@@ -76,7 +76,32 @@ class LegacyOrderPaymentStatusPresentationTest extends TestCase
             'failed' => ['failed'],
             'declined' => ['declined'],
             'rejected' => ['rejected'],
+            'reject' => ['reject'],
         ];
+    }
+
+    public function test_radiumbox_reject_order_status_with_empty_payment_field_renders_failed(): void
+    {
+        $result = $this->presenter->present(null, 'reject');
+
+        $this->assertSame('FAILED', $result['label']);
+        $this->assertSame('failed', $result['tone']);
+    }
+
+    public function test_empty_payment_with_non_failure_order_status_stays_unknown(): void
+    {
+        $result = $this->presenter->present(null, 'Shipped');
+
+        $this->assertSame('STATUS UNKNOWN', $result['label']);
+        $this->assertSame('unknown', $result['tone']);
+    }
+
+    public function test_paid_payment_with_reject_order_status_is_unknown(): void
+    {
+        $result = $this->presenter->present('Paid', 'reject');
+
+        $this->assertSame('STATUS UNKNOWN', $result['label']);
+        $this->assertSame('unknown', $result['tone']);
     }
 
     public function test_missing_status_is_unknown_not_paid(): void

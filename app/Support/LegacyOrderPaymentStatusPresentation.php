@@ -6,7 +6,10 @@ namespace App\Support;
  * Dashboard legacy-order preview payment status (display only).
  *
  * Source of truth: RadiumBox spoke {@see \App\Data\LegacyOrderPreview} payment_status
- * (mapped from rd_order / billing order payment_status). Shipment and invoice fields are not used.
+ * (mapped from rd_order / billing order payment_status). When that field is empty, RadiumBox
+ * commerce documents unpaid checkout failure as billing {@code orders.status} {@code reject}
+ * with null {@code payment_status} (Desk order lookup / ecom payment result). Shipment and
+ * invoice fields are not used.
  */
 final class LegacyOrderPaymentStatusPresentation
 {
@@ -16,13 +19,20 @@ final class LegacyOrderPaymentStatusPresentation
     public function present(?string $paymentStatus, ?string $orderStatus = null): array
     {
         if ($paymentStatus === null || trim($paymentStatus) === '') {
+            if ($this->isAuthoritativeCommercePaymentFailureOrderStatus($orderStatus)) {
+                return $this->failed();
+            }
+
             return $this->unknown();
         }
 
         $normalized = strtolower(trim($paymentStatus));
         $category = $this->categorize($normalized);
 
-        if ($category === 'paid' && $this->orderStatusContradictsPaid($orderStatus)) {
+        if ($category === 'paid' && (
+            $this->orderStatusContradictsPaid($orderStatus)
+            || $this->isAuthoritativeCommercePaymentFailureOrderStatus($orderStatus)
+        )) {
             return $this->unknown();
         }
 
@@ -222,5 +232,24 @@ final class LegacyOrderPaymentStatusPresentation
         }
 
         return false;
+    }
+
+    /**
+     * RadiumBox commerce terminal unpaid / payment-failure order statuses when payment_status is absent.
+     */
+    private function isAuthoritativeCommercePaymentFailureOrderStatus(?string $orderStatus): bool
+    {
+        if ($orderStatus === null || trim($orderStatus) === '') {
+            return false;
+        }
+
+        $normalized = strtolower(trim($orderStatus));
+
+        return in_array($normalized, [
+            'reject',
+            'rejected',
+            'failed',
+            'failure',
+        ], true);
     }
 }

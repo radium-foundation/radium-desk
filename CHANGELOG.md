@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.39 — 2026-10-25 — Map RadiumBox `reject` commerce order status to FAILED badge
+
+- **Dashboard:** When RadiumBox spoke `payment_status` is empty and billing order status is `reject` / `rejected` (documented unpaid checkout failure), legacy preview shows red **FAILED** instead of **STATUS UNKNOWN**.
+- **Migrations:** None. Display-only.
+- **Rollout:** Application deploy only. Rollback: **v4.1.38** / build `671592f6`.
+- ChatGPT prompt **P-25-40**.
+
 ## 4.1.38 — 2026-10-25 — Dashboard legacy-order payment status indicators
 
 - **Dashboard:** Universal search legacy-order preview card shows accessible payment status badges (PAID / PENDING / FAILED / CANCELLED / STATUS UNKNOWN) with icon + text; styling does not infer paid from shipment or invoice fields.
