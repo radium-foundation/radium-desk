@@ -61,6 +61,51 @@ const formatPreviewDisplayValue = (value) => {
     return String(value).replace(/\n/g, '<br>');
 };
 
+const PAYMENT_STATUS_ICONS = {
+    check: '✓',
+    clock: '⏱',
+    x: '✕',
+    dash: '—',
+    question: '?',
+};
+
+export const renderLegacyPaymentStatusHtml = (presentation) => {
+    if (!presentation || typeof presentation !== 'object') {
+        return '—';
+    }
+
+    const tone = presentation.tone ?? 'unknown';
+    const label = presentation.label ?? 'STATUS UNKNOWN';
+    const icon = PAYMENT_STATUS_ICONS[presentation.icon] ?? PAYMENT_STATUS_ICONS.question;
+
+    return `
+        <span class="dashboard-payment-status dashboard-payment-status--${tone}" role="status">
+            <span class="dashboard-payment-status__icon" aria-hidden="true">${icon}</span>
+            <span class="dashboard-payment-status__label">${label}</span>
+        </span>
+    `.trim();
+};
+
+const formatPreviewFieldValue = (label, value, preview = {}) => {
+    if (label === 'Payment status') {
+        if (preview.payment_status_presentation) {
+            return renderLegacyPaymentStatusHtml(preview.payment_status_presentation);
+        }
+
+        if (value === null || value === undefined || value === '') {
+            return renderLegacyPaymentStatusHtml({
+                label: 'STATUS UNKNOWN',
+                tone: 'unknown',
+                icon: 'question',
+            });
+        }
+
+        return formatPreviewDisplayValue(value);
+    }
+
+    return formatPreviewDisplayValue(value);
+};
+
 export const buildLegacyPreviewSections = (preview = {}) => {
     const sections = [
         {
@@ -98,7 +143,9 @@ export const buildLegacyPreviewSections = (preview = {}) => {
         {
             title: 'Payment',
             fields: [
-                ...previewField('Payment status', preview.payment_status),
+                ...(preview.payment_status || preview.payment_method || preview.payment_amount || preview.payment_amount_display
+                    ? [['Payment status', preview.payment_status ?? null, preview]]
+                    : []),
                 ...previewField('Payment method', preview.payment_method),
                 ...previewField('Amount paid', preview.payment_amount_display ?? preview.payment_amount),
             ],
@@ -131,7 +178,7 @@ export const buildLegacyPreviewSummaryHtml = (preview) => {
             <dl class="dashboard-legacy-preview-card__fields mb-0">
                 ${section.fields.map(([label, value]) => `
                     <dt>${label}</dt>
-                    <dd class="dashboard-legacy-preview-card__value">${formatPreviewDisplayValue(value)}</dd>
+                    <dd class="dashboard-legacy-preview-card__value">${formatPreviewFieldValue(label, value, preview)}</dd>
                 `).join('')}
             </dl>
         </div>

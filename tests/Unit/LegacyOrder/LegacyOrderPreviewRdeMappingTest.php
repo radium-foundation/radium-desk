@@ -39,6 +39,8 @@ class LegacyOrderPreviewRdeMappingTest extends TestCase
         $array = $preview->toArray();
 
         $this->assertSame('Paid', $preview->paymentStatus);
+        $this->assertSame('PAID', $array['payment_status_presentation']['label'] ?? null);
+        $this->assertSame('paid', $array['payment_status_presentation']['tone'] ?? null);
         $this->assertSame('cashfree', $preview->paymentMethod);
         $this->assertSame('2735', $preview->paymentAmount);
         $this->assertSame('₹2735', $array['payment_amount_display']);

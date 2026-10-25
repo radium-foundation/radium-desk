@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.38 — 2026-10-25 — Dashboard legacy-order payment status indicators
+
+- **Dashboard:** Universal search legacy-order preview card shows accessible payment status badges (PAID / PENDING / FAILED / CANCELLED / STATUS UNKNOWN) with icon + text; styling does not infer paid from shipment or invoice fields.
+- **Migrations:** None. Display-only; no payment webhook or order mutation changes.
+- **Rollout:** Deploy application only (`public/build` included). Rollback: redeploy **v4.1.37** / build `c923c703`.
+- ChatGPT prompt **P-25-38**.
+
 ## 4.1.37 — 2026-10-24 — IND reduced-copy print layout (DUPLICATE footer)
 
 - **Finance:** IND reduced-copy **print** view shows a single footer notice (`DUPLICATE — Reprint copy generated from stored order data.`) instead of repeated disclaimer blocks in the invoice body. On-screen historical disclosure and INV/INVS print paths unchanged.
