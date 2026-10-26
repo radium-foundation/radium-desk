@@ -228,7 +228,7 @@ return [
         /** Comma-separated order owners allowed for desk-first spoke audit after Desk ledger credit. */
         'desk_first_spoke_allowlist' => env(
             'CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_SPOKES',
-            'rdservice.in,rdservice.net,radiumbox.com',
+            'rdservice.in,radiumbox.com',
         ),
     ],
 
