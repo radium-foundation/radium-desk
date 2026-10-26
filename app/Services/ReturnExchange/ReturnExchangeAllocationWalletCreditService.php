@@ -5,21 +5,26 @@ namespace App\Services\ReturnExchange;
 use App\Models\OnlineReturnRefundAllocation;
 use App\Models\OnlineReturnRefundAllocationLine;
 use App\Models\Order;
+use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\RadiumBox\RadiumBoxWalletRefundClient;
 use App\Services\RdService\RdServiceInWalletRefundClient;
 use App\Services\RdService\RdServiceNetWalletRefundClient;
 use App\Services\Refunds\WalletRefundDestinationResolver;
+use App\Services\Refunds\WalletRefundExecutor;
 use App\Support\Money\WalletMoney;
+use App\Support\Refunds\DeskFirstWalletRefundSpokePolicy;
+use App\Support\Refunds\DeskFirstWalletRefundSupport;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Posts wallet credit for an allocation line using the same spoke clients as {@see \App\Services\Refunds\WalletRefundExecutor}
- * without creating or completing a {@see \App\Models\RefundRequest}.
+ * Posts wallet credit for an allocation line using the same spoke clients as {@see WalletRefundExecutor}
+ * without creating or completing a {@see RefundRequest}.
  */
 final class ReturnExchangeAllocationWalletCreditService
 {
     public function __construct(
+        private readonly DeskFirstReturnExchangeAllocationWalletCreditOrchestrator $deskFirstOrchestrator,
         private readonly RdServiceInWalletRefundClient $rdServiceInWalletRefundClient,
         private readonly RdServiceNetWalletRefundClient $rdServiceNetWalletRefundClient,
         private readonly RadiumBoxWalletRefundClient $radiumBoxWalletRefundClient,
@@ -50,6 +55,26 @@ final class ReturnExchangeAllocationWalletCreditService
         }
 
         $deskReference = $this->deskReference($allocation, $line);
+
+        if (DeskFirstWalletRefundSupport::requiresAuthoritativeDeskLedger()
+            || $this->deskFirstOrchestrator->isEnabled()) {
+            if (! $this->deskFirstOrchestrator->isEnabled()) {
+                throw ValidationException::withMessages([
+                    'execution' => 'Desk-authoritative wallet credits require CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED before execution.',
+                ]);
+            }
+
+            if ($this->destinations->isRdServiceNet($orderId)
+                && ! $this->destinations->supportsAutomatedWalletCredit($orderId)) {
+                throw ValidationException::withMessages([
+                    'execution' => $this->destinations->unsupportedAutomatedWalletCreditMessage($orderId),
+                ]);
+            }
+
+            DeskFirstWalletRefundSpokePolicy::assertSpokeAllowedForDeskFirst($orderId, $this->destinations);
+
+            return $this->deskFirstOrchestrator->execute($allocation, $line, $order, $actor);
+        }
 
         if ($this->destinations->isRdServiceIn($orderId)) {
             return $this->creditRdServiceIn($deskReference, $orderId, $amount, $order, $actor, $line);

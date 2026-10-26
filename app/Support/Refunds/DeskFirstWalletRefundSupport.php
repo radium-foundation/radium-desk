@@ -11,6 +11,27 @@ final class DeskFirstWalletRefundSupport
         return (bool) config('central_wallet.wallet_refund.desk_first_enabled', false);
     }
 
+    public static function isDeskAuthoritativeEnabled(): bool
+    {
+        return filter_var(
+            config('central_wallet.wallet_refund.desk_authoritative_enabled', true),
+            FILTER_VALIDATE_BOOLEAN,
+        );
+    }
+
+    /**
+     * Wallet refund completion requires posted Desk Central Wallet ledger evidence.
+     */
+    public static function requiresAuthoritativeDeskLedger(): bool
+    {
+        return self::isDeskAuthoritativeEnabled();
+    }
+
+    public static function completionGateApplies(): bool
+    {
+        return self::isDeskFirstEnabled() || self::requiresAuthoritativeDeskLedger();
+    }
+
     /**
      * Persisted Desk-first completion marker (independent of current feature flag).
      */

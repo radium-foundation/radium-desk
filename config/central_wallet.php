@@ -217,8 +217,19 @@ return [
             env('CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED', false),
             FILTER_VALIDATE_BOOLEAN,
         ),
-        /** Comma-separated order owners allowed for desk-first spoke audit (default: rdservice.in only). */
-        'desk_first_spoke_allowlist' => env('CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_SPOKES', 'rdservice.in'),
+        /**
+         * When true, wallet refunds cannot complete without a posted Desk Central Wallet credit
+         * (and spoke audit when desk-first execution is used). Legacy spoke-only spendable credits are blocked.
+         */
+        'desk_authoritative_enabled' => filter_var(
+            env('CENTRAL_WALLET_DESK_AUTHORITATIVE_WALLET_REFUNDS', true),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+        /** Comma-separated order owners allowed for desk-first spoke audit after Desk ledger credit. */
+        'desk_first_spoke_allowlist' => env(
+            'CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_SPOKES',
+            'rdservice.in,rdservice.net,radiumbox.com',
+        ),
     ],
 
     /*

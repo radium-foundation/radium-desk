@@ -129,7 +129,10 @@ class DeskFirstWalletRefundReliabilityTest extends TestCase
 
     public function test_desk_first_disabled_uses_legacy_path_for_rdservice_in(): void
     {
-        config(['central_wallet.wallet_refund.desk_first_enabled' => false]);
+        config([
+            'central_wallet.wallet_refund.desk_first_enabled' => false,
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => false,
+        ]);
 
         Http::fake([
             'https://rdservice.in.test/api/integrations/v1/wallet-refunds' => Http::response([
