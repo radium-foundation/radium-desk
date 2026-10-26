@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Refunds;
 
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use App\Enums\ApprovedRefundMethod;
 use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\RefundStatus;
@@ -128,38 +129,43 @@ class WalletRefundRdServiceNetApprovalGuardTest extends TestCase
         $this->assertSame(ApprovedRefundMethod::Cashfree, $refund->approved_refund_method);
     }
 
-    public function test_rdservice_net_wallet_execution_remains_fail_closed_for_legacy_pending_execution_rows(): void
+    public function test_rdservice_net_wallet_execution_fails_closed_under_desk_authority_without_desk_first(): void
     {
         Http::fake();
 
-        $ops = User::factory()->create();
-        $ops->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
-
-        $order = Order::query()->create([
-            'order_id' => 'RN92',
-            'serial_number' => 'SN-RN92',
-            'product_name' => 'Radium Device',
-            'device_model' => 'Model X',
-            'status' => 'active',
-            'payment_amount' => '697.00',
-            'customer_email' => 'customer@example.com',
-            'created_by' => $ops->id,
+        config([
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => true,
+            'central_wallet.wallet_refund.desk_first_enabled' => false,
         ]);
 
-        $refund = RefundRequest::query()->create([
-            'order_id' => $order->id,
-            'reference_no' => 'REF-67329',
-            'amount' => '579.00',
-            'refund_amount' => '579.00',
-            'reason' => 'Legacy pending_execution wallet approval on rdservice.net order.',
-            'status' => RefundStatus::PendingExecution,
-            'approved_refund_method' => ApprovedRefundMethod::Wallet,
-            'customer_preferred_method' => CustomerPreferredRefundMethod::Opm,
-            'requested_by' => $ops->id,
-            'reviewed_by' => $ops->id,
-            'reviewed_at' => now(),
-            'communication_channels' => [],
+        [$ops, $refund] = $this->legacyRdNetPendingExecutionWalletRefund();
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [
+                'execution_reference_no' => 'MANUAL-SHOULD-NOT-COUNT',
+            ])
+            ->assertSessionHasErrors([
+                'refund' => 'Desk-authoritative wallet refunds require CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED before execution.',
+            ]);
+
+        $refund->refresh();
+
+        $this->assertSame(RefundStatus::PendingExecution, $refund->status);
+        $this->assertNull($refund->executed_at);
+        $this->assertSame(0, CentralWalletLedgerEntry::query()->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_rdservice_net_wallet_execution_remains_fail_closed_for_legacy_pending_execution_rows_when_authority_off(): void
+    {
+        Http::fake();
+
+        config([
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => false,
+            'central_wallet.wallet_refund.desk_first_enabled' => false,
         ]);
+
+        [$ops, $refund] = $this->legacyRdNetPendingExecutionWalletRefund();
 
         $resolver = app(WalletRefundDestinationResolver::class);
         $expectedMessage = $resolver->unsupportedAutomatedWalletCreditMessage('RN92');
@@ -176,6 +182,7 @@ class WalletRefundRdServiceNetApprovalGuardTest extends TestCase
 
         $this->assertSame(RefundStatus::PendingExecution, $refund->status);
         $this->assertNull($refund->executed_at);
+        $this->assertSame(0, CentralWalletLedgerEntry::query()->count());
         Http::assertNothingSent();
     }
 
@@ -275,6 +282,43 @@ class WalletRefundRdServiceNetApprovalGuardTest extends TestCase
             'customer_email' => 'customer@example.com',
             'created_by' => $user->id,
         ]);
+    }
+
+    /**
+     * @return array{0: User, 1: RefundRequest}
+     */
+    private function legacyRdNetPendingExecutionWalletRefund(): array
+    {
+        $ops = User::factory()->create();
+        $ops->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RN92',
+            'serial_number' => 'SN-RN92',
+            'product_name' => 'Radium Device',
+            'device_model' => 'Model X',
+            'status' => 'active',
+            'payment_amount' => '697.00',
+            'customer_email' => 'customer@example.com',
+            'created_by' => $ops->id,
+        ]);
+
+        $refund = RefundRequest::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'REF-67329',
+            'amount' => '579.00',
+            'refund_amount' => '579.00',
+            'reason' => 'Legacy pending_execution wallet approval on rdservice.net order.',
+            'status' => RefundStatus::PendingExecution,
+            'approved_refund_method' => ApprovedRefundMethod::Wallet,
+            'customer_preferred_method' => CustomerPreferredRefundMethod::Opm,
+            'requested_by' => $ops->id,
+            'reviewed_by' => $ops->id,
+            'reviewed_at' => now(),
+            'communication_channels' => [],
+        ]);
+
+        return [$ops, $refund];
     }
 
     private function pendingRefund(
