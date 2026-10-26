@@ -8,7 +8,8 @@
     "spendable": false,
     "verification_required": true,
     "display_label": "Wallet Balance — Unverified",
-    "display_hint": "Verify your account to use this balance."
+    "display_hint": "Verify your account to use this balance.",
+    "central_wallet_id": "00000000-0000-4000-8000-000000000001"
   },
   "verified_spendable": {
     "wallet_balance": "100.00",
@@ -19,7 +20,8 @@
     "spendable": true,
     "verification_required": false,
     "display_label": "Wallet",
-    "display_hint": "Available balance"
+    "display_hint": "Available balance",
+    "central_wallet_id": "00000000-0000-4000-8000-000000000002"
   },
   "authoritative_zero": {
     "wallet_balance": "0.00",
@@ -30,6 +32,7 @@
     "spendable": false,
     "verification_required": true,
     "display_label": "Wallet",
-    "display_hint": "Connect and verify your account to view your wallet balance."
+    "display_hint": "Connect and verify your account to view your wallet balance.",
+    "central_wallet_id": "00000000-0000-4000-8000-000000000003"
   }
 }

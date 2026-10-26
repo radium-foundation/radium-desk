@@ -3,6 +3,9 @@
 namespace Tests\Feature\CentralWallet;
 
 use App\CentralWallet\Domain\Enums\AccountLinkStatus;
+use App\CentralWallet\Domain\Enums\CustomerIdentityCredentialType;
+use App\CentralWallet\Infrastructure\Persistence\CentralCustomer;
+use App\CentralWallet\Infrastructure\Persistence\CentralCustomerIdentityCredential;
 use App\CentralWallet\Infrastructure\Persistence\CentralWallet;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletAccountLink;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -36,10 +39,33 @@ class WalletRefundDestinationRn169ShapeTest extends TestCase
     public function test_rn169_shaped_request_resolves_existing_account_link(): void
     {
         $cwid = (string) Str::uuid();
+        $customerId = (string) Str::uuid();
         CentralWallet::query()->create(['id' => $cwid, 'status' => 'active']);
+
+        CentralCustomer::query()->create([
+            'id' => $customerId,
+            'central_wallet_id' => $cwid,
+            'status' => 'active',
+        ]);
+
+        $hasher = app(\App\CentralWallet\Application\CustomerIdentitySubjectHasher::class);
+
+        CentralCustomerIdentityCredential::query()->create([
+            'desk_customer_id' => $customerId,
+            'credential_type' => CustomerIdentityCredentialType::VerifiedEmail,
+            'provider' => 'desk_email',
+            'subject_hash' => $hasher->hashVerifiedEmail('ref67372-shape@example.com'),
+            'verified_at' => now(),
+            'metadata' => [
+                'source' => 'spoke_account_identity',
+                'site_code' => 'rdservice.net',
+                'local_user_id' => 'rn169-local-user',
+            ],
+        ]);
 
         CentralWalletAccountLink::query()->create([
             'central_wallet_id' => $cwid,
+            'desk_customer_id' => null,
             'site_code' => 'rdservice.net',
             'local_user_id' => 'rn169-local-user',
             'status' => AccountLinkStatus::Active,
