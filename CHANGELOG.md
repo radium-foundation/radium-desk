@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.40 — 2026-10-26 — Central Wallet account-link desk customer integrity
+
+- **Central Wallet:** Prevent new active account links without `desk_customer_id`; ceremony and identity-ensure paths ensure a `central_customers` row; read-only resolver for safely mappable incomplete links (visibility and refund-destination parity).
+- **Tooling:** Read-only classify/repair scripts for NULL-FK active links (narrow guards; no balance/ledger writes).
+- **Migrations:** None. Application deploy only.
+- **Rollout:** Deploy application only. Rollback: redeploy **v4.1.39** / build `da9de735`.
+- ChatGPT prompts **P-26-53** through **P-26-56**.
+
 ## 4.1.39 — 2026-10-25 — Map RadiumBox `reject` commerce order status to FAILED badge
 
 - **Dashboard:** When RadiumBox spoke `payment_status` is empty and billing order status is `reject` / `rejected` (documented unpaid checkout failure), legacy preview shows red **FAILED** instead of **STATUS UNKNOWN**.

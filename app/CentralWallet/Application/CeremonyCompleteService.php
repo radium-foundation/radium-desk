@@ -21,6 +21,7 @@ final class CeremonyCompleteService
         private readonly AccountLinkService $accountLinks,
         private readonly AuditEventRecorder $auditEvents,
         private readonly CrossSiteCeremonyResolver $crossSiteResolver,
+        private readonly CentralWalletDeskCustomerEnsurer $deskCustomerEnsurer,
     ) {}
 
     /**
@@ -269,6 +270,15 @@ final class CeremonyCompleteService
                         verifiedPhoneE164Hash: $proof->verifiedPhoneE164Hash,
                     );
                 }
+
+                $deskCustomer = $this->deskCustomerEnsurer->ensureForWallet($centralWalletId);
+                $this->deskCustomerEnsurer->ensureVerifiedMobileCredential(
+                    $deskCustomer,
+                    $proof->verifiedPhoneE164Hash,
+                    $siteCode,
+                    $localUserId,
+                    'ceremony_complete',
+                );
 
                 $link = $this->accountLinks->createConfirmedLink(
                     centralWalletId: $centralWalletId,
