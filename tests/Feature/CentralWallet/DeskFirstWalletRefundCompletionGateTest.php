@@ -77,9 +77,32 @@ class DeskFirstWalletRefundCompletionGateTest extends TestCase
         $gate->assertMayComplete($refund, $this->validExecution($entry));
     }
 
+    public function test_rejects_legacy_spoke_when_only_desk_authoritative_enabled(): void
+    {
+        config([
+            'central_wallet.wallet_refund.desk_first_enabled' => false,
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => true,
+        ]);
+
+        $refund = $this->walletRefund('REF-GATE-AUTH', '50.00');
+        $gate = app(DeskFirstWalletRefundCompletionGate::class);
+
+        $this->expectException(ValidationException::class);
+        $gate->assertMayComplete($refund, [
+            'provider' => 'radiumbox_wallet',
+            'reference_number' => 'RD2586',
+            'transaction_id' => '2586',
+            'remarks' => 'legacy spoke only',
+            'metadata' => [],
+        ]);
+    }
+
     public function test_gate_is_no_op_when_desk_first_disabled(): void
     {
-        config(['central_wallet.wallet_refund.desk_first_enabled' => false]);
+        config([
+            'central_wallet.wallet_refund.desk_first_enabled' => false,
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => false,
+        ]);
         $refund = $this->walletRefund('REF-GATE-4', '10.00');
         $gate = app(DeskFirstWalletRefundCompletionGate::class);
         $gate->assertMayComplete($refund, [

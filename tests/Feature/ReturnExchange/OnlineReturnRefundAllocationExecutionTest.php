@@ -3,15 +3,16 @@
 namespace Tests\Feature\ReturnExchange;
 
 use App\Enums\OnlineReturnRefundAllocationDestination;
-use Database\Seeders\FinanceMasterDataSeeder;
-use Tests\Feature\ReturnExchange\Concerns\PreparesSplitTenderOnlineReturnCases;
-use Spatie\Permission\PermissionRegistrar;
 use App\Enums\OnlineReturnRefundAllocationLineExecutionStatus;
 use App\Models\OnlineReturnRefundAllocationLineExecution;
 use App\Models\RefundRequest;
+use App\Models\ReturnExchangeCase;
 use App\Services\ReturnExchange\OnlineReturnRefundAllocationExecutionService;
 use App\Services\ReturnExchange\ReturnExchangeAllocationWalletCreditService;
+use Database\Seeders\FinanceMasterDataSeeder;
 use Illuminate\Support\Facades\Http;
+use Spatie\Permission\PermissionRegistrar;
+use Tests\Feature\ReturnExchange\Concerns\PreparesSplitTenderOnlineReturnCases;
 
 class OnlineReturnRefundAllocationExecutionTest extends ReturnExchangeCaseHttpTestCase
 {
@@ -66,6 +67,8 @@ class OnlineReturnRefundAllocationExecutionTest extends ReturnExchangeCaseHttpTe
     {
         config([
             'return_exchange.online_refund_allocation.execution_enabled' => true,
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => false,
+            'central_wallet.wallet_refund.desk_first_enabled' => false,
             'radiumbox.wallet_refund_credit_enabled' => true,
             'order_lookup.spokes.radiumbox_com.enabled' => true,
             'order_lookup.spokes.radiumbox_com.base_url' => 'https://radiumbox.test',
@@ -225,7 +228,7 @@ class OnlineReturnRefundAllocationExecutionTest extends ReturnExchangeCaseHttpTe
     }
 
     /**
-     * @param  \App\Models\ReturnExchangeCase  $case
+     * @param  ReturnExchangeCase  $case
      */
     private function submitAndApproveAllocation($case, $branchUser): void
     {

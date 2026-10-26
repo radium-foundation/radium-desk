@@ -14,7 +14,7 @@ final class ReturnExchangeAllocationOpmCreditSourceResolver
 
         return match ($provider) {
             'radiumbox_wallet', 'rdservice_in_wallet' => WalletRefundCreditSource::LegacyLocal,
-            'rdservice_net_central_wallet' => WalletRefundCreditSource::CentralWallet,
+            'desk_first_central_wallet', 'rdservice_net_central_wallet' => WalletRefundCreditSource::CentralWallet,
             default => throw ValidationException::withMessages([
                 'conversion' => 'Wallet credit source cannot be determined from execution provider "'.$provider.'".',
             ]),

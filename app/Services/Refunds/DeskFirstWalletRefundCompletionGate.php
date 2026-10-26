@@ -33,7 +33,7 @@ final class DeskFirstWalletRefundCompletionGate
      */
     public function assertMayComplete(RefundRequest $refund, array $execution): void
     {
-        if (! DeskFirstWalletRefundSupport::isDeskFirstEnabled()) {
+        if (! DeskFirstWalletRefundSupport::completionGateApplies()) {
             return;
         }
 
@@ -44,7 +44,7 @@ final class DeskFirstWalletRefundCompletionGate
         $metadata = $execution['metadata'] ?? [];
         if (! is_array($metadata) || ($metadata['desk_first'] ?? false) !== true) {
             throw ValidationException::withMessages([
-                'refund' => 'Desk-first wallet refund is enabled, but execution did not produce authoritative Central Wallet evidence.',
+                'refund' => 'Desk-authoritative wallet refund requires a posted Central Wallet credit; legacy spoke-only execution cannot complete.',
             ]);
         }
 
