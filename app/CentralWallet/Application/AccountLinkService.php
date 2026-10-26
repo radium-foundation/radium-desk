@@ -14,6 +14,7 @@ final class AccountLinkService
 {
     public function __construct(
         private readonly AuditEventRecorder $auditEvents,
+        private readonly CentralWalletDeskCustomerEnsurer $deskCustomerEnsurer,
     ) {}
 
     /**
@@ -96,8 +97,11 @@ final class AccountLinkService
             $this->assertNoActiveLink($siteCode, $localUserId);
             $this->assertNoActiveSiteLinkForWallet($centralWalletId, $siteCode);
 
+            $deskCustomerId = $this->deskCustomerEnsurer->requireDeskCustomerIdForWallet($centralWalletId);
+
             $link = CentralWalletAccountLink::query()->create([
                 'central_wallet_id' => $centralWalletId,
+                'desk_customer_id' => $deskCustomerId,
                 'site_code' => $siteCode,
                 'local_user_id' => $localUserId,
                 'status' => AccountLinkStatus::Active,
@@ -138,6 +142,10 @@ final class AccountLinkService
 
         return DB::transaction(function () use ($link, $verificationMethod, $actorId, $correlationId): CentralWalletAccountLink {
             $this->assertNoActiveLink($link->site_code, $link->local_user_id);
+
+            if (trim((string) $link->desk_customer_id) === '') {
+                $link->desk_customer_id = $this->deskCustomerEnsurer->requireDeskCustomerIdForWallet((string) $link->central_wallet_id);
+            }
 
             $link->status = AccountLinkStatus::Active;
             $link->verification_method = $verificationMethod;

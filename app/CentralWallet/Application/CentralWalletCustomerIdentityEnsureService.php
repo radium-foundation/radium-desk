@@ -30,6 +30,7 @@ final class CentralWalletCustomerIdentityEnsureService
         private readonly HistoricalContactIdentityMatchService $contactIdentityMatch,
         private readonly CentralWalletService $wallets,
         private readonly AuditEventRecorder $auditEvents,
+        private readonly CentralWalletAccountLinkDeskCustomerResolver $linkDeskCustomerResolver,
     ) {}
 
     /**
@@ -61,6 +62,31 @@ final class CentralWalletCustomerIdentityEnsureService
 
         $existingLink = $this->activeAccountLink($siteCode, $localUserId);
         if ($existingLink !== null) {
+            $this->recordIncompleteLinkIfNeeded(
+                $existingLink,
+                $siteCode,
+                $localUserId,
+                $email,
+                $mobileDigits,
+                $correlationId,
+            );
+
+            if (! $this->identityEnsureAuthorizedForLink(
+                $existingLink,
+                $siteCode,
+                $localUserId,
+                $email,
+                $mobileDigits,
+            )) {
+                return [
+                    'status' => 404,
+                    'body' => [
+                        'error' => 'identity_unresolved',
+                        'identity_state' => 'unresolved',
+                    ],
+                ];
+            }
+
             $this->ensureTrustedCredentialsForLinkedCustomer(
                 $existingLink,
                 $email,
@@ -491,7 +517,7 @@ final class CentralWalletCustomerIdentityEnsureService
             throw new InvalidArgumentException('cwid_site_link_conflict');
         }
 
-        return CentralWalletAccountLink::query()->create([
+        $link = CentralWalletAccountLink::query()->create([
             'central_wallet_id' => $customer->central_wallet_id,
             'desk_customer_id' => $customer->id,
             'site_code' => $siteCode,
@@ -502,6 +528,65 @@ final class CentralWalletCustomerIdentityEnsureService
             'linked_at' => now(),
             'metadata' => ['source' => 'customer_identity_ensure'],
         ]);
+
+        if (trim((string) $link->desk_customer_id) === '') {
+            throw new InvalidArgumentException('account_link_missing_desk_customer_id');
+        }
+
+        return $link;
+    }
+
+    private function identityEnsureAuthorizedForLink(
+        CentralWalletAccountLink $link,
+        string $siteCode,
+        string $localUserId,
+        string $email,
+        string $mobileDigits,
+    ): bool {
+        if (trim((string) $link->desk_customer_id) !== '') {
+            return true;
+        }
+
+        return $this->linkDeskCustomerResolver->resolveDeskCustomerForActiveLink(
+            $link,
+            $siteCode,
+            $localUserId,
+            $email,
+            $mobileDigits,
+        ) !== null;
+    }
+
+    private function recordIncompleteLinkIfNeeded(
+        CentralWalletAccountLink $link,
+        string $siteCode,
+        string $localUserId,
+        string $email,
+        string $mobileDigits,
+        ?string $correlationId,
+    ): void {
+        if (trim((string) $link->desk_customer_id) !== '') {
+            return;
+        }
+
+        $classification = $this->linkDeskCustomerResolver->classifyActiveLink($link);
+        if ($classification['status'] === 'complete') {
+            return;
+        }
+
+        $this->auditEvents->record(
+            eventType: 'account_link.incomplete_detected',
+            centralWalletId: (string) $link->central_wallet_id,
+            actorType: AuditActorType::Service,
+            actorId: self::ACTOR_ID_PREFIX.':'.$siteCode,
+            correlationId: $correlationId,
+            payload: [
+                'link_id' => $link->id,
+                'site_code' => $siteCode,
+                'local_user_id' => $localUserId,
+                'classification' => $classification['status'],
+                'reason' => $classification['reason'],
+            ],
+        );
     }
 
     private function ensureTrustedCredentialsForLinkedCustomer(
@@ -516,13 +601,20 @@ final class CentralWalletCustomerIdentityEnsureService
             return;
         }
 
-        $deskCustomerId = trim((string) $link->desk_customer_id);
-        if ($deskCustomerId === '') {
+        $customer = $this->linkDeskCustomerResolver->resolveDeskCustomerForActiveLink(
+            $link,
+            $siteCode,
+            $localUserId,
+            $email,
+            $mobileDigits,
+        );
+
+        if ($customer === null) {
             return;
         }
 
-        $customer = CentralCustomer::query()->find($deskCustomerId);
-        if ($customer === null || trim((string) $customer->central_wallet_id) === '') {
+        $deskCustomerId = (string) $customer->id;
+        if (trim((string) $customer->central_wallet_id) === '') {
             return;
         }
 

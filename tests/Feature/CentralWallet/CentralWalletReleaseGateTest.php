@@ -90,6 +90,7 @@ class CentralWalletReleaseGateTest extends TestCase
                 'balance_source' => 'desk_ledger',
                 'spendable' => false,
                 'verification_required' => true,
+                'central_wallet_id' => '00000000-0000-4000-8000-00000000cafe',
             ], 200);
         });
 

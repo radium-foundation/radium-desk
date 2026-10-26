@@ -23,6 +23,7 @@ final class WalletVisibilityService
         private readonly CustomerIdentitySubjectHasher $subjectHasher,
         private readonly LedgerService $ledger,
         private readonly AuditEventRecorder $auditEvents,
+        private readonly CentralWalletAccountLinkDeskCustomerResolver $linkDeskCustomerResolver,
     ) {}
 
     /**
@@ -184,7 +185,16 @@ final class WalletVisibilityService
             ->first();
 
         if ($link !== null) {
-            if (! $this->contactMatchesLinkedCustomer((string) $link->desk_customer_id, $email, $mobileDigits)) {
+            $resolvedCustomer = $this->linkDeskCustomerResolver->resolveDeskCustomerForActiveLink(
+                $link,
+                $siteCode,
+                $localUserId,
+                $email,
+                $mobileDigits,
+            );
+
+            if ($resolvedCustomer === null
+                || ! $this->linkDeskCustomerResolver->contactMatchesResolvedCustomer($resolvedCustomer, $email, $mobileDigits)) {
                 return null;
             }
 
