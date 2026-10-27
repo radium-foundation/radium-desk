@@ -21,6 +21,7 @@ use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class PosRetailShippingTest extends TestCase
@@ -217,7 +218,7 @@ class PosRetailShippingTest extends TestCase
             statutory: ['place_of_supply_state' => 'Delhi'],
         );
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
         $this->expectExceptionMessage('HSN/SAC');
 
         $this->invoices->issueFromPosSale($sale, $this->actor);
