@@ -9,6 +9,7 @@ use App\Services\OrderIdentityProtectionService;
 use App\Services\OrderLookup\OrderEnrichmentLookupService;
 use App\Services\RdService\RdServiceClient;
 use App\Services\RdService\RdServiceFetchResult;
+use App\Support\Orders\OrderSerialOwnership;
 use Illuminate\Support\Facades\Log;
 
 class RadiumBoxService
@@ -39,6 +40,7 @@ class RadiumBoxService
         private readonly OrderIdentityLifecycleService $identityLifecycle,
         private readonly RdServiceClient $rdServiceClient,
         private readonly OrderEnrichmentLookupService $orderLookup,
+        private readonly RadiumBoxOrderEnrichmentSyncStore $enrichmentSyncStore,
     ) {}
 
     public function enrichOrderForWorkspace(Order $order): Order
@@ -383,6 +385,15 @@ class RadiumBoxService
                         'existing_owner_db_id' => $existingOwner->id,
                         'serial_number' => $serialNumber,
                     ]);
+
+                    $this->enrichmentSyncStore->mergeMetadata($order->id, [
+                        'serial_assignment_conflict' => [
+                            'serial' => $serialNumber,
+                            'owner_order_id' => $existingOwner->order_id,
+                            'owner_order_db_id' => $existingOwner->id,
+                            'recorded_at' => now()->toIso8601String(),
+                        ],
+                    ]);
                 } else {
                     $updates['serial_number'] = $serialNumber;
                 }
@@ -456,10 +467,7 @@ class RadiumBoxService
 
     private function findSerialOwner(Order $order, string $serialNumber): ?Order
     {
-        return Order::query()
-            ->where('serial_number', $serialNumber)
-            ->whereKeyNot($order->id)
-            ->first(['id', 'order_id', 'serial_number']);
+        return OrderSerialOwnership::findOwner($serialNumber, $order->id);
     }
 
     private function emptyPersistenceResult(): EnrichmentPersistenceResult
