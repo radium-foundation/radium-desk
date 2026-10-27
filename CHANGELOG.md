@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.41 — 2026-10-27 — Statutory invoice cancellation reliability (+ wallet refund authority on main)
+
+- **Statutory cancellation (PR #72):** Durable `statutory_invoice_cancellations` lifecycle; bounded live IRN CANCEL dispatch with atomic row reservation (`lockForUpdate`, commit before provider HTTP); Get-IRN reconciliation before retry (`failed_retryable`, `irn_pending`); `desk:statutory-cancellation-reconcile` CLI; Finance cancel UI gated by `finance.invoices.cancel`; manual-review `Log::warning` (`statutory_invoice_cancellation.manual_review_required`). Runbook: `docs/desk-statutory-cancellation-reliability-runbook-p-27-30.md`.
+- **Migrations:** `2026_10_27_083000_add_lifecycle_to_statutory_invoice_cancellations_table` — additive columns + backfill `status=completed`. **Migration must succeed before relying on new cancellation code.**
+- **CI:** GitHub Actions `statutory-cancellation-phpunit` (focused 118-test bundle; PHP 8.4; SQLite `:memory:`).
+- **Also on `main` since tag v4.1.40 (not yet on production):** Desk-authoritative central-wallet refund / RDNET guard alignment (merged PRs **#68–#70**). Production remains **v4.1.40** / `9b4b52f4` until this release deploys. Review wallet flags and Owner scope separately from statutory cancellation.
+- **Operational limits:** Does not enable statutory e-invoice issuance by itself. Does not replace Finance/CA approval for live IRN CANCEL. Get-IRN **2154** alone does not prove cancellation. Manual-review delivery is log-only until monitoring is configured.
+- **Rollout:** Owner-approved fresh DB backup + pre-deploy RIP at current production build, migration verification, then `desk deploy` from tag **v4.1.41**. **Application rollback:** redeploy **v4.1.40** / `9b4b52f4` only with a documented DB assessment if lifecycle migration has run. **NIC/IRN:** app rollback **does not** reverse an IRN cancelled at the provider.
+- ChatGPT prompts **P-27-30** through **P-27-58** (release documentation).
+
 ## 4.1.40 — 2026-10-26 — Central Wallet account-link desk customer integrity
 
 - **Central Wallet:** Prevent new active account links without `desk_customer_id`; ceremony and identity-ensure paths ensure a `central_customers` row; read-only resolver for safely mappable incomplete links (visibility and refund-destination parity).
