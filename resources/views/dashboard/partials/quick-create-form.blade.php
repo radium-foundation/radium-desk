@@ -69,6 +69,7 @@
                         </div>
                         <p class="text-muted small mb-2" id="intake-classification-label"></p>
                         <div id="intake-matches-list" class="list-group mb-3"></div>
+                        <div data-intake-order-history-panel class="d-none mb-3"></div>
                     </div>
 
                     <div id="intake-step-legacy-preview" class="intake-step d-none">
@@ -78,6 +79,7 @@
                         </div>
                         <p class="alert alert-info py-2 small mb-3" id="intake-legacy-preview-message"></p>
                         <div class="row small mb-3" id="intake-legacy-preview-fields"></div>
+                        <div data-intake-order-history-panel class="d-none mb-3"></div>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-outline-secondary btn-sm" data-intake-back="search">Cancel</button>
                             <button type="button" class="btn btn-primary btn-sm" id="intake-legacy-confirm-button">Confirm &amp; Continue</button>

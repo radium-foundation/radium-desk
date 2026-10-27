@@ -10,6 +10,7 @@ use App\Enums\WorkspaceContext;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CustomerOrderHistory\CustomerOrderHistoryService;
 use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
 use App\Services\Interakt\InteraktCustomerMatcher;
 use App\Services\LegacyOrder\LegacyOrderLookupService;
@@ -23,6 +24,7 @@ class CustomerIntakeSearchService
         private readonly LegacyOrderLookupService $legacyOrderLookupService,
         private readonly SettingService $settingService,
         private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
+        private readonly CustomerOrderHistoryService $customerOrderHistoryService,
     ) {}
 
     /**
@@ -103,6 +105,14 @@ class CustomerIntakeSearchService
         $intakePhone = $parsedQuery['phone'] ?? null;
         $legacyPreview = $result->legacyPreview;
 
+        $orderHistory = $this->customerOrderHistoryService->historyForContext(
+            phone: $parsedQuery['phone'] ?? null,
+            email: $parsedQuery['email'] ?? null,
+            businessOrderId: $parsedQuery['order_id'] ?? ($legacyPreview?->orderId ?? null),
+            serialNumber: $parsedQuery['serial_number'] ?? null,
+            highlightOrderDbId: $result->matches[0]['id'] ?? null,
+        );
+
         return [
             'classification' => $result->classification->value,
             'classification_label' => $result->classification->label(),
@@ -118,6 +128,8 @@ class CustomerIntakeSearchService
             'default_source' => $this->settingService->enabledSources()->first()?->key,
             'create_url' => route('service-requests.quick.store'),
             'parsed_query' => $parsedQuery,
+            'order_history' => $orderHistory,
+            'order_history_url' => route('customer-order-history.show'),
         ];
     }
 

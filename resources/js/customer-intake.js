@@ -12,6 +12,7 @@ import {
     openLegacySearchConfirmModal,
     resolveIntakeOutcome,
 } from './intake-search-flow';
+import { renderIntakeOrderHistory } from './intake-order-history';
 
 export const resetQuickCreateStepForDashboardFlow = (modalElement, form) => {
     if (!modalElement || !form) {
@@ -405,6 +406,8 @@ const renderLegacyPreview = (modal, form, data) => {
         matchedOrderField.value = '';
     }
 
+    applyOrderHistory(modal, data);
+
     showStep(modal, 'intake-step-legacy-preview');
     searchButton?.classList.add('d-none');
     submitButton?.classList.add('d-none');
@@ -417,6 +420,12 @@ const renderLegacyPreview = (modal, form, data) => {
         showStep(modal, 'intake-step-details');
         searchButton?.classList.add('d-none');
         submitButton?.classList.remove('d-none');
+    });
+};
+
+const applyOrderHistory = (modal, data) => {
+    modal.querySelectorAll('[data-intake-order-history-panel]').forEach((container) => {
+        renderIntakeOrderHistory(container, data?.order_history);
     });
 };
 
@@ -556,6 +565,7 @@ const renderExistingRecordCard = (modal, form, match) => {
 };
 
 const renderMatches = (modal, form, data) => {
+    applyOrderHistory(modal, data);
     const list = modal.querySelector('#intake-matches-list');
     const classificationLabel = modal.querySelector('#intake-classification-label');
     const searchButton = modal.querySelector('#intake-search-button');
@@ -687,6 +697,7 @@ const searchCustomer = async (modal, form) => {
         const outcome = resolveIntakeOutcome(data);
 
         if (outcome === 'new_contact') {
+            applyOrderHistory(modal, data);
             advanceQuickCreateToNewContact(modal, form, data.parsed_query ?? null);
             return;
         }
