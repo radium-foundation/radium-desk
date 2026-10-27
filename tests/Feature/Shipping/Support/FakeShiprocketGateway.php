@@ -46,6 +46,10 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public int $manifests = 0;
 
+    public int $labelBatchCalls = 0;
+
+    public int $manifestBatchCalls = 0;
+
     public int $invoices = 0;
 
     public int $tracks = 0;
@@ -71,6 +75,12 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public ?string $nextLabelMode = null;
 
     public ?string $nextManifestMode = null;
+
+    public ?string $nextManifestUrl = null;
+
+    public ?string $nextManifestRejectedError = null;
+
+    public ?string $nextLabelUrl = null;
 
     public ?string $recommendedCourierId = null;
 
@@ -371,12 +381,14 @@ final class FakeShiprocketGateway implements ShiprocketGateway
         $this->labels++;
         $mode = $this->nextLabelMode ?? $this->mode;
         $this->nextLabelMode = null;
+        $labelUrl = $this->nextLabelUrl ?? 'https://fake.local/labels/'.$externalShipmentId;
+        $this->nextLabelUrl = null;
 
         return match ($mode) {
             'accepted' => new ShiprocketDocumentResult(
                 provider: $this->provider(),
                 status: 'generated',
-                url: 'https://fake.local/labels/'.$externalShipmentId,
+                url: $labelUrl,
             ),
             'rejected' => new ShiprocketDocumentResult(
                 provider: $this->provider(),
@@ -400,18 +412,22 @@ final class FakeShiprocketGateway implements ShiprocketGateway
         $this->manifests++;
         $mode = $this->nextManifestMode ?? $this->mode;
         $this->nextManifestMode = null;
+        $manifestUrl = $this->nextManifestUrl ?? 'https://fake.local/manifests/'.$externalShipmentId;
+        $this->nextManifestUrl = null;
+        $rejectedError = $this->nextManifestRejectedError ?? 'Fake provider rejected manifest generation.';
+        $this->nextManifestRejectedError = null;
 
         return match ($mode) {
             'accepted' => new ShiprocketDocumentResult(
                 provider: $this->provider(),
                 status: 'generated',
-                url: 'https://fake.local/manifests/'.$externalShipmentId,
+                url: $manifestUrl,
                 documentId: 'MF-'.$externalShipmentId,
             ),
             'rejected' => new ShiprocketDocumentResult(
                 provider: $this->provider(),
                 status: 'rejected',
-                error: 'Fake provider rejected manifest generation.',
+                error: $rejectedError,
                 retryable: false,
             ),
             'retryable' => new ShiprocketDocumentResult(
@@ -423,6 +439,32 @@ final class FakeShiprocketGateway implements ShiprocketGateway
             'timeout' => throw new ShiprocketRetryableException('Fake provider manifest timeout.'),
             default => throw new RuntimeException('Unknown fake Shiprocket manifest mode: '.$mode),
         };
+    }
+
+    /**
+     * Bulk document entry points used by {@see \App\Services\HardwareFulfilment\HardwareShipmentBulkDocumentsService}.
+     *
+     * @param  list<string>  $externalShipmentIds
+     */
+    public function generateLabelBatch(array $externalShipmentIds): ShiprocketDocumentResult
+    {
+        $this->labelBatchCalls++;
+
+        $id = (string) ($externalShipmentIds[0] ?? '0');
+
+        return $this->generateLabel($id);
+    }
+
+    /**
+     * @param  list<string>  $externalShipmentIds
+     */
+    public function generateManifestBatch(array $externalShipmentIds): ShiprocketDocumentResult
+    {
+        $this->manifestBatchCalls++;
+
+        $id = (string) ($externalShipmentIds[0] ?? '0');
+
+        return $this->generateManifest($id);
     }
 
     public function printInvoice(string $externalShipmentId): ShiprocketDocumentResult

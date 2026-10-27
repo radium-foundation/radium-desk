@@ -15,6 +15,7 @@ use App\Services\Shipping\Data\ShiprocketDocumentResult;
 use App\Services\Shipping\Data\ShiprocketTrackResult;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\Shipping\ShiprocketAlreadyQueuedPickup;
+use App\Services\Shipping\ShiprocketManifestAlreadyGenerated;
 use App\Services\Shipping\ShiprocketDisabledException;
 use App\Services\Shipping\ShiprocketNonRetryableException;
 use App\Services\Shipping\ShiprocketPickupInvalidStatus;
@@ -45,11 +46,7 @@ class HardwareShipmentDocumentsService
                 'label',
             );
 
-            $shipment->forceFill([
-                'label_url' => $result->url,
-                'label_fetched_at' => now(),
-                'last_error' => null,
-            ])->save();
+            ShipmentDocumentPersistence::persistLabel($shipment, $result);
 
             $this->recordShipmentEvent($shipment, 'label_generated', [
                 'label_url' => $result->url,
@@ -203,12 +200,7 @@ class HardwareShipmentDocumentsService
                 'manifest',
             );
 
-            $shipment->forceFill([
-                'manifest_url' => $result->url,
-                'manifest_id' => $result->documentId ?? $shipment->manifest_id,
-                'manifest_generated_at' => now(),
-                'last_error' => null,
-            ])->save();
+            ShipmentDocumentPersistence::persistManifest($shipment, $result);
 
             $this->recordShipmentEvent($shipment, 'manifest_generated', [
                 'manifest_url' => $result->url,
@@ -332,6 +324,12 @@ class HardwareShipmentDocumentsService
         }
 
         if ($result->status !== 'generated' || ($result->url === null && $result->documentId === null)) {
+            if ($action === 'manifest' && ShiprocketManifestAlreadyGenerated::matchesRejectedResult($result)) {
+                throw ValidationException::withMessages([
+                    'shipping' => ShiprocketManifestAlreadyGenerated::OPERATOR_MESSAGE,
+                ]);
+            }
+
             throw ValidationException::withMessages([
                 'shipping' => $result->error ?? 'Shiprocket rejected '.$action.' generation.',
             ]);
