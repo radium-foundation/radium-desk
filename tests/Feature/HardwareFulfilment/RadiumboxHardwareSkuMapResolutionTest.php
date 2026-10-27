@@ -81,6 +81,48 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
         $this->assertNotSame('Product mapping required', $row->operatorStatus());
     }
 
+    public function test_rbp1183_resolves_pragati_regular_model_id_1503_to_rbpragati2(): void
+    {
+        $product = app(HardwareSkuMapService::class)->requireProduct(
+            StatutoryInvoiceChannel::RadiumBoxCom,
+            1503,
+        );
+
+        $this->assertSame('RBPRAGATI2', $product->sku);
+        $this->assertTrue($product->is_serialized);
+
+        $row = $this->classifyReadyFulfilment('RBP1183', 1503, $product->is_serialized);
+
+        $this->assertSame('Allocate Serial', $row->nextAction);
+        $this->assertNotSame('Product mapping required', $row->operatorStatus());
+    }
+
+    public function test_pragati_economy_model_id_1502_does_not_resolve_to_regular_desk_sku(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        app(HardwareSkuMapService::class)->requireProduct(
+            StatutoryInvoiceChannel::RadiumBoxCom,
+            1502,
+        );
+    }
+
+    public function test_vriddhi_model_id_1616_resolves_to_rbbpvridl1(): void
+    {
+        $product = app(HardwareSkuMapService::class)->requireProduct(
+            StatutoryInvoiceChannel::RadiumBoxCom,
+            1616,
+        );
+
+        $this->assertSame('RBBPVRIDL1', $product->sku);
+        $this->assertTrue($product->is_serialized);
+
+        $row = $this->classifyReadyFulfilment('RBPVRD', 1616, $product->is_serialized);
+
+        $this->assertSame('Allocate Serial', $row->nextAction);
+        $this->assertNotSame('Product mapping required', $row->operatorStatus());
+    }
+
     public function test_bioenable_g2_model_id_1738_resolves_rbpbiog2aa_to_rbbiogpsg2(): void
     {
         $product = app(HardwareSkuMapService::class)->requireProduct(
@@ -288,6 +330,8 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
             ['RBMFS500FP', 625, true],
             ['RBWM112MZ', 340, false],
             ['RBSMOOTHED', 1753, true],
+            ['RBBPVRIDL1', 1616, true],
+            ['RBPRAGATI2', 1503, true],
             ['RBBIOGPSG2', 1738, true],
             ['RBDELKB216', 338, true],
             ['RBIBK2121U', 566, true],

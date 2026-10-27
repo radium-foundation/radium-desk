@@ -15,6 +15,8 @@ use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\Operations\TeamMemberActivityService;
+use App\Services\Refunds\DeskFirstWalletRefundCompletionGate;
+use App\Services\Refunds\HardwareOrderRefundCaseGate;
 use App\Services\Refunds\RefundExecutionInputGuard;
 use App\Services\Refunds\RefundExecutorResolver;
 use App\Services\Refunds\WalletRefundDestinationResolver;
@@ -36,6 +38,8 @@ class RefundRequestService
         private readonly BusinessHoldService $businessHoldService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly WalletRefundDestinationResolver $walletRefundDestinations,
+        private readonly DeskFirstWalletRefundCompletionGate $deskFirstWalletRefundCompletionGate,
+        private readonly HardwareOrderRefundCaseGate $hardwareRefundCaseGate,
     ) {}
 
     /**
@@ -47,6 +51,7 @@ class RefundRequestService
 
         $refund = DB::transaction(function () use ($user, $data, $referenceNo): RefundRequest {
             $order = Order::query()->lockForUpdate()->findOrFail($data['order_id']);
+            $this->hardwareRefundCaseGate->assertMayCreateRefund($order, $data);
 
             if (! empty($data['incident_id'])) {
                 $incident = Incident::query()->lockForUpdate()->findOrFail($data['incident_id']);
@@ -386,7 +391,7 @@ class RefundRequestService
         array $data,
         Request $request,
     ): RefundRequest {
-        $completed = DB::transaction(function () use ($refund, $user, $data, $request): RefundRequest {
+        DB::transaction(function () use ($refund): void {
             $locked = RefundRequest::query()->lockForUpdate()->findOrFail($refund->id);
 
             if ($locked->status !== RefundStatus::PendingExecution) {
@@ -394,14 +399,33 @@ class RefundRequestService
                     'refund' => 'Only refunds pending execution can be completed.',
                 ]);
             }
+        });
 
-            $data = RefundExecutionInputGuard::sanitizeForCompletion($locked, $data);
-
-            $execution = $this->executorResolver->execute($locked, $user, [
-                'reference_number' => $data['execution_reference_no'] ?? null,
-                'transaction_id' => $data['execution_transaction_id'] ?? null,
-                'remarks' => $data['execution_remarks'] ?? null,
+        $lockedForExecution = $refund->fresh(['order']);
+        if ($lockedForExecution === null) {
+            throw ValidationException::withMessages([
+                'refund' => 'Refund could not be loaded for execution.',
             ]);
+        }
+
+        $data = RefundExecutionInputGuard::sanitizeForCompletion($lockedForExecution, $data);
+
+        $execution = $this->executorResolver->execute($lockedForExecution, $user, [
+            'reference_number' => $data['execution_reference_no'] ?? null,
+            'transaction_id' => $data['execution_transaction_id'] ?? null,
+            'remarks' => $data['execution_remarks'] ?? null,
+        ]);
+
+        $this->deskFirstWalletRefundCompletionGate->assertMayComplete($lockedForExecution, $execution);
+
+        $completed = DB::transaction(function () use ($lockedForExecution, $user, $execution, $request): RefundRequest {
+            $locked = RefundRequest::query()->lockForUpdate()->findOrFail($lockedForExecution->id);
+
+            if ($locked->status !== RefundStatus::PendingExecution) {
+                throw ValidationException::withMessages([
+                    'refund' => 'Only refunds pending execution can be completed.',
+                ]);
+            }
 
             $oldValues = $this->executionSnapshot($locked);
 

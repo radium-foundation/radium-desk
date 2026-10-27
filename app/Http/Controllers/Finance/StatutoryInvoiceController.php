@@ -11,6 +11,10 @@ use App\Models\StatutoryInvoice;
 use App\ReadModels\Finance\StatutoryInvoiceRegisterReadModel;
 use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
 use App\Services\StatutoryInvoice\StatutoryDocumentService;
+use App\Enums\StatutoryInvoiceCancellationOperationStatus;
+use App\Models\StatutoryInvoiceCancellation;
+use App\Services\StatutoryInvoice\Data\StatutoryInvoiceCancellationResult;
+use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationAdminPresentation;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationEligibility;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCancellationOrchestrator;
 use App\Services\StatutoryInvoice\StatutoryInvoiceCreditNotePolicy;
@@ -26,6 +30,7 @@ use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -90,25 +95,11 @@ class StatutoryInvoiceController extends Controller
             && $eInvoiceRecord->status === EInvoiceRecordStatus::Skipped->value
             && ! $eInvoiceRecord->hasIssuedIrn();
 
-        $canCancelInvoice = FinanceAccess::allowsInvoiceCancel(request()->user())
-            && $invoice->status === StatutoryInvoiceStatus::Issued;
+        $cancellationAdmin = app(StatutoryInvoiceCancellationAdminPresentation::class)
+            ->forInvoice($invoice, request()->user());
 
-        $cancellationConsequences = [];
-        if ($canCancelInvoice) {
-            $eligibility = app(StatutoryInvoiceCancellationEligibility::class);
-            $creditNotes = app(StatutoryInvoiceCreditNotePolicy::class);
-
-            if ($eligibility->irnCancellationRequired($invoice)) {
-                $cancellationConsequences[] = 'A submitted IRN must be cancelled before the statutory invoice can be cancelled.';
-            }
-
-            if ($eligibility->inventoryReversalApplicable($invoice)) {
-                $cancellationConsequences[] = 'Linked POS inventory and the posted POS finance journal will be reversed.';
-            }
-
-            $cancellationConsequences[] = $creditNotes->requirementSummary();
-            $cancellationConsequences[] = 'Customer payment is not refunded automatically. Finance must review and create a separate refund request when applicable.';
-        }
+        $canCancelInvoice = $cancellationAdmin->showCancellationForm
+            && $cancellationAdmin->maySubmitCancellationRequest;
 
         $refundReview = null;
         if ($invoice->status === StatutoryInvoiceStatus::Cancelled) {
@@ -122,7 +113,7 @@ class StatutoryInvoiceController extends Controller
             'invoice' => $invoice,
             'canReevaluateEinvoice' => $canReevaluateEinvoice,
             'canCancelInvoice' => $canCancelInvoice,
-            'cancellationConsequences' => $cancellationConsequences,
+            'cancellationAdmin' => $cancellationAdmin,
             'refundReview' => $refundReview,
             'canRequestRefund' => $refundReview?->allowsExplicitRefundRequest(request()->user()) ?? false,
             'paymentSummary' => $paymentSummary,
@@ -142,25 +133,144 @@ class StatutoryInvoiceController extends Controller
     {
         abort_unless(FinanceAccess::allowsInvoiceCancel($request->user()), 403);
 
+        $invoice->load(['items', 'inventorySale', 'eInvoiceRecord', 'cancellation']);
+
+        try {
+            app(StatutoryInvoiceCancellationEligibility::class)->assertCanCancel($invoice);
+        } catch (ValidationException $exception) {
+            return redirect()
+                ->route('finance.invoices.show', $invoice)
+                ->withErrors($exception->errors());
+        }
+
+        if ($invoice->cancellation?->requiresManualReview()) {
+            return redirect()
+                ->route('finance.invoices.show', $invoice)
+                ->withErrors([
+                    'invoice' => 'This cancellation requires manual review before it can continue.',
+                ]);
+        }
+
         $validated = $request->validate([
             'reason' => ['required', 'string', 'min:3', 'max:2000'],
             'confirm' => ['accepted'],
         ]);
 
-        $result = app(StatutoryInvoiceCancellationOrchestrator::class)->cancel(
-            invoice: $invoice,
-            actor: $request->user(),
-            reason: $validated['reason'],
-            idempotencyKey: StatutoryInvoiceCancellationOrchestrator::DEFAULT_IDEMPOTENCY_PREFIX.$invoice->id,
-        );
+        try {
+            $result = app(StatutoryInvoiceCancellationOrchestrator::class)->cancel(
+                invoice: $invoice,
+                actor: $request->user(),
+                reason: $validated['reason'],
+                idempotencyKey: StatutoryInvoiceCancellationOrchestrator::DEFAULT_IDEMPOTENCY_PREFIX.$invoice->id,
+            );
+        } catch (ValidationException $exception) {
+            $redirect = redirect()
+                ->route('finance.invoices.show', $invoice)
+                ->withErrors($exception->errors())
+                ->withInput();
 
-        $message = $result->idempotent
-            ? 'This statutory invoice was already cancelled.'
-            : 'Statutory invoice cancelled successfully.';
+            if (array_key_exists('irn', $exception->errors())) {
+                $redirect
+                    ->with(
+                        'status',
+                        'Cancellation request recorded but IRN outcome is not confirmed. '
+                        .'This does not mean the IRN is cancelled. Reconcile provider status before retrying.',
+                    )
+                    ->with('status_level', 'warning');
+            }
+
+            return $redirect;
+        }
+
+        $operation = StatutoryInvoiceCancellation::query()
+            ->where('statutory_invoice_id', $invoice->id)
+            ->first();
+
+        [$message, $level] = $this->cancellationResponseMessage(
+            $result,
+            $invoice->fresh(['cancellation']),
+            $operation,
+        );
 
         return redirect()
             ->route('finance.invoices.show', $invoice)
-            ->with('status', $message);
+            ->with('status', $message)
+            ->with('status_level', $level);
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function cancellationResponseMessage(
+        StatutoryInvoiceCancellationResult $result,
+        StatutoryInvoice $invoice,
+        ?StatutoryInvoiceCancellation $operation,
+    ): array {
+        $correlation = $operation?->correlation_id;
+        $correlationSuffix = $correlation !== null && $correlation !== ''
+            ? ' Reference: '.$correlation.'.'
+            : '';
+
+        if ($result->idempotent && $invoice->status === StatutoryInvoiceStatus::Cancelled) {
+            return ['This statutory invoice was already cancelled.'.$correlationSuffix, 'success'];
+        }
+
+        $status = $operation?->status;
+
+        if ($status === StatutoryInvoiceCancellationOperationStatus::ManualReviewRequired) {
+            return [
+                'Cancellation stopped: manual Finance/CA review is required.'.$correlationSuffix.' '
+                .StatutoryInvoiceCancellationAdminPresentation::FINANCE_CA_PROCEDURE,
+                'danger',
+            ];
+        }
+
+        if ($status === StatutoryInvoiceCancellationOperationStatus::IrnReconciliationPending) {
+            return [
+                'Cancellation request recorded but IRN outcome is unknown at the provider. '
+                .'This does not mean the IRN is cancelled.'.$correlationSuffix
+                .' Reconcile provider status before retrying; do not assume success.',
+                'warning',
+            ];
+        }
+
+        if (in_array($status, [
+            StatutoryInvoiceCancellationOperationStatus::FailedRetryable,
+            StatutoryInvoiceCancellationOperationStatus::IrnPending,
+            StatutoryInvoiceCancellationOperationStatus::Requested,
+        ], true) && $invoice->status === StatutoryInvoiceStatus::Issued) {
+            return [
+                'Cancellation request accepted and is in progress. IRN cancellation is not confirmed yet.'.$correlationSuffix,
+                'warning',
+            ];
+        }
+
+        if ($status === StatutoryInvoiceCancellationOperationStatus::IrnConfirmed
+            || $status === StatutoryInvoiceCancellationOperationStatus::LocalPending) {
+            return [
+                'IRN cancellation confirmed at the provider; local finalization may still be in progress.'.$correlationSuffix,
+                'warning',
+            ];
+        }
+
+        if ($invoice->status === StatutoryInvoiceStatus::Cancelled) {
+            return [
+                'Statutory invoice cancelled locally. Verify IRN and credit-note outcomes on this page.'.$correlationSuffix,
+                'success',
+            ];
+        }
+
+        if (($result->creditNoteAction['status'] ?? null) === 'issued') {
+            return [
+                'Beyond-window adjustment recorded (credit note issued). Original invoice remains active.'.$correlationSuffix,
+                'success',
+            ];
+        }
+
+        return [
+            'Cancellation workflow finished. Review operation status below.'.$correlationSuffix,
+            'info',
+        ];
     }
 
     public function reevaluateEinvoice(Request $request, StatutoryInvoice $invoice): RedirectResponse

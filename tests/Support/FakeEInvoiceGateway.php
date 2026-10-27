@@ -32,6 +32,9 @@ final class FakeEInvoiceGateway implements EInvoiceGateway
     /** @var (\Closure(): void)|null */
     public $beforeSubmit = null;
 
+    /** @var (\Closure(): void)|null */
+    public $beforeCancel = null;
+
     /** @var list<EInvoiceSubmitResult> */
     private array $results = [];
 
@@ -154,6 +157,10 @@ final class FakeEInvoiceGateway implements EInvoiceGateway
 
     public function cancel(StatutoryInvoice $invoice, string $reason): EInvoiceCancelResult
     {
+        if ($this->beforeCancel !== null) {
+            ($this->beforeCancel)();
+        }
+
         $this->cancelCount++;
         $this->cancelledInvoiceIds[] = $invoice->id;
 

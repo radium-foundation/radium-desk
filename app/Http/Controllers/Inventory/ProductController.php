@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DeviceModel;
 use App\Models\InventoryProduct;
 use App\Services\Inventory\CatalogPriceSyncService;
+use App\Services\Inventory\InventoryAvailabilitySyncService;
 use App\Services\StatutoryInvoice\EInvoiceUqcMapper;
 use App\Support\Inventory\InventoryAccess;
 use Database\Seeders\RolePermissionSeeder;
@@ -82,7 +83,9 @@ class ProductController extends Controller
         $product->update($this->validated($request, $product->id));
         $this->syncVariants($request, $product);
 
-        app(CatalogPriceSyncService::class)->dispatchIfEligible($product->fresh());
+        $fresh = $product->fresh();
+        app(CatalogPriceSyncService::class)->dispatchIfEligible($fresh);
+        app(InventoryAvailabilitySyncService::class)->dispatchIfEligible($fresh);
 
         return redirect()->route('inventory.products.edit', $product)->with('status', 'Product updated.');
     }

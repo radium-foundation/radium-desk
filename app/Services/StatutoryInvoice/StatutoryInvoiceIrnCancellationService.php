@@ -41,6 +41,17 @@ final class StatutoryInvoiceIrnCancellationService
         return $result;
     }
 
+    public function recordProviderCancellationEvidence(EInvoiceCancelResult $result, StatutoryInvoice $invoice): void
+    {
+        $invoice->loadMissing('eInvoiceRecord');
+        $record = $invoice->eInvoiceRecord;
+        if ($record === null || ! $result->succeeded()) {
+            return;
+        }
+
+        $this->persistCancellationEvidence($record, $result);
+    }
+
     private function irnAlreadyCancelled(EInvoiceRecord $record): bool
     {
         $payload = $record->response_payload;

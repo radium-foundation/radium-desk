@@ -13,6 +13,9 @@ enum InventoryMovementType: string
     case Sale = 'sale';
     case SaleCancel = 'sale_cancel';
     case Return = 'return';
+    case ReturnCaseReceive = 'return_case_receive';
+    case ReturnCaseInspect = 'return_case_inspect';
+    case ReturnCaseSerialReplace = 'return_case_serial_replace';
     case Adjustment = 'adjustment';
 
     public function label(): string
@@ -27,6 +30,9 @@ enum InventoryMovementType: string
             self::Sale => 'Sale',
             self::SaleCancel => 'Sale cancelled',
             self::Return => 'Return',
+            self::ReturnCaseReceive => 'Return case receipt',
+            self::ReturnCaseInspect => 'Return case inspection',
+            self::ReturnCaseSerialReplace => 'Return case serial replacement',
             self::Adjustment => 'Adjustment',
         };
     }

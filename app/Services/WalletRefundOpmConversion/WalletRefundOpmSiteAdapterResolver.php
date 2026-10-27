@@ -2,6 +2,7 @@
 
 namespace App\Services\WalletRefundOpmConversion;
 
+use App\Enums\WalletRefundCreditSource;
 use App\Models\RefundRequest;
 use App\Services\Refunds\WalletRefundDestinationResolver;
 use App\Services\WalletRefundOpmConversion\Adapters\RadiumBoxWalletRefundOpmAdapter;
@@ -23,8 +24,14 @@ final class WalletRefundOpmSiteAdapterResolver
     public function forRefund(RefundRequest $refund): WalletRefundOpmSiteAdapter
     {
         $refund->loadMissing('order');
-        $adapter = $this->forOrderId($refund->order?->order_id);
         $source = $this->creditSources->resolve($refund);
+
+        return $this->forOrderAndCreditSource($refund->order?->order_id, $source);
+    }
+
+    public function forOrderAndCreditSource(?string $orderId, WalletRefundCreditSource $source): WalletRefundOpmSiteAdapter
+    {
+        $adapter = $this->forOrderId($orderId);
 
         if (! $adapter->supportsCreditSource($source)) {
             throw ValidationException::withMessages([

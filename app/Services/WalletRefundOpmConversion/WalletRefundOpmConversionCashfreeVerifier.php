@@ -2,8 +2,8 @@
 
 namespace App\Services\WalletRefundOpmConversion;
 
-use App\Models\WalletRefundOpmConversion;
 use App\Services\Cashfree\CashfreeApiClient;
+use App\Services\WalletRefundOpmConversion\Contracts\CashfreeOpmPayoutEvidence;
 use App\Services\Cashfree\Exceptions\CashfreeApiException;
 use Illuminate\Validation\ValidationException;
 
@@ -16,7 +16,7 @@ final class WalletRefundOpmConversionCashfreeVerifier
     /**
      * @return array{status: string, verified: bool, ambiguous: bool, message?: string}
      */
-    public function verify(WalletRefundOpmConversion $conversion): array
+    public function verify(CashfreeOpmPayoutEvidence $conversion): array
     {
         if (! $this->cashfree->isPgApiConfigured()) {
             return [
@@ -27,8 +27,8 @@ final class WalletRefundOpmConversionCashfreeVerifier
             ];
         }
 
-        $orderId = trim((string) $conversion->cashfree_order_id);
-        $refundId = trim((string) $conversion->cashfree_refund_id);
+        $orderId = trim((string) $conversion->getCashfreeOrderId());
+        $refundId = trim((string) $conversion->getCashfreeRefundId());
         if ($orderId === '' || $refundId === '') {
             throw ValidationException::withMessages([
                 'cashfree_refund_id' => 'Cashfree order id and refund id are required for verification.',
@@ -48,7 +48,7 @@ final class WalletRefundOpmConversionCashfreeVerifier
 
         $status = (string) ($payload['refund_status'] ?? '');
         $amount = round((float) ($payload['refund_amount'] ?? 0), 2);
-        $expected = round((float) $conversion->cashfree_refund_amount, 2);
+        $expected = round((float) $conversion->getCashfreeRefundAmount(), 2);
 
         if ($expected > 0 && abs($amount - $expected) > 0.009) {
             return [

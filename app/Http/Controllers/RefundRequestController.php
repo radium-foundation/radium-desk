@@ -16,7 +16,9 @@ use App\Http\Requests\StoreRefundRequestRequest;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
+use App\Models\ReturnExchangeCase;
 use App\Services\RefundCalculationService;
+use App\Services\Refunds\HardwareOrderRefundCaseGate;
 use App\Services\RefundProfileRegistry;
 use App\Services\RefundReferenceService;
 use App\Services\RefundRequestService;
@@ -24,6 +26,7 @@ use App\Services\Refunds\RefundExecutionMethodRerouteService;
 use App\Services\Refunds\RefundListingQuery;
 use App\Services\Refunds\RefundRevokeService;
 use App\Services\RemarkTimelineService;
+use App\Support\Refunds\DeskFirstWalletRefundRecoveryInspector;
 use App\Support\Refunds\WalletRefundOpmConversionUiPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -41,6 +44,7 @@ class RefundRequestController extends Controller
         private readonly RefundRevokeService $refundRevokeService,
         private readonly RefundExecutionMethodRerouteService $refundExecutionMethodRerouteService,
         private readonly WalletRefundOpmConversionUiPresenter $walletOpmConversionUi,
+        private readonly DeskFirstWalletRefundRecoveryInspector $deskFirstRecoveryInspector,
     ) {
         $this->authorizeResource(RefundRequest::class, 'refund', [
             'except' => ['edit', 'update'],
@@ -76,8 +80,19 @@ class RefundRequestController extends Controller
             $selectedOrder ??= $selectedIncident?->order;
         }
 
+        $hardwareRefundBlocked = false;
+        $returnCasesForOrder = collect();
+
         if ($selectedOrder instanceof Order) {
             $calculation = $this->calculationService->calculate($selectedOrder);
+            $hardwareGate = app(HardwareOrderRefundCaseGate::class);
+            $hardwareRefundBlocked = $hardwareGate->isHardwareRefundOrder($selectedOrder);
+            $returnCasesForOrder = ReturnExchangeCase::query()
+                ->where('order_id', $selectedOrder->id)
+                ->orWhereHas('hardwareFulfilment', fn ($q) => $q->where('support_order_id', $selectedOrder->id))
+                ->orderByDesc('id')
+                ->limit(5)
+                ->get();
         }
 
         $nextRefundReference = app(RefundReferenceService::class)->peekNext();
@@ -87,6 +102,9 @@ class RefundRequestController extends Controller
             'selectedOrder' => $selectedOrder,
             'selectedIncident' => $selectedIncident,
             'calculation' => $calculation,
+            'hardwareRefundBlocked' => $hardwareRefundBlocked,
+            'returnCasesForOrder' => $returnCasesForOrder,
+            'paymentBreakdown' => null,
             'profiles' => $this->profileRegistry->all(),
             'preferredMethods' => CustomerPreferredRefundMethod::cases(),
             'differenceReasons' => RefundDifferenceReason::cases(),
@@ -135,6 +153,8 @@ class RefundRequestController extends Controller
             'canRerouteExecutionMethod' => $this->refundExecutionMethodRerouteService->canReroute($refund),
             'revokeOutcomes' => RefundRevokeCustomerOutcome::cases(),
             'walletOpmConversionUi' => $this->walletOpmConversionUi->forRefund($refund, auth()->user()),
+            'deskFirstCompletionRecoveryNotice' => $this->deskFirstRecoveryInspector->completionRecoveryNotice($refund),
+            'deskFirstRevocationRecoveryNotice' => $this->deskFirstRecoveryInspector->revocationRecoveryNotice($refund),
         ]);
     }
 

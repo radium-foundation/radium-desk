@@ -2,8 +2,6 @@
 
 namespace App\Services\WalletRefundOpmConversion\Adapters;
 
-use App\Models\RefundRequest;
-use App\Models\WalletRefundOpmConversion;
 /**
  * Same spoke contract as RadiumBox; only site config differs.
  */

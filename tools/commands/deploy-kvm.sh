@@ -18,6 +18,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib.sh"
 # shellcheck source=tools/lib/deploy-rsync-safety.sh
 source "$SCRIPT_DIR/../lib/deploy-rsync-safety.sh"
+# shellcheck source=tools/lib/rip-pre-deploy-gate.sh
+source "$SCRIPT_DIR/../lib/rip-pre-deploy-gate.sh"
 
 if [[ -n "${DEPLOY_KVM_BRANCH_OVERRIDE:-}" ]]; then
     DEFAULT_BRANCH="${DEPLOY_KVM_BRANCH_OVERRIDE}"
@@ -343,11 +345,21 @@ main() {
             --delete \
             "${PROJECT_ROOT}/public/build/" \
             "${SSH_USER}@${SSH_HOST}:${REMOTE_PROJECT}/public/build/"
+        print_warning "Dry-run: RIP production-baseline gate is not exercised (only live deploy when RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1)."
+        rip_warn_if_production_deploy_without_rip_gate
         print_success "Dry-run completed (no changes made on KVM)"
         exit 0
     fi
 
     validate_release_metadata
+
+    rip_warn_if_production_deploy_without_rip_gate
+
+    if ! rip_verify_pre_deploy_gate_if_required; then
+        print_error "Deployment stopped by RIP pre-deploy gate."
+        exit 1
+    fi
+
     confirm_deploy
     build_frontend_assets
     write_local_release_snapshot
@@ -374,6 +386,8 @@ main() {
         print_error "Deployment completed but Vite verification failed"
         exit 1
     fi
+
+    rip_post_deploy_capture_reminder
 
     print_success "KVM deployment finished successfully"
 }

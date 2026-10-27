@@ -23,6 +23,7 @@ final class WalletVisibilityService
         private readonly CustomerIdentitySubjectHasher $subjectHasher,
         private readonly LedgerService $ledger,
         private readonly AuditEventRecorder $auditEvents,
+        private readonly CentralWalletAccountLinkDeskCustomerResolver $linkDeskCustomerResolver,
     ) {}
 
     /**
@@ -110,13 +111,54 @@ final class WalletVisibilityService
 
         return [
             'status' => 200,
-            'body' => $this->visibilityBody(
-                availableBalance: $available,
-                currency: $currency,
-                verificationMethod: $verificationMethod,
-                emailVerifiedBySpoke: $emailVerifiedBySpoke,
+            'body' => array_merge(
+                $this->visibilityBody(
+                    availableBalance: $available,
+                    currency: $currency,
+                    verificationMethod: $verificationMethod,
+                    emailVerifiedBySpoke: $emailVerifiedBySpoke,
+                ),
+                [
+                    'central_wallet_id' => $cwid,
+                ],
             ),
         ];
+    }
+
+    /**
+     * Display-only ledger history: same identity resolution as wallet-visibility (no trusted-link requirement).
+     */
+    public function authorizeCustomerLedgerDisplay(
+        string $siteCode,
+        string $localUserId,
+        string $centralWalletId,
+        ?string $email,
+        ?string $mobile,
+    ): ?string {
+        if (! $this->isEnabled()) {
+            return 'trusted_account_link_required';
+        }
+
+        $email = strtolower(trim((string) $email));
+        $mobileDigits = preg_replace('/\D+/', '', (string) $mobile) ?? '';
+
+        if ($email === '' && strlen($mobileDigits) < 10) {
+            return 'contact_data_required';
+        }
+
+        try {
+            $resolution = $this->resolveWalletIdentity($siteCode, $localUserId, $email, $mobileDigits);
+        } catch (InvalidArgumentException) {
+            return 'trusted_account_link_required';
+        } catch (Throwable) {
+            return 'trusted_account_link_required';
+        }
+
+        if ($resolution === null || (string) ($resolution['central_wallet_id'] ?? '') !== $centralWalletId) {
+            return 'trusted_account_link_required';
+        }
+
+        return null;
     }
 
     public function isEnabled(): bool
@@ -143,7 +185,16 @@ final class WalletVisibilityService
             ->first();
 
         if ($link !== null) {
-            if (! $this->contactMatchesLinkedCustomer((string) $link->desk_customer_id, $email, $mobileDigits)) {
+            $resolvedCustomer = $this->linkDeskCustomerResolver->resolveDeskCustomerForActiveLink(
+                $link,
+                $siteCode,
+                $localUserId,
+                $email,
+                $mobileDigits,
+            );
+
+            if ($resolvedCustomer === null
+                || ! $this->linkDeskCustomerResolver->contactMatchesResolvedCustomer($resolvedCustomer, $email, $mobileDigits)) {
                 return null;
             }
 
@@ -352,9 +403,32 @@ final class WalletVisibilityService
             'balance_source' => 'historical_wallet_refund',
             'spendable' => false,
             'verification_required' => true,
-            'display_label' => 'Wallet Balance — Unverified',
-            'display_hint' => 'Verify your account to use this balance.',
+            'display_label' => 'Wallet',
+            'display_hint' => 'Verify your email or sign in with Google on RadiumBox to spend this balance.',
         ];
+    }
+
+    /**
+     * @return array{central_wallet_id: string, verification_method: ?string, match_basis: string}|null
+     */
+    public function resolveWalletIdentityForDisplay(
+        string $siteCode,
+        string $localUserId,
+        ?string $email,
+        ?string $mobile,
+    ): ?array {
+        $email = strtolower(trim((string) $email));
+        $mobileDigits = preg_replace('/\D+/', '', (string) $mobile) ?? '';
+
+        if ($email === '' && strlen($mobileDigits) < 10) {
+            return null;
+        }
+
+        try {
+            return $this->resolveWalletIdentity($siteCode, $localUserId, $email, $mobileDigits);
+        } catch (InvalidArgumentException|Throwable) {
+            return null;
+        }
     }
 
     /**

@@ -153,6 +153,13 @@ return [
         'gsp_ip_address' => env('STATUTORY_EINVOICE_GSP_IP_ADDRESS'),
         'timeout_seconds' => (int) env('STATUTORY_EINVOICE_GSP_TIMEOUT_SECONDS', 30),
         'irn_cancellation_window_hours' => (int) env('STATUTORY_EINVOICE_IRN_CANCELLATION_WINDOW_HOURS', 24),
+        /*
+        | Live WhiteBooks/NIC CANCEL dispatches per statutory_invoice_cancellations row.
+        | Counts only provider cancel() calls (not Get-IRN reconciliation). Default 3 allows
+        | one initial attempt plus two retries after transient/unknown recovery without
+        | unbounded provider traffic (P-27-35). Further attempts require manual review.
+        */
+        'irn_cancellation_max_dispatch_attempts' => max(1, (int) env('STATUTORY_EINVOICE_IRN_CANCELLATION_MAX_DISPATCH_ATTEMPTS', 3)),
         // NIC cancellation reason: 1 duplicate, 2 data-entry mistake, 3 order cancelled, 4 others.
         'irn_cancel_reason_code' => env('STATUTORY_EINVOICE_IRN_CANCEL_REASON_CODE', '3'),
         'issuers' => [

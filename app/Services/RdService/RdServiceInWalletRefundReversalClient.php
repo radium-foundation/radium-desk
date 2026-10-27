@@ -119,6 +119,88 @@ class RdServiceInWalletRefundReversalClient implements WalletRefundReversalClien
     }
 
     /**
+     * Retire a desk-authoritative spoke audit row (no spendable local debit).
+     */
+    public function reverseDeskAuthoritativeAudit(
+        string $deskRefundReference,
+        string $orderId,
+        string $amount,
+        string $idempotencyKey,
+        ?int $centralWalletLedgerCreditId = null,
+        ?string $customerEmail = null,
+    ): array {
+        if (! $this->isConfigured()) {
+            throw ValidationException::withMessages([
+                'refund' => 'rdservice.in wallet refund audit retirement is not configured.',
+            ]);
+        }
+
+        $baseUrl = $this->baseUrl();
+        if ($baseUrl === null) {
+            throw ValidationException::withMessages([
+                'refund' => 'rdservice.in base URL is not configured for wallet refund reversals.',
+            ]);
+        }
+
+        try {
+            $request = Http::baseUrl($baseUrl)
+                ->acceptJson()
+                ->withToken($this->token())
+                ->connectTimeout((int) config('order_lookup.spokes.rdservice_in.connect_timeout_seconds', 3))
+                ->timeout((int) config('order_lookup.spokes.rdservice_in.timeout_seconds', 8));
+
+            $host = trim((string) config('order_lookup.spokes.rdservice_in.host', ''));
+            if ($host !== '') {
+                $request = $request->withHeaders(['Host' => $host]);
+            }
+
+            $body = [
+                'source_system' => self::SOURCE_SYSTEM,
+                'desk_refund_reference' => $deskRefundReference,
+                'order_id' => $orderId,
+                'amount' => $amount,
+                'currency' => self::CURRENCY,
+                'idempotency_key' => $idempotencyKey,
+                'central_wallet_authoritative' => true,
+            ];
+
+            if ($centralWalletLedgerCreditId !== null && $centralWalletLedgerCreditId > 0) {
+                $body['original_wallet_transaction_id'] = (string) $centralWalletLedgerCreditId;
+            }
+
+            if (is_string($customerEmail) && trim($customerEmail) !== '') {
+                $body['customer_email'] = trim($customerEmail);
+            }
+
+            $response = $request->post(self::REVERSAL_PATH, $body);
+            $payload = $response->json();
+            if (! is_array($payload)) {
+                throw ValidationException::withMessages([
+                    'refund' => 'rdservice.in wallet audit retirement API returned an invalid response.',
+                ]);
+            }
+
+            if ($response->failed()) {
+                $message = is_string($payload['message'] ?? null)
+                    ? $payload['message']
+                    : 'rdservice.in wallet audit retirement API request failed.';
+
+                throw ValidationException::withMessages([
+                    'refund' => $message,
+                ]);
+            }
+
+            return $this->parseSuccessfulReversalResponse($payload, $deskRefundReference, $amount);
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (ConnectionException|RequestException $exception) {
+            throw ValidationException::withMessages([
+                'refund' => 'rdservice.in wallet audit retirement API is temporarily unavailable.',
+            ]);
+        }
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array{
      *     wallet_reversal_reference: string,
@@ -145,8 +227,9 @@ class RdServiceInWalletRefundReversalClient implements WalletRefundReversalClien
             ]);
         }
 
+        $destination = data_get($data, 'destination');
         $responseDebit = data_get($data, 'debit');
-        if ($responseDebit !== null) {
+        if ($responseDebit !== null && (string) $destination !== 'central_wallet') {
             $normalizedDebit = WalletMoney::normalize($responseDebit);
             if ($normalizedDebit === null || bccomp($normalizedDebit, $amount, WalletMoney::SCALE) !== 0) {
                 throw ValidationException::withMessages([

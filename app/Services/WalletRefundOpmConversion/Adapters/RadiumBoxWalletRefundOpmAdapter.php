@@ -3,9 +3,9 @@
 namespace App\Services\WalletRefundOpmConversion\Adapters;
 
 use App\Enums\WalletRefundCreditSource;
-use App\Models\RefundRequest;
-use App\Models\WalletRefundOpmConversion;
 use App\Services\WalletRefundOpmConversion\Contracts\WalletRefundOpmSiteAdapter;
+use App\Services\WalletRefundOpmConversion\Contracts\WalletRefundOpmSpokeConversion;
+use App\Services\WalletRefundOpmConversion\Contracts\WalletRefundOpmSpokeSubject;
 use App\Services\WalletRefundOpmConversion\LegacySpokeWalletRefundOpmClient;
 
 class RadiumBoxWalletRefundOpmAdapter implements WalletRefundOpmSiteAdapter
@@ -29,10 +29,9 @@ class RadiumBoxWalletRefundOpmAdapter implements WalletRefundOpmSiteAdapter
         return $source === WalletRefundCreditSource::LegacyLocal;
     }
 
-    public function reserve(WalletRefundOpmConversion $conversion, RefundRequest $refund): array
+    public function reserve(WalletRefundOpmSpokeConversion $conversion, WalletRefundOpmSpokeSubject $subject): array
     {
-        $refund->loadMissing('order');
-        $data = $this->client->post('wallet-opm-conversion-reservations', $this->reservationBody($conversion, $refund), $this->spokeConfig());
+        $data = $this->client->post('wallet-opm-conversion-reservations', $this->reservationBody($conversion, $subject), $this->spokeConfig());
 
         return [
             'reservation_id' => (string) data_get($data, 'data.reservation_id'),
@@ -41,34 +40,33 @@ class RadiumBoxWalletRefundOpmAdapter implements WalletRefundOpmSiteAdapter
         ];
     }
 
-    public function confirmReservation(WalletRefundOpmConversion $conversion): array
+    public function confirmReservation(WalletRefundOpmSpokeConversion $conversion): array
     {
         $data = $this->client->post(
-            'wallet-opm-conversion-reservations/'.$conversion->site_reservation_id.'/confirm',
+            'wallet-opm-conversion-reservations/'.$conversion->getSiteReservationId().'/confirm',
             ['source_system' => 'radium_desk'],
             $this->spokeConfig(),
         );
 
         return [
-            'reservation_id' => (string) data_get($data, 'data.reservation_id', $conversion->site_reservation_id),
+            'reservation_id' => (string) data_get($data, 'data.reservation_id', $conversion->getSiteReservationId()),
             'status' => (string) data_get($data, 'data.status', 'reserved'),
         ];
     }
 
-    public function finalizeWalletReversal(WalletRefundOpmConversion $conversion, RefundRequest $refund): array
+    public function finalizeWalletReversal(WalletRefundOpmSpokeConversion $conversion, WalletRefundOpmSpokeSubject $subject): array
     {
-        $refund->loadMissing('order');
         $data = $this->client->post(
-            'wallet-opm-conversion-reservations/'.$conversion->site_reservation_id.'/finalize-reversal',
+            'wallet-opm-conversion-reservations/'.$conversion->getSiteReservationId().'/finalize-reversal',
             [
                 'source_system' => 'radium_desk',
-                'desk_conversion_id' => $conversion->public_id,
-                'desk_refund_reference' => $refund->reference_no,
-                'order_id' => $refund->order?->order_id,
-                'amount' => (string) $conversion->amount,
-                'currency' => $conversion->currency,
-                'idempotency_key' => $conversion->wallet_finalization_idempotency_key,
-                'customer_email' => $refund->order?->customer_email,
+                'desk_conversion_id' => $conversion->getPublicId(),
+                'desk_refund_reference' => $subject->deskRefundReference(),
+                'order_id' => $subject->order()?->order_id,
+                'amount' => $conversion->getAmount(),
+                'currency' => $conversion->getCurrency(),
+                'idempotency_key' => $conversion->getWalletFinalizationIdempotencyKey(),
+                'customer_email' => $subject->order()?->customer_email,
             ],
             $this->spokeConfig(),
         );
@@ -79,34 +77,39 @@ class RadiumBoxWalletRefundOpmAdapter implements WalletRefundOpmSiteAdapter
         ];
     }
 
-    public function releaseReservation(WalletRefundOpmConversion $conversion, RefundRequest $refund): void
+    public function releaseReservation(WalletRefundOpmSpokeConversion $conversion, WalletRefundOpmSpokeSubject $subject): array
     {
-        $this->client->post(
-            'wallet-opm-conversion-reservations/'.$conversion->site_reservation_id.'/release',
+        $data = $this->client->post(
+            'wallet-opm-conversion-reservations/'.$conversion->getSiteReservationId().'/release',
             [
                 'source_system' => 'radium_desk',
-                'desk_conversion_id' => $conversion->public_id,
+                'desk_conversion_id' => $conversion->getPublicId(),
                 'release_reason' => 'desk_authorized_release',
             ],
             $this->spokeConfig(),
         );
+
+        return [
+            'idempotent_replay' => (bool) data_get($data, 'data.idempotent_replay', false),
+            'status' => (string) data_get($data, 'data.status', 'released'),
+        ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    protected function reservationBody(WalletRefundOpmConversion $conversion, RefundRequest $refund): array
+    protected function reservationBody(WalletRefundOpmSpokeConversion $conversion, WalletRefundOpmSpokeSubject $subject): array
     {
         return [
             'source_system' => 'radium_desk',
-            'desk_conversion_id' => $conversion->public_id,
-            'desk_refund_reference' => $refund->reference_no,
-            'order_id' => $refund->order?->order_id,
-            'amount' => (string) $conversion->amount,
-            'currency' => $conversion->currency,
-            'idempotency_key' => 'reserve:'.$conversion->public_id,
-            'customer_email' => $refund->order?->customer_email,
-            'wallet_credit_source' => $conversion->wallet_credit_source?->value,
+            'desk_conversion_id' => $conversion->getPublicId(),
+            'desk_refund_reference' => $subject->deskRefundReference(),
+            'order_id' => $subject->order()?->order_id,
+            'amount' => $conversion->getAmount(),
+            'currency' => $conversion->getCurrency(),
+            'idempotency_key' => 'reserve:'.$conversion->getPublicId(),
+            'customer_email' => $subject->order()?->customer_email,
+            'wallet_credit_source' => $conversion->getWalletCreditSource()?->value,
         ];
     }
 

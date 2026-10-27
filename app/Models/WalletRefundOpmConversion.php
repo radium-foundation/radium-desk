@@ -4,10 +4,12 @@ namespace App\Models;
 
 use App\Enums\WalletRefundCreditSource;
 use App\Enums\WalletRefundOpmConversionStatus;
+use App\Services\WalletRefundOpmConversion\Contracts\CashfreeOpmPayoutEvidence;
+use App\Services\WalletRefundOpmConversion\Contracts\WalletRefundOpmSpokeConversion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class WalletRefundOpmConversion extends Model
+class WalletRefundOpmConversion extends Model implements CashfreeOpmPayoutEvidence, WalletRefundOpmSpokeConversion
 {
     protected $fillable = [
         'public_id',
@@ -60,5 +62,50 @@ class WalletRefundOpmConversion extends Model
     public function payoutOperator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'payout_operator_id');
+    }
+
+    public function getPublicId(): string
+    {
+        return (string) $this->public_id;
+    }
+
+    public function getAmount(): string
+    {
+        return (string) $this->amount;
+    }
+
+    public function getCurrency(): string
+    {
+        return (string) ($this->currency ?? 'INR');
+    }
+
+    public function getSiteReservationId(): ?string
+    {
+        return $this->site_reservation_id;
+    }
+
+    public function getWalletFinalizationIdempotencyKey(): ?string
+    {
+        return $this->wallet_finalization_idempotency_key;
+    }
+
+    public function getWalletCreditSource(): ?WalletRefundCreditSource
+    {
+        return $this->wallet_credit_source;
+    }
+
+    public function getCashfreeOrderId(): ?string
+    {
+        return $this->cashfree_order_id;
+    }
+
+    public function getCashfreeRefundId(): ?string
+    {
+        return $this->cashfree_refund_id;
+    }
+
+    public function getCashfreeRefundAmount(): ?string
+    {
+        return $this->cashfree_refund_amount !== null ? (string) $this->cashfree_refund_amount : null;
     }
 }

@@ -19,6 +19,7 @@ final class WalletVisibilityContractValidator
             'balance_source',
             'spendable',
             'verification_required',
+            'central_wallet_id',
         ] as $field) {
             if (! array_key_exists($field, $body)) {
                 throw new InvalidArgumentException("wallet-visibility success body missing {$field}");

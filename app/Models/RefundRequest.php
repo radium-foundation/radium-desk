@@ -134,6 +134,11 @@ class RefundRequest extends Model
         return $this->hasMany(WalletRefundOpmConversion::class);
     }
 
+    public function returnExchangeCase(): HasOne
+    {
+        return $this->hasOne(ReturnExchangeCase::class, 'refund_request_id');
+    }
+
     public function displayAmount(): float
     {
         if ($this->refund_amount !== null) {

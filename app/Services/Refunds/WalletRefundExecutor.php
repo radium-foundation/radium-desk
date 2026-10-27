@@ -10,11 +10,14 @@ use App\Services\RadiumBox\RadiumBoxWalletRefundClient;
 use App\Services\RdService\RdServiceInWalletRefundClient;
 use App\Services\RdService\RdServiceNetWalletRefundClient;
 use App\Support\Money\WalletMoney;
+use App\Support\Refunds\DeskFirstWalletRefundSpokePolicy;
+use App\Support\Refunds\DeskFirstWalletRefundSupport;
 use Illuminate\Validation\ValidationException;
 
 class WalletRefundExecutor implements RefundExecutor
 {
     public function __construct(
+        private readonly DeskFirstWalletRefundOrchestrator $deskFirstOrchestrator,
         private readonly RdServiceInWalletRefundClient $rdServiceInWalletRefundClient,
         private readonly RdServiceNetWalletRefundClient $rdServiceNetWalletRefundClient,
         private readonly RadiumBoxWalletRefundClient $radiumBoxWalletRefundClient,
@@ -43,6 +46,26 @@ class WalletRefundExecutor implements RefundExecutor
             throw ValidationException::withMessages([
                 'refund' => 'A positive refund amount is required before wallet credit can be posted.',
             ]);
+        }
+
+        if (DeskFirstWalletRefundSupport::requiresAuthoritativeDeskLedger()
+            || $this->deskFirstOrchestrator->isEnabled()) {
+            if (! $this->deskFirstOrchestrator->isEnabled()) {
+                throw ValidationException::withMessages([
+                    'refund' => 'Desk-authoritative wallet refunds require CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED before execution.',
+                ]);
+            }
+
+            if ($this->destinations->isRdServiceNet($orderId)
+                && ! $this->destinations->supportsAutomatedWalletCredit($orderId)) {
+                throw ValidationException::withMessages([
+                    'refund' => $this->destinations->unsupportedAutomatedWalletCreditMessage($orderId),
+                ]);
+            }
+
+            DeskFirstWalletRefundSpokePolicy::assertSpokeAllowedForDeskFirst($orderId, $this->destinations);
+
+            return $this->deskFirstOrchestrator->execute($refund, $actor, $payload, $orderId, $amount);
         }
 
         if ($this->destinations->isRdServiceIn($orderId)) {

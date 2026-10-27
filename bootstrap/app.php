@@ -232,6 +232,21 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.hourly', 55)))
             ->appendOutputTo(storage_path('logs/automation-scheduler.log'));
 
+        // Refresh mapped radiumbox_com snapshots inside the 1800s stale window.
+        // :02/:12/:22/:32/:42/:52 avoids the :00 pack. One missed tick still
+        // leaves about 20 minutes before fail-closed enforcement.
+        $schedule->command('radiumbox:backfill-catalog-availability')
+            ->cron('2-59/10 * * * *')
+            ->when(fn (): bool => (bool) config('radiumbox.availability_sync.enabled'))
+            ->withoutOverlapping(15)
+            ->appendOutputTo(storage_path('logs/radiumbox-availability-refresh.log'));
+
+        $schedule->command('radiumbox:prune-availability-sync-logs')
+            ->dailyAt('03:40')
+            ->when(fn (): bool => (bool) config('radiumbox.availability_sync.enabled'))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/radiumbox-availability-refresh.log'));
+
         // Keep on :00/:15/:30/:45 — anchor for recovery pack stagger.
         $schedule->command('radiumbox:recover-sync')
             ->cron(sprintf('*/%d * * * *', max(1, (int) config('radiumbox.recovery.schedule_interval_minutes', 15))))

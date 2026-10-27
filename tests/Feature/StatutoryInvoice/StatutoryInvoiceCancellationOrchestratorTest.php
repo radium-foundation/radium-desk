@@ -49,6 +49,8 @@ class StatutoryInvoiceCancellationOrchestratorTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
+
         Storage::fake('local');
         $this->seed(RolePermissionSeeder::class);
         $this->seed(FinanceMasterDataSeeder::class);
@@ -231,7 +233,12 @@ class StatutoryInvoiceCancellationOrchestratorTest extends TestCase
         }
 
         $this->assertSame(StatutoryInvoiceStatus::Issued, $invoice->fresh()->status);
-        $this->assertSame(0, StatutoryInvoiceCancellation::query()->count());
+        $operation = StatutoryInvoiceCancellation::query()->where('statutory_invoice_id', $invoice->id)->first();
+        $this->assertNotNull($operation);
+        $this->assertSame(
+            \App\Enums\StatutoryInvoiceCancellationOperationStatus::ManualReviewRequired,
+            $operation->status,
+        );
     }
 
     public function test_serial_inventory_is_restored_exactly_once_for_linked_pos_sale(): void

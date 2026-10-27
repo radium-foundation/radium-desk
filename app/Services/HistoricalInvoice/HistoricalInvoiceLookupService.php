@@ -2,12 +2,17 @@
 
 namespace App\Services\HistoricalInvoice;
 
+use App\Models\Order;
 use App\Services\OrderLookup\OrderEnrichmentLookupService;
 use App\Services\OrderLookup\SpokeOrderClientFactory;
 
 class HistoricalInvoiceLookupService
 {
     public const HISTORICAL_NUMBER = '/^IN[VS]\d{1,20}$/';
+
+    public const IND_SERIES_REFERENCE = '/^IND\d{1,20}$/';
+
+    public const SOURCE_IND_REDUCED_COPY = 'radiumbox_com_ind_reduced_copy';
 
     public function __construct(
         private readonly SpokeOrderClientFactory $spokes,
@@ -22,6 +27,19 @@ class HistoricalInvoiceLookupService
     public static function looksLikeHistoricalInvoiceNumber(string $identifier): bool
     {
         return preg_match(self::HISTORICAL_NUMBER, self::normalizeLookupQuery($identifier)) === 1;
+    }
+
+    public static function looksLikeIndSeriesInvoiceReference(string $identifier): bool
+    {
+        return preg_match(self::IND_SERIES_REFERENCE, self::normalizeLookupQuery($identifier)) === 1;
+    }
+
+    public static function isEligibleIndReducedCopyOrderId(string $orderId): bool
+    {
+        $normalized = self::normalizeLookupQuery($orderId);
+
+        return preg_match('/^RDE\d{3,20}$/', $normalized) === 1
+            && Order::isHardwareOrderId($normalized);
     }
 
     public static function looksLikeHistoricalOrderId(string $identifier): bool
@@ -90,6 +108,13 @@ class HistoricalInvoiceLookupService
             );
         }
 
+        if (self::looksLikeIndSeriesInvoiceReference($trimmed)) {
+            return new HistoricalInvoiceResult(
+                eligibility: 'invalid',
+                message: 'Search by the hardware order ID (for example RDE287954), not the IND invoice code. Direct IND lookup is not supported.',
+            );
+        }
+
         if (self::looksLikeHistoricalInvoiceNumber($trimmed)) {
             return $this->lookupByInvoiceNumber($trimmed);
         }
@@ -135,6 +160,7 @@ class HistoricalInvoiceLookupService
 
                 if ($status === 200 && $eligibility === 'historical_invoice') {
                     $reprint = is_array($payload['data']['invoice'] ?? null) ? $payload['data']['invoice'] : null;
+                    $reprint = self::sanitizeHistoricalReprintFromSpoke($reprint);
                     $number = is_string($reprint['invoice_number'] ?? null) ? $reprint['invoice_number'] : $invoiceNumber;
 
                     return new HistoricalInvoiceResult(
@@ -206,6 +232,16 @@ class HistoricalInvoiceLookupService
             );
         }
 
+        if (
+            $includeHistoricalInvoice
+            && self::indReducedCopyEnabled()
+            && is_string($invoiceNumber)
+            && self::looksLikeIndSeriesInvoiceReference($invoiceNumber)
+            && self::isEligibleIndReducedCopyOrderId($orderId)
+        ) {
+            return $this->lookupIndReducedCopyByOrderId($orderId, $invoiceNumber);
+        }
+
         $status = strtolower((string) ($enrichment->legacyOrderStatus ?? ''));
         $cancelled = in_array($status, ['reject', 'rejected', 'cancelled', 'canceled'], true);
 
@@ -221,6 +257,88 @@ class HistoricalInvoiceLookupService
     /**
      * @return array<string, mixed>
      */
+    private function lookupIndReducedCopyByOrderId(string $orderId, string $expectedInvoiceNumber): HistoricalInvoiceResult
+    {
+        $box = $this->spokes->make('radiumbox_com');
+        if (! $box->isConfigured()) {
+            return new HistoricalInvoiceResult(
+                eligibility: 'unsupported_source',
+                message: 'Historical invoice source is not configured (radiumbox.com lookup is off).',
+                orderId: $orderId,
+            );
+        }
+
+        $payload = $box->fetchHistoricalInvoiceByOrderId($orderId);
+        if (! is_array($payload)) {
+            return new HistoricalInvoiceResult(
+                eligibility: 'source_unavailable',
+                message: 'Stored invoice data could not be retrieved.',
+                orderId: $orderId,
+            );
+        }
+
+        $status = (int) ($payload['_http_status'] ?? 0);
+        $eligibility = is_string($payload['eligibility'] ?? null) ? $payload['eligibility'] : null;
+
+        if ($status !== 200 || $eligibility !== 'historical_invoice') {
+            return new HistoricalInvoiceResult(
+                eligibility: 'source_unavailable',
+                message: 'Stored invoice data could not be retrieved.',
+                orderId: $orderId,
+            );
+        }
+
+        $reprint = is_array($payload['data']['invoice'] ?? null) ? $payload['data']['invoice'] : null;
+        if ($reprint === null) {
+            return new HistoricalInvoiceResult(
+                eligibility: 'not_found',
+                message: 'Stored invoice data returned an invalid payload.',
+                orderId: $orderId,
+            );
+        }
+
+        $number = is_string($reprint['invoice_number'] ?? null) ? $reprint['invoice_number'] : '';
+        if ($number === '' || strcasecmp($number, $expectedInvoiceNumber) !== 0) {
+            return new HistoricalInvoiceResult(
+                eligibility: 'not_found',
+                message: 'Stored invoice reference does not match the order record. Do not proceed with a reduced copy.',
+                orderId: $orderId,
+            );
+        }
+
+        $reprint = self::sanitizeHistoricalReprintFromSpoke($reprint);
+        $reprint['disclosed_omissions'] = IndReducedCopyDisclosure::omissionsForReprint($reprint);
+
+        return new HistoricalInvoiceResult(
+            eligibility: 'historical_invoice',
+            invoiceNumber: $number,
+            reprint: $reprint,
+            source: self::SOURCE_IND_REDUCED_COPY,
+            ordersId: is_numeric($reprint['orders_id'] ?? null) ? (int) $reprint['orders_id'] : null,
+            orderId: $orderId,
+        );
+    }
+
+    private static function indReducedCopyEnabled(): bool
+    {
+        return (bool) config('historical_invoices.ind_reduced_copy.enabled', false);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $reprint
+     * @return array<string, mixed>|null
+     */
+    private static function sanitizeHistoricalReprintFromSpoke(?array $reprint): ?array
+    {
+        if ($reprint === null) {
+            return null;
+        }
+
+        unset($reprint['ind_reduced_copy'], $reprint['disclosed_omissions']);
+
+        return $reprint;
+    }
+
     private function liteReprint(string $orderId, mixed $enrichment): array
     {
         return [

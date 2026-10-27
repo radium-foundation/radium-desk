@@ -25,6 +25,7 @@ class WalletRefundExecutionTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
 
         config([
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => false,
             'rdservice_in.wallet_refund_credit_enabled' => true,
             'order_lookup.spokes.rdservice_in.enabled' => true,
             'order_lookup.spokes.rdservice_in.base_url' => 'https://rdservice.in.test',

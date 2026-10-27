@@ -142,6 +142,15 @@ This runs the deletion inventory and rsync preview only (no remote mutations). U
 
 Exits `0` on success, `1` on failure.
 
+**RIP (Release Integrity Protocol):**
+
+- See [`docs/rip-release-checkpoint.md`](../docs/rip-release-checkpoint.md).
+- Pre-deploy checklist: `docs/rip-release-checkpoint.md` (**Pre-deploy operator checklist**). `desk deploy` warns (non-blocking) when the canonical KVM production target is used and the gate is off.
+- Pre-deploy gate (optional): `RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1` and `RIP_PRE_DEPLOY_CHECKPOINT_ID=<RIP-…>` must match **current** production `release.json` `build` (not the next deploy commit). `desk deploy --dry-run` does not run this gate.
+- Capture on production (Owner-authorized SSH): `./tools/commands/capture-release-recovery-checkpoint.sh` (application tar excludes entire `storage/`; `release.json` only as `release.json.snapshot`).
+- Validate IDs locally: `./tools/commands/validate-rip-checkpoint-id.sh`.
+- Local tests: `bash tests/scripts/rip-capture-remote.test.sh`, `bash tests/scripts/rip-pre-deploy-gate.test.sh`.
+
 **Before deploying:**
 
 1. **Release guard** — verify `CHANGELOG.md` has an entry for the exact release version (see [Release Workflow](../docs/release-workflow.md)). If missing, draft notes and get approval first. Do not tag, push, or deploy until the changelog is approved.

@@ -1,5 +1,173 @@
 # Changelog
 
+## 4.1.41 — 2026-10-27 — Statutory invoice cancellation reliability (+ wallet refund authority on main)
+
+- **Statutory cancellation (PR #72):** Durable `statutory_invoice_cancellations` lifecycle; bounded live IRN CANCEL dispatch with atomic row reservation (`lockForUpdate`, commit before provider HTTP); Get-IRN reconciliation before retry (`failed_retryable`, `irn_pending`); `desk:statutory-cancellation-reconcile` CLI; Finance cancel UI gated by `finance.invoices.cancel`; manual-review `Log::warning` (`statutory_invoice_cancellation.manual_review_required`). Runbook: `docs/desk-statutory-cancellation-reliability-runbook-p-27-30.md`.
+- **Migrations:** `2026_10_27_083000_add_lifecycle_to_statutory_invoice_cancellations_table` — additive columns + backfill `status=completed`. **Migration must succeed before relying on new cancellation code.**
+- **CI:** GitHub Actions `statutory-cancellation-phpunit` (focused 118-test bundle; PHP 8.4; SQLite `:memory:`).
+- **Also on `main` since tag v4.1.40 (not yet on production):** Desk-authoritative central-wallet refund / RDNET guard alignment (merged PRs **#68–#70**). Production remains **v4.1.40** / `9b4b52f4` until this release deploys. Review wallet flags and Owner scope separately from statutory cancellation.
+- **Operational limits:** Does not enable statutory e-invoice issuance by itself. Does not replace Finance/CA approval for live IRN CANCEL. Get-IRN **2154** alone does not prove cancellation. Manual-review delivery is log-only until monitoring is configured.
+- **Rollout:** Owner-approved fresh DB backup + pre-deploy RIP at current production build, migration verification, then `desk deploy` from tag **v4.1.41**. **Application rollback:** redeploy **v4.1.40** / `9b4b52f4` only with a documented DB assessment if lifecycle migration has run. **NIC/IRN:** app rollback **does not** reverse an IRN cancelled at the provider.
+- ChatGPT prompts **P-27-30** through **P-27-58** (release documentation).
+
+## 4.1.40 — 2026-10-26 — Central Wallet account-link desk customer integrity
+
+- **Central Wallet:** Prevent new active account links without `desk_customer_id`; ceremony and identity-ensure paths ensure a `central_customers` row; read-only resolver for safely mappable incomplete links (visibility and refund-destination parity).
+- **Tooling:** Read-only classify/repair scripts for NULL-FK active links (narrow guards; no balance/ledger writes).
+- **Migrations:** None. Application deploy only.
+- **Rollout:** Deploy application only. Rollback: redeploy **v4.1.39** / build `da9de735`.
+- ChatGPT prompts **P-26-53** through **P-26-56**.
+
+## 4.1.39 — 2026-10-25 — Map RadiumBox `reject` commerce order status to FAILED badge
+
+- **Dashboard:** When RadiumBox spoke `payment_status` is empty and billing order status is `reject` / `rejected` (documented unpaid checkout failure), legacy preview shows red **FAILED** instead of **STATUS UNKNOWN**.
+- **Migrations:** None. Display-only.
+- **Rollout:** Application deploy only. Rollback: **v4.1.38** / build `671592f6`.
+- ChatGPT prompt **P-25-40**.
+
+## 4.1.38 — 2026-10-25 — Dashboard legacy-order payment status indicators
+
+- **Dashboard:** Universal search legacy-order preview card shows accessible payment status badges (PAID / PENDING / FAILED / CANCELLED / STATUS UNKNOWN) with icon + text; styling does not infer paid from shipment or invoice fields.
+- **Migrations:** None. Display-only; no payment webhook or order mutation changes.
+- **Rollout:** Deploy application only (`public/build` included). Rollback: redeploy **v4.1.37** / build `c923c703`.
+- ChatGPT prompt **P-25-38**.
+
+## 4.1.37 — 2026-10-24 — IND reduced-copy print layout (DUPLICATE footer)
+
+- **Finance:** IND reduced-copy **print** view shows a single footer notice (`DUPLICATE — Reprint copy generated from stored order data.`) instead of repeated disclaimer blocks in the invoice body. On-screen historical disclosure and INV/INVS print paths unchanged.
+- **Migrations:** None. No feature-flag or integration env changes required for this release.
+- **Rollout:** Deploy application only. Rollback: redeploy **v4.1.36** / build `b60fd367`.
+- Merge PR **#67** (`5c1f2961`). Prompts **P-24-24**, **P-24-26**.
+
+## 4.1.36 — 2026-10-24 — IND reduced-copy historical invoice reprint (default-off)
+
+- **Finance:** Hardware `RDE*` orders with legacy `IND…` invoice codes can retrieve a clearly disclosed reduced-copy reprint from Box order data when `HISTORICAL_INVOICE_IND_REDUCED_COPY_ENABLED=true` (default **false**). No statutory invoice minting.
+- **Regression:** `RDE152000` / `IND567881` production-shaped fixture.
+- **Migrations:** None.
+- **Rollout:** Deploy application only; enable flag only after Owner authorization (P-24-21). Rollback: disable flag or redeploy **v4.1.35** / build `d6a46b00`.
+- Merge PR **#66** (`d776240f`). Prompts **P-24-16** through **P-24-21**.
+
+## 4.1.35 — 2026-10-23 — KVM RIP pre-deploy gate baseline fix (ships with 4.1.34 scope)
+
+- **RIP deploy gate:** KVM `rip-pre-deploy-gate.sh` delegates production-baseline matching to `php artisan rip:verify-pre-deploy-gate` so checkpoint ID **7-character** commit suffixes match `release.json` **build** values that may be **8** characters (e.g. `34477beb` vs `…-34477be`). Merge PR **#64** (`96603d0e`).
+- **Release content:** This tag is the production deploy vehicle for **v4.1.34** application changes (Pragati `model_id` **1503** mapping configuration, driver management, availability scheduler, RIP tooling, permissions/seeder updates, and other commits since production build **`34477beb`**). Tag **v4.1.34** remains on **`f93497e8`** without the gate fix; do not move or retag **v4.1.34**.
+- **Migrations:** Same as 4.1.34 scope — deploy runs `migrate --force` and `RolePermissionSeeder` per `deploy-kvm.sh`; confirm pending migrations on production before deploy.
+- **Pre-deploy RIP:** Use verified checkpoint **`RIP-221026-1048-radium-desk-p22-16-driver-media-pre-34477be`** with `RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1`.
+- **SKU maps:** Still requires separate Owner-approved `desk:seed-radiumbox-hardware-sku-maps --apply` after dry-run (not part of this deploy).
+- Rollback target: **v4.1.32** / `34477beb` (last verified live `release.json` before this deploy) or redeploy tag **v4.1.34** only if gate fix is not required.
+- Prompts **P-23-33**, **P-23-34**, **P-23-35**.
+
+## 4.1.34 — 2026-10-23 — RadiumBox hardware SKU mapping (Pragati Regular, model 1503)
+
+- Add Owner-approved radiumbox.com hardware fulfilment seed configuration for Box `model_id` **1503** (catalog SKU **PBPPRAREG2**) → Desk inventory SKU **RBPRAGATI2** (`channel_sku` wire value `1503`; serialized).
+- **Economy variant:** `model_id` **1502** / `PBPPRAECO2` remains **unmapped** in this release.
+- **Migrations:** None in this release.
+- **Production mapping:** Deploying this configuration alone does **not** insert `channel_sku_maps` rows. After deploy, run `php artisan desk:seed-radiumbox-hardware-sku-maps --dry-run`, review JSON, then apply only under separate Owner approval (`--apply`). Verify `channel_sku_maps` for `model_id` **1503** resolves to inventory SKU `RBPRAGATI2` (expected production `inventory_product_id` **96** — confirm on server before apply).
+- **Verification journey:** Order **RBP1183** is the target post-deploy hardware queue check (expect **Allocate Serial** once map + seed are correct); not confirmed unblocked until production mapping and queue state are verified.
+- **CI:** Path-scoped `hardware-sku-map-rip` workflow runs `RadiumboxHardwareSkuMapResolutionTest` and `SeedRadiumboxHardwareSkuMapsCommandTest`.
+- **Deploy note:** KVM `desk deploy` syncs the current `main` tree; production `release.json` at preparation time reported **v4.1.32** / build **`34477beb`**, which is behind current `main` (includes merged PR **#62** and other commits since that build). Review full release diff and smoke scope before authorizing deployment — not limited to this mapping line item alone.
+- Rollback target: **v4.1.32** / `34477beb` (production `release.json` at preparation time); prior Git tag on `main` is **v4.1.33** / `7441de0d`. Redeploy a verified prior tag/build per `docs/release-workflow.md`.
+- Merge PR **#62** (`8a16425e`). Prompts **P-23-20** through **P-23-26**.
+
+## 4.1.33 — 2026-10-19 — Scheduled RadiumBox availability refresh
+
+- **Availability refresh:** `radiumbox:backfill-catalog-availability` runs every 10 minutes at :02/:12/:22/:32/:42/:52 while `RADIUMBOX_AVAILABILITY_SYNC_ENABLED` is true, with scheduler overlap locking. Active `radiumbox_com` maps only. Stale window and enforcement flags are unchanged.
+- **Sync log retention:** `radiumbox:prune-availability-sync-logs` daily at 03:40 deletes logs older than 14 days. It does not change snapshots, stock, or mappings.
+- **Out of scope:** inventory quantities, product data, Box enforcement, and Cloudflare cache.
+- Rollback target: v4.1.32.
+- Prompt **P-18-110**.
+
+## 4.1.30 — 2026-10-18 — Return / refund stack (schema) + MariaDB migration-order fix
+
+- **Return / exchange cases:** Case intake, lines, goods receipt and inspection, serial replacements, and inventory movement linkage for hardware return workflows.
+- **POS return refunds:** `pos_return_refund_requests` operational sequence and Finance review flow (execution remains gated by existing permissions and feature flags).
+- **Online return refunds:** Allocation requests/lines, tender guards, and schema for line-level execution and OPM conversion records (Cashfree / wallet executor fields).
+- **Desk-first integration (PR #45):** Return-stack code merged on `main` with desk-first wallet refund gates; production deploy brings migrations and application code together for the first time since v4.1.29.
+- **Migrations (12× `2026_10_17_*`, PR #46):** Reordered and renamed three migrations so `online_return_refund_allocation_opm_conversions` is created after allocation, line, and line-execution tables; shortened MariaDB index/FK names for 64-character limits; rollback-safe `down()` methods. Verified on disposable MariaDB 11.8.8 (P-18-3 rehearsal).
+- **Schema deploy:** `desk deploy` runs `migrate --force` — applies all pending return-stack migrations on production. Pre-deploy: confirm no long-lived database applied **pre-rename** migration filenames; query `migrations` for `2026_10_17_%` on every environment you migrate.
+- **Feature flags (default off):** `RETURN_EXCHANGE_ONLINE_REFUND_ALLOCATION_EXECUTION_ENABLED` and `RETURN_EXCHANGE_ONLINE_REFUND_ALLOCATION_OPM_CONVERSION_ENABLED` remain **false** — Finance may approve allocations but execution and OPM conversion endpoints stay fail-closed until owner enables.
+- **Out of scope:** Enabling return execution/OPM in production, desk-first wallet refund flag enablement, RadiumBox/spoke deploys, financial mutations.
+- Rollback target: v4.1.29 / `cb9c53af` (redeploy prior tag; DB rollback only via approved backup restore).
+- Prompts **RadiumDesk-P-12-10-171** through **P-12-10-181**, **P-18-2** through **P-18-9**.
+
+## 4.1.31 — 2026-10-18 — Spoke wallet display API (balance visibility and ledger history)
+
+- **Central Wallet:** Wallet visibility responses include `central_wallet_id` for authorized spokes; customer ledger-history supports active Desk account bindings and email-attested display fallback (display ≠ spend).
+- **Authorization:** Tightened ledger-history scope checks (site, local user, CWID, and session email attestation) for spoke read paths.
+- **Out of scope:** No wallet spend, reservation, migration, or spoke checkout changes.
+- Rollback target: v4.1.30 / `2effc871`.
+- Prompts **RadiumDesk-P-12-10-133** through **P-12-10-134**; release **P-18-44**.
+
+## 4.1.29 — 2026-10-13 — Desk-first wallet refund RC (authority gate + production C360 overlay parity)
+
+- **Wallet refunds:** Fail-closed `DeskFirstWalletRefundCompletionGate` verifies posted Central Wallet credit, amount/currency, customer CWID, execution binding, and spoke audit metadata before `RefundRequestService::complete` when `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED` is true. Legacy path unchanged when flag is false.
+- **Central Wallet (read/reporting):** Production-parity overlay for discrepancy classifier, C360 wallet tab, authoritative credit guard, integration ledger gate, and historical reconciliation cohort tooling (integrated from main overlay commits **85ab898b**, **ad9ac106**, **d576d0df**).
+- **Schema:** Unique index on `(business_reference, entry_type)` for `central_wallet_ledger_entries` to block duplicate refund credits under concurrency (migration present in source; **not** executed in application-only deploy).
+- **Production cutover:** Deploy with desk-first flag **off**; enable `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED=true` only after owner-authorized migration + verification (no staging platform).
+- **Deploy safety:** Rsync excludes `.env.bak*`; `release.json` written only by `release:snapshot` at deploy time.
+- Rollback target: v4.1.28 / `0404bb3d` (current production identity).
+- Prompts **RadiumDesk-P-12-10-031** through **P-12-10-041**.
+
+## 4.1.28 — 2026-10-13 — RadiumBox hardware SKU mapping (Bluprints Vriddhi L1)
+
+- Add Owner-approved radiumbox.com `channel_sku_maps` seed configuration for `model_id` **1616** (`RBBPVRIDL1` → Desk inventory SKU `RBBPVRIDL1`; `channel_sku` wire value `1616`).
+- Resolves **Product mapping required** for Box hardware fulfilment lines carrying Vriddhi L1 `model_id` 1616 (main PDP product id 1615 unchanged).
+- **Migrations:** None in this release.
+- **Out of scope:** RadiumBox `products.sku_code` update, Desk-first/Central Wallet, Customer 360, Gmail, refund routing.
+- Production requires `php artisan desk:seed-radiumbox-hardware-sku-maps --dry-run` then `--apply` after deploy (separate Owner gate). Verify `channel_sku_maps` row for `model_id` 1616 points at inventory SKU `RBBPVRIDL1` (expected production `inventory_product_id` **50** — confirm on server before apply).
+- Rollback target: v4.1.27 / `d576d0df`.
+- Prompts **RadiumDesk-P-12-10-008** (isolate on release line), **P-12-10-009** (release-readiness review).
+
+## 4.1.27 — 2026-10-13 — Wallet refund reconciliation safeguards and Customer 360 clarity
+
+- **Central Wallet:** `WalletRefundAuthoritativeCreditGuard` blocks unpaired desk-first and integration API refund credits when spoke execution exists without reconciled migration evidence.
+- **Central Wallet:** `IntegrationRefundLedgerCreditGate` on `POST /wallets/{cwid}/ledger-entries` for external refund `business_reference` values tied to Desk `refund_requests`, including blocking duplicate posted credits when a different idempotency key is used.
+- **Customer 360:** Wallet tab distinguishes true empty ledger, filter-no-match, and unavailable states; authority-gap copy warns against duplicate credits without inflating balance.
+- **Operations:** `central-wallet:wallet-refund-discrepancy-report --reconciliation-cohort` read-only eligible/blocked cohort analysis with unresolved migration journal states excluded from execution-ready.
+- **Tests:** REF-67395-shaped paired-migration regression, integration ledger-append gate, and expanded Customer 360 wallet-tab coverage.
+- **Migrations:** None in this release.
+- **Out of scope:** Desk-first enablement, production migration execute, RDIN deploy, global cohort batch execution.
+- Rollback target: v4.1.26 / `0d41ee1c`.
+- Prompts **RadiumDesk-P-04-10-208**, **P-04-10-209** (review), **P-04-10-210** (release blockers), **P-04-10-211** (integration duplicate-refund-credit guard).
+
+## 4.1.26 — 2026-10-13 — Customer 360 wallet authority-gap notices
+
+- **Customer 360:** Wallet tab shows an authoritative **₹0** balance when the Desk ledger has no posted credits, plus a **reconciliation notice** when closed wallet refunds have spoke execution evidence without a matching Desk ledger credit (does not inflate displayed balance).
+- **Reconciliation prep:** `tests/fixtures/cw-pilot-refund-ref-67395-manifest.json` and regression tests for pilot migration journal import (no execution).
+- **Classifier:** `WalletRefundAccountingDiscrepancyClassifier::authorityGapsForDeskOrder()` for order-scoped gap detection.
+- **Migrations:** None in this release.
+- **Out of scope:** Desk-first enablement, spoke deploys, financial migration execute, global policy completion.
+- Rollback target: v4.1.25 / `69a6d67b`.
+- Prompt **RadiumDesk-P-04-10-205** (implementation), **P-04-10-206** (release/deploy).
+
+## 4.1.25 — 2026-10-13 — Central Wallet refund discrepancy inventory (read-only)
+
+- **Central Wallet policy:** `docs/central-wallet-ownership-policy.md` — Desk-authoritative contract, legacy-path inventory, compliance matrix (partial).
+- **Read-only tooling:** `WalletRefundAccountingDiscrepancyClassifier` and `php artisan central-wallet:wallet-refund-discrepancy-report` (`--limit`, `--after-refund-id`, `--violations-only`). No wallet/refund/ledger writes; no migration execution.
+- **Migrations:** None in this release.
+- **Out of scope:** Desk-first flag enablement, spoke deploys, pilot migration execute, REF-67395 correction, global policy completion.
+- Rollback target: v4.1.24 / `6ccaf445`.
+- Prompt **RadiumDesk-P-04-10-203** (implementation), **P-04-10-204** (release/deploy).
+
+## 4.1.24 — 2026-10-13 — Desk-first wallet refunds (flag off by default)
+
+- **Wallet refunds:** Desk Central Wallet as spendable authority when `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED=true` (default **false**). Idempotent Desk CW ledger credit, then spoke audit via `central_wallet_ledger_entry_id` on supported integrations.
+- **Policy:** `DeskFirstWalletRefundSpokePolicy` defaults to **`rdservice.in` only** (fail-closed for RDNET/RadiumBox until spoke audit contract is verified). Legacy wallet refund execution (spoke spendable credit) unchanged when the flag is off.
+- **Recovery:** Refund detail banners and recovery inspector for partial complete/revoke; desk-first revoke coordinator (RDIN-only spoke retirement in this release).
+- **Docs:** `docs/desk-first-wallet-refund-release-plan.md`, `docs/desk-first-wallet-refund-state-machine.md`, `docs/release/desk-first-wallet-refund-v4.1.24-rc.md`.
+- **Migrations:** None in this release.
+- **Out of scope:** Production flag enablement, spoke allowlist expansion, Gmail/C360, REF-67395 pilot migration bundle.
+- Rollback target: v4.1.23 / `da7f221b`.
+- Prompts **RadiumDesk-P-12-10-004** through **P-12-10-007**, **P-12-10-011** (merge PR #26).
+
+## 4.1.23 — 2026-10-12 — Historical invoice search eligibility (RD2579)
+
+- **Global search / finance:** Pending live `RD*` orders no longer surface the historical invoice banner or reprint entry point from identifier shape alone; `RD*` fallback requires `canReprint()` via spoke lookup (`HistoricalInvoiceLookupService::shouldExposeHistoricalFinanceFallback`). **INV/INVS** behavior unchanged.
+- **Regression:** RD2579 pending-order case, spoke not-found/timeout negatives, statutory index redirect, Customer 360 mapping, and dashboard search banner JSON contract tests.
+- **Migrations:** None in this release.
+- Rollback target: v4.1.22 / `ea1a232`.
+- Prompts **RadiumDesk-P-04-10-227** through **P-04-10-232**.
+
 ## 4.1.22 — 2026-10-11 — Legacy Cashfree payment discovery, linking, and import reconciliation
 
 - **Discovery (read-only):** `cashfree:discover-legacy-order-payments` classifies legacy Desk orders with missing payment authority vs Cashfree PG (order/payments/refunds GET). Refunds lookup failures classify as **AMBIGUOUS**, not `NO_CASHFREE_PAYMENT`.

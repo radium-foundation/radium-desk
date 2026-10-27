@@ -86,6 +86,20 @@ return [
                 'notes' => 'Smooth Edges MBP-401 Desktop Barcode Printer',
             ],
             [
+                'model_id' => 1616,
+                'channel_sku' => '1616',
+                'catalog_sku' => 'RBBPVRIDL1',
+                'desk_sku' => 'RBBPVRIDL1',
+                'notes' => 'Bluprints Vriddhi L1 Aadhaar enabled printer (Box model_id 1616)',
+            ],
+            [
+                'model_id' => 1503,
+                'channel_sku' => '1503',
+                'catalog_sku' => 'PBPPRAREG2',
+                'desk_sku' => 'RBPRAGATI2',
+                'notes' => 'Bluprints Smart Thermal Printer Series | Pragati Regular-2600 (Owner P-23-20 / RBP1183)',
+            ],
+            [
                 'model_id' => 1738,
                 'channel_sku' => '1738',
                 'catalog_sku' => 'RBPBIOG2AA',

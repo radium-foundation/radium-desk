@@ -5,6 +5,7 @@ namespace App\Data;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
 use App\Support\AppDateFormatter;
 use App\Support\LegacyOrderDisplay;
+use App\Support\LegacyOrderPaymentStatusPresentation;
 use Illuminate\Support\Carbon;
 
 class LegacyOrderPreview
@@ -105,6 +106,11 @@ class LegacyOrderPreview
      */
     public function toArray(): array
     {
+        $paymentStatusPresentation = (new LegacyOrderPaymentStatusPresentation)->present(
+            $this->paymentStatus,
+            $this->legacyOrderStatus,
+        );
+
         return [
             'order_id' => $this->orderId,
             'customer_name' => $this->customerName,
@@ -126,6 +132,7 @@ class LegacyOrderPreview
             'legacy_order_status' => $this->legacyOrderStatus,
             'legacy_order_date' => AppDateFormatter::datetime($this->legacyOrderDate),
             'payment_status' => $this->paymentStatus,
+            'payment_status_presentation' => $paymentStatusPresentation,
             'payment_method' => $this->paymentMethod,
             'payment_amount' => $this->paymentAmount,
             'payment_amount_display' => LegacyOrderDisplay::formatInrAmount($this->paymentAmount),

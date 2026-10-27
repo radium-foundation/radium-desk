@@ -172,7 +172,7 @@ final class WalletRefundOpmConversionService
 
             try {
                 $adapter = $this->adapterResolver->forRefund($refund);
-                $adapter->finalizeWalletReversal($conversion, $refund);
+                $adapter->finalizeWalletReversal($conversion, new RefundRequestWalletOpmSpokeSubject($refund));
             } catch (ValidationException $exception) {
                 return $this->enterReconciliation(
                     $conversion,
@@ -212,7 +212,7 @@ final class WalletRefundOpmConversionService
             $refund = $conversion->refundRequest()->firstOrFail();
             if ($conversion->site_reservation_id !== null && $conversion->status->holdsSiteReservation()) {
                 $adapter = $this->adapterResolver->forRefund($refund);
-                $adapter->releaseReservation($conversion, $refund);
+                $adapter->releaseReservation($conversion, new RefundRequestWalletOpmSpokeSubject($refund));
             }
 
             $conversion->update([
@@ -236,7 +236,8 @@ final class WalletRefundOpmConversionService
 
         try {
             $adapter = $this->adapterResolver->forRefund($refund);
-            $result = $adapter->reserve($conversion, $refund);
+            $subject = new RefundRequestWalletOpmSpokeSubject($refund);
+            $result = $adapter->reserve($conversion, $subject);
             $conversion->update([
                 'site_reservation_id' => $result['reservation_id'],
                 'site_reservation_status' => $result['status'],

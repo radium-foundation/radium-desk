@@ -35,6 +35,7 @@ class RadiumBoxWalletRefundClient
         string $orderId,
         float $amount,
         ?string $customerEmail = null,
+        ?int $centralWalletLedgerEntryId = null,
     ): array {
         if (! $this->isConfigured()) {
             throw ValidationException::withMessages([
@@ -61,12 +62,21 @@ class RadiumBoxWalletRefundClient
                 $request = $request->withHeaders(['Host' => $host]);
             }
 
-            $response = $request->post('/api/integrations/v1/wallet-refunds', array_filter([
+            $body = [
+                'source_system' => 'radium_desk',
                 'desk_refund_reference' => $deskRefundReference,
                 'order_id' => $orderId,
                 'amount' => round($amount, 2),
-                'customer_email' => $customerEmail,
-            ], fn ($value) => $value !== null && $value !== ''));
+                'currency' => 'INR',
+            ];
+            if (is_string($customerEmail) && trim($customerEmail) !== '') {
+                $body['customer_email'] = trim($customerEmail);
+            }
+            if ($centralWalletLedgerEntryId !== null && $centralWalletLedgerEntryId > 0) {
+                $body['central_wallet_ledger_entry_id'] = $centralWalletLedgerEntryId;
+            }
+
+            $response = $request->post('/api/integrations/v1/wallet-refunds', $body);
 
             $payload = $response->json();
             if (! is_array($payload)) {
@@ -218,11 +228,21 @@ class RadiumBoxWalletRefundClient
 
     private function referenceWasProvided(mixed $value): bool
     {
-        if (is_string($value)) {
-            return trim($value) !== '';
+        if ($value === null) {
+            return false;
         }
 
-        return $value !== null;
+        if (is_int($value) || is_float($value)) {
+            return $value > 0;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+
+            return $trimmed !== '' && $trimmed !== '0';
+        }
+
+        return true;
     }
 
     private function normalizeWalletTransactionId(mixed $value): ?int

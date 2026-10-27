@@ -5,6 +5,7 @@ namespace App\Services\Wallet;
 use App\CentralWallet\Application\LedgerEntryCursor;
 use App\CentralWallet\Application\LedgerEntryReadService;
 use App\CentralWallet\Application\LedgerService;
+use App\CentralWallet\Application\WalletRefundAccountingDiscrepancyClassifier;
 use App\CentralWallet\Domain\Enums\LedgerEntryType;
 use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use App\Models\Incident;
@@ -32,6 +33,7 @@ class WalletLedgerReadService
         private readonly DeskCustomerCentralWalletResolver $customers,
         private readonly LedgerService $ledger,
         private readonly LedgerEntryReadService $history,
+        private readonly WalletRefundAccountingDiscrepancyClassifier $refundAccountingClassifier,
     ) {}
 
     /**
@@ -58,7 +60,21 @@ class WalletLedgerReadService
             return $this->terminalView($incident, 'unavailable');
         }
 
-        return $this->presentLedger($page, $viewer, $incident, $identity, $available, $reserved);
+        return $this->presentLedger($page, $viewer, $incident, $identity, $available, $reserved, $filters);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function walletAuthorityGapNotices(Incident $incident): array
+    {
+        $incident->loadMissing('order');
+        $order = $incident->order;
+        if ($order === null) {
+            return [];
+        }
+
+        return $this->refundAccountingClassifier->authorityGapsForDeskOrder((int) $order->id);
     }
 
     /**
@@ -116,6 +132,7 @@ class WalletLedgerReadService
         array $identity,
         string $available,
         string $reserved,
+        array $filters = [],
     ): array {
         $entries = $page['data'];
         $ids = array_values(array_filter(array_map(
@@ -183,10 +200,16 @@ class WalletLedgerReadService
             ];
         }, $entries);
 
+        $authorityGaps = $this->walletAuthorityGapNotices($incident);
+        $filterActive = $this->historyFilterActive($filters);
+        $ledgerDisplay = $this->ledgerDisplayState($rows, $filterActive, $authorityGaps);
+
         return [
             'state' => 'ready',
             'incident_id' => $incident->id,
             'customer_id' => $identity['customer_id'],
+            'wallet_authority_gaps' => $authorityGaps,
+            'ledger_display_state' => $ledgerDisplay,
             'wallet' => [
                 'available' => $available,
                 'reserved' => $reserved,
@@ -196,10 +219,46 @@ class WalletLedgerReadService
             ],
             'transactions' => $rows,
             'pagination' => $page['pagination'],
-            'empty_message' => $rows === []
-                ? 'No posted Central Wallet transactions for this customer.'
-                : null,
+            'empty_message' => $ledgerDisplay === 'no_filter_matches'
+                ? 'No transactions match the current filters. Clear filters to see the full ledger.'
+                : ($ledgerDisplay === 'no_posted_entries'
+                    ? 'No Central Wallet transactions recorded yet. This customer\'s Desk Central Wallet has no posted transactions. Refunds or credits recorded on another website\'s wallet are not included in this balance.'
+                    : null),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    private function historyFilterActive(array $filters): bool
+    {
+        $type = strtolower(trim((string) ($filters['type'] ?? 'all')));
+        if ($type !== '' && $type !== 'all') {
+            return true;
+        }
+
+        return $this->nullableString($filters['business_reference'] ?? null) !== null;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @param  list<array<string, mixed>>  $authorityGaps
+     */
+    private function ledgerDisplayState(array $rows, bool $filterActive, array $authorityGaps): string
+    {
+        if ($rows !== []) {
+            return 'has_entries';
+        }
+
+        if ($filterActive) {
+            return 'no_filter_matches';
+        }
+
+        if ($authorityGaps !== []) {
+            return 'no_posted_entries_with_authority_gaps';
+        }
+
+        return 'no_posted_entries';
     }
 
     /**

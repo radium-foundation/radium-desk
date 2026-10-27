@@ -51,6 +51,15 @@ return [
     ],
 
     /*
+    | Desk → radiumbox.com availability snapshots for owner-approved channel_sku_maps.
+    | Requires Box catalog-availability ingest endpoint. Default off.
+    | After enabling, restart queue workers (config:cache) so jobs see the flag.
+    */
+    'availability_sync' => [
+        'enabled' => filter_var(env('RADIUMBOX_AVAILABILITY_SYNC_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
+    /*
     | Desk → radiumbox.com wallet refund reversal. Requires radiumbox.com to
     | deploy a matching integration endpoint first. Default off.
     */

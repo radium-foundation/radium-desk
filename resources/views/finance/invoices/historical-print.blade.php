@@ -377,8 +377,12 @@
                 <p class="seller-legal">{{ $sellerName }}</p>
             </div>
             <div class="doc-meta">
-                <p class="doc-kicker">Tax invoice</p>
-                <h1 class="doc-title">{{ $result->invoiceNumber }}</h1>
+                @if($result->isReducedIndCopy())
+                    <h1 class="doc-title">{{ $result->invoiceNumber }}</h1>
+                @else
+                    <p class="doc-kicker">Tax invoice</p>
+                    <h1 class="doc-title">{{ $result->invoiceNumber }}</h1>
+                @endif
                 <dl class="meta-grid">
                     @if($dateDisplay !== null)
                         <dt>Date</dt>
@@ -501,7 +505,9 @@
                     <span>Total</span>
                     <span>{{ $money($totals['total'] ?? null) ?? '—' }}</span>
                 </div>
-                <p class="tax-note">Amounts shown as returned by the source invoice. Not recalculated.</p>
+                @unless($result->isReducedIndCopy())
+                    <p class="tax-note">Amounts shown as returned by the source invoice. Not recalculated.</p>
+                @endunless
             </div>
         </div>
 
@@ -518,8 +524,12 @@
         @endif
 
         <footer class="footer">
-            <p>Historical reprint — existing invoice {{ $result->invoiceNumber }}. Not a new tax invoice. Number unchanged.</p>
-            <p>{{ $sellerName }}</p>
+            @if($result->isReducedIndCopy())
+                <p>{{ \App\Services\HistoricalInvoice\IndReducedCopyDisclosure::PRINT_FOOTER_DUPLICATE_NOTICE }}</p>
+            @else
+                <p>Historical reprint — existing invoice {{ $result->invoiceNumber }}. Not a new tax invoice. Number unchanged.</p>
+                <p>{{ $sellerName }}</p>
+            @endif
         </footer>
     </div>
 </body>
