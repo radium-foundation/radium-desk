@@ -15,7 +15,11 @@
         <div class="d-flex gap-2 flex-wrap">
             @if(!empty($canCancelInvoice))
                 <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelInvoiceModal">
-                    Cancel invoice
+                    @if(!empty($cancellationAdmin->operation) && !$cancellationAdmin->operation->isCompleted())
+                        Continue cancellation
+                    @else
+                        Cancel invoice
+                    @endif
                 </button>
             @endif
             @if(!empty($canReevaluateEinvoice))
@@ -31,7 +35,50 @@
     @include('finance.partials.workspace-nav', ['active' => 'invoices'])
 
     @if(session('status'))
-        <div class="alert alert-success">{{ session('status') }}</div>
+        @php
+            $statusLevel = session('status_level', 'success');
+            $alertClass = match ($statusLevel) {
+                'danger' => 'alert-danger',
+                'warning' => 'alert-warning',
+                'info' => 'alert-info',
+                default => 'alert-success',
+            };
+        @endphp
+        <div class="alert {{ $alertClass }}" role="status">{{ session('status') }}</div>
+    @endif
+
+    @if($errors->any())
+        <div class="alert alert-danger" role="alert">
+            <p class="mb-1 fw-semibold">Cancellation could not be completed.</p>
+            <ul class="mb-0 small">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    @if(!empty($cancellationAdmin))
+        @if($cancellationAdmin->requiresFinanceCaEscalation)
+            <div class="alert alert-danger" role="alert">
+                <p class="fw-semibold mb-1">Manual Finance/CA review required</p>
+                <p class="small mb-1">{{ $cancellationAdmin->operationStatusHelp }}</p>
+                @if($cancellationAdmin->correlationId)
+                    <p class="small mb-0"><strong>Correlation reference:</strong> <code>{{ $cancellationAdmin->correlationId }}</code></p>
+                @endif
+                @if($cancellationAdmin->lastError)
+                    <p class="small mb-0 mt-1"><strong>Last error:</strong> {{ $cancellationAdmin->lastError }}</p>
+                @endif
+            </div>
+        @elseif($cancellationAdmin->operation && !$cancellationAdmin->operation->isCompleted())
+            <div class="alert alert-warning" role="status">
+                <p class="fw-semibold mb-1">Cancellation operation: {{ $cancellationAdmin->operationStatusLabel }}</p>
+                <p class="small mb-1">{{ $cancellationAdmin->operationStatusHelp }}</p>
+                @if($cancellationAdmin->correlationId)
+                    <p class="small mb-0"><strong>Correlation reference:</strong> <code>{{ $cancellationAdmin->correlationId }}</code></p>
+                @endif
+            </div>
+        @endif
     @endif
 
     @if($invoice->status->value === 'cancelled')
@@ -115,6 +162,16 @@
                 · {{ $invoice->eInvoiceRecord->response_payload['skip_reason'] ?? $invoice->eInvoiceRecord->response_payload['queue_reason'] ?? '—' }}
             @endif
         </p>
+    @endif
+    @if(!empty($cancellationAdmin) && $cancellationAdmin->showPolicyPanel && $invoice->status->value !== 'cancelled')
+        <div class="card shadow-sm mb-4 border-secondary">
+            <div class="card-body small">
+                <h2 class="h6 mb-2">Statutory cancellation policy (read-only)</h2>
+                <p class="mb-1"><strong>Policy:</strong> {{ $cancellationAdmin->policySummary }}</p>
+                <p class="mb-1"><strong>IRN:</strong> {{ $cancellationAdmin->irnStatusSummary }}</p>
+                <p class="mb-0"><strong>Window / workflow:</strong> {{ $cancellationAdmin->windowSummary }}</p>
+            </div>
+        </div>
     @endif
     @if($invoice->inventorySale?->invoice_number)
         <p class="text-muted">POS internal receipt {{ $invoice->inventorySale->invoice_number }} (not a GST number)</p>
@@ -272,9 +329,9 @@
                             This action can affect IRN status, linked POS inventory, and statutory records.
                             The invoice number will be kept and is not reused.
                         </p>
-                        @if(!empty($cancellationConsequences))
+                        @if(!empty($cancellationAdmin?->consequences))
                             <ul class="small mb-3">
-                                @foreach($cancellationConsequences as $consequence)
+                                @foreach($cancellationAdmin->consequences as $consequence)
                                     <li>{{ $consequence }}</li>
                                 @endforeach
                             </ul>
@@ -313,10 +370,29 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-danger">Cancel invoice</button>
+                        <button type="submit" class="btn btn-danger" id="cancel-invoice-submit">
+                            @if(!empty($cancellationAdmin->operation) && !$cancellationAdmin->operation->isCompleted())
+                                Continue cancellation
+                            @else
+                                Submit cancellation request
+                            @endif
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
+        <script>
+            document.getElementById('cancelInvoiceModal')?.addEventListener('submit', function (event) {
+                const button = document.getElementById('cancel-invoice-submit');
+                if (button?.disabled) {
+                    event.preventDefault();
+                    return;
+                }
+                if (button) {
+                    button.disabled = true;
+                    button.setAttribute('aria-busy', 'true');
+                }
+            }, { capture: true });
+        </script>
     @endif
 @endsection

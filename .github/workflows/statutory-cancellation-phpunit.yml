@@ -1,0 +1,80 @@
+name: Statutory cancellation PHPUnit
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/Console/Commands/StatutoryCancellationReconcileCommand.php'
+      - 'app/Enums/StatutoryInvoiceCancellationOperationStatus.php'
+      - 'app/Http/Controllers/Finance/StatutoryInvoiceController.php'
+      - 'app/Models/StatutoryInvoiceCancellation.php'
+      - 'app/Services/StatutoryInvoice/Data/IrnCancellationReconciliationResult.php'
+      - 'app/Services/StatutoryInvoice/Data/StatutoryInvoiceCancellationAdminContext.php'
+      - 'app/Services/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
+      - 'app/Services/StatutoryInvoice/StatutoryInvoiceIrnCancellation*.php'
+      - 'app/Services/StatutoryInvoice/Whitebooks/WhitebooksResponseMapper.php'
+      - 'app/Support/Finance/FinanceAccess.php'
+      - 'config/statutory_invoices.php'
+      - 'database/migrations/*statutory_invoice_cancellations*'
+      - 'database/seeders/RolePermissionSeeder.php'
+      - 'resources/views/finance/invoices/show.blade.php'
+      - 'tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
+      - 'tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php'
+      - 'tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php'
+      - 'tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
+      - 'tests/Support/FakeEInvoiceGateway.php'
+      - '.github/workflows/statutory-cancellation-phpunit.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/Console/Commands/StatutoryCancellationReconcileCommand.php'
+      - 'app/Enums/StatutoryInvoiceCancellationOperationStatus.php'
+      - 'app/Http/Controllers/Finance/StatutoryInvoiceController.php'
+      - 'app/Models/StatutoryInvoiceCancellation.php'
+      - 'app/Services/StatutoryInvoice/Data/IrnCancellationReconciliationResult.php'
+      - 'app/Services/StatutoryInvoice/Data/StatutoryInvoiceCancellationAdminContext.php'
+      - 'app/Services/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
+      - 'app/Services/StatutoryInvoice/StatutoryInvoiceIrnCancellation*.php'
+      - 'app/Services/StatutoryInvoice/Whitebooks/WhitebooksResponseMapper.php'
+      - 'app/Support/Finance/FinanceAccess.php'
+      - 'config/statutory_invoices.php'
+      - 'database/migrations/*statutory_invoice_cancellations*'
+      - 'database/seeders/RolePermissionSeeder.php'
+      - 'resources/views/finance/invoices/show.blade.php'
+      - 'tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
+      - 'tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php'
+      - 'tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php'
+      - 'tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
+      - 'tests/Support/FakeEInvoiceGateway.php'
+      - '.github/workflows/statutory-cancellation-phpunit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  statutory-cancellation-phpunit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHPUnit (statutory invoice cancellation focused bundle)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellationIrnPendingRecoveryTest.php \
+            tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellationAdminUiTest.php \
+            tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellationOrchestratorTest.php \
+            tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellationReliabilityTest.php \
+            tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php \
+            tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellationDispatchReservationTest.php \
+            tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php

@@ -70,9 +70,38 @@ final class WhitebooksResponseMapper
     /**
      * @param  array<string, mixed>  $body
      */
+    /**
+     * Detect whether a Get-IRN envelope indicates the IRN was cancelled at the provider.
+     *
+     * @param  array<string, mixed>  $body
+     */
+    public function irnIsCancelledInFetchBody(array $body): bool
+    {
+        $data = $this->data($body);
+        $cancelDate = $this->string($data['CancelDate'] ?? $data['CancelDt'] ?? null);
+        $status = $this->string($data['Status'] ?? null);
+
+        return $cancelDate !== null || in_array($status, ['CNL', 'CAN', 'Cancelled'], true);
+    }
+
     public function mapFetch(array $body, ?string $correlationId = null): EInvoiceSubmitResult
     {
         $data = $this->data($body);
+        if ($this->irnIsCancelledInFetchBody($body)) {
+            $irn = $this->string($data['Irn'] ?? null);
+
+            return EInvoiceSubmitResult::success(
+                provider: 'whitebooks',
+                irn: EInvoiceIrnGuard::isIssuedIrn($irn) ? $irn : 'cancelled',
+                ackNo: $this->string($data['AckNo'] ?? null),
+                ackDate: $this->string($data['AckDt'] ?? $data['AckDate'] ?? null),
+                signedQr: null,
+                signedInvoice: null,
+                correlationId: $correlationId,
+                payload: $this->safeSuccessPayload($data, $body),
+            );
+        }
+
         $irn = $this->string($data['Irn'] ?? null);
         if (EInvoiceIrnGuard::isIssuedIrn($irn)) {
             return $this->mapGenerate($body, $correlationId);
@@ -260,6 +289,8 @@ final class WhitebooksResponseMapper
     {
         return [
             'Status' => $data['Status'] ?? null,
+            'CancelDate' => $data['CancelDate'] ?? null,
+            'CancelDt' => $data['CancelDt'] ?? $data['CancelDate'] ?? null,
             'AckNo' => $data['AckNo'] ?? null,
             'AckDt' => $data['AckDt'] ?? $data['AckDate'] ?? null,
             'has_signed_invoice' => $this->string($data['SignedInvoice'] ?? null) !== null,
