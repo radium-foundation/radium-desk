@@ -7,7 +7,11 @@ on:
     paths:
       - 'app/Console/Commands/StatutoryCancellationReconcileCommand.php'
       - 'app/Enums/StatutoryInvoiceCancellationOperationStatus.php'
+      - 'app/Enums/StatutoryInvoiceCancelledRecoveryPaymentPath.php'
       - 'app/Http/Controllers/Finance/StatutoryInvoiceController.php'
+      - 'app/Services/StatutoryInvoice/Data/StatutoryInvoiceCancelledRecoveryAssessment.php'
+      - 'app/Services/StatutoryInvoice/StatutoryInvoiceCancelledRecoveryService.php'
+      - 'resources/views/finance/invoices/partials/cancelled-recovery.blade.php'
       - 'app/Models/StatutoryInvoiceCancellation.php'
       - 'app/Services/StatutoryInvoice/Data/IrnCancellationReconciliationResult.php'
       - 'app/Services/StatutoryInvoice/Data/StatutoryInvoiceCancellationAdminContext.php'
@@ -20,6 +24,7 @@ on:
       - 'database/seeders/RolePermissionSeeder.php'
       - 'resources/views/finance/invoices/show.blade.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
+      - 'tests/Feature/StatutoryInvoice/StatutoryInvoiceCancelledRecoveryTest.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php'
       - 'tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php'
       - 'tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
@@ -31,7 +36,11 @@ on:
     paths:
       - 'app/Console/Commands/StatutoryCancellationReconcileCommand.php'
       - 'app/Enums/StatutoryInvoiceCancellationOperationStatus.php'
+      - 'app/Enums/StatutoryInvoiceCancelledRecoveryPaymentPath.php'
       - 'app/Http/Controllers/Finance/StatutoryInvoiceController.php'
+      - 'app/Services/StatutoryInvoice/Data/StatutoryInvoiceCancelledRecoveryAssessment.php'
+      - 'app/Services/StatutoryInvoice/StatutoryInvoiceCancelledRecoveryService.php'
+      - 'resources/views/finance/invoices/partials/cancelled-recovery.blade.php'
       - 'app/Models/StatutoryInvoiceCancellation.php'
       - 'app/Services/StatutoryInvoice/Data/IrnCancellationReconciliationResult.php'
       - 'app/Services/StatutoryInvoice/Data/StatutoryInvoiceCancellationAdminContext.php'
@@ -44,6 +53,7 @@ on:
       - 'database/seeders/RolePermissionSeeder.php'
       - 'resources/views/finance/invoices/show.blade.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
+      - 'tests/Feature/StatutoryInvoice/StatutoryInvoiceCancelledRecoveryTest.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php'
       - 'tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php'
       - 'tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
@@ -73,6 +83,7 @@ jobs:
           ./vendor/bin/phpunit \
             tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellationIrnPendingRecoveryTest.php \
             tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellationAdminUiTest.php \
+            tests/Feature/StatutoryInvoice/StatutoryInvoiceCancelledRecoveryTest.php \
             tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellationOrchestratorTest.php \
             tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellationReliabilityTest.php \
             tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php \
