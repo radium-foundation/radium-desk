@@ -61,6 +61,15 @@
                 <p class="small mb-2">{{ $refundReview->message }}</p>
             @endif
 
+            @if(!empty($cancelledRecovery->separationReminders))
+                <p class="fw-semibold small mb-1">Lifecycle separation</p>
+                <ul class="small mb-3">
+                    @foreach($cancelledRecovery->separationReminders as $reminder)
+                        <li>{{ $reminder }}</li>
+                    @endforeach
+                </ul>
+            @endif
+
             @if(!$cancelledRecovery->walletToOpmSupportedOnMain)
                 <p class="small text-muted mb-0">
                     Wallet→OPM is not available on this deployment (schema/routes incomplete). Return-allocation OPM remains a separate, flag-gated workflow.

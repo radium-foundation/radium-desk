@@ -85,6 +85,66 @@ class StatutoryInvoiceCancelledRecoveryTest extends TestCase
         $this->assertGreaterThan(0, $assessment->deskAmountReceived);
     }
 
+    public function test_legacy_payment_method_without_allocations_classified_as_legacy_paid_path(): void
+    {
+        $invoice = $this->cancelledInvoiceFactory(paymentMethod: 'Cash');
+
+        $assessment = app(StatutoryInvoiceCancelledRecoveryService::class)->assess($invoice);
+
+        $this->assertSame(
+            StatutoryInvoiceCancelledRecoveryPaymentPath::PaidLegacyInvoiceFields,
+            $assessment->paymentPath,
+        );
+        $this->assertTrue($assessment->requiresExternalPaymentVerification());
+    }
+
+    public function test_zero_value_commerce_invoice_without_payment_fields_is_ambiguous(): void
+    {
+        $invoice = StatutoryInvoice::query()->create([
+            'invoice_number' => 'INV-REC-'.uniqid(),
+            'document_type' => \App\Enums\StatutoryInvoiceDocumentType::TaxInvoice,
+            'status' => StatutoryInvoiceStatus::Cancelled,
+            'channel' => \App\Enums\StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => \App\Enums\StatutoryInvoiceSourceType::CommerceOrder,
+            'source_id' => 'RB-REC-'.uniqid(),
+            'idempotency_key' => 'test:rec:'.uniqid(),
+            'buyer_gstin' => '07AABCU9603R1ZM',
+            'buyer_name' => 'Recovery Buyer',
+            'place_of_supply_state' => 'Delhi',
+            'taxable_value' => 0,
+            'invoice_value' => 0,
+            'tax_total' => 0,
+            'issued_at' => now()->subDay(),
+            'cancelled_at' => now(),
+        ]);
+
+        $assessment = app(StatutoryInvoiceCancelledRecoveryService::class)->assess($invoice);
+
+        $this->assertSame(StatutoryInvoiceCancelledRecoveryPaymentPath::Ambiguous, $assessment->paymentPath);
+    }
+
+    public function test_panel_does_not_imply_replacement_mint_is_executable(): void
+    {
+        $invoice = $this->cancelledInvoiceFactory();
+        $user = $this->financeViewer();
+
+        $this->actingAs($user)
+            ->get(route('finance.invoices.show', $invoice))
+            ->assertOk()
+            ->assertSee('guidance only', false)
+            ->assertDontSee('Replacement mint is permitted', false);
+    }
+
+    public function test_user_without_finance_invoice_access_cannot_view_recovery_panel(): void
+    {
+        $invoice = $this->cancelledInvoiceFactory();
+        $user = User::factory()->create(['is_active' => true]);
+
+        $this->actingAs($user)
+            ->get(route('finance.invoices.show', $invoice))
+            ->assertForbidden();
+    }
+
     public function test_find_by_source_returns_cancelled_invoice_blocking_replacement_mint(): void
     {
         $invoice = $this->cancelledInvoiceFactory();
@@ -106,6 +166,7 @@ class StatutoryInvoiceCancelledRecoveryTest extends TestCase
 
     private function cancelledInvoiceFactory(
         StatutoryInvoiceStatus $status = StatutoryInvoiceStatus::Cancelled,
+        ?string $paymentMethod = null,
     ): StatutoryInvoice {
         return StatutoryInvoice::query()->create([
             'invoice_number' => 'INV-REC-'.uniqid(),
@@ -121,6 +182,7 @@ class StatutoryInvoiceCancelledRecoveryTest extends TestCase
             'taxable_value' => 100,
             'invoice_value' => 118,
             'tax_total' => 18,
+            'payment_method' => $paymentMethod,
             'issued_at' => now()->subDay(),
             'cancelled_at' => $status === StatutoryInvoiceStatus::Cancelled ? now() : null,
         ]);
