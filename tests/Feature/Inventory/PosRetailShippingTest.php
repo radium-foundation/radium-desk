@@ -14,6 +14,8 @@ use App\Models\InventorySerial;
 use App\Models\User;
 use App\Services\Inventory\InventoryStockService;
 use App\Services\Inventory\PosSaleService;
+use App\Services\StatutoryInvoice\EInvoiceStoredGstGuard;
+use App\Services\StatutoryInvoice\PosRetailShippingStatutoryLine;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use Database\Seeders\FinanceMasterDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
@@ -61,6 +63,12 @@ class PosRetailShippingTest extends TestCase
             'statutory_invoices.number_format' => '',
         ]);
         Carbon::setTestNow('2026-09-10 12:00:00');
+
+        config([
+            'statutory_invoices.pos_retail_shipping.hsn_sac' => 'TEST-SHIPPING-HSN-NOT-FOR-PRODUCTION',
+            'statutory_invoices.pos_retail_shipping.uqc' => 'NOS',
+            'statutory_invoices.pos_retail_shipping.description' => 'Test shipping line (not Finance-approved)',
+        ]);
     }
 
     public function test_pos_hardware_with_shipping_reaches_statutory_invoice_and_reconciles(): void
@@ -79,6 +87,11 @@ class PosRetailShippingTest extends TestCase
         $this->assertSame('177.00', (string) $invoice->invoice_value);
         $this->assertSame(13.5, (float) $invoice->cgst);
         $this->assertSame(13.5, (float) $invoice->sgst);
+        $this->assertCount(2, $invoice->items);
+        $shippingLines = $invoice->items->where('sku', PosRetailShippingStatutoryLine::LINE_SKU);
+        $this->assertCount(1, $shippingLines);
+        $this->assertSame('50.00', (string) $shippingLines->first()?->taxable_value);
+        $this->assertSame([], EInvoiceStoredGstGuard::missingReasons($invoice));
     }
 
     public function test_pos_hardware_without_shipping_remains_unchanged(): void
@@ -153,7 +166,8 @@ class PosRetailShippingTest extends TestCase
 
         $this->assertSame('25.00', (string) $invoice->shipping_amount);
         $this->assertSame('300.00', (string) $invoice->taxable_value);
-        $this->assertCount(2, $invoice->items);
+        $this->assertCount(3, $invoice->items);
+        $this->assertCount(1, $invoice->items->where('sku', PosRetailShippingStatutoryLine::LINE_SKU));
         $this->assertSame('384.00', (string) $invoice->invoice_value);
     }
 
@@ -177,6 +191,59 @@ class PosRetailShippingTest extends TestCase
         $this->assertNotNull($product);
         $this->assertSame(InventorySerialStatus::Sold, InventorySerial::query()->where('serial_number', 'STOCK-SHIP-1')->value('status'));
         $this->assertSame(0, (int) $product->balances()->where('branch_id', $this->branch->id)->value('available_qty'));
+    }
+
+    public function test_pos_shipping_without_configured_hsn_fails_closed_at_mint(): void
+    {
+        config(['statutory_invoices.pos_retail_shipping.hsn_sac' => '']);
+
+        $product = InventoryProduct::query()->create([
+            'sku' => 'NO-HSN-SHIP',
+            'name' => 'No HSN product',
+            'hsn_code' => '',
+            'gst_percentage' => 18,
+            'unit_price' => 100,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        $this->stock->stockInSerialized($product, $this->branch, ['SHIP-NO-HSN-1'], $this->actor);
+        $sale = $this->sales->completeSale(
+            branch: $this->branch,
+            customer: ['name' => 'Walk-in', 'phone' => '9000000098'],
+            lines: [['product_id' => $product->id, 'qty' => 1, 'serials' => ['SHIP-NO-HSN-1']]],
+            paymentMethod: 'Cash',
+            actor: $this->actor,
+            shippingAmount: 25.0,
+            statutory: ['place_of_supply_state' => 'Delhi'],
+        );
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectExceptionMessage('HSN/SAC');
+
+        $this->invoices->issueFromPosSale($sale, $this->actor);
+    }
+
+    public function test_pos_shipping_derives_hsn_from_product_when_env_override_absent(): void
+    {
+        config(['statutory_invoices.pos_retail_shipping.hsn_sac' => '']);
+
+        $sale = $this->completeSale(shippingAmount: 25.0, serial: 'SHIP-DERIVE-1');
+        $invoice = $this->invoices->issueFromPosSale($sale, $this->actor);
+        $shipping = $invoice->items->firstWhere('sku', PosRetailShippingStatutoryLine::LINE_SKU);
+
+        $this->assertNotNull($shipping);
+        $this->assertSame('84716050', (string) $shipping->hsn_sac);
+    }
+
+    public function test_repeated_issue_from_pos_sale_is_idempotent_without_duplicate_shipping_lines(): void
+    {
+        $sale = $this->completeSale(shippingAmount: 30.0, serial: 'SHIP-IDEM-1');
+        $first = $this->invoices->issueFromPosSale($sale, $this->actor);
+        $second = $this->invoices->issueFromPosSale($sale->fresh(), $this->actor);
+
+        $this->assertSame($first->id, $second->id);
+        $this->assertCount(2, $second->items);
+        $this->assertCount(1, $second->items->where('sku', PosRetailShippingStatutoryLine::LINE_SKU));
     }
 
     public function test_mixed_gst_cart_uses_max_rate_for_shipping_tax(): void

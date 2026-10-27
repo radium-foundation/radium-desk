@@ -55,6 +55,10 @@ final class EInvoiceAgentPresentation
             'why' => 'Statutory tax data is incomplete.',
             'next_action' => 'Tax details require verification before e-Invoice generation.',
         ],
+        'missing_pos_shipping_hsn_sac' => [
+            'why' => 'POS shipping charges need a confirmed HSN/SAC for e-Invoice.',
+            'next_action' => 'Finance must confirm the shipping HSN/SAC configuration before e-Invoice generation.',
+        ],
         'missing_buyer_gstin' => [
             'why' => 'Buyer GSTIN is missing or invalid.',
             'next_action' => 'Enter the buyer GSTIN on the sale/invoice, or leave it blank only for B2C.',
