@@ -234,6 +234,249 @@ class StatutoryInvoiceCancellationReliabilityTest extends TestCase
         $this->assertSame(StatutoryInvoiceCancellationOperationStatus::ManualReviewRequired, $operation->status);
     }
 
+    public function test_max_irn_cancel_dispatch_attempts_enforces_manual_review(): void
+    {
+        config(['statutory_invoices.einvoice.irn_cancellation_max_dispatch_attempts' => 2]);
+
+        $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
+        $fake->queueCancel(EInvoiceCancelResult::unknown('fake', ['reason' => 'timeout']));
+        $fake->queueFetch(EInvoiceSubmitResult::success(
+            provider: 'fake',
+            irn: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+            payload: ['Status' => 'ACT'],
+        ));
+        $fake->queueCancel(EInvoiceCancelResult::unknown('fake', ['reason' => 'timeout']));
+        $fake->queueFetch(EInvoiceSubmitResult::success(
+            provider: 'fake',
+            irn: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+            payload: ['Status' => 'ACT'],
+        ));
+        $this->app->instance(EInvoiceGateway::class, $fake);
+
+        $invoice = $this->issueB2bInvoice('REL-MAX');
+        $this->attachSubmittedIrn($invoice, hoursAgo: 2);
+        $key = $this->cancelKey($invoice);
+        $fresh = fn () => $invoice->fresh(['eInvoiceRecord', 'items']);
+
+        try {
+            $this->orchestrator()->cancel($fresh(), $this->admin, 'Max', $key);
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame(1, $fake->cancelCount);
+
+        try {
+            $this->orchestrator()->cancel($fresh(), $this->admin, 'Max', $key);
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame(2, $fake->cancelCount);
+        $operation = StatutoryInvoiceCancellation::query()->where('statutory_invoice_id', $invoice->id)->firstOrFail();
+        $this->assertSame(2, $operation->attempt_count);
+
+        $operation->update(['status' => StatutoryInvoiceCancellationOperationStatus::FailedRetryable]);
+        $fake->queueFetch(EInvoiceSubmitResult::success(
+            provider: 'fake',
+            irn: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+            payload: ['Status' => 'ACT'],
+        ));
+
+        Log::spy();
+
+        try {
+            $this->orchestrator()->cancel($fresh(), $this->admin, 'Max', $key);
+            $this->fail('Expected validation after dispatch limit');
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame(2, $fake->cancelCount);
+        $operation->refresh();
+        $this->assertSame(StatutoryInvoiceCancellationOperationStatus::ManualReviewRequired, $operation->status);
+        $this->assertSame(StatutoryInvoiceStatus::Issued, $invoice->fresh()->status);
+        Log::shouldHaveReceived('warning')->with('statutory_invoice_cancellation.manual_review_required', \Mockery::on(
+            fn (array $context): bool => ($context['reason'] ?? '') === 'irn_cancel_max_dispatch_attempts_exceeded'
+        ));
+    }
+
+    public function test_manual_review_from_dispatch_limit_blocks_resume(): void
+    {
+        config(['statutory_invoices.einvoice.irn_cancellation_max_dispatch_attempts' => 1]);
+
+        $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
+        $fake->queueCancel(EInvoiceCancelResult::unknown('fake', ['reason' => 'timeout']));
+        $this->app->instance(EInvoiceGateway::class, $fake);
+
+        $invoice = $this->issueB2bInvoice('REL-MAX-BLOCK');
+        $this->attachSubmittedIrn($invoice, hoursAgo: 2);
+        $key = $this->cancelKey($invoice);
+
+        try {
+            $this->orchestrator()->cancel($invoice->fresh(['eInvoiceRecord', 'items']), $this->admin, 'Once', $key);
+        } catch (ValidationException) {
+        }
+
+        $operation = StatutoryInvoiceCancellation::query()->where('statutory_invoice_id', $invoice->id)->firstOrFail();
+        $operation->update([
+            'status' => StatutoryInvoiceCancellationOperationStatus::ManualReviewRequired,
+            'attempt_count' => 1,
+        ]);
+
+        try {
+            $this->orchestrator()->cancel($invoice->fresh(['eInvoiceRecord', 'items']), $this->admin, 'Resume', $key);
+            $this->fail('Expected manual review block');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('manual review', strtolower($e->getMessage()));
+        }
+
+        $this->assertSame(1, $fake->cancelCount);
+    }
+
+    public function test_active_irn_after_cancellation_window_expired_requires_manual_review(): void
+    {
+        $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
+        $fake->queueCancel(EInvoiceCancelResult::unknown('fake', ['reason' => 'timeout']));
+        $fake->queueFetch(EInvoiceSubmitResult::success(
+            provider: 'fake',
+            irn: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+            payload: ['Status' => 'ACT'],
+        ));
+        $this->app->instance(EInvoiceGateway::class, $fake);
+
+        $invoice = $this->issueB2bInvoice('REL-WINDOW');
+        $this->attachSubmittedIrn($invoice, hoursAgo: 2);
+        $key = $this->cancelKey($invoice);
+
+        try {
+            $this->orchestrator()->cancel($invoice->fresh(['eInvoiceRecord', 'items']), $this->admin, 'Window', $key);
+        } catch (ValidationException) {
+        }
+
+        $invoice->eInvoiceRecord?->update(['ack_date' => Carbon::now()->subHours(30)]);
+
+        try {
+            $this->orchestrator()->cancel($invoice->fresh(['eInvoiceRecord', 'items']), $this->admin, 'Window', $key);
+            $this->fail('Expected policy manual review');
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame(1, $fake->cancelCount);
+        $operation = StatutoryInvoiceCancellation::query()->where('statutory_invoice_id', $invoice->id)->firstOrFail();
+        $this->assertSame(StatutoryInvoiceCancellationOperationStatus::ManualReviewRequired, $operation->status);
+        $this->assertSame(StatutoryInvoiceStatus::Issued, $invoice->fresh()->status);
+    }
+
+    public function test_failed_retryable_reconciles_before_dispatch_and_blocks_when_still_unknown(): void
+    {
+        $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
+        $fake->queueCancel(EInvoiceCancelResult::temporaryFailure('fake', ['reason' => 'timeout']));
+        $fake->queueFetch(EInvoiceSubmitResult::irnNotFound('fake', ['error_code' => '2154']));
+        $this->app->instance(EInvoiceGateway::class, $fake);
+
+        $invoice = $this->issueB2bInvoice('REL-FRT');
+        $this->attachSubmittedIrn($invoice, hoursAgo: 2);
+        $key = $this->cancelKey($invoice);
+
+        try {
+            $this->orchestrator()->cancel($invoice->fresh(['eInvoiceRecord', 'items']), $this->admin, 'Temp fail', $key);
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame(1, $fake->cancelCount);
+
+        try {
+            $this->orchestrator()->cancel($invoice->fresh(['eInvoiceRecord', 'items']), $this->admin, 'Retry', $key);
+            $this->fail('Expected ambiguous reconcile block');
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame(1, $fake->cancelCount);
+        $this->assertSame(1, $fake->fetchCount);
+        $operation = StatutoryInvoiceCancellation::query()->where('statutory_invoice_id', $invoice->id)->firstOrFail();
+        $this->assertSame(StatutoryInvoiceCancellationOperationStatus::IrnReconciliationPending, $operation->status);
+    }
+
+    public function test_failed_retryable_after_active_irn_reconcile_dispatches_with_fresh_reservation(): void
+    {
+        $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
+        $fake->queueCancel(EInvoiceCancelResult::temporaryFailure('fake', ['reason' => 'timeout']));
+        $fake->queueFetch(EInvoiceSubmitResult::success(
+            provider: 'fake',
+            irn: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+            payload: ['Status' => 'ACT'],
+        ));
+        $fake->queueCancel(EInvoiceCancelResult::success('fake', 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2'));
+        $this->app->instance(EInvoiceGateway::class, $fake);
+
+        $invoice = $this->issueB2bInvoice('REL-FRT-2');
+        $this->attachSubmittedIrn($invoice, hoursAgo: 2);
+        $key = $this->cancelKey($invoice);
+
+        try {
+            $this->orchestrator()->cancel($invoice->fresh(['eInvoiceRecord', 'items']), $this->admin, 'Temp', $key);
+        } catch (ValidationException) {
+        }
+
+        $this->orchestrator()->cancel($invoice->fresh(['eInvoiceRecord', 'items']), $this->admin, 'Retry', $key);
+
+        $this->assertSame(2, $fake->cancelCount);
+        $this->assertSame(1, $fake->fetchCount);
+        $operation = StatutoryInvoiceCancellation::query()->where('statutory_invoice_id', $invoice->id)->firstOrFail();
+        $this->assertSame(StatutoryInvoiceCancellationOperationStatus::Completed, $operation->status);
+    }
+
+    public function test_rejected_dispatch_reservation_makes_no_provider_cancel_call(): void
+    {
+        config(['statutory_invoices.einvoice.irn_cancellation_max_dispatch_attempts' => 2]);
+
+        $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
+        $this->app->instance(EInvoiceGateway::class, $fake);
+
+        $invoice = $this->issueB2bInvoice('REL-RES-REJECT');
+        $this->attachSubmittedIrn($invoice, hoursAgo: 2);
+
+        StatutoryInvoiceCancellation::query()->create([
+            'statutory_invoice_id' => $invoice->id,
+            'idempotency_key' => $this->cancelKey($invoice),
+            'actor_id' => $this->admin->id,
+            'reason' => 'At cap',
+            'status' => StatutoryInvoiceCancellationOperationStatus::FailedRetryable,
+            'correlation_id' => (string) \Illuminate\Support\Str::uuid(),
+            'attempt_count' => 2,
+        ]);
+
+        try {
+            $this->orchestrator()->cancel($invoice->fresh(['eInvoiceRecord', 'items']), $this->admin, 'At cap', $this->cancelKey($invoice));
+            $this->fail('Expected validation');
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame(0, $fake->cancelCount);
+    }
+
+    public function test_reserved_dispatch_slot_consumed_when_provider_call_aborts(): void
+    {
+        $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));
+        $fake->beforeCancel = static function (): void {
+            throw new \RuntimeException('simulated crash after reservation');
+        };
+        $this->app->instance(EInvoiceGateway::class, $fake);
+
+        $invoice = $this->issueB2bInvoice('REL-RES-CRASH');
+        $this->attachSubmittedIrn($invoice, hoursAgo: 2);
+        $key = $this->cancelKey($invoice);
+
+        try {
+            $this->orchestrator()->cancel($invoice->fresh(['eInvoiceRecord', 'items']), $this->admin, 'Crash', $key);
+            $this->fail('Expected crash');
+        } catch (\RuntimeException) {
+        }
+
+        $operation = StatutoryInvoiceCancellation::query()->where('statutory_invoice_id', $invoice->id)->firstOrFail();
+        $this->assertSame(1, $operation->attempt_count);
+        $this->assertSame(StatutoryInvoiceCancellationOperationStatus::IrnPending, $operation->status);
+        $this->assertSame(0, $fake->cancelCount);
+    }
+
     public function test_reconciliation_service_treats_2154_as_unknown_not_cancelled(): void
     {
         $fake = new FakeEInvoiceGateway(EInvoiceSubmitResult::skipped('fake'));

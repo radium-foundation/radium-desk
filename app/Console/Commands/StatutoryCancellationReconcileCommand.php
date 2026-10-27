@@ -19,6 +19,7 @@ final class StatutoryCancellationReconcileCommand extends Command
 
         $query = StatutoryInvoiceCancellation::query()
             ->whereIn('status', [
+                StatutoryInvoiceCancellationOperationStatus::IrnPending,
                 StatutoryInvoiceCancellationOperationStatus::IrnReconciliationPending,
                 StatutoryInvoiceCancellationOperationStatus::IrnConfirmed,
                 StatutoryInvoiceCancellationOperationStatus::LocalPending,

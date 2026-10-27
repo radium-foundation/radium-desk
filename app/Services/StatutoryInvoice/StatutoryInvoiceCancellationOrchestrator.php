@@ -44,6 +44,7 @@ final class StatutoryInvoiceCancellationOrchestrator
         private readonly StatutoryInvoiceService $invoices,
         private readonly AuditLogService $auditLogs,
         private readonly StatutoryInvoiceCancellationManualReviewAlert $manualReviewAlerts,
+        private readonly StatutoryInvoiceCancellationDispatchReservation $dispatchReservation,
     ) {}
 
     public function cancel(
@@ -146,6 +147,19 @@ final class StatutoryInvoiceCancellationOrchestrator
 
     public function reconcileInFlightCancellation(StatutoryInvoiceCancellation $operation): StatutoryInvoiceCancellationResult
     {
+        $operation = DB::transaction(function () use ($operation): StatutoryInvoiceCancellation {
+            return StatutoryInvoiceCancellation::query()
+                ->whereKey($operation->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+        });
+
+        if ($operation->requiresManualReview()) {
+            throw ValidationException::withMessages([
+                'invoice' => 'This cancellation requires manual review before it can continue.',
+            ]);
+        }
+
         if ($operation->isCompleted()) {
             $invoice = $operation->invoice?->fresh(['items', 'inventorySale', 'eInvoiceRecord', 'cancelledBy'])
                 ?? StatutoryInvoice::query()->findOrFail($operation->statutory_invoice_id);
@@ -257,34 +271,25 @@ final class StatutoryInvoiceCancellationOrchestrator
             return $this->reconcileUnknownIrnOutcome($operation, $invoice, $policy);
         }
 
-        if (! $operation->status->allowsIrnCancelDispatch()) {
-            if ($operation->status === StatutoryInvoiceCancellationOperationStatus::FailedRetryable) {
-                $reconciled = $this->irnReconciliation->reconcile($invoice);
-                if ($reconciled->isCancelled()) {
-                    return $this->markIrnConfirmedFromReconciliation($operation, $invoice, $reconciled);
-                }
-                if ($reconciled->isActive()) {
-                    $operation->update([
-                        'status' => StatutoryInvoiceCancellationOperationStatus::IrnPending,
-                    ]);
-                } else {
-                    $this->markManualReview($operation, 'irn_reconciliation_still_unknown');
-
-                    throw ValidationException::withMessages([
-                        'irn' => 'IRN cancellation outcome is still ambiguous. Manual review is required.',
-                    ]);
-                }
-            } else {
-                throw ValidationException::withMessages([
-                    'irn' => 'Cancellation is not in a state that allows IRN dispatch.',
-                ]);
-            }
+        if ($operation->status === StatutoryInvoiceCancellationOperationStatus::IrnPending) {
+            return $this->recoverStrandedIrnPending($operation, $invoice, $policy);
         }
 
-        $operation->update([
-            'status' => StatutoryInvoiceCancellationOperationStatus::IrnPending,
-            'attempt_count' => $operation->attempt_count + 1,
-        ]);
+        if ($operation->status === StatutoryInvoiceCancellationOperationStatus::FailedRetryable) {
+            $reconciledEarly = $this->reconcileBeforeFailedRetryableDispatch($operation, $invoice, $policy);
+            if ($reconciledEarly !== null) {
+                return $reconciledEarly;
+            }
+            $operation->refresh();
+        }
+
+        if (! $operation->status->allowsIrnCancelDispatch()) {
+            throw ValidationException::withMessages([
+                'irn' => 'Cancellation is not in a state that allows IRN dispatch.',
+            ]);
+        }
+
+        $operation = $this->dispatchReservation->reserve($operation->id, $this->maxIrnCancelDispatchAttempts());
 
         $result = $this->irnCancellation->cancelIfRequired($invoice, $reason);
         $action = $this->irnActionFromResult($result);
@@ -334,6 +339,90 @@ final class StatutoryInvoiceCancellationOrchestrator
         ]);
 
         return $action;
+    }
+
+    /**
+     * Get-IRN before any new CANCEL from failed_retryable (explicit transient failure, not unknown).
+     *
+     * @return array<string, mixed>|null Return action when IRN already cancelled; null to proceed to reservation.
+     */
+    private function reconcileBeforeFailedRetryableDispatch(
+        StatutoryInvoiceCancellation $operation,
+        StatutoryInvoice $invoice,
+        StatutoryCancellationPolicyResult $policy,
+    ): ?array {
+        $reconciled = $this->irnReconciliation->reconcile($invoice);
+
+        if ($reconciled->isCancelled()) {
+            return $this->markIrnConfirmedFromReconciliation($operation, $invoice, $reconciled);
+        }
+
+        if (! $reconciled->isActive()) {
+            $operation->update([
+                'status' => StatutoryInvoiceCancellationOperationStatus::IrnReconciliationPending,
+                'last_error' => 'Provider IRN status is still unknown; another live CANCEL is not permitted.',
+            ]);
+
+            throw ValidationException::withMessages([
+                'irn' => 'IRN cancellation outcome is still ambiguous. Reconcile provider status before retrying.',
+            ]);
+        }
+
+        if (! $policy->requiresIrnCancellation()) {
+            $this->markManualReview($operation, 'irn_active_but_policy_no_longer_requires_cancel');
+
+            throw ValidationException::withMessages([
+                'irn' => 'IRN is still active but cancellation is no longer eligible under policy.',
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Recover after dispatch reservation (irn_pending) without issuing another blind CANCEL.
+     *
+     * @return array<string, mixed>
+     */
+    private function recoverStrandedIrnPending(
+        StatutoryInvoiceCancellation $operation,
+        StatutoryInvoice $invoice,
+        StatutoryCancellationPolicyResult $policy,
+    ): array {
+        $reconciled = $this->irnReconciliation->reconcile($invoice);
+
+        if ($reconciled->isCancelled()) {
+            return $this->markIrnConfirmedFromReconciliation($operation, $invoice, $reconciled);
+        }
+
+        if ($reconciled->isActive()) {
+            if (! $policy->requiresIrnCancellation()) {
+                $this->markManualReview($operation, 'irn_active_but_policy_no_longer_requires_cancel');
+
+                throw ValidationException::withMessages([
+                    'irn' => 'IRN is still active but cancellation is no longer eligible under policy.',
+                ]);
+            }
+
+            $operation->update([
+                'status' => StatutoryInvoiceCancellationOperationStatus::FailedRetryable,
+                'last_error' => 'Interrupted IRN cancel attempt; provider still shows an active IRN. '
+                    .'Recovery used Get-IRN only — use Finance Continue to retry after review.',
+            ]);
+
+            throw ValidationException::withMessages([
+                'irn' => 'Interrupted cancellation: IRN is still active at the provider. No automatic CANCEL was sent during recovery.',
+            ]);
+        }
+
+        $operation->update([
+            'status' => StatutoryInvoiceCancellationOperationStatus::IrnReconciliationPending,
+            'last_error' => 'Interrupted IRN cancel attempt; provider outcome remains unknown.',
+        ]);
+
+        throw ValidationException::withMessages([
+            'irn' => 'Interrupted cancellation: provider IRN status could not be confirmed. Manual review or further reconciliation is required.',
+        ]);
     }
 
     /**
@@ -406,6 +495,11 @@ final class StatutoryInvoiceCancellationOrchestrator
             'status' => StatutoryInvoiceCancellationOperationStatus::ManualReviewRequired,
         ]);
         $this->manualReviewAlerts->emit($operation, $reason);
+    }
+
+    private function maxIrnCancelDispatchAttempts(): int
+    {
+        return max(1, (int) config('statutory_invoices.einvoice.irn_cancellation_max_dispatch_attempts', 3));
     }
 
     private function finalizeLocally(

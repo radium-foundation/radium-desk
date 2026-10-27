@@ -28,4 +28,18 @@ enum StatutoryInvoiceCancellationOperationStatus: string
             self::FailedRetryable,
         ], true);
     }
+
+    public function adminLabel(): string
+    {
+        return match ($this) {
+            self::Requested => 'Requested',
+            self::IrnPending => 'IRN cancellation in progress',
+            self::IrnReconciliationPending => 'IRN reconciliation pending',
+            self::IrnConfirmed => 'IRN confirmed',
+            self::LocalPending => 'Local finalization pending',
+            self::Completed => 'Completed',
+            self::FailedRetryable => 'Failed (retryable)',
+            self::ManualReviewRequired => 'Manual review required',
+        };
+    }
 }
