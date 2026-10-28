@@ -220,6 +220,8 @@ class GlobalSearchIntakeFallbackTest extends TestCase
 
         $this->assertSame('9876543210', $service->parseQuery('9876543210')['phone']);
         $this->assertSame('RD3434509', $service->parseQuery('RD3434509')['order_id']);
+        $this->assertSame('RB1046', $service->parseQuery('RB1046')['order_id']);
+        $this->assertNull($service->parseQuery('RB1046')['serial_number']);
         $this->assertSame('SCN001', $service->parseQuery('SCN001')['serial_number']);
     }
 

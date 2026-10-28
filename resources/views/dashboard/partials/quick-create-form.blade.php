@@ -68,6 +68,7 @@
                             <button type="button" class="btn btn-link btn-sm p-0" data-intake-back="search">Change search</button>
                         </div>
                         <p class="text-muted small mb-2" id="intake-classification-label"></p>
+                        <div data-intake-order-history-panel class="d-none mb-3"></div>
                         <div id="intake-matches-list" class="list-group mb-3"></div>
                     </div>
 
@@ -77,6 +78,7 @@
                             <button type="button" class="btn btn-link btn-sm p-0" data-intake-back="search">Change search</button>
                         </div>
                         <p class="alert alert-info py-2 small mb-3" id="intake-legacy-preview-message"></p>
+                        <div data-intake-order-history-panel class="d-none mb-3"></div>
                         <div class="row small mb-3" id="intake-legacy-preview-fields"></div>
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-outline-secondary btn-sm" data-intake-back="search">Cancel</button>

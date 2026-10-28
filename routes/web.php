@@ -16,6 +16,7 @@ use App\Http\Controllers\CompanyHolidayController;
 use App\Http\Controllers\ConversationWorkspaceController;
 use App\Http\Controllers\Customer360\Customer360InvoiceController;
 use App\Http\Controllers\Customer360Controller;
+use App\Http\Controllers\CustomerOrderHistoryController;
 use App\Http\Controllers\DashboardActivityController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
@@ -251,6 +252,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.workspace.batch-device-model');
     Route::post('service-requests/intake/search', [QuickServiceRequestController::class, 'search'])
         ->name('service-requests.intake.search');
+    Route::get('customer-order-history', [CustomerOrderHistoryController::class, 'show'])
+        ->name('customer-order-history.show');
     Route::post('service-requests/quick', [QuickServiceRequestController::class, 'store'])
         ->name('service-requests.quick.store');
     Route::get('orders/lookup', [OrderController::class, 'lookup'])->name('orders.lookup');

@@ -302,6 +302,11 @@ class RadiumBoxOrderEnrichmentTest extends TestCase
                     && ($context['existing_owner_order_id'] ?? null) === 'RD3432834'
                     && ($context['serial_number'] ?? null) === '7881953';
             });
+
+        $metadata = app(\App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore::class)
+            ->metadata($incomingOrder->id);
+        $this->assertSame('7881953', $metadata['serial_assignment_conflict']['serial'] ?? null);
+        $this->assertSame('RD3432834', $metadata['serial_assignment_conflict']['owner_order_id'] ?? null);
     }
 
     public function test_background_enrichment_still_updates_device_model_when_serial_is_duplicate(): void

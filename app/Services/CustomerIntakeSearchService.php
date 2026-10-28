@@ -12,8 +12,10 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\HistoricalInvoice\HistoricalInvoiceLookupService;
 use App\Services\Interakt\InteraktCustomerMatcher;
+use App\Services\CustomerOrderHistory\CustomerOrderHistoryService;
 use App\Services\LegacyOrder\LegacyOrderLookupService;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
+use App\Support\BusinessOrderId;
 use Illuminate\Support\Collection;
 
 class CustomerIntakeSearchService
@@ -23,6 +25,7 @@ class CustomerIntakeSearchService
         private readonly LegacyOrderLookupService $legacyOrderLookupService,
         private readonly SettingService $settingService,
         private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
+        private readonly CustomerOrderHistoryService $customerOrderHistoryService,
     ) {}
 
     /**
@@ -103,6 +106,16 @@ class CustomerIntakeSearchService
         $intakePhone = $parsedQuery['phone'] ?? null;
         $legacyPreview = $result->legacyPreview;
 
+        $highlightOrderDbId = $this->resolveHighlightOrderDbId($result, $parsedQuery);
+
+        $orderHistory = $this->customerOrderHistoryService->historyForContext(
+            phone: $parsedQuery['phone'] ?? null,
+            email: $parsedQuery['email'] ?? null,
+            businessOrderId: $parsedQuery['order_id'] ?? ($legacyPreview?->orderId ?? null),
+            serialNumber: $parsedQuery['serial_number'] ?? null,
+            highlightOrderDbId: $highlightOrderDbId,
+        );
+
         return [
             'classification' => $result->classification->value,
             'classification_label' => $result->classification->label(),
@@ -118,7 +131,31 @@ class CustomerIntakeSearchService
             'default_source' => $this->settingService->enabledSources()->first()?->key,
             'create_url' => route('service-requests.quick.store'),
             'parsed_query' => $parsedQuery,
+            'order_history' => $orderHistory,
+            'order_history_url' => route('customer-order-history.show'),
         ];
+    }
+
+    /**
+     * @param  array{phone: ?string, order_id: ?string, serial_number: ?string, email: ?string}  $parsedQuery
+     */
+    private function resolveHighlightOrderDbId(CustomerIntakeSearchResult $result, array $parsedQuery): ?int
+    {
+        $businessOrderId = $parsedQuery['order_id'] ?? null;
+
+        if ($businessOrderId !== null) {
+            $id = Order::query()->where('order_id', $businessOrderId)->value('id');
+
+            if ($id !== null) {
+                return (int) $id;
+            }
+        }
+
+        if (count($result->matches) === 1) {
+            return (int) $result->matches[0]['id'];
+        }
+
+        return null;
     }
 
     public function search(
@@ -399,6 +436,10 @@ class CustomerIntakeSearchService
 
     private function looksLikeOrderId(string $normalized): bool
     {
+        if (BusinessOrderId::parse($normalized) !== null) {
+            return true;
+        }
+
         if (preg_match('/^(RD|RDE|CF|INQ|ORD)[A-Z0-9\-]+$/', $normalized) === 1) {
             return true;
         }

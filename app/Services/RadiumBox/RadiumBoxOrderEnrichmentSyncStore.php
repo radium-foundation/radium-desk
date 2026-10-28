@@ -99,6 +99,29 @@ class RadiumBoxOrderEnrichmentSyncStore
         return is_array($metadata) ? $metadata : null;
     }
 
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    public function mergeMetadata(int $orderId, array $metadata): void
+    {
+        if ($metadata === []) {
+            return;
+        }
+
+        $record = $this->read($orderId) ?? [
+            'status' => RadiumBoxEnrichmentSyncStatus::NotSynced->value,
+            'metadata' => [],
+            'last_sync_error' => null,
+        ];
+
+        $this->persist($orderId, [
+            'status' => $record['status'] ?? RadiumBoxEnrichmentSyncStatus::NotSynced->value,
+            'metadata' => array_merge(is_array($record['metadata'] ?? null) ? $record['metadata'] : [], $metadata),
+            'updated_at' => $record['updated_at'] ?? now()->toIso8601String(),
+            'last_sync_error' => $record['last_sync_error'] ?? null,
+        ]);
+    }
+
     public function markPending(int $orderId): void
     {
         if ($this->status($orderId) === RadiumBoxEnrichmentSyncStatus::Pending) {
