@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.43 — 2026-10-28 — Service POS customer billing autofill
+
+- **Customer lookup:** `PosCustomerLookupService` resolves billing address, city, state, PIN, and place of supply from the latest non-vacuous snapshot across service orders, service quotes, and completed product sales (not product sales alone).
+- **Service counter UI:** Shared POS customer lookup clears billing fields when switching to a customer without billing history; billing state select includes an empty “Select billing state” option (avoids defaulting to the first state list entry).
+- **Migrations:** None.
+- Rollback target: v4.1.42 / `b36dd2e6`.
+- ChatGPT prompts **P-29-31**, **P-29-33**.
+
 ## 4.1.42 — 2026-10-28 — Repeat RD order reference and customer service order history
 
 - **Customer order history:** Shared identity resolution (Cashfree `customer_id`, normalized phone, email) lists service orders across spokes; `GET customer-order-history` (requires `orders.view`).
