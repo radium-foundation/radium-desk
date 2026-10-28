@@ -78,6 +78,14 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build front-end assets (Service POS HTTP feature tests)
+        run: npm ci && npm run build
+
       - name: PHPUnit (statutory invoice cancellation focused bundle)
         run: |
           ./vendor/bin/phpunit \
