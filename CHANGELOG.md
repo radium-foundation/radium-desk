@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.46 — 2026-10-28 — Service POS consultancy SAC 998312 e-invoice classification
+
+- **Service POS (`desk_service`):** Add `service_sac.desk_consultancy` for SAC **998312** (consultancy lines) with **`is_servc=Y`** and UQC **`OTH`** per **Owner instruction 2026-10-28**. Independent **CA confirmation is not evidenced** in repository documentation; this is not CA sign-off.
+- **E-invoice:** Clears IRP readiness gaps **`missing_uqc`** and **`missing_is_servc`** for configured consultancy lines via explicit classification (no change to stored invoice amounts, GST, buyer/seller snapshots, or invoice numbers).
+- **Tests / CI:** `DeskServiceConsultancySac998312ClassificationTest` and clean-checkout statutory workflow bundle (classification + existing cancellation/IRN regression).
+- **Migrations:** None.
+- Rollback target: v4.1.45 / `683f8c0c` (verify live `release.json` and DB compatibility before rollback).
+- ChatGPT prompts **P-29-64** through **P-29-69**; merge **PR #86** @ **`76811591`**.
+
 ## 4.1.45 — 2026-10-28 — Service POS branch invoice issuer
 
 - **Service POS (Sell Services):** Manual service orders now bill from the **admin-selected branch** (seller GSTIN, invoice numbering series, and GST split follow that branch). Fixes cases where a Delhi branch selection still issued under Maharashtra commerce issuer rules.
