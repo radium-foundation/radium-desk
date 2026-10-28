@@ -70,10 +70,12 @@
                             <div class="mb-2"><label class="form-label" for="svc-billing-city">Billing city</label><input name="billing_city" id="svc-billing-city" class="form-control" value="{{ old('billing_city') }}" maxlength="120" autocomplete="off">@error('billing_city')<div class="text-danger small">{{ $message }}</div>@enderror</div>
                             <div class="mb-2"><label class="form-label" for="svc-billing-state">Billing state</label>
                                 <select name="billing_state" id="svc-billing-state" class="form-select" required>
+                                    <option value="" @selected(old('billing_state') === null || old('billing_state') === '')>Select billing state</option>
                                     @foreach($placeOfSupplyStates as $state)
                                         <option value="{{ $state }}" @selected(old('billing_state') === $state)>{{ $state }}</option>
                                     @endforeach
                                 </select>
+                                @error('billing_state')<div class="text-danger small">{{ $message }}</div>@enderror
                             </div>
                             <div class="mb-2"><label class="form-label" for="svc-billing-pincode">Billing PIN</label><input name="billing_pincode" id="svc-billing-pincode" class="form-control" value="{{ old('billing_pincode') }}" maxlength="6" inputmode="numeric" autocomplete="off">@error('billing_pincode')<div class="text-danger small">{{ $message }}</div>@enderror</div>
                             <div class="mb-2"><label class="form-label" for="svc-place-of-supply">Place of supply</label>

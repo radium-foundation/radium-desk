@@ -35,6 +35,24 @@ export function initPosCustomerLookup(config) {
         resultsEl.classList.add('d-none');
     }
 
+    function assignBillingFields(data) {
+        if (fields.billing_address) {
+            fields.billing_address.value = data?.billing_address ?? '';
+        }
+        if (fields.billing_city) {
+            fields.billing_city.value = data?.billing_city ?? '';
+        }
+        if (fields.billing_state) {
+            fields.billing_state.value = data?.billing_state ?? '';
+        }
+        if (fields.billing_pincode) {
+            fields.billing_pincode.value = data?.billing_pincode ?? '';
+        }
+        if (fields.place_of_supply_state) {
+            fields.place_of_supply_state.value = data?.place_of_supply_state ?? '';
+        }
+    }
+
     function applyCustomerPayload(data) {
         if (!data || !data.found) {
             return;
@@ -54,21 +72,7 @@ export function initPosCustomerLookup(config) {
         if (fields.gstin) {
             fields.gstin.value = data.gstin || '';
         }
-        if (fields.billing_address && data.billing_address) {
-            fields.billing_address.value = data.billing_address;
-        }
-        if (fields.billing_city && data.billing_city) {
-            fields.billing_city.value = data.billing_city;
-        }
-        if (fields.billing_state && data.billing_state) {
-            fields.billing_state.value = data.billing_state;
-        }
-        if (fields.billing_pincode && data.billing_pincode) {
-            fields.billing_pincode.value = data.billing_pincode;
-        }
-        if (fields.place_of_supply_state && data.place_of_supply_state) {
-            fields.place_of_supply_state.value = data.place_of_supply_state;
-        }
+        assignBillingFields(data);
 
         hideResults();
         setStatus(selectedMessage);
