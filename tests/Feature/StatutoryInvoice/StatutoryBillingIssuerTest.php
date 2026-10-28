@@ -188,8 +188,9 @@ class StatutoryBillingIssuerTest extends TestCase
             sourceId: 'SVC-DL-B2B',
             hsn: '998314',
             branchCode: 'MUMBAI',
-            placeOfSupply: 'Karnataka',
+            placeOfSupply: 'Delhi',
             buyerGstin: '07AAAAA0000A1Z5',
+            billingState: 'Delhi',
         ), $this->actor);
         $other = $this->invoices->issueFromCommerceOrder($this->commerceOrder(
             sourceId: 'SVC-KA-B2B',
@@ -197,11 +198,12 @@ class StatutoryBillingIssuerTest extends TestCase
             branchCode: 'MUMBAI',
             placeOfSupply: 'Karnataka',
             buyerGstin: '29AAAAA0000A1Z5',
+            billingState: 'Karnataka',
         ), $this->actor);
 
         $this->assertSame('INV-07671', $delhi->invoice_number);
         $this->assertSame($this->configuredSellerGstin('delhi'), $delhi->seller_gstin);
-        $this->assertSame('Karnataka', $delhi->place_of_supply_state);
+        $this->assertSame('Delhi', $delhi->place_of_supply_state);
         $this->assertSame('INV-07672', $other->invoice_number);
         $this->assertSame($this->configuredSellerGstin('delhi'), $other->seller_gstin);
         $this->assertSame('Karnataka', $other->place_of_supply_state);

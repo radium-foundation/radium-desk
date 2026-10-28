@@ -10,9 +10,9 @@ use Illuminate\Validation\ValidationException;
 /**
  * Resolves the statutory billing issuer only.
  *
- * Product: branch → Delhi / Mumbai.
- * Service B2B: valid GSTIN state 27 → Mumbai; any other known GSTIN state → Delhi B2B.
- * Service B2C: billing_state Maharashtra → Mumbai; any other recognised Indian state → Delhi B2C.
+ * Product and Service POS (DeskService): branch → Delhi / Mumbai.
+ * Online commerce service B2B: valid GSTIN state 27 → Mumbai; any other known GSTIN state → Delhi B2B.
+ * Online commerce service B2C: billing_state Maharashtra → Mumbai; any other recognised Indian state → Delhi B2C.
  *
  * Invalid non-empty GSTIN fails closed (never treated as B2C).
  * Missing or unrecognised B2C billing_state fails closed.
@@ -29,6 +29,20 @@ final class StatutoryBillingIssuer
     public function requireForProductBranch(?string $branchCode): string
     {
         return $this->locations->requireFromBranchCode($branchCode);
+    }
+
+    /**
+     * Service POS counter: the operator-selected inventory branch is authoritative
+     * for seller GSTIN, numbering series, and GST split — same as product POS.
+     */
+    public function requireForServicePosBranch(?string $branchCode): string
+    {
+        return $this->requireForProductBranch($branchCode);
+    }
+
+    public function errorForServicePosBranch(?string $branchCode): ?string
+    {
+        return $this->errorForSale($branchCode);
     }
 
     public function requireForCommerceOrder(?string $branchCode, ?string $buyerGstin, ?string $customerState, array $hsnSacs): string
