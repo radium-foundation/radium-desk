@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.44 — 2026-10-28 — Dashboard search customer order history
+
+- **Global search:** When a service case matches, attach `order_history` from `CustomerOrderHistoryService` (requires `orders.view`) so staff see all verified customer orders (e.g. `RB1046` and prior `RD*`) in the dashboard search banner without opening Customer 360 first.
+- **UI:** Reuses intake order-history rendering in `universal-search.js`; service-case rows and Customer 360 / reopen actions unchanged.
+- **Migrations:** None.
+- Rollback target: v4.1.43 / `472b28c1`.
+- ChatGPT prompts **P-29-32**, **P-29-34**.
+
 ## 4.1.43 — 2026-10-28 — Service POS customer billing autofill
 
 - **Customer lookup:** `PosCustomerLookupService` resolves billing address, city, state, PIN, and place of supply from the latest non-vacuous snapshot across service orders, service quotes, and completed product sales (not product sales alone).

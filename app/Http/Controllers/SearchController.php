@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Services\CustomerIntakeSearchService;
+use App\Services\GlobalSearch\GlobalSearchCustomerOrderHistoryResolver;
 use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearchService;
 use App\Services\HistoricalInvoice\HistoricalCustomer360Resolver;
@@ -20,6 +21,7 @@ class SearchController extends Controller
         private readonly CustomerIntakeSearchService $customerIntakeSearchService,
         private readonly HistoricalCustomer360Resolver $historicalCustomer360Resolver,
         private readonly ServiceCaseGlobalSearchProvider $serviceCaseGlobalSearchProvider,
+        private readonly GlobalSearchCustomerOrderHistoryResolver $globalSearchCustomerOrderHistoryResolver,
     ) {}
 
     public function search(Request $request): JsonResponse|RedirectResponse
@@ -101,6 +103,17 @@ class SearchController extends Controller
                 ->pluck('incident_id')
                 ->values(),
         ];
+
+        $orderHistory = $this->globalSearchCustomerOrderHistoryResolver->resolveForServiceCaseSearch(
+            $user,
+            $query,
+            $payload->where('type', 'service_case')->values(),
+        );
+
+        if ($orderHistory !== null) {
+            $response['order_history'] = $orderHistory;
+            $response['order_history_url'] = route('customer-order-history.show');
+        }
 
         if (
             $payload->isEmpty()

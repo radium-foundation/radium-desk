@@ -26,6 +26,7 @@ const SEARCH_ROWS_ERROR = 'Unable to load matching service cases. Please try aga
 const INTAKE_FALLBACK_SELECTOR = '[data-dashboard-search-intake-fallback]';
 const HISTORICAL_FALLBACK_SELECTOR = '[data-dashboard-search-historical-fallback]';
 const SEARCH_RESULT_ACTIONS_SELECTOR = '[data-dashboard-search-result-actions]';
+const SEARCH_ORDER_HISTORY_SELECTOR = '[data-dashboard-search-order-history-panel]';
 
 const prefillIntakeSearchFields = (form, parsedQuery = {}, query = '') => {
     const phoneField = form.querySelector('#intake_phone');
@@ -418,6 +419,36 @@ export const initUniversalSearch = ({
         card?.querySelector(SEARCH_RESULT_ACTIONS_SELECTOR)?.remove();
     };
 
+    const hideSearchOrderHistory = (card) => {
+        card?.querySelector(SEARCH_ORDER_HISTORY_SELECTOR)?.remove();
+    };
+
+    const showSearchOrderHistory = (card, orderHistory) => {
+        hideSearchOrderHistory(card);
+
+        const banner = card?.querySelector('[data-dashboard-search-banner]');
+
+        if (!banner || !orderHistory) {
+            return;
+        }
+
+        const panel = document.createElement('div');
+        panel.className = 'dashboard-search-order-history border-top px-3 py-2';
+        panel.dataset.dashboardSearchOrderHistoryPanel = '';
+        panel.innerHTML = '<div data-dashboard-search-order-history></div>';
+
+        renderIntakeOrderHistory(
+            panel.querySelector('[data-dashboard-search-order-history]'),
+            orderHistory,
+        );
+
+        if (panel.querySelector('[data-dashboard-search-order-history]')?.innerHTML?.trim() === '') {
+            return;
+        }
+
+        banner.appendChild(panel);
+    };
+
     const showSearchResultActions = (card, results) => {
         hideSearchResultActions(card);
 
@@ -542,7 +573,7 @@ export const initUniversalSearch = ({
         setDashboardSearchActive(true);
     };
 
-    const applySearchRows = async (incidentIds, matchCount, query, results = []) => {
+    const applySearchRows = async (incidentIds, matchCount, query, results = [], orderHistory = null) => {
         if (!dashboardIntegration?.searchRowsUrl || !dashboardIntegration.applyRows) {
             return false;
         }
@@ -600,6 +631,7 @@ export const initUniversalSearch = ({
         }
 
         showSearchResultActions(card, results);
+        showSearchOrderHistory(card, orderHistory);
 
         return true;
     };
@@ -609,6 +641,7 @@ export const initUniversalSearch = ({
         hideIntakeFallback(getDashboardCard());
         hideHistoricalFallback(getDashboardCard());
         hideSearchResultActions(getDashboardCard());
+        hideSearchOrderHistory(getDashboardCard());
         hideSearchBanner(getDashboardCard());
         clearSearchMatchHighlight(getDashboardCard());
         dashboardIntegration?.closeDrawer?.();
@@ -707,9 +740,16 @@ export const initUniversalSearch = ({
             hideIntakeFallback(card);
             hideHistoricalFallback(card);
             hideSearchResultActions(card);
+            hideSearchOrderHistory(card);
             showSearchBanner(card, { matchCount, query: trimmedQuery });
 
-            await applySearchRows(incidentIds, matchCount, trimmedQuery, data.results ?? []);
+            await applySearchRows(
+                incidentIds,
+                matchCount,
+                trimmedQuery,
+                data.results ?? [],
+                data.order_history ?? null,
+            );
         } catch (error) {
             if (error?.name === 'AbortError') {
                 return;
