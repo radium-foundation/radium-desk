@@ -241,6 +241,18 @@ return [
                 'freight reverse auction',
             ],
         ],
+        'desk_consultancy' => [
+            'sac' => '998312',
+            'is_servc' => 'Y',
+            'uqc' => 'OTH',
+            'channels' => [
+                'desk_service',
+            ],
+            'skus' => [],
+            'description_needles' => [
+                'consultancy',
+            ],
+        ],
     ],
 
 ];
