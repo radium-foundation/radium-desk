@@ -211,7 +211,8 @@ class ServicePosFoundationTest extends TestCase
         $this->assertNull($invoice->inventory_sale_id);
         $this->assertCount(3, $invoice->items);
         $this->assertSame('998313', $invoice->items[0]->hsn_sac);
-        $this->assertSame('INV-671', $invoice->invoice_number);
+        $this->assertSame('INV-07671', $invoice->invoice_number);
+        $this->assertSame($this->branch->gstin, $invoice->seller_gstin);
         $this->assertSame(ServiceOrderStatus::Invoiced, $order->fresh()->status);
     }
 

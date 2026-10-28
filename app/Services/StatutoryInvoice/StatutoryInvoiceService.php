@@ -549,12 +549,7 @@ class StatutoryInvoiceService
                 discount: $headerDiscount,
                 paymentMethod: null,
                 paymentReference: $order->payment_reference,
-                numberingLocation: $this->issuer->requireForCommerceOrder(
-                    $order->branch?->code,
-                    $order->buyer_gstin,
-                    $order->billing_state,
-                    $resolvedSacs,
-                ),
+                numberingLocation: $this->issuer->requireForServicePosBranch($order->branch?->code),
                 financialYearToken: StatutoryFinancialYear::containing(now())->token(),
                 billingAddressStructured: StatutoryBillingStructured::fromStored($order->billing_address_structured),
             ), $actor);
