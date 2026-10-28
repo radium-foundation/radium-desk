@@ -23,6 +23,11 @@ on:
       - 'tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php'
       - 'tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php'
       - 'tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
+      - 'tests/Unit/StatutoryInvoice/DeskServiceConsultancySac998312ClassificationTest.php'
+      - 'tests/Unit/StatutoryInvoice/ServiceStatutoryClassificationTest.php'
+      - 'tests/Unit/StatutoryInvoice/EInvoiceUqcMapperTest.php'
+      - 'tests/Unit/StatutoryInvoice/ServiceSacResolverTest.php'
+      - 'tests/Feature/ServicePos/ServicePosEinvoiceParityTest.php'
       - 'tests/Support/FakeEInvoiceGateway.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
   push:
@@ -47,6 +52,11 @@ on:
       - 'tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php'
       - 'tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php'
       - 'tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
+      - 'tests/Unit/StatutoryInvoice/DeskServiceConsultancySac998312ClassificationTest.php'
+      - 'tests/Unit/StatutoryInvoice/ServiceStatutoryClassificationTest.php'
+      - 'tests/Unit/StatutoryInvoice/EInvoiceUqcMapperTest.php'
+      - 'tests/Unit/StatutoryInvoice/ServiceSacResolverTest.php'
+      - 'tests/Feature/ServicePos/ServicePosEinvoiceParityTest.php'
       - 'tests/Support/FakeEInvoiceGateway.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
 
@@ -78,3 +88,12 @@ jobs:
             tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php \
             tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellationDispatchReservationTest.php \
             tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php
+
+      - name: PHPUnit (desk service SAC 998312 classification regression)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Unit/StatutoryInvoice/DeskServiceConsultancySac998312ClassificationTest.php \
+            tests/Unit/StatutoryInvoice/ServiceStatutoryClassificationTest.php \
+            tests/Feature/ServicePos/ServicePosEinvoiceParityTest.php \
+            tests/Unit/StatutoryInvoice/EInvoiceUqcMapperTest.php \
+            tests/Unit/StatutoryInvoice/ServiceSacResolverTest.php
