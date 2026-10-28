@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.45 — 2026-10-28 — Service POS branch invoice issuer
+
+- **Service POS (Sell Services):** Manual service orders now bill from the **admin-selected branch** (seller GSTIN, invoice numbering series, and GST split follow that branch). Fixes cases where a Delhi branch selection still issued under Maharashtra commerce issuer rules.
+- **Unchanged:** Online commerce checkout issuer rules, product POS, wallet/OPM, and historical mis-issued invoices (no automatic correction).
+- **Migrations:** None.
+- Rollback target: v4.1.44 / `a6350ff1`.
+- ChatGPT prompts **P-29-43**, **P-29-45**, **P-29-48**; merge **PR #85**.
+
 ## 4.1.44 — 2026-10-28 — Dashboard search customer order history
 
 - **Global search:** When a service case matches, attach `order_history` from `CustomerOrderHistoryService` (requires `orders.view`) so staff see all verified customer orders (e.g. `RB1046` and prior `RD*`) in the dashboard search banner without opening Customer 360 first.
