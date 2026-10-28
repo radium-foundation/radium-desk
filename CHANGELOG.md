@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.47 — 2026-10-28 — Payload-only e-invoice request sync
+
+- **Operations:** Add `desk:einvoice-sync-request-payload {invoice_id}` to recompute and persist one invoice’s e-invoice request payload.
+- **Safety:** Does not submit IRNs, call Get-IRN, finalize PDFs, dispatch jobs, or modify the outbox. Refuses invoices in protected or recovery-required states.
+- **Data integrity:** Does not modify invoice headers or line items.
+- **Tests:** Add feature coverage for payload synchronization and side-effect boundaries.
+- **Migrations:** None.
+- **Rollback target:** v4.1.46 / `a8f0d4b5`, subject to verification of the live release identity and database compatibility.
+
 ## 4.1.46 — 2026-10-28 — Service POS consultancy SAC 998312 e-invoice classification
 
 - **Service POS (`desk_service`):** Add `service_sac.desk_consultancy` for SAC **998312** (consultancy lines) with **`is_servc=Y`** and UQC **`OTH`** per **Owner instruction 2026-10-28**. Independent **CA confirmation is not evidenced** in repository documentation; this is not CA sign-off.
