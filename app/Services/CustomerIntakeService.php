@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\LegacyOrder\LegacyOrderImportService;
 use App\Services\OrderLookup\OrderEnrichmentLookupService;
 use App\Services\SerialValidation\SerialValidationService;
+use App\Support\Orders\OrderSerialOwnership;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -79,10 +80,16 @@ class CustomerIntakeService
 
             $enrichment = $this->orderEnrichmentLookup->fetchInteractive($orderId);
 
+            $serialNumber = null;
+            $enrichmentSerial = OrderSerialOwnership::normalizeSerial($enrichment?->serialNumber);
+            if ($enrichmentSerial !== null && OrderSerialOwnership::isAvailableForOrder($enrichmentSerial)) {
+                $serialNumber = $enrichmentSerial;
+            }
+
             $order = Order::query()->create([
                 'order_id' => $orderId,
                 'customer_phone' => $phone,
-                'serial_number' => $enrichment?->serialNumber,
+                'serial_number' => $serialNumber,
                 'product_name' => $enrichment?->deviceModel,
                 'device_model' => $enrichment?->deviceModel,
                 'status' => OrderStatus::Active,

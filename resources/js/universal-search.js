@@ -15,6 +15,7 @@ import {
     isLegacyOneClickEligible,
     openLegacySearchConfirmModal,
 } from './intake-search-flow';
+import { renderIntakeOrderHistory } from './intake-order-history';
 import { csrfToken } from './workspace/http';
 
 const SEARCH_ICON_HTML = '<i class="bi bi-search"></i>';
@@ -483,7 +484,12 @@ export const initUniversalSearch = ({
                 </button>
             `;
 
-        panel.innerHTML = previewHtml;
+        panel.innerHTML = `${previewHtml}<div data-dashboard-search-order-history class="mt-2"></div>`;
+
+        renderIntakeOrderHistory(
+            panel.querySelector('[data-dashboard-search-order-history]'),
+            intake.order_history,
+        );
 
         const actionButton = panel.querySelector('[data-dashboard-search-intake-action]');
 

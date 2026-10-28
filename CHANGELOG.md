@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.42 — 2026-10-28 — Repeat RD order reference and customer service order history
+
+- **Customer order history:** Shared identity resolution (Cashfree `customer_id`, normalized phone, email) lists service orders across spokes; `GET customer-order-history` (requires `orders.view`).
+- **Repeat RD reference:** Valid, non-expired prior RD completion surfaces as **reference-only** serial and service details on intake/search (does not assign `orders.serial_number` when another order owns the serial).
+- **Expiry gate:** Uses spoke-sourced `amc_status` and enrichment warranty/AMC metadata (see `docs/rdservice-desk-order-api-integration.md`); expired or unknown validity is not reused.
+- **Intake search:** `BusinessOrderId` parsing recognizes `RB*` order IDs (e.g. `RB1046`); multi-match desk search unchanged.
+- **Serial ownership:** Legacy RadiumBox intake and RadiumBox enrichment skip cross-order serial assignment; records `serial_assignment_conflict` metadata when enrichment serial is owned elsewhere.
+- **Migrations:** None.
+- Rollback target: v4.1.41 / `ce0b84f8`.
+- ChatGPT prompts **P-29-28**, **P-29-29**.
+
 ## 4.1.41 — 2026-10-27 — Statutory invoice cancellation reliability (+ wallet refund authority on main)
 
 - **Statutory cancellation (PR #72):** Durable `statutory_invoice_cancellations` lifecycle; bounded live IRN CANCEL dispatch with atomic row reservation (`lockForUpdate`, commit before provider HTTP); Get-IRN reconciliation before retry (`failed_retryable`, `irn_pending`); `desk:statutory-cancellation-reconcile` CLI; Finance cancel UI gated by `finance.invoices.cancel`; manual-review `Log::warning` (`statutory_invoice_cancellation.manual_review_required`). Runbook: `docs/desk-statutory-cancellation-reliability-runbook-p-27-30.md`.
