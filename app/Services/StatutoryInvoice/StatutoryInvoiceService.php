@@ -63,6 +63,7 @@ class StatutoryInvoiceService
         private readonly StatutoryInvoiceCommerceLinePresentation $commerceLinePresentation,
         private readonly StatutorySupplyKindResolver $supplyKinds,
         private readonly ServiceStatutoryGstB2bClassification $serviceGstClassification,
+        private readonly PosRetailShippingStatutoryLine $posRetailShipping,
     ) {}
 
     public function findBySource(
@@ -88,6 +89,7 @@ class StatutoryInvoiceService
             return $existing->load(['items', 'allocation']);
         }
 
+        $request = $this->posRetailShipping->appendMintShippingLine($request);
         $request = $this->applyServiceGstSplit($request);
         $request = $this->applyPlaceOfSupplySnapshot($request);
         $this->assertB2bInputReadinessForMint($request);
@@ -99,6 +101,7 @@ class StatutoryInvoiceService
                     return $again->load(['items', 'allocation']);
                 }
 
+                $request = $this->posRetailShipping->appendMintShippingLine($request);
                 $request = $this->applyServiceGstSplit($request);
                 $request = $this->applyPlaceOfSupplySnapshot($request);
                 $this->assertB2bInputReadinessForMint($request);
@@ -892,11 +895,15 @@ class StatutoryInvoiceService
         $hasIgst = false;
 
         $maxLineGstRate = 0.0;
+        $productTaxable = 0.0;
         foreach ($request->lines as $line) {
             $taxable += $line->taxableValue;
+            if ($line->sku !== PosRetailShippingStatutoryLine::LINE_SKU) {
+                $productTaxable += $line->taxableValue;
+                $maxLineGstRate = max($maxLineGstRate, (float) $line->gstPercentage);
+            }
             $tax += $line->taxTotal;
             $lineTotal += $line->lineTotal;
-            $maxLineGstRate = max($maxLineGstRate, (float) $line->gstPercentage);
             if ($line->cgst !== null) {
                 $cgstPaise += IntraStateCgstSgstRules::moneyPaise((float) $line->cgst);
                 $hasCgst = true;
@@ -912,7 +919,7 @@ class StatutoryInvoiceService
         }
 
         $shippingAmount = round(max(0, $request->shippingAmount), 2);
-        if ($shippingAmount > 0) {
+        if ($shippingAmount > 0 && ! PosRetailShippingStatutoryLine::hasShippingLine($request)) {
             $shippingTax = round($shippingAmount * ($maxLineGstRate / 100), 2);
             $tax += $shippingTax;
             $lineTotal += $shippingAmount + $shippingTax;
@@ -965,8 +972,12 @@ class StatutoryInvoiceService
         $unrounded = round($lineTotal - $request->discount, 2);
         $roundOff = InvoiceRoundOff::nearestRupee($unrounded);
 
+        $headerTaxable = PosRetailShippingStatutoryLine::hasShippingLine($request)
+            ? round($productTaxable, 2)
+            : round($taxable, 2);
+
         return [
-            'taxable_value' => round($taxable, 2),
+            'taxable_value' => $headerTaxable,
             'tax_total' => round($tax, 2),
             'rounding' => $roundOff['rounding'],
             'invoice_value' => $roundOff['rounded'],
@@ -1173,7 +1184,7 @@ class StatutoryInvoiceService
             ]);
         }
 
-        if ($shippingAmount > 0) {
+        if ($shippingAmount > 0 && ! PosRetailShippingStatutoryLine::hasShippingLine($request)) {
             $targetHeaderHalf = IntraStateCgstSgstRules::headerHalfFromTotalTaxPaise($totalTaxPaise);
             if ($headerCgstPaise !== $targetHeaderHalf || $headerSgstPaise !== $targetHeaderHalf) {
                 throw ValidationException::withMessages([
