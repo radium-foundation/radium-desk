@@ -16,6 +16,7 @@ class RadiumBoxWalletRefundClientTest extends TestCase
 
         config([
             'radiumbox.wallet_refund_credit_enabled' => true,
+            'radiumbox.wallet_refund.resolve_spoke_order_id' => false,
             'order_lookup.spokes.radiumbox_com.enabled' => true,
             'order_lookup.spokes.radiumbox_com.base_url' => 'https://radiumbox.test',
             'order_lookup.spokes.radiumbox_com.token' => 'desk-box-wallet-token',
