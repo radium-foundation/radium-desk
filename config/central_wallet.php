@@ -230,6 +230,10 @@ return [
             'CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_SPOKES',
             'rdservice.in,rdservice.net,radiumbox.com',
         ),
+        'block_radiumbox_legacy_spendable_without_desk_ledger' => filter_var(
+            env('CENTRAL_WALLET_BLOCK_RADIUMBOX_LEGACY_WALLET_REFUND_WITHOUT_DESK_LEDGER', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
     ],
 
     /*

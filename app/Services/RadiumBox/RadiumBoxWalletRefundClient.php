@@ -3,6 +3,7 @@
 namespace App\Services\RadiumBox;
 
 use App\Support\Money\WalletMoney;
+use App\Support\Refunds\RadiumBoxWalletRefundSpokeOrderResolver;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -10,6 +11,10 @@ use Illuminate\Validation\ValidationException;
 
 class RadiumBoxWalletRefundClient
 {
+    public function __construct(
+        private readonly RadiumBoxWalletRefundSpokeOrderResolver $spokeOrderResolver,
+    ) {}
+
     public function isConfigured(): bool
     {
         if (! config('radiumbox.wallet_refund_credit_enabled')) {
@@ -62,10 +67,12 @@ class RadiumBoxWalletRefundClient
                 $request = $request->withHeaders(['Host' => $host]);
             }
 
+            $spokeOrderId = $this->spokeOrderResolver->resolveWalletOrderId($orderId);
+
             $body = [
                 'source_system' => 'radium_desk',
                 'desk_refund_reference' => $deskRefundReference,
-                'order_id' => $orderId,
+                'order_id' => $spokeOrderId,
                 'amount' => round($amount, 2),
                 'currency' => 'INR',
             ];

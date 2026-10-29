@@ -85,6 +85,16 @@ class WalletRefundRb1010AuthorityRegressionTest extends TestCase
     public function test_desk_first_radiumbox_refund_posts_ledger_before_spoke_audit(): void
     {
         Http::fake([
+            'https://radiumbox.test/api/integrations/v1/rd-orders/RB1010' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'correlation' => [
+                        'rdorderid' => 'RB1010',
+                        'ordercode' => 'RD66240',
+                        'orders_id' => 66240,
+                    ],
+                ],
+            ], 200),
             'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::response([
                 'status' => 201,
                 'message' => 'Central Wallet audit recorded',
@@ -115,7 +125,7 @@ class WalletRefundRb1010AuthorityRegressionTest extends TestCase
             return $request->url() === 'https://radiumbox.test/api/integrations/v1/wallet-refunds'
                 && ($request['central_wallet_ledger_entry_id'] ?? null) === $entry->id
                 && $request['desk_refund_reference'] === 'REF-67435'
-                && $request['order_id'] === 'RB1010';
+                && $request['order_id'] === 'RD66240';
         });
     }
 

@@ -12,6 +12,7 @@ use App\Services\RdService\RdServiceNetWalletRefundClient;
 use App\Support\Money\WalletMoney;
 use App\Support\Refunds\DeskFirstWalletRefundSpokePolicy;
 use App\Support\Refunds\DeskFirstWalletRefundSupport;
+use App\Support\Refunds\RadiumBoxLegacyWalletRefundExecutionPolicy;
 use Illuminate\Validation\ValidationException;
 
 class WalletRefundExecutor implements RefundExecutor
@@ -179,6 +180,8 @@ class WalletRefundExecutor implements RefundExecutor
                 'refund' => 'RadiumBox wallet credit is not configured. Wallet refunds cannot fall back to manual completion.',
             ]);
         }
+
+        RadiumBoxLegacyWalletRefundExecutionPolicy::assertLegacySpendableCreditAllowed();
 
         $credit = $this->radiumBoxWalletRefundClient->creditWalletRefund(
             deskRefundReference: (string) $refund->reference_no,
