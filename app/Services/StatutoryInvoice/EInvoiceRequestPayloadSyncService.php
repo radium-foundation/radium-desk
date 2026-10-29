@@ -18,6 +18,7 @@ final class EInvoiceRequestPayloadSyncService
     public function __construct(
         private readonly EInvoiceIrnPayloadMapper $mapper,
         private readonly EInvoiceEligibility $eligibility,
+        private readonly EInvoiceOutboxWriter $outboxWriter,
     ) {}
 
     /**
@@ -30,7 +31,7 @@ final class EInvoiceRequestPayloadSyncService
         }
 
         try {
-            return DB::transaction(function () use ($invoiceId): array {
+            $result = DB::transaction(function () use ($invoiceId): array {
                 $invoice = StatutoryInvoice::query()
                     ->with('items')
                     ->whereKey($invoiceId)
@@ -101,6 +102,15 @@ final class EInvoiceRequestPayloadSyncService
                         : 'skipped_irp_fields_incomplete',
                 ];
             });
+
+            if (($result['ok'] ?? false) && ($result['outcome'] ?? '') === 'queued_payload_synced') {
+                $invoice = StatutoryInvoice::query()->with('items')->find($invoiceId);
+                if ($invoice !== null) {
+                    $this->outboxWriter->write($invoice);
+                }
+            }
+
+            return $result;
         } catch (Throwable $exception) {
             return $this->failure('sync_failed', $invoiceId, $exception->getMessage());
         }

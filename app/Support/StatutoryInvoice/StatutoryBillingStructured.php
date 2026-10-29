@@ -107,4 +107,88 @@ final class StatutoryBillingStructured
 
         return $trimmed === '' ? null : $trimmed;
     }
+
+    /**
+     * City/state/PIN line for statutory PDF bill-to when structured snapshot parts
+     * are not already represented in the free-text billing address.
+     */
+    public static function pdfLocalityLine(mixed $structured, ?string $billingAddress): ?string
+    {
+        $structured = self::fromStored($structured);
+        if ($structured === null) {
+            return null;
+        }
+
+        $city = self::nullable($structured['city'] ?? null);
+        $state = self::nullable($structured['state'] ?? null);
+        $pin = self::pin($structured['pincode'] ?? null);
+
+        if ($city === null && $state === null && $pin === null) {
+            return null;
+        }
+
+        $haystack = self::normalizedAddressHaystack($billingAddress);
+        $segments = [];
+
+        if ($city !== null && ! self::componentPresentInAddress($city, $haystack)) {
+            $segments[] = $city;
+        }
+
+        $statePin = self::statePinSegment($state, $pin, $haystack);
+        if ($statePin !== null) {
+            $segments[] = $statePin;
+        } elseif ($pin !== null && ! self::componentPresentInAddress($pin, $haystack)) {
+            $segments[] = $pin;
+        }
+
+        if ($segments === []) {
+            return null;
+        }
+
+        return implode(', ', $segments);
+    }
+
+    private static function statePinSegment(?string $state, ?string $pin, string $haystack): ?string
+    {
+        $statePresent = $state !== null && self::componentPresentInAddress($state, $haystack);
+        $pinPresent = $pin !== null && self::componentPresentInAddress($pin, $haystack);
+
+        if ($statePresent && $pinPresent) {
+            return null;
+        }
+
+        if ($state !== null && $pin !== null) {
+            if ($statePresent) {
+                return $pinPresent ? null : $pin;
+            }
+            if ($pinPresent) {
+                return $state;
+            }
+
+            return $state.' '.$pin;
+        }
+
+        if ($state !== null && ! $statePresent) {
+            return $state;
+        }
+
+        return null;
+    }
+
+    private static function normalizedAddressHaystack(?string $billingAddress): string
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim((string) $billingAddress)) ?? '';
+
+        return strtolower($normalized);
+    }
+
+    private static function componentPresentInAddress(string $component, string $haystack): bool
+    {
+        $needle = strtolower(trim($component));
+        if ($needle === '') {
+            return true;
+        }
+
+        return $haystack !== '' && str_contains($haystack, $needle);
+    }
 }
