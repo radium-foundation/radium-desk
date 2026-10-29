@@ -156,9 +156,13 @@ class EInvoiceRequestPayloadSyncTest extends TestCase
         $this->assertSame(0, $this->gateway->fetchCount);
     }
 
-    public function test_no_gateway_outbox_or_queue_side_effects(): void
+    public function test_no_gateway_submit_from_sync_but_completed_outbox_reopens_when_queued(): void
     {
         $invoice = $this->createConsultancyInvoiceWithStaleGaps();
+        EInvoiceRecord::query()->where('invoice_id', $invoice->id)->update([
+            'status' => EInvoiceRecordStatus::Skipped->value,
+            'response_payload' => ['skip_reason' => 'irp_fields_incomplete'],
+        ]);
         OutboxEvent::query()->create([
             'idempotency_key' => EInvoiceOutboxWriter::idempotencyKeyForInvoice($invoice),
             'event_type' => EInvoiceOutboxWriter::EVENT_TYPE,
@@ -177,7 +181,7 @@ class EInvoiceRequestPayloadSyncTest extends TestCase
         $this->assertSame(0, $this->gateway->fetchCount);
         $this->assertSame($outboxBefore, OutboxEvent::query()->count());
         $this->assertSame(
-            OutboxEventStatus::Completed,
+            OutboxEventStatus::Pending,
             OutboxEvent::query()->first()?->status,
         );
         $this->assertSame(0, DB::table('jobs')->count());

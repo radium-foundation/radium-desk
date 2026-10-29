@@ -13,6 +13,7 @@ use App\Models\StatutoryInvoiceDocument;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePaymentSummary;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
+use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -201,6 +202,10 @@ class StatutoryDocumentService
             rounding: $this->optionalMoney($invoice->rounding),
             paymentReference: $this->paymentReferenceForPayload($invoice, $paymentSummary),
             orderId: $this->nullableString($invoice->source_order_id) ?? $this->nullableString($invoice->source_id),
+            billingLocalityLine: StatutoryBillingStructured::pdfLocalityLine(
+                $invoice->billing_address_structured,
+                $invoice->billing_address,
+            ),
         );
     }
 

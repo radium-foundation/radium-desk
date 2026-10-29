@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.48 — 2026-10-29 — E-invoice outbox retry and PDF billing locality
+
+- **E-invoice:** Safely reopen a completed or failed `statutory-irn:{invoice_id}` outbox row when the e-invoice record is queued, eligibility and payload guards pass, and the mapped payload is submittable—without resubmitting issued IRNs or bypassing ambiguous/processing recovery boundaries.
+- **Operations:** After a successful payload-only sync that queues the record, requeue the existing outbox entry for normal worker processing (no manual `--generate` backfill required for the incomplete-payload skip class).
+- **Statutory PDF:** Render city, state, and PIN from the invoice’s stored `billing_address_structured` snapshot when they are not already present in the free-text billing address line.
+- **Tests:** Outbox retry, payload-sync requeue, PDF locality, and stabilized presentation/pagination regression fixtures.
+- **Migrations:** None.
+- **Rollback target:** v4.1.47 / `49c8d451`, subject to verification of live release identity and database compatibility.
+
 ## 4.1.47 — 2026-10-28 — Payload-only e-invoice request sync
 
 - **Operations:** Add `desk:einvoice-sync-request-payload {invoice_id}` to recompute and persist one invoice’s e-invoice request payload.

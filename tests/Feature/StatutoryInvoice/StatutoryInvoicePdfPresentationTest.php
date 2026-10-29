@@ -145,7 +145,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
     public function test_phase_a_b2b_service_pdf_is_skipped_and_does_not_invent_irn(): void
     {
         $invoice = $this->invoices->issueFromCommerceOrder(
-            $this->commerceOrder('RD-PDF-B2B', buyerGstin: '07AAAAA0000A1Z5'),
+            $this->commerceOrder('RD-PDF-B2B', buyerGstin: '27AAAAA0000A1Z5'),
             $this->actor,
         );
         $record = EInvoiceRecord::query()->where('invoice_id', $invoice->id)->first();
@@ -155,7 +155,7 @@ class StatutoryInvoicePdfPresentationTest extends TestCase
         $this->assertSame('issuance_policy_service_excluded', $record?->response_payload['skip_reason'] ?? null);
         $this->assertNull($record?->irn);
         $this->assertStringContainsString('TAX INVOICE', $pdf);
-        $this->assertStringContainsString('07AAAAA0000A1Z5', $pdf);
+        $this->assertStringContainsString('27AAAAA0000A1Z5', $pdf);
         $this->assertStringNotContainsString('IRN not submitted', $pdf);
         $this->assertStringNotContainsString('issuance_policy_service_excluded', $pdf);
         $this->assertDoesNotMatchRegularExpression('/IRN [A-Za-z0-9]{8,}/', $pdf);

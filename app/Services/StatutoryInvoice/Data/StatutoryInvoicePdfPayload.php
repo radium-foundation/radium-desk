@@ -61,6 +61,7 @@ final class StatutoryInvoicePdfPayload
         public readonly ?string $rounding = null,
         public readonly ?string $paymentReference = null,
         public readonly ?string $orderId = null,
+        public readonly ?string $billingLocalityLine = null,
     ) {}
 
     public function hasIssuedIrn(): bool

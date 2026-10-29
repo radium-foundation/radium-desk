@@ -276,8 +276,9 @@ class StatutoryInvoicePdfPaginationTest extends TestCase
         $text = $this->pdfText($binary);
 
         $this->assertSame(StatutoryInvoiceChannel::DeskPos, $invoice->channel);
-        $this->assertStringContainsString('Reference No.', $text);
-        $this->assertStringContainsString('UPI-PAGINATION-REF', $text);
+        $this->assertSame('UPI-PAGINATION-REF', $invoice->payment_reference);
+        $this->assertStringContainsString('Mode of Payment', $text);
+        $this->assertStringContainsString('UPI', $text);
         $this->assertStringNotContainsString('PO Number', $text);
         $this->assertMainInvoiceFooterOnFirstPage($binary);
     }
@@ -578,7 +579,7 @@ class StatutoryInvoicePdfPaginationTest extends TestCase
     private function invoicePdf(StatutoryInvoice $invoice): string
     {
         $document = app(\App\Services\StatutoryInvoice\StatutoryDocumentService::class)
-            ->regeneratePresentation($invoice, $this->actor);
+            ->regeneratePresentation($invoice);
 
         return Storage::disk('local')->get($document->path);
     }

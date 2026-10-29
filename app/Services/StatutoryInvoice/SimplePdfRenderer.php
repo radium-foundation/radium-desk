@@ -786,6 +786,12 @@ class SimplePdfRenderer
                 $lines[] = $line;
             }
         }
+        $locality = $payload->billingLocalityLine;
+        if ($locality !== null && trim($locality) !== '') {
+            foreach ($this->wrapWidth($this->display($locality), $width, 8) as $line) {
+                $lines[] = $line;
+            }
+        }
         if ($payload->buyerEmail !== null && trim($payload->buyerEmail) !== '') {
             $lines[] = $this->display($payload->buyerEmail);
         }
