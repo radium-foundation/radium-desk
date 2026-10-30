@@ -52,6 +52,8 @@ class CommerceOrder extends Model
         'received_at',
         'status_reason',
         'statutory_invoice_id',
+        'statutory_auto_issue_approved_at',
+        'statutory_auto_issue_approved_by',
         'support_order_id',
     ];
 
@@ -73,6 +75,7 @@ class CommerceOrder extends Model
             'ordered_at' => 'datetime',
             'paid_at' => 'datetime',
             'received_at' => 'datetime',
+            'statutory_auto_issue_approved_at' => 'datetime',
         ];
     }
 

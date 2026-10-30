@@ -33,7 +33,7 @@ final class ServiceStatutoryInvoiceIssuanceCoordinator
         }
 
         try {
-            $this->invoices->issueFromSupportOrder($order, $actor);
+            $this->invoices->issueFromSupportOrder($order, $actor, $trigger);
             $this->logResult($order, $trigger, 1, 'success', null);
             $this->completePendingOutbox($order);
         } catch (Throwable $exception) {
@@ -61,7 +61,7 @@ final class ServiceStatutoryInvoiceIssuanceCoordinator
         ServiceStatutoryInvoiceMintTrigger $trigger,
     ): void {
         try {
-            $this->invoices->issueFromSupportOrder($order, $actor);
+            $this->invoices->issueFromSupportOrder($order, $actor, $trigger);
             $this->logResult($order, $trigger, 1, 'success', null);
         } catch (Throwable $exception) {
             $classified = $this->classifier->toRetryableException($exception);

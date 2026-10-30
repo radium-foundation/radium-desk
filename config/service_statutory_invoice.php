@@ -35,4 +35,27 @@ return [
         'max_scan_per_run' => max(100, (int) env('SERVICE_STATUTORY_INVOICE_RECONCILIATION_MAX_SCAN', 10_000)),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Automatic issuance policy (P-30-43 / P-30-50)
+    |--------------------------------------------------------------------------
+    |
+    | Gates automatic service mint (coordinator, outbox processor, and every
+    | issueFromSupportOrder call — null trigger is treated as invoice_retry for
+    | audit logging). Finance Hub manual issueFromCommerceOrder is not gated here.
+    | Channel ingest auto_issue_invoice remains disabled in config; when false,
+    | ingest never mints. When true, ingest throws before mint (foundation guard).
+    |
+    | Set enforce=false to roll back behavior without removing approval columns.
+    |
+    */
+    'auto_issuance' => [
+        'enforce' => filter_var(env('SERVICE_STATUTORY_INVOICE_AUTO_ISSUANCE_ENFORCE', true), FILTER_VALIDATE_BOOLEAN),
+        'channel_defaults' => [
+            'rdservice_net' => 'require_explicit_approval',
+            'rdservice_in' => 'allow_automatic',
+            'radiumbox_com' => 'allow_automatic',
+        ],
+    ],
+
 ];
