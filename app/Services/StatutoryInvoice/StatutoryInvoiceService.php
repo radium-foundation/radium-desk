@@ -6,6 +6,7 @@ use App\Data\StatutoryInvoice\ServiceStatutoryGstIssuanceDecision;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\EInvoiceRecordStatus;
 use App\Enums\ServiceOrderStatus;
+use App\Enums\StatutoryInvoice\ServiceStatutoryInvoiceMintTrigger;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceSourceType;
@@ -63,6 +64,7 @@ class StatutoryInvoiceService
         private readonly StatutoryInvoiceCommerceLinePresentation $commerceLinePresentation,
         private readonly StatutorySupplyKindResolver $supplyKinds,
         private readonly ServiceStatutoryGstB2bClassification $serviceGstClassification,
+        private readonly ServiceStatutoryAutoIssuancePolicy $autoIssuancePolicy,
     ) {}
 
     public function findBySource(
@@ -413,8 +415,15 @@ class StatutoryInvoiceService
      * the existing commerce-order identity (rdservice.in for RD*, radiumbox.com
      * for RB* service). Does not mint a second support_order numbering identity.
      */
-    public function issueFromSupportOrder(Order $order, ?User $actor = null): StatutoryInvoice
-    {
+    public function issueFromSupportOrder(
+        Order $order,
+        ?User $actor = null,
+        ?ServiceStatutoryInvoiceMintTrigger $automaticMintTrigger = null,
+    ): StatutoryInvoice {
+        if ($automaticMintTrigger !== null) {
+            $this->autoIssuancePolicy->assertAutomaticIssuanceAllowed($order, $automaticMintTrigger);
+        }
+
         if (BusinessOrderId::isRadiumBoxService($order->order_id)) {
             $this->radiumBoxServiceCommerce->ensureForSupportOrder($order);
         }

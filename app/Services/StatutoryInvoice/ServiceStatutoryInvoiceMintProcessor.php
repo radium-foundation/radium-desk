@@ -53,7 +53,7 @@ class ServiceStatutoryInvoiceMintProcessor
         }
 
         try {
-            $this->invoices->issueFromSupportOrder($order, $actor);
+            $this->invoices->issueFromSupportOrder($order, $actor, $trigger);
             $this->logAttempt($order, $trigger, $attempt, 'success', null);
         } catch (Throwable $exception) {
             $this->logAttempt($order, $trigger, $attempt, 'failure', $exception);
