@@ -109,7 +109,7 @@ final class StatutoryCoverageOrderClassifier
         }
 
         if ($fromSourcePopulation && ! $fromDeskPopulation && $spokeObligationClass !== null
-            && $spokeObligationClass !== 'paid_completed_service') {
+            && ! $this->isObligatingPaidSourceClass($spokeObligationClass)) {
             return new StatutoryCoverageOrderRow(
                 sourceId: $normalized,
                 classification: StatutoryCoverageClassification::SourceNonObligating,
@@ -177,5 +177,13 @@ final class StatutoryCoverageOrderClassifier
         $reason = trim($reason);
 
         return mb_strlen($reason) > 160 ? mb_substr($reason, 0, 157).'...' : $reason;
+    }
+
+    private function isObligatingPaidSourceClass(?string $spokeObligationClass): bool
+    {
+        return in_array($spokeObligationClass, [
+            'paid_completed_service',
+            'paid_completed_hardware',
+        ], true);
     }
 }

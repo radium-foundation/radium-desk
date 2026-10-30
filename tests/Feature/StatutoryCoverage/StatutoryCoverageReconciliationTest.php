@@ -46,6 +46,14 @@ class StatutoryCoverageReconciliationTest extends TestCase
             'order_lookup.spokes.rdservice_in.base_url' => 'https://rdservice.in.test',
             'order_lookup.spokes.rdservice_in.token' => 'test-token',
         ]);
+
+        Http::fake([
+            'radiumbox.test/api/integrations/v1/statutory-obligations*' => Http::response([
+                'complete' => true,
+                'population' => ['snapshot_consistency' => 'best_effort', 'total_count' => 0],
+                'data' => [],
+            ]),
+        ]);
     }
 
     protected function tearDown(): void

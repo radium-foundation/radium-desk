@@ -21,7 +21,7 @@ return [
         'radiumbox_com' => [
             'label' => 'radiumbox.com',
             'spoke' => 'radiumbox_com',
-            'obligation_list_path' => null,
+            'obligation_list_path' => '/api/integrations/v1/statutory-obligations',
             'spoke_sync_capable' => true,
             'desk_paid_support_orders' => false,
         ],
