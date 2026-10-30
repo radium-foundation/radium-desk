@@ -100,6 +100,13 @@ return [
                 'notes' => 'Bluprints Smart Thermal Printer Series | Pragati Regular-2600 (Owner P-23-20 / RBP1183)',
             ],
             [
+                'model_id' => 1506,
+                'channel_sku' => '1506',
+                'catalog_sku' => 'PBPSAMREG1',
+                'desk_sku' => 'RBBPSR1200',
+                'notes' => 'BluPrints SAMPANN Regular-1200 (Owner P-30-39 / RBP1407)',
+            ],
+            [
                 'model_id' => 1738,
                 'channel_sku' => '1738',
                 'catalog_sku' => 'RBPBIOG2AA',
