@@ -17,6 +17,7 @@ final class StatutoryCoverageOrderClassifier
         string $sourceId,
         bool $fromDeskPopulation,
         bool $fromSourcePopulation,
+        ?string $spokeObligationClass = null,
     ): StatutoryCoverageOrderRow {
         $sourceType = (string) config('statutory_coverage.default_source_type', 'commerce_order');
         $normalized = strtoupper(trim($sourceId));
@@ -102,6 +103,19 @@ final class StatutoryCoverageOrderClassifier
                 commerceOrderId: (int) $commerce->id,
                 statutoryInvoiceId: null,
                 reason: $this->truncateReason((string) ($commerce->status_reason ?? 'Commerce is not invoice-eligible.')),
+                fromDeskPopulation: $fromDeskPopulation,
+                fromSourcePopulation: $fromSourcePopulation,
+            );
+        }
+
+        if ($fromSourcePopulation && ! $fromDeskPopulation && $spokeObligationClass !== null
+            && $spokeObligationClass !== 'paid_completed_service') {
+            return new StatutoryCoverageOrderRow(
+                sourceId: $normalized,
+                classification: StatutoryCoverageClassification::SourceNonObligating,
+                commerceOrderId: null,
+                statutoryInvoiceId: null,
+                reason: 'Spoke source obligation class: '.$spokeObligationClass.'.',
                 fromDeskPopulation: $fromDeskPopulation,
                 fromSourcePopulation: $fromSourcePopulation,
             );

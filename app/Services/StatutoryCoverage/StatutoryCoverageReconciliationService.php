@@ -5,6 +5,7 @@ namespace App\Services\StatutoryCoverage;
 use App\Data\StatutoryCoverage\StatutoryCoverageChannelReport;
 use App\Data\StatutoryCoverage\StatutoryCoverageReport;
 use App\Data\StatutoryCoverage\StatutoryCoverageSourcePopulation;
+use App\Data\StatutoryCoverage\StatutoryCoverageSpokeObligationReference;
 use App\Data\StatutoryCoverage\StatutoryCoverageWindow;
 use App\Enums\StatutoryCoverage\StatutoryCoverageClassification;
 use App\Enums\StatutoryInvoiceChannel;
@@ -87,15 +88,17 @@ final class StatutoryCoverageReconciliationService
         $config = config('statutory_coverage.channels.'.$channel->value, []);
         $label = is_array($config) ? (string) ($config['label'] ?? $channel->value) : $channel->value;
 
-        $sourceFetch = $this->obligationLister->fetchPage(
+        $sourceFetch = $this->obligationLister->collectSourcePopulation(
             $channel,
             $window,
-            cursor: $page > 1 ? (string) $page : null,
-            perPage: $perPage,
+            $perPage,
         );
         /** @var StatutoryCoverageSourcePopulation $sourcePopulation */
         $sourcePopulation = $sourceFetch['population'];
         $sourceIds = $sourceFetch['source_ids'];
+        /** @var array<string, StatutoryCoverageSpokeObligationReference> $sourceReferences */
+        $sourceReferences = $sourceFetch['references'];
+        $defaultSourceType = (string) config('statutory_coverage.default_source_type', 'commerce_order');
 
         $deskBatch = $this->deskReferences->collectIds($channel, $window, $page, $perPage);
         $deskIds = $deskBatch['ids'];
@@ -117,7 +120,15 @@ final class StatutoryCoverageReconciliationService
         foreach ($allIds as $sourceId) {
             $fromSource = in_array($sourceId, $sourceIds, true);
             $fromDesk = in_array($sourceId, $deskIds, true);
-            $row = $this->classifier->classify($channel, $sourceId, $fromDesk, $fromSource);
+            $refKey = strtoupper($channel->value).'|'.$defaultSourceType.'|'.strtoupper(trim($sourceId));
+            $obligationClass = $sourceReferences[$refKey]->obligationClass ?? null;
+            $row = $this->classifier->classify(
+                $channel,
+                $sourceId,
+                $fromDesk,
+                $fromSource,
+                $obligationClass,
+            );
             $counts[$row->classification->value] = ($counts[$row->classification->value] ?? 0) + 1;
 
             if ($includeExceptions && $row->classification !== StatutoryCoverageClassification::IssuedSynchronized) {
@@ -129,7 +140,7 @@ final class StatutoryCoverageReconciliationService
 
         $deskComplete = (bool) $deskBatch['complete'];
         $sourceComplete = $sourcePopulation->supported
-            && $sourcePopulation->complete
+            && $sourcePopulation->authoritativeComplete
             && $sourcePopulation->failureReason === null;
 
         $reportComplete = $deskComplete && $sourceComplete;

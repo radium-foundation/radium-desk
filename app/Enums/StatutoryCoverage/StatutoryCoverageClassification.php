@@ -11,6 +11,7 @@ enum StatutoryCoverageClassification: string
     case IneligibleCommerce = 'ineligible_commerce';
     case EligibleMissingInvoice = 'eligible_missing_invoice';
     case UnmatchedConflict = 'unmatched_conflict';
+    case SourceNonObligating = 'source_non_obligating';
     case SourcePopulationUnavailable = 'source_population_unavailable';
 
     public function label(): string
@@ -23,6 +24,7 @@ enum StatutoryCoverageClassification: string
             self::IneligibleCommerce => 'Commerce present; invoice ineligible',
             self::EligibleMissingInvoice => 'Eligible commerce; invoice missing',
             self::UnmatchedConflict => 'Unmatched or conflicting records',
+            self::SourceNonObligating => 'Source order non-obligating or not yet eligible',
             self::SourcePopulationUnavailable => 'Source population unavailable',
         };
     }

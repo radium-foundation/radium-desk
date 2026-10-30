@@ -42,6 +42,9 @@ class StatutoryCoverageReconciliationTest extends TestCase
             'order_lookup.spokes.radiumbox_com.enabled' => true,
             'order_lookup.spokes.radiumbox_com.base_url' => 'https://radiumbox.test',
             'order_lookup.spokes.radiumbox_com.token' => 'test-token',
+            'order_lookup.spokes.rdservice_in.enabled' => false,
+            'order_lookup.spokes.rdservice_in.base_url' => 'https://rdservice.in.test',
+            'order_lookup.spokes.rdservice_in.token' => 'test-token',
         ]);
     }
 
@@ -70,7 +73,12 @@ class StatutoryCoverageReconciliationTest extends TestCase
         $report = $this->runReport('rdservice_in');
 
         $this->assertSame(1, $report->channels[0]->counts[StatutoryCoverageClassification::MissingCommerce->value]);
-        $this->assertFalse($report->channels[0]->sourcePopulation->supported);
+        $this->assertTrue($report->channels[0]->sourcePopulation->supported);
+        $this->assertFalse($report->channels[0]->sourcePopulationComplete);
+        $this->assertSame(
+            'Spoke lookup client is not configured (missing base URL or token).',
+            $report->channels[0]->sourcePopulation->failureReason,
+        );
     }
 
     public function test_ineligible_commerce_without_invoice(): void
@@ -236,6 +244,8 @@ class StatutoryCoverageReconciliationTest extends TestCase
 
     public function test_unsupported_source_population_marks_report_incomplete(): void
     {
+        config(['statutory_coverage.channels.rdservice_in.obligation_list_path' => null]);
+
         $this->paidSupportOrder('RD9020');
 
         $report = $this->runReport('rdservice_in');

@@ -14,7 +14,7 @@ return [
         'rdservice_in' => [
             'label' => 'rdservice.in',
             'spoke' => 'rdservice_in',
-            'obligation_list_path' => null,
+            'obligation_list_path' => '/api/integrations/v1/statutory-obligations',
             'spoke_sync_capable' => false,
             'desk_paid_support_orders' => true,
         ],
@@ -45,6 +45,11 @@ return [
     'pagination' => [
         'default_per_page' => 500,
         'max_per_page' => 2000,
+    ],
+
+    'obligations' => [
+        'max_pages_per_fetch' => (int) env('STATUTORY_COVERAGE_SPOKE_MAX_PAGES', 50),
+        'max_records_per_fetch' => (int) env('STATUTORY_COVERAGE_SPOKE_MAX_RECORDS', 50000),
     ],
 
     'watchdog' => [
