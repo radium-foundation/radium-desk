@@ -1,6 +1,8 @@
 # P-30-59 / P-30-76 — rdservice.net service statutory auto-issuance gate (release prep)
 
-Branch **`fix/p30-59-statutory-auto-issuance-gate`** rebased locally onto **`origin/main`** **`d6300c8b`** (includes PR **#92** ledger reconcile on main).
+**Planned production release:** **`v4.1.50`** (see **`CHANGELOG.md`** and **`docs/desk-v4.1.50-release-deployment-procedure.md`**). Production today: **`v4.1.49`** / **`af77d628`**.
+
+Merged to **`origin/main`** (PR **#91** @ **`16fd9c0a`**, MariaDB index fix PR **#93** @ **`564b603a`**).
 
 ## Behavior summary
 

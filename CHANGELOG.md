@@ -1,17 +1,24 @@
 # Changelog
 
-## 4.1.49 — Unreleased — RBP1407 SAMPANN Regular-1200 hardware SKU map
+## 4.1.50 — Unreleased — rdservice.net statutory auto-issuance gate
+
+- **Statutory auto-issuance (rdservice.net):** Require explicit per-order approval before **automatic** service statutory mint (workflow, reconciliation, outbox). Fail closed when commerce is missing (`auto_issuance_commerce_unlinked` / `auto_issuance_approval_required`). Superadmin CLI `desk:approve-statutory-auto-issue {order_id} --actor=`. Config `service_statutory_invoice.auto_issuance`; default **`SERVICE_STATUTORY_INVOICE_AUTO_ISSUANCE_ENFORCE=true`** (Owner-approved for production). `issueFromSupportOrder` always runs the unified gate (null trigger coalesces to `invoice_retry` for audit — no bypass).
+- **Statutory unchanged:** Finance Hub manual `issueFromCommerceOrder`; rdservice.in / radiumbox.com service automatic paths; hardware fulfilment exclusions; channel ingest auto-mint remains disabled (foundation guard if enabled).
+- **Migrations:** `2026_10_30_120000_add_statutory_auto_issue_approval_to_commerce_orders_table.php` (nullable approval columns on `commerce_orders` only). Apply before or in the same deploy window as this build (see `docs/desk-v4.1.50-release-deployment-procedure.md`).
+- **MariaDB:** Explicit composite index name on `inventory_availability_sync_logs` for fresh migrate compatibility (PR **#93**); **no production DDL** when migration 211 is already applied under the existing index name.
+- **Tests:** `ServiceStatutoryAutoIssuancePolicyTest`, service mint retry regression, `InventoryAvailabilitySyncLogsMigrationIndexTest`.
+- **Production notes:** Do not retroactively approve orders; unlinked RN backlog and existing failed service-mint outbox rows are out of scope for this release (separate investigation). Post-deploy hardware seed dry-run should show model **1506** `unchanged` only.
+- **Rollback target:** v4.1.49 / `af77d628`, or set `SERVICE_STATUTORY_INVOICE_AUTO_ISSUANCE_ENFORCE=false` without removing approval columns (see statutory release doc).
+- ChatGPT prompts **P-30-59**, **P-30-76**, **P-30-87**–**P-30-91**; deployment procedure **`docs/desk-v4.1.50-release-deployment-procedure.md`**.
+
+## 4.1.49 — 2026-10-30 — RBP1407 SAMPANN Regular-1200 hardware SKU map
 
 - **Hardware fulfilment:** Add verified radiumbox.com **`model_id` 1506** (`PBPSAMREG1`) → Desk inventory SKU **`RBBPSR1200`** in `config/hardware_fulfilment.php` (aligns Git with production overlay applied for order **RBP1407**).
 - **Tests:** Extend `SeedRadiumboxHardwareSkuMapsCommandTest` and `RadiumboxHardwareSkuMapResolutionTest` with catalog helper; assert **1506** resolution and **1505** remains unmapped.
 - **Documentation:** `docs/p30-39-rbp1407-production-execution.md` (execution record and deploy safeguard).
-- **Production note:** `channel_sku_maps.id=37` already exists from P-30-42; post-deploy seed dry-run should show **1506** `unchanged` only—do not re-apply without Owner gate.
-- **Statutory auto-issuance (rdservice.net):** Require explicit per-order approval before **automatic** service statutory mint (workflow, reconciliation, outbox). Fail closed when commerce is missing (`auto_issuance_commerce_unlinked` / `auto_issuance_approval_required`). CLI `desk:approve-statutory-auto-issue {order_id} --actor=` (superadmin only). Config `service_statutory_invoice.auto_issuance` with `SERVICE_STATUTORY_INVOICE_AUTO_ISSUANCE_ENFORCE` rollback. `issueFromSupportOrder` always runs the unified gate (null trigger coalesces to `invoice_retry` for logging — no bypass).
-- **Statutory unchanged:** Finance Hub manual `issueFromCommerceOrder`; rdservice.in / radiumbox.com service automatic paths; hardware fulfilment exclusions; channel ingest auto-mint remains disabled (foundation guard if enabled).
-- **Statutory tests:** `ServiceStatutoryAutoIssuancePolicyTest` + service mint retry regression.
-- **Migrations:** `2026_10_30_120000_add_statutory_auto_issue_approval_to_commerce_orders_table.php` (statutory approval columns only).
+- **Production note:** Shipped as annotated tag **`v4.1.49`** @ **`af77d628`** (P-30-65). `channel_sku_maps.id=37` from P-30-42; seed dry-run should show **1506** `unchanged` only—do not re-apply without Owner gate.
 - **Rollback target:** v4.1.48 / `009d3e3c`, subject to verification of live `release.json` and mapping row rollback procedure in execution doc.
-- ChatGPT prompts **P-30-39** through **P-30-47**, **P-30-43**, **P-30-50**, **P-30-59**; Cursor ledger **RadiumDesk-P-30-47**, **RadiumDesk-P-30-50**, **RadiumDesk-P-30-59**.
+- ChatGPT prompts **P-30-39** through **P-30-47**, **P-30-52**, **P-30-54**, **P-30-61**, **P-30-65**; Cursor ledger **RadiumDesk-P-30-47** through **P-30-65**.
 
 ## 4.1.48 — 2026-10-29 — E-invoice outbox retry and PDF billing locality
 
