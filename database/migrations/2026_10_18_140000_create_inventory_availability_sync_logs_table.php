@@ -21,7 +21,7 @@ return new class extends Migration
             $table->text('error_summary')->nullable();
             $table->timestamps();
 
-            $table->index(['inventory_product_id', 'created_at']);
+            $table->index(['inventory_product_id', 'created_at'], 'inv_avail_sync_logs_product_created_idx');
             $table->index('idempotency_key');
         });
     }
