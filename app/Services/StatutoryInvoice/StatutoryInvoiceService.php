@@ -420,9 +420,8 @@ class StatutoryInvoiceService
         ?User $actor = null,
         ?ServiceStatutoryInvoiceMintTrigger $automaticMintTrigger = null,
     ): StatutoryInvoice {
-        if ($automaticMintTrigger !== null) {
-            $this->autoIssuancePolicy->assertAutomaticIssuanceAllowed($order, $automaticMintTrigger);
-        }
+        $effectiveTrigger = $automaticMintTrigger ?? ServiceStatutoryInvoiceMintTrigger::InvoiceRetry;
+        $this->autoIssuancePolicy->assertAutomaticIssuanceAllowed($order, $effectiveTrigger);
 
         if (BusinessOrderId::isRadiumBoxService($order->order_id)) {
             $this->radiumBoxServiceCommerce->ensureForSupportOrder($order);

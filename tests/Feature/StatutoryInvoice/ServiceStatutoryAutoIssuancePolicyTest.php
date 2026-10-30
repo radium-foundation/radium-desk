@@ -22,6 +22,7 @@ use App\Services\OrderTransactionService;
 use App\Services\Outbox\OutboxProcessorService;
 use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceIssuanceCoordinator;
 use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceMintOutboxWriter;
+use App\Services\StatutoryInvoice\ServiceStatutoryInvoicePermanentFailureException;
 use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceReconciliationService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use Database\Seeders\FinanceMasterDataSeeder;
@@ -100,6 +101,20 @@ class ServiceStatutoryAutoIssuancePolicyTest extends TestCase
                 return ($context['classification'] ?? '') === 'auto_issuance_commerce_unlinked'
                     && ($context['order_id'] ?? '') === 'RN600';
             }));
+    }
+
+    public function test_rdservice_net_issue_from_support_order_with_null_trigger_is_denied(): void
+    {
+        [$order] = $this->deskOrderWithNetCommerce('RN510');
+
+        try {
+            app(StatutoryInvoiceService::class)->issueFromSupportOrder($order, $this->automationActor);
+            $this->fail('Expected permanent failure when minting RN510 without approval via null trigger.');
+        } catch (ServiceStatutoryInvoicePermanentFailureException $exception) {
+            $this->assertStringContainsString('blocked until explicit per-order approval', $exception->getMessage());
+        }
+
+        $this->assertSame(0, StatutoryInvoice::query()->where('source_id', 'RN510')->count());
     }
 
     public function test_rdservice_net_automatic_paths_blocked_without_approval(): void

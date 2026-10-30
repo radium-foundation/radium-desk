@@ -40,9 +40,9 @@ return [
     | Automatic issuance policy (P-30-43 / P-30-50)
     |--------------------------------------------------------------------------
     |
-    | Gates automatic service mint (coordinator, outbox processor, and
-    | issueFromSupportOrder when an automatic trigger is supplied).
-    | Finance Hub manual issueFromCommerceOrder is not gated here.
+    | Gates automatic service mint (coordinator, outbox processor, and every
+    | issueFromSupportOrder call — null trigger is treated as invoice_retry for
+    | audit logging). Finance Hub manual issueFromCommerceOrder is not gated here.
     | Channel ingest auto_issue_invoice remains disabled in config; when false,
     | ingest never mints. When true, ingest throws before mint (foundation guard).
     |
