@@ -5,20 +5,29 @@ on:
     branches:
       - main
     paths:
+      - 'app/Console/Commands/ApproveStatutoryAutoIssueCommand.php'
       - 'app/Console/Commands/StatutoryCancellationReconcileCommand.php'
       - 'app/Enums/StatutoryInvoiceCancellationOperationStatus.php'
       - 'app/Http/Controllers/Finance/StatutoryInvoiceController.php'
       - 'app/Models/StatutoryInvoiceCancellation.php'
       - 'app/Services/StatutoryInvoice/Data/IrnCancellationReconciliationResult.php'
       - 'app/Services/StatutoryInvoice/Data/StatutoryInvoiceCancellationAdminContext.php'
+      - 'app/Services/StatutoryInvoice/ServiceStatutoryAutoIssuancePolicy.php'
+      - 'app/Services/StatutoryInvoice/ServiceStatutoryInvoiceIssuanceCoordinator.php'
+      - 'app/Services/StatutoryInvoice/ServiceStatutoryInvoiceMintProcessor.php'
       - 'app/Services/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
       - 'app/Services/StatutoryInvoice/StatutoryInvoiceIrnCancellation*.php'
+      - 'app/Services/StatutoryInvoice/StatutoryInvoiceService.php'
       - 'app/Services/StatutoryInvoice/Whitebooks/WhitebooksResponseMapper.php'
       - 'app/Support/Finance/FinanceAccess.php'
+      - 'config/service_statutory_invoice.php'
       - 'config/statutory_invoices.php'
+      - 'database/migrations/*statutory_auto_issue_approval*'
       - 'database/migrations/*statutory_invoice_cancellations*'
       - 'database/seeders/RolePermissionSeeder.php'
       - 'resources/views/finance/invoices/show.blade.php'
+      - 'tests/Feature/StatutoryInvoice/ServiceStatutoryAutoIssuancePolicyTest.php'
+      - 'tests/Feature/StatutoryInvoice/ServiceStatutoryInvoiceMintRetryTest.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php'
       - 'tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php'
@@ -34,20 +43,29 @@ on:
     branches:
       - main
     paths:
+      - 'app/Console/Commands/ApproveStatutoryAutoIssueCommand.php'
       - 'app/Console/Commands/StatutoryCancellationReconcileCommand.php'
       - 'app/Enums/StatutoryInvoiceCancellationOperationStatus.php'
       - 'app/Http/Controllers/Finance/StatutoryInvoiceController.php'
       - 'app/Models/StatutoryInvoiceCancellation.php'
       - 'app/Services/StatutoryInvoice/Data/IrnCancellationReconciliationResult.php'
       - 'app/Services/StatutoryInvoice/Data/StatutoryInvoiceCancellationAdminContext.php'
+      - 'app/Services/StatutoryInvoice/ServiceStatutoryAutoIssuancePolicy.php'
+      - 'app/Services/StatutoryInvoice/ServiceStatutoryInvoiceIssuanceCoordinator.php'
+      - 'app/Services/StatutoryInvoice/ServiceStatutoryInvoiceMintProcessor.php'
       - 'app/Services/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
       - 'app/Services/StatutoryInvoice/StatutoryInvoiceIrnCancellation*.php'
+      - 'app/Services/StatutoryInvoice/StatutoryInvoiceService.php'
       - 'app/Services/StatutoryInvoice/Whitebooks/WhitebooksResponseMapper.php'
       - 'app/Support/Finance/FinanceAccess.php'
+      - 'config/service_statutory_invoice.php'
       - 'config/statutory_invoices.php'
+      - 'database/migrations/*statutory_auto_issue_approval*'
       - 'database/migrations/*statutory_invoice_cancellations*'
       - 'database/seeders/RolePermissionSeeder.php'
       - 'resources/views/finance/invoices/show.blade.php'
+      - 'tests/Feature/StatutoryInvoice/ServiceStatutoryAutoIssuancePolicyTest.php'
+      - 'tests/Feature/StatutoryInvoice/ServiceStatutoryInvoiceMintRetryTest.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php'
       - 'tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php'
@@ -105,3 +123,9 @@ jobs:
             tests/Feature/ServicePos/ServicePosEinvoiceParityTest.php \
             tests/Unit/StatutoryInvoice/EInvoiceUqcMapperTest.php \
             tests/Unit/StatutoryInvoice/ServiceSacResolverTest.php
+
+      - name: PHPUnit (rdservice.net statutory auto-issuance gate)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Feature/StatutoryInvoice/ServiceStatutoryAutoIssuancePolicyTest.php \
+            tests/Feature/StatutoryInvoice/ServiceStatutoryInvoiceMintRetryTest.php
