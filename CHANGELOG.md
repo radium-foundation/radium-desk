@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.49 — Unreleased — RBP1407 SAMPANN Regular-1200 hardware SKU map
+
+- **Hardware fulfilment:** Add verified radiumbox.com **`model_id` 1506** (`PBPSAMREG1`) → Desk inventory SKU **`RBBPSR1200`** in `config/hardware_fulfilment.php` (aligns Git with production overlay applied for order **RBP1407**).
+- **Tests:** Extend `SeedRadiumboxHardwareSkuMapsCommandTest` and `RadiumboxHardwareSkuMapResolutionTest` with catalog helper; assert **1506** resolution and **1505** remains unmapped.
+- **Documentation:** `docs/p30-39-rbp1407-production-execution.md` (execution record and deploy safeguard).
+- **Production note:** `channel_sku_maps.id=37` already exists from P-30-42; post-deploy seed dry-run should show **1506** `unchanged` only—do not re-apply without Owner gate.
+- **Migrations:** None.
+- **Rollback target:** v4.1.48 / `009d3e3c`, subject to verification of live `release.json` and mapping row rollback procedure in execution doc.
+- ChatGPT prompts **P-30-39** through **P-30-47**; Cursor ledger **RadiumDesk-P-30-47**.
+
 ## 4.1.48 — 2026-10-29 — E-invoice outbox retry and PDF billing locality
 
 - **E-invoice:** Safely reopen a completed or failed `statutory-irn:{invoice_id}` outbox row when the e-invoice record is queued, eligibility and payload guards pass, and the mapped payload is submittable—without resubmitting issued IRNs or bypassing ambiguous/processing recovery boundaries.

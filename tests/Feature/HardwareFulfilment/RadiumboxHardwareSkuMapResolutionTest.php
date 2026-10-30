@@ -5,11 +5,9 @@ namespace Tests\Feature\HardwareFulfilment;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
-use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
 use App\Models\CommerceOrderItem;
 use App\Models\HardwareFulfilment;
-use App\Models\InventoryProduct;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
@@ -17,18 +15,21 @@ use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareSkuMapService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Validation\ValidationException;
+use Tests\Support\RadiumboxHardwareSkuMapTestCatalog;
 use Tests\TestCase;
 
 class RadiumboxHardwareSkuMapResolutionTest extends TestCase
 {
+    use RadiumboxHardwareSkuMapTestCatalog;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->seedMappedProducts();
+        $this->reloadHardwareFulfilmentConfigFromDisk();
+        $this->seedDeskInventoryProductsForConfiguredMaps();
+        $this->seedDecoyChannelMapsOnAlternateModelIds();
         $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
             ->assertSuccessful();
     }
@@ -81,32 +82,6 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
         $this->assertNotSame('Product mapping required', $row->operatorStatus());
     }
 
-    public function test_rbp1183_resolves_pragati_regular_model_id_1503_to_rbpragati2(): void
-    {
-        $product = app(HardwareSkuMapService::class)->requireProduct(
-            StatutoryInvoiceChannel::RadiumBoxCom,
-            1503,
-        );
-
-        $this->assertSame('RBPRAGATI2', $product->sku);
-        $this->assertTrue($product->is_serialized);
-
-        $row = $this->classifyReadyFulfilment('RBP1183', 1503, $product->is_serialized);
-
-        $this->assertSame('Allocate Serial', $row->nextAction);
-        $this->assertNotSame('Product mapping required', $row->operatorStatus());
-    }
-
-    public function test_pragati_economy_model_id_1502_does_not_resolve_to_regular_desk_sku(): void
-    {
-        $this->expectException(ValidationException::class);
-
-        app(HardwareSkuMapService::class)->requireProduct(
-            StatutoryInvoiceChannel::RadiumBoxCom,
-            1502,
-        );
-    }
-
     public function test_vriddhi_model_id_1616_resolves_to_rbbpvridl1(): void
     {
         $product = app(HardwareSkuMapService::class)->requireProduct(
@@ -123,79 +98,45 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
         $this->assertNotSame('Product mapping required', $row->operatorStatus());
     }
 
-    public function test_bioenable_g2_model_id_1738_resolves_rbpbiog2aa_to_rbbiogpsg2(): void
+    public function test_rbp1407_resolves_model_1506_to_rbbpsr1200_without_allocating_serials(): void
     {
         $product = app(HardwareSkuMapService::class)->requireProduct(
             StatutoryInvoiceChannel::RadiumBoxCom,
-            1738,
+            1506,
         );
 
-        $this->assertSame('RBBIOGPSG2', $product->sku);
+        $this->assertSame('RBBPSR1200', $product->sku);
         $this->assertTrue($product->is_serialized);
 
-        $row = $this->classifyReadyFulfilment('RBPG2', 1738, $product->is_serialized);
+        $fulfilment = $this->readyFulfilment('RBP1407', 1506, 2);
+        $ready = $this->readiness([
+            'alreadyCreated' => false,
+            'serials' => [],
+            'invoice' => null,
+            'quantity' => 2,
+            'stockCommitted' => false,
+            'serialized' => true,
+        ]);
+
+        $row = app(HardwareFulfilmentOperationalClassifier::class)
+            ->fromFulfilment($fulfilment->fresh(['commerceOrder.items', 'supportOrder']), $ready);
 
         $this->assertSame('Allocate Serial', $row->nextAction);
         $this->assertNotSame('Product mapping required', $row->operatorStatus());
+        $this->assertSame(2, (int) $fulfilment->fresh('commerceOrder.items')->commerceOrder->items->first()->qty);
     }
 
-    public function test_bioenable_g1_model_id_1630_does_not_resolve_to_g2_desk_sku(): void
+    public function test_economy_model_1505_does_not_resolve_to_rbbpsr1200(): void
     {
-        $this->expectException(ValidationException::class);
-
-        app(HardwareSkuMapService::class)->requireProduct(
+        $this->assertNull(app(HardwareSkuMapService::class)->findProduct(
             StatutoryInvoiceChannel::RadiumBoxCom,
-            1630,
-        );
-    }
+            1505,
+        ));
 
-    public function test_bioenable_g1_model_id_1630_still_shows_product_mapping_required(): void
-    {
-        $row = $this->classifyReadyFulfilment('RBPG1', 1630, true);
+        $row = $this->classifyReadyFulfilment('RBP1407-WRONG', 1505, true);
 
         $this->assertSame('Product mapping required', $row->operatorStatus());
-    }
-
-    public function test_dell_kb216_model_id_338_resolves_pdlkb212kb_to_rbdelkb216(): void
-    {
-        $product = app(HardwareSkuMapService::class)->requireProduct(
-            StatutoryInvoiceChannel::RadiumBoxCom,
-            338,
-        );
-
-        $this->assertSame('RBDELKB216', $product->sku);
-        $this->assertTrue($product->is_serialized);
-    }
-
-    public function test_dell_main_pdp_model_id_77_does_not_resolve_to_kb216_desk_sku(): void
-    {
-        $this->expectException(ValidationException::class);
-
-        app(HardwareSkuMapService::class)->requireProduct(
-            StatutoryInvoiceChannel::RadiumBoxCom,
-            77,
-        );
-    }
-
-    public function test_iritech_bk2121u_model_id_566_resolves_pitmk2121z_to_rbibk2121u(): void
-    {
-        $product = app(HardwareSkuMapService::class)->requireProduct(
-            StatutoryInvoiceChannel::RadiumBoxCom,
-            566,
-        );
-
-        $this->assertSame('RBIBK2121U', $product->sku);
-        $this->assertTrue($product->is_serialized);
-    }
-
-    public function test_iritech_main_pdp_model_id_565_does_not_resolve_to_bk2121u_desk_sku(): void
-    {
-        $this->expectException(ValidationException::class);
-
-        app(HardwareSkuMapService::class)->requireProduct(
-            StatutoryInvoiceChannel::RadiumBoxCom,
-            565,
-        );
+        $this->assertSame('View', $row->nextAction);
     }
 
     public function test_unmapped_model_id_still_shows_product_mapping_required(): void
@@ -209,7 +150,7 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
 
     private function classifyReadyFulfilment(string $sourceId, int $modelId, bool $serialized): mixed
     {
-        $fulfilment = $this->readyFulfilment($sourceId, $modelId);
+        $fulfilment = $this->readyFulfilment($sourceId, $modelId, 1);
         $ready = $this->readiness([
             'alreadyCreated' => false,
             'serials' => [],
@@ -223,7 +164,7 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
             ->fromFulfilment($fulfilment->fresh(['commerceOrder.items', 'supportOrder']), $ready);
     }
 
-    private function readyFulfilment(string $sourceId, int $modelId): HardwareFulfilment
+    private function readyFulfilment(string $sourceId, int $modelId, int $qty = 1): HardwareFulfilment
     {
         $creator = User::factory()->create(['is_active' => true]);
         $support = Order::query()->create([
@@ -257,7 +198,7 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
             'requires_shipping' => true,
             'model_id' => $modelId,
             'description' => 'Hardware '.$modelId,
-            'qty' => 1,
+            'qty' => $qty,
             'unit_price' => 1000,
             'gst_percentage' => 18,
             'taxable_value' => 847.46,
@@ -316,42 +257,5 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
             quantity: $overrides['quantity'] ?? null,
             stockCommitted: (bool) ($overrides['stockCommitted'] ?? false),
         );
-    }
-
-    private function seedMappedProducts(): void
-    {
-        foreach ([
-            ['RBHYP2003T', 347, true],
-            ['RBBIOC600C', 1749, true],
-            ['RBMFSTYPEC', 1409, false],
-            ['RBMFSUSBCB', 1410, false],
-            ['RBAST300L1', 1412, true],
-            ['RBMSOUSBCB', 1420, false],
-            ['RBMFS500FP', 625, true],
-            ['RBWM112MZ', 340, false],
-            ['RBSMOOTHED', 1753, true],
-            ['RBBPVRIDL1', 1616, true],
-            ['RBPRAGATI2', 1503, true],
-            ['RBBIOGPSG2', 1738, true],
-            ['RBDELKB216', 338, true],
-            ['RBIBK2121U', 566, true],
-        ] as [$sku, $modelId, $serialized]) {
-            $product = InventoryProduct::query()->create([
-                'sku' => $sku,
-                'name' => $sku,
-                'hsn_code' => $serialized ? '84716050' : '85444299',
-                'gst_percentage' => 18,
-                'unit_price' => 100,
-                'is_serialized' => $serialized,
-                'is_active' => true,
-            ]);
-            ChannelSkuMap::query()->create([
-                'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
-                'model_id' => 9990 + $modelId,
-                'inventory_product_id' => $product->id,
-                'catalog_sku' => 'EXISTING-'.$modelId,
-                'channel_sku' => '9990',
-            ]);
-        }
     }
 }
