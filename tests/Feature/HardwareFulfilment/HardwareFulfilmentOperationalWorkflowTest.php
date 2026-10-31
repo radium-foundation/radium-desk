@@ -3,6 +3,8 @@
 namespace Tests\Feature\HardwareFulfilment;
 
 use App\Contracts\Shipping\ShiprocketGateway;
+use App\Services\Shipping\Data\ShiprocketDocumentResult;
+use App\Services\Shipping\ShiprocketManifestAlreadyGenerated;
 use App\Enums\HardwareFulfilmentPackageEvidenceKind;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
@@ -26,7 +28,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\Feature\HardwareFulfilment\Support\SelectsHardwareTestCourier;
+use App\Services\HardwareFulfilment\HardwareShipmentBulkDocumentsService;
 use Tests\Feature\Shipping\Support\FakeShiprocketGateway;
 use Tests\TestCase;
 
@@ -690,6 +694,129 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         $this->assertSame(1, $this->fake->labels);
     }
 
+    public function test_short_document_urls_remain_compatible(): void
+    {
+        $fulfilment = $this->manifestReadyFulfilment('RDE940092');
+        $shortManifest = 'https://manifests.test/short.pdf';
+
+        $this->fake->nextManifestUrl = $shortManifest;
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Manifest generated.');
+
+        $shipment = Shipment::query()->firstOrFail();
+        $this->assertSame($shortManifest, $shipment->manifest_url);
+        $this->assertLessThan(1024, strlen((string) $shipment->manifest_url));
+        $this->assertSame(1, $this->fake->manifests);
+    }
+
+    public function test_repeated_manifest_store_does_not_invoke_provider_twice_when_persisted(): void
+    {
+        $fulfilment = $this->manifestReadyFulfilment('RDE940093');
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Manifest generated.');
+
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertRedirect();
+
+        $this->assertSame(1, $this->fake->manifests);
+        $this->assertNotNull(Shipment::query()->firstOrFail()->manifest_url);
+    }
+
+    public function test_bulk_manifest_persists_long_url_for_eligible_shipments(): void
+    {
+        $fulfilment = $this->manifestReadyFulfilment('RDE940094');
+        $longSuffix = '?'.Str::repeat('b', 1500);
+        $this->fake->nextManifestUrl = 'https://manifests.test/bulk.pdf'.$longSuffix;
+
+        $outcome = app(HardwareShipmentBulkDocumentsService::class)->downloadManifest(
+            [$fulfilment->id],
+            $this->admin,
+        );
+
+        $this->assertSame(1, $this->fake->manifestBatchCalls);
+        $this->assertNotNull($outcome->downloadUrl);
+        $this->assertContains((string) $fulfilment->source_id, $outcome->succeededSourceIds);
+        $this->assertSame([], $outcome->failed);
+
+        $shipment = Shipment::query()->firstOrFail();
+        $this->assertGreaterThan(1024, strlen((string) $shipment->manifest_url));
+    }
+
+    public function test_bulk_manifest_already_generated_reports_per_shipment_failure(): void
+    {
+        $fulfilment = $this->manifestReadyFulfilment('RDE940095');
+        $this->fake->nextManifestMode = 'rejected';
+        $this->fake->nextManifestRejectedError = 'Manifest is already generated for this shipment.';
+
+        $outcome = app(HardwareShipmentBulkDocumentsService::class)->downloadManifest(
+            [$fulfilment->id],
+            $this->admin,
+        );
+
+        $this->assertNull($outcome->downloadUrl);
+        $this->assertSame([], $outcome->succeededSourceIds);
+        $this->assertCount(1, $outcome->failed);
+        $this->assertSame((string) $fulfilment->source_id, $outcome->failed[0]['source_id']);
+        $this->assertSame(ShiprocketManifestAlreadyGenerated::OPERATOR_MESSAGE, $outcome->failed[0]['reason']);
+        $this->assertNull(Shipment::query()->firstOrFail()->manifest_url);
+    }
+
+    public function test_long_presigned_manifest_and_label_urls_persist(): void
+    {
+        $longSuffix = '?'.Str::repeat('x', 1500);
+        $fulfilment = $this->pickupReadyFulfilment('RDE940090');
+
+        $this->fake->nextLabelUrl = 'https://labels.test/awb.pdf'.$longSuffix;
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.label.store', $fulfilment->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Shipping label generated.');
+
+        $shipment = Shipment::query()->firstOrFail();
+        $this->assertGreaterThan(1024, strlen((string) $shipment->label_url));
+
+        $this->fake->nextManifestUrl = 'https://manifests.test/bulk.pdf'.$longSuffix;
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Manifest generated.');
+
+        $shipment->refresh();
+        $this->assertGreaterThan(1024, strlen((string) $shipment->manifest_url));
+        $this->assertSame(1, $this->fake->manifests);
+    }
+
+    public function test_manifest_already_generated_returns_actionable_validation_error(): void
+    {
+        $fulfilment = $this->manifestReadyFulfilment('RDE940091');
+
+        $gateway = $this->createMock(ShiprocketGateway::class);
+        $gateway->method('provider')->willReturn('test');
+        $gateway->method('generateManifest')->willReturn(new ShiprocketDocumentResult(
+            provider: 'test',
+            status: 'rejected',
+            error: 'Manifest is already generated for this shipment.',
+            retryable: false,
+        ));
+        $this->app->instance(ShiprocketGateway::class, $gateway);
+
+        $this->actingAs($this->admin)
+            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment->fresh()))
+            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
+            ->assertSessionHasErrors('shipping');
+
+        $message = (string) session('errors')->get('shipping')[0];
+        $this->assertSame(ShiprocketManifestAlreadyGenerated::OPERATOR_MESSAGE, $message);
+        $this->assertNull(Shipment::query()->firstOrFail()->manifest_url);
+    }
+
     public function test_ambiguous_label_timeout_does_not_invent_a_url(): void
     {
         $fulfilment = $this->awbFulfilment('RDE940006');
@@ -712,6 +839,24 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->post(route('inventory.hardware-fulfilments.shipment.store', $fulfilment));
         $this->actingAs($this->admin)
             ->post(route('inventory.hardware-fulfilments.awb.store', $fulfilment->fresh()));
+
+        return $fulfilment->fresh(['shipment', 'packageEvidences']) ?? $fulfilment;
+    }
+
+    private function pickupReadyFulfilment(string $sourceId): HardwareFulfilment
+    {
+        $fulfilment = $this->awbFulfilment($sourceId);
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.pickup.store', $fulfilment->fresh()));
+
+        return $fulfilment->fresh(['shipment', 'packageEvidences']) ?? $fulfilment;
+    }
+
+    private function manifestReadyFulfilment(string $sourceId): HardwareFulfilment
+    {
+        $fulfilment = $this->pickupReadyFulfilment($sourceId);
+        $this->actingAs($this->admin)
+            ->post(route('inventory.hardware-fulfilments.label.store', $fulfilment->fresh()));
 
         return $fulfilment->fresh(['shipment', 'packageEvidences']) ?? $fulfilment;
     }

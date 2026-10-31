@@ -14,6 +14,7 @@ use App\Services\HardwareFulfilment\Data\HardwareBulkDocumentOutcome;
 use App\Services\Shipping\Data\ShiprocketDocumentResult;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\Shipping\ShiprocketDisabledException;
+use App\Services\Shipping\ShiprocketManifestAlreadyGenerated;
 use App\Services\Shipping\ShiprocketNonRetryableException;
 use App\Services\Shipping\ShiprocketRetryableException;
 use App\Support\Inventory\InventoryBranchScope;
@@ -142,10 +143,15 @@ class HardwareShipmentBulkDocumentsService
         }
 
         if ($result->status !== 'generated' || ($result->url === null && $result->documentId === null)) {
+            $reason = $result->error ?? 'Shiprocket rejected bulk '.$document.' generation.';
+            if ($document === 'manifest' && ShiprocketManifestAlreadyGenerated::matchesRejectedResult($result)) {
+                $reason = ShiprocketManifestAlreadyGenerated::OPERATOR_MESSAGE;
+            }
+
             $failed = array_map(
                 static fn (array $row): array => [
                     'source_id' => (string) $row['fulfilment']->source_id,
-                    'reason' => $result->error ?? 'Shiprocket rejected bulk '.$document.' generation.',
+                    'reason' => $reason,
                 ],
                 $eligible,
             );
@@ -166,11 +172,7 @@ class HardwareShipmentBulkDocumentsService
                 $succeededSourceIds[] = (string) $fulfilment->source_id;
 
                 if ($document === 'label' && ! filled($shipment->label_url) && $result->url !== null) {
-                    $shipment->forceFill([
-                        'label_url' => $result->url,
-                        'label_fetched_at' => now(),
-                        'last_error' => null,
-                    ])->save();
+                    ShipmentDocumentPersistence::persistLabel($shipment, $result);
                     $this->recordShipmentEvent($shipment, 'label_generated', [
                         'label_url' => $result->url,
                         'bulk' => true,
@@ -189,12 +191,7 @@ class HardwareShipmentBulkDocumentsService
                     && ! filled($shipment->manifest_url)
                     && ! filled($shipment->manifest_id)
                     && ($result->url !== null || $result->documentId !== null)) {
-                    $shipment->forceFill([
-                        'manifest_url' => $result->url,
-                        'manifest_id' => $result->documentId ?? $shipment->manifest_id,
-                        'manifest_generated_at' => now(),
-                        'last_error' => null,
-                    ])->save();
+                    ShipmentDocumentPersistence::persistManifest($shipment, $result);
                     $this->recordShipmentEvent($shipment, 'manifest_generated', [
                         'manifest_url' => $result->url,
                         'manifest_id' => $result->documentId,
