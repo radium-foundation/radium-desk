@@ -38,6 +38,13 @@ on:
       - 'tests/Unit/StatutoryInvoice/ServiceSacResolverTest.php'
       - 'tests/Feature/ServicePos/ServicePosEinvoiceParityTest.php'
       - 'tests/Support/FakeEInvoiceGateway.php'
+      - 'app/Console/Commands/RadiumBoxStatutoryReceiptRequeueAwaitingCommand.php'
+      - 'app/Enums/RadiumBox/RadiumBoxStatutoryReceiptPublicationStatus.php'
+      - 'app/Models/RadiumBoxStatutoryReceiptPublication.php'
+      - 'app/Services/RadiumBox/RadiumBoxStatutoryReceipt*.php'
+      - 'database/migrations/*radiumbox_statutory_receipt*'
+      - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php'
+      - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
   push:
     branches:
@@ -76,6 +83,13 @@ on:
       - 'tests/Unit/StatutoryInvoice/ServiceSacResolverTest.php'
       - 'tests/Feature/ServicePos/ServicePosEinvoiceParityTest.php'
       - 'tests/Support/FakeEInvoiceGateway.php'
+      - 'app/Console/Commands/RadiumBoxStatutoryReceiptRequeueAwaitingCommand.php'
+      - 'app/Enums/RadiumBox/RadiumBoxStatutoryReceiptPublicationStatus.php'
+      - 'app/Models/RadiumBoxStatutoryReceiptPublication.php'
+      - 'app/Services/RadiumBox/RadiumBoxStatutoryReceipt*.php'
+      - 'database/migrations/*radiumbox_statutory_receipt*'
+      - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php'
+      - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
 
 permissions:
@@ -129,3 +143,9 @@ jobs:
           ./vendor/bin/phpunit \
             tests/Feature/StatutoryInvoice/ServiceStatutoryAutoIssuancePolicyTest.php \
             tests/Feature/StatutoryInvoice/ServiceStatutoryInvoiceMintRetryTest.php
+
+      - name: PHPUnit (RadiumBox statutory receipt publisher)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php \
+            tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php
