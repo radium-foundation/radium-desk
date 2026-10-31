@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.51 — Unreleased — Statutory coverage reconciliation (PR #95)
+
+- **Statutory coverage reconciliation:** Read-only CLI **`desk:reconcile-statutory-coverage`** with **`StatutoryCoverage/*`** services, **`config/statutory_coverage.php`**, and cross-spoke obligation list integration for **`rdservice_in`** and **`radiumbox_com`** (HTTP **`GET /api/integrations/v1/statutory-obligations`** via existing **`order_lookup.spokes.*`** credentials). Classifies desk vs source populations (issued, pending, ineligible, sync-unknown, and related buckets). **No `--apply` flag**; service always reports **`dryRun: true`**. Does **not** mint invoices, mutate commerce, ingest channel orders, or call IRP.
+- **Migrations:** **None** in this release (application + config only).
+- **Configuration:** Optional env **`STATUTORY_COVERAGE_TIMEZONE`**, **`STATUTORY_COVERAGE_SPOKE_MAX_PAGES`**, **`STATUTORY_COVERAGE_SPOKE_MAX_RECORDS`**. Requires spoke base URLs/tokens already used for Desk order lookup.
+- **Tests:** **`tests/Feature/StatutoryCoverage/`** (reconciliation + spoke integration + RadiumBox obligation integration).
+- **Production notes:** Deploy adds reporting only. October 2026 dry-run is a **separate Owner-authorized ops step** after deploy (see **`docs/desk-v4.1.51-statutory-coverage-release-procedure.md`**). **rdservice.in** obligation API on production is a **separate dependency** for authoritative rd.in source population (Desk fail-closed or partial until rd.in deploy). RadiumBox full-window pagination may exceed HTTP timeouts—use bounded **`--per-page`**, **`--channel`**, and multi-page runs.
+- **Rollback target:** **`v4.1.50`** / **`3ece0364bb8a1d4194e1fbecdab3209bab2e9462`** (redeploy prior tag/build).
+- **Source:** Merged **PR #95** @ **`c9ff9919`** on **`main`**; release docs **P-31-19**.
+- ChatGPT prompts **P-30-115**–**P-30-132**, **P-31-18**, **P-31-19**; Cursor ledger **RadiumDesk-P-31-19**.
+
 ## 4.1.50 — Unreleased — rdservice.net statutory auto-issuance gate
 
 - **Statutory auto-issuance (rdservice.net):** Require explicit per-order approval before **automatic** service statutory mint (workflow, reconciliation, outbox). Fail closed when commerce is missing (`auto_issuance_commerce_unlinked` / `auto_issuance_approval_required`). Superadmin CLI `desk:approve-statutory-auto-issue {order_id} --actor=`. Config `service_statutory_invoice.auto_issuance`; default **`SERVICE_STATUTORY_INVOICE_AUTO_ISSUANCE_ENFORCE=true`** (Owner-approved for production). `issueFromSupportOrder` always runs the unified gate (null trigger coalesces to `invoice_retry` for audit — no bypass).
