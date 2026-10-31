@@ -13,6 +13,7 @@ class RadiumBoxStatutoryReceiptPublicationProcessor
 {
     public function __construct(
         private readonly RadiumBoxStatutoryReceiptPublicationClient $client,
+        private readonly RadiumBoxStatutoryReceiptPublicationPolicy $publicationPolicy,
     ) {}
 
     public function process(OutboxEvent $event): void
@@ -63,10 +64,11 @@ class RadiumBoxStatutoryReceiptPublicationProcessor
             return;
         }
 
-        if (! config('radiumbox.statutory_receipt_publish.enabled', false)) {
+        $deliveryBlockedReason = $this->publicationPolicy->deliveryBlockedReason($invoice);
+        if ($deliveryBlockedReason !== null) {
             $publication->update([
                 'status' => RadiumBoxStatutoryReceiptPublicationStatus::AwaitingActivation,
-                'last_error' => 'Publisher disabled pending Owner activation.',
+                'last_error' => $deliveryBlockedReason,
             ]);
 
             return;

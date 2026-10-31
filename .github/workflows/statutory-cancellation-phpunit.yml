@@ -44,7 +44,9 @@ on:
       - 'app/Services/RadiumBox/RadiumBoxStatutoryReceipt*.php'
       - 'database/migrations/*radiumbox_statutory_receipt*'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php'
+      - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublishAllowlistTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php'
+      - 'tests/Unit/RadiumBox/RadiumBoxStatutoryReceiptPublicationPolicyTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationMigrationTest.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
   push:
@@ -90,7 +92,9 @@ on:
       - 'app/Services/RadiumBox/RadiumBoxStatutoryReceipt*.php'
       - 'database/migrations/*radiumbox_statutory_receipt*'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php'
+      - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublishAllowlistTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php'
+      - 'tests/Unit/RadiumBox/RadiumBoxStatutoryReceiptPublicationPolicyTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationMigrationTest.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
 
@@ -150,5 +154,7 @@ jobs:
         run: |
           ./vendor/bin/phpunit \
             tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php \
+            tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublishAllowlistTest.php \
             tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php \
-            tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationMigrationTest.php
+            tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationMigrationTest.php \
+            tests/Unit/RadiumBox/RadiumBoxStatutoryReceiptPublicationPolicyTest.php
