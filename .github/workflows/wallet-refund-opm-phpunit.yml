@@ -1,0 +1,41 @@
+name: Wallet refund OPM PHPUnit
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  wallet-refund-opm-phpunit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHPUnit (wallet refund OPM and allocation OPM focused bundle)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Feature/ReturnExchange/OnlineReturnRefundAllocationOpmConversionTest.php \
+            tests/Feature/ReturnExchange/OnlineReturnRefundAllocationOpmSafetyTest.php \
+            tests/Feature/ReturnExchange/OnlineReturnRefundAllocationOpmReconciliationTest.php \
+            tests/Feature/Refunds/WalletRefundOpmGateOffRegressionTest.php \
+            tests/Feature/Refunds/WalletRefundOpmConversionTest.php \
+            tests/Feature/WalletRefundExecutionTest.php \
+            tests/Unit/WalletRefundOpmConversion/LegacySpokeWalletRefundOpmClientTest.php \
+            tests/Feature/CentralWallet/DeskFirstWalletRefundCompletionGateTest.php \
+            tests/Feature/CentralWallet/DeskFirstWalletRefundFailureInjectionTest.php \
+            tests/Feature/ReturnExchange/ReturnExchangeAllocationDeskAuthoritativeWalletCreditTest.php
