@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.53 — 2026-10-31 — INV-0767698 B2C→B2B buyer remediation (PR #100)
+
+- **Statutory remediation:** Single-invoice controlled B2C→B2B buyer correction for **INV-0767698** (statutory id **16507**) via **`desk:remediate-inv-0767698-b2b-buyer`** and **`Inv0767698B2bBuyerRemediation`**. Dry-run by default; **`--execute`** requires explicit operator **`--actor`** (not the prompt id). Uses **`DB::table`** updates under row locks and immutable **`statutory_invoice_remediation_records`** audit rows; does **not** weaken global Eloquent issued-invoice immutability for other invoices.
+- **Migrations:** **`2026_10_31_170000_create_statutory_invoice_remediation_records_table.php`** (append-only remediation audit table).
+- **Tests:** **`Inv0767698B2bBuyerRemediationTest`** (10 cases).
+- **Production notes:** Deploy only; **no automatic invoice correction or IRP submission**. After deploy: migrate → dry-run → Owner-approved **`--execute`** → PDF regen → e-invoice re-eval / **`desk:einvoice-backfill --invoice=16507 --recover --generate`** as applicable. **`STATUTORY_EINVOICE_WORKER_MAY_MINT=false`** on prod today blocks **automatic outbox/worker** GENERATE only; **operator backfill GENERATE** uses **`generateAfterConfirmedAbsent`** and does **not** require worker_may_mint.
+- **Rollback target:** **`v4.1.52`** / **`1f11540acd54f381ebb95bf965e2f33f35ed76ce`** (redeploy prior tag/build). Remediation table is additive; executed buyer correction is **not** rolled back by redeploy alone.
+- **Source:** Merged **PR #100** @ **`a3d0207b`** on **`main`** (merge **`1ae38f09`**).
+- ChatGPT prompts **P-31-108**, **P-31-109**, **P-31-110**–**P-31-113**; Cursor ledger **`1765d9f8-5622-40fa-9c17-d5770d8ce685`**.
+
 ## 4.1.51 — Unreleased — Statutory coverage reconciliation (PR #95)
 
 - **Statutory coverage reconciliation:** Read-only CLI **`desk:reconcile-statutory-coverage`** with **`StatutoryCoverage/*`** services, **`config/statutory_coverage.php`**, and cross-spoke obligation list integration for **`rdservice_in`** and **`radiumbox_com`** (HTTP **`GET /api/integrations/v1/statutory-obligations`** via existing **`order_lookup.spokes.*`** credentials). Classifies desk vs source populations (issued, pending, ineligible, sync-unknown, and related buckets). **No `--apply` flag**; service always reports **`dryRun: true`**. Does **not** mint invoices, mutate commerce, ingest channel orders, or call IRP.
