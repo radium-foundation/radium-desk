@@ -27,6 +27,8 @@ grep -q 'delete-unexpected' "$SAFETY_LIB" || fail "must require explicit delete-
 grep -q 'deploy-backups' "$SAFETY_LIB" || fail "must persist deletion inventory under deploy-backups"
 grep -q 'storage/app/backups/deploy-rsync-safety' "$SAFETY_LIB" || fail "must back up deletions remotely before sync"
 grep -q 'deploy_rsync_init_dry_run_command' "$SAFETY_LIB" || fail "must centralize dry-run rsync argv construction"
+grep -q 'deploy_rsync_run_application_dry_run_on_kvm_linux' "$SAFETY_LIB" \
+    || fail "must run application deletion dry-run on KVM GNU rsync when operator is macOS"
 grep -q 'deploy_rsync_assert_dry_run_command' "$SAFETY_LIB" || fail "must assert dry-run rsync argv before execution"
 grep -q '\-\-dry-run' "$SAFETY_LIB" || fail "must include --dry-run in safety library"
 pass "deploy rsync deletion safety integration present"

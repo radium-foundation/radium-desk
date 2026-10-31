@@ -163,8 +163,9 @@ test_g_local_dry_run_is_non_mutating() {
     [[ -f "${dest}/app/Extra/OnlyOnDest.php" ]] \
         || fail "TEST G dry-run must not delete destination-only files"
 
-    echo "$log" | grep -Fq 'app/Extra/OnlyOnDest.php' \
+    grep -Fq 'app/Extra/OnlyOnDest.php' "$log" \
         || grep -Fq '*deleting app/Extra/OnlyOnDest.php' "$log" \
+        || grep -Fq '*deleting   app/Extra/OnlyOnDest.php' "$log" \
         || fail "TEST G dry-run log should mention would-delete path"
 
     pass "TEST G local dry-run is non-mutating"

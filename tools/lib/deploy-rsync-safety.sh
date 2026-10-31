@@ -145,6 +145,10 @@ public/build/
 docs/ca-evidence/
 --exclude
 assets/
+--filter
+P vendor/**
+--filter
+P node_modules/**
 EOF
 }
 
@@ -230,9 +234,108 @@ deploy_rsync_classify_deletion_path() {
     printf 'unexpected'
 }
 
+# macOS ships openrsync, which can exit 23 on --dry-run --delete to a remote tree even when
+# no *deleting lines are emitted (attribute simulation against production). Linux GNU rsync on
+# the KVM is used for the application deletion inventory in that case (staging under /tmp only).
+deploy_rsync_operator_is_darwin() {
+    [[ "$(uname -s)" == "Darwin" ]]
+}
+
+deploy_rsync_use_kvm_linux_application_dry_run() {
+    if [[ "${DEPLOY_RSYNC_FORCE_LOCAL_DRY_RUN:-0}" == "1" ]]; then
+        return 1
+    fi
+
+    if ! deploy_rsync_operator_is_darwin; then
+        return 1
+    fi
+
+    if [[ "${DEPLOY_MODE:-}" != "kvm" ]]; then
+        return 1
+    fi
+
+    if [[ -z "${SSH_HOST:-}" || -z "${REMOTE_PROJECT:-}" ]]; then
+        return 1
+    fi
+
+    if ! declare -f ssh_exec >/dev/null 2>&1; then
+        return 1
+    fi
+
+    return 0
+}
+
+deploy_rsync_stage_release_candidate_on_remote() {
+    local staging="$1"
+    local -a stage_cmd=()
+
+    ssh_exec "rm -rf '${staging}' && mkdir -p '${staging}'"
+
+    stage_cmd=(rsync -avz)
+    stage_cmd+=(-e "$(deploy_kvm_rsync_ssh_command)")
+
+    while IFS= read -r filter_line; do
+        [[ -z "$filter_line" ]] && continue
+        stage_cmd+=("$filter_line")
+    done < <(deploy_kvm_rsync_application_filters)
+
+    stage_cmd+=("${PROJECT_ROOT}/" "${SSH_USER}@${SSH_HOST}:${staging}/")
+
+    deploy_rsync_exec "${stage_cmd[@]}"
+}
+
+deploy_rsync_run_application_dry_run_on_kvm_linux() {
+    local output_file="$1"
+    local staging stamp
+    local -a filter_args=() remote_cmd=()
+    local staging_cleanup_done=0
+
+    stamp="${DEPLOY_RSYNC_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    staging="/tmp/desk-rsync-dryrun-${stamp}"
+
+    deploy_rsync_remove_remote_staging() {
+        if [[ "$staging_cleanup_done" -eq 1 ]]; then
+            return 0
+        fi
+        ssh_exec "rm -rf '${staging}'" >/dev/null 2>&1 \
+            || print_warning "Could not remove KVM rsync dry-run staging: ${staging}"
+        staging_cleanup_done=1
+    }
+
+    trap deploy_rsync_remove_remote_staging RETURN
+
+    print_warning "Application deletion dry-run: staging candidate on KVM and running GNU rsync --dry-run (${staging})..."
+
+    if ! deploy_rsync_stage_release_candidate_on_remote "$staging"; then
+        return 1
+    fi
+
+    while IFS= read -r filter_line; do
+        [[ -z "$filter_line" ]] && continue
+        filter_args+=("$filter_line")
+    done < <(deploy_kvm_rsync_application_filters)
+
+    remote_cmd=(rsync -avzi --dry-run --delete)
+    for arg in "${filter_args[@]}"; do
+        remote_cmd+=("$arg")
+    done
+    remote_cmd+=("${staging}/" "${REMOTE_PROJECT}/")
+
+    if ! ssh_exec "${remote_cmd[@]}" >"$output_file" 2>&1; then
+        return 1
+    fi
+
+    return 0
+}
+
 deploy_rsync_run_application_dry_run() {
     local output_file="$1"
     local -a rsync_cmd=()
+
+    if deploy_rsync_use_kvm_linux_application_dry_run; then
+        deploy_rsync_run_application_dry_run_on_kvm_linux "$output_file"
+        return $?
+    fi
 
     deploy_rsync_init_dry_run_command
     rsync_cmd=("${DEPLOY_RSYNC_DRY_RUN_BASE[@]}")
