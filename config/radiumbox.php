@@ -84,4 +84,14 @@ return [
         'schedule_limit' => (int) env('RADIUMBOX_HANDOFF_RECONCILIATION_LIMIT', 25),
         'schedule_interval_minutes' => (int) env('RADIUMBOX_HANDOFF_RECONCILIATION_INTERVAL_MINUTES', 15),
     ],
+
+    /*
+    | Desk → RadiumBox statutory invoice receipt (P-31-78). Default disabled until Owner activation.
+    */
+    'statutory_receipt_publish' => [
+        'enabled' => filter_var(env('RADIUMBOX_STATUTORY_RECEIPT_PUBLISH_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'schedule_on_issue' => filter_var(env('RADIUMBOX_STATUTORY_RECEIPT_SCHEDULE_ON_ISSUE', true), FILTER_VALIDATE_BOOLEAN),
+        'connect_timeout_seconds' => (int) env('RADIUMBOX_STATUTORY_RECEIPT_CONNECT_TIMEOUT_SECONDS', 3),
+        'timeout_seconds' => (int) env('RADIUMBOX_STATUTORY_RECEIPT_TIMEOUT_SECONDS', 15),
+    ],
 ];

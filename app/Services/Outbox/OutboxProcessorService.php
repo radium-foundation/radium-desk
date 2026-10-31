@@ -3,6 +3,7 @@
 namespace App\Services\Outbox;
 
 use App\Enums\OutboxEventStatus;
+use App\Enums\RadiumBox\RadiumBoxStatutoryReceiptPublicationStatus;
 use App\Enums\RefundStatutoryAdjustmentStatus;
 use App\Exceptions\Refunds\RefundStatutoryAdjustmentPermanentFailureException;
 use App\Exceptions\Refunds\RefundStatutoryAdjustmentRetryableException;
@@ -10,6 +11,7 @@ use App\Models\BonvoiceWebhookLog;
 use App\Models\IncomingEmailMessage;
 use App\Models\InteraktWebhookLog;
 use App\Models\OutboxEvent;
+use App\Models\RadiumBoxStatutoryReceiptPublication;
 use App\Models\RefundStatutoryAdjustment;
 use App\Services\Bonvoice\BonvoiceIncomingCallLatency;
 use App\Services\Bonvoice\BonvoiceWebhookOutboxWriter;
@@ -32,6 +34,10 @@ use App\Services\Refunds\RefundStatutoryAdjustmentProcessor;
 use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
 use App\Services\StatutoryInvoice\EInvoiceProcessor;
 use App\Services\StatutoryInvoice\EInvoiceRecoveryRequiredException;
+use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationOutboxWriter;
+use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationPermanentFailureException;
+use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationProcessor;
+use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationRetryableException;
 use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceMintOutboxWriter;
 use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceMintProcessor;
 use App\Services\StatutoryInvoice\ServiceStatutoryInvoicePermanentFailureException;
@@ -60,6 +66,7 @@ class OutboxProcessorService
         private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
         private readonly EInvoiceProcessor $einvoiceProcessor,
         private readonly ServiceStatutoryInvoiceMintProcessor $serviceStatutoryInvoiceMintProcessor,
+        private readonly RadiumBoxStatutoryReceiptPublicationProcessor $radiumBoxStatutoryReceiptPublicationProcessor,
         private readonly RefundStatutoryAdjustmentProcessor $refundStatutoryAdjustmentProcessor,
         private readonly HardwareFulfilmentCallbackProcessor $hardwareFulfilmentCallbackProcessor,
     ) {}
@@ -206,6 +213,7 @@ class OutboxProcessorService
             IncomingEmailOutboxWriter::EVENT_TYPE => $this->dispatchIncomingEmailProcessing($event),
             EInvoiceOutboxWriter::EVENT_TYPE => $this->einvoiceProcessor->process($event),
             ServiceStatutoryInvoiceMintOutboxWriter::EVENT_TYPE => $this->serviceStatutoryInvoiceMintProcessor->process($event),
+            RadiumBoxStatutoryReceiptPublicationOutboxWriter::EVENT_TYPE => $this->radiumBoxStatutoryReceiptPublicationProcessor->process($event),
             RefundStatutoryAdjustmentOutboxWriter::EVENT_TYPE => $this->refundStatutoryAdjustmentProcessor->process($event),
             HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE => $this->hardwareFulfilmentCallbackProcessor->process($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
@@ -343,10 +351,31 @@ class OutboxProcessorService
 
         if ($exception instanceof HardwareFulfilmentCallbackNonRetryableException
             || $exception instanceof ServiceStatutoryInvoicePermanentFailureException
+            || $exception instanceof RadiumBoxStatutoryReceiptPublicationPermanentFailureException
             || $exception instanceof RefundStatutoryAdjustmentPermanentFailureException) {
             $this->markRefundStatutoryAdjustmentTerminalFailure($event, $message, manual: true);
             $event->update([
                 'status' => OutboxEventStatus::Failed,
+                'last_error' => $message,
+            ]);
+
+            return;
+        }
+
+        if ($exception instanceof RadiumBoxStatutoryReceiptPublicationRetryableException) {
+            if ($attempts >= self::MAX_ATTEMPTS) {
+                $this->markRadiumBoxStatutoryReceiptRetryExhausted($event, $message);
+                $event->update([
+                    'status' => OutboxEventStatus::Failed,
+                    'last_error' => $message,
+                ]);
+
+                return;
+            }
+
+            $event->update([
+                'status' => OutboxEventStatus::Pending,
+                'available_at' => $this->nextAvailableAt(max(1, $attempts)),
                 'last_error' => $message,
             ]);
 
@@ -428,6 +457,29 @@ class OutboxProcessorService
                     ? RefundStatutoryAdjustmentStatus::FailedManual
                     : RefundStatutoryAdjustmentStatus::FailedRetryable,
                 'failure_reason' => $message,
+            ]);
+    }
+
+    private function markRadiumBoxStatutoryReceiptRetryExhausted(OutboxEvent $event, string $message): void
+    {
+        if ($event->event_type !== RadiumBoxStatutoryReceiptPublicationOutboxWriter::EVENT_TYPE) {
+            return;
+        }
+
+        $invoiceId = (int) (($event->payload ?? [])['statutory_invoice_id'] ?? 0);
+        if ($invoiceId <= 0) {
+            return;
+        }
+
+        RadiumBoxStatutoryReceiptPublication::query()
+            ->where('statutory_invoice_id', $invoiceId)
+            ->whereNotIn('status', [
+                RadiumBoxStatutoryReceiptPublicationStatus::Delivered->value,
+                RadiumBoxStatutoryReceiptPublicationStatus::DuplicateDelivered->value,
+            ])
+            ->update([
+                'status' => RadiumBoxStatutoryReceiptPublicationStatus::FailedPermanent,
+                'last_error' => mb_substr($message, 0, 512),
             ]);
     }
 }

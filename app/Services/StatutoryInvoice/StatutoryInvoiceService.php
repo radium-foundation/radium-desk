@@ -23,6 +23,7 @@ use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
 use App\Services\HardwareFulfilment\HardwareCommerceStatutoryInvoiceGuard;
+use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationOutboxWriter;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
 use App\Support\BusinessOrderId;
@@ -65,6 +66,7 @@ class StatutoryInvoiceService
         private readonly StatutorySupplyKindResolver $supplyKinds,
         private readonly ServiceStatutoryGstB2bClassification $serviceGstClassification,
         private readonly ServiceStatutoryAutoIssuancePolicy $autoIssuancePolicy,
+        private readonly RadiumBoxStatutoryReceiptPublicationOutboxWriter $radiumBoxStatutoryReceiptPublicationOutbox,
     ) {}
 
     public function findBySource(
@@ -773,6 +775,8 @@ class StatutoryInvoiceService
         if ($decision->eligible) {
             $this->einvoiceOutbox->write($invoice);
         }
+
+        $this->radiumBoxStatutoryReceiptPublicationOutbox->enqueue($invoice->fresh() ?? $invoice);
     }
 
     private function applyServiceGstSplit(StatutoryInvoiceMintRequest $request): StatutoryInvoiceMintRequest
