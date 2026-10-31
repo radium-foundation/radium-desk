@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.54 — 2026-11-01 — INV-0767698 deploy bundle + KVM rsync deletion safety (PR #101)
+
+- **Includes 4.1.53 application code** (PR #100 INV-0767698 B2C→B2B remediation) plus **PR #101** KVM deploy tooling: **`P vendor/**`** / **`P node_modules/**`** rsync protect filters; macOS operators run application deletion dry-run on **KVM GNU rsync** via **`/tmp/desk-rsync-dryrun-*`** staging with cleanup trap; **`docs/runbooks/kvm-deploy-linux-operator.md`**. **Do not deploy tag `v4.1.53` without this fix.**
+- **Migrations:** **`2026_10_31_170000_create_statutory_invoice_remediation_records_table.php`** (from 4.1.53; apply on first deploy of this line).
+- **Production notes:** Linux KVM operator checkout recommended for **live GNU rsync**. Post-deploy: dry-run remediation → Owner-approved **`--execute`** → **`desk:einvoice-backfill --invoice=16507 --recover --generate`**. **`STATUTORY_EINVOICE_WORKER_MAY_MINT=false`** blocks automatic worker mint only.
+- **Rollback target:** **`v4.1.52`** / **`1f11540a`** (app + RIP **`RIP-311026-2357-radium-desk-pre-v4153-inv0767698-1f11540`**, backup **`20261031T182616Z`** or successor). Executed buyer remediation is **not** reversed by redeploy alone.
+- **Source:** **`main`** @ merge **`56065a74`** (PR **#101** on **`0b9a1486`** / **`v4.1.53`**).
+- ChatGPT prompts **P-01-01**–**P-01-03**; Cursor ledger **`1765d9f8-5622-40fa-9c17-d5770d8ce685`**.
+
 ## 4.1.53 — 2026-10-31 — INV-0767698 B2C→B2B buyer remediation (PR #100)
 
 - **Statutory remediation:** Single-invoice controlled B2C→B2B buyer correction for **INV-0767698** (statutory id **16507**) via **`desk:remediate-inv-0767698-b2b-buyer`** and **`Inv0767698B2bBuyerRemediation`**. Dry-run by default; **`--execute`** requires explicit operator **`--actor`** (not the prompt id). Uses **`DB::table`** updates under row locks and immutable **`statutory_invoice_remediation_records`** audit rows; does **not** weaken global Eloquent issued-invoice immutability for other invoices.
