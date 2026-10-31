@@ -108,6 +108,7 @@ class Inv0767698B2bBuyerRemediationTest extends TestCase
         $this->assertSame(1, AuditLog::query()
             ->where('event', 'statutory_invoice.b2b_buyer_remediation')
             ->where('auditable_id', $invoice->id)
+            ->where('user_agent', 'like', '%actor:test-actor%')
             ->count());
 
         $second = $this->remediation->execute($invoice->id, $invoice->invoice_number, 'test-actor');
@@ -158,6 +159,24 @@ class Inv0767698B2bBuyerRemediationTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $other->update(['buyer_gstin' => '07AAAAA0000A1Z5']);
+    }
+
+    public function test_execute_rejects_prompt_id_as_actor(): void
+    {
+        $invoice = $this->seedTargetInvoice();
+
+        $this->expectException(\RuntimeException::class);
+        $this->remediation->execute($invoice->id, $invoice->invoice_number, Inv0767698B2bBuyerRemediation::PROMPT_ID);
+    }
+
+    public function test_command_execute_requires_operator_actor(): void
+    {
+        $this->seedTargetInvoice();
+
+        $this->artisan('desk:remediate-inv-0767698-b2b-buyer', [
+            'invoice_id' => (string) Inv0767698B2bBuyerRemediation::TARGET_INVOICE_ID,
+            '--execute' => true,
+        ])->assertFailed();
     }
 
     public function test_command_dry_run_by_default(): void

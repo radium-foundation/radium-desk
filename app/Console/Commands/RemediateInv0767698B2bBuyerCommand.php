@@ -12,7 +12,7 @@ use RuntimeException;
     {invoice_id : Statutory invoice id (must be 16507)}
     {--invoice-number=INV-0767698 : Expected invoice number guard}
     {--execute : Apply the remediation after validation (default is dry-run)}
-    {--actor=P-31-108 : Operator or prompt id recorded in audit trail}')]
+    {--actor= : Operator identity (required with --execute)}')]
 #[Description('Owner-authorized B2C→B2B buyer remediation for INV-0767698 (id 16507) only. Dry-run by default.')]
 class RemediateInv0767698B2bBuyerCommand extends Command
 {
@@ -21,7 +21,16 @@ class RemediateInv0767698B2bBuyerCommand extends Command
         $invoiceId = (int) $this->argument('invoice_id');
         $invoiceNumber = trim((string) $this->option('invoice-number'));
         $actor = trim((string) $this->option('actor'));
-        $actor = $actor !== '' ? $actor : Inv0767698B2bBuyerRemediation::PROMPT_ID;
+
+        if ((bool) $this->option('execute')) {
+            try {
+                Inv0767698B2bBuyerRemediation::assertExecuteActor($actor);
+            } catch (RuntimeException $exception) {
+                $this->error($exception->getMessage());
+
+                return self::FAILURE;
+            }
+        }
 
         try {
             $report = (bool) $this->option('execute')

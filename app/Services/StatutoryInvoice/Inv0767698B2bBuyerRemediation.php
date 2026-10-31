@@ -6,6 +6,7 @@ use App\Enums\EInvoiceRecordStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceStatus;
 use App\Models\AuditLog;
+use App\Models\EInvoiceRecord;
 use App\Models\InventorySale;
 use App\Models\StatutoryInvoice;
 use App\Models\StatutoryInvoiceRemediationRecord;
@@ -105,6 +106,7 @@ final class Inv0767698B2bBuyerRemediation
     public function execute(int $invoiceId, string $invoiceNumber, string $actor): array
     {
         $this->assertTargetInvoiceOnly($invoiceId, $invoiceNumber);
+        self::assertExecuteActor($actor);
 
         $existing = $this->existingRecord();
         if ($existing !== null) {
@@ -118,27 +120,60 @@ final class Inv0767698B2bBuyerRemediation
             ];
         }
 
-        $invoice = $this->loadAndValidateInvoice($invoiceId, $invoiceNumber);
-        $sale = $this->loadAndValidateSale($invoice);
-        $before = $this->snapshot($invoice, $sale);
-        $after = $this->proposedAfter($before);
-
-        if (! $this->financialIdentityUnchanged($before, $after)) {
-            throw new RuntimeException('Proposed remediation would change financial identity.');
-        }
-
-        return DB::transaction(function () use ($invoice, $sale, $before, $after, $actor): array {
-            if ($this->existingRecord() !== null) {
+        return DB::transaction(function () use ($invoiceId, $invoiceNumber, $actor): array {
+            $existingLocked = StatutoryInvoiceRemediationRecord::query()
+                ->where('remediation_key', self::REMEDIATION_KEY)
+                ->lockForUpdate()
+                ->first();
+            if ($existingLocked !== null) {
                 return [
                     'dry_run' => false,
                     'applied' => false,
                     'idempotent' => true,
                     'already_applied' => true,
                     'remediation_key' => self::REMEDIATION_KEY,
+                    'applied_at' => $existingLocked->applied_at?->toIso8601String(),
                 ];
             }
 
-            DB::table('statutory_invoices')
+            $invoice = StatutoryInvoice::query()
+                ->with(['items'])
+                ->whereKey($invoiceId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($invoice === null) {
+                throw new RuntimeException('Statutory invoice not found: '.$invoiceId);
+            }
+
+            $eInvoiceRecord = EInvoiceRecord::query()
+                ->where('invoice_id', $invoice->id)
+                ->lockForUpdate()
+                ->first();
+
+            $this->assertRemediationPreconditions($invoice, $invoiceNumber, $eInvoiceRecord);
+
+            $sale = InventorySale::query()
+                ->whereKey(self::EXPECTED_INVENTORY_SALE_ID)
+                ->lockForUpdate()
+                ->first();
+
+            if ($sale === null) {
+                throw new RuntimeException('Inventory sale '.self::EXPECTED_INVENTORY_SALE_ID.' not found.');
+            }
+
+            if ((int) $sale->statutory_invoice_id !== (int) $invoice->id) {
+                throw new RuntimeException('Sale statutory_invoice_id mismatch.');
+            }
+
+            $before = $this->snapshot($invoice, $sale);
+            $after = $this->proposedAfter($before);
+
+            if (! $this->financialIdentityUnchanged($before, $after)) {
+                throw new RuntimeException('Proposed remediation would change financial identity.');
+            }
+
+            $invoiceRows = DB::table('statutory_invoices')
                 ->where('id', $invoice->id)
                 ->update([
                     'buyer_gstin' => self::BUYER_GSTIN,
@@ -146,13 +181,21 @@ final class Inv0767698B2bBuyerRemediation
                     'updated_at' => now(),
                 ]);
 
-            DB::table('inventory_sales')
+            if ($invoiceRows !== 1) {
+                throw new RuntimeException('Expected exactly one statutory invoice row to update.');
+            }
+
+            $saleRows = DB::table('inventory_sales')
                 ->where('id', $sale->id)
                 ->update([
                     'buyer_gstin' => self::BUYER_GSTIN,
                     'buyer_name' => self::BUYER_LEGAL_NAME,
                     'updated_at' => now(),
                 ]);
+
+            if ($saleRows !== 1) {
+                throw new RuntimeException('Expected exactly one inventory sale row to update.');
+            }
 
             $appliedAt = now();
 
@@ -176,7 +219,7 @@ final class Inv0767698B2bBuyerRemediation
                 'old_values' => $before,
                 'new_values' => $after,
                 'ip_address' => null,
-                'user_agent' => 'artisan:'.self::PROMPT_ID,
+                'user_agent' => 'artisan:'.self::PROMPT_ID.':actor:'.$actor,
             ]);
 
             return [
@@ -190,6 +233,18 @@ final class Inv0767698B2bBuyerRemediation
                 'after' => $after,
             ];
         });
+    }
+
+    public static function assertExecuteActor(string $actor): void
+    {
+        $actor = trim($actor);
+        if ($actor === '') {
+            throw new RuntimeException('Execute requires a non-empty operator identity (--actor).');
+        }
+
+        if ($actor === self::PROMPT_ID || $actor === 'P-31-108') {
+            throw new RuntimeException('Execute requires an operator identity; do not use the prompt id as actor.');
+        }
     }
 
     private function assertTargetInvoiceOnly(int $invoiceId, string $invoiceNumber): void
@@ -224,8 +279,18 @@ final class Inv0767698B2bBuyerRemediation
             throw new RuntimeException('Statutory invoice not found: '.$invoiceId);
         }
 
+        $this->assertRemediationPreconditions($invoice, $invoiceNumber, $invoice->eInvoiceRecord);
+
+        return $invoice;
+    }
+
+    private function assertRemediationPreconditions(
+        StatutoryInvoice $invoice,
+        string $invoiceNumber,
+        ?EInvoiceRecord $record,
+    ): void {
         if (trim((string) $invoice->invoice_number) !== $invoiceNumber) {
-            throw new RuntimeException('Invoice number mismatch for id '.$invoiceId.'.');
+            throw new RuntimeException('Invoice number mismatch for id '.$invoice->id.'.');
         }
 
         if ($invoice->status !== StatutoryInvoiceStatus::Issued) {
@@ -258,7 +323,6 @@ final class Inv0767698B2bBuyerRemediation
             throw new RuntimeException('Unexpected pre-remediation buyer name.');
         }
 
-        $record = $invoice->eInvoiceRecord;
         if (EInvoiceIrnGuard::recordHasIssuedIrn($record)) {
             throw new RuntimeException('Invoice already has an IRN.');
         }
@@ -272,8 +336,6 @@ final class Inv0767698B2bBuyerRemediation
         }
 
         $this->assertFinancialSnapshot($invoice);
-
-        return $invoice;
     }
 
     private function loadAndValidateSale(StatutoryInvoice $invoice): InventorySale
