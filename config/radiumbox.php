@@ -91,6 +91,9 @@ return [
     'statutory_receipt_publish' => [
         'enabled' => filter_var(env('RADIUMBOX_STATUTORY_RECEIPT_PUBLISH_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'schedule_on_issue' => filter_var(env('RADIUMBOX_STATUTORY_RECEIPT_SCHEDULE_ON_ISSUE', true), FILTER_VALIDATE_BOOLEAN),
+        'allowed_invoice_ids' => \App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationPolicy::parseAllowedInvoiceIdsFromEnv(
+            env('RADIUMBOX_STATUTORY_RECEIPT_PUBLISH_ALLOWED_INVOICE_IDS'),
+        ),
         'connect_timeout_seconds' => (int) env('RADIUMBOX_STATUTORY_RECEIPT_CONNECT_TIMEOUT_SECONDS', 3),
         'timeout_seconds' => (int) env('RADIUMBOX_STATUTORY_RECEIPT_TIMEOUT_SECONDS', 15),
     ],
