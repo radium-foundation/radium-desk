@@ -45,6 +45,7 @@ on:
       - 'database/migrations/*radiumbox_statutory_receipt*'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php'
+      - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationMigrationTest.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
   push:
     branches:
@@ -90,6 +91,7 @@ on:
       - 'database/migrations/*radiumbox_statutory_receipt*'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php'
+      - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationMigrationTest.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
 
 permissions:
@@ -148,4 +150,5 @@ jobs:
         run: |
           ./vendor/bin/phpunit \
             tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php \
-            tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php
+            tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php \
+            tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationMigrationTest.php

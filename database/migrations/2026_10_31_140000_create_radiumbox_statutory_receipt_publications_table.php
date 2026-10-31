@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('radiumbox_statutory_receipt_publications', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('statutory_invoice_id')->unique();
-            $table->string('http_idempotency_key', 191)->unique();
+            $table->unsignedBigInteger('statutory_invoice_id')->unique('rbox_stat_rcpt_pub_inv_uq');
+            $table->string('http_idempotency_key', 191)->unique('rbox_stat_rcpt_pub_idem_uq');
             $table->string('status', 32);
             $table->string('box_receipt_id', 26)->nullable();
             $table->unsignedSmallInteger('last_http_status')->nullable();
@@ -23,7 +23,7 @@ return new class extends Migration
             $table->unsignedBigInteger('last_outbox_event_id')->nullable();
             $table->timestamps();
 
-            $table->foreign('statutory_invoice_id')
+            $table->foreign('statutory_invoice_id', 'rbox_stat_rcpt_pub_inv_fk')
                 ->references('id')
                 ->on('statutory_invoices')
                 ->cascadeOnDelete();
