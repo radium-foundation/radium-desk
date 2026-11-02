@@ -1,0 +1,53 @@
+{
+    "status": 200,
+    "spec_version": "1.0",
+    "website_id": "radiumbox.com",
+    "message": "OK",
+    "data": {
+        "correlation": {
+            "rdorderid": "RB1321",
+            "customer_order_id": "RB1321",
+            "cashfree_order_id": "RB1321",
+            "cashfree_payment_id": null,
+            "orders_id": null,
+            "ordercode": null
+        },
+        "rd_order": {
+            "id": 3512905,
+            "rdorderid": "RB1321",
+            "order_id": "RB1321",
+            "cashfree_order_id": "RB1321",
+            "userid": 551444,
+            "website": "radiumbox.com",
+            "product_name": "MSO1300 E3-L1 RD",
+            "rd_service_name": "1 Year Unlimited",
+            "amc_service_name": "1 Year Standard",
+            "serial_no": null,
+            "gst_no": "23AUPPV8287M2ZF",
+            "status": "Pending",
+            "payment_status": null,
+            "paid_amount": "717",
+            "created_at": "2026-11-01 16:38:57",
+            "userdetails": "{\"name\":\"Piyush verma\",\"email\":\"vermapiyush360@gmail.com\",\"phone\":\"9039576643\",\"gst_no\":\"23AUPPV8287M2ZF\",\"address\":\"Indra Gandhi choraha freeganj Ujjain\"}"
+        },
+        "order": null,
+        "snapshot": {
+            "rdorderid": "RB1321",
+            "customer_order_id": "RB1321",
+            "customer_user_id": 551444,
+            "orders_id": null,
+            "ordercode": null,
+            "customer_name": "Piyush verma",
+            "email": "vermapiyush360@gmail.com",
+            "phone": "9039576643",
+            "payment_confirmed": false,
+            "website": "radiumbox.com"
+        },
+        "service_commerce": {
+            "rdorderid": "RB1321",
+            "line_total": 717
+        },
+        "history": [],
+        "lines": []
+    }
+}
