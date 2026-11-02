@@ -42,12 +42,17 @@ on:
       - 'app/Enums/RadiumBox/RadiumBoxStatutoryReceiptPublicationStatus.php'
       - 'app/Models/RadiumBoxStatutoryReceiptPublication.php'
       - 'app/Services/RadiumBox/RadiumBoxStatutoryReceipt*.php'
+      - 'app/Services/RadiumBox/RadiumBoxWalletRefundReversalClient.php'
+      - 'app/Services/Refunds/DeskFirstWalletRefundRevokeCoordinator.php'
       - 'database/migrations/*radiumbox_statutory_receipt*'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublishAllowlistTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php'
       - 'tests/Unit/RadiumBox/RadiumBoxStatutoryReceiptPublicationPolicyTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationMigrationTest.php'
+      - 'tests/Unit/RadiumBox/RadiumBoxStatutoryInvoiceReceiptApiContractTest.php'
+      - 'tests/Unit/RadiumBox/RadiumBoxWalletRefundReversalClientTest.php'
+      - 'tests/Feature/CentralWallet/DeskFirstWalletRefundRevokeSpokeRoutingTest.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
   push:
     branches:
@@ -90,12 +95,17 @@ on:
       - 'app/Enums/RadiumBox/RadiumBoxStatutoryReceiptPublicationStatus.php'
       - 'app/Models/RadiumBoxStatutoryReceiptPublication.php'
       - 'app/Services/RadiumBox/RadiumBoxStatutoryReceipt*.php'
+      - 'app/Services/RadiumBox/RadiumBoxWalletRefundReversalClient.php'
+      - 'app/Services/Refunds/DeskFirstWalletRefundRevokeCoordinator.php'
       - 'database/migrations/*radiumbox_statutory_receipt*'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublishAllowlistTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php'
       - 'tests/Unit/RadiumBox/RadiumBoxStatutoryReceiptPublicationPolicyTest.php'
       - 'tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationMigrationTest.php'
+      - 'tests/Unit/RadiumBox/RadiumBoxStatutoryInvoiceReceiptApiContractTest.php'
+      - 'tests/Unit/RadiumBox/RadiumBoxWalletRefundReversalClientTest.php'
+      - 'tests/Feature/CentralWallet/DeskFirstWalletRefundRevokeSpokeRoutingTest.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
 
 permissions:
@@ -157,4 +167,12 @@ jobs:
             tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublishAllowlistTest.php \
             tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptRequeueAwaitingCommandTest.php \
             tests/Feature/RadiumBox/RadiumBoxStatutoryReceiptPublicationMigrationTest.php \
-            tests/Unit/RadiumBox/RadiumBoxStatutoryReceiptPublicationPolicyTest.php
+            tests/Unit/RadiumBox/RadiumBoxStatutoryReceiptPublicationPolicyTest.php \
+            tests/Unit/RadiumBox/RadiumBoxStatutoryInvoiceReceiptApiContractTest.php
+
+      - name: PHPUnit (RadiumBox wallet reversal + desk-first revoke routing)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Unit/RadiumBox/RadiumBoxWalletRefundReversalClientTest.php \
+            tests/Feature/CentralWallet/DeskFirstWalletRefundRevokeSpokeRoutingTest.php \
+            tests/Feature/CentralWallet/DeskFirstWalletRefundRevokeFlagOffRegressionTest.php

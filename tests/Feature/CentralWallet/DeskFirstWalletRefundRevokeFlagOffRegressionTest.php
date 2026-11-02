@@ -252,7 +252,7 @@ class DeskFirstWalletRefundRevokeFlagOffRegressionTest extends TestCase
 
     public function test_unsupported_order_family_blocked_for_desk_first_revoke_when_flag_off(): void
     {
-        [$ops, $refund, $entryId] = $this->seedClosedDeskFirstRefund('RDE318801', 'REF-FO-RBX', '75.00');
+        [$ops, $refund, $entryId] = $this->seedClosedDeskFirstRefund('RN318801', 'REF-FO-RN', '75.00');
         config(['central_wallet.wallet_refund.desk_first_enabled' => false]);
 
         $this->actingAs($ops)->post(route('refunds.revoke', $refund), [
