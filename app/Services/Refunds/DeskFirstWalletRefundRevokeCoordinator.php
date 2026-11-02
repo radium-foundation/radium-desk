@@ -4,6 +4,7 @@ namespace App\Services\Refunds;
 
 use App\CentralWallet\Application\CentralWalletRefundLedgerReversalService;
 use App\Models\RefundRequest;
+use App\Services\RadiumBox\RadiumBoxWalletRefundReversalClient;
 use App\Services\RdService\RdServiceInWalletRefundReversalClient;
 use App\Support\Money\WalletMoney;
 use App\Support\Refunds\DeskFirstWalletRefundSupport;
@@ -19,6 +20,7 @@ final class DeskFirstWalletRefundRevokeCoordinator
     public function __construct(
         private readonly CentralWalletRefundLedgerReversalService $ledgerReversals,
         private readonly RdServiceInWalletRefundReversalClient $rdServiceInReversalClient,
+        private readonly RadiumBoxWalletRefundReversalClient $radiumBoxReversalClient,
         private readonly WalletRefundDestinationResolver $destinations,
     ) {}
 
@@ -73,12 +75,6 @@ final class DeskFirstWalletRefundRevokeCoordinator
     {
         $this->assertDeskFirstRevokeEligible($refund);
 
-        if (! $this->rdServiceInReversalClient->isConfigured()) {
-            throw ValidationException::withMessages([
-                'refund' => 'rdservice.in wallet refund audit retirement is not configured.',
-            ]);
-        }
-
         $refund->loadMissing('order');
         $orderId = trim((string) ($refund->order?->order_id ?? ''));
         $amount = WalletMoney::normalize($refund->refund_amount ?? $refund->amount);
@@ -88,14 +84,51 @@ final class DeskFirstWalletRefundRevokeCoordinator
             ]);
         }
 
-        $this->rdServiceInReversalClient->reverseDeskAuthoritativeAudit(
-            deskRefundReference: (string) $refund->reference_no,
-            orderId: $orderId,
-            amount: $amount,
-            idempotencyKey: $idempotencyKey,
-            centralWalletLedgerCreditId: DeskFirstWalletRefundSupport::deskLedgerCreditIdFromExecution($refund),
-            customerEmail: $refund->order?->customer_email,
-        );
+        $deskRefundReference = (string) $refund->reference_no;
+        $ledgerCreditId = DeskFirstWalletRefundSupport::deskLedgerCreditIdFromExecution($refund);
+        $customerEmail = $refund->order?->customer_email;
+
+        if ($this->destinations->isRdServiceIn($orderId)) {
+            if (! $this->rdServiceInReversalClient->isConfigured()) {
+                throw ValidationException::withMessages([
+                    'refund' => 'rdservice.in wallet refund audit retirement is not configured.',
+                ]);
+            }
+
+            $this->rdServiceInReversalClient->reverseDeskAuthoritativeAudit(
+                deskRefundReference: $deskRefundReference,
+                orderId: $orderId,
+                amount: $amount,
+                idempotencyKey: $idempotencyKey,
+                centralWalletLedgerCreditId: $ledgerCreditId,
+                customerEmail: $customerEmail,
+            );
+
+            return;
+        }
+
+        if ($this->destinations->isRadiumBox($orderId)) {
+            if (! $this->radiumBoxReversalClient->isConfigured()) {
+                throw ValidationException::withMessages([
+                    'refund' => 'RadiumBox wallet refund audit retirement is not configured.',
+                ]);
+            }
+
+            $this->radiumBoxReversalClient->reverseDeskAuthoritativeAudit(
+                deskRefundReference: $deskRefundReference,
+                orderId: $orderId,
+                amount: $amount,
+                idempotencyKey: $idempotencyKey,
+                centralWalletLedgerCreditId: $ledgerCreditId,
+                customerEmail: $customerEmail,
+            );
+
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'refund' => 'Desk-first Central Wallet reversal is not wired for this order source.',
+        ]);
     }
 
     private function assertDeskFirstRevokeEligible(RefundRequest $refund): void
@@ -114,9 +147,9 @@ final class DeskFirstWalletRefundRevokeCoordinator
             ]);
         }
 
-        if (! $this->destinations->isRdServiceIn($orderId)) {
+        if (! $this->destinations->isRdServiceIn($orderId) && ! $this->destinations->isRadiumBox($orderId)) {
             throw ValidationException::withMessages([
-                'refund' => 'Desk-first Central Wallet reversal is only wired for rdservice.in orders in this release.',
+                'refund' => 'Desk-first Central Wallet reversal is only wired for rdservice.in and radiumbox.com orders in this release.',
             ]);
         }
     }

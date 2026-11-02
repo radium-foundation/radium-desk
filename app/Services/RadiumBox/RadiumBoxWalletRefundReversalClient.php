@@ -12,6 +12,10 @@ use Illuminate\Validation\ValidationException;
 
 class RadiumBoxWalletRefundReversalClient implements WalletRefundReversalClient
 {
+    public const SOURCE_SYSTEM = 'radium_desk';
+
+    public const CURRENCY = 'INR';
+
     public const REVERSAL_PATH = '/api/integrations/v1/wallet-refund-reversals';
 
     public function isConfigured(): bool
@@ -47,6 +51,82 @@ class RadiumBoxWalletRefundReversalClient implements WalletRefundReversalClient
             ]);
         }
 
+        $body = [
+            'source_system' => self::SOURCE_SYSTEM,
+            'desk_refund_reference' => (string) $refund->reference_no,
+            'order_id' => $orderId,
+            'amount' => $amount,
+            'currency' => self::CURRENCY,
+            'idempotency_key' => $idempotencyKey,
+        ];
+
+        $originalWalletTransactionId = $refund->effectiveTransactionId();
+        if ($originalWalletTransactionId !== null && $originalWalletTransactionId !== '') {
+            $body['original_wallet_transaction_id'] = $originalWalletTransactionId;
+        }
+
+        if (is_string($customerEmail) && trim($customerEmail) !== '') {
+            $body['customer_email'] = trim($customerEmail);
+        }
+
+        return $this->postReversal($baseUrl, $body, (string) $refund->reference_no, $amount);
+    }
+
+    /**
+     * Retire a desk-authoritative spoke audit row (no spendable local debit).
+     */
+    public function reverseDeskAuthoritativeAudit(
+        string $deskRefundReference,
+        string $orderId,
+        string $amount,
+        string $idempotencyKey,
+        ?int $centralWalletLedgerCreditId = null,
+        ?string $customerEmail = null,
+    ): array {
+        if (! $this->isConfigured()) {
+            throw ValidationException::withMessages([
+                'refund' => 'RadiumBox wallet refund audit retirement is not configured.',
+            ]);
+        }
+
+        $baseUrl = $this->baseUrl();
+        if ($baseUrl === null) {
+            throw ValidationException::withMessages([
+                'refund' => 'RadiumBox storefront base URL is not configured for wallet refund reversals.',
+            ]);
+        }
+
+        $body = [
+            'source_system' => self::SOURCE_SYSTEM,
+            'desk_refund_reference' => $deskRefundReference,
+            'order_id' => $orderId,
+            'amount' => $amount,
+            'currency' => self::CURRENCY,
+            'idempotency_key' => $idempotencyKey,
+            'central_wallet_authoritative' => true,
+        ];
+
+        if ($centralWalletLedgerCreditId !== null && $centralWalletLedgerCreditId > 0) {
+            $body['original_wallet_transaction_id'] = (string) $centralWalletLedgerCreditId;
+        }
+
+        if (is_string($customerEmail) && trim($customerEmail) !== '') {
+            $body['customer_email'] = trim($customerEmail);
+        }
+
+        return $this->postReversal($baseUrl, $body, $deskRefundReference, $amount);
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     * @return array{
+     *     wallet_reversal_reference: string,
+     *     wallet_reversal_transaction_id: string,
+     *     balance: string,
+     * }
+     */
+    private function postReversal(string $baseUrl, array $body, string $deskRefundReference, string $amount): array
+    {
         try {
             $request = Http::baseUrl($baseUrl)
                 ->acceptJson()
@@ -58,16 +138,6 @@ class RadiumBoxWalletRefundReversalClient implements WalletRefundReversalClient
             if ($host !== '') {
                 $request = $request->withHeaders(['Host' => $host]);
             }
-
-            $body = array_filter([
-                'desk_refund_reference' => (string) $refund->reference_no,
-                'order_id' => $orderId,
-                'amount' => $amount,
-                'currency' => 'INR',
-                'idempotency_key' => $idempotencyKey,
-                'original_wallet_transaction_id' => $refund->effectiveTransactionId(),
-                'customer_email' => $customerEmail,
-            ], fn ($value) => $value !== null && $value !== '');
 
             $response = $request->post(self::REVERSAL_PATH, $body);
 
@@ -88,32 +158,7 @@ class RadiumBoxWalletRefundReversalClient implements WalletRefundReversalClient
                 ]);
             }
 
-            $walletReference = data_get($payload, 'data.wallet_reversal_reference')
-                ?? data_get($payload, 'data.wallet_reference');
-            $walletTransactionId = data_get($payload, 'data.wallet_reversal_transaction_id')
-                ?? data_get($payload, 'data.wallet_transaction_id');
-            $debit = data_get($payload, 'data.debit');
-
-            if (! is_string($walletReference) || $walletReference === '' || ! is_numeric($walletTransactionId)) {
-                throw ValidationException::withMessages([
-                    'refund' => 'RadiumBox wallet reversal API did not return wallet debit details.',
-                ]);
-            }
-
-            if ($debit !== null) {
-                $normalizedDebit = WalletMoney::normalize($debit);
-                if ($normalizedDebit === null || bccomp($normalizedDebit, $amount, WalletMoney::SCALE) !== 0) {
-                    throw ValidationException::withMessages([
-                        'refund' => 'RadiumBox wallet reversal API did not return wallet debit details.',
-                    ]);
-                }
-            }
-
-            return [
-                'wallet_reversal_reference' => $walletReference,
-                'wallet_reversal_transaction_id' => (string) $walletTransactionId,
-                'balance' => (string) data_get($payload, 'data.balance', '0.00'),
-            ];
+            return $this->parseSuccessfulReversalResponse($payload, $deskRefundReference, $amount);
         } catch (ValidationException $exception) {
             throw $exception;
         } catch (ConnectionException|RequestException $exception) {
@@ -121,6 +166,92 @@ class RadiumBoxWalletRefundReversalClient implements WalletRefundReversalClient
                 'refund' => 'RadiumBox wallet reversal API is temporarily unavailable.',
             ]);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{
+     *     wallet_reversal_reference: string,
+     *     wallet_reversal_transaction_id: string,
+     *     balance: string,
+     * }
+     */
+    private function parseSuccessfulReversalResponse(
+        array $payload,
+        string $deskRefundReference,
+        string $amount,
+    ): array {
+        $data = data_get($payload, 'data');
+        if (! is_array($data)) {
+            throw ValidationException::withMessages([
+                'refund' => 'RadiumBox wallet reversal API did not return wallet debit details.',
+            ]);
+        }
+
+        $responseReference = data_get($data, 'desk_refund_reference');
+        if ($responseReference !== null && (string) $responseReference !== $deskRefundReference) {
+            throw ValidationException::withMessages([
+                'refund' => 'RadiumBox wallet reversal API did not return wallet debit details.',
+            ]);
+        }
+
+        $destination = data_get($data, 'destination');
+        $responseDebit = data_get($data, 'debit');
+        if ($responseDebit !== null && (string) $destination !== 'central_wallet') {
+            $normalizedDebit = WalletMoney::normalize($responseDebit);
+            if ($normalizedDebit === null || bccomp($normalizedDebit, $amount, WalletMoney::SCALE) !== 0) {
+                throw ValidationException::withMessages([
+                    'refund' => 'RadiumBox wallet reversal API did not return wallet debit details.',
+                ]);
+            }
+        }
+
+        $walletReference = $this->normalizeReference(data_get($data, 'wallet_reversal_reference')
+            ?? data_get($data, 'wallet_reference'));
+        $walletTransactionId = $this->normalizeTransactionId(data_get($data, 'wallet_reversal_transaction_id')
+            ?? data_get($data, 'wallet_transaction_id'));
+
+        if ($walletReference === null || $walletTransactionId === null) {
+            throw ValidationException::withMessages([
+                'refund' => 'RadiumBox wallet reversal API did not return wallet debit details.',
+            ]);
+        }
+
+        return [
+            'wallet_reversal_reference' => $walletReference,
+            'wallet_reversal_transaction_id' => $walletTransactionId,
+            'balance' => (string) data_get($data, 'balance', '0.00'),
+        ];
+    }
+
+    private function normalizeReference(mixed $value): ?string
+    {
+        if (is_int($value)) {
+            return $value > 0 ? (string) $value : null;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+
+            return $trimmed !== '' ? $trimmed : null;
+        }
+
+        return null;
+    }
+
+    private function normalizeTransactionId(mixed $value): ?string
+    {
+        if (is_int($value)) {
+            return $value > 0 ? (string) $value : null;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+
+            return $trimmed !== '' ? $trimmed : null;
+        }
+
+        return null;
     }
 
     private function token(): string
