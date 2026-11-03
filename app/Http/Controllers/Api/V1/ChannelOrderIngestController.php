@@ -119,6 +119,10 @@ class ChannelOrderIngestController extends Controller
             'source_id' => $order->source_id,
             'status' => $order->status->value,
             'invoice_eligible' => $order->invoice_eligible,
+            'payment_reference' => $order->payment_reference,
+            'idempotency_key' => $order->idempotency_key,
+            'order_value' => $order->order_value,
+            'currency' => $order->currency,
             'statutory' => $statutory,
         ]);
     }
