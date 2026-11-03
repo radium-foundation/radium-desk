@@ -20,7 +20,7 @@ class ChannelIngestPayloadHasherTest extends TestCase
         parent::setUp();
 
         $this->hasher = new ChannelIngestPayloadHasher;
-        $this->validator = new ChannelIngestPayloadValidator;
+        $this->validator = app(ChannelIngestPayloadValidator::class);
     }
 
     public function test_hardware_metadata_canonicalization_is_deterministic_and_ignores_volatile_keys(): void

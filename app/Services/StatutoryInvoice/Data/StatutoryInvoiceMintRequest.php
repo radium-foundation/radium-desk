@@ -122,6 +122,43 @@ final class StatutoryInvoiceMintRequest
         );
     }
 
+    /**
+     * @param  array<string, string>|null  $billingAddressStructured
+     */
+    public function withBillingAddress(?string $billingAddress, ?array $billingAddressStructured): self
+    {
+        return new self(
+            channel: $this->channel,
+            sourceType: $this->sourceType,
+            sourceId: $this->sourceId,
+            lines: $this->lines,
+            sourceOrderId: $this->sourceOrderId,
+            inventorySaleId: $this->inventorySaleId,
+            supportOrderId: $this->supportOrderId,
+            branchId: $this->branchId,
+            sellerGstin: $this->sellerGstin,
+            sellerName: $this->sellerName,
+            buyerName: $this->buyerName,
+            buyerPhone: $this->buyerPhone,
+            buyerGstin: $this->buyerGstin,
+            billingAddress: $billingAddress,
+            placeOfSupplyState: $this->placeOfSupplyState,
+            placeOfSupplyStateCode: $this->placeOfSupplyStateCode,
+            placeOfSupplySource: $this->placeOfSupplySource,
+            discount: $this->discount,
+            paymentMethod: $this->paymentMethod,
+            paymentReference: $this->paymentReference,
+            internalReceiptNumber: $this->internalReceiptNumber,
+            numberingLocation: $this->numberingLocation,
+            financialYearToken: $this->financialYearToken,
+            customerState: $this->customerState,
+            inclusiveHardwareGst: $this->inclusiveHardwareGst,
+            radiumboxServicePublishSellingGst: $this->radiumboxServicePublishSellingGst,
+            billingAddressStructured: $billingAddressStructured,
+            shippingAmount: $this->shippingAmount,
+        );
+    }
+
     public function idempotencyKey(): string
     {
         return self::sourceKey($this->channel, $this->sourceType, $this->sourceId);

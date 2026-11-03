@@ -255,4 +255,10 @@ return [
         ],
     ],
 
+    /*
+    | Maximum persisted billing_address length for statutory invoices. Matches
+    | commerce_orders TEXT capacity after the billing_address widen migration.
+    */
+    'billing_address_max_length' => 65535,
+
 ];

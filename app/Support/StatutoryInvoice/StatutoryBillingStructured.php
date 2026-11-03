@@ -148,6 +148,120 @@ final class StatutoryBillingStructured
         return implode(', ', $segments);
     }
 
+    /**
+     * @param  array<string, mixed>  $structured
+     * @return array<string, string>
+     */
+    public static function dropRedundantLine2(array $structured): array
+    {
+        $line1 = self::nullable($structured['line1'] ?? null);
+        $line2 = self::nullable($structured['line2'] ?? null);
+        if ($line1 === null || $line2 === null) {
+            return $structured;
+        }
+
+        if (! self::isRedundantLine2($line1, $line2)) {
+            return $structured;
+        }
+
+        unset($structured['line2']);
+
+        return $structured;
+    }
+
+    public static function isRedundantLine2(string $line1, string $line2): bool
+    {
+        $normalizedLine1 = self::normalizeComparableText($line1);
+        $normalizedLine2 = self::normalizeComparableText($line2);
+        if ($normalizedLine2 === '' || $normalizedLine1 === '') {
+            return false;
+        }
+
+        if (str_contains($normalizedLine1, $normalizedLine2) || str_contains($normalizedLine2, $normalizedLine1)) {
+            return true;
+        }
+
+        $tokens = self::significantTokens($normalizedLine2);
+        if ($tokens === []) {
+            return false;
+        }
+
+        $matched = 0;
+        foreach ($tokens as $token) {
+            if (str_contains($normalizedLine1, $token)) {
+                $matched++;
+            }
+        }
+
+        return $matched / count($tokens) >= 0.75;
+    }
+
+    /**
+     * @param  array<string, mixed>  $structured
+     */
+    public static function flattenForPersistence(array $structured, ?string $country = null): string
+    {
+        $structured = self::dropRedundantLine2($structured);
+        $parts = [];
+
+        foreach (['line1', 'line2'] as $key) {
+            $part = self::nullable($structured[$key] ?? null);
+            if ($part !== null) {
+                $parts[] = $part;
+            }
+        }
+
+        $haystack = self::normalizedAddressHaystack(implode(', ', $parts));
+
+        $city = self::nullable($structured['city'] ?? null);
+        if ($city !== null && ! self::componentPresentInAddress($city, $haystack)) {
+            $parts[] = $city;
+            $haystack = self::normalizedAddressHaystack(implode(', ', $parts));
+        }
+
+        $state = self::nullable($structured['state'] ?? null);
+        $pin = self::pin($structured['pincode'] ?? null);
+        $statePin = self::statePinSegment($state, $pin, $haystack);
+        if ($statePin !== null) {
+            $parts[] = $statePin;
+            $haystack = self::normalizedAddressHaystack(implode(', ', $parts));
+        } elseif ($pin !== null && ! self::componentPresentInAddress($pin, $haystack)) {
+            $parts[] = $pin;
+            $haystack = self::normalizedAddressHaystack(implode(', ', $parts));
+        }
+
+        if ($country !== null && ! self::componentPresentInAddress($country, $haystack)) {
+            $parts[] = $country;
+        }
+
+        return implode(', ', $parts);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function significantTokens(string $normalizedText): array
+    {
+        $tokens = preg_split('/[^a-z0-9]+/', $normalizedText) ?: [];
+        $out = [];
+        foreach ($tokens as $token) {
+            if (strlen($token) >= 4) {
+                $out[] = $token;
+            }
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    private static function normalizeComparableText(string $value): string
+    {
+        $lower = strtolower(trim($value));
+        $collapsed = preg_replace('/\s+/', ' ', $lower) ?? '';
+        $alnum = preg_replace('/[^a-z0-9\s]+/', ' ', $collapsed) ?? '';
+
+        return trim(preg_replace('/\s+/', ' ', $alnum) ?? '');
+    }
+
     private static function statePinSegment(?string $state, ?string $pin, string $haystack): ?string
     {
         $statePresent = $state !== null && self::componentPresentInAddress($state, $haystack);

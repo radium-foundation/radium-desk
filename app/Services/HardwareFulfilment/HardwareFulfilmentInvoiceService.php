@@ -19,6 +19,7 @@ use App\Services\StatutoryInvoice\StatutoryFinancialYear;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Services\StatutoryInvoice\StatutoryMintEligibility;
 use App\Support\HardwareFulfilment\HardwareConfigurableVariantDisplay;
+use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -333,6 +334,7 @@ class HardwareFulfilmentInvoiceService
                 ? StatutoryFinancialYear::containing($commercialDate)->token()
                 : null,
             inclusiveHardwareGst: true,
+            billingAddressStructured: StatutoryBillingStructured::fromStored($order->billing_address_structured),
         );
     }
 

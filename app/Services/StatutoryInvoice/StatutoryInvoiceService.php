@@ -30,6 +30,7 @@ use App\Support\BusinessOrderId;
 use App\Support\Finance\GstStateCodes;
 use App\Support\Inventory\PosSalePaymentState;
 use App\Support\StatutoryInvoice\InvoiceRoundOff;
+use App\Support\StatutoryInvoice\StatutoryBillingAddressComposer;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -67,6 +68,7 @@ class StatutoryInvoiceService
         private readonly ServiceStatutoryGstB2bClassification $serviceGstClassification,
         private readonly ServiceStatutoryAutoIssuancePolicy $autoIssuancePolicy,
         private readonly RadiumBoxStatutoryReceiptPublicationOutboxWriter $radiumBoxStatutoryReceiptPublicationOutbox,
+        private readonly StatutoryBillingAddressComposer $billingAddressComposer,
     ) {}
 
     public function findBySource(
@@ -94,6 +96,7 @@ class StatutoryInvoiceService
 
         $request = $this->applyServiceGstSplit($request);
         $request = $this->applyPlaceOfSupplySnapshot($request);
+        $request = $this->applyBillingAddressSnapshot($request);
         $this->assertB2bInputReadinessForMint($request);
 
         try {
@@ -105,6 +108,7 @@ class StatutoryInvoiceService
 
                 $request = $this->applyServiceGstSplit($request);
                 $request = $this->applyPlaceOfSupplySnapshot($request);
+                $request = $this->applyBillingAddressSnapshot($request);
                 $this->assertB2bInputReadinessForMint($request);
 
                 $allocation = $this->numbering->allocate(
@@ -1022,6 +1026,16 @@ class StatutoryInvoiceService
         }
 
         return $request->withPlaceOfSupplySnapshot($pos->state, $pos->stateCode, $pos->source);
+    }
+
+    private function applyBillingAddressSnapshot(StatutoryInvoiceMintRequest $request): StatutoryInvoiceMintRequest
+    {
+        $composed = $this->billingAddressComposer->compose(
+            $request->billingAddress,
+            $request->billingAddressStructured,
+        );
+
+        return $request->withBillingAddress($composed['flat'], $composed['structured']);
     }
 
     /**

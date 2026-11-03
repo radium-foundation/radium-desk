@@ -18,10 +18,15 @@ on:
       - 'app/Services/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
       - 'app/Services/StatutoryInvoice/StatutoryInvoiceIrnCancellation*.php'
       - 'app/Services/StatutoryInvoice/StatutoryInvoiceService.php'
+      - 'app/Support/StatutoryInvoice/StatutoryBillingAddressComposer.php'
+      - 'app/Support/StatutoryInvoice/StatutoryBillingStructured.php'
+      - 'app/Services/ChannelIngest/ChannelIngestPayloadValidator.php'
+      - 'app/Services/HardwareFulfilment/HardwareFulfilmentInvoiceService.php'
       - 'app/Services/StatutoryInvoice/Whitebooks/WhitebooksResponseMapper.php'
       - 'app/Support/Finance/FinanceAccess.php'
       - 'config/service_statutory_invoice.php'
       - 'config/statutory_invoices.php'
+      - 'database/migrations/2026_11_03_120000_widen_statutory_invoices_billing_address.php'
       - 'database/migrations/*statutory_auto_issue_approval*'
       - 'database/migrations/*statutory_invoice_cancellations*'
       - 'database/seeders/RolePermissionSeeder.php'
@@ -30,7 +35,10 @@ on:
       - 'tests/Feature/StatutoryInvoice/ServiceStatutoryInvoiceMintRetryTest.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php'
-      - 'tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php'
+      - 'tests/Feature/StatutoryInvoice/StatutoryBillingAddressRemediationTest.php'
+      - 'tests/Unit/StatutoryInvoice/StatutoryBillingAddressComposerTest.php'
+      - 'tests/Feature/HardwareFulfilment/HardwareFulfilmentInvoiceHttpTest.php'
+      - 'tests/Unit/ChannelIngest/ChannelIngestPayloadHasherTest.php'
       - 'tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
       - 'tests/Unit/StatutoryInvoice/DeskServiceConsultancySac998312ClassificationTest.php'
       - 'tests/Unit/StatutoryInvoice/ServiceStatutoryClassificationTest.php'
@@ -71,10 +79,15 @@ on:
       - 'app/Services/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
       - 'app/Services/StatutoryInvoice/StatutoryInvoiceIrnCancellation*.php'
       - 'app/Services/StatutoryInvoice/StatutoryInvoiceService.php'
+      - 'app/Support/StatutoryInvoice/StatutoryBillingAddressComposer.php'
+      - 'app/Support/StatutoryInvoice/StatutoryBillingStructured.php'
+      - 'app/Services/ChannelIngest/ChannelIngestPayloadValidator.php'
+      - 'app/Services/HardwareFulfilment/HardwareFulfilmentInvoiceService.php'
       - 'app/Services/StatutoryInvoice/Whitebooks/WhitebooksResponseMapper.php'
       - 'app/Support/Finance/FinanceAccess.php'
       - 'config/service_statutory_invoice.php'
       - 'config/statutory_invoices.php'
+      - 'database/migrations/2026_11_03_120000_widen_statutory_invoices_billing_address.php'
       - 'database/migrations/*statutory_auto_issue_approval*'
       - 'database/migrations/*statutory_invoice_cancellations*'
       - 'database/seeders/RolePermissionSeeder.php'
@@ -83,7 +96,10 @@ on:
       - 'tests/Feature/StatutoryInvoice/ServiceStatutoryInvoiceMintRetryTest.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
       - 'tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php'
-      - 'tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php'
+      - 'tests/Feature/StatutoryInvoice/StatutoryBillingAddressRemediationTest.php'
+      - 'tests/Unit/StatutoryInvoice/StatutoryBillingAddressComposerTest.php'
+      - 'tests/Feature/HardwareFulfilment/HardwareFulfilmentInvoiceHttpTest.php'
+      - 'tests/Unit/ChannelIngest/ChannelIngestPayloadHasherTest.php'
       - 'tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellation*.php'
       - 'tests/Unit/StatutoryInvoice/DeskServiceConsultancySac998312ClassificationTest.php'
       - 'tests/Unit/StatutoryInvoice/ServiceStatutoryClassificationTest.php'
@@ -144,6 +160,14 @@ jobs:
             tests/Feature/StatutoryInvoice/StatutoryCancellationWorkflowTest.php \
             tests/Unit/StatutoryInvoice/StatutoryInvoiceCancellationDispatchReservationTest.php \
             tests/Feature/StatutoryInvoice/WhitebooksEInvoiceGatewayTest.php
+
+      - name: PHPUnit (statutory billing address remediation)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Unit/StatutoryInvoice/StatutoryBillingAddressComposerTest.php \
+            tests/Feature/StatutoryInvoice/StatutoryBillingAddressRemediationTest.php \
+            tests/Feature/HardwareFulfilment/HardwareFulfilmentInvoiceHttpTest.php \
+            --filter 'StatutoryBillingAddress|dashboard_json_issues_invoice_when_commerce|dashboard_json_billing_address_over_limit|dashboard_json_post_issues|dashboard_json_validation_failure'
 
       - name: PHPUnit (desk service SAC 998312 classification regression)
         run: |
