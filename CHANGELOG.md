@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.55 — 2026-11-03 — Statutory billing-address remediation (P-03-43 / PR #128)
+
+- **Statutory billing address:** Migration **`2026_11_03_120000_widen_statutory_invoices_billing_address`** widens **`statutory_invoices.billing_address`** to **TEXT** (empty **`down()`** — do not narrow on rollback). **`StatutoryBillingAddressComposer`** dedupes/flattens structured addresses at channel ingest and statutory mint (hardware fulfilment structured snapshot wired). Config **`billing_address_max_length`** in **`config/statutory_invoices.php`**. Validation failures return **422 JSON** instead of uncaught SQL **22001**.
+- **Includes:** PR **#127** channel-order GET reconciliation fields (already partially overlaid on production).
+- **Migrations:** **`2026_11_03_120000_widen_statutory_invoices_billing_address`** only (pending on first deploy of this line from **`fb380d82`**).
+- **Production notes:** Deploy from tagged **`v4.1.55`** @ **`main`**. Run migrate once post-deploy. **No automatic RBP1697 invoice retry** in deploy scope. Box handoff dedupe is a **separate** RadiumBox overlay (**P-03-43** PR **#125**).
+- **Rollback target (application):** **`v4.1.54`** / **`fb380d82`** via RIP + redeploy; **DB column remains TEXT** if migration already applied.
+- **Source:** merge **`a783b3a915daa2e2b330d6637fc1750cfe6ac819`** (PR **#128** on **`2d369428`**).
+- Cursor prompts **P-03-43**, **P-03-44**, **P-03-45**, **P-03-47**; session **`75de9a35-8329-4e1b-91ad-1ebbda09c56d`**.
+
 ## 4.1.54 — 2026-11-01 — INV-0767698 deploy bundle + KVM rsync deletion safety (PR #101)
 
 - **Includes 4.1.53 application code** (PR #100 INV-0767698 B2C→B2B remediation) plus **PR #101** KVM deploy tooling: **`P vendor/**`** / **`P node_modules/**`** rsync protect filters; macOS operators run application deletion dry-run on **KVM GNU rsync** via **`/tmp/desk-rsync-dryrun-*`** staging with cleanup trap; **`docs/runbooks/kvm-deploy-linux-operator.md`**. **Do not deploy tag `v4.1.53` without this fix.**
