@@ -1,0 +1,71 @@
+name: Hardware shipment documents RIP
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/Contracts/Shipping/ShiprocketGateway.php'
+      - 'app/Services/HardwareFulfilment/HardwareShipmentBulkDocumentsService.php'
+      - 'app/Services/HardwareFulfilment/HardwareShipmentDocumentsService.php'
+      - 'app/Services/HardwareFulfilment/ShipmentDocumentPersistence.php'
+      - 'app/Services/Shipping/HttpShiprocketGateway.php'
+      - 'app/Services/Shipping/NullShiprocketGateway.php'
+      - 'app/Services/Shipping/ShiprocketManifestAlreadyGenerated.php'
+      - 'database/migrations/2026_10_27_120000_widen_shipment_document_urls.php'
+      - 'tests/Unit/Database/WidenShipmentDocumentUrlsMigrationTest.php'
+      - 'tests/Unit/HardwareFulfilment/ShipmentDocumentPersistenceTest.php'
+      - 'tests/Unit/Shipping/ShiprocketGatewayContractTest.php'
+      - 'tests/Unit/Shipping/ShiprocketManifestAlreadyGeneratedTest.php'
+      - 'tests/Feature/HardwareFulfilment/HardwareFulfilmentOperationalWorkflowTest.php'
+      - 'tests/Feature/Shipping/HttpShiprocketGatewayTest.php'
+      - 'tests/Feature/Shipping/Support/FakeShiprocketGateway.php'
+      - '.github/workflows/hardware-shipment-documents-rip.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/Contracts/Shipping/ShiprocketGateway.php'
+      - 'app/Services/HardwareFulfilment/HardwareShipmentBulkDocumentsService.php'
+      - 'app/Services/HardwareFulfilment/HardwareShipmentDocumentsService.php'
+      - 'app/Services/HardwareFulfilment/ShipmentDocumentPersistence.php'
+      - 'app/Services/Shipping/HttpShiprocketGateway.php'
+      - 'app/Services/Shipping/NullShiprocketGateway.php'
+      - 'app/Services/Shipping/ShiprocketManifestAlreadyGenerated.php'
+      - 'database/migrations/2026_10_27_120000_widen_shipment_document_urls.php'
+      - 'tests/Unit/Database/WidenShipmentDocumentUrlsMigrationTest.php'
+      - 'tests/Unit/HardwareFulfilment/ShipmentDocumentPersistenceTest.php'
+      - 'tests/Unit/Shipping/ShiprocketGatewayContractTest.php'
+      - 'tests/Unit/Shipping/ShiprocketManifestAlreadyGeneratedTest.php'
+      - 'tests/Feature/HardwareFulfilment/HardwareFulfilmentOperationalWorkflowTest.php'
+      - 'tests/Feature/Shipping/HttpShiprocketGatewayTest.php'
+      - 'tests/Feature/Shipping/Support/FakeShiprocketGateway.php'
+      - '.github/workflows/hardware-shipment-documents-rip.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  hardware-shipment-documents-rip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHPUnit (hardware shipment document persistence regression)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Unit/Database/WidenShipmentDocumentUrlsMigrationTest.php \
+            tests/Unit/HardwareFulfilment/ShipmentDocumentPersistenceTest.php \
+            tests/Unit/Shipping/ShiprocketGatewayContractTest.php \
+            tests/Unit/Shipping/ShiprocketManifestAlreadyGeneratedTest.php \
+            tests/Feature/HardwareFulfilment/HardwareFulfilmentOperationalWorkflowTest.php \
+            tests/Feature/Shipping/HttpShiprocketGatewayTest.php
