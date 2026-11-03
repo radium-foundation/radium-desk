@@ -99,6 +99,35 @@ class ShiprocketCreateOrderRequestTest extends TestCase
         }
     }
 
+    public function test_rbp1697_like_address_normalizes_payload_without_mutating_request(): void
+    {
+        $line1 = 'Adarsha nagar, opposite ayyappa swamy temple, village : CHENNUR, MANDAL : CHENNUR, district : MANCHERIAL, srate: telangana - 504201';
+        $line2 = 'Opposite ayyappa swamy temple, village CHENNUR, mandal CHENNUR, DISTRICT MANCHERIAL, STATE TELANGANA - 504201';
+
+        $request = $this->request(
+            billingCity: 'Kairmnagar',
+            billingAddress: $line1,
+            billingAddress2: $line2,
+            billingState: 'Telangana',
+            billingPincode: '504201',
+        );
+
+        $payload = $request->toAdhocPayload();
+
+        $this->assertSame($line1, $request->billingAddress);
+        $this->assertSame($line2, $request->billingAddress2);
+        $this->assertSame($line1, $payload['billing_address']);
+        $this->assertArrayNotHasKey('billing_address_2', $payload);
+        $this->assertLessThanOrEqual(
+            190,
+            ShiprocketAdhocAddressNormalizer::combinedCharacterLength(
+                $payload['billing_address'],
+                $payload['billing_address_2'] ?? '',
+            ),
+        );
+        $this->assertSame(131, ShiprocketAdhocAddressNormalizer::characterLength($payload['billing_address']));
+    }
+
     public function test_shipping_is_billing_false_normalizes_each_pair_separately(): void
     {
         $billingLine1 = str_repeat('B', 160).', Maharashtra - 400 001';

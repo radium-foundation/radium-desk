@@ -3,10 +3,12 @@
 namespace App\Services\Shipping\Data;
 
 use App\Services\Shipping\ShiprocketAdhocAddressLimitException;
+use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 
 /**
  * Shiprocket create/adhoc only. Combined Address 1 + Address 2 cannot exceed
- * 190 UTF-8 characters. Never mutates stored customer/source addresses.
+ * 190 UTF-8 characters (verified provider limit; see docs/desk-shiprocket-address-190-normalize-p-07-09-139.md).
+ * Never mutates stored customer/source addresses.
  */
 final class ShiprocketAdhocAddressNormalizer
 {
@@ -21,12 +23,22 @@ final class ShiprocketAdhocAddressNormalizer
             return [$line1, $line2];
         }
 
-        $normalizedLine1 = self::stripDuplicateStructuredSuffix($line1, $state, $pincode);
+        $normalizedLine1 = $line1;
         $normalizedLine2 = $line2;
 
-        if (self::combinedCharacterLength($normalizedLine1, $normalizedLine2) > self::COMBINED_MAX) {
-            $strippedLine2 = self::stripDuplicateStructuredSuffix((string) $line2, $state, $pincode);
-            $normalizedLine2 = $line2 === null ? null : $strippedLine2;
+        if ($line2 !== null && trim($line2) !== '' && StatutoryBillingStructured::isRedundantLine2($line1, $line2)) {
+            $normalizedLine2 = null;
+            if (self::combinedCharacterLength($normalizedLine1, $normalizedLine2) <= self::COMBINED_MAX) {
+                return [$normalizedLine1, $normalizedLine2];
+            }
+        }
+
+        $normalizedLine1 = self::stripDuplicateStructuredSuffix($line1, $state, $pincode);
+
+        if (self::combinedCharacterLength($normalizedLine1, $normalizedLine2) > self::COMBINED_MAX
+            && $normalizedLine2 !== null && trim((string) $normalizedLine2) !== '') {
+            $strippedLine2 = self::stripDuplicateStructuredSuffix((string) $normalizedLine2, $state, $pincode);
+            $normalizedLine2 = $strippedLine2;
         }
 
         if (self::combinedCharacterLength($normalizedLine1, $normalizedLine2) <= self::COMBINED_MAX) {
