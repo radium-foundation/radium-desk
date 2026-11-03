@@ -188,4 +188,126 @@ class ShiprocketAdhocAddressNormalizerTest extends TestCase
         $this->assertSame($line2, $out2);
         $this->assertSame(190, ShiprocketAdhocAddressNormalizer::combinedCharacterLength($out1, $out2));
     }
+
+    private const RBP1697_LINE1 = 'Adarsha nagar, opposite ayyappa swamy temple, village : CHENNUR, MANDAL : CHENNUR, district : MANCHERIAL, srate: telangana - 504201';
+
+    private const RBP1697_LINE2 = 'Opposite ayyappa swamy temple, village CHENNUR, mandal CHENNUR, DISTRICT MANCHERIAL, STATE TELANGANA - 504201';
+
+    public function test_rbp1697_like_duplicate_landmark_omits_line2_in_payload_only(): void
+    {
+        $this->assertSame(131, ShiprocketAdhocAddressNormalizer::characterLength(self::RBP1697_LINE1));
+        $this->assertSame(109, ShiprocketAdhocAddressNormalizer::characterLength(self::RBP1697_LINE2));
+        $this->assertSame(240, ShiprocketAdhocAddressNormalizer::combinedCharacterLength(self::RBP1697_LINE1, self::RBP1697_LINE2));
+
+        [$line1, $line2] = ShiprocketAdhocAddressNormalizer::forPayload(
+            self::RBP1697_LINE1,
+            self::RBP1697_LINE2,
+            'Telangana',
+            '504201',
+        );
+
+        $this->assertSame(self::RBP1697_LINE1, $line1);
+        $this->assertNull($line2);
+        $this->assertSame(131, ShiprocketAdhocAddressNormalizer::combinedCharacterLength($line1, $line2));
+        $this->assertStringContainsString('CHENNUR', $line1);
+        $this->assertStringContainsString('ayyappa swamy temple', $line1);
+    }
+
+    public function test_redundant_line2_detection_is_case_and_whitespace_insensitive(): void
+    {
+        $line1 = self::RBP1697_LINE1;
+        $line2 = '  OPPOSITE   AYYAPPA SWAMY TEMPLE, VILLAGE CHENNUR, MANDAL CHENNUR, DISTRICT MANCHERIAL, STATE telangana - 504201  ';
+
+        $this->assertGreaterThan(
+            190,
+            ShiprocketAdhocAddressNormalizer::combinedCharacterLength($line1, $line2),
+        );
+
+        [$out1, $out2] = ShiprocketAdhocAddressNormalizer::forPayload(
+            $line1,
+            $line2,
+            'Telangana',
+            '504201',
+        );
+
+        $this->assertSame($line1, $out1);
+        $this->assertNull($out2);
+        $this->assertSame(131, ShiprocketAdhocAddressNormalizer::combinedCharacterLength($out1, $out2));
+    }
+
+    public function test_line2_fully_contained_in_line1_is_omitted_when_over_limit(): void
+    {
+        $line2 = 'NEAR HAROHALLI';
+        $line1 = str_repeat('A', 174).', '.$line2;
+
+        $this->assertGreaterThan(190, ShiprocketAdhocAddressNormalizer::combinedCharacterLength($line1, $line2));
+
+        [$out1, $out2] = ShiprocketAdhocAddressNormalizer::forPayload(
+            $line1,
+            $line2,
+            'Karnataka',
+            '562112',
+        );
+
+        $this->assertSame($line1, $out1);
+        $this->assertNull($out2);
+        $this->assertSame(190, ShiprocketAdhocAddressNormalizer::combinedCharacterLength($out1, $out2));
+    }
+
+    public function test_legitimate_distinct_line2_is_not_omitted(): void
+    {
+        [$line1, $line2] = ShiprocketAdhocAddressNormalizer::forPayload(
+            self::RDE318516_LINE1,
+            self::RDE318516_LINE2,
+            'Karnataka',
+            '562112',
+        );
+
+        $this->assertSame(self::RDE318516_LINE2, $line2);
+        $this->assertStringContainsString('NEAR HAROHALLI', (string) $line2);
+    }
+
+    public function test_partial_overlap_that_is_not_demonstrably_redundant_is_not_omitted(): void
+    {
+        $line1 = str_repeat('Unique campus block ', 8).'Shared gate reference';
+        $line2 = 'Block 9 warehouse Shared gate reference extra delivery bay';
+
+        $this->assertGreaterThan(190, ShiprocketAdhocAddressNormalizer::combinedCharacterLength($line1, $line2));
+
+        try {
+            ShiprocketAdhocAddressNormalizer::forPayload($line1, $line2, 'Karnataka', '562112');
+            $this->fail('Partial overlap must not silently drop line2 when still over the limit.');
+        } catch (ShiprocketAdhocAddressLimitException) {
+            $this->assertSame($line1, $line1);
+            $this->assertSame($line2, $line2);
+        }
+    }
+
+    public function test_combined_length_exactly_at_limit_is_unchanged(): void
+    {
+        $line1 = str_repeat('A', 100);
+        $line2 = str_repeat('B', 90);
+
+        [$out1, $out2] = ShiprocketAdhocAddressNormalizer::forPayload(
+            $line1,
+            $line2,
+            'Karnataka',
+            '562112',
+        );
+
+        $this->assertSame($line1, $out1);
+        $this->assertSame($line2, $out2);
+        $this->assertSame(190, ShiprocketAdhocAddressNormalizer::combinedCharacterLength($out1, $out2));
+    }
+
+    public function test_combined_length_one_character_over_limit_without_safe_dedupe_fails_closed(): void
+    {
+        $line1 = str_repeat('A', 100);
+        $line2 = str_repeat('B', 91);
+
+        $this->expectException(ShiprocketAdhocAddressLimitException::class);
+        $this->expectExceptionMessage('190 characters');
+
+        ShiprocketAdhocAddressNormalizer::forPayload($line1, $line2, 'Karnataka', '562112');
+    }
 }
