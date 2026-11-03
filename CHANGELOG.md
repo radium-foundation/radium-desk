@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.57 — 2026-11-03 — Shiprocket document URL persistence (P-03-54 / PR #131)
+
+- **Hardware fulfilment / Shiprocket:** Migration **`2026_10_27_120000_widen_shipment_document_urls`** widens **`shipments.label_url`** and **`shipments.manifest_url`** to nullable **TEXT** with safe rollback guard when URLs exceed 1,024 characters. **`ShipmentDocumentPersistence`**, **`ShiprocketManifestAlreadyGenerated`**, single and bulk document services, and **`hardware-shipment-documents-rip`** CI regression bundle.
+- **Migrations:** **`2026_10_27_120000_widen_shipment_document_urls`** only (run once post-deploy).
+- **Production notes:** Deploy from tagged **`v4.1.57`**. **No** live Shiprocket API calls, manifest retry, or RBP1697/shipment **436** reconciliation in deploy scope.
+- **Rollback target (application):** **`v4.1.56`** / **`8717ec47`** via RIP + redeploy; **DB columns remain TEXT** if migration already applied.
+- **Source:** merge **`af4e9780abb561a57ceb92909ffd94f0b2a1ef8d`** (PR **#131**).
+- Cursor prompts **P-03-54**, **P-03-55**, **P-03-56**; session **`75de9a35-8329-4e1b-91ad-1ebbda09c56d`**.
+
 ## 4.1.56 — 2026-11-03 — Shiprocket legacy redundant line2 payload normalization (P-03-50 / PR #129)
 
 - **Shiprocket adhoc only:** `ShiprocketAdhocAddressNormalizer` omits redundant **`line2`** from create/adhoc payloads when `StatutoryBillingStructured::isRedundantLine2` shows it is already represented in **`line1`**. Existing trailing state/PIN suffix stripping and fail-closed **190 UTF-8 character** combined Address 1 + Address 2 limit unchanged. **No** stored customer/order address mutation.
