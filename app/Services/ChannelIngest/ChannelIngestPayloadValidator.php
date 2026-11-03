@@ -8,6 +8,7 @@ use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\ChannelIngest\Data\ChannelOrderLineDraft;
 use App\Services\HardwareFulfilment\HardwareHandoffTenderContract;
 use App\Support\Finance\IndianStates;
+use App\Support\StatutoryInvoice\StatutoryBillingAddressComposer;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Validator;
@@ -17,6 +18,7 @@ class ChannelIngestPayloadValidator
     public function __construct(
         private readonly HardwareHandoffTenderContract $tenders,
         private readonly ChannelIngestBillableLinePolicy $billableLines,
+        private readonly StatutoryBillingAddressComposer $billingAddresses,
     ) {}
 
     /**
@@ -82,6 +84,8 @@ class ChannelIngestPayloadValidator
         $rawCustomer = is_array($payload['customer'] ?? null) ? $payload['customer'] : [];
         $rawBilling = $payload['billing_address'] ?? $rawCustomer['billing_address'] ?? null;
         $rawShipping = $payload['shipping_address'] ?? $rawCustomer['shipping_address'] ?? null;
+        $billingComposed = $this->billingAddresses->composeFromRaw($rawBilling);
+        $shippingComposed = $this->billingAddresses->composeFromRaw($rawShipping);
 
         $request = new ChannelOrderIngestRequest(
             channel: StatutoryInvoiceChannel::from((string) $data['channel']),
@@ -98,9 +102,9 @@ class ChannelIngestPayloadValidator
             customerPhone: $this->nullableString($customer['phone'] ?? null),
             customerEmail: $this->nullableString($customer['email'] ?? null),
             buyerGstin: $this->nullableString($customer['gstin'] ?? $data['buyer_gstin'] ?? null),
-            billingAddress: $this->address($rawBilling),
+            billingAddress: $billingComposed['flat'],
             billingState: $this->structuredBillingState($rawBilling),
-            shippingAddress: $this->address($rawShipping),
+            shippingAddress: $shippingComposed['flat'],
             sellerGstin: $this->nullableString($data['seller_gstin'] ?? null),
             sellerName: $this->nullableString($data['seller_name'] ?? null),
             branchCode: $this->nullableString($data['branch_code'] ?? null),
@@ -110,8 +114,8 @@ class ChannelIngestPayloadValidator
             orderedAt: $this->nullableString($data['ordered_at'] ?? null),
             paidAt: $this->nullableString($data['paid_at'] ?? null),
             supportOrderId: isset($data['support_order_id']) ? (int) $data['support_order_id'] : null,
-            billingAddressStructured: $this->structuredAddress($rawBilling),
-            shippingAddressStructured: $this->structuredAddress($rawShipping),
+            billingAddressStructured: $billingComposed['structured'],
+            shippingAddressStructured: $shippingComposed['structured'],
             parcel: $this->structuredParcel($data['parcel'] ?? $payload['parcel'] ?? null),
             tenders: $this->tenders->parse($data['tenders'] ?? $payload['tenders'] ?? null),
         );

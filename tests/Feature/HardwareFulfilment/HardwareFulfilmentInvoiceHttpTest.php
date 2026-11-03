@@ -179,6 +179,54 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
         $this->assertNull($other->fresh()->statutory_invoice_id);
     }
 
+    public function test_dashboard_json_issues_invoice_when_commerce_billing_address_exceeds_255_characters(): void
+    {
+        $fulfilment = $this->prepareIssuable('RDE9031697');
+        $structured = [
+            'line1' => 'Adarsha nagar, opposite ayyappa swamy temple, village : CHENNUR, MANDAL : CHENNUR, district : MANCHERIAL, srate: telangana - 504201',
+            'line2' => 'Opposite ayyappa swamy temple, village CHENNUR, mandal CHENNUR, DISTRICT MANCHERIAL, STATE TELANGANA - 504201',
+            'city' => 'Kairmnagar',
+            'state' => 'Telangana',
+            'pincode' => '504201',
+        ];
+        $legacyFlat = str_repeat('Z', 273);
+
+        $fulfilment->commerceOrder?->forceFill([
+            'billing_address' => $legacyFlat,
+            'billing_address_structured' => $structured,
+        ])->save();
+
+        $this->actingAs($this->operator)
+            ->withHeaders($this->dashboardAjaxHeaders())
+            ->post(route('inventory.hardware-fulfilments.invoice.store', $fulfilment->fresh()))
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $invoice = StatutoryInvoice::query()->firstOrFail();
+        $this->assertLessThan(255, strlen((string) $invoice->billing_address));
+        $this->assertNotSame($legacyFlat, $invoice->billing_address);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+    }
+
+    public function test_dashboard_json_billing_address_over_limit_returns_422_without_persisting_invoice(): void
+    {
+        config(['statutory_invoices.billing_address_max_length' => 100]);
+        $fulfilment = $this->prepareIssuable('RDE9031698');
+        $fulfilment->commerceOrder?->forceFill([
+            'billing_address' => str_repeat('Y', 150),
+        ])->save();
+
+        $this->actingAs($this->operator)
+            ->withHeaders($this->dashboardAjaxHeaders())
+            ->post(route('inventory.hardware-fulfilments.invoice.store', $fulfilment->fresh()))
+            ->assertUnprocessable()
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertJsonValidationErrors(['billing_address']);
+
+        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
+    }
+
     public function test_dashboard_json_validation_failure_is_json_not_a_silent_redirect(): void
     {
         $fulfilment = $this->ingestHardware('RDE901807');
