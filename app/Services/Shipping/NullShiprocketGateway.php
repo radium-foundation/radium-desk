@@ -64,7 +64,23 @@ final class NullShiprocketGateway implements ShiprocketGateway
         throw new ShiprocketDisabledException(self::MESSAGE);
     }
 
+    /**
+     * @param  list<string>  $externalShipmentIds
+     */
+    public function generateLabelBatch(array $externalShipmentIds): ShiprocketDocumentResult
+    {
+        throw new ShiprocketDisabledException(self::MESSAGE);
+    }
+
     public function generateManifest(string $externalShipmentId): ShiprocketDocumentResult
+    {
+        throw new ShiprocketDisabledException(self::MESSAGE);
+    }
+
+    /**
+     * @param  list<string>  $externalShipmentIds
+     */
+    public function generateManifestBatch(array $externalShipmentIds): ShiprocketDocumentResult
     {
         throw new ShiprocketDisabledException(self::MESSAGE);
     }

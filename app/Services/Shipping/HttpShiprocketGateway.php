@@ -260,9 +260,29 @@ final class HttpShiprocketGateway implements ShiprocketGateway
 
     public function generateLabel(string $externalShipmentId): ShiprocketDocumentResult
     {
+        return $this->generateLabelBatch([$externalShipmentId]);
+    }
+
+    /**
+     * @param  list<string>  $externalShipmentIds
+     */
+    public function generateLabelBatch(array $externalShipmentIds): ShiprocketDocumentResult
+    {
+        if ($externalShipmentIds === []) {
+            return new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'Shiprocket label generation requires at least one shipment id.',
+                retryable: false,
+            );
+        }
+
         try {
             $response = $this->send('post', '/courier/generate/label', [
-                'shipment_id' => [$this->providerNumericId($externalShipmentId)],
+                'shipment_id' => array_map(
+                    fn (string $externalShipmentId): int => $this->providerNumericId($externalShipmentId),
+                    $externalShipmentIds,
+                ),
             ]);
         } catch (ShiprocketRetryableException $exception) {
             return new ShiprocketDocumentResult(
@@ -299,9 +319,29 @@ final class HttpShiprocketGateway implements ShiprocketGateway
 
     public function generateManifest(string $externalShipmentId): ShiprocketDocumentResult
     {
+        return $this->generateManifestBatch([$externalShipmentId]);
+    }
+
+    /**
+     * @param  list<string>  $externalShipmentIds
+     */
+    public function generateManifestBatch(array $externalShipmentIds): ShiprocketDocumentResult
+    {
+        if ($externalShipmentIds === []) {
+            return new ShiprocketDocumentResult(
+                provider: $this->provider(),
+                status: 'rejected',
+                error: 'Shiprocket manifest generation requires at least one shipment id.',
+                retryable: false,
+            );
+        }
+
         try {
             $response = $this->send('post', '/manifests/generate', [
-                'shipment_id' => [$this->providerNumericId($externalShipmentId)],
+                'shipment_id' => array_map(
+                    fn (string $externalShipmentId): int => $this->providerNumericId($externalShipmentId),
+                    $externalShipmentIds,
+                ),
             ]);
         } catch (ShiprocketRetryableException $exception) {
             return new ShiprocketDocumentResult(

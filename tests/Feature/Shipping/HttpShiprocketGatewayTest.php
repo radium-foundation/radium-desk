@@ -322,6 +322,29 @@ class HttpShiprocketGatewayTest extends TestCase
         });
     }
 
+    public function test_generate_label_batch_posts_all_shipment_ids(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/courier/generate/label' => Http::response([
+                'label_created' => 2,
+                'label_url' => 'https://labels.test/bulk.pdf',
+                'not_created' => [],
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->generateLabelBatch(['88', '99']);
+
+        $this->assertSame('generated', $result->status);
+        $this->assertSame('https://labels.test/bulk.pdf', $result->url);
+
+        Http::assertSent(function ($request): bool {
+            return str_ends_with($request->url(), '/courier/generate/label')
+                && $request->method() === 'POST'
+                && $request['shipment_id'] === [88, 99];
+        });
+    }
+
     public function test_generate_manifest_posts_shipment_id_array(): void
     {
         Http::fake([
@@ -345,6 +368,28 @@ class HttpShiprocketGatewayTest extends TestCase
         });
         Http::assertNotSent(fn ($request): bool => str_contains($request->url(), '/manifests/print')
             || str_contains($request->url(), '/orders/print/manifest'));
+    }
+
+    public function test_generate_manifest_batch_posts_all_shipment_ids(): void
+    {
+        Http::fake([
+            'https://apiv2.shiprocket.in/v1/external/auth/login' => Http::response(['token' => 'tok-1'], 200),
+            'https://apiv2.shiprocket.in/v1/external/manifests/generate' => Http::response([
+                'manifest_url' => 'https://manifests.test/bulk.pdf',
+                'manifest_id' => 'MF-BULK',
+            ], 200),
+        ]);
+
+        $result = (new HttpShiprocketGateway)->generateManifestBatch(['88', '99']);
+
+        $this->assertSame('generated', $result->status);
+        $this->assertSame('https://manifests.test/bulk.pdf', $result->url);
+
+        Http::assertSent(function ($request): bool {
+            return str_ends_with($request->url(), '/manifests/generate')
+                && $request->method() === 'POST'
+                && $request['shipment_id'] === [88, 99];
+        });
     }
 
     public function test_generate_manifest_without_url_or_id_is_rejected(): void
