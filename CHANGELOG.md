@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.56 — 2026-11-03 — Shiprocket legacy redundant line2 payload normalization (P-03-50 / PR #129)
+
+- **Shiprocket adhoc only:** `ShiprocketAdhocAddressNormalizer` omits redundant **`line2`** from create/adhoc payloads when `StatutoryBillingStructured::isRedundantLine2` shows it is already represented in **`line1`**. Existing trailing state/PIN suffix stripping and fail-closed **190 UTF-8 character** combined Address 1 + Address 2 limit unchanged. **No** stored customer/order address mutation.
+- **Migrations:** none.
+- **Production notes:** Deploy from tagged **`v4.1.56`**. **No** live Shiprocket API calls or shipment creation in deploy scope. RBP1697-class legacy rows (**240** stored combined → **131** adhoc when redundant).
+- **Rollback target (application):** **`v4.1.55`** / **`d455c408`** via RIP + redeploy.
+- **Source:** merge **`e37925d900d0f9ea04845ee5cf11f257b361c529`** (PR **#129** on **`dde8613c`**).
+- Cursor prompts **P-03-50**, **P-03-51**; session **`75de9a35-8329-4e1b-91ad-1ebbda09c56d`**.
+
 ## 4.1.55 — 2026-11-03 — Statutory billing-address remediation (P-03-43 / PR #128)
 
 - **Statutory billing address:** Migration **`2026_11_03_120000_widen_statutory_invoices_billing_address`** widens **`statutory_invoices.billing_address`** to **TEXT** (empty **`down()`** — do not narrow on rollback). **`StatutoryBillingAddressComposer`** dedupes/flattens structured addresses at channel ingest and statutory mint (hardware fulfilment structured snapshot wired). Config **`billing_address_max_length`** in **`config/statutory_invoices.php`**. Validation failures return **422 JSON** instead of uncaught SQL **22001**.
