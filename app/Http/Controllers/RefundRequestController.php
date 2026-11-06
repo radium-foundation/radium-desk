@@ -18,10 +18,10 @@ use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\ReturnExchangeCase;
 use App\Services\RefundCalculationService;
-use App\Services\Refunds\HardwareOrderRefundCaseGate;
 use App\Services\RefundProfileRegistry;
 use App\Services\RefundReferenceService;
 use App\Services\RefundRequestService;
+use App\Services\Refunds\HardwareOrderRefundCaseGate;
 use App\Services\Refunds\RefundExecutionMethodRerouteService;
 use App\Services\Refunds\RefundListingQuery;
 use App\Services\Refunds\RefundRevokeService;
@@ -251,6 +251,22 @@ class RefundRequestController extends Controller
         return redirect()
             ->route('refunds.show', $refund)
             ->with('status', 'refund-rejected');
+    }
+
+    /**
+     * Browser addresses and post-login intended URLs arrive as GET.
+     * Completion stays on the POST route and is not invoked here.
+     */
+    public function redirectBrowserCompletion(RefundRequest $refund): RedirectResponse
+    {
+        $this->authorize('view', $refund);
+
+        return redirect()
+            ->route('refunds.show', $refund)
+            ->with(
+                'refund_completion_notice',
+                'Refund completion must be submitted from this page. Opening the completion address does not complete the refund.',
+            );
     }
 
     public function complete(CompleteRefundRequestRequest $request, RefundRequest $refund): RedirectResponse

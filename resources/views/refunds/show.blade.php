@@ -41,6 +41,12 @@
         </div>
     @endif
 
+    @if(session('refund_completion_notice'))
+        <div class="alert alert-warning border-0 shadow-sm" role="status">
+            {{ session('refund_completion_notice') }}
+        </div>
+    @endif
+
     <div class="row g-3">
         <div class="col-lg-7">
             <div class="card border-0 shadow-sm mb-3">
