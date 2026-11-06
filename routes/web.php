@@ -57,6 +57,7 @@ use App\Http\Controllers\Inventory\AdjustmentController as InventoryAdjustmentCo
 use App\Http\Controllers\Inventory\BranchController as InventoryBranchController;
 use App\Http\Controllers\Inventory\HardwareFulfilmentBulkDocumentsController as InventoryHardwareFulfilmentBulkDocumentsController;
 use App\Http\Controllers\Inventory\HardwareFulfilmentSerialController as InventoryHardwareFulfilmentSerialController;
+use App\Http\Controllers\Inventory\InterBranchTransferController;
 use App\Http\Controllers\Inventory\MovementController as InventoryMovementController;
 use App\Http\Controllers\Inventory\OpeningImportController as InventoryOpeningImportController;
 use App\Http\Controllers\Inventory\ProductController as InventoryProductController;
@@ -64,7 +65,6 @@ use App\Http\Controllers\Inventory\ProductPackagingController as InventoryProduc
 use App\Http\Controllers\Inventory\ReservationController as InventoryReservationController;
 use App\Http\Controllers\Inventory\SerialController as InventorySerialController;
 use App\Http\Controllers\Inventory\StockController as InventoryStockController;
-use App\Http\Controllers\Inventory\InterBranchTransferController;
 use App\Http\Controllers\Inventory\TransferController as InventoryTransferController;
 use App\Http\Controllers\IraMemoryAdminController;
 use App\Http\Controllers\IraOperationsBrainController;
@@ -73,6 +73,8 @@ use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\MyPerformanceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
+use App\Http\Controllers\OnlineReturnRefundAllocationController;
+use App\Http\Controllers\OnlineReturnRefundAllocationOpmConversionController;
 use App\Http\Controllers\OperationalSystemSettingsController;
 use App\Http\Controllers\OperationsDashboardController;
 use App\Http\Controllers\OperationsWorkspaceController;
@@ -88,6 +90,7 @@ use App\Http\Controllers\Pos\PosSaleStatutoryInvoiceController;
 use App\Http\Controllers\Pos\SaleController as PosSaleController;
 use App\Http\Controllers\Pos\UpiIntentController as PosUpiIntentController;
 use App\Http\Controllers\Pos\UpiPaymentVerificationController as PosUpiPaymentVerificationController;
+use App\Http\Controllers\PosReturnRefundRequestController;
 use App\Http\Controllers\PresenceHeartbeatController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Purchasing\GoodsReceiptController as PurchasingGoodsReceiptController;
@@ -99,14 +102,11 @@ use App\Http\Controllers\QuickServiceRequestController;
 use App\Http\Controllers\RealtimeAdminActionsController;
 use App\Http\Controllers\RealtimeConnectionStatusController;
 use App\Http\Controllers\RefundRequestController;
-use App\Http\Controllers\PosReturnRefundRequestController;
-use App\Http\Controllers\ReturnExchangeCaseOnlineRefundController;
-use App\Http\Controllers\ReturnExchangeCaseSerialReplacementController;
-use App\Http\Controllers\OnlineReturnRefundAllocationController;
-use App\Http\Controllers\OnlineReturnRefundAllocationOpmConversionController;
+use App\Http\Controllers\RemarkController;
 use App\Http\Controllers\ReturnExchangeCaseCentralQueueController;
 use App\Http\Controllers\ReturnExchangeCaseController;
-use App\Http\Controllers\RemarkController;
+use App\Http\Controllers\ReturnExchangeCaseOnlineRefundController;
+use App\Http\Controllers\ReturnExchangeCaseSerialReplacementController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Service\ServiceCategoryController;
 use App\Http\Controllers\Service\ServiceItemController;
@@ -319,6 +319,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('refunds.calculation-preview');
     Route::post('refunds/{refund}/approve', [RefundRequestController::class, 'approve'])->name('refunds.approve');
     Route::post('refunds/{refund}/reject', [RefundRequestController::class, 'reject'])->name('refunds.reject');
+    // GET only returns the operator to the refund page. It must not complete a refund.
+    Route::get('refunds/{refund}/complete', [RefundRequestController::class, 'redirectBrowserCompletion'])
+        ->name('refunds.complete.browser');
     Route::post('refunds/{refund}/complete', [RefundRequestController::class, 'complete'])->name('refunds.complete');
     Route::post('refunds/{refund}/revoke', [RefundRequestController::class, 'revoke'])->name('refunds.revoke');
     Route::post('refunds/{refund}/reroute-execution-method', [RefundRequestController::class, 'rerouteExecutionMethod'])
