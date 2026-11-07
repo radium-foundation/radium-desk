@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Enums\PosCustomerRequestedSerialExchangeStatutoryTreatment;
 use App\Models\User;
 use App\Services\Pos\PosCustomerRequestedSerialExchangeService;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -45,9 +46,20 @@ class PosCustomerSerialExchangeCommand extends Command
             return $this->validateInputs() ? self::SUCCESS : self::FAILURE;
         }
 
-        $actor = $this->resolveActor();
+        try {
+            $actor = $this->resolveActor();
+        } catch (ValidationException $exception) {
+            return $this->failValidation($exception);
+        }
 
         $action = strtolower((string) $this->option('action'));
+
+        try {
+            $this->assertActorAuthorizedForAction($actor, $action);
+        } catch (ValidationException $exception) {
+            return $this->failValidation($exception);
+        }
+
         $base = [
             'inventory_sale_id' => (int) $this->option('sale-id'),
             'original_serial_number' => (string) $this->option('original'),
@@ -76,14 +88,19 @@ class PosCustomerSerialExchangeCommand extends Command
 
             return self::SUCCESS;
         } catch (ValidationException $exception) {
-            foreach ($exception->errors() as $messages) {
-                foreach ($messages as $message) {
-                    $this->error($message);
-                }
-            }
-
-            return self::FAILURE;
+            return $this->failValidation($exception);
         }
+    }
+
+    private function failValidation(ValidationException $exception): int
+    {
+        foreach ($exception->errors() as $messages) {
+            foreach ($messages as $message) {
+                $this->error($message);
+            }
+        }
+
+        return self::FAILURE;
     }
 
     private function validateInputs(): bool
@@ -139,6 +156,34 @@ class PosCustomerSerialExchangeCommand extends Command
             ]);
         }
 
+        if (! $user->is_active) {
+            throw ValidationException::withMessages([
+                'actor' => 'Actor user is inactive.',
+            ]);
+        }
+
         return $user;
+    }
+
+    private function assertActorAuthorizedForAction(User $actor, string $action): void
+    {
+        $permission = match ($action) {
+            'record-statutory' => RolePermissionSeeder::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_STATUTORY,
+            default => RolePermissionSeeder::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_EXECUTE,
+        };
+
+        if (! $actor->can($permission)) {
+            throw ValidationException::withMessages([
+                'actor' => 'Actor lacks permission '.$permission.' for this action.',
+            ]);
+        }
+
+        if ($action !== 'record-statutory') {
+            if (! $actor->can(RolePermissionSeeder::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_ATTEST)) {
+                throw ValidationException::withMessages([
+                    'actor' => 'Actor lacks permission '.RolePermissionSeeder::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_ATTEST.'.',
+                ]);
+            }
+        }
     }
 }
