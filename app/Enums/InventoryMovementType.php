@@ -16,6 +16,8 @@ enum InventoryMovementType: string
     case ReturnCaseReceive = 'return_case_receive';
     case ReturnCaseInspect = 'return_case_inspect';
     case ReturnCaseSerialReplace = 'return_case_serial_replace';
+    case PosCustomerSerialExchangeRestore = 'pos_customer_serial_exchange_restore';
+    case PosCustomerSerialExchangeAssign = 'pos_customer_serial_exchange_assign';
     case Adjustment = 'adjustment';
 
     public function label(): string
@@ -33,6 +35,8 @@ enum InventoryMovementType: string
             self::ReturnCaseReceive => 'Return case receipt',
             self::ReturnCaseInspect => 'Return case inspection',
             self::ReturnCaseSerialReplace => 'Return case serial replacement',
+            self::PosCustomerSerialExchangeRestore => 'Customer-requested serial exchange (restore original)',
+            self::PosCustomerSerialExchangeAssign => 'Customer-requested serial exchange (assign replacement)',
             self::Adjustment => 'Adjustment',
         };
     }

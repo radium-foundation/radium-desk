@@ -221,6 +221,15 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_POS_CANCEL = 'pos.cancel';
 
+    /** Execute customer-requested serial exchange on a completed POS sale (serial swap only). */
+    public const PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_EXECUTE = 'pos.customer_serial_exchange.execute';
+
+    /** Attest owner-confirmed physical receipt and resaleable condition for serial exchange. */
+    public const PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_ATTEST = 'pos.customer_serial_exchange.attest';
+
+    /** Record CA/statutory treatment approval for serial exchange with issued invoice. */
+    public const PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_STATUTORY = 'pos.customer_serial_exchange.statutory';
+
     /** Confirm a pending UPI POS intent after checking the live bank. Assigned to no role. */
     public const PERMISSION_POS_PAYMENTS_VERIFY = 'pos.payments.verify';
 
@@ -305,6 +314,8 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_RETURNS_CASES_RECEIVE,
         self::PERMISSION_RETURNS_CASES_INSPECT,
         self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
+        self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_EXECUTE,
+        self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_ATTEST,
     ];
 
     /**
@@ -567,6 +578,9 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_PRICE,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_STATUTORY,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_FINANCE,
+            self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_EXECUTE,
+            self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_ATTEST,
+            self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_STATUTORY,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -648,6 +662,9 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_PRICE,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_STATUTORY,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_FINANCE,
+            self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_EXECUTE,
+            self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_ATTEST,
+            self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_STATUTORY,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -735,6 +752,9 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_PRICE,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_STATUTORY,
             self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_FINANCE,
+            self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_EXECUTE,
+            self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_ATTEST,
+            self::PERMISSION_POS_CUSTOMER_SERIAL_EXCHANGE_STATUTORY,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
