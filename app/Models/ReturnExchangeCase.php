@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ReturnExchangeCaseSourceKind;
 use App\Enums\ReturnExchangeCaseStatus;
+use App\Enums\ReturnExchangeReplacementCategory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,6 +27,14 @@ class ReturnExchangeCase extends Model
         'refund_request_id',
         'recorded_tax_statutory_invoice_id',
         'recorded_tax_outcome_type',
+        'replacement_category',
+        'customer_request_summary',
+        'requested_connector_change',
+        'planned_replacement_serial_number',
+        'planned_replacement_product_id',
+        'price_difference_amount',
+        'price_difference_verified',
+        'hybrid_workflow_notes',
     ];
 
     protected function casts(): array
@@ -33,6 +42,9 @@ class ReturnExchangeCase extends Model
         return [
             'source_kind' => ReturnExchangeCaseSourceKind::class,
             'status' => ReturnExchangeCaseStatus::class,
+            'replacement_category' => ReturnExchangeReplacementCategory::class,
+            'price_difference_amount' => 'decimal:2',
+            'price_difference_verified' => 'boolean',
         ];
     }
 
@@ -94,5 +106,15 @@ class ReturnExchangeCase extends Model
     public function onlineRefundAllocation(): HasOne
     {
         return $this->hasOne(OnlineReturnRefundAllocation::class, 'return_exchange_case_id');
+    }
+
+    public function hybridApprovals(): HasMany
+    {
+        return $this->hasMany(ReturnExchangeCaseHybridApproval::class, 'return_exchange_case_id');
+    }
+
+    public function plannedReplacementProduct(): BelongsTo
+    {
+        return $this->belongsTo(InventoryProduct::class, 'planned_replacement_product_id');
     }
 }

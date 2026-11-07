@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\ReturnExchangeHybridApprovalType;
 use App\Models\ReturnExchangeCase;
 use App\Models\User;
 use App\Support\Inventory\InventoryBranchScope;
@@ -75,6 +76,21 @@ class ReturnExchangeCasePolicy
     public function performSerialReplacement(User $user, ReturnExchangeCase $case): bool
     {
         return app(ReturnExchangeCaseSerialReplacementPolicy::class)->perform($user, $case);
+    }
+
+    public function manageHybrid(User $user): bool
+    {
+        return app(ReturnExchangeHybridPolicy::class)->manage($user);
+    }
+
+    public function planReplacement(User $user, ReturnExchangeCase $case): bool
+    {
+        return app(ReturnExchangeHybridPolicy::class)->planReplacement($user, $case);
+    }
+
+    public function recordHybridApproval(User $user, ReturnExchangeCase $case, ReturnExchangeHybridApprovalType $type): bool
+    {
+        return app(ReturnExchangeHybridPolicy::class)->recordApproval($user, $case, $type);
     }
 
     public function submitOnlineRefundAllocation(User $user, ReturnExchangeCase $case): bool
