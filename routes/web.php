@@ -107,6 +107,7 @@ use App\Http\Controllers\ReturnExchangeCaseCentralQueueController;
 use App\Http\Controllers\ReturnExchangeCaseController;
 use App\Http\Controllers\ReturnExchangeCaseOnlineRefundController;
 use App\Http\Controllers\ReturnExchangeCaseSerialReplacementController;
+use App\Http\Controllers\ReturnExchangeManagementController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Service\ServiceCategoryController;
 use App\Http\Controllers\Service\ServiceItemController;
@@ -365,6 +366,21 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('return-cases/{return_case}/receipts/{receipt}/inspect', [ReturnExchangeCaseController::class, 'inspect'])
         ->name('return-cases.receipts.inspect');
     Route::resource('return-cases', ReturnExchangeCaseController::class)->only(['index', 'create', 'store', 'show']);
+
+    Route::prefix('return-exchange-management')->name('return-exchange-management.')->group(function (): void {
+        Route::get('/', [ReturnExchangeManagementController::class, 'index'])->name('index');
+        Route::get('/create', [ReturnExchangeManagementController::class, 'create'])->name('create');
+        Route::post('/', [ReturnExchangeManagementController::class, 'store'])->name('store');
+        Route::get('/demo/pos-6754', [ReturnExchangeManagementController::class, 'demoPos6754'])->name('demo.pos-6754');
+        Route::get('/pos-sale-lookup', [ReturnExchangeManagementController::class, 'lookupPosSale'])->name('pos-sale-lookup');
+        Route::get('/cases/{return_case}', [ReturnExchangeManagementController::class, 'show'])->name('show');
+        Route::post('/cases/{return_case}/planned-replacement', [ReturnExchangeManagementController::class, 'planReplacement'])
+            ->name('planned-replacement');
+        Route::post('/cases/{return_case}/approvals', [ReturnExchangeManagementController::class, 'recordApproval'])
+            ->name('approvals.store');
+        Route::post('/cases/{return_case}/complete', [ReturnExchangeManagementController::class, 'attemptCompletion'])
+            ->name('complete');
+    });
 
     Route::prefix('cash-book')->name('cash-book.')->group(function () {
         Route::get('/', [CashBookController::class, 'index'])->name('index');

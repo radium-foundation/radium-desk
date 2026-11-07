@@ -151,6 +151,22 @@ class RolePermissionSeeder extends Seeder
     /** Request wallet-to-OPM conversion for a succeeded allocation wallet credit (branch or central). */
     public const PERMISSION_RETURNS_CASES_ORDER_REFUND_ALLOCATION_OPM_CONVERSION_REQUEST = 'returns.cases.order_refund.allocation.opm_conversion.request';
 
+    /** Hybrid return/exchange management workspace (filters, workflow panels; no stock completion). */
+    public const PERMISSION_RETURNS_CASES_MANAGE = 'returns.cases.manage';
+
+    /** Record planned replacement serial intent (no inventory allocation). */
+    public const PERMISSION_RETURNS_CASES_HYBRID_PLAN_REPLACEMENT = 'returns.cases.hybrid.plan_replacement';
+
+    public const PERMISSION_RETURNS_CASES_HYBRID_APPROVE_BUSINESS = 'returns.cases.hybrid.approve.business';
+
+    public const PERMISSION_RETURNS_CASES_HYBRID_APPROVE_GOODWILL = 'returns.cases.hybrid.approve.goodwill';
+
+    public const PERMISSION_RETURNS_CASES_HYBRID_APPROVE_PRICE = 'returns.cases.hybrid.approve.price_difference';
+
+    public const PERMISSION_RETURNS_CASES_HYBRID_APPROVE_STATUTORY = 'returns.cases.hybrid.approve.statutory';
+
+    public const PERMISSION_RETURNS_CASES_HYBRID_APPROVE_FINANCE = 'returns.cases.hybrid.approve.finance';
+
     /** Approve or reject return-case allocation wallet-to-OPM conversion (central Finance). */
     public const PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_APPROVE = 'refunds.wallet_opm_conversion.approve';
 
@@ -544,6 +560,13 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
+            self::PERMISSION_RETURNS_CASES_MANAGE,
+            self::PERMISSION_RETURNS_CASES_HYBRID_PLAN_REPLACEMENT,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_BUSINESS,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_GOODWILL,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_PRICE,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_STATUTORY,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_FINANCE,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -618,6 +641,13 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
+            self::PERMISSION_RETURNS_CASES_MANAGE,
+            self::PERMISSION_RETURNS_CASES_HYBRID_PLAN_REPLACEMENT,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_BUSINESS,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_GOODWILL,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_PRICE,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_STATUTORY,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_FINANCE,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',
@@ -698,6 +728,13 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RELEASE,
             self::PERMISSION_REFUNDS_WALLET_OPM_CONVERSION_RECONCILE,
             self::PERMISSION_RETURNS_CASES_SERIAL_REPLACE,
+            self::PERMISSION_RETURNS_CASES_MANAGE,
+            self::PERMISSION_RETURNS_CASES_HYBRID_PLAN_REPLACEMENT,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_BUSINESS,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_GOODWILL,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_PRICE,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_STATUTORY,
+            self::PERMISSION_RETURNS_CASES_HYBRID_APPROVE_FINANCE,
             'audit-logs.view',
             'automation-operations.view',
             'operations-dashboard.view',

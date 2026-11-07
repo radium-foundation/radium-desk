@@ -157,7 +157,13 @@ class NavigationContextResolver
             return [NavigationMenu::Inventory, 'inventory.destination', null];
         }
 
-        if ($request->routeIs('cash-book.*', 'refunds.*', 'finance.*')) {
+        if ($request->routeIs(
+            'cash-book.*',
+            'refunds.*',
+            'finance.*',
+            'return-cases.*',
+            'return-exchange-management.*',
+        )) {
             return [NavigationMenu::Finance, 'finance.destination', null];
         }
 
