@@ -176,6 +176,33 @@ class PosCustomerRequestedSerialExchangeTest extends TestCase
         ]);
     }
 
+    public function test_failed_exchange_leaves_no_audit_or_exchange_movements(): void
+    {
+        [$sale, $originalNo, $replacementNo, $actor] = $this->pos6754Fixture(issuedInvoice: false);
+        $movementsBefore = InventoryMovement::query()->count();
+        $exchangesBefore = PosCustomerRequestedSerialExchange::query()->count();
+
+        $service = app(PosCustomerRequestedSerialExchangeService::class);
+        try {
+            $service->execute($actor, [
+                'inventory_sale_id' => $sale->id,
+                'original_serial_number' => $originalNo,
+                'replacement_serial_number' => 'DOES-NOT-EXIST',
+                'idempotency_key' => 'rollback-check',
+                'exchange_reason' => 'Exchange',
+                'physical_receipt_attestation_reason' => 'Received.',
+            ]);
+            $this->fail('Expected validation failure.');
+        } catch (ValidationException) {
+            // expected
+        }
+
+        $this->assertSame($exchangesBefore, PosCustomerRequestedSerialExchange::query()->count());
+        $this->assertSame($movementsBefore, InventoryMovement::query()->count());
+        $original = InventorySerial::query()->where('serial_number', $originalNo)->firstOrFail();
+        $this->assertSame(InventorySerialStatus::Sold, $original->status);
+    }
+
     public function test_wrong_product_replacement_fails(): void
     {
         [$sale, $originalNo, , $actor] = $this->pos6754Fixture(issuedInvoice: false);
