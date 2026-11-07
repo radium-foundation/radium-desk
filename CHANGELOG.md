@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.1.58 — 2026-11-07 — Hybrid Return & Exchange admin management UI (P-07-06 / PR #133)
+
+- **Return & exchange (hybrid policy):** Permission-gated **`return-exchange-management`** area for administrators: case list and filters, hybrid case creation (five replacement categories including customer-requested product/variant exchange), duplicate open-case guard, approval recording (business, goodwill, price difference, statutory, finance), planned replacement **intent only** (no stock allocation or sale-row swap), documents/finance read-only panel, readiness checklist, and **POS-6754 read-only demo** (no production case or data mutation).
+- **Completion / orchestration:** Sale-row exchange completion remains **deliberately disabled** (`mayAttemptCompletion` false; completion POST returns blocking error). **No** serial exchange execution, automatic financial reconciliation, invoice edit/cancel, refund posting, or POS-6754 resolution in this release.
+- **Permissions:** New `returns.cases.manage`, `returns.cases.hybrid.plan_replacement`, and `returns.cases.hybrid.approve.*` grants (admin / superadmin / operations_admin blocks in `RolePermissionSeeder`).
+- **Navigation:** Finance menu context for return/hybrid routes; **Hybrid management** link on legacy return-case index when authorized.
+- **Migrations:** **`2026_11_07_120000_add_hybrid_return_exchange_workflow_columns`** — hybrid workflow columns on **`return_exchange_cases`** and new **`return_exchange_case_hybrid_approvals`** table (run once post-deploy).
+- **Production notes:** Deploy from tagged **`v4.1.58`**. Run migrate + `RolePermissionSeeder` as part of standard KVM deploy. **No** live POS-6754 execution, stock allocation, or financial/document mutation in deploy scope.
+- **Rollback target (application):** **`v4.1.57`** via RIP + redeploy; DB rollback via migration `down()` only if no hybrid approval rows and UI not relied upon (Owner/CA).
+- **Source:** merge **`56fba254af96cce6b4d51ae6c60ee0e6a0b1e3fc`** (PR **#133** on **`e133cd73`**). PR **#29 not merged.**
+- **Validation (scoped):** Hybrid management PHPUnit **27/27**; return-case regression subset **59/59**; PR CI **rip**, **release-rip**, **driver-management-rip**, **statutory-cancellation-phpunit** **SUCCESS** on **`e133cd73`**. Full ReturnExchange OPM allocation suite remains **23 documented baseline defects** on `main` (not claimed green).
+- Cursor prompts **P-07-06**, **P-07-10**, **P-07-17**, **P-07-19**, **P-07-21**.
+
 ## 4.1.57 — 2026-11-03 — Shiprocket document URL persistence (P-03-54 / PR #131)
 
 - **Hardware fulfilment / Shiprocket:** Migration **`2026_10_27_120000_widen_shipment_document_urls`** widens **`shipments.label_url`** and **`shipments.manifest_url`** to nullable **TEXT** with safe rollback guard when URLs exceed 1,024 characters. **`ShipmentDocumentPersistence`**, **`ShiprocketManifestAlreadyGenerated`**, single and bulk document services, and **`hardware-shipment-documents-rip`** CI regression bundle.
