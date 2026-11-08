@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.1.59 — 2026-11-08 — Customer-requested POS serial exchange service + mandatory testing policy (P-07-27 / PR #134; P-08-04 / PR #135)
+
+- **POS serial exchange (customer-requested):** **`PosCustomerRequestedSerialExchangeService`**, model **`PosCustomerRequestedSerialExchange`**, status/statutory enums, and inventory movement types **`pos_cust_serial_ex_*`** for controlled one-unit serial replacement on eligible POS sale rows. Fail-closed statutory treatment when an issued invoice gate applies. **Not** hybrid case completion, **not** POS-6754 execution, and **not** automatic invoice/finance mutation in application scope.
+- **Operations:** Artisan **`pos:customer-serial-exchange`** (authorization-hardened; blocks **`production`** environment). Permissions **`pos.customer_serial_exchange.execute`**, **`.attest`**, **`.statutory`** in **`RolePermissionSeeder`** (post-deploy seed as part of standard KVM deploy).
+- **Migrations:** **`2026_11_07_170000_create_pos_customer_requested_serial_exchanges_table`** (new exchange audit/state table). **`2026_11_07_120000_add_hybrid_return_exchange_workflow_columns`** — same migration id as **4.1.58**; PR **#134** tightens hybrid FK index naming for MariaDB/InnoDB identifier limits (safe no-op when **4.1.58** hybrid DDL already applied). Run migrate once post-deploy.
+- **Documentation (PR #135):** **`docs/RADIUMWEBSITES_TESTING_AND_VALIDATION_POLICY.md`** v**1.0** — mandatory RadiumWebsites testing and validation policy (SHA256 **`b642c70c5bb1f1d93855fa3e0f4d5d24f6f95ff3a5fc33336adf396e68b32667`**). **No** application behavior change from this doc-only merge.
+- **Production notes:** Deploy from tagged **`v4.1.59`**. Run migrate + **`RolePermissionSeeder`** as part of documented KVM deploy gates. **No** live customer serial exchange, **no** POS-6754 resolution, and **no** invoice/finance/payment/wallet mutation in deploy scope without separate Owner authorization.
+- **Rollback target (application):** **`v4.1.58`** / **`3330c152`** via RIP + redeploy; DB rollback via migration `down()` on **`2026_11_07_170000_*`** only if no exchange rows persisted (Owner/CA). Policy doc removal is optional on rollback (documentation only).
+- **Source:** merge **`978f02b6ddd51d57ff5e168378097dc9b74efbc4`** (PR **#134** on **`f638a2c2`**) and merge **`855d6b77671635f67185d16eb74b69f0fbdd8633`** (PR **#135** policy on **`ae1ec037`**).
+- **Validation (scoped):** PR **#134** CI **rip**, **release-rip**, **driver-management-rip**, **statutory-cancellation-phpunit** **SUCCESS** on **`f638a2c2`**; MariaDB disposable concurrency **4/4×2 PASS** (P-07-30); focused exchange + command + hybrid subset **34/34 PASS** (sqlite). **Full local PHPUnit suite remains BLOCKED** (not claimed green for this release cut).
+- Cursor prompts **P-07-27** through **P-07-30**, **P-08-01**, **P-08-04**, **P-08-05**, **P-08-06**.
+
 ## 4.1.58 — 2026-11-07 — Hybrid Return & Exchange admin management UI (P-07-06 / PR #133)
 
 - **Return & exchange (hybrid policy):** Permission-gated **`return-exchange-management`** area for administrators: case list and filters, hybrid case creation (five replacement categories including customer-requested product/variant exchange), duplicate open-case guard, approval recording (business, goodwill, price difference, statutory, finance), planned replacement **intent only** (no stock allocation or sale-row swap), documents/finance read-only panel, readiness checklist, and **POS-6754 read-only demo** (no production case or data mutation).
