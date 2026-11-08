@@ -288,21 +288,13 @@ deploy_rsync_run_application_dry_run_on_kvm_linux() {
     local output_file="$1"
     local staging stamp
     local -a filter_args=() remote_cmd=()
-    local staging_cleanup_done=0
 
     stamp="${DEPLOY_RSYNC_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
     staging="/tmp/desk-rsync-dryrun-${stamp}"
 
-    deploy_rsync_remove_remote_staging() {
-        if [[ "$staging_cleanup_done" -eq 1 ]]; then
-            return 0
-        fi
-        ssh_exec "rm -rf '${staging}'" >/dev/null 2>&1 \
-            || print_warning "Could not remove KVM rsync dry-run staging: ${staging}"
-        staging_cleanup_done=1
-    }
-
-    trap deploy_rsync_remove_remote_staging RETURN
+    # RETURN runs the trap by function name (not as a nested call), so it cannot see
+    # function-local variables under set -u. Inline staging path at trap registration time.
+    trap "ssh_exec \"rm -rf '${staging}'\" >/dev/null 2>&1 || print_warning \"Could not remove KVM rsync dry-run staging: ${staging}\"" RETURN
 
     print_warning "Application deletion dry-run: staging candidate on KVM and running GNU rsync --dry-run (${staging})..."
 

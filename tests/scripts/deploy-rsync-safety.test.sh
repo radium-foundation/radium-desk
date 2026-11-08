@@ -173,4 +173,28 @@ test_g_local_dry_run_is_non_mutating() {
 
 test_g_local_dry_run_is_non_mutating
 
+# TEST H: KVM Linux staging cleanup RETURN trap must not trip nounset (P-08-07).
+test_h_kvm_staging_return_trap_under_nounset() {
+    local log="${TMP}/test-h.log" call found_rm=0
+
+    SSH_CALLS=()
+    ssh_exec() {
+        SSH_CALLS+=("$*")
+        return 0
+    }
+    deploy_rsync_stage_release_candidate_on_remote() { return 0; }
+    deploy_kvm_rsync_application_filters() { echo '--exclude=.git/'; }
+
+    DEPLOY_RSYNC_STAMP='TESTSTAMP'
+    deploy_rsync_run_application_dry_run_on_kvm_linux "$log"
+
+    for call in "${SSH_CALLS[@]}"; do
+        [[ "$call" == rm\ -rf\ \'/tmp/desk-rsync-dryrun-TESTSTAMP\' ]] && found_rm=1
+    done
+    [[ "$found_rm" -eq 1 ]] || fail "TEST H expected staging cleanup via RETURN trap, got: ${SSH_CALLS[*]}"
+    pass "TEST H KVM staging RETURN trap under nounset"
+}
+
+test_h_kvm_staging_return_trap_under_nounset
+
 echo "All deploy-rsync-safety local tests passed."
