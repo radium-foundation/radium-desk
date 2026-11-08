@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Pos;
 
+use App\Enums\InventoryMovementType;
 use PDO;
 use PDOException;
 use Symfony\Component\Process\Process;
@@ -36,11 +37,13 @@ class PosCustomerRequestedSerialExchangeMysqlConcurrencyTest extends TestCase
         $this->assertIndependentConnections($results);
 
         $pdo = $this->safePdo();
+        $restoreType = InventoryMovementType::PosCustomerSerialExchangeRestore->value;
+        $assignType = InventoryMovementType::PosCustomerSerialExchangeAssign->value;
         $restoreMovements = (int) $pdo->query(
-            "select count(*) from inventory_movements where type = 'pos_customer_serial_exchange_restore'"
+            "select count(*) from inventory_movements where type = '{$restoreType}'"
         )->fetchColumn();
         $assignMovements = (int) $pdo->query(
-            "select count(*) from inventory_movements where type = 'pos_customer_serial_exchange_assign'"
+            "select count(*) from inventory_movements where type = '{$assignType}'"
         )->fetchColumn();
         $executed = (int) $pdo->query(
             'select count(*) from pos_customer_requested_serial_exchanges where executed_at is not null'
@@ -202,11 +205,13 @@ class PosCustomerRequestedSerialExchangeMysqlConcurrencyTest extends TestCase
 
     private function assertSingleExchangeAuditTrail(PDO $pdo): void
     {
+        $restoreType = InventoryMovementType::PosCustomerSerialExchangeRestore->value;
+        $assignType = InventoryMovementType::PosCustomerSerialExchangeAssign->value;
         $restoreMovements = (int) $pdo->query(
-            "select count(*) from inventory_movements where type = 'pos_customer_serial_exchange_restore'"
+            "select count(*) from inventory_movements where type = '{$restoreType}'"
         )->fetchColumn();
         $assignMovements = (int) $pdo->query(
-            "select count(*) from inventory_movements where type = 'pos_customer_serial_exchange_assign'"
+            "select count(*) from inventory_movements where type = '{$assignType}'"
         )->fetchColumn();
         $executed = (int) $pdo->query(
             'select count(*) from pos_customer_requested_serial_exchanges where executed_at is not null'

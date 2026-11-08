@@ -20,9 +20,11 @@ use App\Services\ReturnExchange\ReturnExchangeCaseSerialReplacementEquivalence;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\InventorySerialNumber;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 final class PosCustomerRequestedSerialExchangeService
 {
@@ -170,140 +172,142 @@ final class PosCustomerRequestedSerialExchangeService
         }
 
         try {
-            return DB::transaction(function () use ($actor, $payload, $idempotencyKey, $attestation): PosCustomerRequestedSerialExchange {
-                $exchange = PosCustomerRequestedSerialExchange::query()
-                    ->where('idempotency_key', $idempotencyKey)
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($exchange?->executed_at !== null) {
-                    return $exchange;
-                }
-
-                if ($exchange === null) {
-                    $exchange = $this->createExchangeDraft($actor, $payload, $idempotencyKey);
+            return $this->runWithInnodbDeadlockRetry(function () use ($actor, $payload, $idempotencyKey, $attestation): PosCustomerRequestedSerialExchange {
+                return DB::transaction(function () use ($actor, $payload, $idempotencyKey, $attestation): PosCustomerRequestedSerialExchange {
                     $exchange = PosCustomerRequestedSerialExchange::query()
-                        ->whereKey($exchange->id)
+                        ->where('idempotency_key', $idempotencyKey)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($exchange?->executed_at !== null) {
+                        return $exchange;
+                    }
+
+                    if ($exchange === null) {
+                        $exchange = $this->createExchangeDraft($actor, $payload, $idempotencyKey);
+                        $exchange = PosCustomerRequestedSerialExchange::query()
+                            ->whereKey($exchange->id)
+                            ->lockForUpdate()
+                            ->firstOrFail();
+                    }
+
+                    if ($this->saleRequiresStatutoryGate($exchange->sale) && $exchange->statutory_approved_at === null) {
+                        throw ValidationException::withMessages([
+                            'statutory' => 'Statutory treatment approval is required before this exchange can run.',
+                        ]);
+                    }
+
+                    if ($exchange->status === PosCustomerRequestedSerialExchangeStatus::AwaitingStatutory) {
+                        throw ValidationException::withMessages([
+                            'statutory' => 'Statutory treatment approval is required before this exchange can run.',
+                        ]);
+                    }
+
+                    $sale = InventorySale::query()
+                        ->whereKey($exchange->inventory_sale_id)
                         ->lockForUpdate()
                         ->firstOrFail();
-                }
 
-                if ($this->saleRequiresStatutoryGate($exchange->sale) && $exchange->statutory_approved_at === null) {
-                    throw ValidationException::withMessages([
-                        'statutory' => 'Statutory treatment approval is required before this exchange can run.',
+                    $this->assertSaleUnchanged($sale, $exchange);
+
+                    $assignment = InventorySaleSerial::query()
+                        ->whereKey($exchange->inventory_sale_serial_id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    if ((int) $assignment->serial_id !== (int) $exchange->original_inventory_serial_id) {
+                        throw ValidationException::withMessages([
+                            'original_serial_number' => 'The original serial is no longer assigned to this sale.',
+                        ]);
+                    }
+
+                    $original = InventorySerial::query()
+                        ->lockForUpdate()
+                        ->findOrFail($exchange->original_inventory_serial_id);
+                    $replacement = InventorySerial::query()
+                        ->lockForUpdate()
+                        ->findOrFail($exchange->replacement_inventory_serial_id);
+
+                    $branch = $exchange->branch;
+
+                    if ($original->status !== InventorySerialStatus::Sold) {
+                        throw ValidationException::withMessages([
+                            'original_serial_number' => 'Original serial is not in sold status.',
+                        ]);
+                    }
+
+                    if (! $replacement->status->isAssignable()) {
+                        throw ValidationException::withMessages([
+                            'replacement_serial_number' => 'Replacement serial is not available.',
+                        ]);
+                    }
+
+                    if ((int) $original->branch_id !== (int) $branch->id || (int) $replacement->branch_id !== (int) $branch->id) {
+                        throw ValidationException::withMessages([
+                            'branch' => 'Both serials must be at the sale branch.',
+                        ]);
+                    }
+
+                    if (! $this->equivalence->productsMatch($original, $replacement)) {
+                        throw ValidationException::withMessages([
+                            'replacement_serial_number' => 'Replacement serial is not compatible with the original product.',
+                        ]);
+                    }
+
+                    $notes = 'Customer-requested serial exchange. '.$exchange->exchange_reason;
+
+                    $fromStatus = $original->status;
+                    $this->stock->restoreSerialFromSale($original, $branch);
+                    $original->refresh();
+                    $this->stock->recordMovement(
+                        type: InventoryMovementType::PosCustomerSerialExchangeRestore,
+                        product: $original->product,
+                        branch: $branch,
+                        qty: 1,
+                        actor: $actor,
+                        variant: $original->variant,
+                        serial: $original,
+                        sale: $sale,
+                        fromStatus: $fromStatus,
+                        toStatus: InventorySerialStatus::Available,
+                        notes: $notes.' Original restored to available inventory.',
+                    );
+
+                    $replacementFrom = $replacement->status;
+                    $this->stock->markSerialSold($replacement, $branch);
+                    $replacement->refresh();
+                    $this->stock->recordMovement(
+                        type: InventoryMovementType::PosCustomerSerialExchangeAssign,
+                        product: $replacement->product,
+                        branch: $branch,
+                        qty: -1,
+                        actor: $actor,
+                        variant: $replacement->variant,
+                        serial: $replacement,
+                        sale: $sale,
+                        fromStatus: $replacementFrom,
+                        toStatus: InventorySerialStatus::Sold,
+                        notes: $notes.' Replacement assigned to existing sale.',
+                    );
+
+                    $assignment->update(['serial_id' => $replacement->id]);
+
+                    $exchange->update([
+                        'physical_receipt_attestation_reason' => $attestation,
+                        'physical_receipt_attested_by' => $actor->id,
+                        'physical_receipt_attested_at' => now(),
+                        'performed_by' => $actor->id,
+                        'executed_at' => now(),
+                        'status' => PosCustomerRequestedSerialExchangeStatus::Executed,
                     ]);
-                }
 
-                if ($exchange->status === PosCustomerRequestedSerialExchangeStatus::AwaitingStatutory) {
-                    throw ValidationException::withMessages([
-                        'statutory' => 'Statutory treatment approval is required before this exchange can run.',
+                    return $exchange->fresh([
+                        'sale',
+                        'originalSerial',
+                        'replacementSerial',
+                        'saleSerialAssignment',
                     ]);
-                }
-
-                $sale = InventorySale::query()
-                    ->whereKey($exchange->inventory_sale_id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                $this->assertSaleUnchanged($sale, $exchange);
-
-                $assignment = InventorySaleSerial::query()
-                    ->whereKey($exchange->inventory_sale_serial_id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                if ((int) $assignment->serial_id !== (int) $exchange->original_inventory_serial_id) {
-                    throw ValidationException::withMessages([
-                        'original_serial_number' => 'The original serial is no longer assigned to this sale.',
-                    ]);
-                }
-
-                $original = InventorySerial::query()
-                    ->lockForUpdate()
-                    ->findOrFail($exchange->original_inventory_serial_id);
-                $replacement = InventorySerial::query()
-                    ->lockForUpdate()
-                    ->findOrFail($exchange->replacement_inventory_serial_id);
-
-                $branch = $exchange->branch;
-
-                if ($original->status !== InventorySerialStatus::Sold) {
-                    throw ValidationException::withMessages([
-                        'original_serial_number' => 'Original serial is not in sold status.',
-                    ]);
-                }
-
-                if (! $replacement->status->isAssignable()) {
-                    throw ValidationException::withMessages([
-                        'replacement_serial_number' => 'Replacement serial is not available.',
-                    ]);
-                }
-
-                if ((int) $original->branch_id !== (int) $branch->id || (int) $replacement->branch_id !== (int) $branch->id) {
-                    throw ValidationException::withMessages([
-                        'branch' => 'Both serials must be at the sale branch.',
-                    ]);
-                }
-
-                if (! $this->equivalence->productsMatch($original, $replacement)) {
-                    throw ValidationException::withMessages([
-                        'replacement_serial_number' => 'Replacement serial is not compatible with the original product.',
-                    ]);
-                }
-
-                $notes = 'Customer-requested serial exchange. '.$exchange->exchange_reason;
-
-                $fromStatus = $original->status;
-                $this->stock->restoreSerialFromSale($original, $branch);
-                $original->refresh();
-                $this->stock->recordMovement(
-                    type: InventoryMovementType::PosCustomerSerialExchangeRestore,
-                    product: $original->product,
-                    branch: $branch,
-                    qty: 1,
-                    actor: $actor,
-                    variant: $original->variant,
-                    serial: $original,
-                    sale: $sale,
-                    fromStatus: $fromStatus,
-                    toStatus: InventorySerialStatus::Available,
-                    notes: $notes.' Original restored to available inventory.',
-                );
-
-                $replacementFrom = $replacement->status;
-                $this->stock->markSerialSold($replacement, $branch);
-                $replacement->refresh();
-                $this->stock->recordMovement(
-                    type: InventoryMovementType::PosCustomerSerialExchangeAssign,
-                    product: $replacement->product,
-                    branch: $branch,
-                    qty: -1,
-                    actor: $actor,
-                    variant: $replacement->variant,
-                    serial: $replacement,
-                    sale: $sale,
-                    fromStatus: $replacementFrom,
-                    toStatus: InventorySerialStatus::Sold,
-                    notes: $notes.' Replacement assigned to existing sale.',
-                );
-
-                $assignment->update(['serial_id' => $replacement->id]);
-
-                $exchange->update([
-                    'physical_receipt_attestation_reason' => $attestation,
-                    'physical_receipt_attested_by' => $actor->id,
-                    'physical_receipt_attested_at' => now(),
-                    'performed_by' => $actor->id,
-                    'executed_at' => now(),
-                    'status' => PosCustomerRequestedSerialExchangeStatus::Executed,
-                ]);
-
-                return $exchange->fresh([
-                    'sale',
-                    'originalSerial',
-                    'replacementSerial',
-                    'saleSerialAssignment',
-                ]);
+                });
             });
         } catch (UniqueConstraintViolationException) {
             return PosCustomerRequestedSerialExchange::query()
@@ -461,5 +465,46 @@ final class PosCustomerRequestedSerialExchangeService
                 'authorization' => 'You are not allowed to perform this action.',
             ]);
         }
+    }
+
+    /**
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    private function runWithInnodbDeadlockRetry(callable $callback): mixed
+    {
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            try {
+                return $callback();
+            } catch (QueryException $exception) {
+                if ($attempt < 5 && $this->isInnodbDeadlock($exception)) {
+                    usleep(25_000 * $attempt);
+
+                    continue;
+                }
+
+                throw $exception;
+            }
+        }
+
+        throw new \RuntimeException('InnoDB deadlock retry loop exhausted.');
+    }
+
+    private function isInnodbDeadlock(Throwable $exception): bool
+    {
+        if (! $exception instanceof QueryException) {
+            return false;
+        }
+
+        $code = (int) $exception->getCode();
+        if ($code === 1213 || $code === 1205) {
+            return true;
+        }
+
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'deadlock') || str_contains($message, 'lock wait');
     }
 }

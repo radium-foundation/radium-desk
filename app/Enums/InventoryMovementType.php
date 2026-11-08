@@ -16,8 +16,8 @@ enum InventoryMovementType: string
     case ReturnCaseReceive = 'return_case_receive';
     case ReturnCaseInspect = 'return_case_inspect';
     case ReturnCaseSerialReplace = 'return_case_serial_replace';
-    case PosCustomerSerialExchangeRestore = 'pos_customer_serial_exchange_restore';
-    case PosCustomerSerialExchangeAssign = 'pos_customer_serial_exchange_assign';
+    case PosCustomerSerialExchangeRestore = 'pos_cust_serial_ex_restore';
+    case PosCustomerSerialExchangeAssign = 'pos_cust_serial_ex_assign';
     case Adjustment = 'adjustment';
 
     public function label(): string
