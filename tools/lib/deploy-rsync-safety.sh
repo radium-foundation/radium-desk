@@ -13,6 +13,16 @@ deploy_rsync_exec() {
     "$@"
 }
 
+# OpenSSH remote exec does not use a shell; rules such as "--filter" + "P vendor/**" must be
+# a single remote argv. bash -lc with one quoted string preserves multi-word rsync rules.
+deploy_rsync_ssh_exec_argv() {
+    local remote_argv_quoted
+
+    printf -v remote_argv_quoted '%q ' "$@"
+    remote_argv_quoted="${remote_argv_quoted% }"
+    ssh_exec bash -lc "$(printf '%q' "$remote_argv_quoted")"
+}
+
 # Central dry-run rsync base flags. Every analyze/dry-run path must use this.
 deploy_rsync_init_dry_run_command() {
     DEPLOY_RSYNC_DRY_RUN_BASE=(rsync -avzi --dry-run --delete)
@@ -313,7 +323,7 @@ deploy_rsync_run_application_dry_run_on_kvm_linux() {
     done
     remote_cmd+=("${staging}/" "${REMOTE_PROJECT}/")
 
-    if ! ssh_exec "${remote_cmd[@]}" >"$output_file" 2>&1; then
+    if ! deploy_rsync_ssh_exec_argv "${remote_cmd[@]}" >"$output_file" 2>&1; then
         return 1
     fi
 

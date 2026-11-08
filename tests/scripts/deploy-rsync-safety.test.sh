@@ -195,6 +195,27 @@ test_h_kvm_staging_return_trap_under_nounset() {
     pass "TEST H KVM staging RETURN trap under nounset"
 }
 
+test_i_kvm_remote_rsync_filter_argv_quoting() {
+    local -a ssh_capture=() filter_line lc_script
+
+    ssh_exec() {
+        ssh_capture=("$@")
+        return 0
+    }
+
+    deploy_rsync_ssh_exec_argv rsync --dry-run --filter 'P vendor/**' --filter 'P node_modules/**' /tmp/a/ /tmp/b/
+
+    [[ "${ssh_capture[0]}" == "bash" ]] || fail "TEST I expected bash wrapper, got: ${ssh_capture[*]}"
+    [[ "${ssh_capture[1]}" == "-lc" ]] || fail "TEST I expected -lc, got: ${ssh_capture[*]}"
+    lc_script="${ssh_capture[2]}"
+    [[ "$lc_script" == *'--filter'* ]] || fail "TEST I missing --filter in remote script"
+    [[ "$lc_script" == *vendor* && "$lc_script" == *node_modules* ]] \
+        || fail "TEST I protect filter rules must stay quoted in remote script, got: ${lc_script}"
+
+    pass "TEST I KVM remote rsync argv uses bash -lc quoting"
+}
+
 test_h_kvm_staging_return_trap_under_nounset
+test_i_kvm_remote_rsync_filter_argv_quoting
 
 echo "All deploy-rsync-safety local tests passed."
