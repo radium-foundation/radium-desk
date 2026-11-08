@@ -309,6 +309,6 @@ class ReturnExchangeManagementCoverageTest extends ReturnExchangeManagementTest
         $this->actingAs($agent)
             ->get(route('return-cases.index'))
             ->assertOk()
-            ->assertDontSee('Hybrid management', false);
+            ->assertDontSee(route('return-exchange-management.index'), false);
     }
 }

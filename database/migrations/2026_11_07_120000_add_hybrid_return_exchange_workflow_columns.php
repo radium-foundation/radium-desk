@@ -21,16 +21,25 @@ return new class extends Migration
 
         Schema::create('return_exchange_case_hybrid_approvals', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('return_exchange_case_id')->constrained('return_exchange_cases')->cascadeOnDelete();
+            $table->unsignedBigInteger('return_exchange_case_id');
             $table->string('approval_type', 64);
             $table->string('decision', 32)->default('pending');
             $table->text('reason')->nullable();
-            $table->foreignId('decided_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->unsignedBigInteger('decided_by')->nullable();
             $table->timestamp('decided_at')->nullable();
             $table->string('idempotency_key', 128)->nullable()->unique();
             $table->timestamps();
 
             $table->unique(['return_exchange_case_id', 'approval_type'], 'rec_hybrid_approval_case_type_unique');
+
+            $table->foreign('return_exchange_case_id', 'rec_hybrid_appr_case_fk')
+                ->references('id')
+                ->on('return_exchange_cases')
+                ->cascadeOnDelete();
+            $table->foreign('decided_by', 'rec_hybrid_appr_decided_by_fk')
+                ->references('id')
+                ->on('users')
+                ->nullOnDelete();
         });
     }
 
