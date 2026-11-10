@@ -6,10 +6,12 @@ use App\Enums\CommerceOrderStatus;
 use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
+use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentSerial;
 use App\Models\InventoryBranch;
+use App\Models\InventoryProduct;
 use App\Models\InventoryUserBranch;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
@@ -51,6 +53,48 @@ class HardwareFulfilmentInvoiceHttpTest extends TestCase
         ]);
 
         $this->seed(RolePermissionSeeder::class);
+        $msoProduct = InventoryProduct::query()->create([
+            'sku' => 'RBIMSOE3L1',
+            'name' => 'MSO1300',
+            'hsn_code' => '84716050',
+            'gst_percentage' => 18,
+            'unit_price' => 3049,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->firstOrCreate(
+            [
+                'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+                'model_id' => 951,
+            ],
+            [
+                'inventory_product_id' => $msoProduct->id,
+                'catalog_sku' => 'MSO1300',
+                'channel_sku' => 'RBIMSOE3L1',
+                'notes' => 'Test-only invoice HTTP serialized map.',
+            ],
+        );
+        $mfsProduct = InventoryProduct::query()->create([
+            'sku' => 'RBIMFS946',
+            'name' => 'Mantra MFS test',
+            'hsn_code' => '84716050',
+            'gst_percentage' => 18,
+            'unit_price' => 2499,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->firstOrCreate(
+            [
+                'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+                'model_id' => 946,
+            ],
+            [
+                'inventory_product_id' => $mfsProduct->id,
+                'catalog_sku' => 'MFS946',
+                'channel_sku' => 'RBIMFS946',
+                'notes' => 'Test-only invoice HTTP qty-ten map.',
+            ],
+        );
         $this->workflow = app(HardwareFulfilmentWorkflowService::class);
         $this->operator = User::factory()->create(['is_active' => true]);
         $this->operator->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
