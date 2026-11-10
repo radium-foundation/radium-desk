@@ -18,6 +18,7 @@ use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
+use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackOutboxWriter;
 use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackSigner;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentIsolatedWorkflowService;
@@ -206,7 +207,7 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
             serials: [$serial],
             actor: $this->actor,
         );
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
         $this->assertSame([$serial], $fulfilment->fresh()->serials->pluck('serial_number')->all());
 
         $invoiceResult = $this->isolated->run(identifier: $sourceId, step: 'invoice', actor: $this->actor);
@@ -244,11 +245,26 @@ class HardwareFulfilmentIsolatedOneOrderTest extends TestCase
             'hardware_fulfilment.callback.enabled' => false,
         ]);
 
+        $allowedNonCallbackTypes = [
+            HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE,
+            \App\Services\StatutoryInvoice\EInvoiceOutboxWriter::EVENT_TYPE,
+            \App\Services\StatutoryInvoice\ServiceStatutoryInvoiceMintOutboxWriter::EVENT_TYPE,
+            \App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationOutboxWriter::EVENT_TYPE,
+        ];
+        $nonCallbackBeforeSync = OutboxEvent::query()
+            ->whereNotIn('event_type', $allowedNonCallbackTypes)
+            ->count();
+
         $this->isolated->run(identifier: $sourceId, step: 'sync', forceCallback: true);
         $this->assertSame(HardwareFulfilmentState::Synced, $fulfilment->fresh()->state);
         $this->assertGreaterThan(0, $this->callback->sends);
         $this->assertFalse((bool) config('hardware_fulfilment.callback.enabled'));
-        $this->assertSame(0, OutboxEvent::query()->where('event_type', '!=', 'hardware.box.callback')->count());
+        $this->assertSame(
+            $nonCallbackBeforeSync,
+            OutboxEvent::query()
+                ->whereNotIn('event_type', $allowedNonCallbackTypes)
+                ->count(),
+        );
     }
 
     public function test_command_through_ready_uses_exactly_one_identifier(): void

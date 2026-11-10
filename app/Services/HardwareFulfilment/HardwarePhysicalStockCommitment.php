@@ -103,6 +103,29 @@ final class HardwarePhysicalStockCommitment
     }
 
     /**
+     * Serialized physical units that require persisted serial numbers (not total
+     * physical merchandise quantity — quantity-only lines commit via metadata).
+     */
+    public function requiredSerializedUnitCount(CommerceOrder $order): int
+    {
+        $order->loadMissing('items');
+        $count = 0;
+
+        foreach ($order->items as $item) {
+            if (! HardwareFulfilmentEligibility::isPhysicalCommerceItem($item)) {
+                continue;
+            }
+
+            $product = $this->mappedProduct($order, $item);
+            if ($product !== null && $product->is_serialized) {
+                $count += (int) $item->qty;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
      * @param  array<string, int>  $quantitiesByItemId
      */
     public function mergeQuantityCommitMetadata(HardwareFulfilment $fulfilment, array $quantitiesByItemId): array

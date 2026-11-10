@@ -103,7 +103,7 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
 
     public function test_shipment_is_blocked_before_invoice(): void
     {
-        $fulfilment = $this->allocatedFulfilment('RDE900501', 'DELHI-RETAIL');
+        $fulfilment = $this->readyFulfilment('RDE900501', 'DELHI-RETAIL');
 
         try {
             $this->shipments->createShipment($fulfilment);
@@ -114,7 +114,7 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
 
         $this->assertSame(0, Shipment::query()->count());
         $this->assertSame(0, $this->fake->creates);
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
+        $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->fresh()->state);
     }
 
     public function test_shipment_is_blocked_before_serial_allocation(): void

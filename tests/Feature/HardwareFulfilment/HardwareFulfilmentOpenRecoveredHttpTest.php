@@ -16,6 +16,7 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareRecoveredFulfilmentAuthorization;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -28,6 +29,7 @@ class HardwareFulfilmentOpenRecoveredHttpTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->seed(SettingsSeeder::class);
         config([
             'channel_ingest.auto_issue_invoice' => false,
             'hardware_fulfilment.correlate_cashfree' => false,
@@ -54,10 +56,24 @@ class HardwareFulfilmentOpenRecoveredHttpTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['workspace' => 'hardware']))
             ->assertOk()
-            ->assertSee($sourceId)
-            ->assertSee('Open Fulfilment')
-            ->assertSee(route('inventory.hardware-fulfilments.awaiting.action-dialog', $support), false)
+            ->assertSee('data-hardware-defer-rows="1"', false)
             ->assertDontSee('>Review</span>', false);
+
+        $rows = $this->actingAs($admin)
+            ->getJson(route('dashboard.hardware.rows', [
+                'queue' => 'hardware',
+                'hw_filter' => 'all',
+                'q' => $sourceId,
+            ]))
+            ->assertOk();
+
+        $rowsHtml = (string) $rows->json('rows_html');
+        $this->assertStringContainsString($sourceId, $rowsHtml);
+        $this->assertStringContainsString('Open Fulfilment', $rowsHtml);
+        $this->assertStringContainsString(
+            route('inventory.hardware-fulfilments.awaiting.action-dialog', $support),
+            $rowsHtml,
+        );
 
         $this->actingAs($admin)
             ->get(route('inventory.hardware-fulfilments.awaiting.action-dialog', $support))

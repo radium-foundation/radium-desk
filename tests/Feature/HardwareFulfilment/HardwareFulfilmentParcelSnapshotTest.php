@@ -115,7 +115,7 @@ class HardwareFulfilmentParcelSnapshotTest extends TestCase
         $this->assertSame('inventory_product_packaging', $fresh->parcel_snapshot['source']);
         $this->assertSame($this->product->id, $fresh->parcel_snapshot['inventory_product_id']);
         $this->assertSame($events, HardwareFulfilmentEvent::query()->count());
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fresh->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fresh->state);
 
         $ready = app(HardwareShipmentEligibility::class)->inspect($fresh);
         $this->assertSame('snapshot', $ready->parcelSource);

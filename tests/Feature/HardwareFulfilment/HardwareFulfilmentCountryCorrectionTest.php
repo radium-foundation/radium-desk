@@ -130,7 +130,7 @@ class HardwareFulfilmentCountryCorrectionTest extends TestCase
         $this->assertSame($invoiceId, $fresh->statutory_invoice_id);
         $this->assertSame($serials, $fresh->serials->pluck('serial_number')->all());
         $this->assertSame($events, HardwareFulfilmentEvent::query()->count());
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fresh->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fresh->state);
 
         $ready = app(HardwareShipmentEligibility::class)->inspect($fresh);
         $this->assertFalse($ready->countryMissing);
@@ -260,6 +260,11 @@ class HardwareFulfilmentCountryCorrectionTest extends TestCase
             $this->operator,
         );
         app(HardwareSerialAllocationService::class)->allocateSerials($fulfilment, ['SN-'.$sourceId], $this->operator);
+
+        $fulfilment = $fulfilment->fresh(['commerceOrder', 'serials']) ?? $fulfilment;
+        $structured = $fulfilment->commerceOrder?->shipping_address_structured ?? [];
+        $structured['country'] = 'India';
+        $fulfilment->commerceOrder?->forceFill(['shipping_address_structured' => $structured])->save();
 
         return $fulfilment->fresh(['commerceOrder', 'serials']) ?? $fulfilment;
     }

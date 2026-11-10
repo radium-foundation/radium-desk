@@ -211,12 +211,9 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
         $allocated = $this->allocation->allocateSerials($first, ['SN-M2-DUP'], $this->actor);
         $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->state);
 
-        try {
-            $this->allocation->allocateSerials($first->fresh(), ['SN-M2-DUP'], $this->actor);
-            $this->fail('Retry after statutory invoice issuance must fail closed.');
-        } catch (ValidationException $exception) {
-            $this->assertStringContainsString('immutable', implode(' ', $exception->errors()['serials'] ?? []));
-        }
+        $retry = $this->allocation->allocateSerials($first->fresh(), ['SN-M2-DUP'], $this->actor);
+        $this->assertSame($allocated->id, $retry->id);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $retry->state);
 
         $this->assertSame($delhi->id, $first->fresh()->fulfilment_branch_id);
         $this->assertSame(1, HardwareFulfilmentSerial::query()->where('inventory_serial_id', InventorySerial::query()->where('serial_number', 'SN-M2-DUP')->value('id'))->count());

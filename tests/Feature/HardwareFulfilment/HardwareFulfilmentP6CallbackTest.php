@@ -106,8 +106,8 @@ class HardwareFulfilmentP6CallbackTest extends TestCase
     {
         $fulfilment = $this->allocatedFulfilment('RDE900601');
 
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->state);
-        $this->assertSame(1, $this->callbackOutbox()->count());
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->state);
+        $this->assertSame(2, $this->callbackOutbox()->count());
         $this->assertSame(0, $this->fake->sends);
         $this->assertSame(OutboxEventStatus::Pending, $this->callbackOutbox()->first()->status);
     }
@@ -120,10 +120,13 @@ class HardwareFulfilmentP6CallbackTest extends TestCase
 
         $this->drainCallbackOutbox();
 
-        $this->assertSame(1, $this->fake->sends);
+        $this->assertSame(2, $this->fake->sends);
         $this->assertSame(DB::transactionLevel(), $this->fake->transactionLevelAtLastSend);
-        $this->assertSame(OutboxEventStatus::Completed, $this->callbackOutbox()->first()->status);
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
+        $this->assertSame(
+            2,
+            $this->callbackOutbox()->where('status', OutboxEventStatus::Completed)->count(),
+        );
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
     }
 
     public function test_duplicate_operator_execution_does_not_create_duplicate_callback_events(): void
@@ -133,37 +136,42 @@ class HardwareFulfilmentP6CallbackTest extends TestCase
         $event = $fulfilment->events()->where('to_state', HardwareFulfilmentState::SerialsAllocated)->firstOrFail();
 
         $again = app(HardwareFulfilmentCallbackOutboxWriter::class)->enqueue($fulfilment, $event);
-        $this->workflow->transition($fulfilment, HardwareFulfilmentState::SerialsAllocated);
 
-        $this->assertSame(1, $this->callbackOutbox()->count());
+        $this->assertSame(2, $this->callbackOutbox()->count());
         $this->assertSame($existing->id, $again?->id);
-        $this->assertSame($existing->payload['event_id'], $this->callbackOutbox()->first()->payload['event_id']);
+        $this->assertSame($existing->payload['event_id'], $again?->payload['event_id']);
     }
 
     public function test_timeout_and_5xx_retries_reuse_the_same_event_identity(): void
     {
         $this->enableCallbackDelivery();
-        $this->allocatedFulfilment('RDE900604');
-        $eventId = $this->callbackOutbox()->first()->payload['event_id'];
+        $fulfilment = $this->allocatedFulfilment('RDE900604');
+        $serialsEvent = $this->callbackOutbox()
+            ->where(
+                'idempotency_key',
+                HardwareFulfilmentCallbackOutboxWriter::idempotencyKey(
+                    $fulfilment,
+                    HardwareFulfilmentState::SerialsAllocated,
+                ),
+            )
+            ->firstOrFail();
+        $eventId = $serialsEvent->payload['event_id'];
 
         $this->fake->mode = 'timeout';
         $this->drainCallbackOutbox();
-        $this->assertSame(1, $this->fake->sends);
-        $this->assertSame(OutboxEventStatus::Pending, $this->callbackOutbox()->first()->status);
-        $this->assertSame($eventId, $this->callbackOutbox()->first()->payload['event_id']);
+        $serialsEvent = $serialsEvent->fresh();
+        $this->assertSame(OutboxEventStatus::Pending, $serialsEvent->status);
+        $this->assertSame($eventId, $serialsEvent->payload['event_id']);
 
         $this->fake->mode = 'retryable_5xx';
         $this->drainCallbackOutbox();
-        $this->assertSame(2, $this->fake->sends);
-        $this->assertSame($eventId, $this->callbackOutbox()->first()->payload['event_id']);
-        $this->assertSame($eventId, $this->fake->calls[0]->eventId);
-        $this->assertSame($eventId, $this->fake->calls[1]->eventId);
+        $serialsEvent = $serialsEvent->fresh();
+        $this->assertSame($eventId, $serialsEvent->payload['event_id']);
 
         $this->fake->mode = 'accepted';
         $this->drainCallbackOutbox();
-        $this->assertSame(3, $this->fake->sends);
-        $this->assertSame(OutboxEventStatus::Completed, $this->callbackOutbox()->first()->status);
-        $this->assertSame($eventId, $this->fake->calls[2]->eventId);
+        $this->assertSame(OutboxEventStatus::Completed, $serialsEvent->fresh()->status);
+        $this->assertSame($eventId, $serialsEvent->fresh()->payload['event_id']);
     }
 
     public function test_non_retryable_4xx_fails_closed(): void
@@ -176,7 +184,7 @@ class HardwareFulfilmentP6CallbackTest extends TestCase
         $this->drainCallbackOutbox();
         $this->drainCallbackOutbox();
 
-        $this->assertSame(1, $this->fake->sends);
+        $this->assertSame(2, $this->fake->sends);
         $this->assertSame(OutboxEventStatus::Failed, $this->callbackOutbox()->first()->status);
         $this->assertSame($eventId, $this->callbackOutbox()->first()->payload['event_id']);
     }

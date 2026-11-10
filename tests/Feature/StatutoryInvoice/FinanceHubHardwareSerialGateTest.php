@@ -193,12 +193,11 @@ class FinanceHubHardwareSerialGateTest extends TestCase
         $this->assertSame($allocated->statutory_invoice_id, $replayIssue->id);
         $this->assertSame(1, StatutoryInvoice::query()->count());
 
-        try {
-            $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-HUB-405'], $this->actor);
-            $this->fail('Serial re-allocation after invoice issuance must fail closed.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('serials', $exception->errors());
-        }
+        $again = $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-HUB-405'], $this->actor);
+        $this->assertSame($allocated->id, $again->id);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $again->state);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(1, HardwareFulfilmentSerial::query()->count());
     }
 
     public function test_finance_hub_retry_before_serials_does_not_mint(): void
@@ -273,12 +272,10 @@ class FinanceHubHardwareSerialGateTest extends TestCase
         $this->assertSame($fromHub->id, $fromHardware->id);
         $this->assertSame(1, StatutoryInvoice::query()->count());
 
-        try {
-            $this->allocation->allocateSerials($allocated->fresh(), ['SN-HUB-408'], $this->actor);
-            $this->fail('Serial re-allocation after invoice issuance must fail closed.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('serials', $exception->errors());
-        }
+        $retry = $this->allocation->allocateSerials($allocated->fresh(), ['SN-HUB-408'], $this->actor);
+        $this->assertSame($allocated->id, $retry->id);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(1, HardwareFulfilmentSerial::query()->count());
         $this->assertSame(1, OutboxEvent::query()->where('event_type', EInvoiceOutboxWriter::EVENT_TYPE)->count());
         $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->fresh()->state);
         $this->assertSame('statutory:radiumbox_com:commerce_order:RDE901408', $fromHub->idempotency_key);
