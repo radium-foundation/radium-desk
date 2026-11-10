@@ -319,6 +319,37 @@
             Use Work Queue for the operational sequence, or Awaiting Fulfilment to review orders that still need ingest.
         </div>
 
+        @php
+            $openCounts = $openShipmentCounts ?? [];
+            $activeShipment = $filters['shipment_status'] ?? '';
+            $openChipBase = array_filter([
+                'queue' => 'open',
+                'order' => $filters['order'] ?? '',
+                'serial' => $filters['serial'] ?? '',
+                'branch_id' => $filters['branch_id'] ?? null,
+                'state' => $filters['state'] ?? '',
+            ], static fn ($value): bool => $value !== null && $value !== '');
+        @endphp
+        <div class="dashboard-case-filters dashboard-operation-queues hardware-ops-sections mb-3" role="tablist" aria-label="Open fulfilments shipping filters">
+            @foreach([
+                ['key' => '', 'label' => 'All open', 'tone' => 'primary'],
+                ['key' => 'ready', 'label' => 'Invoice issued, not shipped', 'tone' => 'warning'],
+                ['key' => 'not_created', 'label' => 'No shipment', 'tone' => 'info'],
+                ['key' => 'created', 'label' => 'Created, no AWB', 'tone' => 'info'],
+                ['key' => 'awb', 'label' => 'AWB assigned', 'tone' => 'success'],
+            ] as $chip)
+                <a @class([
+                       'dashboard-case-filter-chip',
+                       'dashboard-case-filter-chip--'.$chip['tone'],
+                       'is-active' => $activeShipment === $chip['key'],
+                   ])
+                   href="{{ route('inventory.hardware-fulfilments.index', array_merge($openChipBase, $chip['key'] === '' ? [] : ['shipment_status' => $chip['key']])) }}">
+                    <span class="dashboard-case-filter-chip__label">{{ $chip['label'] }}</span>
+                    <span class="dashboard-case-filter-chip__count">({{ $openCounts[$chip['key']] ?? 0 }})</span>
+                </a>
+            @endforeach
+        </div>
+
         <form method="GET" action="{{ route('inventory.hardware-fulfilments.index') }}" class="card border-0 shadow-sm mb-3">
             <input type="hidden" name="queue" value="open">
             <div class="card-body">
