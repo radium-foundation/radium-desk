@@ -53,9 +53,19 @@ class HardwareDashboardShiprocketBalanceTest extends TestCase
             ->get(route('dashboard', ['queue' => 'hardware']))
             ->assertOk()
             ->assertSee('Shiprocket Balance')
-            ->assertSee('₹9,084.26')
+            ->assertSee('Loading…')
             ->assertSee('data-shiprocket-balance', false)
-            ->assertSee('Checked', false);
+            ->assertDontSee('₹9,084.26');
+
+        $this->assertSame(0, $this->gateway->walletBalanceCalls);
+
+        $fragment = (string) $this->getJson(route('dashboard.hardware.shiprocket-balance'))
+            ->assertOk()
+            ->json('html');
+        $this->assertStringContainsString('₹9,084.26', $fragment);
+        $this->assertStringContainsString('data-shiprocket-balance', $fragment);
+        $this->assertStringContainsString('Checked', $fragment);
+        $this->assertSame(1, $this->gateway->walletBalanceCalls);
     }
 
     public function test_hardware_dashboard_shows_balance_unavailable_on_provider_error(): void
@@ -70,8 +80,14 @@ class HardwareDashboardShiprocketBalanceTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('Shiprocket Balance', $html);
-        $this->assertStringContainsString('Balance unavailable', $html);
-        $this->assertStringNotContainsString('₹0.00', $html);
+        $this->assertStringContainsString('Loading…', $html);
+        $this->assertSame(0, $this->gateway->walletBalanceCalls);
+
+        $fragment = (string) $this->getJson(route('dashboard.hardware.shiprocket-balance'))
+            ->assertOk()
+            ->json('html');
+        $this->assertStringContainsString('Balance unavailable', $fragment);
+        $this->assertStringNotContainsString('₹0.00', $fragment);
     }
 
     public function test_hardware_workspace_presenter_omits_balance_without_operate_permission(): void
@@ -85,9 +101,10 @@ class HardwareDashboardShiprocketBalanceTest extends TestCase
         $request = Request::create('/dashboard', 'GET', ['queue' => 'hardware']);
         $request->setUserResolver(fn () => $viewer);
 
-        $workspace = app(HardwareDashboardWorkspace::class)->present($request);
+        $workspace = app(HardwareDashboardWorkspace::class)->shell($request);
 
         $this->assertNull($workspace['shiprocketBalance']);
+        $this->assertFalse($workspace['shiprocket_balance_pending']);
         $this->assertSame(0, $this->gateway->walletBalanceCalls);
     }
 
@@ -100,7 +117,13 @@ class HardwareDashboardShiprocketBalanceTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'hardware']))
             ->assertOk()
-            ->assertSee('₹0.00')
-            ->assertSee('dashboard-shiprocket-balance--critical', false);
+            ->assertSee('Loading…')
+            ->assertDontSee('₹0.00');
+
+        $fragment = (string) $this->getJson(route('dashboard.hardware.shiprocket-balance'))
+            ->assertOk()
+            ->json('html');
+        $this->assertStringContainsString('₹0.00', $fragment);
+        $this->assertStringContainsString('dashboard-shiprocket-balance--critical', $fragment);
     }
 }

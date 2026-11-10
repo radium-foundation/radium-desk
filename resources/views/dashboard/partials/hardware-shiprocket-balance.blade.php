@@ -3,7 +3,16 @@
     $shiprocketBalance = $hardwareWorkspace['shiprocketBalance'] ?? null;
 @endphp
 
-@if($shiprocketBalance instanceof \App\Services\Shipping\Data\ShiprocketWalletBalancePresentation)
+@if(($hardwareWorkspace['shiprocket_balance_pending'] ?? false) && ! ($shiprocketBalance instanceof \App\Services\Shipping\Data\ShiprocketWalletBalancePresentation))
+    <div class="dashboard-shiprocket-balance dashboard-shiprocket-balance--muted dashboard-shiprocket-balance--loading"
+         role="status"
+         aria-live="polite"
+         data-shiprocket-balance>
+        <div class="dashboard-shiprocket-balance__label">Shiprocket Balance</div>
+        <div class="dashboard-shiprocket-balance__value">Loading…</div>
+        <div class="dashboard-shiprocket-balance__meta">Refreshing balance</div>
+    </div>
+@elseif($shiprocketBalance instanceof \App\Services\Shipping\Data\ShiprocketWalletBalancePresentation)
     @php
         $toneClass = match ($shiprocketBalance->status->uiTone()) {
             'critical' => 'dashboard-shiprocket-balance--critical',

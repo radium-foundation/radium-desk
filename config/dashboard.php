@@ -108,4 +108,16 @@ return [
 
     'slow_scalars_cache_ttl_seconds' => (int) env('DASHBOARD_SLOW_SCALARS_CACHE_TTL_SECONDS', 30),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Hardware dashboard async counts cache
+    |--------------------------------------------------------------------------
+    |
+    | Short TTL for hardware workspace filter/scope counts on the async rows API.
+    | TTL-based invalidation only.
+    |
+    */
+
+    'hardware_counts_ttl_seconds' => (int) env('DASHBOARD_HARDWARE_COUNTS_TTL_SECONDS', 30),
+
 ];

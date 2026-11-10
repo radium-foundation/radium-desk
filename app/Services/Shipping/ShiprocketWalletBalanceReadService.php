@@ -32,6 +32,31 @@ final class ShiprocketWalletBalanceReadService
         return HardwareFulfilmentAccess::allows($user);
     }
 
+    public function presentFromCacheOnly(?User $user): ?ShiprocketWalletBalancePresentation
+    {
+        if (! $this->canView($user)) {
+            return null;
+        }
+
+        if (! $this->providerConfigured()) {
+            return new ShiprocketWalletBalancePresentation(
+                status: ShiprocketWalletBalanceStatus::Unknown,
+            );
+        }
+
+        $cached = $this->readCachedPayload();
+        if ($cached !== null) {
+            return $this->presentationFromPayload($cached, stale: $this->isExpired($cached));
+        }
+
+        $lastKnown = $this->readLastKnownPayload();
+        if ($lastKnown !== null) {
+            return $this->presentationFromPayload($lastKnown, stale: true);
+        }
+
+        return null;
+    }
+
     public function presentFor(?User $user): ?ShiprocketWalletBalancePresentation
     {
         if (! $this->canView($user)) {

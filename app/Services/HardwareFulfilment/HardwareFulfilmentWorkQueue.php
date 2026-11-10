@@ -152,28 +152,35 @@ final class HardwareFulfilmentWorkQueue
         $perPage = 40;
 
         $loadAll = in_array($filter, [
-            HardwareWorkspaceFilter::All,
             HardwareWorkspaceFilter::Ready,
             HardwareWorkspaceFilter::Exceptions,
             HardwareWorkspaceFilter::Pickup,
             HardwareWorkspaceFilter::Scheduled,
         ], true);
 
-        $scopeCounts = [
-            HardwareWorkspaceScope::Active->value => $this->workspaceTotal($fromIst, $toIst),
-            HardwareWorkspaceScope::Shipped->value => HardwareFulfilment::query()
-                ->whereIn('state', [
-                    HardwareFulfilmentState::Shipped->value,
-                    HardwareFulfilmentState::Synced->value,
-                ])
-                ->count(),
-        ];
+        $scopeCounts = $this->scopeCountsForDashboard($fromIst, $toIst);
+
+        if ($filter === HardwareWorkspaceFilter::All && $scope === HardwareWorkspaceScope::Active) {
+            $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
+            $pageSet = $this->needsActionSql->allActivePage($fromIst, $toIst, $search, $page, $perPage);
+            $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+
+            return [
+                'rows' => $rows,
+                'scope_counts' => $scopeCounts,
+                'filter_counts' => $filterCounts,
+                'total' => $rows->count(),
+                'unfiltered_total' => $pageSet['total'],
+                'page' => $page,
+                'per_page' => $perPage,
+            ];
+        }
 
         if ($loadAll) {
             return $this->legacyDashboard($fromIst, $toIst, $search, $scope, $filter, $scopeCounts, $page, $perPage);
         }
 
-        $filterCounts = $this->needsActionSql->filterCounts($fromIst, $toIst, $search);
+        $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
 
         $searchAcrossActive = $search !== ''
             && $scope === HardwareWorkspaceScope::Active
@@ -511,5 +518,26 @@ final class HardwareFulfilmentWorkQueue
             });
 
         return $map;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function scopeCountsForDashboard(Carbon $fromIst, Carbon $toIst): array
+    {
+        $counts = app(HardwareDashboardCountsCache::class)->scopeCounts($fromIst, $toIst);
+
+        return [
+            HardwareWorkspaceScope::Active->value => $counts['active'],
+            HardwareWorkspaceScope::Shipped->value => $counts['shipped'],
+        ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function cachedFilterCounts(Carbon $fromIst, Carbon $toIst, string $search): array
+    {
+        return app(HardwareDashboardCountsCache::class)->filterCounts($fromIst, $toIst, $search);
     }
 }

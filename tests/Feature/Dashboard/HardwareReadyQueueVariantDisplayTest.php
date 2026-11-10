@@ -35,6 +35,11 @@ class HardwareReadyQueueVariantDisplayTest extends TestCase
         $this->seedCableMaps();
     }
 
+    protected function hardwareRowsResponse(array $params = [])
+    {
+        return $this->getJson(route('dashboard.hardware.rows', $params));
+    }
+
     public function test_hardware_queue_renders_exact_cable_variants_for_rbp103_and_rde318526(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
@@ -44,14 +49,14 @@ class HardwareReadyQueueVariantDisplayTest extends TestCase
         $this->fulfilmentWithItem('RBP103-USB', 1410, 'Biometric Replacement Cable');
         $this->fulfilmentWithItem('RDE318526', 1410, 'Biometric Replacement Cable');
 
-        $html = $this->actingAs($admin)
+        $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'all']))
-            ->assertOk()
-            ->getContent();
+            ->assertOk();
 
-        $this->assertStringContainsString('Mantra MFS110 Type-C Cable', $html);
-        $this->assertStringContainsString('Mantra MFS110 USB Cable', $html);
-        $this->assertSame(2, substr_count($html, 'Mantra MFS110 USB Cable'));
+        $rowsHtml = (string) $this->hardwareRowsResponse(['hw_filter' => 'all'])->json('rows_html');
+        $this->assertStringContainsString('Mantra MFS110 Type-C Cable', $rowsHtml);
+        $this->assertStringContainsString('Mantra MFS110 USB Cable', $rowsHtml);
+        $this->assertSame(2, substr_count($rowsHtml, 'Mantra MFS110 USB Cable'));
     }
 
     public function test_rbp103_compact_line_includes_cable_designation_and_quantity(): void
@@ -162,8 +167,10 @@ class HardwareReadyQueueVariantDisplayTest extends TestCase
 
         $this->actingAs($admin)
             ->get('/dashboard?queue=hardware')
-            ->assertOk()
-            ->assertSee('BioEnable C600 Face Camera · C600');
+            ->assertOk();
+
+        $rowsHtml = (string) $this->hardwareRowsResponse(['q' => 'RDE318338'])->json('rows_html');
+        $this->assertStringContainsString('BioEnable C600 Face Camera · C600', $rowsHtml);
     }
 
     public function test_work_queue_compact_line_uses_variant_labels(): void

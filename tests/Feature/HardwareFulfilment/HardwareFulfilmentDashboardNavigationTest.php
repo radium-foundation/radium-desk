@@ -35,6 +35,11 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->withoutVite();
     }
 
+    protected function hardwareRowsResponse(User $user, array $params = [])
+    {
+        return $this->actingAs($user)->getJson(route('dashboard.hardware.rows', $params));
+    }
+
     public function test_default_workspace_hardware_resolves_needs_action(): void
     {
         $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -89,41 +94,47 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $html = $this->actingAs($admin)
             ->get(route('dashboard', ['workspace' => 'hardware', 'hw_filter' => 'needs_action']))
             ->assertOk()
-            ->assertDontSee('RDE902040')
-            ->assertDontSee('RDE255714')
-            ->assertDontSee('RDE313554')
             ->getContent();
+        $this->assertStringContainsString('data-hardware-defer-rows="1"', $html);
+        $this->assertStringNotContainsString('RDE902040', $html);
         $this->assertStringContainsString('data-hardware-filter="needs_action"', $html);
-
-        $this->assertSame(0, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
-        $this->assertStringContainsString('data-hardware-scope-count="active">(1)', $html);
         $this->assertStringContainsString('Needs Action', $html);
         $this->assertStringContainsString('Product Mapping Required', $html);
-        $this->assertStringContainsString('Awaiting Serial', $html);
-        $this->assertStringContainsString('AWB Pending', $html);
-        $this->assertStringContainsString('Package Photo Pending', $html);
 
-        $all = $this->actingAs($admin)
-            ->get('/dashboard?workspace=hardware&hw_filter=all')
-            ->assertOk()
-            ->assertSee('RDE902040')
-            ->getContent();
-        $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $all));
+        $needsRows = (string) $this->hardwareRowsResponse($admin, [
+            'workspace' => 'hardware',
+            'hw_filter' => 'needs_action',
+        ])->json('rows_html');
+        $this->assertStringNotContainsString('RDE902040', $needsRows);
+        $this->assertStringNotContainsString('RDE255714', $needsRows);
+        $this->assertStringNotContainsString('RDE313554', $needsRows);
+        $this->assertSame(0, preg_match_all('/\sdata-hardware-select(\s|>)/', $needsRows));
+        $this->assertSame(1, (int) $this->hardwareRowsResponse($admin, [
+            'workspace' => 'hardware',
+            'hw_filter' => 'needs_action',
+        ])->json('scope_counts.active'));
+
+        $allRows = (string) $this->hardwareRowsResponse($admin, [
+            'workspace' => 'hardware',
+            'hw_filter' => 'all',
+        ])->json('rows_html');
+        $this->assertStringContainsString('RDE902040', $allRows);
+        $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $allRows));
         $this->assertStringContainsString(
             'data-dashboard-case-filter-count="hardware">(1)',
             $this->actingAs($admin)->get(route('dashboard'))->assertOk()->getContent(),
         );
 
-        $exceptions = $this->actingAs($admin)
-            ->get('/dashboard?workspace=hardware&hw_queue=exceptions')
-            ->assertOk()
-            ->assertDontSee('RDE902040')
-            ->getContent();
-
-        $this->assertSame(0, preg_match_all('/\sdata-hardware-select(\s|>)/', $exceptions));
-        $this->assertStringContainsString('data-hardware-scope-count="active">(1)', $exceptions);
-        $this->assertStringContainsString('(1)</span>', $html);
-        $this->assertStringContainsString('Needs Action', $html);
+        $exceptionRows = (string) $this->hardwareRowsResponse($admin, [
+            'workspace' => 'hardware',
+            'hw_queue' => 'exceptions',
+        ])->json('rows_html');
+        $this->assertStringNotContainsString('RDE902040', $exceptionRows);
+        $this->assertSame(0, preg_match_all('/\sdata-hardware-select(\s|>)/', $exceptionRows));
+        $this->assertSame(1, (int) $this->hardwareRowsResponse($admin, [
+            'workspace' => 'hardware',
+            'hw_queue' => 'exceptions',
+        ])->json('scope_counts.active'));
     }
 
     public function test_hardware_row_with_fulfilment_shows_existing_show_link_for_authorized_user(): void
@@ -131,23 +142,27 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
         [$incident, $fulfilment] = $this->hardwareCaseWithFulfilment('RDE902001');
 
-        $this->actingAs($admin)
+        $shell = $this->actingAs($admin)
             ->get(route('dashboard', ['workspace' => 'hardware']))
             ->assertOk()
             ->assertSee('data-hardware-workspace', false)
             ->assertSee('Search hardware...')
-            ->assertSee('RDE902001')
-            ->assertSee('data-incident-id="'.$incident->id.'"', false)
-            ->assertSee('dashboard-case-row--clickable', false)
-            ->assertSee('Allocate Serial')
-            ->assertSee(route('inventory.hardware-fulfilments.action-dialog', $fulfilment), false)
-            ->assertSee('data-hardware-select', false)
             ->assertSee('Open selected')
-            ->assertSee('MFS 110')
             ->assertDontSee('Create Shipment')
             ->assertDontSee('Create All')
             ->assertDontSee('/inventory/shipments')
-            ->assertDontSee('/fulfilment/shipments');
+            ->assertDontSee('/fulfilment/shipments')
+            ->getContent();
+        $this->assertStringContainsString('data-hardware-defer-rows="1"', $shell);
+
+        $rowsHtml = (string) $this->hardwareRowsResponse($admin, ['workspace' => 'hardware'])->json('rows_html');
+        $this->assertStringContainsString('RDE902001', $rowsHtml);
+        $this->assertStringContainsString('data-incident-id="'.$incident->id.'"', $rowsHtml);
+        $this->assertStringContainsString('dashboard-case-row--clickable', $rowsHtml);
+        $this->assertStringContainsString('Allocate Serial', $rowsHtml);
+        $this->assertStringContainsString(route('inventory.hardware-fulfilments.action-dialog', $fulfilment), $rowsHtml);
+        $this->assertStringContainsString('data-hardware-select', $rowsHtml);
+        $this->assertStringContainsString('MFS 110', $rowsHtml);
     }
 
     public function test_hardware_row_without_fulfilment_does_not_invent_a_link(): void
@@ -155,18 +170,21 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $admin = $this->userWithRole(RolePermissionSeeder::ROLE_ADMIN);
         $incident = $this->hardwareCase('RIN902002');
 
-        $html = $this->actingAs($admin)
+        $this->actingAs($admin)
             ->get(route('dashboard', ['workspace' => 'hardware', 'hw_filter' => 'all']))
-            ->assertOk()
-            ->assertSee('RIN902002')
-            ->assertSee('Blocked')
-            ->assertSee('RIN mapping required')
-            ->assertSee('View')
-            ->assertSee('data-incident-id="'.$incident->id.'"', false)
-            ->assertDontSee('data-hardware-fulfilment-link', false)
-            ->getContent();
+            ->assertOk();
 
-        $this->assertStringNotContainsString('/inventory/hardware-fulfilments/', $html);
+        $rowsHtml = (string) $this->hardwareRowsResponse($admin, [
+            'workspace' => 'hardware',
+            'hw_filter' => 'all',
+        ])->json('rows_html');
+        $this->assertStringContainsString('RIN902002', $rowsHtml);
+        $this->assertStringContainsString('Blocked', $rowsHtml);
+        $this->assertStringContainsString('RIN mapping required', $rowsHtml);
+        $this->assertStringContainsString('View', $rowsHtml);
+        $this->assertStringContainsString('data-incident-id="'.$incident->id.'"', $rowsHtml);
+        $this->assertStringNotContainsString('data-hardware-fulfilment-link', $rowsHtml);
+        $this->assertStringNotContainsString('/inventory/hardware-fulfilments/', $rowsHtml);
         $this->assertSame(0, HardwareFulfilment::query()->count());
     }
 
@@ -272,16 +290,26 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['workspace' => 'hardware', 'q' => 'RIN902010']))
             ->assertOk()
-            ->assertSee('RIN902010')
-            ->assertDontSee('RDE902009')
             ->assertDontSee('Create All');
+
+        $searchRows = (string) $this->hardwareRowsResponse($admin, [
+            'workspace' => 'hardware',
+            'q' => 'RIN902010',
+        ])->json('rows_html');
+        $this->assertStringContainsString('RIN902010', $searchRows);
+        $this->assertStringNotContainsString('RDE902009', $searchRows);
 
         $this->actingAs($admin)
             ->get(route('dashboard', ['workspace' => 'hardware', 'hw_queue' => 'exceptions']))
             ->assertOk()
-            ->assertSee('RIN902010')
-            ->assertSee('Blocked')
             ->assertDontSee('Create All');
+
+        $exceptionRows = (string) $this->hardwareRowsResponse($admin, [
+            'workspace' => 'hardware',
+            'hw_queue' => 'exceptions',
+        ])->json('rows_html');
+        $this->assertStringContainsString('RIN902010', $exceptionRows);
+        $this->assertStringContainsString('Blocked', $exceptionRows);
 
         $this->assertSame(0, HardwareFulfilment::query()->count());
     }
@@ -300,11 +328,13 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
 
         $this->actingAs($operator)
             ->get(route('dashboard', ['workspace' => 'hardware']))
-            ->assertOk()
-            ->assertSee('RDE902006')
-            ->assertSee('data-incident-id="'.$incident->id.'"', false)
-            ->assertDontSee('data-hardware-fulfilment-link', false)
-            ->assertDontSee(route('inventory.hardware-fulfilments.show', $fulfilment), false);
+            ->assertOk();
+
+        $rowsHtml = (string) $this->hardwareRowsResponse($operator, ['workspace' => 'hardware'])->json('rows_html');
+        $this->assertStringContainsString('RDE902006', $rowsHtml);
+        $this->assertStringContainsString('data-incident-id="'.$incident->id.'"', $rowsHtml);
+        $this->assertStringNotContainsString('data-hardware-fulfilment-link', $rowsHtml);
+        $this->assertStringNotContainsString(route('inventory.hardware-fulfilments.show', $fulfilment), $rowsHtml);
 
         $this->actingAs($operator)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
@@ -320,7 +350,6 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->get(route('dashboard', ['workspace' => 'hardware']))
             ->assertOk()
             ->assertSee('data-hardware-select-all', false)
-            ->assertSee('data-hardware-select', false)
             ->assertSee('Open selected')
             ->assertDontSee('Create All')
             ->assertDontSee('Bulk Create Shipment')
@@ -328,7 +357,10 @@ class HardwareFulfilmentDashboardNavigationTest extends TestCase
             ->assertDontSee('Bulk Generate Manifest')
             ->getContent();
 
+        $rowsHtml = (string) $this->hardwareRowsResponse($admin, ['workspace' => 'hardware'])->json('rows_html');
+        $this->assertStringContainsString('data-hardware-select', $rowsHtml);
         $this->assertStringNotContainsString('data-batch-assign', $html);
+        $this->assertStringNotContainsString('data-batch-assign', $rowsHtml);
     }
 
     public function test_hardware_action_dialog_is_the_existing_fulfilment_next_action(): void

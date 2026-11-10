@@ -57,11 +57,13 @@ class DashboardController extends Controller
         $openCustomer360MoreMenu = $request->boolean('open_more_menu');
         $openCustomer360Reference = $request->query('open_customer_360_reference', session('service_case_reference'));
 
-        $serviceCaseFilterCounts = $user->can('incidents.view')
-            ? $this->dashboardService->dashboardChipCounts($assignedTo, $user)
-            : [];
-
         $isHardwareWorkspace = $operationQueue === OperationsWorkspaceResolver::WORKSPACE_HARDWARE;
+
+        $serviceCaseFilterCounts = $user->can('incidents.view') && ! $isHardwareWorkspace
+            ? $this->dashboardService->dashboardChipCounts($assignedTo, $user)
+            : ($isHardwareWorkspace && $user->can('incidents.view')
+                ? ['hardware' => $this->hardwareDashboard->chipCount()]
+                : []);
         $pageSize = $this->dashboardService->serviceCasePageSize();
         $recentServiceCases = $user->can('incidents.view') && ! $isHardwareWorkspace
             ? $this->dashboardService->recentServiceCases(
@@ -72,7 +74,7 @@ class DashboardController extends Controller
             )
             : collect();
         $hardwareWorkspace = $isHardwareWorkspace
-            ? $this->hardwareDashboard->present($request)
+            ? $this->hardwareDashboard->shell($request)
             : null;
 
         $canManageTransactions = $user->hasAnyRole([
@@ -90,8 +92,12 @@ class DashboardController extends Controller
             }
         }
 
+        $stats = $isHardwareWorkspace
+            ? $this->dashboardService->statsForHardwareShell($user)
+            : $this->dashboardService->statsFor($user);
+
         return view('dashboard.index', [
-            'stats' => $this->dashboardService->statsFor($user),
+            'stats' => $stats,
             'openCustomer360IncidentId' => $openCustomer360IncidentId,
             'openCustomer360Reference' => $openCustomer360Reference,
             'openCustomer360MoreMenu' => $openCustomer360MoreMenu,

@@ -31,6 +31,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class HardwareDashboardNeedsActionQueueTest extends TestCase
@@ -68,20 +69,23 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
             ->assertSee('Shipping')
             ->assertSee('Completed')
             ->assertSee('All')
-            ->assertSee('RDE980003')
-            ->assertDontSee('RDE980001')
             ->assertDontSee('Out for Delivery')
             ->getContent();
 
+        $this->assertStringContainsString('data-hardware-defer-rows="1"', $html);
+        $this->assertStringContainsString('dashboard-hardware-skeleton-row', $html);
         $this->assertStringContainsString('data-hardware-filter="needs_action"', $html);
         $this->assertStringContainsString('data-live-hardware-url="', $html);
-        $this->assertStringContainsString('Allocate Serial', $html);
-        $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
-        $this->assertMatchesRegularExpression('/data-hardware-filter-count="awaiting_serial">\(1\)/', $html);
+        $this->assertStringNotContainsString('RDE980003', $html);
+        $this->assertSame(0, $this->inspectedCount($html));
 
-        $inspected = (int) (preg_match('/data-hardware-inspected-count="(\d+)"/', $html, $match) ? $match[1] : -1);
-        $this->assertLessThan(4, $inspected);
-        $this->assertGreaterThan(0, $inspected);
+        $rows = $this->hardwareRowsResponse(['queue' => 'hardware']);
+        $rowsHtml = (string) $rows->json('rows_html');
+        $this->assertStringContainsString('RDE980003', $rowsHtml);
+        $this->assertStringContainsString('Allocate Serial', $rowsHtml);
+        $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $rowsHtml));
+        $this->assertSame(1, (int) $rows->json('filter_counts.awaiting_serial'));
+        $this->assertSame(1, (int) $rows->json('inspected_fulfilment_count'));
 
         $queue = app(HardwareFulfilmentWorkQueue::class);
         $from = HardwareFulfilmentEligibility::cutoffInstant();
@@ -96,12 +100,10 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertSame(4, $all['unfiltered_total']);
         $this->assertSame(4, $queue->lastInspectedFulfilmentCount);
 
-        $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'all']))
-            ->assertOk()
-            ->assertSee('RDE980001')
-            ->assertSee('RDE980003')
-            ->assertSee('RDE980004');
+        $allRows = (string) $this->hardwareRowsResponse(['hw_filter' => 'all'])->json('rows_html');
+        $this->assertStringContainsString('RDE980001', $allRows);
+        $this->assertStringContainsString('RDE980003', $allRows);
+        $this->assertStringContainsString('RDE980004', $allRows);
 
         $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'hardware', 'hw_scope' => 'shipped']))
@@ -109,14 +111,15 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
             ->assertSee('Completed')
             ->assertSee('Delivered');
 
-        $this->actingAs($admin)
+        $shippingShell = $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'shipping']))
             ->assertOk()
-            ->assertSee('Out for Pickup')
-            ->assertSee('Ready for Pickup')
-            ->assertSee('In Transit')
-            ->assertSee('Picked Up')
-            ->assertDontSee('Out for Delivery');
+            ->getContent();
+        $this->assertStringContainsString('Out for Pickup', $shippingShell);
+        $this->assertStringContainsString('Ready for Pickup', $shippingShell);
+        $this->assertStringContainsString('In Transit', $shippingShell);
+        $this->assertStringContainsString('Picked Up', $shippingShell);
+        $this->assertStringNotContainsString('Out for Delivery', $shippingShell);
 
         $this->actingAs($admin)
             ->getJson(route('dashboard.live.hardware', [
@@ -154,21 +157,23 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $html = $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'ready_for_pickup']))
             ->assertOk()
-            ->assertSee('RDE990001')
-            ->assertDontSee('RDE990002')
             ->getContent();
+        $readyRows = (string) $this->hardwareRowsResponse(['hw_filter' => 'ready_for_pickup'])->json('rows_html');
+        $this->assertStringContainsString('RDE990001', $readyRows);
+        $this->assertStringNotContainsString('RDE990002', $readyRows);
 
         $this->assertStringContainsString('data-hardware-filter="ready_for_pickup"', $html);
-        $this->assertMatchesRegularExpression('/data-hardware-filter-count="ready_for_pickup">\(1\)/', $html);
+        $this->assertSame(1, (int) $this->hardwareRowsResponse(['hw_filter' => 'ready_for_pickup'])->json('filter_counts.ready_for_pickup'));
         preg_match('/<div class="dashboard-hardware-nav">(.*?)<div class="dashboard-quick-filter/s', $html, $hardwareNav);
         $this->assertSame(1, substr_count($hardwareNav[1] ?? '', 'aria-current="page"'));
 
         $needsActionHtml = $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'needs_action']))
             ->assertOk()
-            ->assertSee('RDE990002')
-            ->assertDontSee('RDE990001')
             ->getContent();
+        $needsRows = (string) $this->hardwareRowsResponse(['hw_filter' => 'needs_action'])->json('rows_html');
+        $this->assertStringContainsString('RDE990002', $needsRows);
+        $this->assertStringNotContainsString('RDE990001', $needsRows);
 
         $this->assertStringContainsString('data-hardware-filter="needs_action"', $needsActionHtml);
         $this->assertDoesNotMatchRegularExpression(
@@ -205,6 +210,8 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
         $this->seedCatalog();
 
+        $this->actingAs($admin);
+
         $this->fulfilment(
             'RDE990003',
             HardwareFulfilmentState::CancelledHistoricalDuplicate,
@@ -219,10 +226,8 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
             ready: true,
         );
 
-        $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'ready_for_pickup']))
-            ->assertOk()
-            ->assertDontSee('RDE990003');
+        $readyPickupRows = (string) $this->hardwareRowsResponse(['hw_filter' => 'ready_for_pickup'])->json('rows_html');
+        $this->assertStringNotContainsString('RDE990003', $readyPickupRows);
 
         $from = HardwareFulfilmentEligibility::cutoffInstant();
         $to = Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
@@ -255,14 +260,16 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $html = $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'ready_for_pickup']))
             ->assertOk()
-            ->assertSee('data-hardware-select', false)
             ->assertSee('Open selected')
             ->assertDontSee('Bulk Generate')
             ->assertDontSee('hardware-fulfilments/bulk/labels', false)
             ->assertDontSee('hardware-fulfilments/bulk/manifest', false)
             ->getContent();
 
+        $rowsHtml = (string) $this->hardwareRowsResponse(['hw_filter' => 'ready_for_pickup'])->json('rows_html');
+        $this->assertStringContainsString('data-hardware-select', $rowsHtml);
         $this->assertStringNotContainsString('data-batch-assign', $html);
+        $this->assertStringNotContainsString('data-batch-assign', $rowsHtml);
     }
 
     public function test_needs_action_paginates_without_rendering_the_full_queue(): void
@@ -275,20 +282,17 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
             $this->fulfilment(sprintf('RDE981%03d', $i), HardwareFulfilmentState::ReadyForFulfilment);
         }
 
-        $first = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware']))
-            ->assertOk()
-            ->assertSee('Page 1 of 2 (45)')
-            ->getContent();
-        $this->assertSame(40, preg_match_all('/\sdata-hardware-select(\s|>)/', $first));
-        $this->assertSame(40, $this->inspectedCount($first));
+        $this->actingAs($admin);
 
-        $second = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_page' => 2]))
-            ->assertOk()
-            ->getContent();
+        $first = (string) $this->hardwareRowsResponse(['queue' => 'hardware'])->json('rows_html');
+        $firstPagination = (string) $this->hardwareRowsResponse(['queue' => 'hardware'])->json('pagination_html');
+        $this->assertStringContainsString('Page 1 of 2 (45)', $firstPagination);
+        $this->assertSame(40, preg_match_all('/\sdata-hardware-select(\s|>)/', $first));
+        $this->assertSame(40, (int) $this->hardwareRowsResponse(['queue' => 'hardware'])->json('inspected_fulfilment_count'));
+
+        $second = (string) $this->hardwareRowsResponse(['queue' => 'hardware', 'hw_page' => 2])->json('rows_html');
         $this->assertSame(5, preg_match_all('/\sdata-hardware-select(\s|>)/', $second));
-        $this->assertSame(5, $this->inspectedCount($second));
+        $this->assertSame(5, (int) $this->hardwareRowsResponse(['queue' => 'hardware', 'hw_page' => 2])->json('inspected_fulfilment_count'));
     }
 
     public function test_sql_counts_match_four_needs_action_queues_and_exclude_ingested_and_shipped(): void
@@ -359,12 +363,12 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertSame(0, $search['filter_counts']['package_photo_pending']);
         $this->assertSame(['RDE982003'], $search['rows']->pluck('sourceId')->all());
 
-        $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'mapping_required']))
-            ->assertOk()
-            ->assertSee('RDE982002')
-            ->assertDontSee('RDE982003')
-            ->assertDontSee('RDE982001');
+        $this->actingAs($admin);
+
+        $mappingRows = (string) $this->hardwareRowsResponse(['hw_filter' => 'mapping_required'])->json('rows_html');
+        $this->assertStringContainsString('RDE982002', $mappingRows);
+        $this->assertStringNotContainsString('RDE982003', $mappingRows);
+        $this->assertStringNotContainsString('RDE982001', $mappingRows);
 
         $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $awaiting->fresh()->state);
     }
@@ -442,17 +446,16 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertContains('RIN984003', $mapping['rows']->pluck('sourceId')->all());
         $this->assertNotContains('RIN984004', $mapping['rows']->pluck('sourceId')->all());
 
-        $this->actingAs($admin)
-            ->get(route('dashboard', [
-                'queue' => 'hardware',
-                'hw_filter' => 'awaiting_serial',
-                'from' => '2026-09-06',
-                'to' => '2026-09-08',
-            ]))
-            ->assertOk()
-            ->assertSee('RDE984001')
-            ->assertDontSee('RDE984002')
-            ->assertDontSee('RIN984003');
+        $this->actingAs($admin);
+
+        $rows = (string) $this->hardwareRowsResponse([
+            'hw_filter' => 'awaiting_serial',
+            'from' => '2026-09-06',
+            'to' => '2026-09-08',
+        ])->json('rows_html');
+        $this->assertStringContainsString('RDE984001', $rows);
+        $this->assertStringNotContainsString('RDE984002', $rows);
+        $this->assertStringNotContainsString('RIN984003', $rows);
     }
 
     public function test_legacy_exceptions_queue_still_filters_rows(): void
@@ -465,10 +468,11 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $html = $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'hardware', 'hw_queue' => 'exceptions']))
             ->assertOk()
-            ->assertSee('RDE985001')
             ->getContent();
+        $exceptionRows = (string) $this->hardwareRowsResponse(['hw_queue' => 'exceptions'])->json('rows_html');
+        $this->assertStringContainsString('RDE985001', $exceptionRows);
         $this->assertStringContainsString('data-hardware-filter="exceptions"', $html);
-        $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
+        $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $exceptionRows));
     }
 
     public function test_shipping_subfilters_use_provider_track_sql_without_inspecting_delivered(): void
@@ -476,6 +480,8 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
         $this->seedCatalog();
+
+        $this->actingAs($admin);
 
         $this->fulfilment(
             'RDE987001',
@@ -517,19 +523,16 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
             track: 'in_transit',
         );
 
-        $html = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'out_for_pickup']))
-            ->assertOk()
-            ->assertSee('RDE987001')
-            ->assertDontSee('RDE987002')
-            ->assertDontSee('RDE987003')
-            ->assertDontSee('Out for Delivery')
-            ->getContent();
-
-        $this->assertMatchesRegularExpression('/data-hardware-filter-count="out_for_pickup">\(1\)/', $html);
-        $this->assertMatchesRegularExpression('/data-hardware-filter-count="in_transit">\(1\)/', $html);
-        $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
-        $this->assertSame(1, $this->inspectedCount($html));
+        $response = $this->hardwareRowsResponse(['hw_filter' => 'out_for_pickup']);
+        $rowsHtml = (string) $response->json('rows_html');
+        $this->assertStringContainsString('RDE987001', $rowsHtml);
+        $this->assertStringNotContainsString('RDE987002', $rowsHtml);
+        $this->assertStringNotContainsString('RDE987003', $rowsHtml);
+        $this->assertStringNotContainsString('Out for Delivery', $rowsHtml);
+        $this->assertSame(1, (int) $response->json('filter_counts.out_for_pickup'));
+        $this->assertSame(1, (int) $response->json('filter_counts.in_transit'));
+        $this->assertSame(1, preg_match_all('/\sdata-hardware-select(\s|>)/', $rowsHtml));
+        $this->assertSame(1, (int) $response->json('inspected_fulfilment_count'));
 
         $from = HardwareFulfilmentEligibility::cutoffInstant();
         $to = Carbon::now(HardwareFulfilmentEligibility::CUTOFF_TIMEZONE);
@@ -540,7 +543,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertSame(2, $counts['shipping']);
     }
 
-    public function test_default_hardware_ssr_does_not_materialize_ingested_majority(): void
+    public function test_default_hardware_shell_does_not_materialize_ingested_majority(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -566,35 +569,58 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
 
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $started = hrtime(true);
-        $html = $this->actingAs($admin)
+        $shellStarted = hrtime(true);
+        $shell = $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'hardware']))
             ->assertOk()
-            ->assertSee('RDE986073')
-            ->assertSee('RDE986074')
-            ->assertSee('RDE986075')
-            ->assertSee('RDE986076')
-            ->assertDontSee('RDE986001')
             ->getContent();
-        $elapsedMs = (hrtime(true) - $started) / 1e6;
-        $log = DB::getQueryLog();
+        $shellMs = (hrtime(true) - $shellStarted) / 1e6;
+        $shellLog = DB::getQueryLog();
+        DB::flushQueryLog();
+
+        $rowsStarted = hrtime(true);
+        $rows = $this->hardwareRowsResponse(['queue' => 'hardware']);
+        $rowsHtml = (string) $rows->json('rows_html');
+        $rowsMs = (hrtime(true) - $rowsStarted) / 1e6;
+        $rowsLog = DB::getQueryLog();
         DB::flushQueryLog();
         DB::disableQueryLog();
 
-        $sqlMs = array_sum(array_map(static fn (array $row): float => (float) ($row['time'] ?? 0), $log));
-        $this->assertSame(4, preg_match_all('/\sdata-hardware-select(\s|>)/', $html));
-        $this->assertSame(4, $this->inspectedCount($html));
-        $this->assertMatchesRegularExpression('/data-hardware-filter-count="mapping_required">\(1\)/', $html);
-        $this->assertMatchesRegularExpression('/data-hardware-filter-count="awaiting_serial">\(1\)/', $html);
-        $this->assertMatchesRegularExpression('/data-hardware-filter-count="awb_pending">\(1\)/', $html);
-        $this->assertMatchesRegularExpression('/data-hardware-filter-count="package_photo_pending">\(1\)/', $html);
-        $this->assertLessThan(120_000, strlen($html));
-        $this->assertLessThan(145, count($log));
-        $this->assertGreaterThanOrEqual(0, $sqlMs);
-        $this->assertLessThan(2500, $elapsedMs);
+        $this->assertStringContainsString('data-hardware-defer-rows="1"', $shell);
+        $this->assertStringNotContainsString('RDE986073', $shell);
+        $this->assertSame(0, $this->inspectedCount($shell));
+        $this->assertLessThan(120_000, strlen($shell));
+
+        $this->assertStringContainsString('RDE986073', $rowsHtml);
+        $this->assertStringContainsString('RDE986074', $rowsHtml);
+        $this->assertStringContainsString('RDE986075', $rowsHtml);
+        $this->assertStringContainsString('RDE986076', $rowsHtml);
+        $this->assertStringNotContainsString('RDE986001', $rowsHtml);
+        $this->assertSame(4, preg_match_all('/\sdata-hardware-select(\s|>)/', $rowsHtml));
+        $this->assertSame(4, (int) $rows->json('inspected_fulfilment_count'));
+        $this->assertSame(1, (int) $rows->json('filter_counts.mapping_required'));
+        $this->assertSame(1, (int) $rows->json('filter_counts.awaiting_serial'));
+        $this->assertSame(1, (int) $rows->json('filter_counts.awb_pending'));
+        $this->assertSame(1, (int) $rows->json('filter_counts.package_photo_pending'));
+        $this->assertLessThan(80, count($shellLog));
+        $this->assertLessThan(2500, $shellMs);
+        $this->assertLessThan(2500, $rowsMs);
     }
 
-    private function seedCatalog(): void
+    /**
+     * @return TestResponse
+     */
+    protected function hardwareRowsResponse(array $params = [])
+    {
+        return $this->getJson(route('dashboard.hardware.rows', $params));
+    }
+
+    private function inspectedCount(string $html): int
+    {
+        return (int) (preg_match('/data-hardware-inspected-count="(\d+)"/', $html, $match) ? $match[1] : -1);
+    }
+
+    protected function seedCatalog(): void
     {
         $product = InventoryProduct::query()->create([
             'sku' => 'RBMFS110L1',
@@ -614,12 +640,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         ]);
     }
 
-    private function inspectedCount(string $html): int
-    {
-        return (int) (preg_match('/data-hardware-inspected-count="(\d+)"/', $html, $match) ? $match[1] : -1);
-    }
-
-    private function fulfilment(
+    protected function fulfilment(
         string $sourceId,
         HardwareFulfilmentState $state,
         bool $serial = false,

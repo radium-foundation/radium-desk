@@ -62,6 +62,22 @@ class DashboardService
     }
 
     /**
+     * KPI stats for the hardware dashboard shell without service-case snapshot work.
+     *
+     * @return array<string, mixed>
+     */
+    public function statsForHardwareShell(User $user): array
+    {
+        $onlineUsers = $this->onlineUsers();
+
+        return [
+            'online_count' => $onlineUsers->count(),
+            'online_users' => $onlineUsers,
+            ...$this->slowChangingStatsFor($user),
+        ];
+    }
+
+    /**
      * Fast-changing operator metrics (cases, presence, role KPIs).
      *
      * @return array<string, mixed>

@@ -150,6 +150,29 @@ final class HardwareNeedsActionSqlQuery
     }
 
     /**
+     * Active-scope `All`: non-shipped fulfilments including ingested.
+     *
+     * @return array{fulfilment_ids: list<int>, order_ids: list<int>, total: int}
+     */
+    public function allActivePage(
+        Carbon $fromIst,
+        Carbon $toIst,
+        string $search,
+        int $page,
+        int $perPage,
+    ): array {
+        return $this->unionIdentifierPage(
+            $this->allActiveFulfilmentQuery($search),
+            [
+                $this->workCandidateOrderQuery($fromIst, $toIst, $search),
+                $this->windowedRinQuery($fromIst, $toIst, $search),
+            ],
+            $page,
+            $perPage,
+        );
+    }
+
+    /**
      * @return list<int>
      */
     public function shippingCandidateIds(string $search = ''): array
@@ -336,6 +359,20 @@ final class HardwareNeedsActionSqlQuery
         $query = HardwareFulfilment::query()
             ->whereNotIn('hardware_fulfilments.state', [
                 HardwareFulfilmentState::Ingested->value,
+                HardwareFulfilmentState::Shipped->value,
+                HardwareFulfilmentState::Synced->value,
+                HardwareFulfilmentState::CancelledHistoricalDuplicate->value,
+            ])
+            ->whereNotIn('hardware_fulfilments.source_id', $this->ownerBlockedSourceIds());
+        $this->applyFulfilmentSearch($query, $search);
+
+        return $query;
+    }
+
+    private function allActiveFulfilmentQuery(string $search): Builder
+    {
+        $query = HardwareFulfilment::query()
+            ->whereNotIn('hardware_fulfilments.state', [
                 HardwareFulfilmentState::Shipped->value,
                 HardwareFulfilmentState::Synced->value,
                 HardwareFulfilmentState::CancelledHistoricalDuplicate->value,
