@@ -58,6 +58,8 @@ assert_rsync_filter_excludes '.DS_Store'
 assert_rsync_filter_excludes '.cursor/'
 assert_rsync_filter_excludes 'node_modules/'
 assert_rsync_filter_excludes 'vendor/'
+assert_rsync_filter_excludes '/vendor'
+assert_rsync_filter_excludes '/tmp/'
 assert_rsync_filter_excludes 'storage/logs/'
 assert_rsync_filter_excludes 'storage/framework/'
 pass "deploy rsync application filters exclude dev artifacts"

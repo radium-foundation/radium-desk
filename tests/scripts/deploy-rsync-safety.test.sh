@@ -197,6 +197,31 @@ test_g_local_dry_run_is_non_mutating() {
 
 test_g_local_dry_run_is_non_mutating
 
+# TEST J (P-11-01): anchored excludes prevent vendor symlinks and tmp/ entering the candidate tree.
+test_j_anchored_vendor_tmp_excludes() {
+    local excludes
+    excludes="$(deploy_kvm_rsync_application_filters | awk '/^--exclude$/ {getline; print}')"
+    echo "$excludes" | grep -Fx '/vendor' >/dev/null \
+        || fail "TEST J must end with anchored --exclude /vendor"
+    echo "$excludes" | grep -Fx '/tmp/' >/dev/null \
+        || fail "TEST J must end with anchored --exclude /tmp/"
+    pass "TEST J anchored /vendor and /tmp/ rsync excludes"
+}
+
+test_k_vendor_symlink_not_staged() {
+    local src="${TMP}/test-k-src" dest="${TMP}/test-k-stg" log="${TMP}/test-k.log"
+    mkdir -p "${src}/app"
+    echo 'x' >"${src}/app/keep.php"
+    ln -s /tmp/nonexistent-vendor "${src}/vendor"
+    mkdir -p "$dest"
+    deploy_rsync_local_run_dry_run "$src" "$dest" "$log"
+    [[ -e "${dest}/vendor" ]] && fail "TEST K must not copy excluded vendor symlink"
+    pass "TEST K vendor symlink excluded from local candidate tree"
+}
+
+test_j_anchored_vendor_tmp_excludes
+test_k_vendor_symlink_not_staged
+
 # TEST H: KVM Linux staging cleanup RETURN trap must not trip nounset (P-08-07).
 test_h_kvm_staging_return_trap_under_nounset() {
     local log="${TMP}/test-h.log" call found_rm=0
