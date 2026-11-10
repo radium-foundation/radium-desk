@@ -1,7 +1,9 @@
 @php
     $lines = collect($requirements ?? []);
-    $lineCount = $lines->count();
-    $requiredTotal = (int) $lines->sum('qty');
+    $serialLines = $lines->filter(fn (array $line): bool => (bool) ($line['requires_serial'] ?? false))->values();
+    $quantityLines = $lines->reject(fn (array $line): bool => (bool) ($line['requires_serial'] ?? false))->values();
+    $lineCount = $serialLines->count();
+    $requiredTotal = (int) $serialLines->sum('qty');
     $compact = $lineCount <= 1 && $requiredTotal <= 1;
     $submitLabel = $compact ? 'Allocate Serial' : 'Allocate Serials';
     $sectionTitle = $compact ? 'Search / select serial' : 'Allocate serials';
@@ -17,7 +19,24 @@
         <div data-hardware-serial-allocate
              data-compact="{{ $compact ? '1' : '0' }}"
              data-required-total="{{ $requiredTotal }}">
-            @forelse($lines as $index => $line)
+            @foreach($quantityLines as $line)
+                @php
+                    $qty = (int) $line['qty'];
+                    $sku = $line['inventory_sku'] ?? $line['sku'] ?? '';
+                @endphp
+                <div class="mb-3 pb-3 border-bottom text-muted">
+                    <p class="fw-semibold mb-1">{{ $line['description'] }}</p>
+                    <p class="small mb-0">
+                        @if($sku !== '')
+                            SKU: {{ $sku }}
+                        @else
+                            SKU unset
+                        @endif
+                        · Qty {{ $qty }} · Quantity stock (deducted automatically with serial allocation)
+                    </p>
+                </div>
+            @endforeach
+            @forelse($serialLines as $index => $line)
                 @php
                     $itemId = (int) $line['commerce_order_item_id'];
                     $qty = (int) $line['qty'];
@@ -67,7 +86,9 @@
                     @endif
                 </div>
             @empty
-                <p class="small text-muted mb-0">No allocatable lines on this fulfilment.</p>
+                @if($quantityLines->isEmpty())
+                    <p class="small text-muted mb-0">No allocatable lines on this fulfilment.</p>
+                @endif
             @endforelse
 
             @if(($canAllocate ?? false) && $lineCount > 0 && ! $compact)

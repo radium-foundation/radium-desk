@@ -87,7 +87,8 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
 
         $allocated = $this->allocation->allocateSerials($fulfilment, ['SN-M2-D-001'], $this->actor);
 
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $allocated->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->state);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertSame($delhi->id, $allocated->fulfilment_branch_id);
         $this->assertSame('DELHI-RETAIL', InventoryBranch::query()->find($allocated->fulfilment_branch_id)?->code);
         $this->assertSame('Maharashtra', $allocated->commerceOrder?->place_of_supply_state);
@@ -102,7 +103,8 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
 
         $allocated = $this->allocation->allocateSerials($fulfilment, ['SN-M2-M-001'], $this->actor);
 
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $allocated->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->state);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
         $this->assertSame($mumbai->id, $allocated->fulfilment_branch_id);
         $this->assertSame('MUMBAI', InventoryBranch::query()->find($allocated->fulfilment_branch_id)?->code);
         $this->assertSame('Delhi', $allocated->commerceOrder?->place_of_supply_state);
@@ -207,9 +209,16 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
         $second = $this->readyUnsetFulfilment('RDE900707');
         $delhi = $this->stockAt('DELHI-RETAIL', ['SN-M2-DUP', 'SN-M2-OTHER']);
         $allocated = $this->allocation->allocateSerials($first, ['SN-M2-DUP'], $this->actor);
-        $retry = $this->allocation->allocateSerials($first->fresh(), ['SN-M2-DUP'], $this->actor);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->state);
 
-        $this->assertSame($delhi->id, $retry->fulfilment_branch_id);
+        try {
+            $this->allocation->allocateSerials($first->fresh(), ['SN-M2-DUP'], $this->actor);
+            $this->fail('Retry after statutory invoice issuance must fail closed.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('immutable', implode(' ', $exception->errors()['serials'] ?? []));
+        }
+
+        $this->assertSame($delhi->id, $first->fresh()->fulfilment_branch_id);
         $this->assertSame(1, HardwareFulfilmentSerial::query()->where('inventory_serial_id', InventorySerial::query()->where('serial_number', 'SN-M2-DUP')->value('id'))->count());
 
         try {
@@ -237,28 +246,47 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
 
         $this->stockAt('DELHI-RETAIL', ['SN-M2-GATE']);
         $allocated = $this->allocation->allocateSerials($fulfilment, ['SN-M2-GATE'], $this->actor);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->state);
         $this->assertSame('DELHI-RETAIL', InventoryBranch::query()->find($allocated->fulfilment_branch_id)?->code);
         $this->assertSame('Maharashtra', $allocated->commerceOrder?->place_of_supply_state);
+        $this->assertSame(1, StatutoryInvoice::query()->where('source_id', 'RDE900708')->count());
 
-        $allocated->forceFill(['fulfilment_branch_id' => null])->save();
+        $branchGate = $this->readyUnsetFulfilment('RDE900708B');
+        $delhi = $this->stockAt('DELHI-RETAIL', ['SN-M2-GATE-BR']);
+        $item = $branchGate->commerceOrder?->items->first();
+        $stockSerial = InventorySerial::query()->where('serial_number', 'SN-M2-GATE-BR')->firstOrFail();
+        HardwareFulfilmentSerial::query()->create([
+            'hardware_fulfilment_id' => $branchGate->id,
+            'commerce_order_item_id' => $item->id,
+            'line_no' => $item->line_no,
+            'position' => 1,
+            'inventory_serial_id' => $stockSerial->id,
+            'serial_number' => 'SN-M2-GATE-BR',
+            'status' => HardwareFulfilmentSerialStatus::Allocated,
+            'allocated_at' => now(),
+        ]);
+        $branchGate->forceFill(['fulfilment_branch_id' => $delhi->id])->save();
+        $this->workflow->transition($branchGate->fresh(), HardwareFulfilmentState::SerialsAllocated);
+        $branchGate->forceFill(['fulfilment_branch_id' => null])->save();
 
         try {
-            app(HardwareFulfilmentInvoiceService::class)->issueInvoice($allocated->fresh());
+            app(HardwareFulfilmentInvoiceService::class)->issueInvoice($branchGate->fresh());
             $this->fail('Invoice without fulfilment branch must fail.');
         } catch (ValidationException $exception) {
             $this->assertStringContainsString('fulfilment branch', implode(' ', $exception->errors()['branch'] ?? []));
             $this->assertStringContainsString('Customer state cannot substitute', implode(' ', $exception->errors()['branch'] ?? []));
         }
 
-        $this->assertSame(0, StatutoryInvoice::query()->count());
+        $this->assertSame(1, StatutoryInvoice::query()->where('source_id', 'RDE900708')->count());
 
-        $allocated->forceFill(['fulfilment_branch_id' => $this->branch('DELHI-RETAIL')->id])->save();
-        app(HardwareFulfilmentInvoiceService::class)->issueInvoice($allocated->fresh());
-        $invoiced = $allocated->fresh();
-        $invoiced->forceFill(['fulfilment_branch_id' => null])->save();
+        $branchGate->forceFill(['fulfilment_branch_id' => $delhi->id])->save();
+        $invoiced = app(HardwareFulfilmentInvoiceService::class)->issueInvoice($branchGate->fresh());
+        $this->assertNotNull($invoiced);
+        $invoicedFulfilment = $branchGate->fresh();
+        $invoicedFulfilment->forceFill(['fulfilment_branch_id' => null])->save();
 
         try {
-            app(HardwareShipmentEligibility::class)->require($invoiced->fresh(['commerceOrder.items']));
+            app(HardwareShipmentEligibility::class)->require($invoicedFulfilment->fresh(['commerceOrder.items']));
             $this->fail('Shipment without fulfilment branch must fail.');
         } catch (ValidationException $exception) {
             $this->assertStringContainsString('fulfilment branch', implode(' ', $exception->errors()['branch'] ?? []));
@@ -317,7 +345,8 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
             ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment));
 
         $this->assertSame('MUMBAI', InventoryBranch::query()->find($fulfilment->fresh()->fulfilment_branch_id)?->code);
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
+        $this->assertSame(1, StatutoryInvoice::query()->where('source_id', 'RDE900709')->count());
     }
 
     public function test_delhi_only_operator_cannot_allocate_mumbai_serials(): void
@@ -384,7 +413,7 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
     public function test_true_concurrent_db_allocation_is_unknown_on_sqlite(): void
     {
         $this->markTestSkipped(
-            'UNKNOWN: phpunit.xml forces sqlite :memory:. True two-connection InnoDB row-lock races were not proven in this environment.'
+            'SQLite :memory: cannot prove two-connection InnoDB overlap. See HardwareMixedFulfilmentMysqlConcurrencyTest on disposable MariaDB.'
         );
     }
 

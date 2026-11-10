@@ -159,7 +159,12 @@ class HardwareSerialAllocationService
         $branches = $this->resolveSearchBranches($fulfilment, $branchCode, $actor);
         $order = $this->requireOrder($fulfilment);
         $item = $this->requirePhysicalItem($order, $commerceOrderItemId);
-        $product = $this->skuMap->requireProductForItem($order->channel, $item);
+        $product = $this->skuMap->requireProduct($order->channel, (int) $item->model_id);
+        if (! $product->is_serialized) {
+            throw ValidationException::withMessages([
+                'serials' => 'This commerce line uses quantity stock and does not accept serial numbers.',
+            ]);
+        }
         $q = trim($query);
         $tokens = $q !== '' ? InventorySerialNumber::parseList($q) : [];
         $effectiveLimit = max(1, min($limit, 50));
@@ -239,12 +244,16 @@ class HardwareSerialAllocationService
             $order = $this->requireOrder($locked);
             $items = $this->physicalItems($order);
             $this->assertNoPricedServiceCompanion($order);
-            $selections = $this->normalizeSelections($items, $serialsByItemId);
+            $selections = $this->normalizeSelections($order, $items, $serialsByItemId);
             $branch = $this->establishFulfilmentBranch($locked, $items, $selections, $order, $actor, $claimedBranchCode);
 
             $created = [];
             foreach ($items as $item) {
-                $product = $this->skuMap->requireProductForItem($order->channel, $item);
+                $product = $this->skuMap->requireProduct($order->channel, (int) $item->model_id);
+                if (! $product->is_serialized) {
+                    continue;
+                }
+
                 $numbers = $selections[(int) $item->id];
                 $stockSerials = $this->stock->lockAvailableSerialsForSale($product, $branch, $numbers);
                 $byNumber = [];
@@ -293,12 +302,58 @@ class HardwareSerialAllocationService
                 );
             }
 
-            $allocated = $this->workflow->allocatedSerialNumbers($locked->fresh() ?? $locked);
-            if (count($allocated) !== $this->requiredQuantity($items)) {
+            $quantitiesByItemId = [];
+            foreach ($items as $item) {
+                $product = $this->skuMap->requireProduct($order->channel, (int) $item->model_id);
+                if ($product->is_serialized) {
+                    continue;
+                }
+
+                $qty = (int) $item->qty;
+                $available = (int) InventoryStockBalance::query()
+                    ->where('product_id', $product->id)
+                    ->whereNull('variant_id')
+                    ->where('branch_id', $branch->id)
+                    ->value('available_qty');
+
+                if ($available < $qty) {
+                    throw ValidationException::withMessages([
+                        'stock' => sprintf(
+                            'Insufficient quantity stock for %s at %s (%d required, %d available).',
+                            $product->sku,
+                            $branch->code,
+                            $qty,
+                            $available,
+                        ),
+                    ]);
+                }
+
+                $this->stock->deductQuantity($product, $branch, $qty);
+                $this->stock->recordMovement(
+                    type: InventoryMovementType::Sale,
+                    product: $product,
+                    branch: $branch,
+                    qty: -$qty,
+                    actor: $actor,
+                    notes: 'hardware_fulfilment:'.$locked->id,
+                );
+                $quantitiesByItemId[(int) $item->id] = $qty;
+            }
+
+            if ($quantitiesByItemId !== []) {
+                $locked->forceFill([
+                    'metadata' => $this->stockCommitment->mergeQuantityCommitMetadata($locked, $quantitiesByItemId),
+                ])->save();
+            }
+
+            $locked = $locked->fresh(['commerceOrder.items', 'serials']) ?? $locked;
+            if (! $this->stockCommitment->isStockCommitted($locked, $order)) {
                 throw ValidationException::withMessages([
-                    'serials' => 'Partial serial allocation cannot mark SERIALS_ALLOCATED.',
+                    'serials' => 'Partial stock allocation cannot mark SERIALS_ALLOCATED.',
                 ]);
             }
+
+            $allocated = $this->workflow->allocatedSerialNumbers($locked);
 
             return $this->workflow->transition(
                 $locked,
@@ -308,9 +363,10 @@ class HardwareSerialAllocationService
                 payload: [
                     'reason' => 'hardware_serials_allocated',
                     'serials' => $allocated,
+                    'quantity_stock' => $quantitiesByItemId !== [] ? $quantitiesByItemId : null,
                 ],
             );
-        });
+        }, 5);
 
         $this->invoices->issueAfterSerialsAllocated($allocated, $actor);
 
@@ -432,7 +488,7 @@ class HardwareSerialAllocationService
                     'quantity_stock' => $quantitiesByItemId,
                 ],
             );
-        });
+        }, 5);
 
         $this->invoices->issueAfterSerialsAllocated($allocated, $actor);
 
@@ -552,12 +608,34 @@ class HardwareSerialAllocationService
      * @param  array<int, list<string>|string>  $serialsByItemId
      * @return array<int, list<string>>
      */
-    private function normalizeSelections(array $items, array $serialsByItemId): array
+    private function normalizeSelections(CommerceOrder $order, array $items, array $serialsByItemId): array
     {
         $all = [];
         $out = [];
 
         foreach ($items as $item) {
+            $product = $this->skuMap->requireProduct($order->channel, (int) $item->model_id);
+            if (! $product->is_serialized) {
+                $raw = $serialsByItemId[(int) $item->id] ?? [];
+                $rawList = is_array($raw) ? $raw : [$raw];
+                $nonEmpty = array_values(array_filter(
+                    $rawList,
+                    static fn (mixed $candidate): bool => is_string($candidate) && trim($candidate) !== '',
+                ));
+                if ($nonEmpty !== []) {
+                    throw ValidationException::withMessages([
+                        'serials' => sprintf(
+                            'Commerce line %d is quantity stock only and cannot receive serial numbers.',
+                            (int) $item->id,
+                        ),
+                    ]);
+                }
+
+                $out[(int) $item->id] = [];
+
+                continue;
+            }
+
             $raw = $serialsByItemId[(int) $item->id] ?? null;
             if ($raw === null) {
                 throw ValidationException::withMessages([
@@ -729,19 +807,6 @@ class HardwareSerialAllocationService
         return $items;
     }
 
-    /**
-     * @param  list<CommerceOrderItem>  $items
-     */
-    private function requiredQuantity(array $items): int
-    {
-        $qty = 0;
-        foreach ($items as $item) {
-            $qty += (int) $item->qty;
-        }
-
-        return $qty;
-    }
-
     private function requirePhysicalItem(CommerceOrder $order, int $itemId): CommerceOrderItem
     {
         foreach ($this->physicalItems($order) as $item) {
@@ -787,7 +852,11 @@ class HardwareSerialAllocationService
         $expectedByNumber = [];
         $allNumbers = [];
         foreach ($items as $item) {
-            $product = $this->skuMap->requireProductForItem($order->channel, $item);
+            $product = $this->skuMap->requireProduct($order->channel, (int) $item->model_id);
+            if (! $product->is_serialized) {
+                continue;
+            }
+
             foreach ($selections[(int) $item->id] as $number) {
                 $allNumbers[] = $number;
                 $expectedByNumber[$number] = $product;

@@ -4,8 +4,9 @@
 
 @php
     $order = $fulfilment->commerceOrder;
-    $requiredQty = (int) collect($requirements)->sum('qty');
-    $allocatedQty = (int) collect($requirements)->sum('allocated_qty');
+    $serialRequirements = collect($requirements)->filter(fn (array $line): bool => (bool) ($line['requires_serial'] ?? false));
+    $requiredQty = (int) $serialRequirements->sum('qty');
+    $allocatedQty = (int) $serialRequirements->sum('allocated_qty');
     $remainingQty = max(0, $requiredQty - $allocatedQty);
     $serialsComplete = $requiredQty > 0 && $remainingQty === 0;
     if ($serialsComplete) {
@@ -167,17 +168,24 @@
 
         @foreach($requirements as $line)
             @php
+                $lineRequiresSerial = (bool) ($line['requires_serial'] ?? false);
                 $lineAllocatedQty = (int) ($line['allocated_qty'] ?? 0);
                 $lineQty = (int) $line['qty'];
                 $lineSerials = $line['allocated_serials'] ?? [];
-                $lineComplete = $lineQty > 0 && $lineAllocatedQty >= $lineQty;
-                $linePartial = $lineAllocatedQty > 0 && $lineAllocatedQty < $lineQty;
-                if ($lineComplete) {
-                    $lineSerialStatus = 'Allocated';
-                } elseif ($linePartial) {
-                    $lineSerialStatus = 'Partial ('.$lineAllocatedQty.' of '.$lineQty.')';
+                if ($lineRequiresSerial) {
+                    $lineComplete = $lineQty > 0 && $lineAllocatedQty >= $lineQty;
+                    $linePartial = $lineAllocatedQty > 0 && $lineAllocatedQty < $lineQty;
+                    if ($lineComplete) {
+                        $lineSerialStatus = 'Allocated';
+                    } elseif ($linePartial) {
+                        $lineSerialStatus = 'Partial ('.$lineAllocatedQty.' of '.$lineQty.')';
+                    } else {
+                        $lineSerialStatus = 'Not allocated';
+                    }
                 } else {
-                    $lineSerialStatus = 'Not allocated';
+                    $lineComplete = $lineQty > 0 && $lineAllocatedQty >= $lineQty;
+                    $linePartial = false;
+                    $lineSerialStatus = $lineComplete ? 'Quantity stock allocated' : 'Quantity stock pending';
                 }
             @endphp
             <div
@@ -207,19 +215,25 @@
                 <dl class="hf-alloc-confirm mb-0">
                     <dt>Quantity</dt>
                     <dd>{{ $lineQty }}</dd>
-                    <dt>Serial</dt>
-                    <dd>
-                        @include('inventory.hardware-fulfilments.fragments.serial-summary', [
-                            'serials' => $lineSerials,
-                            'expected' => $lineQty,
-                            'id' => 'hardware-show-line-serial-'.$line['commerce_order_item_id'],
-                        ])
-                    </dd>
-                    <dt>Serial status</dt>
+                    @if($lineRequiresSerial)
+                        <dt>Serial</dt>
+                        <dd>
+                            @include('inventory.hardware-fulfilments.fragments.serial-summary', [
+                                'serials' => $lineSerials,
+                                'expected' => $lineQty,
+                                'id' => 'hardware-show-line-serial-'.$line['commerce_order_item_id'],
+                            ])
+                        </dd>
+                    @endif
+                    <dt>{{ $lineRequiresSerial ? 'Serial status' : 'Stock status' }}</dt>
                     <dd>{{ $lineSerialStatus }}</dd>
                 </dl>
                 @if($canAllocate && ! $lineComplete)
-                    <p class="hf-alloc-qty mt-2 mb-1">{{ $lineQty === 1 ? '1 serial required' : $lineQty.' serials required' }}</p>
+                    @if($lineRequiresSerial)
+                        <p class="hf-alloc-qty mt-2 mb-1">{{ $lineQty === 1 ? '1 serial required' : $lineQty.' serials required' }}</p>
+                    @else
+                        <p class="hf-alloc-qty mt-2 mb-1">{{ $lineQty === 1 ? '1 quantity' : $lineQty.' quantity' }} · deducted with serial allocation</p>
+                    @endif
                     <p class="text-muted small mb-0">
                         Available {{ $line['available_qty'] }}
                         · Delhi {{ $line['available_by_branch']['DELHI-RETAIL'] ?? 0 }}
@@ -272,7 +286,7 @@
             @else
             <form method="POST" action="{{ route('inventory.hardware-fulfilments.serials.store', $fulfilment) }}" id="hardware-serial-allocate-form">
                 @csrf
-                @foreach($requirements as $line)
+                @foreach($serialRequirements as $line)
                     <div class="hf-alloc-card mb-3" data-picker-for="{{ $line['commerce_order_item_id'] }}">
                         <label class="form-label mb-2" for="serial-search-{{ $line['commerce_order_item_id'] }}">Search available serials</label>
                         <input
