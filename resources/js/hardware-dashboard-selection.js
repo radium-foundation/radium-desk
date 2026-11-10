@@ -88,5 +88,12 @@ export const initHardwareDashboardSelection = (root = document) => {
         trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
 
+    document.addEventListener('hardware:rows-loaded', (event) => {
+        if (!workspace.contains(event.target) && event.target !== workspace) {
+            return;
+        }
+        update();
+    });
+
     update();
 };

@@ -20,6 +20,7 @@ use App\Http\Controllers\CustomerOrderHistoryController;
 use App\Http\Controllers\DashboardActivityController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
+use App\Http\Controllers\DashboardHardwareController;
 use App\Http\Controllers\DashboardLiveController;
 use App\Http\Controllers\DashboardServiceCaseController;
 use App\Http\Controllers\DashboardTeamActivityController;
@@ -173,6 +174,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard/live/counts', [DashboardLiveController::class, 'counts'])->name('dashboard.live.counts');
     Route::get('/dashboard/live/rows', [DashboardLiveController::class, 'rows'])->name('dashboard.live.rows');
     Route::get('/dashboard/live/hardware', [DashboardLiveController::class, 'hardware'])->name('dashboard.live.hardware');
+    Route::get('/dashboard/hardware/rows', [DashboardHardwareController::class, 'rows'])->name('dashboard.hardware.rows');
+    Route::get('/dashboard/hardware/shiprocket-balance', [DashboardHardwareController::class, 'shiprocketBalance'])->name('dashboard.hardware.shiprocket-balance');
     Route::get('/dashboard/workspace', [OperationsWorkspaceController::class, 'show'])
         ->name('dashboard.workspace');
     Route::get('/dashboard/activity', [DashboardActivityController::class, 'refresh'])->name('dashboard.activity');
