@@ -58,6 +58,8 @@ deploy_rsync_protected_patterns() {
 ^database/.*\.sqlite
 ^node_modules/
 ^vendor/
+^vendor$
+^tmp/
 ^storage/logs/
 ^storage/framework/
 ^bootstrap/cache/
@@ -171,6 +173,10 @@ assets/
 P vendor/**
 --filter
 P node_modules/**
+--exclude
+/vendor
+--exclude
+/tmp/
 EOF
 }
 
