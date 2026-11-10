@@ -163,6 +163,42 @@ final class HardwareDashboardWorkspace
         return $this->countsCache->scopeCounts($from, $to)['active'];
     }
 
+    /**
+     * Admin dashboard stuck-hardware indicator. Reuses Needs Action SQL classifier counts.
+     *
+     * @return array{
+     *     needs_action_total: int,
+     *     breakdown: list<array{filter: string, label: string, count: int, tone: string}>
+     * }
+     */
+    public function stuckOrderSummary(): array
+    {
+        $timezone = HardwareFulfilmentEligibility::CUTOFF_TIMEZONE;
+        $from = HardwareFulfilmentEligibility::cutoffInstant();
+        $to = Carbon::now($timezone);
+        $filterCounts = $this->countsCache->filterCounts($from, $to, '');
+
+        $breakdown = [];
+        foreach (HardwareWorkspaceFilter::needsActionFilters() as $filter) {
+            $count = (int) ($filterCounts[$filter->value] ?? 0);
+            if ($count <= 0) {
+                continue;
+            }
+
+            $breakdown[] = [
+                'filter' => $filter->value,
+                'label' => $filter->label(),
+                'count' => $count,
+                'tone' => $filter->tone(),
+            ];
+        }
+
+        return [
+            'needs_action_total' => (int) ($filterCounts[HardwareWorkspaceFilter::NeedsAction->value] ?? 0),
+            'breakdown' => $breakdown,
+        ];
+    }
+
     public function resolveScope(Request $request): HardwareWorkspaceScope
     {
         $legacyQueue = trim((string) $request->query('hw_queue', ''));

@@ -104,6 +104,12 @@
         @include('dashboard.partials.kpi-strip-item', $item)
     @endforeach
 
+    @if($usesAdminQueues && isset($stats['hardware_stuck_orders']))
+        @include('dashboard.partials.admin-hardware-stuck-card', [
+            'summary' => $stats['hardware_stuck_orders'],
+        ])
+    @endif
+
     @include('dashboard.partials.email-intake-kpi-card', [
         'widget' => $stats['email_intake_widget'] ?? null,
     ])
