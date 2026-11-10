@@ -78,4 +78,7 @@
         <env name="HARDWARE_FULFILMENT_CALLBACK_URL" value="" force="true"/>
         <env name="DESK_CALLBACK_SECRET" value="" force="true"/>
     </php>
+    <extensions>
+        <bootstrap class="Tests\Support\PhpunitProgressExtension"/>
+    </extensions>
 </phpunit>

@@ -303,6 +303,7 @@ describe('operations-dashboard visibility polling', () => {
 
     it('pauses polling while the browser tab is hidden', async () => {
         await initOperationsDashboard();
+        await vi.advanceTimersByTimeAsync(0);
 
         fetch.mockClear();
 

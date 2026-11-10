@@ -66,7 +66,7 @@ describe('initCustomer360Drawer', () => {
         });
 
         expect(fetch).toHaveBeenCalledWith(
-            'http://localhost/dashboard/service-cases/42/customer-360',
+            '/dashboard/service-cases/42/customer-360',
             expect.objectContaining({ method: 'GET' }),
         );
 
@@ -116,7 +116,7 @@ describe('initCustomer360Drawer', () => {
         });
 
         expect(fetch).toHaveBeenCalledWith(
-            'http://localhost/dashboard/service-cases/42/customer-360',
+            '/dashboard/service-cases/42/customer-360',
             expect.objectContaining({ method: 'GET' }),
         );
 
@@ -1112,7 +1112,7 @@ describe('initCustomer360Drawer', () => {
 
             await vi.waitFor(() => {
                 expect(fetch).toHaveBeenCalledWith(
-                    'http://localhost/dashboard/service-cases/42/customer-360',
+                    '/dashboard/service-cases/42/customer-360',
                     expect.any(Object),
                 );
             });
