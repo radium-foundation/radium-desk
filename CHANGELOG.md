@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.1.61 — 2026-11-10 — Hardware fulfilment completion bundle (P-10-39 / PR #138–#142) atop unreleased 4.1.58–4.1.60 mainline
+
+- **Purpose:** Release metadata for the **approved merged source** at **`cecdb6d6cb794b8cc31aa12bf3d3e38308408950`** (merge PR **#142**). **This CHANGELOG entry does not authorize production deployment by itself.**
+- **Production baseline (pre-deploy):** KVM **`/var/www/radium-desk`** @ **`v4.1.57`** / build **`e85068a9`**. This cut includes all **`main`** commits after **`v4.1.57`** through **`cecdb6d6`** not yet on production.
+- **Hardware fulfilment (PR #139–#142):** Mixed serialized + quantity-only lines allocate per serialized unit; post-allocate statutory invoice idempotency; `InvoiceIssued` contract; shipment gating on committed stock + invoice; MariaDB concurrency harness for mixed fulfilment and auto-invoice paths; HTTP invoice tests aligned with stock-commitment gates.
+- **Hardware dashboard (PR #140):** Async hardware queue shell and paginated rows API; dashboard test alignment.
+- **Deploy / test tooling (PR #141):** Vitest drift alignment; PHPUnit full-suite wrapper tooling (memory probe; **full suite not claimed green**).
+- **Includes unreleased application scope from CHANGELOG 4.1.58–4.1.60 on `main`:** hybrid return/exchange admin UI (**#133**), customer-requested POS serial exchange foundation (**#134**), mandatory testing policy doc (**#135**), KVM rsync dry-run safety fixes (**#136**, **#137**). **No** live POS-6754 execution, **no** customer serial exchange execution, and **no** invoice/finance/payment/wallet mutation in deploy scope without separate Owner authorization.
+- **Migrations (apply once post-deploy when Owner authorizes):** **`2026_11_07_120000_add_hybrid_return_exchange_workflow_columns`**, **`2026_11_07_170000_create_pos_customer_requested_serial_exchanges_table`**. Run **`RolePermissionSeeder`** with standard KVM deploy.
+- **Deploy tooling (P-10-41):** Dry-run deletion inventory writes **`release:snapshot`** before rsync analyze (parity with live deploy); explicit protected classification for **`storage/app/private/release.json`**.
+- **Production notes:** Deploy only from annotated tag **`v4.1.61`** on the merged **`main`** commit that includes this CHANGELOG row (prep **`f662501f`** atop **`cecdb6d6`**). Requires pre-deploy encrypted DB backup, verified RIP checkpoint for live build, rsync deletion gate, and **`RIP_REQUIRE_PRE_DEPLOY_CHECKPOINT=1`**. **No POS-6754.**
+- **Rollback target (application):** **`v4.1.57`** / **`e85068a9`** via RIP + redeploy; DB rollback only with Owner/CA (hybrid + POS exchange DDL may remain).
+- **Source:** Application merge PR **#142** @ **`cecdb6d6cb794b8cc31aa12bf3d3e38308408950`**; release-metadata and deploy-safety commit **`49556ebc`** (P-10-41) adds **4.1.61** CHANGELOG and rsync dry-run snapshot parity. **Tag `v4.1.61` must point at the commit that contains both application scope and this release-metadata row before deploy.**
+- **Validation (scoped):** P-10-39 focused hardware journeys + MariaDB concurrency; statutory-cancellation-phpunit on PR **#142**; deploy safety script tests; **full PHPUnit NOT RUN.**
+- Cursor prompts **P-10-34** through **P-10-41**; merge PR **#142**.
+
 ## 4.1.60 — 2026-11-08 — v4.1.59 deploy bundle + KVM dry-run safety fixes (P-08-09 / PR #136 + PR #137)
 
 - **Includes 4.1.59 application scope** (PR **#134** customer-requested POS serial exchange + PR **#135** mandatory testing policy) unchanged from tagged **`v4.1.59`** @ **`2cbba7d8`**. **Deploy tooling fixes below are required** for macOS operators to complete documented **`deploy-kvm.sh --dry-run`** deletion-inventory gates before a future authorized production deploy. **This CHANGELOG entry does not authorize deployment.**

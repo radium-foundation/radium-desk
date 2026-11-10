@@ -129,6 +129,7 @@ test_f_protected_paths() {
         'storage/logs/laravel.log' \
         'storage/framework/cache/data/foo' \
         'storage/app/backups/pre-deploy/release.json' \
+        'storage/app/private/release.json' \
         'storage/app/private/cw-migration-manifest.json' \
         'node_modules/laravel/framework/package.json'; do
         classification="$(deploy_rsync_classify_deletion_path "$protected_path" HEAD "")"
@@ -143,12 +144,35 @@ test_f_protected_paths() {
     pass "TEST F protected paths and public/build deploy semantics"
 }
 
+# TEST H: aligned trees with local release.json snapshot must not delete runtime identity
+test_h_release_json_not_deleted_when_present_in_source() {
+    local src="${TMP}/test-h-src" dest="${TMP}/test-h-dest" log="${TMP}/test-h.log"
+    local path classification
+
+    init_fixture_source "$src"
+    echo '{"version":"4.1.61","build":"candidate"}' >"${src}/storage/app/private/release.json"
+    mkdir -p "$dest"
+
+    deploy_rsync_local_run_dry_run "$src" "$dest" "$log"
+    paths="$(deploy_rsync_parse_deletion_paths "$log")"
+  if echo "$paths" | grep -q 'storage/app/private/release.json'; then
+        fail "TEST H release.json must not appear in deletion paths when source carries snapshot"
+    fi
+
+    classification="$(deploy_rsync_classify_deletion_path "storage/app/private/release.json" HEAD "")"
+    [[ "$classification" == "protected" ]] \
+        || fail "TEST H release.json must classify as protected, got ${classification}"
+
+    pass "TEST H release.json snapshot parity and protected classification"
+}
+
 test_a_no_unexpected_deletions
 test_b_detect_production_only_file
 test_c_explicit_approval_hook
 test_d_backup_failure_blocks
 test_e_inventory_persisted
 test_f_protected_paths
+test_h_release_json_not_deleted_when_present_in_source
 
 # TEST G: local dry-run must not mutate destination (P-04-10-50 guard)
 test_g_local_dry_run_is_non_mutating() {

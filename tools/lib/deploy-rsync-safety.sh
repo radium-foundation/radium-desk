@@ -76,9 +76,21 @@ deploy_rsync_protected_patterns() {
 EOF
 }
 
+# Production runtime release identity — never classify as unexpected or allow rsync --delete.
+deploy_rsync_is_runtime_release_identity_path() {
+    local rel="${1#./}"
+    rel="${rel#/}"
+
+    [[ "$rel" == "storage/app/private/release.json" ]]
+}
+
 deploy_rsync_is_protected_path() {
     local rel="${1#./}"
     rel="${rel#/}"
+
+    if deploy_rsync_is_runtime_release_identity_path "$rel"; then
+        return 0
+    fi
 
     while IFS= read -r pattern; do
         [[ -z "$pattern" ]] && continue
@@ -220,6 +232,11 @@ deploy_rsync_classify_deletion_path() {
 
     rel_path="${rel_path#./}"
     rel_path="${rel_path#/}"
+
+    if deploy_rsync_is_runtime_release_identity_path "$rel_path"; then
+        printf 'protected'
+        return 0
+    fi
 
     if [[ "$rel_path" == public/build/* ]]; then
         printf 'expected'
