@@ -224,14 +224,9 @@ class HardwareSerialAllocationService
 
             $this->assertNotFrozen($locked);
 
-            if ($locked->state === HardwareFulfilmentState::SerialsAllocated) {
+            if ($locked->state === HardwareFulfilmentState::SerialsAllocated
+                || $this->allocationIsImmutable($locked)) {
                 return $this->idempotentAllocated($locked, $serialsByItemId);
-            }
-
-            if ($this->allocationIsImmutable($locked)) {
-                throw ValidationException::withMessages([
-                    'serials' => 'Allocated serials are immutable after invoice issuance.',
-                ]);
             }
 
             if (($locked->state?->rank() ?? -1) >= HardwareFulfilmentState::ShipmentCreated->rank()) {

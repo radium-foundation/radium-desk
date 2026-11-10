@@ -14,8 +14,10 @@ use App\Models\InventoryBranch;
 use App\Models\InventoryProduct;
 use App\Models\InventorySerial;
 use App\Models\InventoryUserBranch;
+use App\Models\OutboxEvent;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
+use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackOutboxWriter;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
@@ -85,7 +87,7 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
 
         $allocated = $this->allocation->allocateSerials($fulfilment, ['SN-P4-001', 'SN-P4-002'], $this->actor);
 
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $allocated->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->state);
         $this->assertSame(
             ['SN-P4-001', 'SN-P4-002'],
             $this->workflow->allocatedSerialNumbers($allocated),
@@ -196,9 +198,39 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
         $second = $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-P4-070'], $this->actor);
 
         $this->assertSame($first->id, $second->id);
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $second->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $second->state);
         $this->assertSame(1, HardwareFulfilmentSerial::query()->count());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(
+            2,
+            OutboxEvent::query()
+                ->where('event_type', HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE)
+                ->count(),
+        );
         $this->assertSame(['SN-P4-070'], $this->workflow->allocatedSerialNumbers($second));
+    }
+
+    public function test_different_serial_after_invoice_is_rejected_without_mutation(): void
+    {
+        $fulfilment = $this->readyFulfilment('RDE900409B', 'DELHI-RETAIL', 1);
+        $this->stockAt('DELHI-RETAIL', ['SN-P4-070B', 'SN-P4-071B']);
+
+        $this->allocation->allocateSerials($fulfilment, ['SN-P4-070B'], $this->actor);
+
+        try {
+            $this->allocation->allocateSerials($fulfilment->fresh(), ['SN-P4-071B'], $this->actor);
+            $this->fail('A different serial after invoice must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                'existing allocated serials',
+                implode(' ', $exception->errors()['serials'] ?? []),
+            );
+        }
+
+        $fresh = $fulfilment->fresh();
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fresh->state);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(['SN-P4-070B'], $this->workflow->allocatedSerialNumbers($fresh));
     }
 
     public function test_competing_allocation_cannot_reuse_the_same_serial(): void
@@ -345,7 +377,7 @@ class HardwareFulfilmentP4AllocationTest extends TestCase
             ])
             ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment));
 
-        $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $fulfilment->fresh()->state);
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $fulfilment->fresh()->state);
     }
 
     public function test_released_historical_row_does_not_block_reallocation(): void

@@ -6,7 +6,6 @@ use App\Contracts\Shipping\ShiprocketGateway;
 use App\Enums\HardwareFulfilmentPackageEvidenceKind;
 use App\Enums\HardwareFulfilmentShippingMethod;
 use App\Enums\HardwareFulfilmentState;
-use App\Support\HardwareFulfilment\ExternalCourierCatalog;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
@@ -17,6 +16,7 @@ use App\Services\HardwareFulfilment\Data\HardwareShipmentCourierQuote;
 use App\Services\HardwareFulfilment\Data\HardwareShipmentReadiness;
 use App\Services\Shipping\NullShiprocketGateway;
 use App\Services\Shipping\ShiprocketTrackingNormalizer;
+use App\Support\HardwareFulfilment\ExternalCourierCatalog;
 use App\Support\Inventory\InventorySerialNumber;
 use Illuminate\Validation\ValidationException;
 
@@ -781,19 +781,20 @@ class HardwareShipmentEligibility
             ]);
         }
 
-        $required = 0;
-        foreach ($order->items as $item) {
-            if (HardwareFulfilmentEligibility::isPhysicalCommerceItem($item)) {
-                $required += (int) $item->qty;
-            }
+        $commitment = app(HardwarePhysicalStockCommitment::class);
+        if (! $commitment->isStockCommitted($fulfilment, $order)) {
+            throw ValidationException::withMessages([
+                'stock' => 'Hardware shipment requires committed stock for every physical line.',
+            ]);
         }
 
-        if (count($serials) !== $required) {
+        $requiredSerialUnits = $commitment->requiredSerializedUnitCount($order);
+        if ($requiredSerialUnits > 0 && count($serials) !== $requiredSerialUnits) {
             throw ValidationException::withMessages([
                 'serials' => sprintf(
-                    'Allocated serial count %d does not match physical quantity %d.',
+                    'Allocated serial count %d does not match serialized unit quantity %d.',
                     count($serials),
-                    $required,
+                    $requiredSerialUnits,
                 ),
             ]);
         }

@@ -12,14 +12,18 @@ use App\Models\InventoryMovement;
 use App\Models\InventoryProduct;
 use App\Models\InventoryStockBalance;
 use App\Models\InventoryUserBranch;
+use App\Models\OutboxEvent;
+use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
+use App\Services\HardwareFulfilment\HardwareFulfilmentCallbackOutboxWriter;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwarePhysicalStockCommitment;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\Inventory\InventoryStockService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -107,6 +111,44 @@ class HardwareMixedSerializedFulfilmentTest extends TestCase
 
         $this->assertSame(HardwareFulfilmentState::SerialsAllocated, $allocated->state);
         $this->assertSame([], $this->workflow->allocatedSerialNumbers($allocated));
+    }
+
+    public function test_mixed_scanner_and_cable_auto_invoice_mints_one_statutory_invoice_with_both_lines(): void
+    {
+        Storage::fake('local');
+        $this->configureLocationSellerIdentity();
+        config([
+            'statutory_invoices.series_code' => '',
+            'statutory_invoices.number_format' => '',
+        ]);
+
+        $fulfilment = $this->readyMixedFulfilment('RBP-MIX-INV', [
+            $this->line(946, 1),
+            $this->line(1409, 1),
+        ]);
+        $branch = $this->branch('DELHI-RETAIL');
+        InventoryUserBranch::query()->firstOrCreate(['user_id' => $this->actor->id, 'branch_id' => $branch->id]);
+        app(InventoryStockService::class)->stockInSerialized($this->scanner, $branch, ['SN-MIX-INV'], $this->actor);
+        app(InventoryStockService::class)->stockInQuantity($this->cable, $branch, 2, $this->actor);
+
+        $scannerItemId = (int) $fulfilment->commerceOrder->items->firstWhere('model_id', 946)->id;
+        $order = $fulfilment->commerceOrder;
+        $orderTaxTotal = round((float) $order->items->sum(fn ($item) => (float) $item->tax_total), 2);
+        $orderLineTotal = round((float) $order->items->sum(fn ($item) => (float) $item->line_total), 2);
+
+        $allocated = $this->allocation->allocate($fulfilment, [$scannerItemId => ['SN-MIX-INV']], $this->actor);
+
+        $this->assertSame(HardwareFulfilmentState::InvoiceIssued, $allocated->state);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $invoice = StatutoryInvoice::query()->firstOrFail();
+        $this->assertSame(2, $invoice->items()->count());
+        $this->assertEqualsWithDelta($orderLineTotal, (float) $invoice->invoice_value, 0.02);
+        $this->assertEqualsWithDelta($orderTaxTotal, (float) $invoice->tax_total, 0.02);
+        $this->assertSame(
+            2,
+            OutboxEvent::query()->where('event_type', HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE)->count(),
+        );
+        $this->assertSame(['SN-MIX-INV'], $this->workflow->allocatedSerialNumbers($allocated));
     }
 
     public function test_mixed_scanner_and_cable_allocates_serials_only_for_scanner(): void

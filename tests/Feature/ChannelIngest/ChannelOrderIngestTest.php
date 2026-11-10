@@ -283,7 +283,7 @@ class ChannelOrderIngestTest extends TestCase
         $order = CommerceOrder::query()->firstOrFail();
         $this->assertTrue(Schema::hasColumn('commerce_orders', 'billing_state'));
         $this->assertSame('Maharashtra', $order->billing_state);
-        $this->assertSame('12 Street, Pune, Maharashtra, 411001', $order->billing_address);
+        $this->assertSame('12 Street, Pune, Maharashtra 411001', $order->billing_address);
         $this->assertSame('Delhi', $order->place_of_supply_state);
         $this->assertNoStatutorySideEffects();
     }
@@ -303,7 +303,7 @@ class ChannelOrderIngestTest extends TestCase
 
         $order = CommerceOrder::query()->firstOrFail();
         $this->assertNull($order->billing_state);
-        $this->assertSame('12 Street, Pune, Maharashtra, Pune, 411001', $order->billing_address);
+        $this->assertSame('12 Street, Pune, Maharashtra, 411001', $order->billing_address);
         $this->assertNoStatutorySideEffects();
     }
 

@@ -18,7 +18,11 @@ use Illuminate\Support\Facades\DB;
 use Tests\Feature\HardwareFulfilment\Support\HardwareFulfilmentMysqlGate;
 use Tests\Feature\HardwareFulfilment\Support\HardwareFulfilmentMysqlPrepareLock;
 
-require __DIR__.'/mysql_hardware_fulfilment_bootstrap.php';
+if (getenv('HARDWARE_FULFILMENT_MYSQL_AUTO_INVOICE') === '1') {
+    require __DIR__.'/mysql_hardware_fulfilment_auto_invoice_bootstrap.php';
+} else {
+    require __DIR__.'/mysql_hardware_fulfilment_bootstrap.php';
+}
 
 $lockHandle = HardwareFulfilmentMysqlPrepareLock::acquire();
 register_shutdown_function(
@@ -28,7 +32,14 @@ register_shutdown_function(
 );
 
 $credentials = hardware_fulfilment_mysql_credentials_from_env();
-$app = hardware_fulfilment_mysql_boot_app($credentials);
+$boot = getenv('HARDWARE_FULFILMENT_MYSQL_AUTO_INVOICE') === '1'
+    ? 'hardware_fulfilment_mysql_boot_app_with_auto_invoice'
+  : 'hardware_fulfilment_mysql_boot_app';
+if (! is_callable($boot)) {
+    fwrite(STDERR, "Prepare refused: unknown MySQL boot helper.\n");
+    exit(2);
+}
+$app = $boot($credentials);
 
 $connected = DB::selectOne('select database() as d');
 if (! is_object($connected) || ! HardwareFulfilmentMysqlGate::isAllowedDatabase((string) $connected->d)) {
@@ -187,7 +198,14 @@ $itemId = static function (HardwareFulfilment $fulfilment, int $modelId): int {
     return (int) $fulfilment->commerceOrder->items->firstWhere('model_id', $modelId)->id;
 };
 
-echo json_encode([
+$harness = [
+    'auto_invoice_harness' => getenv('HARDWARE_FULFILMENT_MYSQL_AUTO_INVOICE') === '1',
+    'post_allocate_auto_statutory_invoice' => (bool) config('hardware_fulfilment.post_allocate_auto_statutory_invoice'),
+    'channel_ingest_auto_issue_invoice' => (bool) config('channel_ingest.auto_issue_invoice'),
+    'location_series_enabled' => (bool) config('statutory_invoices.location_series.enabled'),
+];
+
+echo json_encode(array_merge($harness, [
     'actor_id' => $actor->id,
     'branch_id' => $branch->id,
     'scanner_product_id' => $scanner->id,
@@ -209,4 +227,4 @@ echo json_encode([
     'rollback_scanner_item_id' => $itemId($rollback, 946),
     'scan_a_item_id' => $itemId($scannerOnlyA, 946),
     'scan_b_item_id' => $itemId($scannerOnlyB, 946),
-], JSON_THROW_ON_ERROR).PHP_EOL;
+]), JSON_THROW_ON_ERROR).PHP_EOL;

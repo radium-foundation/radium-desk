@@ -180,20 +180,27 @@ class HardwareFulfilmentInvoiceService
             $normalized[$value] = $value;
         }
 
-        $requiredQty = $this->physicalQuantity($order);
-        if ($requiredQty < 1) {
+        $commitment = app(HardwarePhysicalStockCommitment::class);
+        if (! $commitment->isStockCommitted($fulfilment, $order)) {
             throw ValidationException::withMessages([
-                'serials' => 'Hardware invoice issuance requires at least one physical merchandise line.',
+                'stock' => 'Hardware invoice issuance requires committed stock for every physical line.',
             ]);
         }
 
-        if (count($normalized) !== $requiredQty) {
+        $requiredSerialUnits = $commitment->requiredSerializedUnitCount($order);
+        if ($requiredSerialUnits > 0 && count($normalized) !== $requiredSerialUnits) {
             throw ValidationException::withMessages([
                 'serials' => sprintf(
-                    'Allocated serial count %d does not match physical quantity %d.',
+                    'Allocated serial count %d does not match serialized unit quantity %d.',
                     count($normalized),
-                    $requiredQty,
+                    $requiredSerialUnits,
                 ),
+            ]);
+        }
+
+        if ($requiredSerialUnits === 0 && $normalized !== []) {
+            throw ValidationException::withMessages([
+                'serials' => 'Quantity-only hardware orders cannot carry allocated serial numbers on invoice.',
             ]);
         }
 
@@ -336,18 +343,6 @@ class HardwareFulfilmentInvoiceService
             inclusiveHardwareGst: true,
             billingAddressStructured: StatutoryBillingStructured::fromStored($order->billing_address_structured),
         );
-    }
-
-    private function physicalQuantity(CommerceOrder $order): int
-    {
-        $qty = 0;
-        foreach ($order->items as $item) {
-            if (HardwareFulfilmentEligibility::isPhysicalCommerceItem($item)) {
-                $qty += (int) $item->qty;
-            }
-        }
-
-        return $qty;
     }
 
     private function assertNoPricedServiceCompanion(CommerceOrder $order): void

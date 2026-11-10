@@ -124,8 +124,9 @@ class HardwareFulfilmentShipmentUiTest extends TestCase
         $this->actingAs($this->operator)
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
-            ->assertSee('Invoice required')
-            ->assertDontSee('Create Shipment');
+            ->assertSee('INVOICE ISSUED')
+            ->assertDontSee('Invoice required')
+            ->assertDontSee('Allocate Serial');
     }
 
     public function test_page_shows_address_and_parcel_blockers(): void
