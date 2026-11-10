@@ -892,4 +892,5 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-11-06 | 2026-11-11 | **P-11-06** Review/merge PR #146 Open Fulfilment chips | **`6977500a`** → merge PR **#146** (`3a93ad11`). Local HW tests **11/11**; Pint **PASS**; CI rip+release-rip **PASS**. Browser QA **BLOCKED** (local serve 500 / `.env` DB). Cursor **`7AC8DFCC-E518-4481-A95B-11939E8C5533`**. |
 | RadiumDesk-P-11-05 | 2026-11-11 | **P-11-05** Open Fulfilments shipping quick-filter chips | Branch **`feature/p11-05-open-fulfilment-chips`** @ **`6977500a`**. **`HardwareOpenFulfilmentQueue`** + chip row on Open Fulfilments tab; PHPUnit feature **PASS**. Cursor **`7C7A94D4-8912-4AD6-AFF8-D8CB450388E6`**. |
+| RadiumDesk-P-11-08 | 2026-11-11 | **P-11-08** Agent workspace persistent deep links | Branch **`feature/p11-08-agent-workspace-deeplinks`** @ **`4a6cc043`**. Canonical **`workspace=`** URLs; legacy **`queue`/`filter`** 302 preserve semantics; live/load-more use workspace. Cursor **`8FC5A943-9986-4C54-A0D6-53FF94FB4F42`**. |
 Do not renumber or overwrite earlier rows. Append only.

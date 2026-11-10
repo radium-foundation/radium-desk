@@ -305,7 +305,7 @@ class AgentDashboardOwnershipTest extends TestCase
         $this->createOverdueAttentionCase('RD-B-DRILL-1', $creator, $agentB);
         $this->createUnassignedAttentionCase('RD-UNASSIGNED-DRILL', $creator);
 
-        $expectedHref = route('dashboard', ['filter' => 'my_attention']).'#dashboard-service-cases-panel';
+        $expectedHref = route('dashboard', ['workspace' => 'my_attention']).'#dashboard-service-cases-panel';
 
         $this->actingAs($agentA)
             ->get(route('dashboard'))
@@ -313,7 +313,7 @@ class AgentDashboardOwnershipTest extends TestCase
             ->assertSee($expectedHref, false);
 
         $this->actingAs($agentA)
-            ->get(route('dashboard', ['filter' => 'my_attention']))
+            ->get(route('dashboard', ['workspace' => 'my_attention']))
             ->assertOk()
             ->assertSee('Action Required')
             ->assertSee('RD-A-DRILL-1')
@@ -368,6 +368,7 @@ class AgentDashboardOwnershipTest extends TestCase
         $this->createAssignedWaitingCase('RD-UNASSIGNED-WAIT-DRILL', $creator, null);
 
         $this->actingAs($agentA)
+            ->followingRedirects()
             ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER]))
             ->assertOk()
             ->assertSee('RD-A-WAIT-DRILL-1')
@@ -398,6 +399,7 @@ class AgentDashboardOwnershipTest extends TestCase
         $this->assertSame(3, $waitingCount);
 
         $this->actingAs($admin)
+            ->followingRedirects()
             ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER]))
             ->assertOk()
             ->assertSee('RD-GLOBAL-WAIT-A')
@@ -430,6 +432,7 @@ class AgentDashboardOwnershipTest extends TestCase
         $this->assertSame(6, $attentionCount);
 
         $this->actingAs($admin)
+            ->followingRedirects()
             ->get(route('dashboard', ['queue' => 'attention']))
             ->assertOk()
             ->assertSee('RD-GLOBAL-A-1')

@@ -42,11 +42,14 @@ class OperationsWorkspacePhase1Test extends TestCase
         $admin->givePermissionTo('incidents.view');
 
         $this->actingAs($admin)
+            ->followingRedirects()
             ->get(route('dashboard', ['queue' => 'attention']))
             ->assertOk()
-            ->assertSee('data-live-queue="attention"', false);
+            ->assertSee('data-live-queue="attention"', false)
+            ->assertSee('data-live-workspace="attention"', false);
 
         $this->actingAs($admin)
+            ->followingRedirects()
             ->get(route('dashboard', ['filter' => 'overdue']))
             ->assertOk()
             ->assertSee('data-live-filter="overdue"', false)

@@ -4,6 +4,13 @@
 ])
 
 @php
+    use App\Services\Dashboard\OperationsWorkspaceResolver;
+    use App\Services\DashboardPersonalizationService;
+
+    $workspaceLinks = app(OperationsWorkspaceResolver::class);
+@endphp
+
+@php
     $activeWork = (int) ($stats['my_active_work'] ?? 0);
     $needsAttention = (int) ($stats['my_needs_attention'] ?? 0);
     $breakdown = $stats['my_needs_attention_breakdown'] ?? [];
@@ -27,7 +34,7 @@
         'agent-kpi-grid',
         'agent-kpi-grid--two-up' => $showBanner,
     ])>
-        <a href="{{ route('dashboard', ['queue' => 'my_work']) }}#dashboard-service-cases-panel"
+        <a href="{{ route('dashboard', $workspaceLinks->deepLinkQueryParams(DashboardPersonalizationService::QUEUE_MY_WORK, DashboardPersonalizationService::QUEUE_MY_WORK)) }}#dashboard-service-cases-panel"
            class="agent-kpi-tile agent-kpi-tile--work"
            data-workspace="my_work"
            data-operations-workspace-link>
@@ -36,7 +43,7 @@
             <span class="agent-kpi-tile__meta">Active {{ str('Case')->plural($activeWork) }}</span>
         </a>
 
-        <a href="{{ route('dashboard', ['filter' => 'my_attention']) }}#dashboard-service-cases-panel"
+        <a href="{{ route('dashboard', $workspaceLinks->deepLinkQueryParams(DashboardPersonalizationService::QUEUE_MY_WORK, 'my_attention')) }}#dashboard-service-cases-panel"
            class="agent-kpi-tile agent-kpi-tile--attention"
            data-workspace="my_attention"
            data-operations-workspace-link>

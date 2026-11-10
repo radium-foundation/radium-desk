@@ -1,7 +1,9 @@
 @php
+    use App\Services\Dashboard\OperationsWorkspaceResolver;
     use App\Services\DashboardPersonalizationService;
 
     $activeQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ACTION_REQUIRED;
+    $workspaceResolver = app(OperationsWorkspaceResolver::class);
     $legacyServiceCaseFilter = $serviceCaseFilter ?? $activeQueue;
     $serviceCaseFilterCounts = $serviceCaseFilterCounts ?? [];
     $renderedServiceCaseCount = $recentServiceCases->count();
@@ -26,14 +28,8 @@
                 ? $myWorkSearchPlaceholder
                 : 'Search service cases…'));
 
-    $queueUrl = function (string $queueKey) use ($defaultQueue): string {
-        $params = [];
-
-        if ($queueKey !== $defaultQueue) {
-            $params['queue'] = $queueKey;
-        }
-
-        return route('dashboard', $params);
+    $queueUrl = function (string $queueKey) use ($workspaceResolver): string {
+        return route('dashboard', $workspaceResolver->deepLinkQueryParams($queueKey, $queueKey));
     };
 @endphp
 
