@@ -413,7 +413,7 @@ class HardwareFulfilmentP0M2BranchDerivationTest extends TestCase
     public function test_true_concurrent_db_allocation_is_unknown_on_sqlite(): void
     {
         $this->markTestSkipped(
-            'UNKNOWN: phpunit.xml forces sqlite :memory:. True two-connection InnoDB row-lock races were not proven in this environment.'
+            'SQLite :memory: cannot prove two-connection InnoDB overlap. See HardwareMixedFulfilmentMysqlConcurrencyTest on disposable MariaDB.'
         );
     }
 

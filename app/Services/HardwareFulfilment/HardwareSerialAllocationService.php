@@ -366,7 +366,7 @@ class HardwareSerialAllocationService
                     'quantity_stock' => $quantitiesByItemId !== [] ? $quantitiesByItemId : null,
                 ],
             );
-        });
+        }, 5);
 
         $this->invoices->issueAfterSerialsAllocated($allocated, $actor);
 
@@ -488,7 +488,7 @@ class HardwareSerialAllocationService
                     'quantity_stock' => $quantitiesByItemId,
                 ],
             );
-        });
+        }, 5);
 
         $this->invoices->issueAfterSerialsAllocated($allocated, $actor);
 
