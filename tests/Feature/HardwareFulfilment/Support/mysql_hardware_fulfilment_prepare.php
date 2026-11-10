@@ -16,8 +16,16 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Tests\Feature\HardwareFulfilment\Support\HardwareFulfilmentMysqlGate;
+use Tests\Feature\HardwareFulfilment\Support\HardwareFulfilmentMysqlPrepareLock;
 
 require __DIR__.'/mysql_hardware_fulfilment_bootstrap.php';
+
+$lockHandle = HardwareFulfilmentMysqlPrepareLock::acquire();
+register_shutdown_function(
+    static function () use ($lockHandle): void {
+        HardwareFulfilmentMysqlPrepareLock::release($lockHandle);
+    }
+);
 
 $credentials = hardware_fulfilment_mysql_credentials_from_env();
 $app = hardware_fulfilment_mysql_boot_app($credentials);
@@ -26,6 +34,17 @@ $connected = DB::selectOne('select database() as d');
 if (! is_object($connected) || ! HardwareFulfilmentMysqlGate::isAllowedDatabase((string) $connected->d)) {
     fwrite(STDERR, "Prepare refused: unexpected database.\n");
     exit(2);
+}
+
+$processlist = DB::select(
+    'select id from information_schema.processlist where db = ? and id <> connection_id()',
+    [HardwareFulfilmentMysqlGate::DATABASE]
+);
+foreach ($processlist as $row) {
+    $id = is_object($row) ? (int) ($row->id ?? 0) : 0;
+    if ($id > 0) {
+        DB::statement('KILL '.(string) $id);
+    }
 }
 
 $wipe = Artisan::call('db:wipe', ['--force' => true, '--drop-views' => true]);

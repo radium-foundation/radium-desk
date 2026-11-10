@@ -5,6 +5,7 @@ namespace Tests\Feature\HardwareFulfilment;
 use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\InventoryMovementType;
+use Illuminate\Support\Facades\DB;
 use PDO;
 use PDOException;
 use Symfony\Component\Process\Process;
@@ -13,6 +14,13 @@ use Tests\TestCase;
 
 class HardwareMixedFulfilmentMysqlConcurrencyTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        DB::disconnect('mysql');
+
+        parent::tearDown();
+    }
+
     public const SAFE_DATABASE = HardwareFulfilmentMysqlGate::DATABASE;
 
     private const DEFAULT_MYSQL_PORT = '33118';
@@ -257,6 +265,8 @@ class HardwareMixedFulfilmentMysqlConcurrencyTest extends TestCase
         $this->assertSafeMysqlTarget();
         $pdo = $this->probeSafeMysqlOrSkip();
         $this->assertSame(self::SAFE_DATABASE, (string) $pdo->query('select database()')->fetchColumn());
+        unset($pdo);
+        DB::disconnect('mysql');
 
         $prepare = $this->process(
             [$this->phpBinary(), base_path('tests/Feature/HardwareFulfilment/Support/mysql_hardware_fulfilment_prepare.php')],
