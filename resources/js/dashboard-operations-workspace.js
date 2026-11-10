@@ -218,13 +218,16 @@ const setSkeletonVisible = (card, visible) => {
     skeleton?.classList.toggle('d-none', !visible);
 };
 
-const updateQueueChips = (card, operationQueue) => {
+const updateQueueChips = (card, operationQueue, activeWorkspace = null) => {
+    const workspace = activeWorkspace ?? operationQueue;
+
     card?.querySelectorAll('[data-operations-workspace-link][data-workspace]').forEach((chip) => {
         if (!chip.classList.contains('dashboard-case-filter-chip')) {
             return;
         }
 
-        const isActive = chip.dataset.workspace === operationQueue;
+        const isActive = chip.dataset.workspace === workspace
+            || (chip.dataset.workspace === operationQueue && workspace === operationQueue);
         chip.classList.toggle('is-active', isActive);
         chip.setAttribute('aria-selected', isActive ? 'true' : 'false');
 
@@ -270,7 +273,7 @@ export const applyWorkspaceChrome = (pageRoot, target, { panelTitle = null } = {
     if (card && (target.kind ?? 'case_queue') === 'case_queue') {
         card.dataset.operationQueue = target.operationQueue;
         card.dataset.serviceCaseFilter = target.serviceCaseFilter;
-        updateQueueChips(card, target.operationQueue);
+        updateQueueChips(card, target.operationQueue, target.workspace);
         updateScheduledChrome(card, target.operationQueue);
     }
 

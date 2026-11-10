@@ -50,6 +50,18 @@ class DashboardController extends Controller
             }
         }
 
+        if (
+            ! $workspace['redirect']
+            && ! $isEmbedded
+            && ! $request->expectsJson()
+            && $this->operationsWorkspace->requestUsesLegacyNavigationOnly($request)
+        ) {
+            return redirect()->route(
+                'dashboard',
+                $this->operationsWorkspace->canonicalDashboardQuery($user, $request),
+            );
+        }
+
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $operationQueue);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($operationQueue);
 

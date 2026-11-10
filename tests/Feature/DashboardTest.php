@@ -69,6 +69,7 @@ class DashboardTest extends TestCase
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $this->actingAs($agent)
+            ->followingRedirects()
             ->get(route('dashboard', ['queue' => 'waiting_customer']))
             ->assertOk()
             ->assertSee('Waiting')
@@ -126,6 +127,7 @@ class DashboardTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $this->actingAs($admin)
+            ->followingRedirects()
             ->get(route('dashboard', ['queue' => 'hardware']))
             ->assertOk()
             ->assertSee('Hardware')
@@ -208,8 +210,10 @@ class DashboardTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $this->actingAs($admin)
+            ->followingRedirects()
             ->get(route('dashboard', ['view' => 'warehouse']))
-            ->assertRedirect(route('dashboard', ['queue' => 'hardware']));
+            ->assertOk()
+            ->assertSee('data-live-workspace="hardware"', false);
     }
 
     public function test_user_without_hardware_permission_is_redirected_from_hardware_queue(): void

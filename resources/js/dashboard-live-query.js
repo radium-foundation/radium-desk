@@ -22,26 +22,18 @@ export const buildDashboardLiveQuery = (pageRoot, extras = {}) => {
         query.set(key, String(value));
     });
 
-    if (liveWorkspace) {
-        query.set('workspace', liveWorkspace);
+    const workspace = liveWorkspace || queue;
+
+    if (workspace) {
+        query.set('workspace', workspace);
     }
 
     if (isFilterWorkspace) {
-        query.set('filter', filter);
-
         return query;
-    }
-
-    if (pageRoot.dataset.liveQueue) {
-        query.set('queue', pageRoot.dataset.liveQueue);
-    } else {
-        query.set('queue', queue);
     }
 
     if (pageRoot.dataset.liveFilter && pageRoot.dataset.liveFilter !== pageRoot.dataset.liveQueue) {
         query.set('filter', pageRoot.dataset.liveFilter);
-    } else if (! pageRoot.dataset.liveQueue) {
-        query.set('filter', filter);
     }
 
     return query;

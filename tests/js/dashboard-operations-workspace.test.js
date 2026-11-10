@@ -103,6 +103,12 @@ describe('operations workspace soft switch helpers', () => {
             operationQueue: 'waiting_customer',
         });
 
+        expect(parseDashboardNavigationTarget('/dashboard?workspace=my_attention')).toMatchObject({
+            workspace: 'my_attention',
+            operationQueue: 'my_work',
+            serviceCaseFilter: 'my_attention',
+        });
+
         expect(parseDashboardNavigationTarget('/incidents?status=active')).toBeNull();
         expect(parseDashboardNavigationTarget('/refunds?status=pending')).toBeNull();
     });

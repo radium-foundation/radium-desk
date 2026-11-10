@@ -245,18 +245,54 @@ class OperationsWorkspaceResolver
      */
     public function historyQueryParams(User $user, string $operationQueue, string $serviceCaseFilter): array
     {
-        $workspace = $this->canonicalWorkspace($operationQueue, $serviceCaseFilter);
-        $defaultQueue = $this->personalization->defaultQueueFor($user);
+        return $this->deepLinkQueryParams($operationQueue, $serviceCaseFilter);
+    }
 
-        if ($serviceCaseFilter !== $operationQueue) {
-            return ['workspace' => $workspace];
+    /**
+     * Shareable dashboard URL query (workspace is always set for bookmarking).
+     *
+     * @return array<string, string>
+     */
+    public function deepLinkQueryParams(string $operationQueue, string $serviceCaseFilter): array
+    {
+        return [
+            'workspace' => $this->canonicalWorkspace($operationQueue, $serviceCaseFilter),
+        ];
+    }
+
+    public function requestUsesLegacyNavigationOnly(Request $request): bool
+    {
+        if (filled($request->query('workspace'))) {
+            return false;
         }
 
-        if ($operationQueue === $defaultQueue) {
-            return ['workspace' => $workspace];
+        return filled($request->query('queue'))
+            || filled($request->query('filter'))
+            || filled($request->query('view'));
+    }
+
+    /**
+     * Canonical GET query replacing legacy queue/filter/view params.
+     *
+     * @return array<string, string>
+     */
+    public function canonicalDashboardQuery(User $user, Request $request): array
+    {
+        $resolved = $this->resolve($user, $request);
+        $query = ['workspace' => $resolved['workspace']];
+
+        foreach ([
+            'q',
+            'open_customer_360',
+            'open_more_menu',
+            'open_customer_360_reference',
+        ] as $key) {
+            if ($request->filled($key)) {
+                $query[$key] = (string) $request->query($key);
+            }
         }
 
-        return ['workspace' => $workspace];
+        return $query;
     }
 
     public function softSwitchEnabled(): bool

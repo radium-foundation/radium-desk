@@ -81,4 +81,31 @@ class OperationsWorkspaceResolverTest extends TestCase
     {
         $this->assertTrue($this->resolver->softSwitchEnabled());
     }
+
+    public function test_deep_link_query_params_use_canonical_workspace(): void
+    {
+        $this->assertSame(
+            ['workspace' => 'my_attention'],
+            $this->resolver->deepLinkQueryParams('my_work', 'my_attention'),
+        );
+        $this->assertSame(
+            ['workspace' => 'attention'],
+            $this->resolver->deepLinkQueryParams('attention', 'attention'),
+        );
+    }
+
+    public function test_canonical_dashboard_query_preserves_search(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $query = $this->resolver->canonicalDashboardQuery($agent, Request::create('/dashboard', 'GET', [
+            'filter' => 'my_attention',
+            'q' => 'SC123',
+        ]));
+
+        $this->assertSame('my_attention', $query['workspace']);
+        $this->assertSame('SC123', $query['q']);
+        $this->assertArrayNotHasKey('filter', $query);
+    }
 }
