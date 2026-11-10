@@ -3,6 +3,12 @@
 # Shared helpers for the desk deployment toolkit.
 # Sourced by command scripts — do not execute directly.
 
+# Nested command scripts may source lib.sh more than once; guard readonly color setup.
+if [[ -n "${RADIUM_DESK_LIB_SH_LOADED:-}" ]]; then
+    return 0 2>/dev/null || exit 0
+fi
+RADIUM_DESK_LIB_SH_LOADED=1
+
 set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
