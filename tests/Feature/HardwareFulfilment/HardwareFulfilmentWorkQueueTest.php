@@ -47,6 +47,7 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->withoutVite();
         Http::fake();
         Http::preventStrayRequests();
         config([
@@ -561,6 +562,38 @@ class HardwareFulfilmentWorkQueueTest extends TestCase
         $this->assertSame(1, HardwareFulfilment::query()->count());
         $this->assertSame(1, Shipment::query()->count());
         Http::assertNothingSent();
+    }
+
+    public function test_open_fulfilment_queue_renders_shipping_quick_filters_and_filters_rows(): void
+    {
+        $this->fulfilment('RDEOPEN001', HardwareFulfilmentState::InvoiceIssued, [
+            'invoice' => true,
+            'serial' => true,
+        ]);
+        $this->fulfilment('RDEOPEN002', HardwareFulfilmentState::AwbAssigned, [
+            'invoice' => true,
+            'serial' => true,
+            'bound' => true,
+            'awb' => 'AWB-OPEN-002',
+        ]);
+
+        $html = $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.index', ['queue' => 'open']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('aria-label="Open fulfilments shipping filters"', $html);
+        $this->assertStringContainsString('Invoice issued, not shipped', $html);
+        $this->assertStringContainsString('AWB assigned', $html);
+
+        $this->actingAs($this->operator)
+            ->get(route('inventory.hardware-fulfilments.index', [
+                'queue' => 'open',
+                'shipment_status' => 'ready',
+            ]))
+            ->assertOk()
+            ->assertSee('RDEOPEN001')
+            ->assertDontSee('RDEOPEN002');
     }
 
     public function test_unauthorized_user_cannot_open_work_queue(): void

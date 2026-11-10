@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentPackageEvidenceKind;
+use App\Enums\HardwareFulfilmentShippingMethod;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
 use App\Http\Controllers\Controller;
@@ -14,6 +15,7 @@ use App\Http\Requests\Inventory\AttachHardwareFulfilmentParcelRequest;
 use App\Http\Requests\Inventory\ConfirmHardwareFulfilmentRecommendedCourierRequest;
 use App\Http\Requests\Inventory\CorrectHardwareFulfilmentShippingCountryRequest;
 use App\Http\Requests\Inventory\CreateHardwareFulfilmentShipmentRequest;
+use App\Http\Requests\Inventory\DispatchHardwareExternalShipmentRequest;
 use App\Http\Requests\Inventory\FetchHardwareFulfilmentCourierOptionsRequest;
 use App\Http\Requests\Inventory\GenerateHardwareFulfilmentLabelRequest;
 use App\Http\Requests\Inventory\GenerateHardwareFulfilmentManifestRequest;
@@ -21,17 +23,16 @@ use App\Http\Requests\Inventory\IssueHardwareFulfilmentInvoiceRequest;
 use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyForPickupRequest;
 use App\Http\Requests\Inventory\MarkHardwareFulfilmentReadyRequest;
 use App\Http\Requests\Inventory\OpenHardwareFulfilmentRequest;
-use App\Http\Requests\Inventory\DispatchHardwareExternalShipmentRequest;
-use App\Http\Requests\Inventory\RecordHardwareExternalShipmentRequest;
 use App\Http\Requests\Inventory\ReconcileHardwareFulfilmentAwbRequest;
-use App\Http\Requests\Inventory\SelectHardwareFulfilmentShippingMethodRequest;
-use App\Http\Requests\Inventory\UploadHardwareExternalShipmentDocumentRequest;
 use App\Http\Requests\Inventory\ReconcileHardwareFulfilmentCourierReassignmentRequest;
+use App\Http\Requests\Inventory\RecordHardwareExternalShipmentRequest;
 use App\Http\Requests\Inventory\RequestHardwareFulfilmentPickupRequest;
 use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
 use App\Http\Requests\Inventory\SelectHardwareFulfilmentCourierRequest;
+use App\Http\Requests\Inventory\SelectHardwareFulfilmentShippingMethodRequest;
 use App\Http\Requests\Inventory\ShipAndGenerateHardwareFulfilmentLabelRequest;
 use App\Http\Requests\Inventory\StoreHardwareFulfilmentPackageEvidenceRequest;
+use App\Http\Requests\Inventory\UploadHardwareExternalShipmentDocumentRequest;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
 use App\Models\Incident;
@@ -41,6 +42,7 @@ use App\Models\Shipment;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentStepper;
 use App\Services\HardwareFulfilment\HardwareAwaitingFulfilmentQueue;
+use App\Services\HardwareFulfilment\HardwareExternalShipmentService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentCountryCorrectionService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
@@ -49,13 +51,12 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentParcelSnapshotService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
+use App\Services\HardwareFulfilment\HardwareOpenFulfilmentQueue;
 use App\Services\HardwareFulfilment\HardwarePhysicalStockCommitment;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentCourierOptionsService;
 use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
-use App\Enums\HardwareFulfilmentShippingMethod;
-use App\Services\HardwareFulfilment\HardwareExternalShipmentService;
 use App\Services\HardwareFulfilment\HardwareShipmentOrchestrationService;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
@@ -82,6 +83,7 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentPackageEvidenceService $packageEvidence,
         private readonly HardwareAwaitingFulfilmentQueue $awaitingQueue,
         private readonly HardwareFulfilmentWorkQueue $workQueue,
+        private readonly HardwareOpenFulfilmentQueue $openFulfilmentQueue,
         private readonly HardwareFulfilmentInvoiceService $invoices,
         private readonly HardwareFulfilmentOperationalClassifier $operationalClassifier,
         private readonly HardwareFulfilmentWorkflowService $workflow,
@@ -125,54 +127,27 @@ class HardwareFulfilmentSerialController extends Controller
         $branchId = $request->integer('branch_id') ?: null;
         $shipmentStatus = trim((string) $request->query('shipment_status', ''));
 
-        $query = HardwareFulfilment::query()
+        $query = $this->openFulfilmentQueue
+            ->applySharedFilters(
+                $this->openFulfilmentQueue->baseQuery(),
+                $order,
+                $serial,
+                $branchId,
+            )
             ->with(['commerceOrder', 'fulfilmentBranch', 'serials'])
             ->orderByDesc('id');
 
-        if ($state !== '') {
-            $query->where('state', $state);
-        } else {
-            $query->whereIn('state', [
-                HardwareFulfilmentState::Ingested,
-                HardwareFulfilmentState::ReadyForFulfilment,
-                HardwareFulfilmentState::SerialsAllocated,
-                HardwareFulfilmentState::InvoiceIssued,
-                HardwareFulfilmentState::ShipmentCreated,
-                HardwareFulfilmentState::AwbAssigned,
-            ]);
-        }
-
-        if ($order !== '') {
-            $query->where(function ($inner) use ($order): void {
-                $inner->where('source_id', 'like', '%'.$order.'%')
-                    ->orWhereHas('commerceOrder', function ($commerce) use ($order): void {
-                        $commerce->where('order_no', 'like', '%'.$order.'%');
-                    });
-            });
-        }
-
-        if ($serial !== '') {
-            $query->whereHas('serials', function ($rows) use ($serial): void {
-                $rows->where('serial_number', 'like', '%'.$serial.'%');
-            });
-        }
-
-        if ($branchId !== null) {
-            $query->where('fulfilment_branch_id', $branchId);
-        }
-
-        if ($shipmentStatus === 'not_created') {
-            $query->whereNull('shipment_id');
-        } elseif ($shipmentStatus === 'created') {
-            $query->whereNotNull('shipment_id')->whereNull('awb');
-        } elseif ($shipmentStatus === 'awb') {
-            $query->whereNotNull('awb');
-        } elseif ($shipmentStatus === 'ready') {
-            $query->where('state', HardwareFulfilmentState::InvoiceIssued)
-                ->whereNull('shipment_id');
-        }
+        $query = $this->openFulfilmentQueue->applyStateFilter($query, $state);
+        $query = $this->openFulfilmentQueue->applyShipmentStatusFilter($query, $shipmentStatus);
 
         $fulfilments = $query->paginate(40)->withQueryString();
+
+        $openShipmentCounts = $this->openFulfilmentQueue->shipmentStatusCounts(
+            $order,
+            $serial,
+            $branchId,
+            $state,
+        );
 
         $range = $this->workQueueRange($request);
 
@@ -201,6 +176,7 @@ class HardwareFulfilmentSerialController extends Controller
             'states' => HardwareFulfilmentState::cases(),
             'stages' => HardwareFulfilmentOperationalStage::cases(),
             'sections' => HardwareOperationsSection::cases(),
+            'openShipmentCounts' => $openShipmentCounts,
         ]);
     }
 
