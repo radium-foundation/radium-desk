@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="1" failures="0" errors="0" skipped="0">
+  <testsuite name="Tests\Unit\Support\PhpunitProgressExtensionTest" tests="1" failures="0" errors="0" skipped="0" time="0.001">
+    <testcase name="test_progress_file_records_prepared_when_env_set" classname="Tests.Unit.Support.PhpunitProgressExtensionTest" assertions="4" time="0.001"/>
+  </testsuite>
+</testsuites>

@@ -78,6 +78,7 @@ describe('createWorkspaceSession', () => {
             'bulk-selection',
             'quick-create',
             'notification-dropdown',
+            'customer-360-drawer',
         ]);
     });
 });
