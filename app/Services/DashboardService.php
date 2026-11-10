@@ -207,6 +207,10 @@ class DashboardService
             $stats['todo_widget'] = $this->todoWidgetCounts($user);
         }
 
+        if ($roles->usesAdminQueues($user) && $user->can('dashboard.hardware.view')) {
+            $stats['hardware_stuck_orders'] = $this->hardwareDashboard->stuckOrderSummary();
+        }
+
         return $stats;
     }
 
