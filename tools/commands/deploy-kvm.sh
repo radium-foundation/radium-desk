@@ -333,6 +333,7 @@ main() {
     if [[ "$DRY_RUN" -eq 1 ]]; then
         validate_dry_run_candidate
         ensure_local_build_manifest
+        write_local_release_snapshot
         print_warning "Dry-run mode: deletion inventory and rsync preview only (no remote mutations)."
         if ! deploy_rsync_analyze_deletions; then
             print_error "Deletion safety analysis failed during dry-run."
