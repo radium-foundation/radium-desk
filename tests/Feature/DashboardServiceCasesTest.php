@@ -8,6 +8,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
+use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -25,6 +26,7 @@ class DashboardServiceCasesTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->withoutVite();
     }
 
     /**
@@ -265,7 +267,7 @@ class DashboardServiceCasesTest extends TestCase
             'updated_at' => now()->subDay(),
         ])->saveQuietly();
 
-        $sorted = app(\App\Services\DashboardService::class)->recentServiceCases('pending_admin', 10);
+        $sorted = app(DashboardService::class)->recentServiceCases('pending_admin', 10);
 
         $this->assertSame(['SC-00001', 'SC-00002'], $sorted->pluck('reference_no')->all());
 
@@ -594,7 +596,7 @@ class DashboardServiceCasesTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
-        $counts = app(\App\Services\DashboardService::class)->serviceCaseFilterCounts(null, $admin);
+        $counts = app(DashboardService::class)->serviceCaseFilterCounts(null, $admin);
 
         $this->assertSame(2, $counts['needs_attention']);
 
@@ -885,7 +887,7 @@ class DashboardServiceCasesTest extends TestCase
             ])->saveQuietly();
         }
 
-        $sorted = app(\App\Services\DashboardService::class)->recentServiceCases('all', 10);
+        $sorted = app(DashboardService::class)->recentServiceCases('all', 10);
 
         $this->assertSame([
             'SC-SLA-OVER-HP',
