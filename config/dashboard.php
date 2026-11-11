@@ -120,4 +120,20 @@ return [
 
     'hardware_counts_ttl_seconds' => (int) env('DASHBOARD_HARDWARE_COUNTS_TTL_SECONDS', 30),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Hardware dashboard progressive row loading
+    |--------------------------------------------------------------------------
+    |
+    | Initial page size applies when the async client sends hw_progressive=1
+    | (first batch). Later pages use hardware_rows_per_page. Skeleton rows on
+    | the deferred shell use hardware_skeleton_row_count (not real data).
+    |
+    */
+
+    'hardware_rows_initial_per_page' => max(1, (int) env('DASHBOARD_HARDWARE_ROWS_INITIAL_PER_PAGE', 10)),
+    'hardware_rows_per_page' => max(1, (int) env('DASHBOARD_HARDWARE_ROWS_PER_PAGE', 40)),
+    'hardware_skeleton_row_count' => max(1, (int) env('DASHBOARD_HARDWARE_SKELETON_ROW_COUNT', 10)),
+    'hardware_search_debounce_ms' => max(0, (int) env('DASHBOARD_HARDWARE_SEARCH_DEBOUNCE_MS', 300)),
+
 ];

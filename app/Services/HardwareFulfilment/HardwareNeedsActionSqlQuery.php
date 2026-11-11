@@ -80,10 +80,12 @@ final class HardwareNeedsActionSqlQuery
         string $search,
         int $page,
         int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
     ): array {
         if ($scope === HardwareWorkspaceScope::Shipped
             || in_array($filter, [HardwareWorkspaceFilter::Completed, HardwareWorkspaceFilter::Delivered], true)) {
-            return $this->fulfilmentPage($this->completedQuery($search), $page, $perPage);
+            return $this->fulfilmentPage($this->completedQuery($search), $page, $perPage, $offsetOverride, $limitOverride);
         }
 
         if ($filter->isShipping()) {
@@ -95,7 +97,7 @@ final class HardwareNeedsActionSqlQuery
                 default => $this->shippingQuery($search),
             };
 
-            return $this->fulfilmentPage($shippingQuery, $page, $perPage);
+            return $this->fulfilmentPage($shippingQuery, $page, $perPage, $offsetOverride, $limitOverride);
         }
 
         $hfQuery = match ($filter) {
@@ -119,10 +121,10 @@ final class HardwareNeedsActionSqlQuery
         }
 
         if ($orderQueries === []) {
-            return $this->fulfilmentPage($hfQuery, $page, $perPage);
+            return $this->fulfilmentPage($hfQuery, $page, $perPage, $offsetOverride, $limitOverride);
         }
 
-        return $this->unionIdentifierPage($hfQuery, $orderQueries, $page, $perPage);
+        return $this->unionIdentifierPage($hfQuery, $orderQueries, $page, $perPage, $offsetOverride, $limitOverride);
     }
 
     /**
@@ -138,6 +140,8 @@ final class HardwareNeedsActionSqlQuery
         string $search,
         int $page,
         int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
     ): array {
         return $this->unionIdentifierPage(
             $this->activeFulfilmentQuery($search),
@@ -147,6 +151,8 @@ final class HardwareNeedsActionSqlQuery
             ],
             $page,
             $perPage,
+            $offsetOverride,
+            $limitOverride,
         );
     }
 
@@ -161,6 +167,8 @@ final class HardwareNeedsActionSqlQuery
         string $search,
         int $page,
         int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
     ): array {
         return $this->unionIdentifierPage(
             $this->allActiveFulfilmentQuery($search),
@@ -170,6 +178,8 @@ final class HardwareNeedsActionSqlQuery
             ],
             $page,
             $perPage,
+            $offsetOverride,
+            $limitOverride,
         );
     }
 
@@ -731,13 +741,20 @@ final class HardwareNeedsActionSqlQuery
     /**
      * @return array{fulfilment_ids: list<int>, order_ids: list<int>, total: int}
      */
-    private function fulfilmentPage(Builder $query, int $page, int $perPage): array
-    {
+    private function fulfilmentPage(
+        Builder $query,
+        int $page,
+        int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
+    ): array {
         $total = (clone $query)->count();
+        $offset = $offsetOverride ?? max(0, ($page - 1) * $perPage);
+        $limit = $limitOverride ?? $perPage;
         $ids = (clone $query)
             ->orderByDesc('hardware_fulfilments.id')
-            ->offset(max(0, ($page - 1) * $perPage))
-            ->limit($perPage)
+            ->offset(max(0, $offset))
+            ->limit($limit)
             ->pluck('hardware_fulfilments.id')
             ->map(static fn ($id): int => (int) $id)
             ->all();
@@ -755,8 +772,14 @@ final class HardwareNeedsActionSqlQuery
      * @param  list<Builder>  $orderQueries
      * @return array{fulfilment_ids: list<int>, order_ids: list<int>, total: int}
      */
-    private function unionIdentifierPage(Builder $hfQuery, array $orderQueries, int $page, int $perPage): array
-    {
+    private function unionIdentifierPage(
+        Builder $hfQuery,
+        array $orderQueries,
+        int $page,
+        int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
+    ): array {
         $union = (clone $hfQuery)
             ->leftJoin('commerce_orders as hw_sort_co', 'hw_sort_co.id', '=', 'hardware_fulfilments.commerce_order_id')
             ->selectRaw("'hf' as kind, hardware_fulfilments.id as id, COALESCE(hw_sort_co.ordered_at, hardware_fulfilments.ingested_at) as sort_at");
@@ -768,10 +791,12 @@ final class HardwareNeedsActionSqlQuery
         }
 
         $total = DB::query()->fromSub($union, 'hardware_identifier_page')->count();
+        $offset = $offsetOverride ?? max(0, ($page - 1) * $perPage);
+        $limit = $limitOverride ?? $perPage;
         $slice = DB::query()->fromSub($union, 'hardware_identifier_page')
             ->orderByDesc('sort_at')
-            ->offset(max(0, ($page - 1) * $perPage))
-            ->limit($perPage)
+            ->offset(max(0, $offset))
+            ->limit($limit)
             ->get();
 
         $fulfilmentIds = [];

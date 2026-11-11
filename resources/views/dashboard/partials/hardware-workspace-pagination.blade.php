@@ -5,8 +5,9 @@
     $search = $hardwareWorkspace['search'] ?? '';
     $page = max(1, (int) ($hardwareWorkspace['page'] ?? 1));
     $perPage = max(1, (int) ($hardwareWorkspace['per_page'] ?? 40));
-    $matching = max(0, (int) ($hardwareWorkspace['unfilteredTotal'] ?? $rows->count()));
-    $lastPage = max(1, (int) ceil($matching / $perPage));
+    $matching = max(0, (int) ($hardwareWorkspace['unfilteredTotal'] ?? $hardwareWorkspace['unfiltered_total'] ?? $rows->count()));
+    $lastPage = max(1, (int) ($hardwareWorkspace['last_page'] ?? (int) ceil($matching / $perPage)));
+    $progressive = (bool) ($hardwareWorkspace['progressive'] ?? false);
     $pageQuery = static function (int $pageNum) use ($hardwareWorkspace, $search): string {
         return route('dashboard', array_filter([
             'workspace' => 'hardware',
@@ -17,14 +18,18 @@
         ], static fn ($value) => $value !== null && $value !== ''));
     };
 @endphp
-@if($matching > $perPage)
+@if($matching > 0 && ($matching > $perPage || $lastPage > 1))
     <nav class="dashboard-hardware-pagination" aria-label="Hardware queue pages" data-hardware-pagination>
         @if($page > 1)
-            <a href="{{ $pageQuery($page - 1) }}">Previous</a>
+            <a href="{{ $pageQuery($page - 1) }}"
+               data-hardware-pagination-link
+               data-hardware-page-target="{{ $page - 1 }}">Previous</a>
         @endif
-        <span>Page {{ $page }} of {{ $lastPage }} ({{ $matching }})</span>
+        <span data-hardware-pagination-label>Page {{ $page }} of {{ $lastPage }} ({{ $matching }})</span>
         @if($page < $lastPage)
-            <a href="{{ $pageQuery($page + 1) }}">Next</a>
+            <a href="{{ $pageQuery($page + 1) }}"
+               data-hardware-pagination-link
+               data-hardware-page-target="{{ $page + 1 }}">Next</a>
         @endif
     </nav>
 @endif
