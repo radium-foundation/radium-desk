@@ -157,14 +157,48 @@ final class HardwareFulfilmentWorkQueue
         $offset = $slice['offset'];
         $limit = $slice['limit'];
 
-        $loadAll = in_array($filter, [
+        $legacyMemoryFilters = in_array($filter, [
             HardwareWorkspaceFilter::Ready,
-            HardwareWorkspaceFilter::Exceptions,
             HardwareWorkspaceFilter::Pickup,
-            HardwareWorkspaceFilter::Scheduled,
         ], true);
 
         $scopeCounts = $this->scopeCountsForDashboard($fromIst, $toIst);
+
+        if ($filter === HardwareWorkspaceFilter::Exceptions) {
+            $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
+            $pageSet = $this->needsActionSql->exceptionsPage($search, $page, $perPage, $offset, $limit);
+            $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+
+            return [
+                'rows' => $rows,
+                'scope_counts' => $scopeCounts,
+                'filter_counts' => $filterCounts,
+                'total' => $rows->count(),
+                'unfiltered_total' => $pageSet['total'],
+                'page' => $page,
+                'per_page' => $perPage,
+                'last_page' => $sizer->lastPage($pageSet['total'], $request),
+                'progressive' => $sizer->progressiveEnabled($request),
+            ];
+        }
+
+        if ($filter === HardwareWorkspaceFilter::Scheduled) {
+            $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
+            $pageSet = $this->needsActionSql->scheduledPage($fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
+            $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+
+            return [
+                'rows' => $rows,
+                'scope_counts' => $scopeCounts,
+                'filter_counts' => $filterCounts,
+                'total' => $rows->count(),
+                'unfiltered_total' => $pageSet['total'],
+                'page' => $page,
+                'per_page' => $perPage,
+                'last_page' => $sizer->lastPage($pageSet['total'], $request),
+                'progressive' => $sizer->progressiveEnabled($request),
+            ];
+        }
 
         if ($filter === HardwareWorkspaceFilter::All && $scope === HardwareWorkspaceScope::Active) {
             $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
@@ -184,7 +218,7 @@ final class HardwareFulfilmentWorkQueue
             ];
         }
 
-        if ($loadAll) {
+        if ($legacyMemoryFilters) {
             return $this->legacyDashboard($fromIst, $toIst, $search, $scope, $filter, $scopeCounts, $page, $offset, $limit, $perPage, $sizer, $request);
         }
 
@@ -257,6 +291,7 @@ final class HardwareFulfilmentWorkQueue
         HardwareDashboardPageSizer $sizer,
         Request $request,
     ): array {
+        $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
         $rows = $this->allRows($fromIst, $toIst, '', '');
 
         if ($search !== '') {
@@ -267,25 +302,6 @@ final class HardwareFulfilmentWorkQueue
                     || str_contains(strtoupper($row->serialStatus), $needle)
                     || str_contains(strtoupper($row->product), $needle);
             })->values();
-        }
-
-        $activeRows = $rows->reject(
-            static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isShippedWorkspaceItem(),
-        )->values();
-        $shippedRows = $rows->filter(
-            static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isShippedWorkspaceItem(),
-        )->values();
-
-        $scopeCounts = [
-            HardwareWorkspaceScope::Active->value => $activeRows->count(),
-            HardwareWorkspaceScope::Shipped->value => $shippedRows->count(),
-        ];
-
-        $filterCounts = [];
-        foreach (HardwareWorkspaceFilter::cases() as $workspaceFilter) {
-            $filterCounts[$workspaceFilter->value] = $rows
-                ->filter(static fn (HardwareFulfilmentOperationalRow $row): bool => $row->matchesWorkspaceFilter($workspaceFilter))
-                ->count();
         }
 
         if ($scope === HardwareWorkspaceScope::Shipped) {

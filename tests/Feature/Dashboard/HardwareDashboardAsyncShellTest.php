@@ -35,7 +35,8 @@ class HardwareDashboardAsyncShellTest extends TestCase
         $awaiting = $this->fulfilment('RDE980003', HardwareFulfilmentState::ReadyForFulfilment);
 
         $html = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware']))
+            ->followingRedirects()
+            ->get(route('dashboard', ['workspace' => 'hardware']))
             ->assertOk()
             ->getContent();
 
@@ -48,7 +49,8 @@ class HardwareDashboardAsyncShellTest extends TestCase
         DB::enableQueryLog();
         $shellStarted = hrtime(true);
         $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware']))
+            ->followingRedirects()
+            ->get(route('dashboard', ['workspace' => 'hardware']))
             ->assertOk();
         $shellMs = (hrtime(true) - $shellStarted) / 1e6;
         $shellQueries = count(DB::getQueryLog());

@@ -118,6 +118,29 @@ class HardwareDashboardProgressiveLoadingTest extends TestCase
         $this->assertStringNotContainsString('data-hardware-pagination-link', (string) $response->json('pagination_html'));
     }
 
+    public function test_progressive_search_combined_with_pagination_page_one(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->seedCatalog();
+
+        for ($i = 1; $i <= 12; $i++) {
+            $this->fulfilment(sprintf('RDE984%03d', $i), HardwareFulfilmentState::ReadyForFulfilment);
+        }
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('dashboard.hardware.rows', [
+                'hw_filter' => 'all',
+                'hw_progressive' => '1',
+                'q' => 'RDE984',
+            ]))
+            ->assertOk();
+
+        $this->assertSame(10, (int) $response->json('inspected_fulfilment_count'));
+        $this->assertSame(12, (int) $response->json('unfiltered_total'));
+        $this->assertSame(2, (int) $response->json('last_page'));
+    }
+
     public function test_hardware_rows_endpoint_denied_without_permission(): void
     {
         $viewer = User::factory()->create(['is_active' => true]);

@@ -1,4 +1,5 @@
 import { initTooltips } from './tooltips';
+import { buildHardwareRowsUrl, parsePositiveInt } from './hardware-dashboard-progressive';
 
 let rowsAbortController = null;
 let rowsInFlight = false;
@@ -6,36 +7,10 @@ let rowsRequestGeneration = 0;
 
 const formatCount = (value) => `(${Math.max(0, Number(value) || 0)})`;
 
-const parsePositiveInt = (value, fallback) => {
-    const parsed = Number.parseInt(String(value ?? ''), 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-};
-
-const buildRowsUrl = (workspace, { page } = {}) => {
-    const url = new URL(workspace.dataset.hardwareRowsUrl, window.location.origin);
-    const params = new URLSearchParams(window.location.search);
-
-    const scope = workspace.dataset.hardwareScope || 'active';
-    const filter = workspace.dataset.hardwareFilter || 'needs_action';
-    const pageNum = page ?? workspace.dataset.hardwarePage ?? '1';
-    const search = workspace.dataset.hardwareSearch
-        || params.get('q')
-        || '';
-
-    url.searchParams.set('hw_scope', scope);
-    url.searchParams.set('hw_filter', filter);
-    url.searchParams.set('hw_page', String(pageNum));
-
-    if (workspace.dataset.hardwareProgressive === '1') {
-        url.searchParams.set('hw_progressive', '1');
-    }
-
-    if (search !== '') {
-        url.searchParams.set('q', search);
-    }
-
-    return url;
-};
+const buildRowsUrl = (workspace, options = {}) => buildHardwareRowsUrl(workspace, {
+    ...options,
+    origin: window.location.origin,
+});
 
 const syncLocationQuery = (workspace) => {
     const url = new URL(window.location.href);

@@ -184,6 +184,53 @@ final class HardwareNeedsActionSqlQuery
     }
 
     /**
+     * Legacy Exceptions queue: SQL classifier for mapping gaps and owner blocks.
+     *
+     * @return array{fulfilment_ids: list<int>, order_ids: list<int>, total: int}
+     */
+    public function exceptionsPage(
+        string $search,
+        int $page,
+        int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
+    ): array {
+        return $this->fulfilmentPage(
+            $this->exceptionsFulfilmentQuery($search),
+            $page,
+            $perPage,
+            $offsetOverride,
+            $limitOverride,
+        );
+    }
+
+    /**
+     * Legacy Scheduled queue: ingested fulfilments plus awaiting-ingest work candidates.
+     *
+     * @return array{fulfilment_ids: list<int>, order_ids: list<int>, total: int}
+     */
+    public function scheduledPage(
+        Carbon $fromIst,
+        Carbon $toIst,
+        string $search,
+        int $page,
+        int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
+    ): array {
+        return $this->unionIdentifierPage(
+            $this->scheduledFulfilmentQuery($search),
+            [
+                $this->workCandidateOrderQuery($fromIst, $toIst, $search),
+            ],
+            $page,
+            $perPage,
+            $offsetOverride,
+            $limitOverride,
+        );
+    }
+
+    /**
      * @return list<int>
      */
     public function shippingCandidateIds(string $search = ''): array
@@ -239,6 +286,43 @@ final class HardwareNeedsActionSqlQuery
         $query = $this->activeFulfilmentQuery($search);
         $this->whereMissingAllocatedSerial($query);
         $this->whereMissingSkuMap($query);
+
+        return $query;
+    }
+
+    private function exceptionsFulfilmentQuery(string $search): Builder
+    {
+        $blocked = $this->ownerBlockedSourceIds();
+        $query = HardwareFulfilment::query()
+            ->whereNotIn('hardware_fulfilments.state', [
+                HardwareFulfilmentState::Shipped->value,
+                HardwareFulfilmentState::Synced->value,
+                HardwareFulfilmentState::CancelledHistoricalDuplicate->value,
+            ]);
+        $this->applyFulfilmentSearch($query, $search);
+        $query->where(function (Builder $inner) use ($blocked): void {
+            $inner->where(function (Builder $mapping): void {
+                $mapping->whereNotIn('hardware_fulfilments.state', [
+                    HardwareFulfilmentState::Ingested->value,
+                ])->whereNotIn('hardware_fulfilments.source_id', $this->ownerBlockedSourceIds());
+                $this->whereMissingAllocatedSerial($mapping);
+                $this->whereMissingSkuMap($mapping);
+            });
+
+            if ($blocked !== []) {
+                $inner->orWhereIn('hardware_fulfilments.source_id', $blocked);
+            }
+        });
+
+        return $query;
+    }
+
+    private function scheduledFulfilmentQuery(string $search): Builder
+    {
+        $query = HardwareFulfilment::query()
+            ->where('hardware_fulfilments.state', HardwareFulfilmentState::Ingested->value)
+            ->whereNotIn('hardware_fulfilments.source_id', $this->ownerBlockedSourceIds());
+        $this->applyFulfilmentSearch($query, $search);
 
         return $query;
     }
