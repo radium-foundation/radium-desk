@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.1.62 — 2026-11-11 — Hardware dashboard async shell + mixed serial fulfilment + admin queue UX (P-11-17)
+
+- **Production delta:** Deploy from **`v4.1.57` / `e85068a9`** to **`bc8fdbdc`** (includes unreleased **4.1.58–4.1.61** mainline scope plus **P-11-16**).
+- **Hardware dashboard (PR #140 / P-10-11):** Fast hardware shell and paginated **`GET /dashboard/hardware/rows`**; async row hydration; reduces initial **`queue=hardware`** load vs synchronous full-queue inspect on legacy production.
+- **Hardware fulfilment (PR #139, #142, P-10-07):** Mixed serialized + quantity-only allocation; idempotent serial allocation; MariaDB concurrency regressions; **P-11-16** UI regression assertions for single required serial on scanner+cable orders.
+- **Admin UX (PR #148–#150):** Stuck-order deep links; Open fulfilments assignee filter; waiting-reason chips.
+- **Deploy tooling (PR #136–#137, #145):** KVM rsync dry-run safety; tmp/vendor symlink fixes.
+- **Migrations:** **`2026_11_07_120000_add_hybrid_return_exchange_workflow_columns`** and **`2026_11_07_170000_create_pos_customer_requested_serial_exchanges_table`** remain **pending on production** — **not applied in P-11-17 deploy** (Owner authorization required). Hybrid/POS exchange admin routes may error until migrated; hardware fulfilment and dashboard paths do not require these columns.
+- **Production notes:** Annotated tag **`v4.1.62`** on merge commit containing this row. Pre-deploy encrypted DB backup + verified RIP required. **No** RBP2010 mutation. **No** POS-6754 / customer serial exchange execution.
+- **Rollback target (application):** **`v4.1.57`** / **`e85068a9`** via RIP + redeploy.
+- **Source:** **`main`** @ **`bc8fdbdcd162790d3af128c3cca93ca33779c402`** (PR **#151** merge).
+- **Validation (scoped):** `HardwareMixedSerializedFulfilmentTest` **11/11**; `HardwareNonSerializedFulfilmentTest` **4/4**; CI **rip** + **release-rip** on PR **#151**. Full PHPUnit **NOT RUN**.
+
 ## 4.1.61 — 2026-11-10 — Hardware fulfilment completion bundle (P-10-39 / PR #138–#142) atop unreleased 4.1.58–4.1.60 mainline
 
 - **Purpose:** Release metadata for the **approved merged source** at **`cecdb6d6cb794b8cc31aa12bf3d3e38308408950`** (merge PR **#142**). **This CHANGELOG entry does not authorize production deployment by itself.**
