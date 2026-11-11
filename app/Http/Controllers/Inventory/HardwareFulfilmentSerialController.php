@@ -55,6 +55,7 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
 use App\Services\HardwareFulfilment\HardwareOpenFulfilmentAssigneeFilter;
 use App\Services\HardwareFulfilment\HardwareOpenFulfilmentQueue;
+use App\Services\HardwareFulfilment\HardwareOpenFulfilmentWaitingReasonFilter;
 use App\Services\HardwareFulfilment\HardwarePhysicalStockCommitment;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentCourierOptionsService;
@@ -89,6 +90,7 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentWorkQueue $workQueue,
         private readonly HardwareOpenFulfilmentQueue $openFulfilmentQueue,
         private readonly HardwareOpenFulfilmentAssigneeFilter $openAssigneeFilter,
+        private readonly HardwareOpenFulfilmentWaitingReasonFilter $openWaitingReasonFilter,
         private readonly OperationsRoleService $operationsRoles,
         private readonly HardwareFulfilmentInvoiceService $invoices,
         private readonly HardwareFulfilmentOperationalClassifier $operationalClassifier,
@@ -133,15 +135,26 @@ class HardwareFulfilmentSerialController extends Controller
         $branchId = $request->integer('branch_id') ?: null;
         $shipmentStatus = trim((string) $request->query('shipment_status', ''));
 
-        $showAssigneeFilter = $this->canViewOpenFulfilmentAssigneeFilter($request->user());
+        $showAdminOpenFilters = $this->canViewOpenFulfilmentAdminFilters($request->user());
         $rawAssigneeId = trim((string) $request->query('assignee_id', ''));
         $assigneeFilter = HardwareOpenFulfilmentAssigneeFilter::FILTER_ALL;
-        if ($showAssigneeFilter) {
+        if ($showAdminOpenFilters) {
             $normalized = $this->openAssigneeFilter->normalizeFilter($rawAssigneeId);
             if ($this->openAssigneeFilter->isValidFilter($normalized)) {
                 $assigneeFilter = $normalized;
             }
         } elseif ($rawAssigneeId !== '') {
+            abort(403);
+        }
+
+        $rawWaitingReason = trim((string) $request->query('waiting_reason', ''));
+        $waitingReasonFilter = HardwareOpenFulfilmentWaitingReasonFilter::FILTER_ALL;
+        if ($showAdminOpenFilters) {
+            $normalizedReason = $this->openWaitingReasonFilter->normalizeFilter($rawWaitingReason);
+            if ($this->openWaitingReasonFilter->isValidFilter($normalizedReason)) {
+                $waitingReasonFilter = $normalizedReason;
+            }
+        } elseif ($rawWaitingReason !== '') {
             abort(403);
         }
 
@@ -158,13 +171,31 @@ class HardwareFulfilmentSerialController extends Controller
             $shipmentStatus,
         );
 
+        $reasonCountBase = clone $filteredBase;
+        if ($showAdminOpenFilters && $assigneeFilter !== HardwareOpenFulfilmentAssigneeFilter::FILTER_ALL) {
+            $reasonCountBase = $this->openAssigneeFilter->decorateOpenQuery($reasonCountBase, $assigneeFilter);
+        }
+
+        $assigneeCountBase = clone $filteredBase;
+        if ($showAdminOpenFilters && $waitingReasonFilter !== HardwareOpenFulfilmentWaitingReasonFilter::FILTER_ALL) {
+            $assigneeCountBase = $this->openWaitingReasonFilter->decorateOpenQuery(
+                $assigneeCountBase,
+                $waitingReasonFilter,
+                $order,
+            );
+        }
+
         $assigneeChips = [];
-        if ($showAssigneeFilter) {
-            $workload = $this->openAssigneeFilter->workloadCounts(clone $filteredBase);
+        $waitingReasonChips = [];
+        if ($showAdminOpenFilters) {
+            $workload = $this->openAssigneeFilter->workloadCounts($assigneeCountBase);
             $operatorNames = User::query()
                 ->whereIn('id', array_keys($workload['by_user']))
                 ->pluck('name', 'id');
             $assigneeChips = $this->openAssigneeFilter->chipOptions($workload, $operatorNames);
+
+            $reasonCounts = $this->openWaitingReasonFilter->reasonCounts($reasonCountBase, $order);
+            $waitingReasonChips = $this->openWaitingReasonFilter->chipOptions($reasonCounts);
         }
 
         $query = (clone $filteredBase)
@@ -172,13 +203,14 @@ class HardwareFulfilmentSerialController extends Controller
             ->with(['commerceOrder', 'fulfilmentBranch', 'serials'])
             ->orderByDesc('hardware_fulfilments.id');
 
-        if ($showAssigneeFilter) {
+        if ($showAdminOpenFilters) {
+            $query = $this->openWaitingReasonFilter->decorateOpenQuery($query, $waitingReasonFilter, $order);
             $query = $this->openAssigneeFilter->decorateOpenQuery($query, $assigneeFilter);
         }
 
         $fulfilments = $query->paginate(40)->withQueryString();
         $assigneeLabels = [];
-        if ($showAssigneeFilter && $fulfilments->isNotEmpty()) {
+        if ($showAdminOpenFilters && $fulfilments->isNotEmpty()) {
             $ids = $fulfilments->getCollection()
                 ->pluck('open_case_assignee_id')
                 ->filter()
@@ -212,7 +244,8 @@ class HardwareFulfilmentSerialController extends Controller
                 'branch_id' => $branchId,
                 'shipment_status' => $shipmentStatus,
                 'state' => $state,
-                'assignee_id' => $showAssigneeFilter ? $assigneeFilter : '',
+                'assignee_id' => $showAdminOpenFilters ? $assigneeFilter : '',
+                'waiting_reason' => $showAdminOpenFilters ? $waitingReasonFilter : '',
                 'awaiting_reason' => HardwareAwaitingFulfilmentQueue::FILTER_REVIEW,
                 'stage' => '',
                 'section' => '',
@@ -224,13 +257,15 @@ class HardwareFulfilmentSerialController extends Controller
             'stages' => HardwareFulfilmentOperationalStage::cases(),
             'sections' => HardwareOperationsSection::cases(),
             'openShipmentCounts' => $openShipmentCounts,
-            'showAssigneeFilter' => $showAssigneeFilter,
+            'showAssigneeFilter' => $showAdminOpenFilters,
+            'showWaitingReasonFilter' => $showAdminOpenFilters,
             'assigneeChips' => $assigneeChips,
+            'waitingReasonChips' => $waitingReasonChips,
             'assigneeLabels' => $assigneeLabels,
         ]);
     }
 
-    private function canViewOpenFulfilmentAssigneeFilter(?User $user): bool
+    private function canViewOpenFulfilmentAdminFilters(?User $user): bool
     {
         return $user !== null
             && $this->operationsRoles->usesAdminQueues($user)
