@@ -10,6 +10,7 @@ import { initDashboardKpiActions } from '../dashboard-kpi';
 import { initViewOnlyMetricRefresh } from '../dashboard-live-counts';
 import { initOperationsWorkspaceSoftSwitch } from '../dashboard-operations-workspace';
 import { initHardwareDashboardAsync } from '../hardware-dashboard-async';
+import { initHardwareStuckSummaryAsync } from '../hardware-stuck-summary-async';
 import { initHardwareDashboardSelection } from '../hardware-dashboard-selection';
 import { initServiceCasePaginationState } from '../dashboard-service-case-state';
 import { createServiceCaseRowReplacer } from '../service-case-row';
@@ -407,6 +408,7 @@ export const bootDashboard = () => {
         clearQuickFilter: () => dashboardQuickFilter?.clearFilter?.(),
     });
     initHardwareDashboardAsync(pageRoot);
+    initHardwareStuckSummaryAsync(pageRoot);
     initHardwareDashboardSelection(pageRoot);
 
     initDashboardLoadMore({

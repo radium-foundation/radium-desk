@@ -5,6 +5,7 @@ import { getWorkspaceSession } from './workspace/session';
 import { isDashboardQuickFilterActive, setServiceCasePagination } from './dashboard-service-case-state';
 import { buildDashboardLiveQuery } from './dashboard-live-query';
 import { applyAdminKpiSlotDom, applyKpiStripDom } from './dashboard-kpi-dom';
+import { initHardwareStuckSummaryAsync } from './hardware-stuck-summary-async';
 import {
     configureDashboardPolling,
     destroyPolling,
@@ -258,6 +259,7 @@ const applyKpis = (kpiStripHtml) => {
 
     if (applyResult === 'patched' || applyResult === 'replaced') {
         initTooltips(document.getElementById('dashboard-kpi-strip') ?? document);
+        initHardwareStuckSummaryAsync(document);
     }
 
     applyAdminUserKpis(adminKpis);

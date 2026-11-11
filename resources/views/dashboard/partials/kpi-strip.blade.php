@@ -104,10 +104,14 @@
         @include('dashboard.partials.kpi-strip-item', $item)
     @endforeach
 
-    @if($usesAdminQueues && isset($stats['hardware_stuck_orders']))
-        @include('dashboard.partials.admin-hardware-stuck-card', [
-            'summary' => $stats['hardware_stuck_orders'],
-        ])
+    @if($usesAdminQueues && $currentUser?->can('dashboard.hardware.view'))
+        @if(isset($stats['hardware_stuck_orders']))
+            @include('dashboard.partials.admin-hardware-stuck-card', [
+                'summary' => $stats['hardware_stuck_orders'],
+            ])
+        @elseif(($deferHardwareStuckSummary ?? false) && ! ($omitDeferredHardwareStuckKpi ?? false))
+            @include('dashboard.partials.admin-hardware-stuck-card-deferred')
+        @endif
     @endif
 
     @include('dashboard.partials.email-intake-kpi-card', [

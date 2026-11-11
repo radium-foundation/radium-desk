@@ -10,7 +10,7 @@ Companion to hardware count cache fix. **No lazy-load implementation in P-11-42.
 | `dashboardChipCounts` (+ hardware `chipCount` → `scopeCounts`) | Yes | Medium (2–3 SQL when cache cold) | Critical (queue chips) | Partial — chip integers can poll via `/dashboard/live` counts |
 | `recentServiceCases` (35 rows) | Yes | Medium–High (snapshot + row map) | Critical | Partial — skeleton + `dashboard.live.rows` pattern exists |
 | `statsFor` / `statsForHardwareShell` | Yes | **Very high** for admins | Mixed | Partial |
-| `hardware_stuck_orders` (`stuckOrderSummary` → `filterCounts`) | Yes | **~11 COUNT queries, ~13–15s prod** | Secondary (admin KPI card) | **Yes — P0 defer** |
+| `hardware_stuck_orders` (`stuckOrderSummary` → `filterCounts`) | **No (P-11-43)** | **~11 COUNT queries, ~13–15s prod** when loaded via `GET /dashboard/hardware/stuck-summary` | Secondary (admin KPI card) | **Deferred from SSR — implemented P-11-43** |
 | `hardwareDashboard->shell` (hardware queue) | Yes | Low shell / defers rows | Critical when queue=hardware | Already defers rows (`data-hardware-defer-rows`) |
 | Embedded workspace panel | Yes (if query) | Variable | Critical when embedded | No |
 | Team activity / audit streams (view gated) | Partial in view | Medium | Secondary | Yes |

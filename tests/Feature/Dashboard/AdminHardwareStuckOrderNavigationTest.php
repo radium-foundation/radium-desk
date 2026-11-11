@@ -34,7 +34,7 @@ class AdminHardwareStuckOrderNavigationTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
         $admin = $admin->fresh();
 
-        $stats = app(DashboardService::class)->fastChangingStatsForKpiStrip($admin);
+        $stats = app(DashboardService::class)->fastChangingStatsFor($admin);
         $summary = $stats['hardware_stuck_orders'] ?? null;
         $this->assertIsArray($summary);
         $this->assertGreaterThan(0, $summary['needs_action_total']);
@@ -48,7 +48,16 @@ class AdminHardwareStuckOrderNavigationTest extends TestCase
             ->get(route('dashboard', ['workspace' => 'action_required']))
             ->assertOk()
             ->assertSee('Hardware Stuck Orders', false)
-            ->assertSee('admin-hardware-stuck-kpi', false);
+            ->assertSee('data-hardware-stuck-summary', false);
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('dashboard.hardware.stuck-summary'))
+            ->assertOk()
+            ->assertJsonPath('summary.needs_action_total', $summary['needs_action_total']);
+
+        $html = (string) $response->json('html');
+        $this->assertStringContainsString('admin-hardware-stuck-kpi', $html);
+        $this->assertStringContainsString('data-hw-filter="awaiting_serial"', $html);
     }
 
     public function test_stuck_card_link_opens_matching_hardware_filter(): void
@@ -88,7 +97,7 @@ class AdminHardwareStuckOrderNavigationTest extends TestCase
 
         $this->assertTrue($admin->can('dashboard.hardware.view'));
         $this->assertTrue(app(OperationsRoleService::class)->usesAdminQueues($admin));
-        $this->assertArrayHasKey(
+        $this->assertArrayNotHasKey(
             'hardware_stuck_orders',
             app(DashboardService::class)->fastChangingStatsForKpiStrip($admin),
         );
@@ -97,6 +106,11 @@ class AdminHardwareStuckOrderNavigationTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Hardware Stuck Orders', false)
+            ->assertSee('Loading…', false);
+
+        $this->actingAs($admin)
+            ->getJson(route('dashboard.hardware.stuck-summary'))
+            ->assertOk()
             ->assertSee('No fulfilment blockers', false);
     }
 }

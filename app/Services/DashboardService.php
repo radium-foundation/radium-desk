@@ -62,6 +62,29 @@ class DashboardService
     }
 
     /**
+     * Initial dashboard HTML — excludes expensive hardware stuck-order summary (loaded async).
+     *
+     * @return array<string, mixed>
+     */
+    public function statsForInitialDashboardRender(User $user): array
+    {
+        return [
+            ...$this->buildFastChangingStats(
+                $user,
+                leanForKpiStrip: false,
+                includeHardwareStuckSummary: false,
+            ),
+            ...$this->slowChangingStatsFor($user),
+        ];
+    }
+
+    public function shouldDeferHardwareStuckSummary(User $user): bool
+    {
+        return app(OperationsRoleService::class)->usesAdminQueues($user)
+            && $user->can('dashboard.hardware.view');
+    }
+
+    /**
      * KPI stats for the hardware dashboard shell without service-case snapshot work.
      *
      * @return array<string, mixed>
@@ -84,7 +107,7 @@ class DashboardService
      */
     public function fastChangingStatsFor(User $user): array
     {
-        return $this->buildFastChangingStats($user, leanForKpiStrip: false);
+        return $this->buildFastChangingStats($user, leanForKpiStrip: false, includeHardwareStuckSummary: true);
     }
 
     /**
@@ -95,7 +118,11 @@ class DashboardService
      */
     public function fastChangingStatsForKpiStrip(User $user): array
     {
-        return $this->buildFastChangingStats($user, leanForKpiStrip: true);
+        return $this->buildFastChangingStats(
+            $user,
+            leanForKpiStrip: true,
+            includeHardwareStuckSummary: false,
+        );
     }
 
     /**
@@ -117,8 +144,11 @@ class DashboardService
     /**
      * @return array<string, mixed>
      */
-    private function buildFastChangingStats(User $user, bool $leanForKpiStrip): array
-    {
+    private function buildFastChangingStats(
+        User $user,
+        bool $leanForKpiStrip,
+        bool $includeHardwareStuckSummary = false,
+    ): array {
         $onlineUsers = $this->onlineUsers();
         $snapshot = $this->snapshot();
         $activeIncidents = $snapshot->activeIncidents();
@@ -207,7 +237,7 @@ class DashboardService
             $stats['todo_widget'] = $this->todoWidgetCounts($user);
         }
 
-        if ($roles->usesAdminQueues($user) && $user->can('dashboard.hardware.view')) {
+        if ($includeHardwareStuckSummary && $roles->usesAdminQueues($user) && $user->can('dashboard.hardware.view')) {
             $stats['hardware_stuck_orders'] = $this->hardwareDashboard->stuckOrderSummary();
         }
 
@@ -796,7 +826,12 @@ class DashboardService
         $onlineUsers = $this->onlineUsersPayload($stats);
 
         return [
-            'kpi_strip_html' => $this->renderKpiStrip($stats, $user),
+            'kpi_strip_html' => $this->renderKpiStrip(
+                $stats,
+                $user,
+                deferHardwareStuckSummary: $this->shouldDeferHardwareStuckSummary($user),
+                omitDeferredHardwareStuckKpi: $this->shouldDeferHardwareStuckSummary($user),
+            ),
             'service_case_filter_counts' => $filterCounts,
             'next_appointment' => $fast['next_appointment'] ?? null,
             'online_count' => $fast['online_count'],
@@ -830,7 +865,12 @@ class DashboardService
         }
 
         return [
-            'kpi_strip_html' => $this->renderKpiStrip($stats, $user),
+            'kpi_strip_html' => $this->renderKpiStrip(
+                $stats,
+                $user,
+                deferHardwareStuckSummary: $this->shouldDeferHardwareStuckSummary($user),
+                omitDeferredHardwareStuckKpi: $this->shouldDeferHardwareStuckSummary($user),
+            ),
             'service_case_filter_count_variants' => $variants,
         ];
     }
@@ -910,10 +950,19 @@ class DashboardService
     /**
      * @param  array<string, int>  $stats
      */
-    public function renderKpiStrip(array $stats, ?User $viewer = null): string
-    {
+    public function renderKpiStrip(
+        array $stats,
+        ?User $viewer = null,
+        bool $deferHardwareStuckSummary = false,
+        bool $omitDeferredHardwareStuckKpi = false,
+    ): string {
         $viewer ??= auth()->user();
 
-        return view('dashboard.partials.kpi-strip', compact('stats', 'viewer'))->render();
+        return view('dashboard.partials.kpi-strip', compact(
+            'stats',
+            'viewer',
+            'deferHardwareStuckSummary',
+            'omitDeferredHardwareStuckKpi',
+        ))->render();
     }
 }

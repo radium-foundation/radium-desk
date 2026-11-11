@@ -78,7 +78,10 @@
         </div>
 
         <div id="dashboard-kpi-strip" class="dashboard-kpi-strip-host mb-1">
-            @include('dashboard.partials.kpi-strip', ['stats' => $stats])
+            @include('dashboard.partials.kpi-strip', [
+                'stats' => $stats,
+                'deferHardwareStuckSummary' => $deferHardwareStuckSummary ?? false,
+            ])
         </div>
 
         @if(auth()->user()?->can('incidents.view') || (($operationsWorkspacePhase2Embed ?? true) && auth()->user()?->can('refunds.view')))
