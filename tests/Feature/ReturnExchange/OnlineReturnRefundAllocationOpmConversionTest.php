@@ -216,6 +216,8 @@ class OnlineReturnRefundAllocationOpmConversionTest extends ReturnExchangeCaseHt
         config([
             'return_exchange.online_refund_allocation.execution_enabled' => true,
             'return_exchange.online_refund_allocation.opm_conversion_enabled' => $enabled,
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => false,
+            'central_wallet.wallet_refund.desk_first_enabled' => false,
             'wallet_refund_opm_conversion.sites.radiumbox.com.enabled' => $enabled,
             'radiumbox.wallet_refund_credit_enabled' => true,
             'order_lookup.spokes.radiumbox_com.enabled' => true,
@@ -231,6 +233,8 @@ class OnlineReturnRefundAllocationOpmConversionTest extends ReturnExchangeCaseHt
     {
         config([
             'return_exchange.online_refund_allocation.execution_enabled' => true,
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => false,
+            'central_wallet.wallet_refund.desk_first_enabled' => false,
             'radiumbox.wallet_refund_credit_enabled' => true,
             'order_lookup.spokes.radiumbox_com.enabled' => true,
             'order_lookup.spokes.radiumbox_com.base_url' => 'https://radiumbox.test',

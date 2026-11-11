@@ -3,6 +3,7 @@
 namespace App\Services\WalletRefundOpmConversion;
 
 use App\Enums\WalletRefundCreditSource;
+use App\Models\RefundRequest;
 use App\Services\Refunds\WalletRefundDestinationResolver;
 use App\Services\WalletRefundOpmConversion\Adapters\RadiumBoxWalletRefundOpmAdapter;
 use App\Services\WalletRefundOpmConversion\Adapters\RdServiceInWalletRefundOpmAdapter;
@@ -14,10 +15,19 @@ final class WalletRefundOpmSiteAdapterResolver
 {
     public function __construct(
         private readonly WalletRefundDestinationResolver $destinations,
+        private readonly WalletRefundCreditSourceResolver $creditSources,
         private readonly RadiumBoxWalletRefundOpmAdapter $radiumBox,
         private readonly RdServiceInWalletRefundOpmAdapter $rdServiceIn,
         private readonly RdServiceNetWalletRefundOpmAdapter $rdServiceNet,
     ) {}
+
+    public function forRefund(RefundRequest $refund): WalletRefundOpmSiteAdapter
+    {
+        $refund->loadMissing('order');
+        $source = $this->creditSources->resolve($refund);
+
+        return $this->forOrderAndCreditSource($refund->order?->order_id, $source);
+    }
 
     public function forOrderAndCreditSource(?string $orderId, WalletRefundCreditSource $source): WalletRefundOpmSiteAdapter
     {

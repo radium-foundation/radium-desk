@@ -15,6 +15,7 @@ class RefundCalculationService
 {
     public function __construct(
         private readonly RefundProfileRegistry $profileRegistry,
+        private readonly ?\App\Services\WalletRefundOpmConversion\WalletRefundOpmConversionOrderLimitService $opmConversionLimits = null,
     ) {}
 
     public function totalPaidAmount(Order $order): float
@@ -42,7 +43,12 @@ class RefundCalculationService
 
     public function maximumRefundable(Order $order, ?RefundRequest $exclude = null): float
     {
-        return max(0, round($this->totalPaidAmount($order) - $this->alreadyRefundedAmount($order, $exclude), 2));
+        $remaining = $this->totalPaidAmount($order) - $this->alreadyRefundedAmount($order, $exclude);
+        if ($this->opmConversionLimits !== null) {
+            $remaining -= $this->opmConversionLimits->committedAmountForOrder($order);
+        }
+
+        return max(0, round($remaining, 2));
     }
 
     /**

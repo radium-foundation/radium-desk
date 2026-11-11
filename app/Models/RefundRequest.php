@@ -10,6 +10,7 @@ use App\Enums\RefundRevokeCustomerOutcome;
 use App\Enums\RefundStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -126,6 +127,11 @@ class RefundRequest extends Model
     public function statutoryAdjustment(): HasOne
     {
         return $this->hasOne(RefundStatutoryAdjustment::class, 'refund_request_id');
+    }
+
+    public function walletRefundOpmConversions(): HasMany
+    {
+        return $this->hasMany(WalletRefundOpmConversion::class);
     }
 
     public function returnExchangeCase(): HasOne
