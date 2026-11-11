@@ -37,7 +37,7 @@ final class HardwareDashboardWorkspace
         $scope = $this->resolveScope($request);
         $filter = $this->resolveFilter($request, $scope);
         $page = max(1, (int) $request->integer('hw_page', $request->integer('page', 1)));
-        $perPage = 40;
+        $sizer = HardwareDashboardPageSizer::fromConfig();
 
         return [
             'defer_rows' => true,
@@ -59,7 +59,10 @@ final class HardwareDashboardWorkspace
             'shiprocket_balance_pending' => $this->walletBalance->canView($request->user()),
             'unfilteredTotal' => null,
             'page' => $page,
-            'per_page' => $perPage,
+            'per_page' => $sizer->standardPerPage,
+            'initial_per_page' => $sizer->initialPerPage,
+            'skeleton_row_count' => $sizer->skeletonRowCount,
+            'search_debounce_ms' => max(0, (int) config('dashboard.hardware_search_debounce_ms', 300)),
             'inspected_fulfilment_count' => 0,
         ];
     }
@@ -105,6 +108,8 @@ final class HardwareDashboardWorkspace
             'unfilteredTotal' => $dashboard['unfiltered_total'],
             'page' => $dashboard['page'] ?? 1,
             'per_page' => $dashboard['per_page'] ?? 40,
+            'last_page' => $dashboard['last_page'] ?? 1,
+            'progressive' => (bool) ($dashboard['progressive'] ?? false),
             'inspected_fulfilment_count' => $this->workQueue->lastInspectedFulfilmentCount,
         ];
     }

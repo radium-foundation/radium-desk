@@ -1,26 +1,35 @@
 import { initTooltips } from './tooltips';
+import { buildHardwareRowsUrl, parsePositiveInt } from './hardware-dashboard-progressive';
 
 let rowsAbortController = null;
 let rowsInFlight = false;
+let rowsRequestGeneration = 0;
 
 const formatCount = (value) => `(${Math.max(0, Number(value) || 0)})`;
 
-const buildRowsUrl = (workspace) => {
-    const url = new URL(workspace.dataset.hardwareRowsUrl, window.location.origin);
-    const params = new URLSearchParams(window.location.search);
+const buildRowsUrl = (workspace, options = {}) => buildHardwareRowsUrl(workspace, {
+    ...options,
+    origin: window.location.origin,
+});
 
-    url.searchParams.set('hw_scope', workspace.dataset.hardwareScope || 'active');
-    url.searchParams.set('hw_filter', workspace.dataset.hardwareFilter || 'needs_action');
-    url.searchParams.set('hw_page', workspace.dataset.hardwarePage || '1');
+const syncLocationQuery = (workspace) => {
+    const url = new URL(window.location.href);
+    const search = workspace.dataset.hardwareSearch || '';
+    const page = workspace.dataset.hardwarePage || '1';
 
-    const search = workspace.dataset.hardwareSearch
-        || params.get('q')
-        || '';
-    if (search !== '') {
+    if (search === '') {
+        url.searchParams.delete('q');
+    } else {
         url.searchParams.set('q', search);
     }
 
-    return url;
+    if (page === '1') {
+        url.searchParams.delete('hw_page');
+    } else {
+        url.searchParams.set('hw_page', page);
+    }
+
+    window.history.replaceState({}, '', url);
 };
 
 const updateCounts = (root, scopeCounts = {}, filterCounts = {}) => {
@@ -63,6 +72,20 @@ const showError = (workspace, message, show) => {
     }
 };
 
+const setPageLoading = (workspace, show) => {
+    const indicator = workspace.querySelector('[data-hardware-page-loading]');
+    if (!indicator) {
+        return;
+    }
+    if (show) {
+        indicator.classList.remove('d-none');
+        indicator.hidden = false;
+    } else {
+        indicator.classList.add('d-none');
+        indicator.hidden = true;
+    }
+};
+
 const loadShiprocketBalance = async (workspace) => {
     const shiprocketUrl = workspace.dataset.hardwareShiprocketUrl;
     const card = workspace.closest('.dashboard-service-cases-card');
@@ -89,6 +112,57 @@ const loadShiprocketBalance = async (workspace) => {
     }
 };
 
+const bindPagination = (workspace, loadRows) => {
+    workspace.querySelectorAll('[data-hardware-pagination-link]').forEach((link) => {
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            const targetPage = link.getAttribute('data-hardware-page-target');
+            if (!targetPage) {
+                return;
+            }
+            workspace.dataset.hardwarePage = targetPage;
+            syncLocationQuery(workspace);
+            void loadRows({ page: targetPage, subsequent: true });
+        });
+    });
+};
+
+const bindDebouncedSearch = (workspace, loadRows) => {
+    const filterRoot = document.querySelector('[data-hardware-quick-filter]');
+    const input = filterRoot?.querySelector('[data-hardware-quick-filter-input]');
+    const form = input?.closest('form');
+    if (!input) {
+        return;
+    }
+
+    const debounceMs = parsePositiveInt(workspace.dataset.hardwareSearchDebounceMs, 300);
+    let debounceTimer = null;
+
+    const scheduleSearch = () => {
+        window.clearTimeout(debounceTimer);
+        debounceTimer = window.setTimeout(() => {
+            const nextSearch = input.value.trim();
+            if (nextSearch === (workspace.dataset.hardwareSearch || '')) {
+                return;
+            }
+            workspace.dataset.hardwareSearch = nextSearch;
+            workspace.dataset.hardwarePage = '1';
+            syncLocationQuery(workspace);
+            void loadRows({ page: '1', searchChanged: true });
+        }, debounceMs);
+    };
+
+    input.addEventListener('input', scheduleSearch);
+    form?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        window.clearTimeout(debounceTimer);
+        workspace.dataset.hardwareSearch = input.value.trim();
+        workspace.dataset.hardwarePage = '1';
+        syncLocationQuery(workspace);
+        void loadRows({ page: '1', searchChanged: true });
+    });
+};
+
 export const initHardwareDashboardAsync = (root = document) => {
     const workspace = root.querySelector('[data-hardware-workspace]');
     if (!workspace || workspace.dataset.hardwareDeferRows !== '1') {
@@ -100,29 +174,50 @@ export const initHardwareDashboardAsync = (root = document) => {
     const tableWrap = workspace.querySelector('.dashboard-cases-table-wrap');
     const selectAll = workspace.querySelector('[data-hardware-select-all]');
 
-    const loadRows = async () => {
-        if (rowsInFlight) {
-            return;
-        }
+    const loadRows = async ({ page, subsequent = false, searchChanged = false } = {}) => {
+        const requestGeneration = ++rowsRequestGeneration;
 
         rowsAbortController?.abort();
         rowsAbortController = new AbortController();
         rowsInFlight = true;
         showError(workspace, '', false);
-        setStatus(workspace, 'Loading hardware queue rows.');
+
+        const isInitial = !subsequent && !searchChanged && parsePositiveInt(page ?? workspace.dataset.hardwarePage, 1) === 1
+            && !workspace.dataset.hardwareRowsLoaded;
+        if (subsequent) {
+            setPageLoading(workspace, true);
+            setStatus(workspace, 'Loading next hardware queue page.');
+        } else if (searchChanged) {
+            tableWrap?.classList.add('dashboard-hardware-table-wrap--loading');
+            setStatus(workspace, 'Searching hardware queue.');
+        } else if (!isInitial) {
+            tableWrap?.classList.add('dashboard-hardware-table-wrap--loading');
+            setStatus(workspace, 'Loading hardware queue rows.');
+        } else {
+            setStatus(workspace, 'Loading hardware queue rows.');
+        }
 
         try {
-            const response = await fetch(buildRowsUrl(workspace), {
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'same-origin',
-                signal: rowsAbortController.signal,
-            });
+            const response = await fetch(
+                buildRowsUrl(workspace, {
+                    page: page ?? workspace.dataset.hardwarePage,
+                }),
+                {
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                    signal: rowsAbortController.signal,
+                },
+            );
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
             const payload = await response.json();
+            if (requestGeneration !== rowsRequestGeneration) {
+                return;
+            }
+
             if (tbody && typeof payload.rows_html === 'string') {
                 tbody.innerHTML = payload.rows_html;
             }
@@ -130,25 +225,42 @@ export const initHardwareDashboardAsync = (root = document) => {
                 paginationHost.innerHTML = typeof payload.pagination_html === 'string'
                     ? payload.pagination_html
                     : '';
+                bindPagination(workspace, loadRows);
+            }
+
+            if (payload.page !== undefined) {
+                workspace.dataset.hardwarePage = String(payload.page);
             }
 
             workspace.dataset.hardwareInspectedCount = String(payload.inspected_fulfilment_count ?? '');
+            workspace.dataset.hardwareRowsLoaded = '1';
             updateCounts(workspace, payload.scope_counts ?? {}, payload.filter_counts ?? {});
 
             tableWrap?.classList.remove('dashboard-hardware-table-wrap--loading');
+            setPageLoading(workspace, false);
             if (selectAll) {
                 selectAll.disabled = false;
             }
 
             initTooltips(workspace);
             workspace.dispatchEvent(new CustomEvent('hardware:rows-loaded', { bubbles: true, detail: payload }));
-            setStatus(workspace, payload.unfiltered_total === 0
-                ? 'No hardware orders in this queue.'
-                : `Loaded ${payload.unfiltered_total ?? 0} matching hardware orders.`);
+            syncLocationQuery(workspace);
+
+            const total = payload.unfiltered_total ?? 0;
+            if (total === 0) {
+                setStatus(workspace, 'No hardware orders match the current filters.');
+            } else {
+                setStatus(workspace, `Loaded page ${payload.page ?? 1} of ${payload.last_page ?? 1} (${total} matching orders).`);
+            }
         } catch (error) {
             if (error?.name === 'AbortError') {
                 return;
             }
+            if (requestGeneration !== rowsRequestGeneration) {
+                return;
+            }
+            tableWrap?.classList.remove('dashboard-hardware-table-wrap--loading');
+            setPageLoading(workspace, false);
             showError(workspace, 'Hardware queue rows could not be loaded. Please retry.', true);
             setStatus(workspace, 'Hardware queue failed to load.');
         } finally {
@@ -157,8 +269,12 @@ export const initHardwareDashboardAsync = (root = document) => {
     };
 
     workspace.querySelector('[data-hardware-rows-retry]')?.addEventListener('click', () => {
+        delete workspace.dataset.hardwareRowsLoaded;
         void loadRows();
     });
+
+    bindPagination(workspace, loadRows);
+    bindDebouncedSearch(workspace, loadRows);
 
     void loadRows();
     void loadShiprocketBalance(workspace);

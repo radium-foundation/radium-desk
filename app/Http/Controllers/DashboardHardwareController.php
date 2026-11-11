@@ -53,6 +53,8 @@ class DashboardHardwareController extends Controller
             'filter_counts' => $payload['filter_counts'],
             'operable_fulfilment_ids' => $payload['operableFulfilmentIds'],
             'can_operate_hardware' => $payload['canOperateHardware'],
+            'last_page' => $payload['last_page'] ?? 1,
+            'progressive' => (bool) ($payload['progressive'] ?? false),
         ]);
     }
 

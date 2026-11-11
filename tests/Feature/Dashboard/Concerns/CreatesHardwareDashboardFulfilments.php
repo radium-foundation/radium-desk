@@ -20,6 +20,7 @@ use App\Models\Shipment;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 trait CreatesHardwareDashboardFulfilments
@@ -58,6 +59,9 @@ trait CreatesHardwareDashboardFulfilments
         bool $evidence = false,
         ?string $track = null,
         bool $ready = false,
+        bool $providerRejected = false,
+        ?string $courierOptionsSnapshot = null,
+        ?Carbon $courierOptionsExpiresAt = null,
     ): HardwareFulfilment {
         $creator = User::factory()->create(['is_active' => true]);
         $order = Order::query()->create([
@@ -142,7 +146,7 @@ trait CreatesHardwareDashboardFulfilments
             ]);
         }
 
-        if ($bound || $awb !== null || $label || $pickup || $manifest) {
+        if ($bound || $awb !== null || $label || $pickup || $manifest || $providerRejected) {
             $shipment = Shipment::query()->create([
                 'shipment_no' => 'HW-'.$sourceId,
                 'commerce_order_id' => $commerce->id,
@@ -157,6 +161,8 @@ trait CreatesHardwareDashboardFulfilments
                 'manifest_id' => $manifest ? 'man-'.$sourceId : null,
                 'provider_track_normalized' => $track,
                 'provider_track_status' => $track,
+                'failure_class' => $providerRejected ? 'provider_rejected' : null,
+                'last_error' => $providerRejected ? 'Shiprocket rejected shipment creation: authentication failed.' : null,
                 'idempotency_key' => 'ship:'.$sourceId,
                 'correlation_id' => (string) Str::uuid(),
             ]);
@@ -186,6 +192,13 @@ trait CreatesHardwareDashboardFulfilments
                 $readyUpdates['state'] = HardwareFulfilmentState::AwbAssigned;
             }
             $fulfilment->forceFill($readyUpdates)->save();
+        }
+
+        if ($courierOptionsSnapshot !== null || $courierOptionsExpiresAt !== null) {
+            $fulfilment->forceFill([
+                'courier_options_snapshot' => $courierOptionsSnapshot ?? ['courier_id' => '15137'],
+                'courier_options_expires_at' => $courierOptionsExpiresAt ?? now()->addHour(),
+            ])->save();
         }
 
         return $fulfilment->fresh() ?? $fulfilment;

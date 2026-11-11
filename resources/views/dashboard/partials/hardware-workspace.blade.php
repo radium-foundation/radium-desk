@@ -8,7 +8,9 @@
     $canOperateHardware = (bool) ($hardwareWorkspace['canOperateHardware'] ?? false);
     $search = $hardwareWorkspace['search'] ?? '';
     $isShippedScope = ($hardwareWorkspace['scope'] ?? HardwareWorkspaceScope::Active->value) === HardwareWorkspaceScope::Shipped->value;
-    $skeletonCount = (int) ($hardwareWorkspace['per_page'] ?? 40);
+    $skeletonCount = (int) ($hardwareWorkspace['skeleton_row_count'] ?? $hardwareWorkspace['initial_per_page'] ?? 10);
+    $initialPerPage = (int) ($hardwareWorkspace['initial_per_page'] ?? 10);
+    $searchDebounceMs = (int) ($hardwareWorkspace['search_debounce_ms'] ?? 300);
 @endphp
 
 <div id="dashboard-hardware-workspace"
@@ -20,6 +22,9 @@
      data-hardware-filter="{{ $hardwareWorkspace['filter'] ?? 'needs_action' }}"
      data-hardware-page="{{ $hardwareWorkspace['page'] ?? 1 }}"
      data-hardware-per-page="{{ $hardwareWorkspace['per_page'] ?? 40 }}"
+     data-hardware-initial-per-page="{{ $initialPerPage }}"
+     data-hardware-search-debounce-ms="{{ $searchDebounceMs }}"
+     data-hardware-progressive="1"
      data-hardware-inspected-count="{{ $hardwareWorkspace['inspected_fulfilment_count'] ?? 0 }}"
      @if($search !== '') data-hardware-search="{{ $search }}" @endif>
     <div class="dashboard-hardware-selection d-none" data-hardware-selection-bar hidden>
@@ -103,5 +108,13 @@
                 'hardwareWorkspace' => $hardwareWorkspace,
             ])
         @endunless
+    </div>
+    <div class="dashboard-hardware-page-loading d-none"
+         data-hardware-page-loading
+         role="status"
+         aria-live="polite"
+         hidden>
+        <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+        Loading more orders…
     </div>
 </div>

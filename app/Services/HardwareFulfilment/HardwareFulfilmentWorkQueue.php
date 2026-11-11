@@ -14,6 +14,7 @@ use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalRow;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalSummary;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -148,21 +149,24 @@ final class HardwareFulfilmentWorkQueue
         HardwareWorkspaceFilter $filter = HardwareWorkspaceFilter::NeedsAction,
     ): array {
         $this->lastInspectedFulfilmentCount = 0;
-        $page = max(1, (int) request()->integer('hw_page', request()->integer('page', 1)));
-        $perPage = 40;
+        $request = request();
+        $page = max(1, (int) $request->integer('hw_page', $request->integer('page', 1)));
+        $sizer = HardwareDashboardPageSizer::fromConfig();
+        $slice = $sizer->sliceFor($request, $page);
+        $perPage = $slice['per_page'];
+        $offset = $slice['offset'];
+        $limit = $slice['limit'];
 
-        $loadAll = in_array($filter, [
+        $legacyMemoryFilters = in_array($filter, [
             HardwareWorkspaceFilter::Ready,
-            HardwareWorkspaceFilter::Exceptions,
             HardwareWorkspaceFilter::Pickup,
-            HardwareWorkspaceFilter::Scheduled,
         ], true);
 
         $scopeCounts = $this->scopeCountsForDashboard($fromIst, $toIst);
 
-        if ($filter === HardwareWorkspaceFilter::All && $scope === HardwareWorkspaceScope::Active) {
+        if ($filter === HardwareWorkspaceFilter::Exceptions) {
             $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
-            $pageSet = $this->needsActionSql->allActivePage($fromIst, $toIst, $search, $page, $perPage);
+            $pageSet = $this->needsActionSql->exceptionsPage($search, $page, $perPage, $offset, $limit);
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
 
             return [
@@ -173,11 +177,49 @@ final class HardwareFulfilmentWorkQueue
                 'unfiltered_total' => $pageSet['total'],
                 'page' => $page,
                 'per_page' => $perPage,
+                'last_page' => $sizer->lastPage($pageSet['total'], $request),
+                'progressive' => $sizer->progressiveEnabled($request),
             ];
         }
 
-        if ($loadAll) {
-            return $this->legacyDashboard($fromIst, $toIst, $search, $scope, $filter, $scopeCounts, $page, $perPage);
+        if ($filter === HardwareWorkspaceFilter::Scheduled) {
+            $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
+            $pageSet = $this->needsActionSql->scheduledPage($fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
+            $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+
+            return [
+                'rows' => $rows,
+                'scope_counts' => $scopeCounts,
+                'filter_counts' => $filterCounts,
+                'total' => $rows->count(),
+                'unfiltered_total' => $pageSet['total'],
+                'page' => $page,
+                'per_page' => $perPage,
+                'last_page' => $sizer->lastPage($pageSet['total'], $request),
+                'progressive' => $sizer->progressiveEnabled($request),
+            ];
+        }
+
+        if ($filter === HardwareWorkspaceFilter::All && $scope === HardwareWorkspaceScope::Active) {
+            $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
+            $pageSet = $this->needsActionSql->allActivePage($fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
+            $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+
+            return [
+                'rows' => $rows,
+                'scope_counts' => $scopeCounts,
+                'filter_counts' => $filterCounts,
+                'total' => $rows->count(),
+                'unfiltered_total' => $pageSet['total'],
+                'page' => $page,
+                'per_page' => $perPage,
+                'last_page' => $sizer->lastPage($pageSet['total'], $request),
+                'progressive' => $sizer->progressiveEnabled($request),
+            ];
+        }
+
+        if ($legacyMemoryFilters) {
+            return $this->legacyDashboard($fromIst, $toIst, $search, $scope, $filter, $scopeCounts, $page, $offset, $limit, $perPage, $sizer, $request);
         }
 
         $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
@@ -191,7 +233,7 @@ final class HardwareFulfilmentWorkQueue
             ], true);
 
         if ($searchAcrossActive) {
-            $pageSet = $this->needsActionSql->searchActivePage($fromIst, $toIst, $search, $page, $perPage);
+            $pageSet = $this->needsActionSql->searchActivePage($fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
 
             return [
@@ -202,10 +244,12 @@ final class HardwareFulfilmentWorkQueue
                 'unfiltered_total' => $pageSet['total'],
                 'page' => $page,
                 'per_page' => $perPage,
+                'last_page' => $sizer->lastPage($pageSet['total'], $request),
+                'progressive' => $sizer->progressiveEnabled($request),
             ];
         }
 
-        $pageSet = $this->needsActionSql->page($scope, $filter, $fromIst, $toIst, $search, $page, $perPage);
+        $pageSet = $this->needsActionSql->page($scope, $filter, $fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
         $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
 
         return [
@@ -216,6 +260,8 @@ final class HardwareFulfilmentWorkQueue
             'unfiltered_total' => $pageSet['total'],
             'page' => $page,
             'per_page' => $perPage,
+            'last_page' => $sizer->lastPage($pageSet['total'], $request),
+            'progressive' => $sizer->progressiveEnabled($request),
         ];
     }
 
@@ -239,8 +285,13 @@ final class HardwareFulfilmentWorkQueue
         HardwareWorkspaceFilter $filter,
         array $scopeCounts,
         int $page,
+        int $offset,
+        int $limit,
         int $perPage,
+        HardwareDashboardPageSizer $sizer,
+        Request $request,
     ): array {
+        $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
         $rows = $this->allRows($fromIst, $toIst, '', '');
 
         if ($search !== '') {
@@ -251,25 +302,6 @@ final class HardwareFulfilmentWorkQueue
                     || str_contains(strtoupper($row->serialStatus), $needle)
                     || str_contains(strtoupper($row->product), $needle);
             })->values();
-        }
-
-        $activeRows = $rows->reject(
-            static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isShippedWorkspaceItem(),
-        )->values();
-        $shippedRows = $rows->filter(
-            static fn (HardwareFulfilmentOperationalRow $row): bool => $row->isShippedWorkspaceItem(),
-        )->values();
-
-        $scopeCounts = [
-            HardwareWorkspaceScope::Active->value => $activeRows->count(),
-            HardwareWorkspaceScope::Shipped->value => $shippedRows->count(),
-        ];
-
-        $filterCounts = [];
-        foreach (HardwareWorkspaceFilter::cases() as $workspaceFilter) {
-            $filterCounts[$workspaceFilter->value] = $rows
-                ->filter(static fn (HardwareFulfilmentOperationalRow $row): bool => $row->matchesWorkspaceFilter($workspaceFilter))
-                ->count();
         }
 
         if ($scope === HardwareWorkspaceScope::Shipped) {
@@ -285,7 +317,7 @@ final class HardwareFulfilmentWorkQueue
         }
 
         $total = $scopedRows->count();
-        $paged = $scopedRows->slice(($page - 1) * $perPage, $perPage)->values();
+        $paged = $scopedRows->slice($offset, $limit)->values();
 
         return [
             'rows' => $paged,
@@ -295,6 +327,8 @@ final class HardwareFulfilmentWorkQueue
             'unfiltered_total' => $total,
             'page' => $page,
             'per_page' => $perPage,
+            'last_page' => $sizer->lastPage($total, $request),
+            'progressive' => $sizer->progressiveEnabled($request),
         ];
     }
 

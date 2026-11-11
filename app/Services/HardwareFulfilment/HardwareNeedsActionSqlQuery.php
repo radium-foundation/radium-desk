@@ -80,10 +80,12 @@ final class HardwareNeedsActionSqlQuery
         string $search,
         int $page,
         int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
     ): array {
         if ($scope === HardwareWorkspaceScope::Shipped
             || in_array($filter, [HardwareWorkspaceFilter::Completed, HardwareWorkspaceFilter::Delivered], true)) {
-            return $this->fulfilmentPage($this->completedQuery($search), $page, $perPage);
+            return $this->fulfilmentPage($this->completedQuery($search), $page, $perPage, $offsetOverride, $limitOverride);
         }
 
         if ($filter->isShipping()) {
@@ -95,7 +97,7 @@ final class HardwareNeedsActionSqlQuery
                 default => $this->shippingQuery($search),
             };
 
-            return $this->fulfilmentPage($shippingQuery, $page, $perPage);
+            return $this->fulfilmentPage($shippingQuery, $page, $perPage, $offsetOverride, $limitOverride);
         }
 
         $hfQuery = match ($filter) {
@@ -119,10 +121,10 @@ final class HardwareNeedsActionSqlQuery
         }
 
         if ($orderQueries === []) {
-            return $this->fulfilmentPage($hfQuery, $page, $perPage);
+            return $this->fulfilmentPage($hfQuery, $page, $perPage, $offsetOverride, $limitOverride);
         }
 
-        return $this->unionIdentifierPage($hfQuery, $orderQueries, $page, $perPage);
+        return $this->unionIdentifierPage($hfQuery, $orderQueries, $page, $perPage, $offsetOverride, $limitOverride);
     }
 
     /**
@@ -138,6 +140,8 @@ final class HardwareNeedsActionSqlQuery
         string $search,
         int $page,
         int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
     ): array {
         return $this->unionIdentifierPage(
             $this->activeFulfilmentQuery($search),
@@ -147,6 +151,8 @@ final class HardwareNeedsActionSqlQuery
             ],
             $page,
             $perPage,
+            $offsetOverride,
+            $limitOverride,
         );
     }
 
@@ -161,6 +167,8 @@ final class HardwareNeedsActionSqlQuery
         string $search,
         int $page,
         int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
     ): array {
         return $this->unionIdentifierPage(
             $this->allActiveFulfilmentQuery($search),
@@ -170,6 +178,55 @@ final class HardwareNeedsActionSqlQuery
             ],
             $page,
             $perPage,
+            $offsetOverride,
+            $limitOverride,
+        );
+    }
+
+    /**
+     * Legacy Exceptions queue: SQL classifier for mapping gaps and owner blocks.
+     *
+     * @return array{fulfilment_ids: list<int>, order_ids: list<int>, total: int}
+     */
+    public function exceptionsPage(
+        string $search,
+        int $page,
+        int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
+    ): array {
+        return $this->fulfilmentPage(
+            $this->exceptionsFulfilmentQuery($search),
+            $page,
+            $perPage,
+            $offsetOverride,
+            $limitOverride,
+        );
+    }
+
+    /**
+     * Legacy Scheduled queue: ingested fulfilments plus awaiting-ingest work candidates.
+     *
+     * @return array{fulfilment_ids: list<int>, order_ids: list<int>, total: int}
+     */
+    public function scheduledPage(
+        Carbon $fromIst,
+        Carbon $toIst,
+        string $search,
+        int $page,
+        int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
+    ): array {
+        return $this->unionIdentifierPage(
+            $this->scheduledFulfilmentQuery($search),
+            [
+                $this->workCandidateOrderQuery($fromIst, $toIst, $search),
+            ],
+            $page,
+            $perPage,
+            $offsetOverride,
+            $limitOverride,
         );
     }
 
@@ -229,6 +286,91 @@ final class HardwareNeedsActionSqlQuery
         $query = $this->activeFulfilmentQuery($search);
         $this->whereMissingAllocatedSerial($query);
         $this->whereMissingSkuMap($query);
+
+        return $query;
+    }
+
+    private function exceptionsFulfilmentQuery(string $search): Builder
+    {
+        $blocked = $this->ownerBlockedSourceIds();
+        $query = HardwareFulfilment::query()
+            ->whereNotIn('hardware_fulfilments.state', [
+                HardwareFulfilmentState::Shipped->value,
+                HardwareFulfilmentState::Synced->value,
+                HardwareFulfilmentState::CancelledHistoricalDuplicate->value,
+            ]);
+        $this->applyFulfilmentSearch($query, $search);
+        $query->where(function (Builder $inner) use ($blocked): void {
+            $inner->where(function (Builder $mapping): void {
+                $mapping->whereNotIn('hardware_fulfilments.state', [
+                    HardwareFulfilmentState::Ingested->value,
+                ])->whereNotIn('hardware_fulfilments.source_id', $this->ownerBlockedSourceIds());
+                $this->whereMissingAllocatedSerial($mapping);
+                $this->whereMissingSkuMap($mapping);
+            });
+
+            if ($blocked !== []) {
+                $inner->orWhereIn('hardware_fulfilments.source_id', $blocked);
+            }
+
+            $inner->orWhere(function (Builder $provider): void {
+                $this->constrainUnrecoverableProviderRejected($provider);
+            });
+        });
+
+        return $query;
+    }
+
+    /**
+     * SQL approximation of {@see HardwareFulfilmentOperationalClassifier::providerRejectionIsUnrecoverable()}
+     * for dashboard Exceptions legacy parity. Recoverable courier-option retries stay out.
+     */
+    private function constrainUnrecoverableProviderRejected(Builder $query): void
+    {
+        $query->whereNotIn('hardware_fulfilments.state', [
+            HardwareFulfilmentState::Shipped->value,
+            HardwareFulfilmentState::Synced->value,
+            HardwareFulfilmentState::CancelledHistoricalDuplicate->value,
+        ])->whereNotIn('hardware_fulfilments.source_id', $this->ownerBlockedSourceIds());
+
+        $this->whereHasAllocatedSerial($query);
+        $this->whereHasInvoice($query);
+
+        $query->whereExists(function ($sub): void {
+            $sub->selectRaw('1')
+                ->from('shipments')
+                ->where(function ($join): void {
+                    $join->whereColumn('shipments.id', 'hardware_fulfilments.shipment_id')
+                        ->orWhereColumn('shipments.hardware_fulfilment_id', 'hardware_fulfilments.id');
+                })
+                ->where('shipments.failure_class', 'provider_rejected')
+                ->whereNotNull('shipments.last_error')
+                ->where(function ($unbound): void {
+                    $unbound->whereNull('shipments.external_shipment_id')
+                        ->orWhere('shipments.external_shipment_id', '=', '');
+                })
+                ->where(function ($unbound): void {
+                    $unbound->whereNull('shipments.external_order_id')
+                        ->orWhere('shipments.external_order_id', '=', '');
+                });
+        });
+
+        $query->whereNot(function (Builder $recoverable): void {
+            $recoverable->whereNotNull('hardware_fulfilments.courier_options_snapshot')
+                ->where(function (Builder $fresh): void {
+                    $fresh->whereNull('hardware_fulfilments.courier_options_expires_at')
+                        ->orWhere('hardware_fulfilments.courier_options_expires_at', '>', now());
+                })
+                ->whereNull('hardware_fulfilments.selected_courier_id');
+        });
+    }
+
+    private function scheduledFulfilmentQuery(string $search): Builder
+    {
+        $query = HardwareFulfilment::query()
+            ->where('hardware_fulfilments.state', HardwareFulfilmentState::Ingested->value)
+            ->whereNotIn('hardware_fulfilments.source_id', $this->ownerBlockedSourceIds());
+        $this->applyFulfilmentSearch($query, $search);
 
         return $query;
     }
@@ -731,13 +873,20 @@ final class HardwareNeedsActionSqlQuery
     /**
      * @return array{fulfilment_ids: list<int>, order_ids: list<int>, total: int}
      */
-    private function fulfilmentPage(Builder $query, int $page, int $perPage): array
-    {
+    private function fulfilmentPage(
+        Builder $query,
+        int $page,
+        int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
+    ): array {
         $total = (clone $query)->count();
+        $offset = $offsetOverride ?? max(0, ($page - 1) * $perPage);
+        $limit = $limitOverride ?? $perPage;
         $ids = (clone $query)
             ->orderByDesc('hardware_fulfilments.id')
-            ->offset(max(0, ($page - 1) * $perPage))
-            ->limit($perPage)
+            ->offset(max(0, $offset))
+            ->limit($limit)
             ->pluck('hardware_fulfilments.id')
             ->map(static fn ($id): int => (int) $id)
             ->all();
@@ -755,8 +904,14 @@ final class HardwareNeedsActionSqlQuery
      * @param  list<Builder>  $orderQueries
      * @return array{fulfilment_ids: list<int>, order_ids: list<int>, total: int}
      */
-    private function unionIdentifierPage(Builder $hfQuery, array $orderQueries, int $page, int $perPage): array
-    {
+    private function unionIdentifierPage(
+        Builder $hfQuery,
+        array $orderQueries,
+        int $page,
+        int $perPage,
+        ?int $offsetOverride = null,
+        ?int $limitOverride = null,
+    ): array {
         $union = (clone $hfQuery)
             ->leftJoin('commerce_orders as hw_sort_co', 'hw_sort_co.id', '=', 'hardware_fulfilments.commerce_order_id')
             ->selectRaw("'hf' as kind, hardware_fulfilments.id as id, COALESCE(hw_sort_co.ordered_at, hardware_fulfilments.ingested_at) as sort_at");
@@ -768,10 +923,12 @@ final class HardwareNeedsActionSqlQuery
         }
 
         $total = DB::query()->fromSub($union, 'hardware_identifier_page')->count();
+        $offset = $offsetOverride ?? max(0, ($page - 1) * $perPage);
+        $limit = $limitOverride ?? $perPage;
         $slice = DB::query()->fromSub($union, 'hardware_identifier_page')
             ->orderByDesc('sort_at')
-            ->offset(max(0, ($page - 1) * $perPage))
-            ->limit($perPage)
+            ->offset(max(0, $offset))
+            ->limit($limit)
             ->get();
 
         $fulfilmentIds = [];
