@@ -5,6 +5,7 @@ namespace Tests\Unit\Platform;
 use App\Data\Platform\PlatformHealthComponent;
 use App\Enums\PlatformHealthStatus;
 use App\Services\Operations\AutomationHealthService;
+use App\Services\Platform\Health\PlatformHealthSnapshotService;
 use App\Services\Platform\Health\QueueHealthProvider;
 use App\Services\Platform\Health\SchedulerHealthProvider;
 use App\Services\Platform\PlatformAutomationOverviewService;
@@ -143,6 +144,7 @@ class PlatformAutomationOverviewSchedulerWorkersTest extends TestCase
                 PlatformHealthStatus::Healthy,
                 'Queue worker (dedicated_cron) is healthy.',
             ),
+            $this->mockHealthSnapshot(),
         );
 
         $overview = $service->overview(useCache: false);
@@ -177,7 +179,17 @@ class PlatformAutomationOverviewSchedulerWorkersTest extends TestCase
             $automation,
             $this->mockSchedulerProvider($schedulerStatus, $schedulerDetail, $schedulerMetrics),
             $this->mockQueueProvider($queueStatus, $queueDetail),
+            $this->mockHealthSnapshot(),
         );
+    }
+
+    private function mockHealthSnapshot(): PlatformHealthSnapshotService
+    {
+        /** @var PlatformHealthSnapshotService&MockInterface $snapshot */
+        $snapshot = Mockery::mock(PlatformHealthSnapshotService::class);
+        $snapshot->shouldReceive('current')->andReturn(null);
+
+        return $snapshot;
     }
 
     /**
