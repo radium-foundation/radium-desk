@@ -39,6 +39,8 @@ use App\Models\Incident;
 use App\Models\InventoryBranch;
 use App\Models\Order;
 use App\Models\Shipment;
+use App\Models\User;
+use App\Services\DashboardPersonalizationService;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentOperationalClassifier;
 use App\Services\HardwareFulfilment\Data\HardwareFulfilmentStepper;
 use App\Services\HardwareFulfilment\HardwareAwaitingFulfilmentQueue;
@@ -51,6 +53,7 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentParcelSnapshotService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
+use App\Services\HardwareFulfilment\HardwareOpenFulfilmentAssigneeFilter;
 use App\Services\HardwareFulfilment\HardwareOpenFulfilmentQueue;
 use App\Services\HardwareFulfilment\HardwarePhysicalStockCommitment;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
@@ -59,6 +62,7 @@ use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
 use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use App\Services\HardwareFulfilment\HardwareShipmentOrchestrationService;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
+use App\Services\Operations\OperationsRoleService;
 use App\Support\HardwareFulfilment\HardwareFulfilmentAccess;
 use App\Support\Inventory\InventoryBranchScope;
 use Illuminate\Http\JsonResponse;
@@ -84,6 +88,8 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareAwaitingFulfilmentQueue $awaitingQueue,
         private readonly HardwareFulfilmentWorkQueue $workQueue,
         private readonly HardwareOpenFulfilmentQueue $openFulfilmentQueue,
+        private readonly HardwareOpenFulfilmentAssigneeFilter $openAssigneeFilter,
+        private readonly OperationsRoleService $operationsRoles,
         private readonly HardwareFulfilmentInvoiceService $invoices,
         private readonly HardwareFulfilmentOperationalClassifier $operationalClassifier,
         private readonly HardwareFulfilmentWorkflowService $workflow,
@@ -127,20 +133,60 @@ class HardwareFulfilmentSerialController extends Controller
         $branchId = $request->integer('branch_id') ?: null;
         $shipmentStatus = trim((string) $request->query('shipment_status', ''));
 
-        $query = $this->openFulfilmentQueue
-            ->applySharedFilters(
-                $this->openFulfilmentQueue->baseQuery(),
-                $order,
-                $serial,
-                $branchId,
-            )
-            ->with(['commerceOrder', 'fulfilmentBranch', 'serials'])
-            ->orderByDesc('id');
+        $showAssigneeFilter = $this->canViewOpenFulfilmentAssigneeFilter($request->user());
+        $rawAssigneeId = trim((string) $request->query('assignee_id', ''));
+        $assigneeFilter = HardwareOpenFulfilmentAssigneeFilter::FILTER_ALL;
+        if ($showAssigneeFilter) {
+            $normalized = $this->openAssigneeFilter->normalizeFilter($rawAssigneeId);
+            if ($this->openAssigneeFilter->isValidFilter($normalized)) {
+                $assigneeFilter = $normalized;
+            }
+        } elseif ($rawAssigneeId !== '') {
+            abort(403);
+        }
 
-        $query = $this->openFulfilmentQueue->applyStateFilter($query, $state);
-        $query = $this->openFulfilmentQueue->applyShipmentStatusFilter($query, $shipmentStatus);
+        $filteredBase = $this->openFulfilmentQueue->applyShipmentStatusFilter(
+            $this->openFulfilmentQueue->applyStateFilter(
+                $this->openFulfilmentQueue->applySharedFilters(
+                    $this->openFulfilmentQueue->baseQuery(),
+                    $order,
+                    $serial,
+                    $branchId,
+                ),
+                $state,
+            ),
+            $shipmentStatus,
+        );
+
+        $assigneeChips = [];
+        if ($showAssigneeFilter) {
+            $workload = $this->openAssigneeFilter->workloadCounts(clone $filteredBase);
+            $operatorNames = User::query()
+                ->whereIn('id', array_keys($workload['by_user']))
+                ->pluck('name', 'id');
+            $assigneeChips = $this->openAssigneeFilter->chipOptions($workload, $operatorNames);
+        }
+
+        $query = (clone $filteredBase)
+            ->select('hardware_fulfilments.*')
+            ->with(['commerceOrder', 'fulfilmentBranch', 'serials'])
+            ->orderByDesc('hardware_fulfilments.id');
+
+        if ($showAssigneeFilter) {
+            $query = $this->openAssigneeFilter->decorateOpenQuery($query, $assigneeFilter);
+        }
 
         $fulfilments = $query->paginate(40)->withQueryString();
+        $assigneeLabels = [];
+        if ($showAssigneeFilter && $fulfilments->isNotEmpty()) {
+            $ids = $fulfilments->getCollection()
+                ->pluck('open_case_assignee_id')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+            $assigneeLabels = User::query()->whereIn('id', $ids)->pluck('name', 'id')->all();
+        }
 
         $openShipmentCounts = $this->openFulfilmentQueue->shipmentStatusCounts(
             $order,
@@ -166,6 +212,7 @@ class HardwareFulfilmentSerialController extends Controller
                 'branch_id' => $branchId,
                 'shipment_status' => $shipmentStatus,
                 'state' => $state,
+                'assignee_id' => $showAssigneeFilter ? $assigneeFilter : '',
                 'awaiting_reason' => HardwareAwaitingFulfilmentQueue::FILTER_REVIEW,
                 'stage' => '',
                 'section' => '',
@@ -177,7 +224,17 @@ class HardwareFulfilmentSerialController extends Controller
             'stages' => HardwareFulfilmentOperationalStage::cases(),
             'sections' => HardwareOperationsSection::cases(),
             'openShipmentCounts' => $openShipmentCounts,
+            'showAssigneeFilter' => $showAssigneeFilter,
+            'assigneeChips' => $assigneeChips,
+            'assigneeLabels' => $assigneeLabels,
         ]);
+    }
+
+    private function canViewOpenFulfilmentAssigneeFilter(?User $user): bool
+    {
+        return $user !== null
+            && $this->operationsRoles->usesAdminQueues($user)
+            && $user->can(DashboardPersonalizationService::PERMISSION_HARDWARE_VIEW);
     }
 
     private function workIndex(Request $request): View
