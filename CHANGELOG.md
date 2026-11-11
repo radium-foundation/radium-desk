@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.63 — 2026-11-11 — Production deploy bundle (P-11-18) — same application scope as 4.1.62
+
+- **Purpose:** Authoritative deploy tag after verified encrypted backup **`20261111T053533Z`**, isolated restore drill, and ledger rows **P-11-17** / **P-11-18**. Application scope unchanged from **4.1.62** ( **`bc8fdbdc`** fulfilment + dashboard + admin UX on top of **4.1.57** prod).
+- **Production baseline (pre-deploy):** KVM **`v4.1.57` / `e85068a9`**.
+- **Migrations:** **`2026_11_07_*`** remain **pending** — **not run** in this deploy.
+- **Production notes:** Deploy from annotated tag **`v4.1.63`**. Pre-RIP for **`e85068a9`** required. **No** RBP2010 processing.
+- **Rollback target:** **`v4.1.57` / `e85068a9`**.
+- **Source:** **`main`** @ tag **`v4.1.63`**.
+- **Validation (scoped):** `HardwareMixedSerializedFulfilmentTest` + `HardwareNonSerializedFulfilmentTest` **15/15**; backup restore **PASS**; full PHPUnit **NOT RUN**.
+
 ## 4.1.62 — 2026-11-11 — Hardware dashboard async shell + mixed serial fulfilment + admin queue UX (P-11-17)
 
 - **Production delta:** Deploy from **`v4.1.57` / `e85068a9`** to **`bc8fdbdc`** (includes unreleased **4.1.58–4.1.61** mainline scope plus **P-11-16**).
