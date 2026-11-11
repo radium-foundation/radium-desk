@@ -69,8 +69,6 @@ class HardwareDashboardCountsCacheRegressionTest extends TestCase
         config(['dashboard.hardware_counts_ttl_seconds' => 30]);
         Cache::flush();
 
-        Carbon::setTestNow('2026-11-11 16:12:00 Asia/Kolkata');
-
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
@@ -81,37 +79,44 @@ class HardwareDashboardCountsCacheRegressionTest extends TestCase
             ->get(route('dashboard', ['workspace' => 'action_required']))
             ->assertOk();
         $firstMs = (hrtime(true) - $t0) / 1e6;
-        $firstHw = collect(DB::getQueryLog())
+
+        $ssrHwQueries = collect(DB::getQueryLog())
             ->filter(fn (array $q): bool => str_contains($q['query'], 'hardware_fulfilments'))
             ->count();
+        DB::disableQueryLog();
 
-        Carbon::setTestNow('2026-11-11 16:12:15 Asia/Kolkata');
+        fwrite(STDERR, sprintf(
+            "admin dashboard initial SSR ms=%.1f ssr_hw_queries=%d\n",
+            $firstMs,
+            $ssrHwQueries,
+        ));
+
+        $this->assertLessThan(12, $ssrHwQueries, 'SSR should not run full stuck-order filterCounts chain.');
 
         DB::flushQueryLog();
-        $t1 = hrtime(true);
+        DB::enableQueryLog();
         $this->actingAs($admin)
-            ->get(route('dashboard', ['workspace' => 'action_required']))
+            ->getJson(route('dashboard.hardware.stuck-summary'))
             ->assertOk();
-        $secondMs = (hrtime(true) - $t1) / 1e6;
-        $secondHw = collect(DB::getQueryLog())
+        $endpointHwCold = collect(DB::getQueryLog())
             ->filter(fn (array $q): bool => str_contains($q['query'], 'hardware_fulfilments'))
             ->count();
 
-        Carbon::setTestNow();
+        DB::flushQueryLog();
+        $this->actingAs($admin)
+            ->getJson(route('dashboard.hardware.stuck-summary'))
+            ->assertOk();
+        $endpointHwWarm = collect(DB::getQueryLog())
+            ->filter(fn (array $q): bool => str_contains($q['query'], 'hardware_fulfilments'))
+            ->count();
 
         fwrite(STDERR, sprintf(
-            "admin dashboard cold ms=%.1f hw_queries=%d | warm ms=%.1f hw_queries=%d\n",
-            $firstMs,
-            $firstHw,
-            $secondMs,
-            $secondHw,
+            "stuck-summary endpoint hw_queries cold=%d warm=%d\n",
+            $endpointHwCold,
+            $endpointHwWarm,
         ));
 
-        $this->assertGreaterThan($secondHw, $firstHw);
-        fwrite(STDERR, sprintf(
-            "hardware_filter_cache: cold_hw=%d warm_hw=%d (warm should be lower when cache shared)\n",
-            $firstHw,
-            $secondHw,
-        ));
+        $this->assertGreaterThan(0, $endpointHwCold);
+        $this->assertLessThan($endpointHwCold, $endpointHwWarm);
     }
 }

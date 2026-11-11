@@ -104,12 +104,16 @@ class DashboardController extends Controller
             }
         }
 
+        $deferHardwareStuckSummary = ! $isHardwareWorkspace
+            && $this->dashboardService->shouldDeferHardwareStuckSummary($user);
+
         $stats = $isHardwareWorkspace
             ? $this->dashboardService->statsForHardwareShell($user)
-            : $this->dashboardService->statsFor($user);
+            : $this->dashboardService->statsForInitialDashboardRender($user);
 
         return view('dashboard.index', [
             'stats' => $stats,
+            'deferHardwareStuckSummary' => $deferHardwareStuckSummary,
             'openCustomer360IncidentId' => $openCustomer360IncidentId,
             'openCustomer360Reference' => $openCustomer360Reference,
             'openCustomer360MoreMenu' => $openCustomer360MoreMenu,

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\DashboardPersonalizationService;
 use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
+use App\Services\Operations\OperationsRoleService;
 use App\Services\Shipping\ShiprocketWalletBalanceReadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -69,6 +70,29 @@ class DashboardHardwareController extends Controller
 
         return response()->json([
             'html' => $html,
+        ]);
+    }
+
+    public function stuckSummary(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $roles = app(OperationsRoleService::class);
+
+        if (
+            $user === null
+            || ! $roles->usesAdminQueues($user)
+            || ! $user->can('dashboard.hardware.view')
+        ) {
+            abort(403);
+        }
+
+        $summary = $this->hardwareDashboard->stuckOrderSummary();
+
+        return response()->json([
+            'html' => view('dashboard.partials.admin-hardware-stuck-card', [
+                'summary' => $summary,
+            ])->render(),
+            'summary' => $summary,
         ]);
     }
 }
