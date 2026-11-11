@@ -21,6 +21,7 @@ use App\Services\StatutoryInvoice\StatutoryInvoiceCreditNotePolicy;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
 use App\Services\StatutoryInvoice\StatutoryInvoicePaymentReadService;
 use App\Services\StatutoryInvoice\StatutoryInvoicePaymentReconciliationService;
+use App\Services\StatutoryInvoice\StatutoryInvoiceCancelledRecoveryService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceRefundReviewService;
 use App\Services\StatutoryInvoice\StatutoryInvoiceService;
 use App\Support\Finance\CsvDownload;
@@ -102,8 +103,10 @@ class StatutoryInvoiceController extends Controller
             && $cancellationAdmin->maySubmitCancellationRequest;
 
         $refundReview = null;
+        $cancelledRecovery = null;
         if ($invoice->status === StatutoryInvoiceStatus::Cancelled) {
             $refundReview = app(StatutoryInvoiceRefundReviewService::class)->snapshot($invoice);
+            $cancelledRecovery = app(StatutoryInvoiceCancelledRecoveryService::class)->assess($invoice);
         }
 
         $paymentSummary = app(StatutoryInvoicePaymentReadService::class)->summary($invoice);
@@ -115,6 +118,7 @@ class StatutoryInvoiceController extends Controller
             'canCancelInvoice' => $canCancelInvoice,
             'cancellationAdmin' => $cancellationAdmin,
             'refundReview' => $refundReview,
+            'cancelledRecovery' => $cancelledRecovery,
             'canRequestRefund' => $refundReview?->allowsExplicitRefundRequest(request()->user()) ?? false,
             'paymentSummary' => $paymentSummary,
             'canRecordPayment' => FinanceAccess::allowsPaymentRecord(request()->user())

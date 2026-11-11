@@ -102,6 +102,11 @@
                 </div>
             </div>
         @endif
+        @include('finance.invoices.partials.cancelled-recovery', [
+            'cancelledRecovery' => $cancelledRecovery ?? null,
+            'refundReview' => $refundReview ?? null,
+        ])
+
         @if(!empty($refundReview))
             <div class="card shadow-sm mb-4">
                 <div class="card-body small">
