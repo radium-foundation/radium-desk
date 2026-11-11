@@ -11,7 +11,7 @@ Local-only helper for staff browsers. It does not call undocumented APIs, store 
 
 ## Permissions
 
-- Desk hosts (localhost, `*.radiumdesk.test`, production desk host patterns in `manifest.json`)
+- Desk hosts only: `http://localhost`, `http://127.0.0.1`, `https://*.radiumdesk.test`, `https://desk.radiumbox.com`
 - `https://servico.mantratecapp.com/*`
 - `https://rdserviceonline.com/*`
 
@@ -20,8 +20,8 @@ Local-only helper for staff browsers. It does not call undocumented APIs, store 
 1. Desk order workspace starts a short-lived lookup session and messages the extension.
 2. Extension opens the official provider portal and prefills the serial number.
 3. Staff completes CAPTCHA / verification on the provider site.
-4. After visible results render, the extension reads the on-page table and returns a draft to Desk through the Desk tab (no server-side provider requests).
-5. Staff review and confirm in Desk.
+4. When Desk enables `OEM_WARRANTY_EXTENSION_DOM_ENABLED`, after visible results render the extension may read the on-page table and return a draft to Desk through the Desk tab (no server-side provider requests).
+5. Staff review and confirm in Desk. By default, DOM capture is disabled — use manual entry.
 
 ## Manual fallback
 

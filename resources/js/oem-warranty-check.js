@@ -124,6 +124,11 @@ export function initOemWarrantyCheck({ showToast } = {}) {
     };
 
     const postDraftFromExtension = async (draft) => {
+        if (context?.extension_dom_enabled !== true) {
+            toast('Automated capture is disabled. Enter results manually after checking the portal.', 'warning');
+            return;
+        }
+
         await fetch(draftApiUrl, {
             method: 'POST',
             headers: {
@@ -200,6 +205,7 @@ export function initOemWarrantyCheck({ showToast } = {}) {
             handoff_token: handoffToken,
             draft_api_url: draftApiUrl,
             session_public_id: started.session.public_id,
+            extension_dom_enabled: context?.extension_dom_enabled === true,
         };
 
         window.postMessage(message, window.location.origin);

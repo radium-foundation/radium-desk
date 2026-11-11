@@ -9,6 +9,7 @@ use App\Models\OemWarrantyLookupSession;
 use App\Models\Order;
 use App\Models\User;
 use App\Support\Orders\OrderSerialOwnership;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -69,6 +70,18 @@ final class OemWarrantyLookupSessionService
         array $payload,
     ): OemWarrantyLookupSession {
         $session = $this->resolveByHandoffToken($handoffToken);
+
+        if ($captureMethod === OemWarrantyCaptureMethod::ExtensionDom && ! config('oem_warranty.extension_dom_enabled')) {
+            throw ValidationException::withMessages([
+                'capture_method' => 'Automated browser capture is disabled. Enter results manually in Desk.',
+            ]);
+        }
+
+        if (isset($payload['provider']) && (string) $payload['provider'] !== $session->provider->value) {
+            throw ValidationException::withMessages([
+                'provider' => 'Submitted provider does not match the active lookup session.',
+            ]);
+        }
 
         if ($session->status === OemWarrantyLookupSessionStatus::DraftReady && $session->draft_payload !== null) {
             throw ValidationException::withMessages([
@@ -140,7 +153,7 @@ final class OemWarrantyLookupSessionService
     public function assertOwnedBy(OemWarrantyLookupSession $session, User $user): void
     {
         if ((int) $session->user_id !== (int) $user->id) {
-            throw ValidationException::withMessages(['handoff_token' => 'Lookup session belongs to another user.']);
+            throw new AuthorizationException('Lookup session belongs to another user.');
         }
     }
 

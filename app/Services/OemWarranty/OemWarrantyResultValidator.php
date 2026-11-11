@@ -44,6 +44,8 @@ final class OemWarrantyResultValidator
 
         $primary = $this->selectPrimaryRow($provider, $rows, $normalizedSerial);
 
+        $this->assertRowMatchesProvider($provider, $primary, $outcome);
+
         if ($outcome === OemWarrantyLookupOutcome::Found) {
             $rowSerial = OrderSerialOwnership::normalizeSerial($this->stringOrNull($primary['serial_number'] ?? $primary['SerialNo'] ?? $primary['serialNumber'] ?? null));
             if ($rowSerial !== null && Str::upper($rowSerial) !== Str::upper($normalizedSerial)) {
@@ -113,5 +115,40 @@ final class OemWarrantyResultValidator
         $string = trim((string) $value);
 
         return $string === '' ? null : $string;
+    }
+
+    /**
+     * @param  array<string, mixed>  $primary
+     */
+    private function assertRowMatchesProvider(OemWarrantyProvider $provider, array $primary, OemWarrantyLookupOutcome $outcome): void
+    {
+        if ($primary === [] || $outcome === OemWarrantyLookupOutcome::Inconclusive || $outcome === OemWarrantyLookupOutcome::Error) {
+            return;
+        }
+
+        if (($primary['no_record'] ?? false) === true) {
+            return;
+        }
+
+        $hasMantratecShape = $this->stringOrNull($primary['model'] ?? $primary['Model'] ?? null) !== null
+            || $this->stringOrNull($primary['warranty_expiry_date'] ?? $primary['WarrantyExpiryDate'] ?? null) !== null
+            || $this->stringOrNull($primary['rd_expiry_date'] ?? $primary['RdExpiryDate'] ?? null) !== null;
+
+        $hasMorphoShape = $this->stringOrNull($primary['order_number'] ?? $primary['orderNumber'] ?? null) !== null
+            || $this->stringOrNull($primary['whitelisting_date'] ?? null) !== null
+            || $this->stringOrNull($primary['expiry_date'] ?? null) !== null
+            || $this->stringOrNull($primary['validity_years'] ?? null) !== null;
+
+        if ($provider === OemWarrantyProvider::Mantratec && $hasMorphoShape && ! $hasMantratecShape) {
+            throw ValidationException::withMessages([
+                'rows' => 'Results do not match the MantraTec provider for this session.',
+            ]);
+        }
+
+        if ($provider === OemWarrantyProvider::Morpho && $hasMantratecShape && ! $hasMorphoShape) {
+            throw ValidationException::withMessages([
+                'rows' => 'Results do not match the Morpho provider for this session.',
+            ]);
+        }
     }
 }

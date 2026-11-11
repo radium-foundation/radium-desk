@@ -47,6 +47,10 @@ const setup = async () => {
         serialInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
+    if (activeLookup.extension_dom_enabled !== true) {
+        return;
+    }
+
     const observer = new MutationObserver(() => {
         const rows = readTable();
         const resultDiv = document.querySelector('#divResult');

@@ -67,6 +67,8 @@ class OemWarrantyLookupController extends Controller
             ]);
 
         return response()->json([
+            'extension_dom_enabled' => (bool) config('oem_warranty.extension_dom_enabled'),
+            'capture_attestation' => 'Staff-attested portal results; not vendor-authorized automated extraction.',
             'suggested_provider' => $resolution['suggested']?->value,
             'requires_provider_selection' => $resolution['requires_selection'],
             'provider_reason' => $resolution['reason'],

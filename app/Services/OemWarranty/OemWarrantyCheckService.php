@@ -25,15 +25,15 @@ final class OemWarrantyCheckService
 
     public function confirmSession(OemWarrantyLookupSession $session, User $user): OemWarrantyCheck
     {
-        if ($session->status !== OemWarrantyLookupSessionStatus::DraftReady || ! is_array($session->draft_payload)) {
+        if ($session->consumed_at !== null || $session->status === OemWarrantyLookupSessionStatus::Consumed) {
             throw ValidationException::withMessages([
-                'session' => 'No draft is ready for confirmation.',
+                'session' => 'This lookup session was already confirmed.',
             ]);
         }
 
-        if ($session->consumed_at !== null) {
+        if ($session->status !== OemWarrantyLookupSessionStatus::DraftReady || ! is_array($session->draft_payload)) {
             throw ValidationException::withMessages([
-                'session' => 'This lookup session was already confirmed.',
+                'session' => 'No draft is ready for confirmation.',
             ]);
         }
 
@@ -45,6 +45,12 @@ final class OemWarrantyCheckService
                 $captureEnum = $captureMethod;
             } else {
                 $captureEnum = OemWarrantyCaptureMethod::from((string) $captureMethod);
+            }
+
+            if ($captureEnum === OemWarrantyCaptureMethod::ExtensionDom && ! config('oem_warranty.extension_dom_enabled')) {
+                throw ValidationException::withMessages([
+                    'session' => 'Automated browser capture is disabled. Save results using manual entry.',
+                ]);
             }
 
             $check = $this->persistCheck(

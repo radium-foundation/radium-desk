@@ -21,6 +21,7 @@ class OemWarrantyLookupTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+        config(['oem_warranty.extension_dom_enabled' => true]);
     }
 
     public function test_provider_resolver_requires_selection_when_metadata_ambiguous(): void

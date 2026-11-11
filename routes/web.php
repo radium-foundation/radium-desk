@@ -277,11 +277,14 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('orders/{order}/oem-warranty/sessions', [OemWarrantyLookupController::class, 'start'])
         ->name('orders.oem-warranty.sessions.start');
     Route::get('orders/{order}/oem-warranty/sessions/{oemWarrantyLookupSession:public_id}', [OemWarrantyLookupController::class, 'showSession'])
-        ->name('orders.oem-warranty.sessions.show');
+        ->name('orders.oem-warranty.sessions.show')
+        ->withoutScopedBindings();
     Route::post('orders/{order}/oem-warranty/sessions/{oemWarrantyLookupSession:public_id}/cancel', [OemWarrantyLookupController::class, 'cancel'])
-        ->name('orders.oem-warranty.sessions.cancel');
+        ->name('orders.oem-warranty.sessions.cancel')
+        ->withoutScopedBindings();
     Route::post('orders/{order}/oem-warranty/sessions/{oemWarrantyLookupSession:public_id}/confirm', [OemWarrantyLookupController::class, 'confirm'])
-        ->name('orders.oem-warranty.sessions.confirm');
+        ->name('orders.oem-warranty.sessions.confirm')
+        ->withoutScopedBindings();
     Route::post('orders/{order}/oem-warranty/manual', [OemWarrantyLookupController::class, 'manual'])
         ->name('orders.oem-warranty.manual');
     Route::resource('orders', OrderController::class);

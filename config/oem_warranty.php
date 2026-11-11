@@ -4,8 +4,17 @@ return [
     'session_ttl_seconds' => (int) env('OEM_WARRANTY_SESSION_TTL_SECONDS', 900),
     'extension_id' => env('OEM_WARRANTY_CHROME_EXTENSION_ID'),
 
+    /**
+     * When false (default), Desk rejects extension DOM drafts and confirm paths that depend on them.
+     * Manual entry remains available. Enabling requires Owner approval of provider permissions.
+     */
+    'extension_dom_enabled' => filter_var(
+        env('OEM_WARRANTY_EXTENSION_DOM_ENABLED', false),
+        FILTER_VALIDATE_BOOL,
+    ),
+
     'desk_url_patterns' => [
-        '/orders/',
+        '/^\/orders\/\d+(?:\/|$)/',
     ],
 
     'allowed_desk_host_suffixes' => array_filter(array_map(

@@ -33,7 +33,8 @@
         <form method="dialog" class="p-3" style="min-width: min(480px, 92vw);">
             <h3 class="h6 mb-3">OEM warranty / RD check</h3>
             <p class="small text-muted mb-2" data-oem-warranty-dialog-help>
-                Desk opens the official provider portal in your browser. Complete any CAPTCHA or verification, then review results before saving.
+                Desk opens the official provider portal in your browser. Complete any CAPTCHA or verification, then enter or review results before saving.
+                Automated browser extraction is off by default; captured values are staff-attested, not vendor-authorized.
             </p>
             <div class="mb-2" data-oem-warranty-provider-row hidden>
                 <label class="form-label">Provider</label>
