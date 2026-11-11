@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.1.64 — 2026-11-11 — Deployment migration/seeder safeguards (P-11-21 / P-11-23)
+
+- **Purpose:** Operational safety release — prevent accidental full or targeted database migrations and `RolePermissionSeeder` runs from supported deploy entry points unless Owner sets explicit opt-in flags immediately before the operation.
+- **Scope:** Deploy tooling only (`tools/`). **No application runtime, schema, or permission changes** in this release cut.
+- **KVM + legacy deploy (`desk deploy`, `desk deploy-legacy`):** `DEPLOY_RUN_MIGRATIONS` and `DEPLOY_RUN_ROLE_PERMISSION_SEED` default **0** (P-11-21).
+- **Legacy rollback (`desk rollback-legacy`):** `DEPLOY_RUN_MIGRATIONS` default **0**.
+- **Special-purpose overlays:** `deploy-catalog-price-sync-kvm.sh` requires `DEPLOY_RUN_CATALOG_PRICE_SYNC_MIGRATION=1` for the `catalog_price_sync_logs` migration; `phase-b1-storefront-controls-kvm8.sh` requires `DEPLOY_RUN_PHASE_B1_STOREFRONT_MIGRATION=1` for storefront columns migration. Both support `DRY_RUN=1` (no remote mutations).
+- **KVM rollback:** `desk rollback` remains **disabled** on KVM (redeploy known-good tag).
+- **Production baseline (pre-deploy):** **`v4.1.63` / `f8a781c4`**.
+- **Production notes:** This CHANGELOG entry **does not authorize deployment by itself**. Fresh backup + RIP pre-checkpoint required before deploy. Do **not** set migration/seeder flags unless Owner authorises schema or permission work.
+- **Rollback target (application):** **`v4.1.63` / `f8a781c4`**.
+- **Source:** **`main`** @ tag **`v4.1.64`** (after merge).
+- **Validation (scoped):** `tests/scripts/deploy-post-sync.test.sh`, `tests/scripts/deploy-entrypoints-guards.test.sh`, `tests/scripts/deploy-kvm.test.sh`; `desk deploy --dry-run`; full PHPUnit **NOT RUN**.
+
 ## 4.1.63 — 2026-11-11 — Production deploy bundle (P-11-18) — same application scope as 4.1.62
 
 - **Purpose:** Authoritative deploy tag after verified encrypted backup **`20261111T053533Z`**, isolated restore drill, and ledger rows **P-11-17** / **P-11-18**. Application scope unchanged from **4.1.62** ( **`bc8fdbdc`** fulfilment + dashboard + admin UX on top of **4.1.57** prod).

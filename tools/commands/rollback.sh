@@ -14,6 +14,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tools/lib.sh
 source "$SCRIPT_DIR/../lib.sh"
+# shellcheck source=tools/lib/deploy-post-sync.sh
+source "$SCRIPT_DIR/../lib/deploy-post-sync.sh"
 
 if [[ "${DEPLOY_MODE:-}" == "kvm" ]]; then
     print_error "Legacy shared-hosting rollback is disabled when DEPLOY_MODE=kvm."
@@ -43,9 +45,8 @@ print_warning "Reinstalling Composer dependencies..."
 composer_exec install --no-dev --optimize-autoloader
 print_success "Composer install completed"
 
-print_warning "Running pending migrations (if any)..."
-php_exec migrate --force
-print_success "Migrations completed"
+deploy_validate_post_sync_flags
+deploy_maybe_run_migrations
 
 print_warning "Rebuilding caches..."
 php_exec optimize:clear

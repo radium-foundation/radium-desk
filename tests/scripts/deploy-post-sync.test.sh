@@ -122,4 +122,24 @@ output="$(deploy_maybe_run_migrations 2>&1)"
 echo "$output" | grep -q '1 pending migration' || fail "must log pending migration count"
 pass "migration opt-in logs pending count"
 
+# 9. Targeted path migration opt-in
+PHP_INVOKED=()
+export DEPLOY_RUN_CATALOG_PRICE_SYNC_MIGRATION=0
+deploy_maybe_run_path_migration \
+    DEPLOY_RUN_CATALOG_PRICE_SYNC_MIGRATION \
+    "database/migrations/2026_09_19_120000_create_catalog_price_sync_logs_table.php" \
+    "Catalog price sync overlay"
+if [[ ${#PHP_INVOKED[@]} -gt 0 ]]; then
+    fail "default must skip targeted path migration"
+fi
+PHP_INVOKED=()
+export DEPLOY_RUN_CATALOG_PRICE_SYNC_MIGRATION=1
+deploy_maybe_run_path_migration \
+    DEPLOY_RUN_CATALOG_PRICE_SYNC_MIGRATION \
+    "database/migrations/2026_09_19_120000_create_catalog_price_sync_logs_table.php" \
+    "Catalog price sync overlay"
+printf '%s\n' "${PHP_INVOKED[@]}" | grep -q 'migrate --force --path=database/migrations/2026_09_19_120000_create_catalog_price_sync_logs_table.php' \
+    || fail "targeted migration opt-in must run migrate --path"
+pass "targeted path migration opt-in"
+
 echo "All deploy-post-sync behavioural checks passed."
