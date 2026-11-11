@@ -128,7 +128,7 @@ Equivalent direct invocation: `./tools/desk deploy-kvm`
 3. **Rsync deletion safety gate** — dry-run inventory, classify deletions (`expected` vs unexpected production-only files), require explicit `delete-unexpected` approval when needed, back up affected remote files under `storage/app/backups/deploy-rsync-safety-<UTC>/`, persist audit under local `storage/app/deploy-backups/rsync-deletion-inventory-<UTC>/`
 4. Rsync application source to `REMOTE_PROJECT` (excludes `.env`, `vendor/`, `storage/logs`, `storage/framework/`, etc.; `--delete` remains enabled for controlled stale release cleanup)
 5. Sync `public/build/` to KVM `public/build/`
-6. Remote: `composer install --no-dev`, `migrate --force`, role permission seed, cache rebuild
+6. Remote: `composer install --no-dev`, cache rebuild (migrations and `RolePermissionSeeder` are **skipped by default** — set `DEPLOY_RUN_MIGRATIONS=1` and/or `DEPLOY_RUN_ROLE_PERMISSION_SEED=1` immediately before `desk deploy` when Owner-authorised)
 7. Restart Supervisor queue worker (`SUPERVISOR_PROGRAM`)
 8. KVM health check (`/up`) and Vite manifest verification
 
@@ -200,7 +200,7 @@ Blocked when `DEPLOY_MODE=kvm` — use `desk deploy` instead.
 1. Run `npm run build` locally
 2. On the remote Laravel project: if the legacy tracked Platform Health heartbeat file is still in the index, discard local runtime edits to it, then `git pull origin main` (heartbeat JSON is runtime-only and gitignored under `storage/framework/platform-health/`)
 3. `composer install --no-dev --optimize-autoloader`
-4. `php artisan migrate --force`
+4. Migrations and `RolePermissionSeeder` are **skipped by default** (same `DEPLOY_RUN_MIGRATIONS` / `DEPLOY_RUN_ROLE_PERMISSION_SEED` opt-in flags as KVM deploy)
 5. Sync `public/build/` to **both** `LEGACY_REMOTE_PUBLIC/build/` (web assets) and `REMOTE_PROJECT/public/build/` (Laravel manifest)
 6. Synchronize other `public/` assets to `LEGACY_REMOTE_PUBLIC` (excluding `build/` and `index.php`)
 7. `php artisan optimize:clear` then `php artisan optimize`

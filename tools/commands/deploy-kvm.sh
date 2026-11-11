@@ -18,6 +18,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib.sh"
 # shellcheck source=tools/lib/deploy-rsync-safety.sh
 source "$SCRIPT_DIR/../lib/deploy-rsync-safety.sh"
+# shellcheck source=tools/lib/deploy-post-sync.sh
+source "$SCRIPT_DIR/../lib/deploy-post-sync.sh"
 # shellcheck source=tools/lib/rip-pre-deploy-gate.sh
 source "$SCRIPT_DIR/../lib/rip-pre-deploy-gate.sh"
 
@@ -272,6 +274,8 @@ fix_remote_ownership() {
 }
 
 run_remote_post_sync() {
+    deploy_validate_post_sync_flags
+
     print_warning "Verifying artisan exists on KVM..."
     ssh_exec "test -x '$REMOTE_PROJECT/artisan'"
     print_success "artisan present"
@@ -280,14 +284,8 @@ run_remote_post_sync() {
     composer_exec install --no-dev --optimize-autoloader
     print_success "Composer install completed"
 
-    print_warning "Running database migrations..."
-    php_exec migrate --force
-    print_success "Migrations completed"
-
-    print_warning "Seeding role permissions..."
-    php_exec db:seed --class=RolePermissionSeeder --force
-    php_exec permission:cache-reset
-    print_success "Role permissions seeded"
+    deploy_maybe_run_migrations
+    deploy_maybe_run_role_permission_seeder
 
     print_warning "Clearing and rebuilding Laravel caches..."
     php_exec optimize:clear

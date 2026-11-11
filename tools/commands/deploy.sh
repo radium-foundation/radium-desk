@@ -20,6 +20,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tools/lib.sh
 source "$SCRIPT_DIR/../lib.sh"
+# shellcheck source=tools/lib/deploy-post-sync.sh
+source "$SCRIPT_DIR/../lib/deploy-post-sync.sh"
 
 if [[ "${DEPLOY_MODE:-}" == "kvm" ]]; then
     print_error "Legacy shared-hosting deploy is disabled when DEPLOY_MODE=kvm."
@@ -78,13 +80,9 @@ print_warning "Installing Composer dependencies (production)..."
 composer_exec install --no-dev --optimize-autoloader
 print_success "Composer install completed"
 
-print_warning "Running database migrations..."
-php_exec migrate --force
-print_success "Migrations completed"
-print_warning "Seeding role permissions..."
-php_exec db:seed --class=RolePermissionSeeder --force
-php_exec permission:cache-reset
-print_success "Role permissions seeded"
+deploy_validate_post_sync_flags
+deploy_maybe_run_migrations
+deploy_maybe_run_role_permission_seeder
 # --- Upload assets (after code is current, before cache rebuild) ---
 
 print_warning "Syncing Vite build to public_html and Laravel public/build..."
