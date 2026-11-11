@@ -12,6 +12,12 @@ use Illuminate\Support\Facades\Cache;
  */
 final class HardwareDashboardCountsCache
 {
+    /** @var array<string, array<string, int>> */
+    private array $requestFilterCounts = [];
+
+    /** @var array<string, array{active: int, shipped: int}> */
+    private array $requestScopeCounts = [];
+
     public function __construct(
         private readonly HardwareNeedsActionSqlQuery $needsActionSql,
         private readonly HardwareFulfilmentWorkQueue $workQueue,
@@ -22,16 +28,25 @@ final class HardwareDashboardCountsCache
      */
     public function filterCounts(Carbon $fromIst, Carbon $toIst, string $search = ''): array
     {
-        $ttl = max(5, (int) config('dashboard.hardware_counts_ttl_seconds', 30));
+        $ttl = $this->countsTtlSeconds();
+        $identity = $this->rangeCacheIdentity($fromIst, $toIst);
+        $memoKey = 'filter|'.$identity.'|'.strtoupper(trim($search));
+
+        if (array_key_exists($memoKey, $this->requestFilterCounts)) {
+            return $this->requestFilterCounts[$memoKey];
+        }
+
         $key = 'hardware.dashboard.filter_counts.'.sha1(
-            $fromIst->toIso8601String().'|'.$toIst->toIso8601String().'|'.strtoupper(trim($search)),
+            $identity.'|'.strtoupper(trim($search)),
         );
 
-        return Cache::remember(
+        $counts = Cache::remember(
             $key,
             $ttl,
             fn (): array => $this->needsActionSql->filterCounts($fromIst, $toIst, $search),
         );
+
+        return $this->requestFilterCounts[$memoKey] = $counts;
     }
 
     /**
@@ -39,12 +54,17 @@ final class HardwareDashboardCountsCache
      */
     public function scopeCounts(Carbon $fromIst, Carbon $toIst): array
     {
-        $ttl = max(5, (int) config('dashboard.hardware_counts_ttl_seconds', 30));
-        $key = 'hardware.dashboard.scope_counts.'.sha1(
-            $fromIst->toIso8601String().'|'.$toIst->toIso8601String(),
-        );
+        $ttl = $this->countsTtlSeconds();
+        $identity = $this->rangeCacheIdentity($fromIst, $toIst);
+        $memoKey = 'scope|'.$identity;
 
-        return Cache::remember($key, $ttl, fn (): array => [
+        if (array_key_exists($memoKey, $this->requestScopeCounts)) {
+            return $this->requestScopeCounts[$memoKey];
+        }
+
+        $key = 'hardware.dashboard.scope_counts.'.sha1($identity);
+
+        $counts = Cache::remember($key, $ttl, fn (): array => [
             'active' => $this->workQueue->workspaceTotal($fromIst, $toIst),
             'shipped' => HardwareFulfilment::query()
                 ->whereIn('state', [
@@ -53,5 +73,24 @@ final class HardwareDashboardCountsCache
                 ])
                 ->count(),
         ]);
+
+        return $this->requestScopeCounts[$memoKey] = $counts;
+    }
+
+    /**
+     * Stable cache identity: query range uses real instants; keys bucket "to" per TTL.
+     */
+    public function rangeCacheIdentity(Carbon $fromIst, Carbon $toIst): string
+    {
+        $ttl = $this->countsTtlSeconds();
+        $bucketStart = intdiv($toIst->timestamp, $ttl) * $ttl;
+        $bucketTo = Carbon::createFromTimestamp($bucketStart, $toIst->timezone);
+
+        return $fromIst->toIso8601String().'|'.$bucketTo->toIso8601String();
+    }
+
+    private function countsTtlSeconds(): int
+    {
+        return max(5, (int) config('dashboard.hardware_counts_ttl_seconds', 30));
     }
 }
