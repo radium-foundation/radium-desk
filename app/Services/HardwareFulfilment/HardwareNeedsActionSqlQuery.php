@@ -312,9 +312,57 @@ final class HardwareNeedsActionSqlQuery
             if ($blocked !== []) {
                 $inner->orWhereIn('hardware_fulfilments.source_id', $blocked);
             }
+
+            $inner->orWhere(function (Builder $provider): void {
+                $this->constrainUnrecoverableProviderRejected($provider);
+            });
         });
 
         return $query;
+    }
+
+    /**
+     * SQL approximation of {@see HardwareFulfilmentOperationalClassifier::providerRejectionIsUnrecoverable()}
+     * for dashboard Exceptions legacy parity. Recoverable courier-option retries stay out.
+     */
+    private function constrainUnrecoverableProviderRejected(Builder $query): void
+    {
+        $query->whereNotIn('hardware_fulfilments.state', [
+            HardwareFulfilmentState::Shipped->value,
+            HardwareFulfilmentState::Synced->value,
+            HardwareFulfilmentState::CancelledHistoricalDuplicate->value,
+        ])->whereNotIn('hardware_fulfilments.source_id', $this->ownerBlockedSourceIds());
+
+        $this->whereHasAllocatedSerial($query);
+        $this->whereHasInvoice($query);
+
+        $query->whereExists(function ($sub): void {
+            $sub->selectRaw('1')
+                ->from('shipments')
+                ->where(function ($join): void {
+                    $join->whereColumn('shipments.id', 'hardware_fulfilments.shipment_id')
+                        ->orWhereColumn('shipments.hardware_fulfilment_id', 'hardware_fulfilments.id');
+                })
+                ->where('shipments.failure_class', 'provider_rejected')
+                ->whereNotNull('shipments.last_error')
+                ->where(function ($unbound): void {
+                    $unbound->whereNull('shipments.external_shipment_id')
+                        ->orWhere('shipments.external_shipment_id', '=', '');
+                })
+                ->where(function ($unbound): void {
+                    $unbound->whereNull('shipments.external_order_id')
+                        ->orWhere('shipments.external_order_id', '=', '');
+                });
+        });
+
+        $query->whereNot(function (Builder $recoverable): void {
+            $recoverable->whereNotNull('hardware_fulfilments.courier_options_snapshot')
+                ->where(function (Builder $fresh): void {
+                    $fresh->whereNull('hardware_fulfilments.courier_options_expires_at')
+                        ->orWhere('hardware_fulfilments.courier_options_expires_at', '>', now());
+                })
+                ->whereNull('hardware_fulfilments.selected_courier_id');
+        });
     }
 
     private function scheduledFulfilmentQuery(string $search): Builder
