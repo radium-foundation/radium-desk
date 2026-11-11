@@ -329,7 +329,33 @@
                 'branch_id' => $filters['branch_id'] ?? null,
                 'state' => $filters['state'] ?? '',
             ], static fn ($value): bool => $value !== null && $value !== '');
+            $activeAssignee = ($showAssigneeFilter ?? false) ? ($filters['assignee_id'] ?? '') : '';
+            $assigneePreserve = $activeAssignee !== '' ? ['assignee_id' => $activeAssignee] : [];
         @endphp
+        @if($showAssigneeFilter ?? false)
+            <div class="dashboard-case-filters dashboard-operation-queues hardware-ops-sections mb-3" role="tablist" aria-label="Open fulfilments assignee filters">
+                @foreach($assigneeChips ?? [] as $chip)
+                    @php
+                        $assigneeChipParams = array_merge(
+                            $openChipBase,
+                            array_filter([
+                                'shipment_status' => $filters['shipment_status'] ?? '',
+                            ], static fn ($value): bool => $value !== ''),
+                            $chip['key'] !== '' ? ['assignee_id' => $chip['key']] : [],
+                        );
+                    @endphp
+                    <a @class([
+                           'dashboard-case-filter-chip',
+                           'dashboard-case-filter-chip--secondary',
+                           'is-active' => $activeAssignee === $chip['key'],
+                       ])
+                       href="{{ route('inventory.hardware-fulfilments.index', $assigneeChipParams) }}">
+                        <span class="dashboard-case-filter-chip__label">{{ $chip['label'] }}</span>
+                        <span class="dashboard-case-filter-chip__count">({{ $chip['count'] }})</span>
+                    </a>
+                @endforeach
+            </div>
+        @endif
         <div class="dashboard-case-filters dashboard-operation-queues hardware-ops-sections mb-3" role="tablist" aria-label="Open fulfilments shipping filters">
             @foreach([
                 ['key' => '', 'label' => 'All open', 'tone' => 'primary'],
@@ -343,7 +369,7 @@
                        'dashboard-case-filter-chip--'.$chip['tone'],
                        'is-active' => $activeShipment === $chip['key'],
                    ])
-                   href="{{ route('inventory.hardware-fulfilments.index', array_merge($openChipBase, $chip['key'] === '' ? [] : ['shipment_status' => $chip['key']])) }}">
+                   href="{{ route('inventory.hardware-fulfilments.index', array_merge($openChipBase, $assigneePreserve, $chip['key'] === '' ? [] : ['shipment_status' => $chip['key']])) }}">
                     <span class="dashboard-case-filter-chip__label">{{ $chip['label'] }}</span>
                     <span class="dashboard-case-filter-chip__count">({{ $openCounts[$chip['key']] ?? 0 }})</span>
                 </a>
@@ -352,6 +378,9 @@
 
         <form method="GET" action="{{ route('inventory.hardware-fulfilments.index') }}" class="card border-0 shadow-sm mb-3">
             <input type="hidden" name="queue" value="open">
+            @if($showAssigneeFilter ?? false)
+                <input type="hidden" name="assignee_id" value="{{ $filters['assignee_id'] ?? '' }}">
+            @endif
             <div class="card-body">
                 <div class="row g-2 align-items-end">
                     <div class="col-md-3">
@@ -407,6 +436,9 @@
                             <th>Status</th>
                             <th>Physical branch</th>
                             <th>Shipment</th>
+                            @if($showAssigneeFilter ?? false)
+                                <th>Assignee</th>
+                            @endif
                             <th></th>
                         </tr>
                     </thead>
@@ -426,6 +458,14 @@
                                         Not created
                                     @endif
                                 </td>
+                                @if($showAssigneeFilter ?? false)
+                                    <td>
+                                        @php
+                                            $assigneeId = $fulfilment->open_case_assignee_id ?? null;
+                                        @endphp
+                                        {{ $assigneeId ? ($assigneeLabels[$assigneeId] ?? '—') : 'Unassigned' }}
+                                    </td>
+                                @endif
                                 <td class="text-end">
                                     <a href="{{ route('inventory.hardware-fulfilments.show', $fulfilment) }}">
                                         {{ $fulfilment->state?->value === 'ready_for_fulfilment' ? 'Allocate serial' : 'Open' }}
@@ -434,7 +474,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-muted">No open hardware fulfilments. This is not every hardware order — use Work Queue or Awaiting Fulfilment.</td>
+                                <td colspan="{{ ($showAssigneeFilter ?? false) ? 7 : 6 }}" class="text-muted">No open hardware fulfilments. This is not every hardware order — use Work Queue or Awaiting Fulfilment.</td>
                             </tr>
                         @endforelse
                     </tbody>
