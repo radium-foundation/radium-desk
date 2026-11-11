@@ -325,6 +325,10 @@ class HardwareMixedSerializedFulfilmentTest extends TestCase
         $response->assertOk();
         $this->assertSame(1, substr_count((string) $response->getContent(), 'data-hardware-serial-picker'));
         $response->assertSee('deducted automatically with serial allocation', false);
+        $response->assertSee('Serials allocated: 0 / 1', false);
+        $response->assertDontSee('Product 2', false);
+        $response->assertDontSee('Serials allocated: 0 / 2', false);
+        $response->assertDontSee('Total required: 2', false);
     }
 
     public function test_requirements_mark_non_serialized_lines_correctly(): void
