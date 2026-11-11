@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use InvalidArgumentException;
 
 /**
  * SQL equivalents of verified Needs Action classifier rules.
@@ -182,6 +183,21 @@ final class HardwareNeedsActionSqlQuery
             ->pluck('hardware_fulfilments.id')
             ->map(static fn ($id): int => (int) $id)
             ->all();
+    }
+
+    /**
+     * Fulfilment-scoped needs-action classifier query (excludes awaiting-ingest orders).
+     */
+    public function fulfilmentReasonQuery(HardwareWorkspaceFilter $filter, string $search = ''): Builder
+    {
+        return match ($filter) {
+            HardwareWorkspaceFilter::MappingRequired => $this->mappingRequiredFulfilmentQuery($search),
+            HardwareWorkspaceFilter::AwaitingSerial => $this->awaitingSerialQuery($search),
+            HardwareWorkspaceFilter::AwbPending => $this->awbPendingQuery($search),
+            HardwareWorkspaceFilter::PackagePhotoPending => $this->packagePhotoPendingQuery($search),
+            HardwareWorkspaceFilter::NeedsAction => $this->activeNeedsActionFulfilmentQuery($search),
+            default => throw new InvalidArgumentException('Unsupported hardware waiting reason filter: '.$filter->value),
+        };
     }
 
     private function mappingRequiredCount(Carbon $fromIst, Carbon $toIst, string $search): int

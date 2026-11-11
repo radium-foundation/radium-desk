@@ -331,6 +331,8 @@
             ], static fn ($value): bool => $value !== null && $value !== '');
             $activeAssignee = ($showAssigneeFilter ?? false) ? ($filters['assignee_id'] ?? '') : '';
             $assigneePreserve = $activeAssignee !== '' ? ['assignee_id' => $activeAssignee] : [];
+            $activeWaitingReason = ($showWaitingReasonFilter ?? false) ? ($filters['waiting_reason'] ?? '') : '';
+            $waitingReasonPreserve = $activeWaitingReason !== '' ? ['waiting_reason' => $activeWaitingReason] : [];
         @endphp
         @if($showAssigneeFilter ?? false)
             <div class="dashboard-case-filters dashboard-operation-queues hardware-ops-sections mb-3" role="tablist" aria-label="Open fulfilments assignee filters">
@@ -341,6 +343,7 @@
                             array_filter([
                                 'shipment_status' => $filters['shipment_status'] ?? '',
                             ], static fn ($value): bool => $value !== ''),
+                            $waitingReasonPreserve,
                             $chip['key'] !== '' ? ['assignee_id' => $chip['key']] : [],
                         );
                     @endphp
@@ -350,6 +353,31 @@
                            'is-active' => $activeAssignee === $chip['key'],
                        ])
                        href="{{ route('inventory.hardware-fulfilments.index', $assigneeChipParams) }}">
+                        <span class="dashboard-case-filter-chip__label">{{ $chip['label'] }}</span>
+                        <span class="dashboard-case-filter-chip__count">({{ $chip['count'] }})</span>
+                    </a>
+                @endforeach
+            </div>
+        @endif
+        @if($showWaitingReasonFilter ?? false)
+            <div class="dashboard-case-filters dashboard-operation-queues hardware-ops-sections mb-3" role="tablist" aria-label="Open fulfilments waiting reason filters">
+                @foreach($waitingReasonChips ?? [] as $chip)
+                    @php
+                        $waitingChipParams = array_merge(
+                            $openChipBase,
+                            array_filter([
+                                'shipment_status' => $filters['shipment_status'] ?? '',
+                            ], static fn ($value): bool => $value !== ''),
+                            $assigneePreserve,
+                            $chip['key'] !== '' ? ['waiting_reason' => $chip['key']] : [],
+                        );
+                    @endphp
+                    <a @class([
+                           'dashboard-case-filter-chip',
+                           'dashboard-case-filter-chip--'.$chip['tone'],
+                           'is-active' => $activeWaitingReason === $chip['key'],
+                       ])
+                       href="{{ route('inventory.hardware-fulfilments.index', $waitingChipParams) }}">
                         <span class="dashboard-case-filter-chip__label">{{ $chip['label'] }}</span>
                         <span class="dashboard-case-filter-chip__count">({{ $chip['count'] }})</span>
                     </a>
@@ -369,7 +397,7 @@
                        'dashboard-case-filter-chip--'.$chip['tone'],
                        'is-active' => $activeShipment === $chip['key'],
                    ])
-                   href="{{ route('inventory.hardware-fulfilments.index', array_merge($openChipBase, $assigneePreserve, $chip['key'] === '' ? [] : ['shipment_status' => $chip['key']])) }}">
+                   href="{{ route('inventory.hardware-fulfilments.index', array_merge($openChipBase, $assigneePreserve, $waitingReasonPreserve, $chip['key'] === '' ? [] : ['shipment_status' => $chip['key']])) }}">
                     <span class="dashboard-case-filter-chip__label">{{ $chip['label'] }}</span>
                     <span class="dashboard-case-filter-chip__count">({{ $openCounts[$chip['key']] ?? 0 }})</span>
                 </a>
@@ -380,6 +408,9 @@
             <input type="hidden" name="queue" value="open">
             @if($showAssigneeFilter ?? false)
                 <input type="hidden" name="assignee_id" value="{{ $filters['assignee_id'] ?? '' }}">
+            @endif
+            @if($showWaitingReasonFilter ?? false)
+                <input type="hidden" name="waiting_reason" value="{{ $filters['waiting_reason'] ?? '' }}">
             @endif
             <div class="card-body">
                 <div class="row g-2 align-items-end">
