@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\HardwareFulfilmentStatusController;
 use App\Http\Controllers\Api\V1\ChannelOrderIngestController;
+use App\Http\Controllers\Api\V1\OemWarrantySessionDraftController;
 use App\Http\Controllers\Webhooks\BonvoiceWebhookController;
 use App\Http\Controllers\Webhooks\CashfreeWebhookController;
 use App\Http\Controllers\Webhooks\InteraktFlowWebhookController;
@@ -29,3 +30,7 @@ Route::get('/v1/channel-orders/{sourceType}/{sourceId}/document', [ChannelOrderI
 
 Route::post('/desk/fulfilment-status', [HardwareFulfilmentStatusController::class, 'store'])
     ->name('api.desk.fulfilment-status');
+
+Route::post('/v1/oem-warranty/sessions/draft', [OemWarrantySessionDraftController::class, 'store'])
+    ->middleware('throttle:30,1')
+    ->name('api.v1.oem-warranty.sessions.draft');

@@ -74,6 +74,7 @@ use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\MyPerformanceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
+use App\Http\Controllers\OemWarranty\OemWarrantyLookupController;
 use App\Http\Controllers\OnlineReturnRefundAllocationController;
 use App\Http\Controllers\OnlineReturnRefundAllocationOpmConversionController;
 use App\Http\Controllers\OperationalSystemSettingsController;
@@ -271,6 +272,18 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::delete('orders/{order}/transaction', [OrderTransactionController::class, 'destroy'])->name('orders.transaction.destroy');
     Route::post('orders/{order}/serial', [OrderSerialController::class, 'store'])->name('orders.serial.store');
     Route::post('orders/{order}/device-model', [OrderDeviceModelController::class, 'store'])->name('orders.device-model.store');
+    Route::get('orders/{order}/oem-warranty/context', [OemWarrantyLookupController::class, 'context'])
+        ->name('orders.oem-warranty.context');
+    Route::post('orders/{order}/oem-warranty/sessions', [OemWarrantyLookupController::class, 'start'])
+        ->name('orders.oem-warranty.sessions.start');
+    Route::get('orders/{order}/oem-warranty/sessions/{oemWarrantyLookupSession:public_id}', [OemWarrantyLookupController::class, 'showSession'])
+        ->name('orders.oem-warranty.sessions.show');
+    Route::post('orders/{order}/oem-warranty/sessions/{oemWarrantyLookupSession:public_id}/cancel', [OemWarrantyLookupController::class, 'cancel'])
+        ->name('orders.oem-warranty.sessions.cancel');
+    Route::post('orders/{order}/oem-warranty/sessions/{oemWarrantyLookupSession:public_id}/confirm', [OemWarrantyLookupController::class, 'confirm'])
+        ->name('orders.oem-warranty.sessions.confirm');
+    Route::post('orders/{order}/oem-warranty/manual', [OemWarrantyLookupController::class, 'manual'])
+        ->name('orders.oem-warranty.manual');
     Route::resource('orders', OrderController::class);
     Route::resource('incidents', IncidentController::class);
     Route::patch('incidents/{incident}/assignment', [ServiceCaseAssignmentController::class, 'update'])

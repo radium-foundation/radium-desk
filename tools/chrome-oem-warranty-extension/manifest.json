@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Radium Desk OEM Warranty Helper",
+  "description": "Prefills official MantraTec and Morpho serial validation portals for authenticated Desk staff workflows.",
+  "version": "1.0.0",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": [
+    "https://servico.mantratecapp.com/*",
+    "https://rdserviceonline.com/*"
+  ],
+  "optional_host_permissions": [],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://*.radiumdesk.test/*",
+        "https://desk.radiumbox.com/*",
+        "https://*.radiumbox.com/*"
+      ],
+      "js": ["content-scripts/desk-bridge.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://servico.mantratecapp.com/MasterForms/RDWarrantyCheck.aspx*"],
+      "js": ["content-scripts/mantratec.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://rdserviceonline.com/pages/172iserialvalidatenumber*"],
+      "js": ["content-scripts/morpho.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost/*",
+      "http://127.0.0.1/*",
+      "https://*.radiumdesk.test/*",
+      "https://desk.radiumbox.com/*",
+      "https://*.radiumbox.com/*"
+    ]
+  }
+}

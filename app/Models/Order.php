@@ -7,14 +7,15 @@ use App\Enums\OrderCompletionStatus;
 use App\Enums\OrderStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Support\AppDateFormatter;
+use App\Support\BusinessOrderId;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class Order extends Model
@@ -157,7 +158,7 @@ class Order extends Model
 
         $normalized = strtoupper(trim($orderId));
 
-        $parsed = \App\Support\BusinessOrderId::parse($normalized);
+        $parsed = BusinessOrderId::parse($normalized);
         if ($parsed !== null) {
             return $parsed['hardware'] === true;
         }
@@ -526,6 +527,16 @@ class Order extends Model
     public function incidents(): HasMany
     {
         return $this->hasMany(Incident::class, 'order_record_id');
+    }
+
+    public function oemWarrantyChecks(): HasMany
+    {
+        return $this->hasMany(OemWarrantyCheck::class);
+    }
+
+    public function oemWarrantyLookupSessions(): HasMany
+    {
+        return $this->hasMany(OemWarrantyLookupSession::class);
     }
 
     public function activeIncident(): ?Incident

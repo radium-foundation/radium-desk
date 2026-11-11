@@ -103,4 +103,9 @@ class OrderPolicy
         return $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)
             && $user->can('orders.update');
     }
+
+    public function checkOemWarranty(User $user, Order $order): bool
+    {
+        return $user->can('incidents.update') && filled($order->serial_number);
+    }
 }

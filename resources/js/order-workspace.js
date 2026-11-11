@@ -1,4 +1,5 @@
 import { guardServiceReferenceAssignment } from './customer-intake';
+import { initOemWarrantyCheck } from './oem-warranty-check';
 
 let legacyVerificationModal = null;
 
@@ -74,6 +75,7 @@ export function initOrderWorkspace({ showToast } = {}) {
     }
 
     initOrderWorkspaceTransactionGuard();
+    initOemWarrantyCheck({ showToast });
 }
 
 const initOrderWorkspaceTransactionGuard = () => {

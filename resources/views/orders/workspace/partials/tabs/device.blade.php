@@ -23,6 +23,7 @@
                     />
                     @include('orders.partials.serial-validation-badge', ['order' => $order])
                 </div>
+                @include('orders.workspace.partials.oem-warranty-check', ['order' => $order])
             @else
                 —
             @endif
@@ -38,6 +39,6 @@
         <dd>{{ $order->product_name ?: '—' }}</dd>
 
         <dt>Warranty</dt>
-        <dd>Unknown — warranty rules are not yet connected to this workspace.</dd>
+        <dd class="text-muted small">RadiumBox enrichment warranty/AMC remains authoritative for service status. OEM portal checks above are stored separately.</dd>
     </dl>
 @endcomponent
