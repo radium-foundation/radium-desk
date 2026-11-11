@@ -272,11 +272,24 @@ Blocked when `DEPLOY_MODE=kvm` — use manual tag redeploy via `desk deploy` ins
 1. Shows the current remote commit
 2. `git reset --hard HEAD~N` on the remote server
 3. `composer install --no-dev --optimize-autoloader`
-4. `php artisan migrate --force`
+4. Migrations **skipped by default** — set `DEPLOY_RUN_MIGRATIONS=1` when Owner-authorised (same flag as deploy)
 5. Clears and rebuilds caches
 6. Runs a health check
 
 > **Warning:** This performs a **hard reset** on the remote repository. Database migrations are **not** automatically reversed. Review migration impact before rolling back.
+
+### Special-purpose KVM overlays
+
+These scripts are **not** invoked by `desk deploy`. They perform surgical file overlays and optional targeted migrations:
+
+| Script | Purpose | Migration opt-in |
+|--------|---------|------------------|
+| [`deploy-catalog-price-sync-kvm.sh`](commands/deploy-catalog-price-sync-kvm.sh) | Storefront catalog price sync overlay | `DEPLOY_RUN_CATALOG_PRICE_SYNC_MIGRATION=1` |
+| [`phase-b1-storefront-controls-kvm8.sh`](phase-b1-storefront-controls-kvm8.sh) | Inventory product storefront controls | `DEPLOY_RUN_PHASE_B1_STOREFRONT_MIGRATION=1` |
+
+Set `DRY_RUN=1` on either script to preview without remote file or migration changes. **`deploy-central-wallet-*-gate.sh`** overlays omit migrations (config/cache only).
+
+Supported migration/seeder flags: **`0` or `1` only**; invalid values fail before any remote work.
 
 ---
 

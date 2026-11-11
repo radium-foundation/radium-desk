@@ -6,6 +6,12 @@ DEPLOY_HOST="${DEPLOY_HOST:-ravi@187.127.129.16}"
 LARAVEL_ROOT="${LARAVEL_ROOT:-/var/www/radium-desk}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=tools/lib.sh
+source "${SCRIPT_DIR}/lib.sh"
+# shellcheck source=tools/lib/deploy-post-sync.sh
+source "${SCRIPT_DIR}/lib/deploy-post-sync.sh"
+
+DRY_RUN="${DRY_RUN:-0}"
 EXPECTED_COMMIT="${EXPECTED_COMMIT:-}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP_DIR="${LARAVEL_ROOT}/storage/app/backups/phase-b1-storefront-controls-${STAMP}"
@@ -53,8 +59,16 @@ backup_and_overlay() {
 }
 
 deploy() {
+  if [[ "$DRY_RUN" == "1" ]]; then
+    print_warning "Dry-run: would overlay Phase B-1 storefront controls and optionally run targeted migration (no remote mutations)."
+    exit 0
+  fi
+
   backup_and_overlay
-  remote bash -s -- "${LARAVEL_ROOT}" <<'REMOTE'
+  deploy_validate_post_sync_flags
+  if [[ "$(deploy_normalize_opt_in_flag DEPLOY_RUN_PHASE_B1_STOREFRONT_MIGRATION)" == "1" ]]; then
+    print_warning "Phase B-1 storefront: migration ENABLED"
+    remote bash -s -- "${LARAVEL_ROOT}" <<'REMOTE'
 set -euo pipefail
 ROOT="$1"
 PHP="/usr/local/lsws/lsphp84/bin/php"
@@ -64,6 +78,19 @@ cd "${ROOT}"
 "${PHP}" artisan route:clear
 test -f resources/views/inventory/products/partials/storefront-controls.blade.php
 REMOTE
+    print_success "Phase B-1 storefront: targeted migration completed"
+  else
+    print_warning "Phase B-1 storefront: migration SKIPPED (DEPLOY_RUN_PHASE_B1_STOREFRONT_MIGRATION=${DEPLOY_RUN_PHASE_B1_STOREFRONT_MIGRATION:-0}; set to 1 when Owner-authorised)"
+    remote bash -s -- "${LARAVEL_ROOT}" <<'REMOTE'
+set -euo pipefail
+ROOT="$1"
+PHP="/usr/local/lsws/lsphp84/bin/php"
+cd "${ROOT}"
+"${PHP}" artisan config:clear
+"${PHP}" artisan route:clear
+test -f resources/views/inventory/products/partials/storefront-controls.blade.php
+REMOTE
+  fi
   echo "Desk Phase B-1 overlay complete. Backup: ${BACKUP_DIR}"
   echo "Deployed commit: ${EXPECTED_COMMIT}"
 }

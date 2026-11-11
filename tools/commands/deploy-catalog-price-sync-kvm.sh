@@ -5,6 +5,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tools/lib.sh
 source "$SCRIPT_DIR/../lib.sh"
+# shellcheck source=tools/lib/deploy-post-sync.sh
+source "$SCRIPT_DIR/../lib/deploy-post-sync.sh"
+
+DRY_RUN="${DRY_RUN:-0}"
+if [[ "$DRY_RUN" == "1" ]]; then
+    print_warning "Dry-run: would overlay catalog price sync files and optionally run targeted migration (no remote mutations)."
+    exit 0
+fi
 
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 EXPECTED_COMMIT="${EXPECTED_COMMIT:-ccc8c75e}"
@@ -58,8 +66,11 @@ backup_and_overlay() {
 
 deploy() {
   backup_and_overlay
-  print_warning "Running Desk migration and cache rebuild..."
-  php_exec migrate --force --path=database/migrations/2026_09_19_120000_create_catalog_price_sync_logs_table.php
+  deploy_validate_post_sync_flags
+  deploy_maybe_run_path_migration \
+    DEPLOY_RUN_CATALOG_PRICE_SYNC_MIGRATION \
+    "database/migrations/2026_09_19_120000_create_catalog_price_sync_logs_table.php" \
+  "Catalog price sync overlay"
   php_exec optimize:clear
   php_exec route:cache
   kvm_restart_supervisor_worker
