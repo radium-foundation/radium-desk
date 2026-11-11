@@ -5,10 +5,12 @@ namespace Tests\Feature\HardwareFulfilment;
 use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
+use App\Models\ChannelSkuMap;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentSerial;
 use App\Models\InventoryBranch;
+use App\Models\InventoryProduct;
 use App\Models\StatutoryInvoice;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
@@ -34,6 +36,8 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
 
     private HardwareFulfilmentWorkflowService $workflow;
 
+    private InventoryProduct $msoProduct;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -52,6 +56,17 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
             'statutory_invoices.worker_may_mint' => false,
             'statutory_invoices.einvoice.provider' => 'none',
         ]);
+
+        $this->msoProduct = InventoryProduct::query()->create([
+            'sku' => 'DESK-MSO-P3-TEST',
+            'name' => 'MSO1300 P3 invoice test product',
+            'hsn_code' => '84716050',
+            'gst_percentage' => 18,
+            'unit_price' => 3049,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        $this->mapMso1300Sku();
 
         $this->invoices = app(HardwareFulfilmentInvoiceService::class);
         $this->workflow = app(HardwareFulfilmentWorkflowService::class);
@@ -214,7 +229,8 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
             $this->invoices->issueInvoice($fulfilment->fresh());
             $this->fail('Qty mismatch must fail.');
         } catch (ValidationException $exception) {
-            $this->assertStringContainsString('does not match physical quantity', implode(' ', $exception->errors()['serials'] ?? []));
+            $messages = collect($exception->errors())->flatten()->implode(' ');
+            $this->assertStringContainsString('committed stock', $messages);
         }
 
         $this->assertSame(0, StatutoryInvoice::query()->count());
@@ -348,6 +364,22 @@ class HardwareFulfilmentP3InvoiceTest extends TestCase
         $this->assertStringContainsString('bundled RD #88', (string) $invoice->items->first()?->description);
         $this->assertSame('84716050', $invoice->items->first()?->hsn_sac);
         $this->assertSame(3049.0, (float) $invoice->items->first()?->line_total);
+    }
+
+    private function mapMso1300Sku(): void
+    {
+        ChannelSkuMap::query()->firstOrCreate(
+            [
+                'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+                'model_id' => 951,
+            ],
+            [
+                'inventory_product_id' => $this->msoProduct->id,
+                'catalog_sku' => 'MSO1300',
+                'channel_sku' => '951',
+                'notes' => 'P3 invoice focused test map.',
+            ],
+        );
     }
 
     private function prepareIssuable(

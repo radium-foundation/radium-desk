@@ -23,6 +23,14 @@ use Tests\TestCase;
 class Customer360InsightsPresenterTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RolePermissionSeeder::class);
+    }
+
     public function test_present_includes_repeat_customer_and_preferred_channel_insights(): void
     {
         $insights = app(Customer360InsightsPresenter::class)->present(
