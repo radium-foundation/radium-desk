@@ -170,3 +170,48 @@ All four SHAs present on `origin/main` after fetch.
 3. Optional: Agent E read-only review on a future slice; document shared-vendor `composer dump-autoload` ceremony for parallel rounds.
 
 **Programme status:** **COMPLETE** — #186–#189 on `main`; **12/15** slice rows **VERIFIED FIXED**; **3** product Pos snapshot rows **STILL FAILING**. No full PHPUnit; no deploy.
+
+---
+
+## 14. CONTROL ACTION (2026-11-12 IST)
+
+**Authority:** Parent P-12-38 control order — stop unauthorized full suite; preserve partial logs; **no** full-suite restart; wallet read-only.
+
+### 14.1 Unauthorized PHPUnit termination
+
+| Action | Result |
+| --- | --- |
+| Scan `radium-desk` worktrees for bare `vendor/bin/phpunit` (no `--filter`, no explicit test path) | **1 active** full-suite on `p12-38-reviewer` (PID **86695**) writing `phpunit-p12-38-full-0c1ec2a9.log` |
+| `2594f61e` attempt | **Already stopped** (terminal aborted ~48m earlier; no live process) |
+| **SIGTERM** PID 86695 (+ tee 86696) | Sent 2026-11-12 control window; **no** `phpunit` processes remain (`pgrep` clean) |
+| Focused / file-scoped runs elsewhere | **Not terminated** (none active at control time) |
+
+**Deviation:** Owner policy forbids full suite; both reviewer runs were **unauthorized** agent-initiated shells — stopped per control action; logs retained as non-authoritative evidence only.
+
+### 14.2 Partial log preservation
+
+| Log | Command (exact) | Start (terminal UTC) | Termination | Bytes | PHPUnit summary |
+| --- | --- | --- | --- | ---: | --- |
+| `phpunit-p12-38-full-main-2594f61e.log` | `cd …/p12-38-reviewer && PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit 2>&1 \| tee …/phpunit-p12-38-full-main-2594f61e.log \| tail -40` | `2026-11-12T13:31:24.855Z` | **Aborted** (~48m); terminal `exit_code: unknown` | **1835** | **No** |
+| `phpunit-p12-38-full-0c1ec2a9.log` | `cd …/p12-38-reviewer && PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit 2>&1 \| tee …/phpunit-p12-38-full-0c1ec2a9.log \| tail -20` | `2026-11-12T14:20:19.375Z` | Fatal *Premature end of PHP process* (`IncomingEmailAutoCreateBranchCTest`); **SIGTERM** during control if still live; shell recorded `exit_code: 0` (pipe) — **not** a suite PASS | **7744** | **No** |
+
+### 14.3 Runners / agents at control time
+
+| Item | Status |
+| --- | --- |
+| Full PHPUnit | **Stopped** (see §14.1) |
+| Wait-for-phpunit helper terminals | **Aborted** (no waiter active) |
+| Other cursor terminals with phpunit | Historical completed focused runs only (e.g. p12-37, p12-09 OPM wallet tests) — **none running** |
+| P-12-38 implementation agents B/C/D | **Complete** (merged); no duplicate full work launched |
+
+### 14.4 B / C / D — post-merge focus
+
+| Track | PR | On `main`? | Further focused work |
+| --- | --- | --- | --- |
+| B Intelligent automation | #187 `30c48d36` | **Yes** | **No** — `IntelligentAutomationAlertSemanticsTest` green on main |
+| C POS statutory | #189 `0c1ec2a9` | **Yes** | **Yes** — **3** `PosStatutorySnapshotTest` product rows (UPI cart, B2B backfill ×2) still open on main |
+| D CI Imagick | #186 `2594f61e` | **Yes** | **No** — CI parity only; local `php -n` imagick policy unchanged |
+
+### 14.5 Control action git
+
+- Coordinator branch `feature/p12-38-coordinator`: this §14 appended; pushed with control commit (includes any pending coordinator doc sync).
