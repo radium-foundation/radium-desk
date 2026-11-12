@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# P-12-40 — safe PHPUnit entry (default DENY for full repository suite).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+GUARD="${ROOT}/scripts/phpunit-guard.php"
+
+if [[ ! -f "$GUARD" ]]; then
+  echo "Missing guard script: $GUARD" >&2
+  exit 1
+fi
+
+PHP_BIN="${PHPUNIT_GUARD_PHP_BIN:-}"
+if [[ -z "$PHP_BIN" ]]; then
+  if [[ -x /opt/homebrew/bin/php ]]; then
+    PHP_BIN=/opt/homebrew/bin/php
+  else
+    PHP_BIN="$(command -v php || true)"
+  fi
+fi
+
+if [[ -z "$PHP_BIN" || ! -x "$PHP_BIN" ]]; then
+  echo "PHP binary not found; set PHPUNIT_GUARD_PHP_BIN." >&2
+  exit 1
+fi
+
+export PHP_INI_SCAN_DIR=
+exec "$PHP_BIN" -n "$GUARD" --invoked-via=bin/phpunit-safe "$@"
