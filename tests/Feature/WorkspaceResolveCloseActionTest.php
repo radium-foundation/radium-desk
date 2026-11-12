@@ -9,13 +9,14 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\Remark;
 use App\Models\User;
-use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesWorkspaceServiceCaseFixtures;
 use Tests\TestCase;
 
 class WorkspaceResolveCloseActionTest extends TestCase
 {
+    use CreatesWorkspaceServiceCaseFixtures;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -50,27 +51,13 @@ class WorkspaceResolveCloseActionTest extends TestCase
 
     private function createIncident(User $creator, array $overrides = []): Incident
     {
-        $order = Order::query()->create([
-            'order_id' => $overrides['order_id'] ?? 'ORD-WSRC-1',
-            'serial_number' => 'SN-WSRC-1',
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
-            'status' => 'active',
-            'created_by' => $creator->id,
-        ]);
-
-        return Incident::query()->create([
-            'order_id' => $order->id,
-            'reference_no' => $overrides['reference_no'] ?? app(IncidentReferenceService::class)->generate(),
-            'category' => 'General',
-            'source' => IncidentSource::Call,
-            'title' => $overrides['title'] ?? 'Workspace resolve close test',
-            'description' => $overrides['description'] ?? 'Workspace resolve close test description.',
-            'status' => $overrides['status'] ?? IncidentStatus::Open,
-            'created_by' => $creator->id,
-            'updated_by' => $creator->id,
-            ...$overrides,
-        ]);
+        return $this->createWorkspaceServiceCaseIncident(
+            $creator,
+            $overrides,
+            defaultOrderId: 'ORD-WSRC-1',
+            defaultTitle: 'Workspace resolve close test',
+            defaultDescription: 'Workspace resolve close test description.',
+        );
     }
 
     private function prepareAgentResolvableIncident(Incident $incident, User $agent): void
