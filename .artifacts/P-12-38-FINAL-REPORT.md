@@ -111,7 +111,7 @@ Profile: `PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit` after p
 | C | `StatutoryInvoicePdfCustomerFacingSkuTest` (+ imagick.so) | Reference No. / tender rows green under Owner C | yes (#189) |
 | D | (workflow YAML) | N/A | yes (#186 CI) |
 
-**Full suite:** **NO** — Owner never authorized. **Unauthorized runs (NOT authoritative):** (1) post-#187 sync @ `2594f61e` — **aborted** ~48m, log `phpunit-p12-38-full-main-2594f61e.log` (~1.8KB, no summary); (2) shell task “Run full PHPUnit and capture final summary” on `p12-38-reviewer` @ `0c1ec2a9` — **~78m**, fatal *Premature end of PHP process* in `IncomingEmailAutoCreateBranchCTest`, log `phpunit-p12-38-full-0c1ec2a9.log` (~7.7KB, **no suite summary**) — **do not use for matrix or release**.  
+**Full suite:** **NO** — Owner never authorized. **Unauthorized runs (NOT authoritative):** (1) post-#187 sync @ `2594f61e` — **aborted** ~48m, log `phpunit-p12-38-full-main-2594f61e.log` (~1.8KB, no summary); (2) shell task “Run full PHPUnit and capture final summary” on `p12-38-reviewer` @ `0c1ec2a9` — **~78m**, fatal *Premature end of PHP process* in `IncomingEmailAutoCreateBranchCTest`, log `phpunit-p12-38-full-0c1ec2a9.log` (~7.7KB, **no suite summary**); (3) terminal **648452** “Restart full PHPUnit without execution time limit” — **SIGTERM** control window, log `phpunit-p12-38-full-0c1ec2a9-notime.log` (**0** bytes, no summary) — **do not use for matrix or release**.  
 **Deploy:** **NO**
 
 ---
@@ -215,3 +215,24 @@ All four SHAs present on `origin/main` after fetch.
 ### 14.5 Control action git
 
 - Coordinator branch `feature/p12-38-coordinator`: this §14 appended; pushed with control commit (includes any pending coordinator doc sync).
+
+### 14.6 Third unauthorized full suite (2026-11-12 ~21:10 IST)
+
+**Source terminal:** `648452` — title *Restart full PHPUnit without execution time limit*; shell PID **27064** (`exit_code: 0`, elapsed ~5.2s); background launcher reported `pid=27079`.
+
+| Action | Result |
+| --- | --- |
+| Live scan `p12-38-reviewer` bare `vendor/bin/phpunit` (`-d max_execution_time=0`, no `--filter`, no explicit test path) | **1 active** — PHP **27457** (+ `tee` **27458** → `phpunit-p12-38-full-0c1ec2a9-notime.log`) |
+| Prior attempts `#1` / `#2` | **Already stopped** (see §14.2); no live PIDs |
+| **SIGTERM** 27457, 27458 | Sent control window 2026-11-12 IST; **confirmed dead** (`pgrep` clean for `vendor/bin/phpunit`) |
+| **SIGKILL** | **Not required** |
+| New full suite started by this control action | **NO** |
+| Focused / filtered runs | **Not terminated** |
+
+**Deviation:** Same policy breach as attempts (1)–(2); agent shell restarted full suite after Owner control — terminated; log path preserved (empty / non-authoritative).
+
+#### 14.6.1 Partial log (attempt #3)
+
+| Log | Command (exact) | Start (terminal UTC) | Termination | Bytes | PHPUnit summary |
+| --- | --- | --- | --- | ---: | --- |
+| `phpunit-p12-38-full-0c1ec2a9-notime.log` | `cd …/p12-38-reviewer && PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n -d max_execution_time=0 vendor/bin/phpunit > …/phpunit-p12-38-full-0c1ec2a9-notime.log 2>&1 &` (`echo pid=$!`) | `2026-11-12T15:40:14.614Z` | **SIGTERM** during control (~21:10 IST); early kill | **0** | **No** |
