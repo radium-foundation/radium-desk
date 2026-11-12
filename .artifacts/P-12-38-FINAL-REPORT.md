@@ -255,3 +255,26 @@ All four SHAs present on `origin/main` after fetch.
 Detail: `.artifacts/P-12-39-REPORT.md`, `.artifacts/P-12-38-MATRIX.md` (updated), CSV lines 92–93 + 96.
 
 **Post-#190 CI:** rip [43251780484](https://github.com/radium-foundation/radium-desk/actions/runs/43251780484) + release-rip [43251780596](https://github.com/radium-foundation/radium-desk/actions/runs/43251780596) — **SUCCESS** on merge SHA `482d6154`.
+
+---
+
+## 16. P-12-40 PHPUnit guard on `main` (2026-11-12 IST)
+
+**Authority:** Coordinator cross-ref after subagent merge [PR #191](https://github.com/radium-foundation/radium-desk/pull/191). **No** full PHPUnit from this control action; **no** deploy; wallet **untouched** (same as §10 / §15).
+
+| Check | Result |
+| --- | --- |
+| `git fetch origin main` | **`9f87dff98dd7cf0d4e8db7c408f23be5357e12a8`** — merge #191 `feature/p12-40-phpunit-guard` |
+| Wallet `d9481615` | **`d94816153cd2c89f8175d29a1510b38b4c16df6b`** on `feature/p18-33-unified-wallet-display` — **untouched** |
+| P-12-38 §14 (unauthorized full suite control) | **Preserved** — historical record unchanged; policy now enforced in tree |
+
+### 16.1 Agent PHPUnit policy
+
+All agents and local automation **must** invoke PHPUnit through **`bin/phpunit-safe`** (wrapper → `scripts/phpunit-guard.php`), **not** bare `vendor/bin/phpunit`. Full repository suite remains **DENY by default** unless Owner grant per:
+
+- `docs/PHPUNIT_FULL_SUITE_AUTHORIZATION.md`
+- Entrypoint: `bin/phpunit-safe`
+
+Focused runs (`--filter`, explicit `tests/…` path, or named test class) are allowed without grant; catch-all / bare full-suite invocations are blocked and logged.
+
+Cross-ref artifact (optional mirror): `.artifacts/P-12-40-COORDINATOR-NOTE.md` → same paths on `main` @ `9f87dff9`.
