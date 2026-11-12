@@ -3,8 +3,9 @@
 **Programme start (IST):** 2026-11-12 18:43:18 IST  
 **Programme end (IST):** 2026-11-12 18:53:06 IST (measured at artifact close)  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk` only  
-**Baseline:** `origin/main` @ **`2594f61e`** (#186 Imagick CI atop **#187** `30c48d36` watchdog) — verified after `git fetch origin` post–#187 merge  
+**Baseline:** `origin/main` @ **`304c5aa6`** (#188 learning-center nav atop **#186** `2594f61e` Imagick CI atop **#187** `30c48d36` watchdog) — verified after `git fetch origin` post–#188 merge  
 **Post–#187 sync (2026-11-12):** `feature/p12-38-*` branches merged/pushed to `2594f61e`; [#187](https://github.com/radium-foundation/radium-desk/pull/187) squash **MERGED** @ `30c48d36534322a8f5e37cf430f502748bb16ae8`  
+**Post–#188 sync (2026-11-12):** `feature/p12-38-pos-statutory-reference` merged `origin/main` @ `304c5aa6` and pushed @ **`a2d4fa41`**; **no** Agent C PR merge (tests pending; no full suite)  
 **Coordinator worktree:** `.worktrees/p12-38-coordinator` → `feature/p12-38-coordinator`  
 **Wallet WIP:** untouched — see §10
 
@@ -27,9 +28,9 @@
 
 | Agent | Role | Branch | Impl |
 | --- | --- | --- | --- |
-| A | IRA Learning Center access / nav | `feature/p12-38-incoming-email-learning-center` | **DONE** (uncommitted) |
-| B | Automation alert semantics | `feature/p12-38-intelligent-automation-alerts` | **DONE** (uncommitted) |
-| C | POS statutory snapshot + PDF row | `feature/p12-38-pos-statutory-reference` | **PARTIAL / STOP** |
+| A | IRA Learning Center access / nav | `feature/p12-38-incoming-email-learning-center` | **MERGED** [PR #188](https://github.com/radium-foundation/radium-desk/pull/188) → `304c5aa6` |
+| B | Automation alert semantics | `feature/p12-38-intelligent-automation-alerts` | **MERGED** [PR #187](https://github.com/radium-foundation/radium-desk/pull/187) → `30c48d36` |
+| C | POS statutory snapshot + PDF row | `feature/p12-38-pos-statutory-reference` | **IN PROGRESS** — subagent `a91f2291` (Owner option **C**); branch @ `a2d4fa41` |
 | D | CI Imagick parity | `feature/p12-38-ci-imagick-parity` | **MERGED** [PR #186](https://github.com/radium-foundation/radium-desk/pull/186) → `2594f61e` |
 | E | Reviewer read-only | `feature/p12-38-reviewer-readonly` | **NOT RUN** (no PRs yet) |
 
@@ -39,10 +40,10 @@
 
 | Worktree | Branch | HEAD |
 | --- | --- | --- |
-| `.worktrees/p12-38-coordinator` | `feature/p12-38-coordinator` | `762cf798` |
-| `.worktrees/p12-38-incoming-email-learning-center` | `feature/p12-38-incoming-email-learning-center` | `762cf798` |
-| `.worktrees/p12-38-intelligent-automation-alerts` | `feature/p12-38-intelligent-automation-alerts` | `762cf798` |
-| `.worktrees/p12-38-pos-statutory-reference` | `feature/p12-38-pos-statutory-reference` | `762cf798` |
+| `.worktrees/p12-38-coordinator` | `feature/p12-38-coordinator` | **`a19512fd`** |
+| `.worktrees/p12-38-incoming-email-learning-center` | `feature/p12-38-incoming-email-learning-center` | synced post-#188 |
+| `.worktrees/p12-38-intelligent-automation-alerts` | `feature/p12-38-intelligent-automation-alerts` | synced post-#187 |
+| `.worktrees/p12-38-pos-statutory-reference` | `feature/p12-38-pos-statutory-reference` | **`a2d4fa41`** |
 | `.worktrees/p12-38-ci-imagick-parity` | `feature/p12-38-ci-imagick-parity` | `762cf798` |
 | `.worktrees/p12-38-reviewer` | `feature/p12-38-reviewer-readonly` | `762cf798` |
 
@@ -65,12 +66,13 @@ See `.artifacts/P-12-38-MATRIX.md`.
 | Metric | Value |
 | --- | ---: |
 | Rows in programme slice | **15** |
-| **VERIFIED FIXED** (focused evidence) | **9** (5 + 4) |
-| **PARTIAL** | **1** cluster (PosStatutory 10/14) |
-| **STOP (Owner)** | **1** (Reference No. on UNPAID POS PDF) |
-| **CI env row** | harness updated (D); local `php -n` unchanged by policy |
+| **VERIFIED FIXED @ `main`** (post #186–#188) | **10** — A **5** incoming-email + B **4** automation + D **1** CI env |
+| **Agent C pending** (not on `main`) | **6** — PosStatutory **5** + PDF Reference/tender **1** |
+| **PARTIAL** (last focused run, pre–option C) | PosStatutory **10/14** |
+| **Owner option C** | UNPAID tender under distinct label; **Reference No.** only when allocated — impl subagent **RUNNING** (`a91f2291`) |
+| **CI env row** | harness on `main` (#186); local `php -n` unchanged by policy |
 
-Approx. STILL FAILING @ main after hypothetical merges of A+B+D only: **~90** (not re-run full matrix).
+**Slice roll-up:** [#186](https://github.com/radium-foundation/radium-desk/pull/186) + [#187](https://github.com/radium-foundation/radium-desk/pull/187) + [#188](https://github.com/radium-foundation/radium-desk/pull/188) **merged**; Agent C **pending** (no PR merge without focused tests). **Full suite:** **NO**.
 
 ---
 
@@ -78,7 +80,8 @@ Approx. STILL FAILING @ main after hypothetical merges of A+B+D only: **~90** (n
 
 | Check | Result |
 | --- | --- |
-| PR #182–#185 | **MERGED** on `main`; HEAD = `762cf798` |
+| PR #182–#185 | **MERGED** on `main` |
+| `origin/main` @ post–#188 fetch | **`304c5aa6745350a5c3ada73ae2a46381e02f2f86`** |
 | P-12-37 final report | Read `.worktrees/p12-37-coordinator/.artifacts/P-12-37-FINAL-REPORT.md` |
 | Matrix CSV rows | Mapped lines 75–79, 83–86, 92–96, 170 in `P-12-32-matrix-reconciliation.csv` |
 | Policy | `docs/RADIUMWEBSITES_TESTING_AND_VALIDATION_POLICY.md` — focused `php -n` profile |
@@ -91,7 +94,7 @@ Profile: `PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit` after p
 
 | Agent | Target | Result | Exit |
 | --- | --- | --- | ---: |
-| A | `IncomingEmailLearningCenterAccessTest` | **9/9 PASS** | 0 |
+| A | `IncomingEmailLearningCenterAccessTest` | **9/9 PASS** (pre-merge); **VERIFIED FIXED @ `main`** via #188 | 0 |
 | B | `IntelligentAutomationAlertSemanticsTest` | **7/7 PASS** | 0 |
 | C | `PosStatutorySnapshotTest` | **10/14** (4 FAIL, 1 ERR) | 1 |
 | C | `StatutoryInvoicePdfCustomerFacingSkuTest` (+ imagick.so) | **3/4** Reference No. FAIL | 1 |
@@ -109,7 +112,7 @@ Profile: `PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit` after p
 | A | `NavigationContextResolver::sidebar()` adds `learning_center` destination with `title="Learning Center"` when `email-intake.view` |
 | B | `ProductionWatchdogService`: unit-test isolation — automation-only critical alerts + ledger path; skip self-HTTP site probe in tests |
 | C | `PosStatutorySnapshotTest::setUp()` + `withoutVite()` — fixes Vite 500 subset; remaining B2B statutory session validation needs product review |
-| C PDF | **STOP** — `paymentColumns()` suppresses Reference No. when UNPAID; Owner decision on walk-in UPI intent labeling |
+| C PDF | **Owner option C** — distinct UNPAID tender label; **Reference No.** when allocated (subagent `a91f2291` in flight) |
 | D | All 6 `setup-php@v2` steps: `extensions: imagick, zip, gd, sqlite3, mbstring, xml, curl, intl` |
 
 ---
@@ -120,8 +123,8 @@ Profile: `PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit` after p
 | --- | --- |
 | [#186](https://github.com/radium-foundation/radium-desk/pull/186) | **MERGED** (squash) @ **`2594f61e854b98ffa8f3b703a8d001934b2b1fbe`** — rip + release-rip **pass** on head `69e4c01f` |
 | [#187](https://github.com/radium-foundation/radium-desk/pull/187) | **MERGED** (squash) @ **`30c48d36534322a8f5e37cf430f502748bb16ae8`** — Agent B watchdog isolation; merged 2026-11-12T13:25:40Z |
-| #188 | **N/A** (does not exist) |
-| A / B / C | **No PRs open** — A: impl **uncommitted** on learning-center worktree; B: branch synced to `main` post-#187; C: PARTIAL |
+| [#188](https://github.com/radium-foundation/radium-desk/pull/188) | **MERGED** (squash) @ **`304c5aa6745350a5c3ada73ae2a46381e02f2f86`** — Agent A learning-center nav; **5** incoming-email matrix rows **VERIFIED FIXED** on `main` |
+| C | **No PR** — branch `feature/p12-38-pos-statutory-reference` @ **`a2d4fa41`**; merge blocked until focused PHPUnit green |
 
 ---
 
@@ -148,9 +151,8 @@ Profile: `PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit` after p
 
 ## 12. Next steps
 
-1. Commit + push A, B, D branches; open PRs; run rip / release-rip before merge.  
-2. Agent C: Owner call on Reference No. + B2B POS session fields; then product/tests.  
-3. Agent E review after PRs exist.  
-4. Document shared-vendor `composer dump-autoload` ceremony in coordinator MANIFEST for parallel rounds.
+1. Wait for subagent **`a91f2291`** (Agent C option C); open PR when focused tests pass; **no merge without CI + focused evidence**.  
+2. Agent E review after Agent C PR exists.  
+3. Document shared-vendor `composer dump-autoload` ceremony in coordinator MANIFEST for parallel rounds.
 
-**Programme status:** **PARTIAL COMPLETE** — 2 clusters green (A, B), CI harness (D); C blocked on statutory product semantics.
+**Programme status:** **PARTIAL COMPLETE** — #186–#188 on `main` (**10/15** slice rows); Agent C **6** rows pending (subagent **RUNNING**).
