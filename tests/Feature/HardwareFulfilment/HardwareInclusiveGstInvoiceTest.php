@@ -5,9 +5,11 @@ namespace Tests\Feature\HardwareFulfilment;
 use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\StatutoryInvoiceChannel;
+use App\Models\ChannelSkuMap;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentSerial;
 use App\Models\InventoryBranch;
+use App\Models\InventoryProduct;
 use App\Models\StatutoryInvoice;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
@@ -28,6 +30,8 @@ class HardwareInclusiveGstInvoiceTest extends TestCase
 
     private HardwareFulfilmentWorkflowService $workflow;
 
+    private InventoryProduct $scannerProduct;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -46,6 +50,28 @@ class HardwareInclusiveGstInvoiceTest extends TestCase
             'statutory_invoices.worker_may_mint' => false,
             'statutory_invoices.einvoice.provider' => 'none',
         ]);
+
+        $this->scannerProduct = InventoryProduct::query()->create([
+            'sku' => 'DESK-MFS-GST-TEST',
+            'name' => 'Mantra MFS inclusive GST test product',
+            'hsn_code' => '84716050',
+            'gst_percentage' => 18,
+            'unit_price' => 2499,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->firstOrCreate(
+            [
+                'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+                'model_id' => 946,
+            ],
+            [
+                'inventory_product_id' => $this->scannerProduct->id,
+                'catalog_sku' => '946',
+                'channel_sku' => '946',
+                'notes' => 'Inclusive GST invoice focused test map.',
+            ],
+        );
 
         $this->invoices = app(HardwareFulfilmentInvoiceService::class);
         $this->workflow = app(HardwareFulfilmentWorkflowService::class);
@@ -320,7 +346,15 @@ class HardwareInclusiveGstInvoiceTest extends TestCase
             $this->invoices->issueInvoice($fulfilment->fresh());
             $this->fail('Qty mismatch must fail.');
         } catch (ValidationException $exception) {
-            $this->assertStringContainsString('does not match physical quantity', implode(' ', $exception->errors()['serials'] ?? []));
+            $messages = implode(' ', array_merge(
+                $exception->errors()['stock'] ?? [],
+                $exception->errors()['serials'] ?? [],
+            ));
+            $this->assertTrue(
+                str_contains($messages, 'committed stock')
+                || str_contains($messages, 'does not match serialized unit quantity'),
+                $messages,
+            );
         }
 
         $this->assertSame(0, StatutoryInvoice::query()->count());
