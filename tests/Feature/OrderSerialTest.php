@@ -438,4 +438,36 @@ class OrderSerialTest extends TestCase
             ->assertSee('Entered By', false)
             ->assertSee('Entered At', false);
     }
+
+    public function test_admin_can_correct_locked_serial_through_order_update_form(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-ADMIN-EDIT',
+            'serial_number' => '54SAXXC5514586',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+        ]);
+
+        $this->assertTrue($admin->can('correctIdentity', $order));
+        $this->assertFalse($admin->can('correctOrderIdentity', $order));
+
+        $this->actingAs($admin)
+            ->put(route('orders.update', $order), [
+                'order_id' => $order->order_id,
+                'serial_number' => '7881953',
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+            ])
+            ->assertRedirect(route('orders.show', $order))
+            ->assertSessionHas('status', 'order-updated');
+
+        $this->assertSame('7881953', $order->fresh()->serial_number);
+    }
 }
