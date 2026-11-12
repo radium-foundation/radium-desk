@@ -66,10 +66,12 @@ Matrix rows addressed:
 
 | Phase | Workflow | Run URL | `headSha` | Conclusion |
 | --- | --- | --- | --- | --- |
-| Pre-merge (PR **#TBD**) | rip | _pending push_ | — | — |
-| Pre-merge (PR **#TBD**) | release-rip | _pending push_ | — | — |
+| Pre-merge (PR **#181**) | rip | [43219535800](https://github.com/radium-foundation/radium-desk/actions/runs/43219535800) | `6604a3e4` | **success** (~39s) |
+| Pre-merge (PR **#181**) | release-rip | [43219536036](https://github.com/radium-foundation/radium-desk/actions/runs/43219536036) | `6604a3e4` | **success** (~32s) |
 | Post-merge (`main`) | rip | _after merge_ | — | — |
 | Post-merge (`main`) | release-rip | _after merge_ | — | — |
+
+**PR:** [#181](https://github.com/radium-foundation/radium-desk/pull/181)
 
 P-12-35 post-merge RIP @ `fafec714` already recorded in `.worktrees/p12-35-ws-10-dashboard/.artifacts/P-12-35-REPORT.md` (no doc backfill required).
 
