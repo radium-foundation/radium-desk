@@ -42,6 +42,8 @@ class OperationsDashboardTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
+
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
     }

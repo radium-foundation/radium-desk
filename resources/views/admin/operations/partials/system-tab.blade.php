@@ -22,6 +22,15 @@
         </div>
     </div>
 
+    <div id="operations-integration-health" class="mb-4">
+        @php
+            $integrationCards = $dashboard->integrationHealth !== []
+                ? $dashboard->integrationHealth
+                : app(\App\Services\Operations\OperationsIntegrationHealthService::class)->cards();
+        @endphp
+        @include('admin.operations.partials.integration-health', ['cards' => $integrationCards])
+    </div>
+
     <div class="row g-4">
         <div class="col-xl-6">
             <div id="operations-recent-notification-failures">

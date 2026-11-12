@@ -8,7 +8,7 @@
       <p class="text-muted mb-0">Users, access, configuration, and holidays. Live monitoring lives on Platform.</p>
   </div>
 
-  @include('navigation.control-and-admin-workspace-nav', ['active' => 'administration'])
+  @include('navigation.administration-workspace-nav', ['active' => 'overview'])
 
   <div class="card border-0 shadow-sm mb-4">
       <div class="card-body text-muted">
