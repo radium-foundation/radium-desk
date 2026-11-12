@@ -213,6 +213,7 @@ class OnlineReturnRefundAllocationOpmConversionTest extends ReturnExchangeCaseHt
 
     private function applyConversionConfig(bool $enabled): void
     {
+        $this->configureSpokeWalletRefundExecutionForTests();
         config([
             'return_exchange.online_refund_allocation.execution_enabled' => true,
             'return_exchange.online_refund_allocation.opm_conversion_enabled' => $enabled,
@@ -229,6 +230,7 @@ class OnlineReturnRefundAllocationOpmConversionTest extends ReturnExchangeCaseHt
 
     private function executeWalletLine($case, $branchUser)
     {
+        $this->configureSpokeWalletRefundExecutionForTests();
         config([
             'return_exchange.online_refund_allocation.execution_enabled' => true,
             'radiumbox.wallet_refund_credit_enabled' => true,

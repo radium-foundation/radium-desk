@@ -44,6 +44,17 @@ abstract class ReturnExchangeCaseHttpTestCase extends TestCase
         ]);
     }
 
+    /**
+     * Return-allocation wallet execution tests assume legacy spoke wallet credits unless desk-first is under test.
+     */
+    protected function configureSpokeWalletRefundExecutionForTests(): void
+    {
+        config([
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => false,
+            'central_wallet.wallet_refund.desk_first_enabled' => false,
+        ]);
+    }
+
     protected function agentUser(): User
     {
         $user = User::factory()->create(['is_active' => true]);
