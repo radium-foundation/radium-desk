@@ -138,7 +138,7 @@ DESK_PHP_BIN=/opt/homebrew/bin/php ./bin/phpunit-isolated --filter test_admin_da
 | Item | Value |
 | --- | --- |
 | Branch | `feature/p12-47-ws10-dashboard` |
-| PR | _(pending)_ — expect **rip** + **release-rip** |
+| PR | **[#198](https://github.com/radium-foundation/radium-desk/pull/198)** @ `59c290ec` |
 
 ---
 
