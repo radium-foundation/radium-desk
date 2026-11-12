@@ -53,7 +53,7 @@ class SimplePdfRenderer
     public const ANNEXURE_NOTICE_TEXT = 'Complete list of Serial Numbers provided in Annexure A.';
 
     /** Payment Details label for counter tender before finance allocation is recorded. */
-    public const PAYMENT_TENDER_REFERENCE_LABEL = 'Tender Ref.';
+    public const PAYMENT_TENDER_REFERENCE_LABEL = 'Counter Tender Reference';
 
     private const COL_NO = 42.0;
 

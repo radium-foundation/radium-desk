@@ -231,10 +231,41 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
 
         $this->assertSame(StatutoryInvoiceChannel::DeskPos, $invoice->channel);
         $this->assertStringContainsString('UNPAID', $text);
-        $this->assertStringContainsString('Tender Ref.', $text);
+        $this->assertStringContainsString(SimplePdfRenderer::PAYMENT_TENDER_REFERENCE_LABEL, $text);
         $this->assertStringContainsString('UPI-REF-POS', $text);
         $this->assertStringNotContainsString('Reference No.', $text);
         $this->assertStringNotContainsString('PO Number', $text);
+    }
+
+    public function test_product_pos_unpaid_without_tender_reference_omits_reference_line(): void
+    {
+        $binary = (new SimplePdfRenderer)->render($this->basePayload(
+            channel: StatutoryInvoiceChannel::DeskPos->value,
+            paymentReference: null,
+            paymentMethod: 'UPI',
+            paymentStatus: 'UNPAID',
+        ));
+        $text = $this->pdfText($binary);
+
+        $this->assertStringContainsString('UNPAID', $text);
+        $this->assertStringNotContainsString(SimplePdfRenderer::PAYMENT_TENDER_REFERENCE_LABEL, $text);
+        $this->assertStringNotContainsString('Reference No.', $text);
+    }
+
+    public function test_product_pos_paid_shows_reference_no_when_reference_present(): void
+    {
+        $reference = 'UPI-ALLOC-0099';
+        $binary = (new SimplePdfRenderer)->render($this->basePayload(
+            channel: StatutoryInvoiceChannel::DeskPos->value,
+            paymentReference: $reference,
+            paymentMethod: 'UPI',
+            paymentStatus: 'PAID',
+        ));
+        $text = $this->pdfText($binary);
+
+        $this->assertStringContainsString('Reference No.', $text);
+        $this->assertStringContainsString($reference, $text);
+        $this->assertStringNotContainsString(SimplePdfRenderer::PAYMENT_TENDER_REFERENCE_LABEL, $text);
     }
 
     public function test_multi_line_pos_sale_groups_serials_by_sale_line_allocation(): void
@@ -338,6 +369,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         string $invoiceNumber = 'INV-0767211-TEST',
         array $lines = [],
         bool $withIrn = false,
+        ?string $paymentMethod = null,
+        ?string $paymentStatus = null,
     ): StatutoryInvoicePdfPayload {
         if ($lines === []) {
             $lines = [[
@@ -378,8 +411,8 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
             serialNumbers: $serialNumbers,
             serialGroups: $serialGroups,
             channel: $channel,
-            paymentMethod: $paymentReference !== null ? 'UPI' : null,
-            paymentStatus: $paymentReference !== null ? 'Paid' : null,
+            paymentMethod: $paymentMethod ?? ($paymentReference !== null ? 'UPI' : null),
+            paymentStatus: $paymentStatus ?? ($paymentReference !== null ? 'Paid' : null),
             paymentReference: $paymentReference,
             orderId: $orderId,
             irn: $withIrn ? 'issued-irn-token-0001' : null,

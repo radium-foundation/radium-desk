@@ -14,6 +14,7 @@ use App\Services\Pos\PosUpiIntentService;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\StatutoryLocationSeries;
 use App\Support\Finance\IndianStates;
+use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\InventorySerialNumber;
 use App\Support\Inventory\PosAccess;
@@ -180,7 +181,12 @@ class CounterController extends Controller
         $buyerGstin = BuyerGstin::normalize($data['buyer_gstin'] ?? null);
         $billingState = $data['billing_state'] ?? null;
         if ($billingState === null && $buyerGstin !== null) {
-            $billingState = $data['place_of_supply_state'] ?? null;
+            $billingCity = trim((string) ($data['billing_city'] ?? ''));
+            $billingPin = trim((string) ($data['billing_pincode'] ?? ''));
+            $placeOfSupply = StatutoryBillingStructured::nullable($data['place_of_supply_state'] ?? null);
+            if ($billingCity !== '' && $billingPin !== '' && $placeOfSupply !== null) {
+                $billingState = $placeOfSupply;
+            }
         }
 
         $statutory = [
