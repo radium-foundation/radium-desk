@@ -24,6 +24,7 @@ class LegacyOrderDiscoveryTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+        $this->withoutVite();
 
         config([
             'radiumbox.enabled' => true,

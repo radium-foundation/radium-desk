@@ -19,6 +19,10 @@ class RadiumBoxAutoSyncTriggerService
 
     public function maybeDispatch(Order $order, RadiumBoxSyncTrigger $trigger): bool
     {
+        if ($trigger === RadiumBoxSyncTrigger::Customer360Open && $order->isLegacyImported()) {
+            return false;
+        }
+
         if (! $this->shouldDispatch($order)) {
             return false;
         }

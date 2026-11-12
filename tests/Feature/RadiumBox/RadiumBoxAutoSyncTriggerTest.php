@@ -51,6 +51,43 @@ class RadiumBoxAutoSyncTriggerTest extends TestCase
         });
     }
 
+    public function test_customer360_open_does_not_queue_sync_for_legacy_imported_order(): void
+    {
+        Queue::fake();
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-LIO-NO-SYNC',
+            'serial_number' => 'SN-LIO-1',
+            'legacy_source' => 'radiumbox',
+            'legacy_imported_at' => now(),
+            'legacy_imported_by_user_id' => $agent->id,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Legacy imported case',
+            'description' => 'Imported.',
+            'status' => IncidentStatus::Closed,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk();
+
+        Queue::assertNothingPushed();
+    }
+
     public function test_fresh_sync_does_not_queue_again_when_order_is_already_enriched(): void
     {
         Queue::fake();
