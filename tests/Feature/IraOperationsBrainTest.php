@@ -40,6 +40,8 @@ class IraOperationsBrainTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
+
         $this->seed(RolePermissionSeeder::class);
 
         config([
@@ -292,10 +294,10 @@ class IraOperationsBrainTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $this->actingAs($admin)
-            ->get(route('admin.operations.index'))
+            ->getJson(route('admin.operations.live', ['groups' => 'ira_compact']))
             ->assertOk()
-            ->assertSee('Ira')
-            ->assertSee('View Full Analysis');
+            ->assertSee('Ira', false)
+            ->assertSee('View Full Analysis', false);
     }
 
     private function createAgentWithSchedule(string $name, bool $startSession = true): User

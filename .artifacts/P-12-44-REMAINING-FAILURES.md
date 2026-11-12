@@ -1,20 +1,24 @@
 # P-12-44 — Remaining failures register
 
-**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`77984991`** (2026-11-12 IST, post **#196** P-12-45 + **P-12-46** WS-11).
+
+**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`801c6a19`** (2026-11-12 IST, post **#196–#197** + **P-12-47** WS-10 Operations Control Center cluster).
+
 
 ## Totals (recomputed from 228 rows)
 
+
 | Classification | Count |
 | --- | ---: |
-| VERIFIED FIXED | 115 |
-| STILL FAILING | 112 |
+| VERIFIED FIXED | 122 |
+| STILL FAILING | 105 |
 | ENVIRONMENT BLOCKED | 1 |
 
 ## STILL FAILING by workstream
 
+
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | 109 |
+| WS-10 | 102 |
 | WS-11 | 2 |
 | WS-04 | 1 |
 
@@ -39,7 +43,6 @@
 - `Tests.Feature.AssignReferencePhase9PerformanceTest::test_batch_assign_coalesces_driver_guide_snapshot_automation_and_preserves_audits` (WS-10)
 - `Tests.Feature.Automation.CustomerWaitingAppointmentRepairCommandTest::test_closed_incident_is_skipped` (WS-10)
 - `Tests.Feature.Automation.CustomerWaitingLegacyCleanupTest::test_cleanup_writes_timeline_entry_without_customer_notifications` (WS-10)
-- `Tests.Feature.AutomationOperationsDashboardTest::test_sidebar_shows_operations_entry_and_hides_automation_children_for_admin` (WS-10)
 - `Tests.Feature.BonvoiceLiveCallAssistTest::test_existing_customer_creates_agent_alert_and_notification` (WS-10)
 - `Tests.Feature.BonvoiceWebhookTest::test_customer_360_health_card_shows_latest_call_status_and_relative_time` (WS-10)
 - `Tests.Feature.BonvoiceWebhookTest::test_customer_360_timeline_tab_renders_ivr_call_event` (WS-10)
@@ -64,14 +67,8 @@
 - `Tests.Feature.InteraktWebhookTest::test_official_api_failed_webhook_persists_failure_metadata` (WS-10)
 - `Tests.Feature.InteraktWebhookTest::test_outgoing_template_send_and_status_webhooks_update_timeline` (WS-10)
 - `Tests.Feature.Inventory.InventoryPosOperationalWorkflowTest::test_operator_workflow_catalog_serial_lifecycle_sale_invoice_and_finance` (WS-10)
-- `Tests.Feature.IraOperationsBrainTest::test_admin_dashboard_shows_ira_briefing_panel` (WS-10)
 - `Tests.Feature.JulyLeaveReconcileCommandTest::test_reconcile_approves_pending_creates_missing_and_matches_matrix` (WS-10)
 - `Tests.Feature.MonthlyAttendanceMatrixTest::test_workspace_nav_links_leave_and_hides_unimplemented_tabs` (WS-10)
-- `Tests.Feature.Operations.ControlCenterFirstPaintTest::test_control_center_ssr_caches_first_paint_sections_not_full_dashboard` (WS-10)
-- `Tests.Feature.OperationsDashboardTest::test_admin_can_view_operations_dashboard` (WS-10)
-- `Tests.Feature.OperationsDashboardTest::test_operations_dashboard_shows_interakt_template_configuration_health` (WS-10)
-- `Tests.Feature.OperationsDashboardTest::test_operations_dashboard_shows_meta_flow_integration_card` (WS-10)
-- `Tests.Feature.OperationsDashboardTest::test_sidebar_shows_operations_link_for_admin` (WS-10)
 - `Tests.Feature.OperationsModelFoundationTest::test_open_kpi_excludes_waiting_customer_completed_and_hardware_cases` (WS-10)
 - `Tests.Feature.OperationsModelFoundationTest::test_waiting_customer_cases_are_excluded_from_action_required_counts` (WS-10)
 - `Tests.Feature.OperationsSupportOwnershipTest::test_invalid_serial_case_assigns_support_agent` (WS-10)
@@ -145,9 +142,3 @@
 - `Tests.Unit.OrderProductOrderTest::test_rbp_is_never_hardware_even_if_config_lists_rbp` (WS-10)
 - `Tests.Unit.StatutoryInvoice.EInvoiceCatalogUqcReadinessTest::test_p186_did_not_infer_pcs_or_nos_without_owner_decision` (WS-11)
 - `Tests.Unit.StatutoryInvoice.EInvoiceCatalogUqcReadinessTest::test_p187_owner_decision_assigns_pcs_only_to_the_nine_hardware_skus` (WS-11)
-- `Tests.Unit.StatutoryInvoice.StatutoryInvoicePdfSerialCapacityTest::test_multipage_invoice_keeps_six_serials_on_page_one_without_annexure` (WS-10)
-- `Tests.Unit.StatutoryInvoice.StatutoryInvoicePdfSerialCapacityTest::test_ten_or_fewer_serials_use_main_page_only` (WS-10)
-
-## ENVIRONMENT BLOCKED
-
-- `Tests.Unit.Finance.CaMonthlyReportXlsxPackageValidatorTest::test_validator_flags_minimal_package_missing_excel_required_parts` — P-12-32 phpunit @27b03d19 → ERROR
