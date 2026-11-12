@@ -3,7 +3,8 @@
 **Programme start (IST):** 2026-11-12 18:43:18 IST  
 **Programme end (IST):** 2026-11-12 18:53:06 IST (measured at artifact close)  
 **Repository:** `/Users/ravi/RadiumWebsites/radium-desk` only  
-**Baseline:** `origin/main` @ **`762cf798`** (#185) — verified == `git rev-parse 762cf798` after `git fetch origin main`  
+**Baseline:** `origin/main` @ **`2594f61e`** (#186 Imagick CI atop **#187** `30c48d36` watchdog) — verified after `git fetch origin` post–#187 merge  
+**Post–#187 sync (2026-11-12):** `feature/p12-38-*` branches merged/pushed to `2594f61e`; [#187](https://github.com/radium-foundation/radium-desk/pull/187) squash **MERGED** @ `30c48d36534322a8f5e37cf430f502748bb16ae8`  
 **Coordinator worktree:** `.worktrees/p12-38-coordinator` → `feature/p12-38-coordinator`  
 **Wallet WIP:** untouched — see §10
 
@@ -118,7 +119,9 @@ Profile: `PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit` after p
 | PR | Status |
 | --- | --- |
 | [#186](https://github.com/radium-foundation/radium-desk/pull/186) | **MERGED** (squash) @ **`2594f61e854b98ffa8f3b703a8d001934b2b1fbe`** — rip + release-rip **pass** on head `69e4c01f` |
-| A / B / C | **None opened** (uncommitted worktrees) |
+| [#187](https://github.com/radium-foundation/radium-desk/pull/187) | **MERGED** (squash) @ **`30c48d36534322a8f5e37cf430f502748bb16ae8`** — Agent B watchdog isolation; merged 2026-11-12T13:25:40Z |
+| #188 | **N/A** (does not exist) |
+| A / B / C | **No PRs open** — A: impl **uncommitted** on learning-center worktree; B: branch synced to `main` post-#187; C: PARTIAL |
 
 ---
 
