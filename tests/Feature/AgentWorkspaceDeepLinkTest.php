@@ -16,6 +16,7 @@ class AgentWorkspaceDeepLinkTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
     }
@@ -62,8 +63,8 @@ class AgentWorkspaceDeepLinkTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('workspace=my_work', $html);
-        $this->assertStringContainsString('workspace=my_attention', $html);
+        $this->assertStringContainsString('data-workspace="my_work"', $html);
+        $this->assertStringContainsString('data-workspace="my_attention"', $html);
     }
 
     public function test_admin_legacy_queue_still_resolves_via_workspace_redirect(): void

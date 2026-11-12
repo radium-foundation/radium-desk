@@ -117,6 +117,16 @@ class OperationsQueueClassifier
             return $this->matchesMyWork($incident, $scopeUser);
         }
 
+        if ($scopeUser !== null && $queueValue === OperationQueue::Completed->value) {
+            return $this->classify($incident)->value === $queueValue
+                && $incident->assigned_to_user_id === $scopeUser->id;
+        }
+
+        if ($scopeUser !== null && $queueValue === OperationQueue::WaitingCustomer->value) {
+            return $this->classify($incident)->value === $queueValue
+                && $this->isAssignedWaitingCustomer($incident, $scopeUser);
+        }
+
         // Primary queue only. Ready-for-Service-Reference overlay membership is owned by
         // DashboardSnapshot worklist building, not by the classifier.
         return $this->classify($incident)->value === $queueValue;

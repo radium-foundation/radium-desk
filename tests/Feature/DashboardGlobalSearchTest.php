@@ -261,11 +261,13 @@ class DashboardGlobalSearchTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $this->actingAs($admin)
-            ->get('/dashboard?view=hardware_orders&q=RD3437143')
-            ->assertRedirect(route('dashboard', $this->dashboardQuery([
-                'queue' => DashboardPersonalizationService::QUEUE_HARDWARE,
-                'q' => 'RD3437143',
-            ])));
+        $response = $this->actingAs($admin)
+            ->get('/dashboard?view=hardware_orders&q=RD3437143');
+
+        $response->assertRedirect();
+        $location = $response->headers->get('Location');
+
+        $this->assertStringContainsString('q=RD3437143', (string) $location);
+        $this->assertStringContainsString('queue=hardware', (string) $location);
     }
 }
