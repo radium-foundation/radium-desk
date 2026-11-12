@@ -160,6 +160,7 @@ All four SHAs present on `origin/main` after fetch.
 | `P-12-38-OWNERSHIP-MANIFEST.md` |
 | `P-12-38-MATRIX.md` |
 | `P-12-38-FINAL-REPORT.md` |
+| `P-12-39-REPORT.md` |
 
 ---
 
@@ -236,3 +237,21 @@ All four SHAs present on `origin/main` after fetch.
 | Log | Command (exact) | Start (terminal UTC) | Termination | Bytes | PHPUnit summary |
 | --- | --- | --- | --- | ---: | --- |
 | `phpunit-p12-38-full-0c1ec2a9-notime.log` | `cd …/p12-38-reviewer && PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n -d max_execution_time=0 vendor/bin/phpunit > …/phpunit-p12-38-full-0c1ec2a9-notime.log 2>&1 &` (`echo pid=$!`) | `2026-11-12T15:40:14.614Z` | **SIGTERM** during control (~21:10 IST); early kill | **0** | **No** |
+
+---
+
+## 15. P-12-39 coordinator reconciliation (2026-11-12 IST)
+
+**Authority:** Parent follow-up after subagent **`b57af62e`** merged [PR #190](https://github.com/radium-foundation/radium-desk/pull/190). **No** full PHPUnit; **no** deploy.
+
+| Check | Result |
+| --- | --- |
+| `git fetch origin main` | **`482d615484e080c358eb9cf28818901f6b0cf9cf`** (#190) |
+| Wallet `d9481615` | **`d94816153cd2c89f8175d29a1510b38b4c16df6b`** on `feature/p18-33-unified-wallet-display` — **untouched** |
+| PosStatutory product rows ×3 | **VERIFIED FIXED** on `main` (UPI cart; B2B state ×2) |
+| P-12-37 lineage STILL FAILING (approx.) | **~87** → **~84** (−3) |
+| P-12-38 programme slice (15 rows) | **15/15 VERIFIED FIXED** @ `482d6154` |
+
+Detail: `.artifacts/P-12-39-REPORT.md`, `.artifacts/P-12-38-MATRIX.md` (updated), CSV lines 92–93 + 96.
+
+**Post-#190 CI:** rip [43251780484](https://github.com/radium-foundation/radium-desk/actions/runs/43251780484) + release-rip [43251780596](https://github.com/radium-foundation/radium-desk/actions/runs/43251780596) — **SUCCESS** on merge SHA `482d6154`.
