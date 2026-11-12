@@ -1,7 +1,7 @@
 # P-12-44 — Remaining failures register
 
 
-**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`801c6a19`** (2026-11-12 IST, post **#196–#197** + **P-12-47** WS-10 Operations Control Center cluster).
+**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`982dcf3e`** (2026-11-12 IST, post **#198** + **P-12-48** OperatorDashboardCache query-count cluster).
 
 
 ## Totals (recomputed from 228 rows)
@@ -9,8 +9,8 @@
 
 | Classification | Count |
 | --- | ---: |
-| VERIFIED FIXED | 122 |
-| STILL FAILING | 105 |
+| VERIFIED FIXED | 125 |
+| STILL FAILING | 102 |
 | ENVIRONMENT BLOCKED | 1 |
 
 ## STILL FAILING by workstream
@@ -18,7 +18,7 @@
 
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | 102 |
+| WS-10 | 99 |
 | WS-11 | 2 |
 | WS-04 | 1 |
 
@@ -73,9 +73,6 @@
 - `Tests.Feature.OperationsModelFoundationTest::test_waiting_customer_cases_are_excluded_from_action_required_counts` (WS-10)
 - `Tests.Feature.OperationsSupportOwnershipTest::test_invalid_serial_case_assigns_support_agent` (WS-10)
 - `Tests.Feature.OperationsSupportOwnershipTest::test_offline_agent_skipped_for_invalid_serial_reassignment` (WS-10)
-- `Tests.Feature.OperatorDashboardCacheTest::test_live_metrics_for_performs_no_slow_scalar_count_queries` (WS-10)
-- `Tests.Feature.OperatorDashboardCacheTest::test_live_metrics_kpis_only_performs_no_slow_scalar_count_queries` (WS-10)
-- `Tests.Feature.OperatorDashboardCacheTest::test_live_reverb_metrics_for_performs_no_slow_scalar_count_queries` (WS-10)
 - `Tests.Feature.OrderIdentityProtectionTest::serial_correction_remains_locked_after_correction` (WS-10)
 - `Tests.Feature.OrderIdentityProtectionTest::timeline_includes_initial_protection_event_only_once_per_field` (WS-10)
 - `Tests.Feature.Platform.MissionControlCompletionTest::test_superadmin_mission_control_exposes_tools_catalog` (WS-10)
