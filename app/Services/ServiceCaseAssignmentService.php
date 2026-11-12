@@ -920,6 +920,10 @@ class ServiceCaseAssignmentService
 
             if (in_array($event, ['service_case.assigned', 'service_case.reassigned', 'service_case.escalated'], true)) {
                 $this->dashboardBroadcastService->serviceCaseAssigned($freshIncident, $actor);
+
+                if ($this->shouldRemoveFromAdminReadyQueue($freshIncident)) {
+                    $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged($freshIncident, $actor);
+                }
             }
 
             // Automation/IRA actors must not open presence sessions via assignment side-effects.
