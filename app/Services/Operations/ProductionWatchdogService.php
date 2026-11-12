@@ -15,8 +15,8 @@ use App\Models\BonvoiceWebhookLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
-use App\Services\Backup\BackupWatchdogService;
 use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
+use App\Services\Backup\BackupWatchdogService;
 use App\Services\Platform\Health\PlatformHealthSnapshotService;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Http\Request;
@@ -55,14 +55,6 @@ class ProductionWatchdogService
      */
     public function collectCriticalAlerts(): array
     {
-        if (app()->runningUnitTests()) {
-            $alerts = $this->automationAlerts();
-            $isHealthy = $alerts === [];
-            $this->recordUptimeProbe($isHealthy);
-
-            return $alerts;
-        }
-
         $alerts = [
             ...$this->cashfreeAlerts(),
             ...$this->queueAlerts(),

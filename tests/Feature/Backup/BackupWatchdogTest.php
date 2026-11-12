@@ -135,9 +135,10 @@ class BackupWatchdogTest extends TestCase
         $this->assertSame(1, $this->sentBackupAlertCount());
 
         Carbon::setTestNow(now()->addHour());
+        $freshBackupId = now()->utc()->format('Ymd\THis\Z');
         $this->writeStatus([
             'outcome' => 'success',
-            'backup_id' => '20260822T083001Z',
+            'backup_id' => $freshBackupId,
             'phase' => 'cloud_uploaded',
             'error_summary' => null,
             'generated_at' => now()->toIso8601String(),
@@ -220,9 +221,9 @@ class BackupWatchdogTest extends TestCase
             ->count();
     }
 
-  /**
-   * @param  array<string, mixed>  $overrides
-   */
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
     private function writeStatus(array $overrides): void
     {
         File::put($this->statusPath, json_encode([

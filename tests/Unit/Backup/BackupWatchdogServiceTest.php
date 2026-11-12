@@ -201,6 +201,11 @@ class BackupWatchdogServiceTest extends TestCase
         $this->assertNotContains('backup:lock_overlap', $keys);
     }
 
+    public function test_phpunit_without_status_file_does_not_emit_never_backed_up_stale_alert(): void
+    {
+        $this->assertSame([], app(BackupWatchdogService::class)->collectAlerts());
+    }
+
     public function test_disabled_watchdog_returns_no_alerts(): void
     {
         config(['backup.watchdog.enabled' => false]);

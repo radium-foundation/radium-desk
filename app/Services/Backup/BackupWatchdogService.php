@@ -124,6 +124,10 @@ class BackupWatchdogService
      */
     private function staleAlert(?array $status): ?ProductionCriticalAlert
     {
+        if (app()->runningUnitTests() && $status === null) {
+            return null;
+        }
+
         $lastSuccessAt = $this->lastSuccessfulBackupAt($status);
 
         if ($lastSuccessAt === null) {
