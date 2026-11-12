@@ -1,0 +1,58 @@
+name: Incoming email learning center RIP
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/Http/Controllers/IncomingEmailAdminController.php'
+      - 'app/Support/IncomingEmail/**'
+      - 'app/Support/Navigation/NavigationContextResolver.php'
+      - 'config/inbound_email.php'
+      - 'database/seeders/RolePermissionSeeder.php'
+      - 'resources/views/admin/incoming-emails/**'
+      - 'resources/views/navigation/**'
+      - 'routes/web.php'
+      - 'tests/Feature/IncomingEmail/IncomingEmailLearningCenterAccessTest.php'
+      - 'tests/Feature/IncomingEmail/IncomingEmailLearningCenterPhase1Test.php'
+      - '.github/workflows/incoming-email-learning-center-rip.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/Http/Controllers/IncomingEmailAdminController.php'
+      - 'app/Support/IncomingEmail/**'
+      - 'app/Support/Navigation/NavigationContextResolver.php'
+      - 'config/inbound_email.php'
+      - 'database/seeders/RolePermissionSeeder.php'
+      - 'resources/views/admin/incoming-emails/**'
+      - 'resources/views/navigation/**'
+      - 'routes/web.php'
+      - 'tests/Feature/IncomingEmail/IncomingEmailLearningCenterAccessTest.php'
+      - 'tests/Feature/IncomingEmail/IncomingEmailLearningCenterPhase1Test.php'
+      - '.github/workflows/incoming-email-learning-center-rip.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  incoming-email-learning-center-rip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+          extensions: imagick, zip, gd, sqlite3, mbstring, xml, curl, intl
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHPUnit (IRA Learning Center access control)
+        run: ./vendor/bin/phpunit tests/Feature/IncomingEmail/IncomingEmailLearningCenterAccessTest.php
+
+      - name: PHPUnit (IRA Learning Center phase 1)
+        run: ./vendor/bin/phpunit tests/Feature/IncomingEmail/IncomingEmailLearningCenterPhase1Test.php
