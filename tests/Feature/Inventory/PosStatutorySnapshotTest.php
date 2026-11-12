@@ -169,7 +169,9 @@ class PosStatutorySnapshotTest extends TestCase
 
         $this->actingAs($this->seller)
             ->post(route('pos.counter.store'), $this->payload([
+                'customer_name' => 'Repeat Buyer',
                 'buyer_gstin' => '29AAAAA0000A1Z5',
+                'billing_address' => '42 MG Road',
                 'place_of_supply_state' => 'Karnataka',
                 'billing_city' => 'Bengaluru',
                 'billing_state' => 'Karnataka',
@@ -204,7 +206,7 @@ class PosStatutorySnapshotTest extends TestCase
         $this->actingAs($this->seller)
             ->get(route('pos.sales.show', $sale))
             ->assertOk()
-            ->assertSee('Sale statutory snapshot')
+            ->assertSee('Sale billing snapshot')
             ->assertSee('Place of supply Delhi');
 
         $this->actingAs($this->seller)
