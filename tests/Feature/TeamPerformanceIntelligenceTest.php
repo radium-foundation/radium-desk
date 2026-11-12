@@ -240,21 +240,24 @@ class TeamPerformanceIntelligenceTest extends TestCase
             'communication_events_count' => 7,
             'on_time_login' => true,
         ]);
+        $otherCommunicationCount = 4242;
+
         WorkSession::query()->create([
             'user_id' => $other->id,
             'work_date' => '2026-07-06',
             'login_at' => Carbon::parse('2026-07-06 09:00:00'),
             'logout_at' => Carbon::parse('2026-07-06 18:00:00'),
             'ended_reason' => WorkSessionEndReason::ManualLogout,
-            'communication_events_count' => 99,
+            'communication_events_count' => $otherCommunicationCount,
             'on_time_login' => true,
         ]);
 
         $this->actingAs($agent)
             ->get(route('my-performance.index'))
             ->assertOk()
-            ->assertSee('7')
-            ->assertDontSee('99');
+            ->assertSee('Customer replies', false)
+            ->assertSee('7', false)
+            ->assertDontSee((string) $otherCommunicationCount);
     }
 
     public function test_admin_sees_team_stats(): void
