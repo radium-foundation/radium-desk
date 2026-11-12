@@ -7,7 +7,9 @@ use App\Enums\OrderCompletionStatus;
 use App\Enums\OrderStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Support\AppDateFormatter;
+use Database\Factories\OrderFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -19,7 +21,8 @@ use Illuminate\Support\Str;
 
 class Order extends Model
 {
-    use SoftDeletes;
+    /** @use HasFactory<OrderFactory> */
+    use HasFactory, SoftDeletes;
 
     protected $attributes = [
         'radiumbox_sync_status' => 'NOT_SYNCED',
