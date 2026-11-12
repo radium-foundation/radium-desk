@@ -156,6 +156,11 @@ class BackfillReadyQueueCommand extends Command
             return ['type' => 'skip', 'reason' => 'already_in_ready_queue'];
         }
 
+        $graceUntil = $incident->automation_pending_until;
+        if ($graceUntil !== null && $graceUntil->isPast()) {
+            return ['type' => 'skip', 'reason' => 'awaiting_grace_processor'];
+        }
+
         $status = $this->syncStore->status($order->id);
         $needsEnrichmentPath = $this->radiumBoxService->needsEnrichment($order)
             || $status === RadiumBoxEnrichmentSyncStatus::Pending
@@ -183,10 +188,6 @@ class BackfillReadyQueueCommand extends Command
 
         if (! $this->eligibilityService->passesValidationForOrder($order)) {
             return ['type' => 'skip', 'reason' => 'not_eligible_for_ready_queue'];
-        }
-
-        if ($incident->automation_pending_until !== null && $incident->automation_pending_until->isPast()) {
-            return ['type' => 'skip', 'reason' => 'awaiting_grace_processor'];
         }
 
         return ['type' => 'process', 'action' => 'evaluate_eligibility'];
