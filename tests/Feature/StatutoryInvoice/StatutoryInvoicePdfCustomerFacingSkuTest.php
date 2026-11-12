@@ -197,6 +197,10 @@ class StatutoryInvoicePdfCustomerFacingSkuTest extends TestCase
 
     public function test_product_pos_integration_pdf_omits_sku_but_preserves_financial_columns(): void
     {
+        if (! extension_loaded('imagick')) {
+            $this->markTestSkipped('Imagick extension required for statutory PDF integration rendering.');
+        }
+
         $product = InventoryProduct::query()->create([
             'sku' => 'MFS110-SKU-TEST',
             'name' => 'Mantra MFS 110 L1 Single Fingerprint Biometric Scanner',
@@ -231,6 +235,8 @@ class StatutoryInvoicePdfCustomerFacingSkuTest extends TestCase
 
         $invoice = StatutoryInvoice::query()->where('inventory_sale_id', $sale->id)->firstOrFail();
         $this->assertStringContainsString('MFS110-SKU-TEST', (string) $invoice->items->first()?->description);
+
+        app(StatutoryDocumentService::class)->generate($invoice);
 
         $binary = $this->invoicePdf($invoice);
         $text = $this->extractedPdfText($binary);

@@ -10,6 +10,7 @@ use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Concerns\BuildsWorkspaceValidationFailure;
+use App\Support\Remarks\RemarkSystemSource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -39,7 +40,7 @@ class WorkspaceAssignActionService
                     remarkable: $incident,
                     actor: $actor,
                     body: $body,
-                    systemSource: \App\Support\Remarks\RemarkSystemSource::WORKSPACE_ASSIGN,
+                    systemSource: RemarkSystemSource::WORKSPACE_ASSIGN,
                     request: $request,
                 );
 
@@ -103,6 +104,7 @@ class WorkspaceAssignActionService
             $effects = new WorkspaceRefreshEffects(
                 refreshKpis: $effects->refreshKpis,
                 removeRow: true,
+                targetSelectors: $effects->targetSelectors,
                 closeWorkspaceHost: $effects->closeWorkspaceHost,
             );
         }

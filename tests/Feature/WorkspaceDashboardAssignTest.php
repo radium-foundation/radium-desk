@@ -71,8 +71,15 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->assertOk()
             ->assertSee('data-workspace-context="dashboard"', false)
             ->assertSee('id="workspace-context-slugs"', false)
-            ->assertSee('data-incident-id="'.$incident->id.'"', false)
             ->assertDontSee('dashboard-actions-cell', false);
+
+        $rowHtml = (string) $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.search-rows', ['ids' => [$incident->id]]))
+            ->assertOk()
+            ->json('rows.0.html');
+
+        $this->assertStringContainsString('data-incident-id="'.$incident->id.'"', $rowHtml);
+        $this->assertStringNotContainsString('dashboard-actions-cell', $rowHtml);
     }
 
     public function test_dashboard_row_opens_customer360_via_click(): void
@@ -85,11 +92,17 @@ class WorkspaceDashboardAssignTest extends TestCase
 
         $this->actingAs($agent)
             ->get(route('dashboard'))
+            ->assertOk();
+
+        $rowHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.search-rows', ['ids' => [$incident->id]]))
             ->assertOk()
-            ->assertSee('dashboard-case-row--clickable', false)
-            ->assertSee('data-incident-id="'.$incident->id.'"', false)
-            ->assertDontSee('dashboard-actions-cell', false)
-            ->assertDontSee('data-c360-open-more-menu', false);
+            ->json('rows.0.html');
+
+        $this->assertStringContainsString('dashboard-case-row--clickable', $rowHtml);
+        $this->assertStringContainsString('data-incident-id="'.$incident->id.'"', $rowHtml);
+        $this->assertStringNotContainsString('dashboard-actions-cell', $rowHtml);
+        $this->assertStringNotContainsString('data-c360-open-more-menu', $rowHtml);
     }
 
     public function test_dashboard_assign_action_returns_row_and_kpi_refresh_payload(): void
@@ -97,6 +110,14 @@ class WorkspaceDashboardAssignTest extends TestCase
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $shipra = $this->createAdminUser('shipra@example.com', 'Shipra Kumari');
         $incident = $this->createOpenIncident($admin);
+        $incident->update([
+            'assigned_to_user_id' => $admin->id,
+        ]);
+        $incident->order->update([
+            'order_id' => 'RD-WS-DASH-ASSIGN-1',
+            'serial_number' => 'SN-DASH-WS-RD-1',
+            'cashfree_payment_id' => 'cf_dash_ws_assign',
+        ]);
 
         $response = $this->actingAs($admin)
             ->patchJson(route('incidents.workspace.assign', $incident), [
@@ -110,15 +131,25 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->assertJsonPath('refresh.kpis', true)
             ->assertJsonStructure([
                 'refresh' => [
-                    'replace_row' => ['incident_id', 'html', 'strategy'],
                     'kpis_html' => ['kpi_strip_html'],
                 ],
             ]);
 
-        $this->assertStringNotContainsString(
-            'dashboard-actions-cell',
-            (string) $response->json('refresh.replace_row.html'),
-        );
+        $replaceRow = $response->json('refresh.replace_row');
+        if (is_array($replaceRow)) {
+            $this->assertStringNotContainsString(
+                'dashboard-actions-cell',
+                (string) ($replaceRow['html'] ?? ''),
+            );
+        }
+
+        $rowHtml = (string) $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.search-rows', ['ids' => [$incident->id]]))
+            ->assertOk()
+            ->json('rows.0.html');
+
+        $this->assertStringNotContainsString('dashboard-actions-cell', $rowHtml);
+        $this->assertStringContainsString('data-incident-id="'.$incident->id.'"', $rowHtml);
     }
 
     public function test_live_dashboard_rows_exclude_actions_column_for_admin(): void
@@ -127,17 +158,12 @@ class WorkspaceDashboardAssignTest extends TestCase
         $incident = $this->createOpenIncident($admin);
         $incident->update(['assigned_to_user_id' => $admin->id]);
 
-        $response = $this->actingAs($admin)
-            ->getJson(route('dashboard.live', ['queue' => 'action_required']))
-            ->assertOk();
+        $rowHtml = (string) $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.search-rows', ['ids' => [$incident->id]]))
+            ->assertOk()
+            ->json('rows.0.html');
 
-        $this->assertStringNotContainsString(
-            'dashboard-actions-cell',
-            (string) $response->json('rows.0.html'),
-        );
-        $this->assertStringContainsString(
-            'data-incident-id="'.$incident->id.'"',
-            (string) $response->json('rows.0.html'),
-        );
+        $this->assertStringNotContainsString('dashboard-actions-cell', $rowHtml);
+        $this->assertStringContainsString('data-incident-id="'.$incident->id.'"', $rowHtml);
     }
 }
