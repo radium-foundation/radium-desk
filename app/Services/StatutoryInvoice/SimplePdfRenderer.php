@@ -426,7 +426,7 @@ class SimplePdfRenderer
     private function estimateFirstPageTableStartY(StatutoryInvoicePdfPayload $payload): float
     {
         $ops = [];
-        $y = $this->firstPageHeader($ops, $payload);
+        $y = $this->firstPageHeader($ops, $payload, embedBrandAssets: false);
         $y = $this->partyBlock($ops, $payload, $y);
 
         return $y - 18.0;
@@ -456,10 +456,12 @@ class SimplePdfRenderer
     /**
      * @param  list<string>  $ops
      */
-    private function firstPageHeader(array &$ops, StatutoryInvoicePdfPayload $payload): float
+    private function firstPageHeader(array &$ops, StatutoryInvoicePdfPayload $payload, bool $embedBrandAssets = true): float
     {
         $y = self::PAGE1_LOGO_TOP_Y;
-        $ops[] = $this->logoMark(self::MARGIN, $y);
+        if ($embedBrandAssets) {
+            $ops[] = $this->logoMark(self::MARGIN, $y);
+        }
 
         $ops[] = $this->rightText(self::CONTENT_RIGHT, $y + 4, 'TAX INVOICE', 16, true, self::NAVY_R, self::NAVY_G, self::NAVY_B);
         $ops[] = $this->accentLine(self::CONTENT_RIGHT - 108, $y - 4, self::CONTENT_RIGHT);

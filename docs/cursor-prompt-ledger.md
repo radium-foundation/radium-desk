@@ -943,4 +943,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-12-44 | 2026-11-12 | **P-12-44** Consolidate P-12-40–43; matrix + remaining failures | Worktree **`.worktrees/p12-44-consolidation`** @ **`d709e856`**. Verify-only: PRs **#191–#194** merged; matrix **109/118/1**; artifacts **`.artifacts/P-12-44-*`**. **NO** app logic / deploy / wallet change / full PHPUnit. Wallet **`d9481615`** untouched. |
 
+| RadiumDesk-P-12-45 | 2026-11-12 | **P-12-45** Statutory PDF logo layout investigation + fix | **CLAIMED** `RadiumDesk-P-12-45`. Worktree **`.worktrees/p12-45-statutory-pdf-logo`**, branch **`feature/p12-45-statutory-pdf-logo`**, baseline **`49775d89`**. Root cause: serial layout measurement invoked `logoMark` without `prepareEmbeddedImages()`. Fix: `embedBrandAssets` on measurement header path; SerialCapacity unit test bootstrap. Matrix logo cluster **11/11 PASS** (`phpunit-isolated`). **`.artifacts/P-12-45-LOGO-INVESTIGATION-REPORT.md`**. Wallet **`d9481615`** **preserved**. Full suite **NOT RUN**. |
+
 Do not renumber or overwrite earlier rows. Append only.
