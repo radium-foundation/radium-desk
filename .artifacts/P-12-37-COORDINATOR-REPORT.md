@@ -4,6 +4,7 @@
 **Report (IST):** 2026-11-12 18:10:43 IST  
 **#182 merge + Agents 1–3 sync (IST):** 2026-11-12 18:18+ IST — see §17  
 **#183 merge (Agent 3 workspace-close, IST):** 2026-11-12 18:21+ IST — `2ca010b4` on `main`; matrix `.artifacts/P-12-37-AGENT-3-MATRIX-DELTA.md`  
+**#185 merge (Agent 2 WS-04 OPM tail, IST):** 2026-11-12 18:28+ IST — `762cf798` on `main`; test-only `OnlineReturnRefundAllocationExecutionTest.php` (7/7 harness); rip + release-rip pass  
 **Agent 4 integration (IST):** 2026-11-12 18:20+ IST — see `.artifacts/P-12-37-AGENT-4-REVIEW.md`, `.artifacts/P-12-37-MATRIX-DELTA.md`  
 **Repository:** `radium-foundation/radium-desk` only  
 
@@ -44,7 +45,7 @@ See **`.artifacts/P-12-37-OWNERSHIP-MANIFEST.md`**.
 | Agent | Matrix rows (P-12-32 CSV, net of #177/#180) | Completed |
 | --- | ---: | ---: |
 | 1 | 7 | 0 |
-| 2 | 1 | 0 |
+| 2 | 1 | **1** (#185 @ `762cf798`) |
 | 3 | 16 | 0 |
 | 4 | 2 ENVIRONMENT BLOCKED (+ class-level ERROR/SKIP) | **1 FIXED** (zip); **1 reclassified** STILL FAILING (PDF assertion) |
 | P-12-36 (parallel, not P-12-37) | 6 `DashboardServiceCasesTest` | 0 on `main` (green in P-12-36 worktree) |
