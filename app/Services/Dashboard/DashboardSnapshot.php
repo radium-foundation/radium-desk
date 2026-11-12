@@ -401,8 +401,7 @@ class DashboardSnapshot
                 $queue = $this->queueClassifier->classify($incident);
                 $buckets[$queue->value][] = $incident;
 
-                if ($queue !== OperationQueue::ActionRequired
-                    && $this->queueClassifier->isReadyForReferenceEntry($incident)) {
+                if ($this->queueClassifier->shouldMirrorInAdminReadyQueue($incident, $queue)) {
                     $buckets[OperationQueue::ActionRequired->value][] = $incident;
                 }
 
@@ -431,12 +430,19 @@ class DashboardSnapshot
                 );
             }
 
-            if ($queueValue === OperationQueue::ActionRequired->value && $scopeUser === null) {
-                $assignmentService ??= app(ServiceCaseAssignmentService::class);
-                $assignmentService->prefetchAdminReadyVisibility($incidents);
-                $incidents = $incidents->filter(
-                    fn (Incident $incident): bool => $assignmentService->isVisibleInAdminReadyQueue($incident),
-                );
+            if ($queueValue === OperationQueue::ActionRequired->value) {
+                $incidents = $incidents
+                    ->unique(fn (Incident $incident): int => (int) $incident->id)
+                    ->filter(fn (Incident $incident): bool => ! $this->queueClassifier->isWaitingCustomer($incident)
+                        && ! $this->queueClassifier->isHardware($incident));
+
+                if ($scopeUser === null) {
+                    $assignmentService ??= app(ServiceCaseAssignmentService::class);
+                    $assignmentService->prefetchAdminReadyVisibility($incidents);
+                    $incidents = $incidents->filter(
+                        fn (Incident $incident): bool => $assignmentService->isVisibleInAdminReadyQueue($incident),
+                    );
+                }
             }
 
             $this->queueIncidents[$this->queueCacheKey($queue->value, $scopeUser)] = $incidents->values();
@@ -501,7 +507,10 @@ class DashboardSnapshot
 
                 // Fallback Ready overlay (same rule as warmQueueIncidents).
                 return $queue === OperationQueue::ActionRequired->value
-                    && $this->queueClassifier->isReadyForReferenceEntry($incident);
+                    && $this->queueClassifier->shouldMirrorInAdminReadyQueue(
+                        $incident,
+                        $this->queueClassifier->classify($incident),
+                    );
             });
 
         if ($scopeUser !== null && $queue === OperationQueue::WaitingCustomer->value) {

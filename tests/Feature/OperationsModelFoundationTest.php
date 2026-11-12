@@ -14,6 +14,7 @@ use App\Models\RefundRequest;
 use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
+use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
@@ -35,6 +36,8 @@ class OperationsModelFoundationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->withoutVite();
 
         $this->seed(RolePermissionSeeder::class);
     }
@@ -165,6 +168,8 @@ class OperationsModelFoundationTest extends TestCase
         ]);
 
         $this->createIncident('RD-ACTION-COUNT', $creator, $creator);
+
+        app(DashboardSnapshotStore::class)->forget();
 
         $counts = DashboardSnapshot::load()->queueCounts();
 
@@ -330,6 +335,8 @@ class OperationsModelFoundationTest extends TestCase
             'updated_by' => $creator->id,
             'assigned_to_user_id' => $creator->id,
         ]);
+
+        app(DashboardSnapshotStore::class)->forget();
 
         $snapshot = DashboardSnapshot::load();
         $queueCounts = $snapshot->queueCounts();

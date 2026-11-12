@@ -120,9 +120,6 @@ class DashboardClassificationIndex
             ->get();
     }
 
-    /**
-     * @return CachedActiveIncidentSnapshot
-     */
     public function buildCachedSnapshot(EloquentCollection $incidents): CachedActiveIncidentSnapshot
     {
         $classifier = app(OperationsQueueClassifier::class)->rememberClassifications();
@@ -165,8 +162,7 @@ class DashboardClassificationIndex
             $queue = $classifier->classify($incident);
             $rawBuckets[$queue->value][] = $incident;
 
-            if ($queue !== OperationQueue::ActionRequired
-                && $classifier->isReadyForReferenceEntry($incident)) {
+            if ($classifier->shouldMirrorInAdminReadyQueue($incident, $queue)) {
                 $rawBuckets[OperationQueue::ActionRequired->value][] = $incident;
             }
 
@@ -235,6 +231,13 @@ class DashboardClassificationIndex
                     );
             } else {
                 $incidents = collect($rawBuckets[$queue->value]);
+
+                if ($queue === OperationQueue::ActionRequired) {
+                    $incidents = $incidents
+                        ->unique(fn (Incident $incident): int => (int) $incident->id)
+                        ->filter(fn (Incident $incident): bool => ! $classifier->isWaitingCustomer($incident)
+                            && ! $classifier->isHardware($incident));
+                }
 
                 if ($scopeUser !== null && $queue === OperationQueue::WaitingCustomer) {
                     $incidents = $incidents->filter(

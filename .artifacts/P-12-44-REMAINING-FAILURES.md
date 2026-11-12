@@ -1,7 +1,7 @@
 # P-12-44 — Remaining failures register
 
 
-**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`982dcf3e`** (2026-11-12 IST, post **#198** + **P-12-48** OperatorDashboardCache query-count cluster).
+**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`69886319`** (2026-11-12 IST, post **#199** + **P-12-49** workspace KPI / Ready queue overlay cluster).
 
 
 ## Totals (recomputed from 228 rows)
@@ -9,8 +9,8 @@
 
 | Classification | Count |
 | --- | ---: |
-| VERIFIED FIXED | 125 |
-| STILL FAILING | 102 |
+| VERIFIED FIXED | 127 |
+| STILL FAILING | 100 |
 | ENVIRONMENT BLOCKED | 1 |
 
 ## STILL FAILING by workstream
@@ -18,7 +18,7 @@
 
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | 99 |
+| WS-10 | 97 |
 | WS-11 | 2 |
 | WS-04 | 1 |
 
@@ -69,8 +69,6 @@
 - `Tests.Feature.Inventory.InventoryPosOperationalWorkflowTest::test_operator_workflow_catalog_serial_lifecycle_sale_invoice_and_finance` (WS-10)
 - `Tests.Feature.JulyLeaveReconcileCommandTest::test_reconcile_approves_pending_creates_missing_and_matches_matrix` (WS-10)
 - `Tests.Feature.MonthlyAttendanceMatrixTest::test_workspace_nav_links_leave_and_hides_unimplemented_tabs` (WS-10)
-- `Tests.Feature.OperationsModelFoundationTest::test_open_kpi_excludes_waiting_customer_completed_and_hardware_cases` (WS-10)
-- `Tests.Feature.OperationsModelFoundationTest::test_waiting_customer_cases_are_excluded_from_action_required_counts` (WS-10)
 - `Tests.Feature.OperationsSupportOwnershipTest::test_invalid_serial_case_assigns_support_agent` (WS-10)
 - `Tests.Feature.OperationsSupportOwnershipTest::test_offline_agent_skipped_for_invalid_serial_reassignment` (WS-10)
 - `Tests.Feature.OrderIdentityProtectionTest::serial_correction_remains_locked_after_correction` (WS-10)
