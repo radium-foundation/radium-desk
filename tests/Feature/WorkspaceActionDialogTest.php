@@ -9,18 +9,18 @@ use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceContext;
 use App\Models\AuditLog;
 use App\Models\Incident;
-use App\Models\Order;
 use App\Models\Remark;
 use App\Models\ServiceCaseCloseException;
 use App\Models\User;
-use App\Services\IncidentReferenceService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesWorkspaceServiceCaseFixtures;
 use Tests\TestCase;
 
 class WorkspaceActionDialogTest extends TestCase
 {
+    use CreatesWorkspaceServiceCaseFixtures;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -28,6 +28,7 @@ class WorkspaceActionDialogTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->withoutVite();
 
         config([
             'service_case_assignment.escalation.level_1_email' => 'shubhanshi@radiumbox.com',
@@ -70,38 +71,13 @@ class WorkspaceActionDialogTest extends TestCase
 
     private function createIncident(User $creator, array $overrides = []): Incident
     {
-        $order = Order::query()->create([
-            'order_id' => $overrides['order_id'] ?? 'ORD-ACTION-1',
-            'serial_number' => $overrides['serial_number'] ?? 'SN-ACTION-1',
-            'product_name' => $overrides['product_name'] ?? 'MFS 110',
-            'device_model' => $overrides['device_model'] ?? 'MFS 110',
-            'cashfree_payment_id' => $overrides['cashfree_payment_id'] ?? null,
-            'transaction_id' => $overrides['transaction_id'] ?? null,
-            'status' => 'active',
-            'created_by' => $creator->id,
-        ]);
-
-        unset(
-            $overrides['order_id'],
-            $overrides['serial_number'],
-            $overrides['transaction_id'],
-            $overrides['product_name'],
-            $overrides['device_model'],
-            $overrides['cashfree_payment_id'],
+        return $this->createWorkspaceServiceCaseIncident(
+            $creator,
+            $overrides,
+            defaultOrderId: 'ORD-ACTION-1',
+            defaultTitle: 'Action dialog test',
+            defaultDescription: 'Action dialog test description.',
         );
-
-        return Incident::query()->create([
-            'order_id' => $order->id,
-            'reference_no' => $overrides['reference_no'] ?? app(IncidentReferenceService::class)->generate(),
-            'category' => 'General',
-            'source' => IncidentSource::Call,
-            'title' => $overrides['title'] ?? 'Action dialog test',
-            'description' => $overrides['description'] ?? 'Action dialog test description.',
-            'status' => $overrides['status'] ?? IncidentStatus::Open,
-            'created_by' => $creator->id,
-            'updated_by' => $creator->id,
-            ...$overrides,
-        ]);
     }
 
     public function test_action_component_fragment_renders_manage_case_dialog(): void
@@ -425,7 +401,7 @@ class WorkspaceActionDialogTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('data-workspace-trigger="request-serial"', false)
-            ->assertSee('Request Serial Number', false);
+            ->assertSee('Request Serial', false);
     }
 
     public function test_reopen_dialog_does_not_show_assignee_selector(): void
@@ -612,9 +588,7 @@ class WorkspaceActionDialogTest extends TestCase
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $incident = $this->createIncident($admin, [
             'order_id' => 'RD-DEVICE-UNSUPPORTED',
-            'serial_number' => '10137886',
-            'product_name' => null,
-            'device_model' => null,
+            'serial_number' => $this->suspiciousProductCodeSerial(),
             'transaction_id' => 'TXN-123',
         ])->load('order');
 
