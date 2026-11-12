@@ -245,7 +245,7 @@ class StatutoryInvoicePdfCustomerFacingSkuTest extends TestCase
         $this->assertStringNotContainsString('MFS110-SKU-TEST', $text);
         $this->assertStringContainsString('84716050', $text);
         $this->assertStringContainsString('UNPAID', $text);
-        $this->assertStringContainsString('Tender Ref.', $text);
+        $this->assertStringContainsString(SimplePdfRenderer::PAYMENT_TENDER_REFERENCE_LABEL, $text);
         $this->assertStringContainsString('UPI-SKU-TEST', $text);
         $this->assertStringNotContainsString('Reference No.', $text);
     }

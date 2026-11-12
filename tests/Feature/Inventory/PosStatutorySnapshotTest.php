@@ -376,7 +376,6 @@ class PosStatutorySnapshotTest extends TestCase
                 'buyer_gstin' => '07AAAAA0000A1Z5',
                 'billing_city' => 'New Delhi',
                 'billing_pincode' => '110001',
-                'place_of_supply_state' => 'Delhi',
             ]))
             ->assertSessionHasErrors('billing_state');
 

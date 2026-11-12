@@ -174,6 +174,9 @@ class PosUpiIntentService
                     'statutory' => [
                         'buyer_gstin' => $statutory['buyer_gstin'] ?? ($customer['gstin'] ?? null),
                         'billing_address' => $statutory['billing_address'] ?? null,
+                        'billing_city' => $statutory['billing_city'] ?? null,
+                        'billing_state' => $statutory['billing_state'] ?? null,
+                        'billing_pincode' => $statutory['billing_pincode'] ?? null,
                         'place_of_supply_state' => $statutory['place_of_supply_state'] ?? null,
                     ],
                 ],
