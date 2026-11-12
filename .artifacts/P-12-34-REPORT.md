@@ -65,12 +65,12 @@ Full suite: **NOT RUN**
 
 | Phase | Workflow | Run URL | `headSha` | Conclusion |
 | --- | --- | --- | --- | --- |
-| Pre-merge (PR) | rip | _pending after push_ | — | — |
-| Pre-merge (PR) | release-rip | _pending after push_ | — | — |
-| Post-merge (`main`) | rip | _pending after merge_ | — | — |
-| Post-merge (`main`) | release-rip | _pending after merge_ | — | — |
+| Pre-merge (PR **#178**) | rip | [43213328309](https://github.com/radium-foundation/radium-desk/actions/runs/43213328309) | `94b34d2b` | **success** (~40s) |
+| Pre-merge (PR **#178**) | release-rip | [43213328195](https://github.com/radium-foundation/radium-desk/actions/runs/43213328195) | `94b34d2b` | **success** (~36s) |
+| Post-merge (`main`) | rip | [43213546091](https://github.com/radium-foundation/radium-desk/actions/runs/43213546091) | `97720bc2` | **success** |
+| Post-merge (`main`) | release-rip | [43213546145](https://github.com/radium-foundation/radium-desk/actions/runs/43213546145) | `97720bc2` | **success** |
 
-_Update this table from `gh pr checks` after push._
+Merged **[PR #178](https://github.com/radium-foundation/radium-desk/pull/178)** → **`97720bc2`**.
 
 ## Coordinator summary
 
