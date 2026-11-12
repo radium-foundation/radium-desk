@@ -1,4 +1,7 @@
 *
 !private/
 !public/
+!tmp/
+!tmp/.gitignore
+!tmp/phpunit-full-suite-auth.json.example
 !.gitignore

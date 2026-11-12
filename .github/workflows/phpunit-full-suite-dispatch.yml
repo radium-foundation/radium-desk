@@ -1,0 +1,66 @@
+name: PHPUnit full suite (Owner dispatch only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      owner_approval_token:
+        description: Owner approval token (must match repository secret PHPUNIT_FULL_SUITE_OWNER_TOKEN)
+        required: true
+        type: string
+      prompt_id:
+        description: Cursor prompt / ledger ID authorizing the run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Owner approval token
+        env:
+          EXPECTED: ${{ secrets.PHPUNIT_FULL_SUITE_OWNER_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPECTED:-}" ]; then
+            echo "Repository secret PHPUNIT_FULL_SUITE_OWNER_TOKEN is not configured; refusing full suite."
+            exit 2
+          fi
+          if [ "${{ inputs.owner_approval_token }}" != "${EXPECTED}" ]; then
+            echo "Invalid owner_approval_token."
+            exit 2
+          fi
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+          extensions: imagick, zip, gd, sqlite3, mbstring, xml, curl, intl
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Write ephemeral full-suite auth (CI)
+        run: |
+          set -euo pipefail
+          mkdir -p storage/app/tmp storage/logs
+          SHA="$(git rev-parse HEAD)"
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%S+00:00)"
+          EXP="$(date -u -d '+6 hours' +%Y-%m-%dT%H:%M:%S+00:00)"
+          cat > storage/app/tmp/phpunit-full-suite-auth.json <<EOF
+          {
+            "authorized_by": "github-workflow-dispatch",
+            "authorized_at": "${NOW}",
+            "expires_at": "${EXP}",
+            "prompt_id": "${{ inputs.prompt_id }}",
+            "sha": "${SHA}"
+          }
+          EOF
+
+      - name: Full PHPUnit via safe entrypoint
+        run: ./bin/phpunit-safe
