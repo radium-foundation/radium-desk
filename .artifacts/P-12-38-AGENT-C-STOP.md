@@ -94,9 +94,9 @@ These require **B2B validation / UPI intent / counter UI** product review — **
 | Deliverable | Status |
 | --- | --- |
 | STOP artifact (this file) | **DONE** |
-| Test harness `withoutVite()` only | **Committed** on `feature/p12-38-pos-statutory-reference` (see commit SHA in Agent C return) |
+| Test harness `withoutVite()` only | **Committed** on `feature/p12-38-pos-statutory-reference` @ **`0c298d8a`** (`test(pos): add withoutVite harness to PosStatutorySnapshotTest`) |
 | Product/statutory changes | **NONE** |
-| PR | **NONE** (harness-only commit; no independent merge without Owner on PDF row) |
+| PR | **NONE** until Owner decides (harness-only branch; no product merge for PDF Reference No. row) |
 
 ---
 
