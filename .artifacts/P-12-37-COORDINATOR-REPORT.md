@@ -2,6 +2,7 @@
 
 **Start (IST):** 2026-11-12 18:09:03 IST  
 **Report (IST):** 2026-11-12 18:10:43 IST  
+**#182 merge + Agents 1–3 sync (IST):** 2026-11-12 18:18+ IST — see §17  
 **Agent 4 integration (IST):** 2026-11-12 18:20+ IST — see `.artifacts/P-12-37-AGENT-4-REVIEW.md`, `.artifacts/P-12-37-MATRIX-DELTA.md`  
 **Repository:** `radium-foundation/radium-desk` only  
 
@@ -90,7 +91,8 @@ See **`.artifacts/P-12-37-OWNERSHIP-MANIFEST.md`**.
 | #178 | MERGED | `97720bc2` |
 | #179 | MERGED | `fbc9c888` |
 | #180 | MERGED | `fafec714` |
-| #181 (P-12-36) | **OPEN** | — (pre-merge rip **success** on `6604a3e4` per P-12-36 report) |
+| #181 (P-12-36) | MERGED | `93b40888` |
+| #182 (PHPUnit bootstrap) | MERGED | `b79c6d7b` |
 
 ## 10. Updated counts (authoritative accounting)
 
@@ -107,7 +109,7 @@ See **`.artifacts/P-12-37-OWNERSHIP-MANIFEST.md`**.
 
 ```
 Main checkout: d94816153cd2c89f8175d29a1510b38b4c16df6b  [feature/p18-33-unified-wallet-display]
-origin/main:   fafec7145fa02db69c0fd6caab4649e18c34331a
+origin/main:   b79c6d7b5f0f155e348f3ee22c06a87d2d33e958 (#182)
 Wallet worktrees @ d9481615: p29-200-baseline, p30-20-rn-ingest, p30-39-rbp1407, p30-43-auto-issuance-gate (unchanged)
 ```
 
@@ -133,7 +135,7 @@ Wallet worktrees @ d9481615: p29-200-baseline, p30-20-rn-ingest, p30-39-rbp1407,
 2. **Agent 1:** add `withoutVite()` / `public/build` symlink pattern (P-12-29/P-12-35) before asserting markup.
 3. **Agent 3:** align close/resolve fixtures with serial verification contract (P-12-26 pattern).
 4. **Agent 4:** **DONE** @ `af239eec` — bootstrap merge recommended **first**; CI Imagick YAML optional follow-up; statutory PDF assertion → separate workstream.
-5. **Merge ordering:** (a) **Agent 4 bootstrap** → `main` before Agents 1–3 rebase; (b) land **#181** before WS-10 dashboard SLA clusters.
+5. **Merge ordering:** ~~(a) Agent 4 bootstrap → main~~ **DONE** (#182 @ `b79c6d7b`); ~~(b) #181~~ **DONE**; Agents 1–3 worktrees fast-forwarded to `origin/main` (§17).
 6. **Next unassigned WS-10 batch:** `IncomingEmailLearningCenterAccessTest` (5), `Inventory.PosStatutorySnapshotTest` (5), `IntelligentAutomationAlertSemanticsTest` (4).
 
 ## 15. Stop conditions
@@ -165,3 +167,27 @@ Wallet worktrees @ d9481615: p29-200-baseline, p30-20-rn-ingest, p30-39-rbp1407,
 ```
 
 **PR readiness:** **Yes** — single commit, no conflict with Agents 1–3 owned tests; global harness only.
+
+## 17. Post–#182 worktree sync (Agents 1–3)
+
+**Synced (IST):** 2026-11-12 18:18+ IST  
+**Merged main SHA:** `b79c6d7b5f0f155e348f3ee22c06a87d2d33e958` (PR **#182**; includes #181 @ `93b40888`)  
+**`origin/main` check:** matches `b79c6d7b` after `git fetch origin` (not diverged).
+
+| Worktree | Branch | Sync | Merge commit | Conflicts |
+| --- | --- | --- | --- | --- |
+| `.worktrees/p12-37-ws-10-operations-sidebar` | `feature/p12-37-ws-10-operations-sidebar` | fast-forward `fafec714` → `b79c6d7b` | *(none — HEAD `b79c6d7b`)* | none |
+| `.worktrees/p12-37-ws-04-opm-tail` | `feature/p12-37-ws-04-opm-tail` | fast-forward | *(none — HEAD `b79c6d7b`)* | none |
+| `.worktrees/p12-37-orders-workspace-close` | `feature/p12-37-orders-workspace-close` | fast-forward | *(none — HEAD `b79c6d7b`)* | none |
+
+**Agent implementation commits on feature branches:** none (still **0** fix commits; only main history).
+
+### Smoke (`PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit`)
+
+| Agent | Command | Exit | Bootstrap |
+| --- | --- | ---: | --- |
+| 1 | `OperationsDashboardTest.php` `--filter test_admin_can_view_operations_dashboard` | **1** | loads (`tests/bootstrap.php` / #182) — fail: markup (`Loading integration health` assertion) |
+| 2 | `ReturnExchange/OnlineReturnRefundAllocationExecutionTest.php` | **1** | loads — 6/7 pass; `test_wallet_line_executes_via_radiumbox_client_with_idempotency` (size 2 vs 1) |
+| 3 | `WorkspaceResolveCloseActionTest.php` `--filter test_close_action_returns_service_case_timeline_and_header_refresh_payload` | **0** | loads — 1/1 pass |
+
+**Wallet WIP / p12-36 / p18-33 main checkout:** not touched.
