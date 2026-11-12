@@ -1,6 +1,7 @@
 @props([
     'device' => [],
     'activeServices' => [],
+    'order' => null,
 ])
 
 @php
@@ -100,6 +101,12 @@
                     @else
                         <x-c360.unavailable-pill />
                     @endif
+                @elseif($order !== null && ! $order->isInquiryOrder())
+                    <x-order-identifier
+                        :order="$order"
+                        :href="route('orders.show', $order)"
+                        class="font-monospace"
+                    />
                 @elseif(filled($device['order_id'] ?? null))
                     <x-customer-360-inline-copy
                         :value="$device['order_id']"

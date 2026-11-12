@@ -20,6 +20,7 @@ class LegacyOrderUiTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+        $this->withoutVite();
     }
 
     public function test_legacy_imported_case_detail_renders_serial_copy_order_link_and_metadata(): void
@@ -210,7 +211,7 @@ class LegacyOrderUiTest extends TestCase
             'created_by' => $importer->id,
         ]);
 
-        Incident::query()->create([
+        $incident = Incident::query()->create([
             'order_id' => $order->id,
             'reference_no' => 'SC3395988',
             'category' => 'General',
@@ -222,19 +223,25 @@ class LegacyOrderUiTest extends TestCase
             'updated_by' => $importer->id,
         ]);
 
-        $this->actingAs($importer)
-            ->get(route('dashboard'))
+        $rowHtml = $this->actingAs($importer)
+            ->getJson(route('dashboard.service-cases.row', $incident))
             ->assertOk()
-            ->assertSee('legacy-imported-order-id', false)
-            ->assertSee('legacy-imported-order-indicator', false)
-            ->assertSee('RD3395988', false)
-            ->assertSeeInOrder(['RD3395988', 'legacy-imported-order-indicator'], false)
-            ->assertSee('data-bs-toggle="tooltip"', false)
-            ->assertSee('data-bs-title="LIO • Imported by Import •', false)
-            ->assertDontSee('legacy-imported-order-indicator" title=', false)
-            ->assertSee(route('orders.show', $order), false)
-            ->assertSee('data-copyable-identifier="serial"', false)
-            ->assertSee('data-copy-value="SN3395988"', false);
+            ->json('html');
+
+        $this->assertStringContainsString('legacy-imported-order-id', $rowHtml);
+        $this->assertStringContainsString('legacy-imported-order-indicator', $rowHtml);
+        $this->assertStringContainsString('RD3395988', $rowHtml);
+        $orderPos = strpos($rowHtml, 'RD3395988');
+        $indicatorPos = strpos($rowHtml, 'legacy-imported-order-indicator');
+        $this->assertNotFalse($orderPos);
+        $this->assertNotFalse($indicatorPos);
+        $this->assertLessThan($indicatorPos, $orderPos);
+        $this->assertStringContainsString('data-bs-toggle="tooltip"', $rowHtml);
+        $this->assertStringContainsString('data-bs-title="LIO • Imported by Import •', $rowHtml);
+        $this->assertStringNotContainsString('legacy-imported-order-indicator" title=', $rowHtml);
+        $this->assertStringContainsString(route('orders.show', $order), $rowHtml);
+        $this->assertStringContainsString('data-copyable-identifier="serial"', $rowHtml);
+        $this->assertStringContainsString('data-copy-value="SN3395988"', $rowHtml);
     }
 
     public function test_customer_360_legacy_imported_order_renders_visual_indicator(): void

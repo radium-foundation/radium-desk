@@ -146,6 +146,7 @@
         ])
         @include('customer-360.partials.device-section', [
             'device' => $device,
+            'order' => $order,
             'sync_history' => $sync_history ?? [],
             'activeServices' => $activeServices ?? [],
         ])

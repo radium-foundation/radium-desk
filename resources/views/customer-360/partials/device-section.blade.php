@@ -7,6 +7,7 @@
     @include('customer-360.partials.current-device', [
         'device' => $device,
         'activeServices' => $activeServices ?? [],
+        'order' => $order ?? null,
     ])
     @include('customer-360.partials.sync-history', ['sync_history' => $sync_history ?? []])
 </div>
