@@ -11,6 +11,7 @@ use App\Models\IncidentWaitingState;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
+use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
@@ -30,6 +31,9 @@ class AgentDashboardOwnershipTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
+        config(['dashboard.operator_snapshot_cache_enabled' => false]);
+        app(DashboardSnapshotStore::class)->forget();
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
     }
@@ -368,8 +372,7 @@ class AgentDashboardOwnershipTest extends TestCase
         $this->createAssignedWaitingCase('RD-UNASSIGNED-WAIT-DRILL', $creator, null);
 
         $this->actingAs($agentA)
-            ->followingRedirects()
-            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER]))
+            ->get(route('dashboard', ['workspace' => DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER]))
             ->assertOk()
             ->assertSee('RD-A-WAIT-DRILL-1')
             ->assertSee('RD-A-WAIT-DRILL-2')
@@ -399,8 +402,7 @@ class AgentDashboardOwnershipTest extends TestCase
         $this->assertSame(3, $waitingCount);
 
         $this->actingAs($admin)
-            ->followingRedirects()
-            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER]))
+            ->get(route('dashboard', ['workspace' => DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER]))
             ->assertOk()
             ->assertSee('RD-GLOBAL-WAIT-A')
             ->assertSee('RD-GLOBAL-WAIT-B')
@@ -432,8 +434,7 @@ class AgentDashboardOwnershipTest extends TestCase
         $this->assertSame(6, $attentionCount);
 
         $this->actingAs($admin)
-            ->followingRedirects()
-            ->get(route('dashboard', ['queue' => 'attention']))
+            ->get(route('dashboard', ['workspace' => 'attention']))
             ->assertOk()
             ->assertSee('RD-GLOBAL-A-1')
             ->assertSee('RD-GLOBAL-B-3')
@@ -477,6 +478,8 @@ class AgentDashboardOwnershipTest extends TestCase
         $otherAgent = $this->createCompletedIncident('RD-DONE-B-1', $creator, $agentB, now()->subDay());
         $unassigned = $this->createCompletedIncident('RD-DONE-UNASSIGNED', $creator, null, now()->subDay());
 
+        app(DashboardSnapshotStore::class)->forget();
+
         $personalization = app(DashboardPersonalizationService::class);
 
         $this->assertSame(
@@ -504,8 +507,7 @@ class AgentDashboardOwnershipTest extends TestCase
 
         $this->actingAs($agentA)
             ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_COMPLETED]))
-            ->assertRedirect(route('dashboard'))
-            ->assertDontSee('RD-DONE-A-1');
+            ->assertRedirect(route('dashboard'));
 
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);

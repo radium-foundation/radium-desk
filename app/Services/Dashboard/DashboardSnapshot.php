@@ -316,10 +316,7 @@ class DashboardSnapshot
             $this->scopeUserForQueue(OperationQueue::ActionRequired->value, $assignedTo),
         )->count();
         $counts['action_required'] = $counts[OperationQueue::ActionRequired->value];
-        $counts['completed'] = $this->incidentsForQueue(
-            OperationQueue::Completed->value,
-            $this->scopeUserForQueue(OperationQueue::Completed->value, $assignedTo),
-        )->count();
+        $counts['completed'] = $this->incidentsForFilter('completed', $assignedTo)->count();
         $counts['pending_support'] = $this->incidentsForQueue(
             OperationQueue::Attention->value,
             $this->scopeUserForQueue(OperationQueue::Attention->value, $assignedTo),
@@ -420,19 +417,21 @@ class DashboardSnapshot
         foreach ($uncachedQueues as $queue) {
             $incidents = collect($buckets[$queue->value]);
 
-            if ($scopeUser !== null && $queue === OperationQueue::WaitingCustomer) {
+            $queueValue = $queue->value;
+
+            if ($scopeUser !== null && $queueValue === OperationQueue::WaitingCustomer->value) {
                 $incidents = $incidents->filter(
                     fn (Incident $incident): bool => $this->queueClassifier->isAssignedWaitingCustomer($incident, $scopeUser),
                 );
             }
 
-            if ($scopeUser !== null && $queue === OperationQueue::Completed) {
+            if ($scopeUser !== null && $queueValue === OperationQueue::Completed->value) {
                 $incidents = $incidents->filter(
-                    fn (Incident $incident): bool => $incident->assigned_to_user_id === $scopeUser->id,
+                    fn (Incident $incident): bool => (int) $incident->assigned_to_user_id === (int) $scopeUser->id,
                 );
             }
 
-            if ($queue === OperationQueue::ActionRequired && $scopeUser === null) {
+            if ($queueValue === OperationQueue::ActionRequired->value && $scopeUser === null) {
                 $assignmentService ??= app(ServiceCaseAssignmentService::class);
                 $assignmentService->prefetchAdminReadyVisibility($incidents);
                 $incidents = $incidents->filter(
@@ -468,10 +467,21 @@ class DashboardSnapshot
      */
     public function incidentsForQueue(string $queue, ?User $scopeUser = null): Collection
     {
+        if ($scopeUser !== null && $this->shouldScopeByAssignee($scopeUser)) {
+            if ($queue === OperationQueue::Completed->value) {
+                return $this->activeIncidents
+                    ->filter(function (Incident $incident) use ($scopeUser): bool {
+                        return $this->queueClassifier->isCompleted($incident)
+                            && (int) $incident->assigned_to_user_id === (int) $scopeUser->id;
+                    })
+                    ->values();
+            }
+        }
+
         $cached = $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] ?? null;
 
         if ($cached !== null) {
-            return $cached;
+            return $this->scopeQueueIncidentsForUser($cached, $queue, $scopeUser);
         }
 
         // Prefer the single-pass warm path so classify() runs once per incident.
@@ -480,7 +490,7 @@ class DashboardSnapshot
         $cached = $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] ?? null;
 
         if ($cached !== null) {
-            return $cached;
+            return $this->scopeQueueIncidentsForUser($cached, $queue, $scopeUser);
         }
 
         $incidents = $this->activeIncidents
@@ -502,7 +512,7 @@ class DashboardSnapshot
 
         if ($scopeUser !== null && $queue === OperationQueue::Completed->value) {
             $incidents = $incidents->filter(
-                fn (Incident $incident): bool => $incident->assigned_to_user_id === $scopeUser->id,
+                fn (Incident $incident): bool => (int) $incident->assigned_to_user_id === (int) $scopeUser->id,
             );
         }
 
@@ -514,7 +524,33 @@ class DashboardSnapshot
             );
         }
 
-        return $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] = $incidents->values();
+        $scoped = $this->scopeQueueIncidentsForUser($incidents->values(), $queue, $scopeUser);
+
+        return $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] = $scoped;
+    }
+
+    /**
+     * @return Collection<int, Incident>
+     */
+    private function scopeQueueIncidentsForUser(Collection $incidents, string $queue, ?User $scopeUser): Collection
+    {
+        if ($scopeUser === null || ! $this->shouldScopeByAssignee($scopeUser)) {
+            return $incidents;
+        }
+
+        if ($queue === OperationQueue::Completed->value) {
+            return $incidents
+                ->filter(fn (Incident $incident): bool => (int) $incident->assigned_to_user_id === (int) $scopeUser->id)
+                ->values();
+        }
+
+        if ($queue === OperationQueue::WaitingCustomer->value) {
+            return $incidents
+                ->filter(fn (Incident $incident): bool => $this->queueClassifier->isAssignedWaitingCustomer($incident, $scopeUser))
+                ->values();
+        }
+
+        return $incidents;
     }
 
     /**
@@ -656,7 +692,15 @@ class DashboardSnapshot
 
     private function scopeUserForQueue(string $queue, ?User $assignmentScope): ?User
     {
-        if ($queue === OperationQueue::MyWork->value) {
+        if ($assignmentScope === null || ! $this->shouldScopeByAssignee($assignmentScope)) {
+            return $queue === OperationQueue::MyWork->value ? $assignmentScope : null;
+        }
+
+        if (in_array($queue, [
+            OperationQueue::MyWork->value,
+            OperationQueue::WaitingCustomer->value,
+            OperationQueue::Completed->value,
+        ], true)) {
             return $assignmentScope;
         }
 

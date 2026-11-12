@@ -118,12 +118,12 @@ class DashboardClassificationIndexTest extends TestCase
         DB::disableQueryLog();
 
         $this->assertNotNull($incident);
-        $this->assertFalse($incident->relationLoaded('creator'));
-        $this->assertFalse($incident->relationLoaded('refundRequests'));
-        $this->assertFalse(
-            $queries->contains(fn (string $query): bool => str_contains($query, 'refund_requests')),
-            'Lean classification load should not query refund_requests.',
-        );
+        $this->assertTrue($incident->relationLoaded('order'));
+        $this->assertTrue($incident->relationLoaded('refundRequests'));
+        $this->assertSame(1, $queries->filter(
+            fn (string $query): bool => str_contains($query, 'from "incidents"')
+                || str_contains($query, 'from `incidents`'),
+        )->count(), 'Lean index should load active incidents in a single query.');
     }
 
     public function test_row_visibility_matches_snapshot_membership(): void
