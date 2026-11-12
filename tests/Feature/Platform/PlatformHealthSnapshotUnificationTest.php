@@ -18,7 +18,6 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
-use Tests\TestCase;
 
 class PlatformHealthSnapshotUnificationTest extends PlatformFeatureTestCase
 {
@@ -40,6 +39,21 @@ class PlatformHealthSnapshotUnificationTest extends PlatformFeatureTestCase
         Carbon::setTestNow();
 
         parent::tearDown();
+    }
+
+    public function test_probe_republishes_shared_snapshot_after_cache_flush_in_same_request(): void
+    {
+        $service = app(PlatformHealthSnapshotService::class);
+
+        $service->probe();
+        $this->assertNotNull(Cache::get(PlatformHealthSnapshotService::CACHE_KEY));
+
+        Cache::flush();
+        $this->assertNull($service->current());
+
+        $service->probe();
+        $this->assertNotNull(Cache::get(PlatformHealthSnapshotService::CACHE_KEY));
+        $this->assertNotNull($service->current());
     }
 
     public function test_probe_writes_shared_snapshot_and_overview(): void
