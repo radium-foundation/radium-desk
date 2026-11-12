@@ -166,7 +166,7 @@ final class HardwareFulfilmentWorkQueue
 
         if ($filter === HardwareWorkspaceFilter::Exceptions) {
             $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
-            $pageSet = $this->needsActionSql->exceptionsPage($search, $page, $perPage, $offset, $limit);
+            $pageSet = $this->needsActionSql->exceptionsPage($fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
 
             return [

@@ -189,14 +189,19 @@ final class HardwareNeedsActionSqlQuery
      * @return array{fulfilment_ids: list<int>, order_ids: list<int>, total: int}
      */
     public function exceptionsPage(
+        Carbon $fromIst,
+        Carbon $toIst,
         string $search,
         int $page,
         int $perPage,
         ?int $offsetOverride = null,
         ?int $limitOverride = null,
     ): array {
-        return $this->fulfilmentPage(
+        return $this->unionIdentifierPage(
             $this->exceptionsFulfilmentQuery($search),
+            [
+                $this->windowedRinQuery($fromIst, $toIst, $search),
+            ],
             $page,
             $perPage,
             $offsetOverride,
