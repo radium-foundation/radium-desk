@@ -22,6 +22,7 @@ jobs:
           php-version: '8.4'
           coverage: none
           tools: composer:v2
+          extensions: imagick, zip, gd, sqlite3, mbstring, xml, curl, intl
 
       - name: Install system dependencies (zstd for capture archive tests)
         run: sudo apt-get update && sudo apt-get install -y zstd
