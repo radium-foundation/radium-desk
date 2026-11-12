@@ -102,11 +102,11 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('data-bs-title="Call"', false)
             ->assertSee('dashboard-status-sla-compact', false)
             ->assertSee('dashboard-status-sla-compact__timer', false)
-            ->assertSee('Waiting for Service Reference')
-            ->assertSee('dashboard-premium-tooltip__label', false)
+            ->assertSee('aria-label="Within SLA"', false)
+            ->assertSee('dashboard-premium-tooltip--compact', false)
             ->assertSee('24 Jun 2026, 02:35 PM')
-            ->assertSee('6 hours 12 minutes')
-            ->assertSee('Within SLA')
+            ->assertSee('6h 12m', false)
+            ->assertSee('Pending Admin')
             ->assertSee('Timeline')
             ->assertSee('Ravi');
 
@@ -337,7 +337,8 @@ class DashboardServiceCasesTest extends TestCase
         $readyCase = $this->createAdminOpenCase(
             $admin,
             'RD-READY-DEFAULT',
-            assignedTo: $admin,
+            serialNumber: 'B47C11929',
+            deviceModel: 'Access FM220 L1',
         );
 
         $completedOrder = Order::query()->create([
@@ -542,7 +543,7 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', $this->dashboardQuery(['filter' => 'needs_attention'])))
             ->assertOk()
-            ->assertSee('Needs Attention')
+            ->assertSee('data-live-filter="needs_attention"', false)
             ->assertSee('SC-NA-MISSING')
             ->assertSee('SC-NA-BLANK')
             ->assertDontSee('SC-NA-PRESENT')
@@ -614,12 +615,13 @@ class DashboardServiceCasesTest extends TestCase
 
         $order = Order::query()->create([
             'order_id' => 'RD-INLINE-1',
-            'serial_number' => 'SN-INLINE-1',
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
+            'serial_number' => 'B47C11929',
+            'product_name' => 'Access FM220 L1',
+            'device_model' => 'Access FM220 L1',
             'status' => 'active',
             'created_by' => $admin->id,
         ]);
+        app(RadiumBoxOrderEnrichmentSyncStore::class)->markSynced($order->id);
 
         Incident::query()->create([
             'order_id' => $order->id,
@@ -629,7 +631,6 @@ class DashboardServiceCasesTest extends TestCase
             'title' => 'Inline transaction test',
             'description' => 'Inline transaction test.',
             'status' => 'open',
-            'assigned_to_user_id' => $admin->id,
             'created_by' => $admin->id,
         ]);
 
@@ -835,8 +836,10 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard', $this->dashboardQuery(['filter' => 'all'])))
             ->assertOk()
-            ->assertSee('Warning')
-            ->assertSee('Overdue')
+            ->assertSee('SC-SLA-WARN')
+            ->assertSee('SC-SLA-OVER')
+            ->assertSee('sla-status--warning', false)
+            ->assertSee('sla-status--overdue', false)
             ->assertSee('data-bs-title', false);
 
         Carbon::setTestNow();
@@ -1004,8 +1007,9 @@ class DashboardServiceCasesTest extends TestCase
             'canSelectRows' => true,
         ])->render();
 
-        $this->assertStringContainsString('Within SLA', $html);
-        $this->assertStringNotContainsString('>Overdue</span>', $html);
+        $this->assertStringContainsString('dashboard-case-row--completed', $html);
+        $this->assertStringContainsString('dashboard-status-sla-compact__icon', $html);
+        $this->assertStringNotContainsString('sla-status--overdue', $html);
 
         Carbon::setTestNow();
     }
@@ -1161,7 +1165,7 @@ class DashboardServiceCasesTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $expectedHref = route('dashboard', $this->dashboardQuery(['queue' => 'action_required'])).'#dashboard-service-cases-panel';
+        $expectedHref = route('dashboard', ['queue' => 'action_required']).'#dashboard-service-cases-panel';
 
         $this->actingAs($admin)
             ->get(route('dashboard'))
