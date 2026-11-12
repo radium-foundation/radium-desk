@@ -14,7 +14,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
-class PlatformHealthDisabledAggregationFeatureTest extends TestCase
+class PlatformHealthDisabledAggregationFeatureTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

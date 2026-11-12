@@ -19,7 +19,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
-class ExecutiveCommandCenterTest extends TestCase
+class ExecutiveCommandCenterTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

@@ -1,7 +1,7 @@
 # P-12-44 — Remaining failures register
 
 
-**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`69886319`** (2026-11-12 IST, post **#199** + **P-12-49** workspace KPI / Ready queue overlay cluster).
+**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`afd16f16`** (2026-11-13 IST, post **#200** + **P-12-50** Platform ECC Vite SSR harness).
 
 
 ## Totals (recomputed from 228 rows)
@@ -9,8 +9,8 @@
 
 | Classification | Count |
 | --- | ---: |
-| VERIFIED FIXED | 127 |
-| STILL FAILING | 100 |
+| VERIFIED FIXED | 129 |
+| STILL FAILING | 98 |
 | ENVIRONMENT BLOCKED | 1 |
 
 ## STILL FAILING by workstream
@@ -18,7 +18,7 @@
 
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | 97 |
+| WS-10 | 95 |
 | WS-11 | 2 |
 | WS-04 | 1 |
 
@@ -73,8 +73,6 @@
 - `Tests.Feature.OperationsSupportOwnershipTest::test_offline_agent_skipped_for_invalid_serial_reassignment` (WS-10)
 - `Tests.Feature.OrderIdentityProtectionTest::serial_correction_remains_locked_after_correction` (WS-10)
 - `Tests.Feature.OrderIdentityProtectionTest::timeline_includes_initial_protection_event_only_once_per_field` (WS-10)
-- `Tests.Feature.Platform.MissionControlCompletionTest::test_superadmin_mission_control_exposes_tools_catalog` (WS-10)
-- `Tests.Feature.Platform.MissionControlCompletionTest::test_superadmin_workspace_nav_includes_operations_and_platform_health` (WS-10)
 - `Tests.Feature.Platform.PlatformCacheAuditReproductionTest::test_reproduce_clear_load_refresh_reload_and_capture_writers` (WS-10)
 - `Tests.Feature.Platform.SnapshotCacheRegenerationPipelineTest::test_optimize_clear_style_cache_flush_does_not_persist_false_critical_from_missing_cache_heartbeat` (WS-10)
 - `Tests.Feature.Platform.SnapshotCacheRegenerationPipelineTest::test_second_refresh_after_flush_keeps_non_critical_when_durable_heartbeat_exists` (WS-10)

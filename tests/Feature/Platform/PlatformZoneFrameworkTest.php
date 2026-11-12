@@ -10,7 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
-class PlatformZoneFrameworkTest extends TestCase
+class PlatformZoneFrameworkTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

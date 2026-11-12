@@ -8,7 +8,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class OverallSystemHealthTerminologyTest extends TestCase
+class OverallSystemHealthTerminologyTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

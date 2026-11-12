@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Mockery;
 use Tests\TestCase;
 
-class ExecutiveCommandCenterPhaseETest extends TestCase
+class ExecutiveCommandCenterPhaseETest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

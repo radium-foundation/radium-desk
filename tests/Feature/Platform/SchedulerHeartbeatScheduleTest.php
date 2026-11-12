@@ -8,7 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
-class SchedulerHeartbeatScheduleTest extends TestCase
+class SchedulerHeartbeatScheduleTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

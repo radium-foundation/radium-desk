@@ -10,7 +10,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
-class MissionControlCompletionTest extends TestCase
+class MissionControlCompletionTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 
@@ -61,7 +61,7 @@ class MissionControlCompletionTest extends TestCase
         $this->actingAs($this->createSuperadmin())
             ->get(route('admin.platform.index'))
             ->assertOk()
-            ->assertSee('aria-label="Mission Control workspace"', false)
+            ->assertSee('aria-label="Control &amp; Admin workspace"', false)
             ->assertSee('data-platform-tools-catalog', false)
             ->assertSee(route('admin.operations.index'), false)
             ->assertSee(route('admin.operations.index', ['hub_tab' => 'automation']), false)
@@ -104,11 +104,11 @@ class MissionControlCompletionTest extends TestCase
         $html = $this->actingAs($this->createSuperadmin())
             ->get(route('admin.platform.index'))
             ->assertOk()
-            ->assertSee('aria-label="Mission Control workspace"', false)
+            ->assertSee('aria-label="Control &amp; Admin workspace"', false)
             ->getContent();
 
-        $this->assertMatchesRegularExpression('/aria-label="Mission Control workspace".*?Operations/s', $html);
-        $this->assertMatchesRegularExpression('/aria-label="Mission Control workspace".*?Platform Health/s', $html);
+        $this->assertMatchesRegularExpression('/aria-label="Control &amp; Admin workspace".*?Operations/s', $html);
+        $this->assertMatchesRegularExpression('/aria-label="Control &amp; Admin workspace".*?Platform Health/s', $html);
     }
 
     public function test_system_settings_shows_unified_settings_center(): void

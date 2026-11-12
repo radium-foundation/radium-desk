@@ -16,7 +16,7 @@ use Tests\TestCase;
  * Cold warm must not rebuild executive KPIs 8× or double-probe platform health.
  * Second warm within TTL must skip rebuilds (incremental warming).
  */
-class PlatformSnapshotWarmPerformanceTest extends TestCase
+class PlatformSnapshotWarmPerformanceTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

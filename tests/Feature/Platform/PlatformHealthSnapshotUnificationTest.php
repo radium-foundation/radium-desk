@@ -20,7 +20,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
-class PlatformHealthSnapshotUnificationTest extends TestCase
+class PlatformHealthSnapshotUnificationTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

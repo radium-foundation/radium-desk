@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Cache;
 use Mockery;
 use Tests\TestCase;
 
-class IntegrationHealthZoneTest extends TestCase
+class IntegrationHealthZoneTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 
