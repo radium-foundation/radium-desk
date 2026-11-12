@@ -27,12 +27,14 @@
 
 | Classification | Count | Notes |
 | --- | ---: | --- |
-| VERIFIED FIXED | 92 | |
+| VERIFIED FIXED | 92 | P-12-32 baseline @ `27b03d19` |
 | STILL FAILING | 134 | |
 | ENVIRONMENT BLOCKED | 2 | |
 
-**Evidenced remaining (STILL FAILING):** **134**
-**ENVIRONMENT BLOCKED (excluded from app-defect count):** **2**
+**P-12-44 reconciliation @ `d709e856` (2026-11-12 IST):** **109** VERIFIED FIXED · **118** STILL FAILING · **1** ENVIRONMENT BLOCKED (see `.artifacts/P-12-44-CONSOLIDATED-REPORT.md`).
+
+**Evidenced remaining (STILL FAILING):** **134** (baseline) → **118** (post P-12-40–43 verify)
+**ENVIRONMENT BLOCKED (excluded from app-defect count):** **2** → **1**
 **Resolved on main since P-12-04 matrix:** **92** (incl. WS-REG-01 #165)
 
 ## Remaining by workstream (STILL FAILING only)
