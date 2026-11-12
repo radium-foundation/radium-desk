@@ -10,6 +10,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
+use App\Services\DashboardService;
 use App\Services\RefundReferenceService;
 use App\Services\RefundRequestService;
 use Database\Seeders\RolePermissionSeeder;
@@ -26,6 +27,7 @@ class RefundRequestTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->withoutVite();
     }
 
     private function createOrder(User $user, string $orderId = 'RD2000001', ?float $paymentAmount = null): Order
@@ -507,7 +509,11 @@ class RefundRequestTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Refunds');
+            ->assertDontSee('dashboard-kpi-label">Refunds<', false);
+
+        $stats = app(DashboardService::class)->statsFor($user);
+
+        $this->assertSame(1, $stats['pending_refunds']);
     }
 
     public function test_admin_dashboard_shows_all_refund_status_counts(): void
