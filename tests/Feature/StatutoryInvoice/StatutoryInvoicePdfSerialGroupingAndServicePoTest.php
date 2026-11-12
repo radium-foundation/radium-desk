@@ -218,7 +218,7 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         $this->assertStringNotContainsString('Reference No.', $text);
     }
 
-    public function test_product_pos_keeps_reference_number_in_payment_details(): void
+    public function test_product_pos_shows_tender_ref_in_payment_details_when_unpaid(): void
     {
         $sale = $this->completePosSale(
             sku: 'MFS110-REF',
@@ -230,8 +230,10 @@ class StatutoryInvoicePdfSerialGroupingAndServicePoTest extends TestCase
         $text = $this->pdfText($binary);
 
         $this->assertSame(StatutoryInvoiceChannel::DeskPos, $invoice->channel);
-        $this->assertStringContainsString('Reference No.', $text);
+        $this->assertStringContainsString('UNPAID', $text);
+        $this->assertStringContainsString('Tender Ref.', $text);
         $this->assertStringContainsString('UPI-REF-POS', $text);
+        $this->assertStringNotContainsString('Reference No.', $text);
         $this->assertStringNotContainsString('PO Number', $text);
     }
 

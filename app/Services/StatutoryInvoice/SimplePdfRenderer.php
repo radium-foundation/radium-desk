@@ -4,6 +4,7 @@ namespace App\Services\StatutoryInvoice;
 
 use App\Enums\StatutoryInvoiceChannel;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
+use App\Support\Inventory\PosSalePaymentState;
 
 class SimplePdfRenderer
 {
@@ -50,6 +51,9 @@ class SimplePdfRenderer
     private const SERIAL_ANNEXURE_NOTICE_DESC_Y_OFFSET = 14.0;
 
     public const ANNEXURE_NOTICE_TEXT = 'Complete list of Serial Numbers provided in Annexure A.';
+
+    /** Payment Details label for counter tender before finance allocation is recorded. */
+    public const PAYMENT_TENDER_REFERENCE_LABEL = 'Tender Ref.';
 
     private const COL_NO = 42.0;
 
@@ -1200,8 +1204,15 @@ class SimplePdfRenderer
         if ($method !== '') {
             $cols[] = ['Mode of Payment', $this->display($method)];
         }
-        if (! $unpaid && trim((string) ($payload->paymentReference ?? '')) !== '' && ! $this->showPoNumberInHeader($payload)) {
-            $cols[] = ['Reference No.', $this->display($payload->paymentReference)];
+        $reference = trim((string) ($payload->paymentReference ?? ''));
+        if (
+            $reference !== ''
+            && $reference !== PosSalePaymentState::PAYMENT_PENDING_REFERENCE
+            && ! $this->showPoNumberInHeader($payload)
+        ) {
+            $cols[] = $unpaid
+                ? [self::PAYMENT_TENDER_REFERENCE_LABEL, $this->display($payload->paymentReference)]
+                : ['Reference No.', $this->display($payload->paymentReference)];
         }
         $cols[] = ['Invoice Value', $this->money($payload->invoiceValue)];
 
