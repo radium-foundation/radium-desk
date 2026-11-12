@@ -22,6 +22,7 @@ class WorkspaceDashboardAssignTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->withoutVite();
     }
 
     private function createAdminUser(string $email, string $name): User
@@ -66,7 +67,7 @@ class WorkspaceDashboardAssignTest extends TestCase
         $incident->update(['assigned_to_user_id' => $admin->id]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'action_required']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'action_required'])))
             ->assertOk()
             ->assertSee('data-workspace-context="dashboard"', false)
             ->assertSee('id="workspace-context-slugs"', false)

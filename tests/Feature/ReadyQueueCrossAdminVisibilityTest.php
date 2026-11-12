@@ -26,6 +26,7 @@ class ReadyQueueCrossAdminVisibilityTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->withoutVite();
     }
 
     public function test_action_required_queue_shows_cases_assigned_to_other_admins(): void
@@ -56,7 +57,7 @@ class ReadyQueueCrossAdminVisibilityTest extends TestCase
         )->count());
 
         $this->actingAs($adminB)
-            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_ACTION_REQUIRED]))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => DashboardPersonalizationService::QUEUE_ACTION_REQUIRED])))
             ->assertOk()
             ->assertSee('RD3450731')
             ->assertSee('RD3449573')

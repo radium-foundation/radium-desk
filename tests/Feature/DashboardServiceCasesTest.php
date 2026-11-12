@@ -412,7 +412,7 @@ class DashboardServiceCasesTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'high_priority']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'high_priority'])))
             ->assertOk()
             ->assertSee('SC-HP-ONLY')
             ->assertDontSee('SC-NORMAL');
@@ -457,7 +457,7 @@ class DashboardServiceCasesTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'high_priority']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'high_priority'])))
             ->assertOk()
             ->assertSee('SC-HP-ACTIVE')
             ->assertDontSee('SC-HP-CLOSED');
@@ -540,7 +540,7 @@ class DashboardServiceCasesTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'needs_attention']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'needs_attention'])))
             ->assertOk()
             ->assertSee('Needs Attention')
             ->assertSee('SC-NA-MISSING')
@@ -601,7 +601,7 @@ class DashboardServiceCasesTest extends TestCase
         $this->assertSame(2, $counts['needs_attention']);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'needs_attention']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'needs_attention'])))
             ->assertOk()
             ->assertSee('data-dashboard-case-filter-count="needs_attention"', false)
             ->assertSee('(2)', false);
@@ -634,7 +634,7 @@ class DashboardServiceCasesTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'action_required']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'action_required'])))
             ->assertOk()
             ->assertSee('data-bulk-bar', false)
             ->assertSee('data-batch-assign', false)
@@ -767,7 +767,7 @@ class DashboardServiceCasesTest extends TestCase
         ])->saveQuietly();
 
         $response = $this->actingAs($agent)
-            ->get(route('dashboard', ['filter' => 'all']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'all'])))
             ->assertOk();
 
         $response->assertSee('data-dashboard-tooltip', false);
@@ -833,7 +833,7 @@ class DashboardServiceCasesTest extends TestCase
         ])->saveQuietly();
 
         $this->actingAs($agent)
-            ->get(route('dashboard', ['filter' => 'all']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'all'])))
             ->assertOk()
             ->assertSee('Warning')
             ->assertSee('Overdue')
@@ -947,14 +947,14 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('>1</div>', false);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'overdue']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'overdue'])))
             ->assertOk()
             ->assertSee('SC-FILTER-OVER')
             ->assertDontSee('SC-FILTER-WARN')
             ->assertDontSee('SC-FILTER-OK');
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'warning']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'warning'])))
             ->assertOk()
             ->assertSee('SC-FILTER-WARN')
             ->assertDontSee('SC-FILTER-OVER')
@@ -1048,7 +1048,7 @@ class DashboardServiceCasesTest extends TestCase
         }
 
         $dashboardResponse = $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'pending_admin']));
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'pending_admin'])));
 
         $dashboardResponse->assertOk()
             ->assertDontSee('Showing')
@@ -1129,7 +1129,7 @@ class DashboardServiceCasesTest extends TestCase
         }
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'pending_admin']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'pending_admin'])))
             ->assertOk()
             ->assertDontSee('Showing');
 
@@ -1161,7 +1161,7 @@ class DashboardServiceCasesTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $expectedHref = route('dashboard', ['queue' => 'action_required']).'#dashboard-service-cases-panel';
+        $expectedHref = route('dashboard', $this->dashboardQuery(['queue' => 'action_required'])).'#dashboard-service-cases-panel';
 
         $this->actingAs($admin)
             ->get(route('dashboard'))
@@ -1200,7 +1200,7 @@ class DashboardServiceCasesTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'pending_admin']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'pending_admin'])))
             ->assertOk()
             ->assertSee('SC01392')
             ->assertSee('CF-ORDER-1392')
@@ -1247,7 +1247,7 @@ class DashboardServiceCasesTest extends TestCase
         }
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'pending_admin']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'pending_admin'])))
             ->assertOk()
             ->assertDontSee('Showing')
             ->assertSee('data-dashboard-quick-filter-always-open="true"', false)
@@ -1312,7 +1312,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertJsonPath('has_more', false);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'pending_admin']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'pending_admin'])))
             ->assertOk()
             ->assertDontSee('Showing');
     }
@@ -1424,7 +1424,7 @@ class DashboardServiceCasesTest extends TestCase
         $this->assertSame(3, $counts['action_required']);
         $this->assertSame(0, $counts['pending_review']);
 
-        $response = $this->actingAs($admin)->get(route('dashboard', ['queue' => 'action_required']));
+        $response = $this->actingAs($admin)->get(route('dashboard', $this->dashboardQuery(['queue' => 'action_required'])));
 
         $response->assertOk()
             ->assertSee('data-dashboard-case-filter-count="action_required">(3)', false)
@@ -1519,7 +1519,7 @@ class DashboardServiceCasesTest extends TestCase
         $this->assertSame(1, $counts['attention']);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'attention']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'attention'])))
             ->assertOk()
             ->assertSee('data-dashboard-case-filter-count="attention">(1)', false)
             ->assertSee('RD-EXCEPTIONS-QUEUE')

@@ -50,7 +50,7 @@ class HardwareReadyQueueVariantDisplayTest extends TestCase
         $this->fulfilmentWithItem('RDE318526', 1410, 'Biometric Replacement Cable');
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'all']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware', 'hw_filter' => 'all'])))
             ->assertOk();
 
         $rowsHtml = (string) $this->hardwareRowsResponse(['hw_filter' => 'all'])->json('rows_html');
@@ -166,7 +166,7 @@ class HardwareReadyQueueVariantDisplayTest extends TestCase
         $this->fulfilmentWithItem('RDE318338', 1749, 'BioEnable C600');
 
         $this->actingAs($admin)
-            ->get('/dashboard?queue=hardware')
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware'])))
             ->assertOk();
 
         $rowsHtml = (string) $this->hardwareRowsResponse(['q' => 'RDE318338'])->json('rows_html');

@@ -33,6 +33,7 @@ class ServiceCaseAssignmentTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+        $this->withoutVite();
 
         config(['service_case_assignment.automation_grace_period_enabled' => false]);
     }
@@ -685,7 +686,7 @@ class ServiceCaseAssignmentTest extends TestCase
         ]);
 
         $this->actingAs($avinash)
-            ->get(route('dashboard', ['queue' => 'action_required']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'action_required'])))
             ->assertOk()
             ->assertSee('Assigned To', false)
             ->assertSee('aria-label="Assigned To: Avinash Jha"', false)

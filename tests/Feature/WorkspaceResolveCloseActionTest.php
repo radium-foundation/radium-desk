@@ -23,6 +23,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->withoutVite();
     }
 
     private function createAdminUser(string $email, string $name): User
@@ -472,7 +473,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         ]);
 
         $this->actingAs($agent)
-            ->get(route('dashboard', ['filter' => 'pending_admin']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'pending_admin'])))
             ->assertOk()
             ->assertDontSee('OID0001')
             ->assertDontSee('SC-CLOSED-1');

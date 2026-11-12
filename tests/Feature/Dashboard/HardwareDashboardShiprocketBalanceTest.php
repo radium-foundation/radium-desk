@@ -50,7 +50,7 @@ class HardwareDashboardShiprocketBalanceTest extends TestCase
         $this->gateway->walletBalanceAmount = '9084.26';
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware'])))
             ->assertOk()
             ->assertSee('Shiprocket Balance')
             ->assertSee('Loading…')
@@ -75,7 +75,7 @@ class HardwareDashboardShiprocketBalanceTest extends TestCase
         $this->gateway->mode = 'rejected';
 
         $html = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware'])))
             ->assertOk()
             ->getContent();
 
@@ -115,7 +115,7 @@ class HardwareDashboardShiprocketBalanceTest extends TestCase
         $this->gateway->walletBalanceAmount = '0.00';
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware'])))
             ->assertOk()
             ->assertSee('Loading…')
             ->assertDontSee('₹0.00');
