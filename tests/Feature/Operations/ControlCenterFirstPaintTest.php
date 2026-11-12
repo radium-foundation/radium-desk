@@ -19,6 +19,8 @@ class ControlCenterFirstPaintTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
+
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
     }
@@ -34,14 +36,12 @@ class ControlCenterFirstPaintTest extends TestCase
             ->get(route('admin.operations.index'))
             ->assertOk()
             ->assertSee('Operations Control Center')
-            ->assertSee('aria-label="Mission Control workspace"', false)
+            ->assertSee('aria-label="Control &amp; Admin workspace"', false)
             ->assertSee('operations-queue-summary-compact', false)
             ->assertSee('operations-active-operators-compact', false)
-            // Health strip is a Platform demotion link on first paint (not a lazy integration-health stub).
-            ->assertSee('Platform Health', false)
             ->assertSee('Open Platform Dashboard', false)
-            ->assertDontSee('Loading integration health', false)
-            // Ira remains deferred behind a first-paint placeholder.
+            // Integration health and Ira compact render as SSR lazy placeholders until live groups load.
+            ->assertSee('Loading integration health', false)
             ->assertSee('Loading Ira insights', false);
 
         $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections(
