@@ -168,7 +168,11 @@ class DashboardLiveRowVisibilityTest extends TestCase
                 && in_array($incident->id, $event->broadcastWith()['incident_ids'], true);
         });
 
-        Event::assertNotDispatched(ServiceCaseCreated::class);
+        Event::assertDispatched(ServiceCaseCreated::class, function (ServiceCaseCreated $event) use ($viewer, $incident): bool {
+            return $event->recipient->id === $viewer->id
+                && $event->incident->id === $incident->id
+                && ($event->listActions[DashboardPersonalizationService::QUEUE_ACTION_REQUIRED] ?? null) === DashboardLiveRowVisibilityService::ACTION_REMOVE;
+        });
     }
 
     public function test_resolved_status_broadcast_removes_row_from_operations_queues(): void

@@ -62,7 +62,7 @@ After `serviceCaseAssigned()`, when `shouldRemoveFromAdminReadyQueue($freshIncid
 
 - Call `dashboardBroadcastService->serviceCaseQueueMembershipChanged($freshIncident, $actor)`.
 
-Preserves existing hybrid assignment events when enabled; restores row-remove fan-out when assignment shortcut is off. No workflow/permission/KPI contract changes.
+Preserves hybrid assignment events when enabled; **additionally** fans out `ServiceCaseCreated` remove actions when Admin Ready membership drops (dual channel with hybrid assignment on). Regression: `DashboardLiveRowVisibilityTest::test_manual_assignment_broadcast_removes_row_from_ready_queue_for_other_admins` updated — prior `assertNotDispatched(ServiceCaseCreated)` was stale vs production queue-integrity contract.
 
 ---
 
@@ -70,7 +70,8 @@ Preserves existing hybrid assignment events when enabled; restores row-remove fa
 
 | Suite | Filter / scope | Result | Duration |
 | --- | --- | --- | --- |
-| `QueueIntegrityLiveRefreshTest` | full file (8 methods) | **8/8 PASS** | ~9.5s |
+| `QueueIntegrityLiveRefreshTest` | full file (8 methods) | **8/8 PASS** | ~9.8s |
+| `DashboardLiveRowVisibilityTest` | full file (6 methods) | **6/6 PASS** | ~15.2s |
 | `ServiceCaseAssignmentTest` | full file | **25/26 PASS** | ~26.4s |
 
 **Note:** `ServiceCaseAssignmentTest::test_dashboard_displays_owner_first_name` **FAIL** on **baseline and post-fix** (empty Ready grid / harness; matrix STILL FAILING row — not introduced by P-13-03).
@@ -84,9 +85,10 @@ Preserves existing hybrid assignment events when enabled; restores row-remove fa
 | Item | Value |
 | --- | --- |
 | Branch | `feature/p13-03-queue-integrity` |
-| Commit | *(filled after push)* |
-| PR | *(filled after create)* |
-| Merge SHA | *(pending CI + merge)* |
+| Commit | `a7e3798afaa387f8fb16e06f2e1746477612995c` |
+| PR | [#204](https://github.com/radium-foundation/radium-desk/pull/204) |
+| Merge SHA | `44db017d4a7d4203a5ace32b78de1ae007f144c7` |
+| CI | rip **PASS** · release-rip **PASS** (@ `a7e3798a`) |
 
 Shared matrix CSV: **not updated** (per prompt).
 
