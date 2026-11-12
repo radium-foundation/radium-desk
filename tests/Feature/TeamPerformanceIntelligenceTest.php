@@ -35,6 +35,7 @@ class TeamPerformanceIntelligenceTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
 
         config([
@@ -234,6 +235,8 @@ class TeamPerformanceIntelligenceTest extends TestCase
             'user_id' => $agent->id,
             'work_date' => '2026-07-06',
             'login_at' => Carbon::parse('2026-07-06 09:00:00'),
+            'logout_at' => Carbon::parse('2026-07-06 18:00:00'),
+            'ended_reason' => WorkSessionEndReason::ManualLogout,
             'communication_events_count' => 7,
             'on_time_login' => true,
         ]);
@@ -241,6 +244,8 @@ class TeamPerformanceIntelligenceTest extends TestCase
             'user_id' => $other->id,
             'work_date' => '2026-07-06',
             'login_at' => Carbon::parse('2026-07-06 09:00:00'),
+            'logout_at' => Carbon::parse('2026-07-06 18:00:00'),
+            'ended_reason' => WorkSessionEndReason::ManualLogout,
             'communication_events_count' => 99,
             'on_time_login' => true,
         ]);
@@ -309,7 +314,7 @@ class TeamPerformanceIntelligenceTest extends TestCase
             collect($dailyMessages)->contains(fn (string $message): bool => str_contains($message, 'Support load is high today')),
         );
         $this->assertTrue(
-            collect($weeklyMessages)->contains(fn (string $message): bool => str_contains($message, 'Insight Agent handled 12 customer follow-ups')),
+            collect($weeklyMessages)->contains(fn (string $message): bool => str_contains($message, 'Insight Agent logged 12 customer touches this week')),
         );
         $this->assertFalse(
             collect([...$dailyMessages, ...$weeklyMessages])->contains(fn (string $message): bool => str_contains(strtolower($message), 'idle')),
