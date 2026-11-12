@@ -67,13 +67,17 @@ class OnlineReturnRefundAllocationExecutionTest extends ReturnExchangeCaseHttpTe
     {
         config([
             'return_exchange.online_refund_allocation.execution_enabled' => true,
-            'central_wallet.wallet_refund.desk_authoritative_enabled' => false,
-            'central_wallet.wallet_refund.desk_first_enabled' => false,
             'radiumbox.wallet_refund_credit_enabled' => true,
+            'radiumbox.wallet_refund.resolve_spoke_order_id' => false,
             'order_lookup.spokes.radiumbox_com.enabled' => true,
             'order_lookup.spokes.radiumbox_com.base_url' => 'https://radiumbox.test',
             'order_lookup.spokes.radiumbox_com.token' => 'desk-box-wallet-token',
         ]);
+        $this->configureSpokeWalletRefundExecutionForTests();
+
+        [$case, $branchUser] = $this->inspectedSplitTenderCase();
+        $this->submitAndApproveAllocation($case, $branchUser);
+
         Http::fake([
             'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::response([
                 'status' => 201,
@@ -85,9 +89,6 @@ class OnlineReturnRefundAllocationExecutionTest extends ReturnExchangeCaseHttpTe
                 ],
             ], 201),
         ]);
-
-        [$case, $branchUser] = $this->inspectedSplitTenderCase();
-        $this->submitAndApproveAllocation($case, $branchUser);
         $allocation = $case->fresh()->onlineRefundAllocation;
         $line = $allocation->lines->firstWhere('destination', OnlineReturnRefundAllocationDestination::Wallet);
         $deskRef = app(ReturnExchangeAllocationWalletCreditService::class)->deskReference($allocation, $line);
@@ -99,7 +100,9 @@ class OnlineReturnRefundAllocationExecutionTest extends ReturnExchangeCaseHttpTe
             ])
             ->assertRedirect(route('return-cases.show', $case));
 
-        $execution = OnlineReturnRefundAllocationLineExecution::query()->first();
+        $execution = OnlineReturnRefundAllocationLineExecution::query()
+            ->where('idempotency_key', 'wallet-exec-1')
+            ->firstOrFail();
         $this->assertSame(
             OnlineReturnRefundAllocationLineExecutionStatus::Succeeded,
             $execution->status,
