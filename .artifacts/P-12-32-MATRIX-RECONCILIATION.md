@@ -7,6 +7,8 @@
 | Matrix source | P-12-04 `failures-errors.jsonl` (228 fail+error @ `5e640b74`) |
 | Validation | Focused `php -n vendor/bin/phpunit` per test class/file on main worktree |
 | Policy | No full suite; no app code changes; wallet **`d9481615`** preserved |
+| Merge (matrix docs) | PR **#176** → **`65cc1d28`** on `main` |
+| Post-merge CI | **P-12-33 VERIFIED:** `rip` + `release-rip` **PASSED** on `65cc1d28` ([evidence](P-12-33-PR176-CI-EVIDENCE.md)); closes PR #176 “CI rip / release-rip pending at merge” |
 
 ## Merged PRs #166–#175
 
