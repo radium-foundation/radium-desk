@@ -1,25 +1,26 @@
 # P-12-44 — Remaining failures register
 
-**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`d709e856`** (2026-11-12 IST).
+**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`77984991`** (2026-11-12 IST, post **#196** P-12-45 + **P-12-46** WS-11).
 
 ## Totals (recomputed from 228 rows)
 
 | Classification | Count |
 | --- | ---: |
-| VERIFIED FIXED | 109 |
-| STILL FAILING | 118 |
+| VERIFIED FIXED | 115 |
+| STILL FAILING | 112 |
 | ENVIRONMENT BLOCKED | 1 |
 
 ## STILL FAILING by workstream
 
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | 113 |
-| WS-11 | 4 |
+| WS-10 | 109 |
+| WS-11 | 2 |
 | WS-04 | 1 |
 
-## Statutory PDF / Imagick (post P-12-43)
+## Statutory PDF / Imagick (post P-12-43 / P-12-45)
 
+- **Logo layout cluster (4 matrix rows):** **VERIFIED FIXED** @ `77984991` via **[PR #196](https://github.com/radium-foundation/radium-desk/pull/196)** merge `77984991` — evidence P-12-45 `phpunit-isolated` 11/11 PASS.
 - `Tests.Feature.Customer360.Customer360StatutoryInvoiceActionsTest::test_customer_360_shows_failed_when_b2b_statutory_data_is_incomplete` — P-12-32 phpunit @27b03d19 → FAIL
 - `Tests.Feature.StatutoryInvoice.EInvoiceIssuancePathTest::test_commerce_b2b_service_is_blocked_in_phase_a_and_queued_in_phase_b` — P-12-32 phpunit @27b03d19 → FAIL
 - `Tests.Feature.StatutoryInvoice.IrnInputSnapshotTest::test_commerce_ingest_preserves_valid_uqc_and_rejects_invalid` — P-12-32 phpunit @27b03d19 → FAIL
@@ -27,12 +28,8 @@
 - `Tests.Feature.StatutoryInvoice.RdServiceNetPhase1CleanTest::test_invalid_gstin_and_missing_statutory_data_fail_closed` — P-12-32 phpunit @27b03d19 → FAIL
 - `Tests.Feature.StatutoryInvoice.ServiceGstSplitIssuanceTest::test_b2b_split_follows_seller_state_and_place_of_supply_not_billing_state` — P-12-32 phpunit @27b03d19 → FAIL
 - `Tests.Feature.StatutoryInvoice.ServiceStatutoryInvoiceReconciliationBacklogTest::test_rdservice_net_ra_prefix_orders_are_reconciled` — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Feature.StatutoryInvoice.StatutoryInvoicePdfRegressionContractTest::test_contract_non_fitting_small_serial_set_is_all_or_nothing_to_annexure` — P-12-44 phpunit-isolated/php -n @ d709e856; ERROR Embedded invoice image missing: Logo (imagick OK via phpunit-isolated)
-- `Tests.Feature.StatutoryInvoice.StatutoryInvoicePdfRegressionContractTest::test_contract_small_serial_set_renders_inline_only_when_measured_block_fits` — P-12-44 phpunit-isolated/php -n @ d709e856; ERROR Embedded invoice image missing: Logo (imagick OK via phpunit-isolated)
 - `Tests.Unit.StatutoryInvoice.EInvoiceCatalogUqcReadinessTest::test_p186_did_not_infer_pcs_or_nos_without_owner_decision` — P-12-32 phpunit @27b03d19 → ERROR
 - `Tests.Unit.StatutoryInvoice.EInvoiceCatalogUqcReadinessTest::test_p187_owner_decision_assigns_pcs_only_to_the_nine_hardware_skus` — P-12-32 phpunit @27b03d19 → ERROR
-- `Tests.Unit.StatutoryInvoice.StatutoryInvoicePdfSerialCapacityTest::test_multipage_invoice_keeps_six_serials_on_page_one_without_annexure` — P-12-44 phpunit-isolated/php -n @ d709e856; ERROR Embedded invoice image missing: Logo (imagick OK via phpunit-isolated)
-- `Tests.Unit.StatutoryInvoice.StatutoryInvoicePdfSerialCapacityTest::test_ten_or_fewer_serials_use_main_page_only` — P-12-44 phpunit-isolated/php -n @ d709e856; ERROR Embedded invoice image missing: Logo (imagick OK via phpunit-isolated)
 
 ## Full STILL FAILING list
 
@@ -109,13 +106,9 @@
 - `Tests.Feature.StatutoryInvoice.RdServiceNetPhase1CleanTest::test_invalid_gstin_and_missing_statutory_data_fail_closed` (WS-10)
 - `Tests.Feature.StatutoryInvoice.ServiceGstSplitIssuanceTest::test_b2b_split_follows_seller_state_and_place_of_supply_not_billing_state` (WS-10)
 - `Tests.Feature.StatutoryInvoice.ServiceStatutoryInvoiceReconciliationBacklogTest::test_rdservice_net_ra_prefix_orders_are_reconciled` (WS-10)
-- `Tests.Feature.StatutoryInvoice.StatutoryInvoicePdfRegressionContractTest::test_contract_non_fitting_small_serial_set_is_all_or_nothing_to_annexure` (WS-10)
-- `Tests.Feature.StatutoryInvoice.StatutoryInvoicePdfRegressionContractTest::test_contract_small_serial_set_renders_inline_only_when_measured_block_fits` (WS-10)
 - `Tests.Feature.SupportAppointmentBookingTest::test_customer_360_hides_support_appointments_section_when_none_exist` (WS-10)
 - `Tests.Feature.SystemSettingsTest::test_superadmin_can_view_notification_settings` (WS-10)
 - `Tests.Feature.SystemSettingsTest::test_superadmin_can_view_settings` (WS-10)
-- `Tests.Feature.TeamPerformanceIntelligenceTest::test_ira_generates_contextual_insights` (WS-11)
-- `Tests.Feature.TeamPerformanceIntelligenceTest::test_team_member_sees_only_own_stats` (WS-11)
 - `Tests.Feature.Todos.TodoControllerTest::test_layout_exposes_todo_modal_entry_points` (WS-10)
 - `Tests.Feature.Todos.TodoControllerTest::test_sidebar_includes_todos_for_agent` (WS-10)
 - `Tests.Feature.WaitingStateOwnershipTest::test_no_op_reassignment_does_not_create_audit_or_notification` (WS-10)
