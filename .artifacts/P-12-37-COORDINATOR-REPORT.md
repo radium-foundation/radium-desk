@@ -3,6 +3,7 @@
 **Start (IST):** 2026-11-12 18:09:03 IST  
 **Report (IST):** 2026-11-12 18:10:43 IST  
 **#182 merge + Agents 1–3 sync (IST):** 2026-11-12 18:18+ IST — see §17  
+**#183 merge (Agent 3 workspace-close, IST):** 2026-11-12 18:21+ IST — `2ca010b4` on `main`; matrix `.artifacts/P-12-37-AGENT-3-MATRIX-DELTA.md`  
 **Agent 4 integration (IST):** 2026-11-12 18:20+ IST — see `.artifacts/P-12-37-AGENT-4-REVIEW.md`, `.artifacts/P-12-37-MATRIX-DELTA.md`  
 **Repository:** `radium-foundation/radium-desk` only  
 
@@ -93,6 +94,7 @@ See **`.artifacts/P-12-37-OWNERSHIP-MANIFEST.md`**.
 | #180 | MERGED | `fafec714` |
 | #181 (P-12-36) | MERGED | `93b40888` |
 | #182 (PHPUnit bootstrap) | MERGED | `b79c6d7b` |
+| #183 (Agent 3 workspace-close) | MERGED | `2ca010b4` |
 
 ## 10. Updated counts (authoritative accounting)
 
@@ -109,7 +111,7 @@ See **`.artifacts/P-12-37-OWNERSHIP-MANIFEST.md`**.
 
 ```
 Main checkout: d94816153cd2c89f8175d29a1510b38b4c16df6b  [feature/p18-33-unified-wallet-display]
-origin/main:   b79c6d7b5f0f155e348f3ee22c06a87d2d33e958 (#182)
+origin/main:   2ca010b42cc7587726d04278f7f05d7b85bd40a0 (#183; includes #182 @ `b79c6d7b`)
 Wallet worktrees @ d9481615: p29-200-baseline, p30-20-rn-ingest, p30-39-rbp1407, p30-43-auto-issuance-gate (unchanged)
 ```
 
