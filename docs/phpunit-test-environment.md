@@ -4,15 +4,27 @@ Desk PHPUnit assumes a **minimal PHP CLI profile** (no Herd/Laravel Valet `auto_
 
 ## Standard local command (operator Homebrew PHP 8.5)
 
+**Preferred:** `bin/phpunit-isolated` (same `php -n` + empty `PHP_INI_SCAN_DIR` policy; loads PECL `imagick.so` by absolute path when installed but not already in the minimal profile).
+
+```bash
+cd /path/to/radium-desk
+./bin/phpunit-isolated tests/Feature/StatutoryInvoice/StatutoryInvoicePdfCustomerFacingSkuTest.php
+```
+
+Manual equivalent (no wrapper):
+
 ```bash
 cd /path/to/radium-desk
 PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit …
 ```
 
-| Flag | Purpose |
+| Flag / env | Purpose |
 | --- | --- |
 | `PHP_INI_SCAN_DIR=` | Empty scan dir; avoids Herd’s broken or hostile `php.ini` snippets. |
 | `php -n` | No default `php.ini`; pairs with project-controlled bootstrap only. |
+| `DESK_PHP_BIN` | Override PHP binary (default `/opt/homebrew/bin/php`). |
+| `DESK_IMAGICK_SO` | Force path to `imagick.so` when autodetection is wrong. |
+| `DESK_IMAGICK_SO_STRICT=1` | Fail fast if Imagick is required but no `.so` is found. |
 
 `phpunit.xml` forces SQLite `:memory:` and testing env keys so a local `.env` cannot override DB or statutory settings (see `docs/rd-fresh-01-pos-finance-gap-audit.md`).
 
@@ -57,31 +69,32 @@ brew install imagemagick
 pecl install imagick   # links against Homebrew ImageMagick
 ```
 
-Load for PHPUnit (keep `-n` + empty scan dir; add extension by absolute path):
+Homebrew PECL often installs to `lib/php/pecl/<api>/imagick.so`, not `PHP_EXTENSION_DIR/imagick.so`. Resolve:
 
 ```bash
-IMAGICK_SO="$(/opt/homebrew/bin/php -r 'echo PHP_EXTENSION_DIR;')/imagick.so"
+API="$(basename "$(/opt/homebrew/bin/php -r 'echo PHP_EXTENSION_DIR;')")"
+IMAGICK_SO="/opt/homebrew/lib/php/pecl/${API}/imagick.so"
+```
+
+Load for PHPUnit (keep `-n` + empty scan dir; add extension by absolute path) or use `./bin/phpunit-isolated`:
+
+```bash
 PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n \
   -d "extension=${IMAGICK_SO}" \
   vendor/bin/phpunit tests/Feature/StatutoryInvoice/StatutoryInvoicePdfCustomerFacingSkuTest.php
 ```
 
+PHPUnit cannot load Imagick from `tests/bootstrap.php` under PHP 8+ (`dl()` is unavailable); the CLI must pass `-d extension=…` before PHPUnit starts.
+
 Avoid relying on Herd’s PHP for CLI PHPUnit; production KVM uses **LiteSpeed `lsphp`** with Imagick enabled (`docs/litespeed-php-infra-audit.md`).
 
 ### GitHub Actions
 
-Current workflows (`release-rip-ci.yml`, `statutory-cancellation-phpunit.yml`, etc.) call `setup-php` with **PHP 8.4** and do **not** declare `extensions: imagick`. Statutory PDF classes are mostly **outside** the statutory-cancellation path filter, so CI may not execute them even when green.
+All PHPUnit workflows on `main` use `shivammathur/setup-php@v2` with **PHP 8.4** and explicit:
 
-**Recommended CI parity** (all PHPUnit workflows):
+`extensions: imagick, zip, gd, sqlite3, mbstring, xml, curl, intl`
 
-```yaml
-- uses: shivammathur/setup-php@v2
-  with:
-    php-version: '8.4'
-    coverage: none
-    tools: composer:v2
-    extensions: imagick, zip, gd, sqlite3, mbstring, xml, curl, intl
-```
+(merged PR **#186**, P-12-38). CI does not use `php -n`; operators still must use `php -n` or `./bin/phpunit-isolated` locally.
 
 Optionally add a focused job or step for statutory PDF regressions when touching `SimplePdfRenderer` or `StatutoryInvoicePdf*Test.php`.
 
@@ -97,12 +110,16 @@ cd .worktrees/p12-37-test-env
 PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit \
   tests/Unit/Finance/CaMonthlyReportXlsxPackageValidatorTest.php
 
-IMAGICK_SO="$(/opt/homebrew/bin/php -r 'echo PHP_EXTENSION_DIR;')/imagick.so"
-PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n -d "extension=${IMAGICK_SO}" vendor/bin/phpunit \
-  tests/Feature/StatutoryInvoice/StatutoryInvoicePdfCustomerFacingSkuTest.php
+./bin/phpunit-isolated tests/Feature/StatutoryInvoice/StatutoryInvoicePdfCustomerFacingSkuTest.php
 ```
+
+## Related entrypoints
+
+- **`bin/phpunit-isolated`** — mandated `php -n` profile + Imagick autoload (this document).
+- **`bin/phpunit-safe`** — full-suite authorization gate (P-12-40); uses default PHP CLI unless you wrap with `phpunit-isolated` patterns yourself.
 
 ## Related artifacts
 
 - P-12-32 matrix: `.artifacts/P-12-32-MATRIX-RECONCILIATION.md` (WS-03 Zip, Imagick cluster)
 - P-12-37 agent report: `.artifacts/P-12-37-TEST-ENV-REPORT.md`
+- P-12-43 report: `.artifacts/P-12-43-REPORT.md`

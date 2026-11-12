@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# P-12-43 — Desk PHPUnit with mandatory isolated CLI (-n, empty PHP_INI_SCAN_DIR)
+# and explicit Imagick load when a matching imagick.so is present on the host.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PHP_BIN="${DESK_PHP_BIN:-${PHP_BIN:-/opt/homebrew/bin/php}}"
+if [[ ! -x "$PHP_BIN" ]]; then
+  PHP_BIN="$(command -v php || true)"
+fi
+if [[ -z "$PHP_BIN" || ! -x "$PHP_BIN" ]]; then
+  echo "phpunit-isolated: no executable PHP (set DESK_PHP_BIN)" >&2
+  exit 1
+fi
+
+PHPUNIT="${ROOT}/vendor/phpunit/phpunit/phpunit"
+if [[ ! -f "$PHPUNIT" ]]; then
+  echo "phpunit-isolated: missing {$PHPUNIT} (composer install?)" >&2
+  exit 1
+fi
+
+resolve_imagick_so() {
+  if [[ -n "${DESK_IMAGICK_SO:-}" && -f "${DESK_IMAGICK_SO}" ]]; then
+    echo "${DESK_IMAGICK_SO}"
+    return 0
+  fi
+
+  local ext_dir api candidate
+  ext_dir="$("$PHP_BIN" -r 'echo PHP_EXTENSION_DIR;')"
+  candidate="${ext_dir}/imagick.so"
+  if [[ -f "$candidate" ]]; then
+    echo "$candidate"
+    return 0
+  fi
+
+  api="$(basename "$ext_dir")"
+  for prefix in /opt/homebrew/lib/php/pecl /usr/local/lib/php/pecl; do
+    candidate="${prefix}/${api}/imagick.so"
+    if [[ -f "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+php_args=(-n)
+if ! env PHP_INI_SCAN_DIR= "$PHP_BIN" -n -r 'exit(extension_loaded("imagick") ? 0 : 1)'; then
+  if imagick_so="$(resolve_imagick_so)"; then
+    php_args+=(-d "extension=${imagick_so}")
+  elif [[ -n "${DESK_IMAGICK_SO_STRICT:-}" ]]; then
+    echo "phpunit-isolated: DESK_IMAGICK_SO_STRICT set but imagick.so not found (pecl install imagick?)" >&2
+    exit 1
+  fi
+fi
+
+exec env PHP_INI_SCAN_DIR= "$PHP_BIN" "${php_args[@]}" "$PHPUNIT" "$@"
