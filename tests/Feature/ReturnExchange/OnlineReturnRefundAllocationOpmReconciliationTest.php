@@ -286,6 +286,7 @@ class OnlineReturnRefundAllocationOpmReconciliationTest extends ReturnExchangeCa
 
     private function applyConversionConfig(bool $enabled): void
     {
+        $this->configureSpokeWalletRefundExecutionForTests();
         config([
             'return_exchange.online_refund_allocation.execution_enabled' => true,
             'return_exchange.online_refund_allocation.opm_conversion_enabled' => $enabled,
