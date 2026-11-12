@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\LeaveRequestStatus;
+use App\Enums\NewContactIntent;
 use App\Enums\TeamAvailabilityStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\PresenceEngineService;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\ServiceCaseAssignmentService;
 use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
@@ -547,7 +549,7 @@ class ServiceCaseAssignmentTest extends TestCase
 
         $response = $this->actingAs($creator)->post(route('service-requests.quick.store'), [
             'action' => 'new_contact',
-            'intent' => \App\Enums\NewContactIntent::ExistingDeviceService->value,
+            'intent' => NewContactIntent::ExistingDeviceService->value,
             'customer_name' => 'Assignment Customer',
             'serial_number' => '7881960',
             'product' => 'MFS 110',
@@ -664,30 +666,40 @@ class ServiceCaseAssignmentTest extends TestCase
         $agent = User::factory()->create(['name' => 'Agent User']);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
+        $serialNumber = 'B47C11929';
+        $deviceModel = 'Access FM220 L1';
+
         $order = Order::query()->create([
             'order_id' => 'RD-OWNER-1',
-            'serial_number' => 'SN-OWNER-1',
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
+            'serial_number' => $serialNumber,
+            'product_name' => $deviceModel,
+            'device_model' => $deviceModel,
             'status' => 'active',
             'created_by' => $agent->id,
         ]);
 
+        app(RadiumBoxOrderEnrichmentSyncStore::class)->markSynced($order->id);
+
         Incident::query()->create([
             'order_id' => $order->id,
-            'reference_no' => 'SC-OWNER-1',
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
             'category' => 'General',
             'source' => IncidentSource::Call,
             'title' => 'Owner display test',
             'description' => 'Owner display test.',
-            'status' => 'open',
+            'status' => IncidentStatus::Open,
             'assigned_to_user_id' => $avinash->id,
             'created_by' => $agent->id,
+            'updated_by' => $agent->id,
         ]);
+
+        $counts = DashboardSnapshot::load()->queueCounts();
+        $this->assertSame(1, $counts['action_required'], 'Ready-eligible case must render on the dashboard grid.');
 
         $this->actingAs($avinash)
             ->get(route('dashboard', $this->dashboardQuery(['queue' => 'action_required'])))
             ->assertOk()
+            ->assertSee('RD-OWNER-1', false)
             ->assertSee('Assigned To', false)
             ->assertSee('aria-label="Assigned To: Avinash Jha"', false)
             ->assertSee('data-bs-title="Avinash Jha"', false);
