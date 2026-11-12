@@ -64,6 +64,7 @@ class DashboardClassificationIndex
                         'id',
                         'order_id',
                         'serial_number',
+                        'customer_name',
                         'product_name',
                         'device_model',
                         'transaction_id',
@@ -111,6 +112,7 @@ class DashboardClassificationIndex
                         'incident_id',
                         'status',
                         'preferred_date',
+                        'preferred_time_slot',
                     ]);
                 },
             ])

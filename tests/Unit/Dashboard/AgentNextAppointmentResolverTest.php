@@ -5,6 +5,7 @@ namespace Tests\Unit\Dashboard;
 use App\Data\Dashboard\AgentNextAppointment;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\OperationQueue;
 use App\Enums\SupportAppointmentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\Incident;
@@ -103,6 +104,40 @@ class AgentNextAppointmentResolverTest extends TestCase
         $this->assertFalse($appointment->isOverdue);
         $this->assertSame('12:00 PM', $appointment->timeLabel());
         $this->assertSame('Starts in 30 minutes', $appointment->startsInLabel());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_resolve_uses_lean_dashboard_snapshot_relations(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 11:30:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgent();
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $incident = $this->createIncident('RD-LEAN-APPT', $creator, $agent);
+        $incident->order?->forceFill(['customer_name' => 'Lean Snapshot Customer'])->save();
+
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => now()->toDateString(),
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Afternoon,
+            'phone_number' => '9876543210',
+            'normalized_phone' => '9876543210',
+            'status' => SupportAppointmentStatus::Scheduled,
+        ]);
+
+        $snapshot = DashboardSnapshot::load();
+        $scheduled = $snapshot->incidentsForQueue(OperationQueue::Scheduled->value, $agent);
+        $loaded = $scheduled->firstWhere('id', $incident->id);
+        $this->assertNotNull($loaded);
+        $appointmentRow = $loaded->supportAppointments->first();
+        $this->assertNotNull($appointmentRow?->preferred_time_slot);
+        $this->assertSame('Lean Snapshot Customer', $loaded->order?->customer_name);
+
+        $appointment = app(AgentNextAppointmentResolver::class)->resolve($snapshot, $agent);
+        $this->assertNotNull($appointment);
+        $this->assertSame('Lean Snapshot Customer', $appointment->customerName);
 
         Carbon::setTestNow();
     }
