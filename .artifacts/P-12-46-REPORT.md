@@ -147,7 +147,7 @@ cd .worktrees/p12-46-next-cluster
 | Item | Value |
 | --- | --- |
 | Branch | `feature/p12-46-next-cluster` |
-| PR | *(created by agent push — see §15)* |
+| PR | **[#197](https://github.com/radium-foundation/radium-desk/pull/197)** @ `66eecd4c` |
 | Expected checks | rip + release-rip |
 
 ---
