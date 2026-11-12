@@ -71,7 +71,7 @@
             </div>
 
             <div id="operations-health-status" class="operations-bento-row operations-bento-row--health">
-                @include('admin.operations.partials.health-status-compact')
+                @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading integration health…'])
             </div>
         </section>
 

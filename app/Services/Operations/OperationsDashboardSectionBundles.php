@@ -72,6 +72,7 @@ class OperationsDashboardSectionBundles
             self::MISSING_SERIAL_AUTOMATION,
         ],
         'system_tab' => [
+            self::INTEGRATION_HEALTH,
             self::RECENT_NOTIFICATION_FAILURES,
             self::RECENT_AUTOMATION_ACTIVITY,
             self::RECENT_IRA_MESSAGES,

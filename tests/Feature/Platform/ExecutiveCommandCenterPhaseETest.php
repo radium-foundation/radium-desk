@@ -153,7 +153,8 @@ class ExecutiveCommandCenterPhaseETest extends TestCase
         $html = (string) $response->json('html.system_tab');
         $this->assertStringContainsString('Open Platform Dashboard', $html);
         $this->assertStringNotContainsString('id="system-health-heading"', $html);
-        $this->assertStringNotContainsString('id="integration-health-heading"', $html);
+        $this->assertStringContainsString('id="integration-health-heading"', $html);
+        $this->assertStringContainsString('operations-integration-health', $html);
         $this->assertStringContainsString('operations-recent-notification-failures', $html);
     }
 
