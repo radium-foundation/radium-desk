@@ -91,7 +91,14 @@
         @if($order !== null && filled($order->order_id ?? null))
             <span class="c360-ops-header-meta-item" role="listitem">
                 <span class="c360-ops-header-meta-label">Order</span>
-                <span class="c360-ops-header-meta-value font-monospace">{{ $order->order_id }}</span>
+                <span class="c360-ops-header-meta-value">
+                    <x-order-identifier
+                        :order="$order"
+                        :incident="$incident"
+                        :href="route('orders.show', $order)"
+                        class="font-monospace"
+                    />
+                </span>
             </span>
         @endif
         @if(filled($serial))
