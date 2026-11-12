@@ -36,6 +36,7 @@ jobs:
           php-version: '8.4'
           coverage: none
           tools: composer:v2
+          extensions: imagick, zip, gd, sqlite3, mbstring, xml, curl, intl
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
