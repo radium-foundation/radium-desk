@@ -54,7 +54,7 @@ class NavigationContextResolver
     {
         $user = $request->user();
 
-        return [
+        $sidebar = [
             'home_desk' => $this->destinationGroup(
                 NavigationMenu::HomeDesk,
                 route('dashboard'),
@@ -86,6 +86,28 @@ class NavigationContextResolver
                 visible: $this->canAccessControlAndAdmin($request),
             ),
         ];
+
+        if (
+            IncomingEmailAccess::allowsView($user)
+            && \Illuminate\Support\Facades\Route::has('admin.incoming-emails.index')
+        ) {
+            $learningUrl = route('admin.incoming-emails.index');
+            $sidebar['learning_center'] = [
+                'label' => 'Learning Center',
+                'home_url' => $learningUrl,
+                'visible' => true,
+                'destination' => [
+                    'key' => 'learning_center.destination',
+                    'label' => 'Learning Center',
+                    'icon' => 'bi-envelope-open',
+                    'url' => $learningUrl,
+                    'title' => 'Learning Center',
+                    'active' => $request->routeIs('admin.incoming-emails.*'),
+                ],
+            ];
+        }
+
+        return $sidebar;
     }
 
     /**
