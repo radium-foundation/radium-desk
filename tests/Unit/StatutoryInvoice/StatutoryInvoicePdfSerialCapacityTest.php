@@ -4,11 +4,17 @@ namespace Tests\Unit\StatutoryInvoice;
 
 use App\Services\StatutoryInvoice\Data\StatutoryInvoicePdfPayload;
 use App\Services\StatutoryInvoice\SimplePdfRenderer;
-use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
+use Tests\TestCase;
 
 class StatutoryInvoicePdfSerialCapacityTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->configureLocationSellerIdentity();
+    }
+
     public function test_max_inline_serials_constant_is_locked_at_ten(): void
     {
         $this->assertSame(10, SimplePdfRenderer::MAX_INLINE_SERIALS);
@@ -45,7 +51,7 @@ class StatutoryInvoicePdfSerialCapacityTest extends TestCase
         $this->assertSame('SN-120', $annexure[119]);
     }
 
-    public function test_multipage_invoice_keeps_six_serials_on_page_one_without_annexure(): void
+    public function test_multipage_invoice_moves_serials_to_annexure_when_product_table_fills_page_one(): void
     {
         $lines = [];
         for ($i = 1; $i <= 12; $i++) {
@@ -87,8 +93,15 @@ class StatutoryInvoicePdfSerialCapacityTest extends TestCase
             sourceId: 'RDE900305',
         );
 
-        $this->assertSame(6, $this->firstPageSerialCapacity($payload));
-        $this->assertSame([], $this->annexureSerials($payload));
+        $this->assertSame(0, $this->firstPageSerialCapacity($payload));
+        $this->assertSame(
+            ['SN-1', 'SN-2', 'SN-3', 'SN-4', 'SN-5', 'SN-6'],
+            $this->annexureSerials($payload),
+        );
+        $this->assertStringContainsString(
+            'Annexure',
+            (new SimplePdfRenderer)->render($payload),
+        );
     }
 
     /**
