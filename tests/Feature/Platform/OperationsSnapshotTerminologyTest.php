@@ -15,7 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
-class OperationsSnapshotTerminologyTest extends TestCase
+class OperationsSnapshotTerminologyTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

@@ -13,7 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
-class PlatformHealthCardTest extends TestCase
+class PlatformHealthCardTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

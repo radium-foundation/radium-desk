@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Cache;
 use Mockery;
 use Tests\TestCase;
 
-class DashboardIntelligenceTest extends TestCase
+class DashboardIntelligenceTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

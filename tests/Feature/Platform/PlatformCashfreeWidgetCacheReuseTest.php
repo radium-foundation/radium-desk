@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Mockery;
 use Tests\TestCase;
 
-class PlatformCashfreeWidgetCacheReuseTest extends TestCase
+class PlatformCashfreeWidgetCacheReuseTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

@@ -20,7 +20,7 @@ use Tests\TestCase;
  * Temporary investigation harness — reproduces clear → load → background refresh → reload
  * with PLATFORM_CACHE_AUDIT enabled. Does not assert a fix; captures writer facts.
  */
-class PlatformCacheAuditReproductionTest extends TestCase
+class PlatformCacheAuditReproductionTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 

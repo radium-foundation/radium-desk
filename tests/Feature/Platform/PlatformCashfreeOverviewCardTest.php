@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Mockery;
 use Tests\TestCase;
 
-class PlatformCashfreeOverviewCardTest extends TestCase
+class PlatformCashfreeOverviewCardTest extends PlatformFeatureTestCase
 {
     use RefreshDatabase;
 
