@@ -31,7 +31,12 @@ class PlatformHealthSnapshotService
     public function probe(): PlatformHealthSnapshot
     {
         if ($this->probedThisRequest !== null) {
-            return $this->probedThisRequest;
+            // Request-scoped memo must not survive a cache flush (optimize:clear / zone warm).
+            if (is_array(Cache::get(self::CACHE_KEY))) {
+                return $this->probedThisRequest;
+            }
+
+            $this->probedThisRequest = null;
         }
 
         $components = $this->registry->probeAll();

@@ -1,7 +1,7 @@
 # P-12-44 — Remaining failures register
 
 
-**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`afd16f16`** (2026-11-13 IST, post **#200** + **P-12-50** Platform ECC Vite SSR harness).
+**Matrix baseline:** P-12-32 @ `27b03d19` reconciled @ `origin/main` **`b69ee268`** (2026-11-13 IST, post **#201** / **P-12-50** + **P-13-01** Platform health snapshot cache regeneration).
 
 
 ## Totals (recomputed from 228 rows)
@@ -9,8 +9,8 @@
 
 | Classification | Count |
 | --- | ---: |
-| VERIFIED FIXED | 129 |
-| STILL FAILING | 98 |
+| VERIFIED FIXED | 132 |
+| STILL FAILING | 95 |
 | ENVIRONMENT BLOCKED | 1 |
 
 ## STILL FAILING by workstream
@@ -18,7 +18,7 @@
 
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | 95 |
+| WS-10 | 92 |
 | WS-11 | 2 |
 | WS-04 | 1 |
 
@@ -73,9 +73,6 @@
 - `Tests.Feature.OperationsSupportOwnershipTest::test_offline_agent_skipped_for_invalid_serial_reassignment` (WS-10)
 - `Tests.Feature.OrderIdentityProtectionTest::serial_correction_remains_locked_after_correction` (WS-10)
 - `Tests.Feature.OrderIdentityProtectionTest::timeline_includes_initial_protection_event_only_once_per_field` (WS-10)
-- `Tests.Feature.Platform.PlatformCacheAuditReproductionTest::test_reproduce_clear_load_refresh_reload_and_capture_writers` (WS-10)
-- `Tests.Feature.Platform.SnapshotCacheRegenerationPipelineTest::test_optimize_clear_style_cache_flush_does_not_persist_false_critical_from_missing_cache_heartbeat` (WS-10)
-- `Tests.Feature.Platform.SnapshotCacheRegenerationPipelineTest::test_second_refresh_after_flush_keeps_non_critical_when_durable_heartbeat_exists` (WS-10)
 - `Tests.Feature.PlatformIdentityTest::test_changelog_page_shows_empty_state_when_release_notes_missing` (WS-10)
 - `Tests.Feature.PresenceEngineTest::test_superadmin_login_does_not_create_workforce_session` (WS-10)
 - `Tests.Feature.ProductOrderRequestSerialExclusionTest::test_rd_order_missing_serial_still_shows_request_serial_action` (WS-10)
