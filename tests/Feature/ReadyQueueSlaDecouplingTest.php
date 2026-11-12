@@ -36,6 +36,7 @@ class ReadyQueueSlaDecouplingTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+        $this->withoutVite();
         Carbon::setTestNow(Carbon::parse('2026-07-14 12:14:00', 'Asia/Kolkata'));
     }
 
@@ -75,14 +76,14 @@ class ReadyQueueSlaDecouplingTest extends TestCase
         $this->assertTrue($snapshot->incidentsForFilter('overdue', null)->contains(fn (Incident $i): bool => $i->id === $fresh->id));
 
         $this->actingAs($adminB)
-            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_ACTION_REQUIRED]))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => DashboardPersonalizationService::QUEUE_ACTION_REQUIRED])))
             ->assertOk()
             ->assertSee('RD3449136')
             ->assertSee('sla-status--overdue', false)
             ->assertSee('Overdue');
 
         $this->actingAs($adminB)
-            ->get(route('dashboard', ['filter' => 'overdue']))
+            ->get(route('dashboard', $this->dashboardQuery(['filter' => 'overdue'])))
             ->assertOk()
             ->assertSee('RD3449136');
     }
@@ -123,7 +124,7 @@ class ReadyQueueSlaDecouplingTest extends TestCase
         $this->assertSame(OperationQueue::Attention, $classifier->classify($fresh));
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'attention']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'attention'])))
             ->assertOk()
             ->assertSee('Exceptions')
             ->assertSee('RD-VALIDATION-FAIL');
@@ -220,13 +221,13 @@ class ReadyQueueSlaDecouplingTest extends TestCase
             Carbon::parse('2026-07-12 10:00:00', 'Asia/Kolkata'),
         );
 
-        $expectedHref = route('dashboard', ['filter' => 'overdue']).'#dashboard-service-cases-panel';
+        $expectedHref = route('dashboard', $this->dashboardQuery(['filter' => 'overdue'])).'#dashboard-service-cases-panel';
 
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee($expectedHref, false)
-            ->assertDontSee(route('dashboard', ['queue' => 'attention']).'#dashboard-service-cases-panel', false);
+            ->assertDontSee(route('dashboard', $this->dashboardQuery(['queue' => 'attention'])).'#dashboard-service-cases-panel', false);
     }
 
     public function test_cross_admin_ready_queue_still_shows_assigned_cases(): void

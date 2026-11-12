@@ -108,4 +108,20 @@ class OperationsWorkspaceResolverTest extends TestCase
         $this->assertSame('SC123', $query['q']);
         $this->assertArrayNotHasKey('filter', $query);
     }
+
+    public function test_canonical_dashboard_query_preserves_hardware_sub_filters(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $query = $this->resolver->canonicalDashboardQuery($admin, Request::create(
+            '/dashboard?queue=hardware&hw_filter=needs_action&hw_scope=shipped',
+            'GET',
+        ));
+
+        $this->assertSame('hardware', $query['workspace']);
+        $this->assertSame('needs_action', $query['hw_filter']);
+        $this->assertSame('shipped', $query['hw_scope']);
+        $this->assertArrayNotHasKey('queue', $query);
+    }
 }

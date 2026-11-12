@@ -30,6 +30,7 @@ class AgentDashboardRedesignTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+        $this->withoutVite();
     }
 
     public function test_agent_dashboard_shows_three_action_cards(): void
@@ -210,7 +211,7 @@ class AgentDashboardRedesignTest extends TestCase
         ]);
 
         $this->actingAs($agent)
-            ->get(route('dashboard', ['queue' => 'scheduled']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'scheduled'])))
             ->assertOk()
             ->assertSee('dashboard-case-filter-chip__label">Appointments<', false)
             ->assertDontSee('dashboard-case-filter-chip__label">Today<', false);
@@ -366,7 +367,7 @@ class AgentDashboardRedesignTest extends TestCase
         $scheduledReference = $scheduledIncident->fresh()->display_reference;
 
         $response = $this->actingAs($agent)
-            ->get(route('dashboard', ['queue' => 'scheduled']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'scheduled'])))
             ->assertOk();
 
         $this->assertMatchesRegularExpression(
@@ -399,7 +400,7 @@ class AgentDashboardRedesignTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $adminScheduledResponse = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'scheduled']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'scheduled'])))
             ->assertOk()
             ->assertSee('dashboard-appointment-icon--due-now', false)
             ->assertDontSee('sla-status--', false);
@@ -410,7 +411,7 @@ class AgentDashboardRedesignTest extends TestCase
         );
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'attention']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'attention'])))
             ->assertOk()
             ->assertSee('<th class="status-sla-cell">', false)
             ->assertDontSee('appointment-status-cell', false)

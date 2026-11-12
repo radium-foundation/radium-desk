@@ -22,6 +22,7 @@ class DashboardGlobalSearchTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->withoutVite();
     }
 
     /**
@@ -108,7 +109,7 @@ class DashboardGlobalSearchTest extends TestCase
         ]);
 
         $this->actingAs($agent)
-            ->get(route('dashboard', ['queue' => 'my_work']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'my_work'])))
             ->assertOk()
             ->assertDontSee('RD-OTHER-AGENT-001');
 
@@ -237,7 +238,7 @@ class DashboardGlobalSearchTest extends TestCase
         ]);
 
         $this->actingAs($agent)
-            ->get(route('dashboard', ['queue' => 'my_work', 'q' => 'RD3437143']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'my_work', 'q' => 'RD3437143'])))
             ->assertOk()
             ->assertSee('data-dashboard-search-rows-url', false)
             ->assertDontSee('RD3437143');
@@ -262,9 +263,9 @@ class DashboardGlobalSearchTest extends TestCase
 
         $this->actingAs($admin)
             ->get('/dashboard?view=hardware_orders&q=RD3437143')
-            ->assertRedirect(route('dashboard', [
+            ->assertRedirect(route('dashboard', $this->dashboardQuery([
                 'queue' => DashboardPersonalizationService::QUEUE_HARDWARE,
                 'q' => 'RD3437143',
-            ]));
+            ])));
     }
 }

@@ -59,7 +59,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->fulfilment('RDE980004', HardwareFulfilmentState::InvoiceIssued, serial: true, invoice: true);
 
         $html = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware'])))
             ->assertOk()
             ->assertSee('Needs Action')
             ->assertSee('Product Mapping Required')
@@ -106,13 +106,13 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertStringContainsString('RDE980004', $allRows);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_scope' => 'shipped']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware', 'hw_scope' => 'shipped'])))
             ->assertOk()
             ->assertSee('Completed')
             ->assertSee('Delivered');
 
         $shippingShell = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'shipping']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware', 'hw_filter' => 'shipping'])))
             ->assertOk()
             ->getContent();
         $this->assertStringContainsString('Out for Pickup', $shippingShell);
@@ -155,7 +155,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->fulfilment('RDE990002', HardwareFulfilmentState::ReadyForFulfilment);
 
         $html = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'ready_for_pickup']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware', 'hw_filter' => 'ready_for_pickup'])))
             ->assertOk()
             ->getContent();
         $readyRows = (string) $this->hardwareRowsResponse(['hw_filter' => 'ready_for_pickup'])->json('rows_html');
@@ -168,7 +168,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertSame(1, substr_count($hardwareNav[1] ?? '', 'aria-current="page"'));
 
         $needsActionHtml = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'needs_action']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware', 'hw_filter' => 'needs_action'])))
             ->assertOk()
             ->getContent();
         $needsRows = (string) $this->hardwareRowsResponse(['hw_filter' => 'needs_action'])->json('rows_html');
@@ -258,7 +258,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         );
 
         $html = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_filter' => 'ready_for_pickup']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware', 'hw_filter' => 'ready_for_pickup'])))
             ->assertOk()
             ->assertSee('Open selected')
             ->assertDontSee('Bulk Generate')
@@ -466,7 +466,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->fulfilment('RDE985001', HardwareFulfilmentState::ReadyForFulfilment, mapped: false);
 
         $html = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware', 'hw_queue' => 'exceptions']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware', 'hw_queue' => 'exceptions'])))
             ->assertOk()
             ->getContent();
         $exceptionRows = (string) $this->hardwareRowsResponse(['hw_queue' => 'exceptions'])->json('rows_html');
@@ -571,7 +571,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         DB::enableQueryLog();
         $shellStarted = hrtime(true);
         $shell = $this->actingAs($admin)
-            ->get(route('dashboard', ['queue' => 'hardware']))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => 'hardware'])))
             ->assertOk()
             ->getContent();
         $shellMs = (hrtime(true) - $shellStarted) / 1e6;

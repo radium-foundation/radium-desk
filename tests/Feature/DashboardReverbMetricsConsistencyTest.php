@@ -32,6 +32,7 @@ class DashboardReverbMetricsConsistencyTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+        $this->withoutVite();
 
         $dayAdmin = User::factory()->create(['email' => 'day-admin-metrics@test.com']);
         $dayAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -52,7 +53,7 @@ class DashboardReverbMetricsConsistencyTest extends TestCase
         $user = $this->createAdmin('Cache Admin');
 
         $this->actingAs($user)
-            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER]))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER])))
             ->assertOk();
 
         $this->actingAs($user)
@@ -194,12 +195,12 @@ class DashboardReverbMetricsConsistencyTest extends TestCase
         $agent = $this->createAgent('Blade Scope Agent');
 
         $this->actingAs($agent)
-            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_MY_WORK]))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => DashboardPersonalizationService::QUEUE_MY_WORK])))
             ->assertOk()
             ->assertSee('data-live-scope="support_scope"', false);
 
         $this->actingAs($agent)
-            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_SCHEDULED]))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => DashboardPersonalizationService::QUEUE_SCHEDULED])))
             ->assertOk()
             ->assertSee('data-live-scope="operations_scope"', false);
     }

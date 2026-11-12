@@ -10,6 +10,33 @@ use Illuminate\Support\Carbon;
 
 abstract class TestCase extends BaseTestCase
 {
+    /**
+     * Map legacy dashboard queue/filter/view params to canonical workspace= for HTTP assertions.
+     *
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
+    protected function dashboardQuery(array $params = []): array
+    {
+        if (isset($params['workspace'])) {
+            return $params;
+        }
+
+        $query = $params;
+
+        if (isset($query['queue']) && $query['queue'] !== '') {
+            $query['workspace'] = $query['queue'];
+            unset($query['queue']);
+        } elseif (isset($query['filter']) && $query['filter'] !== '') {
+            $query['workspace'] = $query['filter'];
+            unset($query['filter']);
+        }
+
+        unset($query['view']);
+
+        return $query;
+    }
+
     protected function disableRetiredAdminOrderFallback(): void
     {
         config([

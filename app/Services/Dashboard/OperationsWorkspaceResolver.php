@@ -286,6 +286,9 @@ class OperationsWorkspaceResolver
             'open_customer_360',
             'open_more_menu',
             'open_customer_360_reference',
+            'hw_filter',
+            'hw_scope',
+            'hw_queue',
         ] as $key) {
             if ($request->filled($key)) {
                 $query[$key] = (string) $request->query($key);

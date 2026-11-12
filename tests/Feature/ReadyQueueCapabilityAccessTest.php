@@ -30,6 +30,7 @@ class ReadyQueueCapabilityAccessTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+        $this->withoutVite();
     }
 
     public function test_admin_role_receives_ready_queue_permission_by_default(): void
@@ -136,7 +137,7 @@ class ReadyQueueCapabilityAccessTest extends TestCase
         $incident = $this->createAwaitingProductDetailsCase('RD3519999', $creator, $operator);
 
         $this->actingAs($operator)
-            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_ACTION_REQUIRED]))
+            ->get(route('dashboard', $this->dashboardQuery(['queue' => DashboardPersonalizationService::QUEUE_ACTION_REQUIRED])))
             ->assertOk()
             ->assertSee('Ready Queue')
             ->assertSee('RD3519999');
