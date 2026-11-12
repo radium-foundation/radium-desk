@@ -111,7 +111,7 @@ Profile: `PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit` after p
 | C | `StatutoryInvoicePdfCustomerFacingSkuTest` (+ imagick.so) | Reference No. / tender rows green under Owner C | yes (#189) |
 | D | (workflow YAML) | N/A | yes (#186 CI) |
 
-**Full suite:** **NO**  
+**Full suite:** **NO** — aborted/unauthorized run by post-187 sync; results NOT authoritative. Subagent `2827603f` started full `vendor/bin/phpunit` on `p12-38-reviewer` @ `2594f61e` (Owner never authorized); run **aborted** (~48m), log `.artifacts/phpunit-p12-38-full-main-2594f61e.log` (**1835** B, incomplete, **no exit code** / no PHPUnit summary) — **do not use for matrix**.  
 **Deploy:** **NO**
 
 ---
