@@ -377,19 +377,7 @@ class OperatorDashboardCacheTest extends TestCase
         $again = app(DashboardService::class)->statsFor($superAdmin);
 
         $countQueries = collect(DB::getQueryLog())
-            ->filter(function (array $query): bool {
-                $sql = strtolower($query['query']);
-
-                return (str_contains($sql, 'count(') || str_contains($sql, 'count (*)'))
-                    && (
-                        str_contains($sql, ' from "orders"')
-                        || str_contains($sql, ' from `orders`')
-                        || str_contains($sql, ' from "users"')
-                        || str_contains($sql, ' from `users`')
-                        || str_contains($sql, ' from "audit_logs"')
-                        || str_contains($sql, ' from `audit_logs`')
-                    );
-            })
+            ->filter(fn (array $query): bool => $this->matchesBareSlowScalarCountSql($query['query']))
             ->count();
 
         DB::disableQueryLog();
@@ -520,23 +508,44 @@ class OperatorDashboardCacheTest extends TestCase
         DB::enableQueryLog();
         $callback();
         $count = collect(DB::getQueryLog())
-            ->filter(function (array $query): bool {
-                $sql = strtolower($query['query']);
-
-                return (str_contains($sql, 'count(') || str_contains($sql, 'count (*)'))
-                    && (
-                        str_contains($sql, ' from "orders"')
-                        || str_contains($sql, ' from `orders`')
-                        || str_contains($sql, ' from "users"')
-                        || str_contains($sql, ' from `users`')
-                        || str_contains($sql, ' from "audit_logs"')
-                        || str_contains($sql, ' from `audit_logs`')
-                    );
-            })
+            ->filter(fn (array $query): bool => $this->matchesBareSlowScalarCountSql($query['query']))
             ->count();
         DB::disableQueryLog();
 
         return $count;
+    }
+
+    /**
+     * Matches uncached OperatorDashboardCache slow scalars only — not hardware fulfilment classifier counts on orders.
+     */
+    private function matchesBareSlowScalarCountSql(string $sql): bool
+    {
+        $sql = strtolower($sql);
+
+        if (! str_contains($sql, 'count(') && ! str_contains($sql, 'count (*)')) {
+            return false;
+        }
+
+        $slowScalarTable = str_contains($sql, ' from "orders"')
+            || str_contains($sql, ' from `orders`')
+            || str_contains($sql, ' from "users"')
+            || str_contains($sql, ' from `users`')
+            || str_contains($sql, ' from "audit_logs"')
+            || str_contains($sql, ' from `audit_logs`');
+
+        if (! $slowScalarTable) {
+            return false;
+        }
+
+        if (str_contains($sql, ' like ')) {
+            return false;
+        }
+
+        if (str_contains($sql, 'hardware_fulfilments')) {
+            return false;
+        }
+
+        return true;
     }
 
     public function test_snapshot_ttl_is_clamped_to_15_30_seconds(): void
