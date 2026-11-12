@@ -195,6 +195,29 @@ class OperationsQueueClassifier
         return $this->assignmentEligibility()->isReadyForReferenceEntry($order, $incident);
     }
 
+    public function shouldMirrorInAdminReadyQueue(Incident $incident, OperationQueue $primaryQueue): bool
+    {
+        if ($this->isWaitingCustomer($incident) || $this->isHardware($incident)) {
+            return false;
+        }
+
+        if ($primaryQueue === OperationQueue::ActionRequired) {
+            return false;
+        }
+
+        if (in_array($primaryQueue, [
+            OperationQueue::WaitingCustomer,
+            OperationQueue::Hardware,
+            OperationQueue::Scheduled,
+            OperationQueue::Completed,
+            OperationQueue::BusinessHold,
+        ], true)) {
+            return false;
+        }
+
+        return $this->isReadyForReferenceEntry($incident);
+    }
+
     private function assignmentEligibility(): ServiceCaseAssignmentEligibilityService
     {
         return app(ServiceCaseAssignmentEligibilityService::class);
