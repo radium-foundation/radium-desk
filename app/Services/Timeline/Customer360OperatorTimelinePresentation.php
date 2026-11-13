@@ -76,10 +76,6 @@ class Customer360OperatorTimelinePresentation
             return $event->withOperatorPresentation(operatorVisible: false);
         }
 
-        if ($event->type === TimelineEventType::WhatsApp && $event->summaryFields !== []) {
-            return $event->withOperatorPresentation(operatorVisible: false);
-        }
-
         return $this->presentOperatorLayout($event);
     }
 
@@ -124,12 +120,13 @@ class Customer360OperatorTimelinePresentation
 
     private function shouldHideDuplicateCommunication(TimelineEvent $event): bool
     {
-        if ($event->type === TimelineEventType::WhatsAppTemplateSent) {
-            return true;
-        }
-
         if ($event->type === TimelineEventType::Email
             && str_starts_with($event->dedupeKey, 'incoming_email:')) {
+            return false;
+        }
+
+        if ($event->type === TimelineEventType::WhatsApp
+            && str_starts_with($event->dedupeKey, 'whatsapp:summary:')) {
             return false;
         }
 

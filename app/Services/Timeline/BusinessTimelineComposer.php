@@ -267,7 +267,9 @@ class BusinessTimelineComposer
                 $rawEvents = array_values(array_merge([$event], $mergedRaw));
                 $presented = $this->titlePresenter->present($type, $rawEvents, false);
 
-                $unified = $event->storyKey === IncomingEmailReopenTimelinePresenter::STORY_KEY;
+                $unified = $event->storyKey === IncomingEmailReopenTimelinePresenter::STORY_KEY
+                    || ($event->type === TimelineEventType::WhatsApp
+                        && str_starts_with($event->dedupeKey, 'whatsapp:summary:'));
 
                 return new BusinessTimelineItem(
                     id: 'm:'.$event->dedupeKey,

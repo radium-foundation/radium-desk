@@ -19,7 +19,10 @@
     $actorPresenter = TimelineActorPresenter::for($event->actor);
     $indicatorVariant = $event->indicatorVariant ?? 'muted';
     $hasCommunicationChannels = $event->communicationChannels !== [];
-    $hasExpandedMetadata = $event->summaryFields !== [] || ($event->detail !== null && ! $isInternalNote);
+    $isWhatsAppConversationSummary = $event->type === TimelineEventType::WhatsApp
+        && str_starts_with($event->dedupeKey ?? '', 'whatsapp:summary:');
+    $hasExpandedMetadata = ($event->summaryFields !== [] && ! $isWhatsAppConversationSummary)
+        || ($event->detail !== null && ! $isInternalNote);
 @endphp
 
 <article @class([
@@ -58,6 +61,17 @@
 
         @if(filled($event->contextLine))
             <p class="c360-activity-item-context">{{ $event->contextLine }}</p>
+        @endif
+
+        @if($isWhatsAppConversationSummary && $event->summaryFields !== [])
+            <dl class="unified-timeline-summary-fields">
+                @foreach($event->summaryFields as $field)
+                    <div class="unified-timeline-summary-field">
+                        <dt>{{ $field['label'] }}</dt>
+                        <dd>{{ $field['value'] }}</dd>
+                    </div>
+                @endforeach
+            </dl>
         @endif
 
         @if($hasCommunicationChannels)
