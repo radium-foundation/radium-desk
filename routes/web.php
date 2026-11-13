@@ -17,6 +17,7 @@ use App\Http\Controllers\ConversationWorkspaceController;
 use App\Http\Controllers\Customer360\Customer360InvoiceController;
 use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\CustomerOrderHistoryController;
+use App\Http\Controllers\Dashboard\DashboardOemHandoffSessionController;
 use App\Http\Controllers\DashboardActivityController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
@@ -195,6 +196,17 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.load-more');
     Route::get('dashboard/service-cases/{incident}/row', [DashboardServiceCaseController::class, 'row'])
         ->name('dashboard.service-cases.row');
+    Route::get('dashboard/service-cases/{incident}/oem-handoff/recover', [DashboardOemHandoffSessionController::class, 'recover'])
+        ->name('dashboard.service-cases.oem-handoff.recover');
+    Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions', [DashboardOemHandoffSessionController::class, 'store'])
+        ->middleware('throttle:'.config('dashboard_oem_handoff.start_rate_limit_per_minute', 20).',1')
+        ->name('dashboard.service-cases.oem-handoff.sessions.store');
+    Route::get('dashboard/service-cases/{incident}/oem-handoff/sessions/{sessionPublicId}', [DashboardOemHandoffSessionController::class, 'show'])
+        ->name('dashboard.service-cases.oem-handoff.sessions.show');
+    Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions/{sessionPublicId}/draft', [DashboardOemHandoffSessionController::class, 'submitDraft'])
+        ->name('dashboard.service-cases.oem-handoff.sessions.draft');
+    Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions/{sessionPublicId}/review', [DashboardOemHandoffSessionController::class, 'review'])
+        ->name('dashboard.service-cases.oem-handoff.sessions.review');
     Route::get('dashboard/service-cases/{incident}/customer-360', [Customer360Controller::class, 'show'])
         ->name('dashboard.service-cases.customer-360');
     Route::patch('dashboard/service-cases/{incident}/conversation-workspace', [ConversationWorkspaceController::class, 'update'])

@@ -42,7 +42,10 @@
                 data-bs-title="{{ $order->serial_number }}"
             />
             @include('orders.partials.serial-validation-badge', ['order' => $order, 'compact' => true])
-            @include('dashboard.partials.oem-warranty-check-trigger', ['vendor' => $oemWarrantyVendor])
+            @include('dashboard.partials.oem-warranty-check-trigger', [
+                'vendor' => $oemWarrantyVendor,
+                'incidentId' => $serviceCase->id,
+            ])
         </div>
     @elseif($canAssign)
         <button type="button"

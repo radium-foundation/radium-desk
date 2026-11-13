@@ -1008,4 +1008,18 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-95 | 2026-11-13 | **P-13-95** Dashboard OEM check icon + MV3 handoff (stacked on PR #255) | Branch **`feature/p13-95-oem-dashboard-handoff`** @ **`e95e0dbd`**. Serial cell icon after green tick; **`OemWarrantyCheckVendorResolver`**; **`tools/oem-warranty-extension`** v0.2. **NO** Desk Morpho HTTP / merge / deploy. PHPUnit **9/9**; extension vitest **16/16**; desk JS **2/2**. |
 
+| RadiumDesk-P-13-96 | 2026-11-13 | **P-13-96** Feasibility: OEM result return to Desk (read-only) | Verdict: P-13-95 **NO** round-trip today; Mantra/Morpho DOM capture **feasible** with session bridge (P-11-45 art). **NO** code/deploy. |
+
+| RadiumDesk-P-13-97 | 2026-11-13 | **P-13-97** Mantra result-return foundation (session + draft review, no persist) | Branch **`feature/p13-97-mantra-result-return`** on **#256**. `dashboard_oem_handoff_sessions`; extension Mantra observer; flags **OFF** default. **NO** warranty persistence / merge / deploy. |
+
+| RadiumDesk-P-13-98 | 2026-11-13 | **P-13-98** Harden/verify Mantra OEM journey (pre-merge) | PR **#257** hardening: journey + concurrency tests; `mantra-result-parse`; extension **0.3.1** module; draft owner assert. PHPUnit **16**; desk vitest **3**; extension **22**. **NO** merge/deploy/live OEM. |
+
+| RadiumDesk-P-13-99 | 2026-11-13 | **P-13-99** Draft recovery, JSON API errors, session retention | PR **#257**: `oem-handoff/recover`, JSON exception route gate, `prune-sessions` command; desk refresh recovery. PHPUnit **31**. **NO** merge/deploy/production data. |
+
+| RadiumDesk-P-13-100 | 2026-11-13 | **P-13-100** Retention safety + OEM PR chain audit (read-only) | Verified stack **#255→#256→#257**; `prune_enabled` default **true** flagged; recovery UX silent on 404. **NO** merge/cleanup. |
+
+| RadiumDesk-P-13-101 | 2026-11-13 | **P-13-101** Opt-in retention + Mantra draft recovery UX | `prune_enabled` default **false**; pending-review sessionStorage + 404 toast; ledger P-13-100. **NO** merge/deploy/cleanup. |
+
+| RadiumDesk-P-13-102 | 2026-11-13 | **P-13-102** OEM PR chain review, merge gates, deploy preflight | Merged **#255** `42437fbd`, **#256** `f9e7d80f`, **#257** (pending SHA); flags OFF; **NO** prod deploy/migrate/enable. |
+
 Do not renumber or overwrite earlier rows. Append only.
