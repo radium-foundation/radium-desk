@@ -22,6 +22,7 @@ class CommerceOrderItem extends Model
         'variant',
         'description',
         'hsn_sac',
+        'uqc',
         'qty',
         'unit_price',
         'discount',

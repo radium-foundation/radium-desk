@@ -274,6 +274,13 @@ class ServiceStatutoryInvoiceReconciliationBacklogTest extends TestCase
         [$raOrder] = $this->deskOrderWithCommerce('RA3507999', channel: StatutoryInvoiceChannel::RdServiceNet);
         $raOrder->update(['transaction_id' => 'TXN-RA', 'completed_at' => now()]);
 
+        CommerceOrder::query()
+            ->where('source_id', 'RA3507999')
+            ->update([
+                'statutory_auto_issue_approved_at' => now(),
+                'statutory_auto_issue_approved_by' => $this->actor->id,
+            ]);
+
         app(ServiceStatutoryInvoiceReconciliationService::class)->reconcile(limit: 5);
 
         $this->assertSame(1, StatutoryInvoice::query()->where('source_id', 'RA3507999')->count());

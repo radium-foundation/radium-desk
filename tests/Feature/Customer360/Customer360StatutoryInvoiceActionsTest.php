@@ -146,7 +146,7 @@ class Customer360StatutoryInvoiceActionsTest extends TestCase
             ->assertOk()
             ->assertSee('E-INVOICE', false)
             ->assertSee('Pending — Statutory data incomplete', false)
-            ->assertSee('Statutory data required for e-Invoice is incomplete.', false)
+            ->assertSee('Billing address exceeds the statutory e-Invoice address limit.', false)
             ->assertDontSee('IRN Generated', false);
     }
 

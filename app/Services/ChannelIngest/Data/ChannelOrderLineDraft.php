@@ -11,6 +11,7 @@ final class ChannelOrderLineDraft
         public readonly ?string $sku = null,
         public readonly ?string $variant = null,
         public readonly ?string $hsnSac = null,
+        public readonly ?string $uqc = null,
         public readonly ?float $discount = null,
         public readonly ?float $gstPercentage = null,
         public readonly ?float $taxableValue = null,
