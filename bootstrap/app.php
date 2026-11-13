@@ -337,6 +337,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 && (bool) config('central_wallet.reservations.enabled', false))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/central-wallet-reservation-expiry.log'));
+
+        $schedule->command('dashboard-oem-handoff:prune-sessions --execute')
+            ->dailyAt('04:10')
+            ->when(fn (): bool => (bool) config('dashboard_oem_handoff.prune_enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/dashboard-oem-handoff-prune-sessions.log'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
@@ -345,6 +351,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 || ($request->is('pos/products/search', 'pos/serials/search', 'pos/customers/lookup')
                     && ($request->expectsJson() || $request->ajax()))
                 || ($request->is('inventory/hardware-fulfilments/*')
-                    && ($request->expectsJson() || $request->ajax())),
+                    && ($request->expectsJson() || $request->ajax()))
+                || $request->is('dashboard/service-cases/*/oem-handoff/*'),
         );
     })->create();

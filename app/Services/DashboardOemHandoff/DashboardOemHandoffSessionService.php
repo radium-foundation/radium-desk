@@ -122,6 +122,53 @@ final class DashboardOemHandoffSessionService
         return $session;
     }
 
+    public function recoverRecoverableDraft(Incident $incident, User $user): DashboardOemHandoffSession
+    {
+        if (! config('dashboard_oem_handoff.enabled')) {
+            throw new ModelNotFoundException('No recoverable draft.');
+        }
+
+        if (! config('dashboard_oem_handoff.mantra_result_capture_enabled')) {
+            throw new ModelNotFoundException('No recoverable draft.');
+        }
+
+        $order = $incident->order;
+        if ($order === null) {
+            throw new ModelNotFoundException('No recoverable draft.');
+        }
+
+        $expectedSerial = OrderSerialOwnership::normalizeSerial($order->serial_number);
+        if ($expectedSerial === null) {
+            throw new ModelNotFoundException('No recoverable draft.');
+        }
+
+        /** @var DashboardOemHandoffSession|null $session */
+        $session = DashboardOemHandoffSession::query()
+            ->where('incident_id', $incident->id)
+            ->where('user_id', $user->id)
+            ->where('status', DashboardOemHandoffSessionStatus::DraftReady)
+            ->whereNotNull('draft_submitted_at')
+            ->where('expires_at', '>', now())
+            ->orderByDesc('draft_submitted_at')
+            ->first();
+
+        if ($session === null) {
+            throw new ModelNotFoundException('No recoverable draft.');
+        }
+
+        $sessionSerial = OrderSerialOwnership::normalizeSerial($session->serial_number);
+        if ($sessionSerial === null || strtoupper($sessionSerial) !== strtoupper($expectedSerial)) {
+            throw new AuthorizationException('Recoverable draft does not match the current service case serial.');
+        }
+
+        $draftSerial = OrderSerialOwnership::normalizeSerial($session->draft_payload['serial_number'] ?? null);
+        if ($draftSerial === null || strtoupper($draftSerial) !== strtoupper($expectedSerial)) {
+            throw new AuthorizationException('Recoverable draft does not match the current service case serial.');
+        }
+
+        return $session;
+    }
+
     public function markReviewed(DashboardOemHandoffSession $session, User $user): DashboardOemHandoffSession
     {
         $this->assertOwnedBy($session, $user);

@@ -35,6 +35,18 @@ class DashboardOemHandoffSessionController extends Controller
         ]);
     }
 
+    public function recover(Request $request, Incident $incident): JsonResponse
+    {
+        $this->authorize('view', $incident);
+
+        $session = $this->sessionService->recoverRecoverableDraft($incident, $request->user());
+
+        return response()->json([
+            'session' => $this->sessionPayload($session),
+            'recovered' => true,
+        ]);
+    }
+
     public function show(Request $request, Incident $incident, string $sessionPublicId): JsonResponse
     {
         $this->authorize('view', $incident);
@@ -95,6 +107,7 @@ class DashboardOemHandoffSessionController extends Controller
             ->firstOrFail();
 
         $this->sessionService->assertForIncident($session, $incident);
+        $this->sessionService->assertOwnedBy($session, $request->user());
         $updated = $this->sessionService->markReviewed($session, $request->user());
 
         return response()->json([

@@ -196,6 +196,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.load-more');
     Route::get('dashboard/service-cases/{incident}/row', [DashboardServiceCaseController::class, 'row'])
         ->name('dashboard.service-cases.row');
+    Route::get('dashboard/service-cases/{incident}/oem-handoff/recover', [DashboardOemHandoffSessionController::class, 'recover'])
+        ->name('dashboard.service-cases.oem-handoff.recover');
     Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions', [DashboardOemHandoffSessionController::class, 'store'])
         ->middleware('throttle:'.config('dashboard_oem_handoff.start_rate_limit_per_minute', 20).',1')
         ->name('dashboard.service-cases.oem-handoff.sessions.store');

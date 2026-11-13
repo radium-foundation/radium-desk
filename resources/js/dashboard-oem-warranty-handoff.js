@@ -11,6 +11,7 @@ const HANDOFF_ERROR_MESSAGES = {
     'session-disabled': 'Dashboard OEM handoff sessions are disabled.',
 };
 
+/** @type {Map<number, { handoff_token?: string, session_public_id: string, incident_id: number }>} */
 const ACTIVE_DRAFTS = new Map();
 
 const postJson = async (url, body = {}) => {
@@ -28,7 +29,10 @@ const postJson = async (url, body = {}) => {
 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-        throw new Error(payload?.message ?? payload?.errors?.handoff?.[0] ?? 'Request failed');
+        const firstError = payload?.errors
+            ? Object.values(payload.errors).flat()?.[0]
+            : null;
+        throw new Error(firstError ?? payload?.message ?? 'Request failed');
     }
 
     return payload;
@@ -56,10 +60,31 @@ const removeDraftPanel = (incidentId) => {
     existing?.remove();
 };
 
-const renderDraftPanel = (incidentId, session, { onReview }) => {
+const attachReviewHandler = ({
+    baseUrl,
+    incidentId,
+    sessionPublicId,
+    panel,
+    showToast,
+}) => {
+    panel.querySelector('[data-oem-draft-review]')?.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        try {
+            const reviewUrl = `${baseUrl}/${incidentId}/oem-handoff/sessions/${sessionPublicId}/review`;
+            await postJson(reviewUrl);
+            removeDraftPanel(incidentId);
+            showToast?.('Draft marked reviewed (not saved as warranty record).', { variant: 'success' });
+            ACTIVE_DRAFTS.delete(incidentId);
+        } catch (error) {
+            showToast?.(error.message, { variant: 'danger' });
+        }
+    });
+};
+
+const renderDraftPanel = (incidentId, session, { baseUrl, showToast }) => {
     removeDraftPanel(incidentId);
     const draft = session?.draft;
-    if (!draft) {
+    if (!draft || session?.status !== 'draft_ready') {
         return;
     }
 
@@ -69,9 +94,16 @@ const renderDraftPanel = (incidentId, session, { onReview }) => {
         return;
     }
 
+    const sessionPublicId = session.public_id;
+    ACTIVE_DRAFTS.set(incidentId, {
+        session_public_id: sessionPublicId,
+        incident_id: incidentId,
+    });
+
     const panel = document.createElement('div');
     panel.className = 'oem-handoff-draft-panel small border rounded bg-white p-2 mt-1';
     panel.setAttribute('data-oem-draft-panel', String(incidentId));
+    panel.setAttribute('data-oem-session-public-id', sessionPublicId);
     panel.setAttribute('role', 'status');
 
     const warranty = draft.warranty_expiry_date ?? '—';
@@ -94,11 +126,7 @@ const renderDraftPanel = (incidentId, session, { onReview }) => {
         </button>
     `;
 
-    panel.querySelector('[data-oem-draft-review]')?.addEventListener('click', (event) => {
-        event.stopPropagation();
-        onReview?.();
-    });
-
+    attachReviewHandler({ baseUrl, incidentId, sessionPublicId, panel, showToast });
     hostCell.appendChild(panel);
 };
 
@@ -117,6 +145,29 @@ const sendExtensionHandoff = (payload) => new Promise((resolve) => {
     });
 });
 
+const visibleMantraIncidentIds = () => {
+    const ids = new Set();
+    document.querySelectorAll('[data-oem-warranty-check][data-incident-id][data-oem-vendor="mantra"]').forEach((el) => {
+        const incidentId = el.getAttribute('data-incident-id');
+        if (incidentId) {
+            ids.add(Number(incidentId));
+        }
+    });
+
+    return [...ids];
+};
+
+const recoverDraftForIncident = async (incidentId, baseUrl, showToast) => {
+    try {
+        const result = await getJson(`${baseUrl}/${incidentId}/oem-handoff/recover`);
+        if (result?.session?.draft) {
+            renderDraftPanel(incidentId, result.session, { baseUrl, showToast });
+        }
+    } catch {
+        // No recoverable draft — expected after review or expiry.
+    }
+};
+
 export const initDashboardOemWarrantyHandoff = (showToast) => {
     const pageRoot = document.getElementById('dashboard-page');
     if (!pageRoot) {
@@ -129,6 +180,12 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
     const publishStatus = (detail) => {
         document.dispatchEvent(new CustomEvent('radium:oem-handoff-status', { detail }));
     };
+
+    if (handoffEnabled && baseUrl) {
+        visibleMantraIncidentIds().forEach((incidentId) => {
+            void recoverDraftForIncident(incidentId, baseUrl, showToast);
+        });
+    }
 
     document.addEventListener('radium:oem-handoff-status', (event) => {
         const detail = event?.detail;
@@ -226,15 +283,7 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
                 rows: data.rows ?? [],
             });
 
-            renderDraftPanel(incidentId, result.session, {
-                onReview: async () => {
-                    const reviewUrl = `${baseUrl}/${incidentId}/oem-handoff/sessions/${context.session_public_id}/review`;
-                    const reviewed = await postJson(reviewUrl);
-                    renderDraftPanel(incidentId, reviewed.session, {});
-                    showToast?.('Draft marked reviewed (not saved as warranty record).', { variant: 'success' });
-                    ACTIVE_DRAFTS.delete(incidentId);
-                },
-            });
+            renderDraftPanel(incidentId, result.session, { baseUrl, showToast });
             showToast?.('Mantra OEM draft ready for review.', { variant: 'info' });
         } catch (error) {
             showToast?.(error.message, { variant: 'danger' });

@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { initDashboardOemWarrantyHandoff } from '../../resources/js/dashboard-oem-warranty-handoff';
 
 describe('initDashboardOemWarrantyHandoff', () => {
-    const mountDashboardPage = () => {
-        document.body.innerHTML = '<div id="dashboard-page" data-dashboard-oem-handoff-enabled="0"></div>';
+    const mountDashboardPage = (enabled = false) => {
+        document.body.innerHTML = `
+            <div id="dashboard-page"
+                data-dashboard-oem-handoff-enabled="${enabled ? '1' : '0'}"
+                data-dashboard-oem-handoff-url="/dashboard/service-cases"></div>
+        `;
     };
 
     it('surfaces extension unavailable errors via toast', () => {
@@ -31,13 +35,44 @@ describe('initDashboardOemWarrantyHandoff', () => {
         expect(showToast).not.toHaveBeenCalled();
     });
 
+    it('calls recover endpoint for visible mantra rows on init', async () => {
+        mountDashboardPage(true);
+        document.body.insertAdjacentHTML('beforeend', `
+            <table>
+                <tr id="service-case-row-42">
+                    <td class="case-serial-cell">
+                        <button data-oem-warranty-check data-incident-id="42" data-oem-vendor="mantra"></button>
+                    </td>
+                </tr>
+            </table>
+        `);
+
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ session: null }),
+        });
+        global.fetch = fetchMock;
+
+        const showToast = vi.fn();
+        initDashboardOemWarrantyHandoff(showToast);
+
+        await new Promise((resolve) => {
+            setTimeout(resolve, 0);
+        });
+
+        expect(fetchMock).toHaveBeenCalledWith(
+            '/dashboard/service-cases/42/oem-handoff/recover',
+            expect.objectContaining({
+                credentials: 'same-origin',
+            }),
+        );
+    });
+
     it('rejects OEM draft postMessage when handoff token does not match active session', () => {
-        document.body.innerHTML = `
-            <div id="dashboard-page"
-                data-dashboard-oem-handoff-enabled="1"
-                data-dashboard-oem-handoff-url="/dashboard/service-cases"></div>
+        mountDashboardPage(true);
+        document.body.insertAdjacentHTML('beforeend', `
             <table><tr id="service-case-row-42"><td class="case-serial-cell"></td></tr></table>
-        `;
+        `);
 
         const showToast = vi.fn();
         const fetchMock = vi.fn();

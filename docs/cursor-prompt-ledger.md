@@ -1014,4 +1014,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-98 | 2026-11-13 | **P-13-98** Harden/verify Mantra OEM journey (pre-merge) | PR **#257** hardening: journey + concurrency tests; `mantra-result-parse`; extension **0.3.1** module; draft owner assert. PHPUnit **16**; desk vitest **3**; extension **22**. **NO** merge/deploy/live OEM. |
 
+| RadiumDesk-P-13-99 | 2026-11-13 | **P-13-99** Draft recovery, JSON API errors, session retention | PR **#257**: `oem-handoff/recover`, JSON exception route gate, `prune-sessions` command; desk refresh recovery. PHPUnit **31**. **NO** merge/deploy/production data. |
+
 Do not renumber or overwrite earlier rows. Append only.
