@@ -81,15 +81,17 @@ PHP: `DESK_PHP_BIN=/opt/homebrew/bin/php ./bin/phpunit-isolated`
 
 ---
 
-## Git / PR
+## Git / PR / CI
 
 | Field | Value |
 | --- | --- |
 | Branch | `feature/p13-22-legacy-rdp-hash` |
 | Starting HEAD | `670c24239eae4e5a7d32a9998a248392ffd89e5e` |
-| Commit / merge SHA | *(filled after PR merge)* |
-| PR | *(filled after create)* |
-| CI | *(filled after checks)* |
+| Feature commit | `decdb304bf94ddba74d4aa0eaa1aad6a19b21667` |
+| PR | [#229](https://github.com/radium-foundation/radium-desk/pull/229) |
+| Pre-merge CI | `rip` + `release-rip` **SUCCESS** |
+| Verified merge SHA | **`85e9e305a4b6b2c60848faa72123298286752725`** |
+| Post-merge `origin/main` | **`85e9e305a4b6b2c60848faa72123298286752725`** |
 
 **Register / CSV:** not edited.
 
@@ -101,3 +103,7 @@ PHP: `DESK_PHP_BIN=/opt/homebrew/bin/php ./bin/phpunit-isolated`
 
 - Legacy replay hashes that lack structured address snapshots rely on stored flat strings; behaviour unchanged from prior `legacyPreHardwareRdpServiceHash` fallback path (**INFERRED** low incidence for RDP replay fixtures).
 - Matrix row 213 register status still **STILL FAILING** until separate CSV reconciliation (**VERIFIED** policy).
+
+---
+
+*End of P-13-22 report.*
