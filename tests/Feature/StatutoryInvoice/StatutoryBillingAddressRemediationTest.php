@@ -88,7 +88,7 @@ class StatutoryBillingAddressRemediationTest extends TestCase
 
         $this->assertSame($expectedFlat, $invoice->billing_address);
         $this->assertLessThan(255, strlen((string) $invoice->billing_address));
-        $this->assertArrayNotHasKey('line2', $invoice->billing_address_structured ?? []);
+        $this->assertSame($structured['line2'], $invoice->billing_address_structured['line2'] ?? null);
         $this->assertTrue(StatutoryBillingStructured::isCompleteForIrn($invoice->billing_address_structured));
     }
 
@@ -143,7 +143,7 @@ class StatutoryBillingAddressRemediationTest extends TestCase
         $order = CommerceOrder::query()->where('source_id', 'RDE9031697')->firstOrFail();
 
         $this->assertLessThan(255, strlen((string) $order->billing_address));
-        $this->assertArrayNotHasKey('line2', $order->billing_address_structured ?? []);
+        $this->assertSame($structured['line2'], $order->billing_address_structured['line2'] ?? null);
     }
 
     public function test_mint_validation_failure_does_not_allocate_invoice_number(): void

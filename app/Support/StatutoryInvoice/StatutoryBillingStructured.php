@@ -10,11 +10,6 @@ namespace App\Support\StatutoryInvoice;
 final class StatutoryBillingStructured
 {
     /**
-     * NIC e-Invoice combined Addr1+Addr2 limit (see StatutoryAddressFormatter::COMBINED_MAX).
-     */
-    private const IRP_COMBINED_ADDRESS_MAX = 200;
-
-    /**
      * @return StructuredAddress|null
      */
     public static function fromParts(
@@ -166,11 +161,6 @@ final class StatutoryBillingStructured
         }
 
         if (! self::isRedundantLine2($line1, $line2)) {
-            return $structured;
-        }
-
-        $irpCanonical = trim(rtrim($line1).' '.$line2);
-        if (strlen($irpCanonical) > self::IRP_COMBINED_ADDRESS_MAX) {
             return $structured;
         }
 

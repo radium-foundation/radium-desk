@@ -17,10 +17,13 @@ final class StatutoryBillingAddressComposer
         $structured = $this->structuredFromRaw($rawFlat, $rawStructured);
 
         if ($structured !== null) {
-            $structured = StatutoryBillingStructured::dropRedundantLine2($structured);
-            $flat = StatutoryBillingStructured::flattenForPersistence($structured, $this->countryFromRaw($rawStructured));
+            $snapshotStructured = $structured;
+            $flat = StatutoryBillingStructured::flattenForPersistence(
+                StatutoryBillingStructured::dropRedundantLine2($structured),
+                $this->countryFromRaw($rawStructured),
+            );
 
-            return $this->finalize($flat, $structured);
+            return $this->finalize($flat, $snapshotStructured);
         }
 
         $flat = StatutoryBillingStructured::nullable($rawFlat);
