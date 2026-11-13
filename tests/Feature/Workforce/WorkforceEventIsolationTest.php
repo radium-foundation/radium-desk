@@ -187,7 +187,7 @@ class WorkforceEventIsolationTest extends TestCase
 
     public function test_reserved_event_types_exist_but_are_not_produced_yet(): void
     {
-        $this->assertTrue(WorkforceEventType::LeaveCancelled->isReserved());
+        $this->assertFalse(WorkforceEventType::LeaveCancelled->isReserved());
         $this->assertTrue(WorkforceEventType::HalfDayRecorded->isReserved());
         $this->assertFalse(WorkforceEventType::PayrollLocked->isReserved());
         $this->assertFalse(WorkforceEventType::WeeklyOffWorked->isReserved());
