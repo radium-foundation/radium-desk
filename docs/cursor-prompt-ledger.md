@@ -1024,4 +1024,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-103 | 2026-11-13 | **P-13-103** Prod preflight evidence (read-only) + ledger P-13-102 fix | Prod **`5475d8a6`** v4.1.65; target **`73f849f7`**; OEM env unset; no session migration; CI main post-merge PASS. **NO** deploy/backup/RIP capture. |
 
+| RadiumDesk-P-13-104 | 2026-11-13 | **P-13-104** Backup + RIP recovery readiness (read-only) | **`/root/.radium-backup.env`** exists (sudo); latest DB backup **`20261113T083003Z`** pre-v4.1.65; RIP **`RIP-131126-2031-…-5475d8a`** verify+gate **PASS**. **NO** backup/restore/RIP capture/deploy. |
+
 Do not renumber or overwrite earlier rows. Append only.
