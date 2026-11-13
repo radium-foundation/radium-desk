@@ -2079,6 +2079,24 @@ a:focus-visible .stat-card {
     font-size: 0.75rem;
 }
 
+.dashboard-cases-table .case-serial-cell .oem-warranty-check-trigger {
+    color: #6c757d;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.dashboard-cases-table .case-serial-cell .oem-warranty-check-trigger:hover:not(:disabled) {
+    color: var(--brand-primary, #0d6efd);
+}
+
+.dashboard-cases-table .case-serial-cell .oem-warranty-check-trigger:disabled,
+.dashboard-cases-table .case-serial-cell .oem-warranty-check-trigger[aria-busy='true'] {
+    opacity: 0.55;
+    cursor: wait;
+}
+
 .dashboard-cases-table .dashboard-product-cell {
     color: #adb5bd;
     font-weight: 400;

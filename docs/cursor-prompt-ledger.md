@@ -1006,4 +1006,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-94 | 2026-11-13 | **P-13-94** Isolate Morpho commit for PR (no wallet publish) | Wallet branch **`feature/p18-33-unified-wallet-display`** **BLOCKED** for PR (3 commits vs **`main`** incl. wallet). Isolated branch **`feature/p13-93-morpho-otbs-adapter`** → PR **`main`**. **NO** merge/deploy. |
 
+| RadiumDesk-P-13-95 | 2026-11-13 | **P-13-95** Dashboard OEM check icon + MV3 handoff (stacked on PR #255) | Branch **`feature/p13-95-oem-dashboard-handoff`** @ **`e95e0dbd`**. Serial cell icon after green tick; **`OemWarrantyCheckVendorResolver`**; **`tools/oem-warranty-extension`** v0.2. **NO** Desk Morpho HTTP / merge / deploy. PHPUnit **9/9**; extension vitest **16/16**; desk JS **2/2**. |
+
 Do not renumber or overwrite earlier rows. Append only.

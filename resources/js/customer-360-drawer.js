@@ -146,6 +146,7 @@ const isInteractiveTarget = (target) => {
             '[data-hardware-product-detail]',
             '[data-hardware-open-selected]',
             '[data-hardware-clear-selected]',
+            '[data-oem-warranty-check]',
         ].join(', '))
     );
 };

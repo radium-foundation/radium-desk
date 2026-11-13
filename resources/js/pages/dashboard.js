@@ -31,6 +31,7 @@ import { setOrderWorkspaceLegacyVerificationModal } from '../order-workspace';
 import { createCustomer360AwareToast, showAppToast } from '../core/toast';
 import { initMentionTextareas } from '../core/mention-textareas';
 import { keyboardShortcutHooks, workspaceApiRef, workspaceHooks } from '../core/workspace-registry';
+import { initDashboardOemWarrantyHandoff } from '../dashboard-oem-warranty-handoff';
 
 const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, legacyVerificationModal } = {}) => {
     const card = document.querySelector('.dashboard-service-cases-card');
@@ -351,6 +352,7 @@ export const bootDashboard = () => {
     setOrderWorkspaceLegacyVerificationModal(legacyVerificationModal);
 
     initServiceCasePaginationState(pageRoot);
+    initDashboardOemWarrantyHandoff(showAppToast);
     initDashboardKpiActions(pageRoot);
     initViewOnlyMetricRefresh(pageRoot);
 
