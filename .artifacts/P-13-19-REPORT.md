@@ -138,9 +138,12 @@ Full PHPUnit suite: **NOT RUN**
 | --- | --- |
 | Branch | `feature/p13-19-order-identity` |
 | Starting HEAD | `f1493999c1d9c586b991d5caa8aad254b7777abc` |
-| Commit | *(pending footer)* |
-| PR | *(pending)* |
-| Merge SHA | *(pending)* |
+| Feature commit | `febde8573ce0fb0e18104206dff69f61e24f0d97` |
+| PR | [#223](https://github.com/radium-foundation/radium-desk/pull/223) |
+| Pre-merge CI | `rip` + `release-rip` **SUCCESS** on PR head |
+| Verified merge SHA | **`0eec861fcf0231f09d9d05c0552ea934251ab08d`** |
+| Post-merge `origin/main` | **`0eec861fcf0231f09d9d05c0552ea934251ab08d`** |
+| Post-merge main CI | `rip` + `release-rip` **SUCCESS** (runs 43370695572 / 43370695582) |
 
 Production / deployment: **NO — Not performed**
 
@@ -153,4 +156,4 @@ Production / deployment: **NO — Not performed**
 
 ---
 
-*End of P-13-19 report (pre-merge footer).*
+*End of P-13-19 report.*
