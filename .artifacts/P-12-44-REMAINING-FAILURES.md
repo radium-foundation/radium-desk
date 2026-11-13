@@ -9,15 +9,15 @@
 
 | Classification | Count | Notes |
 | --- | ---: | --- |
-| **VERIFIED FIXED** | **222** | Includes merged PRs #241–#245 and prior WS-10 fixes |
-| **STILL FAILING** (active) | **4** | Actionable remediation targets |
+| **VERIFIED FIXED** | **223** | P-13-49 row **219** (test-only email copy) |
+| **STILL FAILING** (active) | **3** | Actionable remediation targets |
 | **OWNER EXCLUDED** | **2** | Rows **19**, **98** — permanently out of scope |
 | **ENVIRONMENT BLOCKED** | **0** | CaMonthlyReport harness marked VERIFIED FIXED on main |
 | **UNKNOWN / unverified** | **0** | — |
 
-**Arithmetic:** 222 + 4 + 2 = **228** historical matrix rows.
+**Arithmetic:** 223 + 3 + 2 = **228** historical matrix rows.
 
-**Active remediation total** (excludes Owner-excluded): **4** STILL FAILING.
+**Active remediation total** (excludes Owner-excluded): **3** STILL FAILING.
 
 ### Delta vs prior P-12-44 (216 VERIFIED / 12 STILL FAILING)
 
@@ -47,7 +47,6 @@ Historical P-12-32 failure evidence preserved in matrix `evidence` column. **Not
 | ---: | --- | --- |
 | **135** | `RefundExecutionReferenceGuardTest::test_wallet_completion_ignores_manual_execution_reference_fields` | P-12-32 @ `27b03d19` → ERROR |
 | **136** | `RefundStatutoryAdjustmentTest::test_generated_credit_note_follows_ca_monthly_negative_offset_treatment` | P-12-32 @ `27b03d19` → FAIL |
-| **219** | `DriverInstallationGuideEmailTemplateTest::test_template_renders_branded_production_content_with_primary_cta` | P-12-32 @ `27b03d19` → FAIL |
 | **220** | `NotificationAuthorityServiceTest::test_ira_telegram_bridge_respects_global_channel_toggle` | P-12-32 @ `27b03d19` → FAIL |
 
 ## STILL FAILING by workstream (active only)
@@ -55,4 +54,4 @@ Historical P-12-32 failure evidence preserved in matrix `evidence` column. **Not
 
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | **4** |
+| WS-10 | **3** |
