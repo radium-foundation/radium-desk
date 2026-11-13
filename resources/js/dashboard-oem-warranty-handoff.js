@@ -14,6 +14,44 @@ const HANDOFF_ERROR_MESSAGES = {
 /** @type {Map<number, { handoff_token?: string, session_public_id: string, incident_id: number }>} */
 const ACTIVE_DRAFTS = new Map();
 
+const PENDING_REVIEW_STORAGE_KEY = 'radium-oem-handoff-pending-review';
+
+/** Shown when a draft was expected (e.g. after refresh) but recovery returned 404. */
+export const OEM_DRAFT_NOT_RECOVERABLE_MESSAGE =
+    'No saved Mantra OEM result is available for this row. Start a new OEM check from the OEM icon.';
+
+const readPendingReviewIds = () => {
+    try {
+        const raw = sessionStorage.getItem(PENDING_REVIEW_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map((id) => Number(id)).filter((id) => Number.isFinite(id)) : [];
+    } catch {
+        return [];
+    }
+};
+
+const writePendingReviewIds = (ids) => {
+    try {
+        sessionStorage.setItem(PENDING_REVIEW_STORAGE_KEY, JSON.stringify([...new Set(ids)]));
+    } catch {
+        // Ignore quota or privacy mode errors.
+    }
+};
+
+export const markPendingOemDraftReview = (incidentId) => {
+    const ids = readPendingReviewIds();
+    if (!ids.includes(incidentId)) {
+        ids.push(incidentId);
+        writePendingReviewIds(ids);
+    }
+};
+
+export const clearPendingOemDraftReview = (incidentId) => {
+    writePendingReviewIds(readPendingReviewIds().filter((id) => id !== incidentId));
+};
+
+export const hasPendingOemDraftReview = (incidentId) => readPendingReviewIds().includes(incidentId);
+
 const postJson = async (url, body = {}) => {
     const response = await fetch(url, {
         method: 'POST',
@@ -73,6 +111,7 @@ const attachReviewHandler = ({
             const reviewUrl = `${baseUrl}/${incidentId}/oem-handoff/sessions/${sessionPublicId}/review`;
             await postJson(reviewUrl);
             removeDraftPanel(incidentId);
+            clearPendingOemDraftReview(incidentId);
             showToast?.('Draft marked reviewed (not saved as warranty record).', { variant: 'success' });
             ACTIVE_DRAFTS.delete(incidentId);
         } catch (error) {
@@ -126,6 +165,7 @@ const renderDraftPanel = (incidentId, session, { baseUrl, showToast }) => {
         </button>
     `;
 
+    markPendingOemDraftReview(incidentId);
     attachReviewHandler({ baseUrl, incidentId, sessionPublicId, panel, showToast });
     hostCell.appendChild(panel);
 };
@@ -158,13 +198,34 @@ const visibleMantraIncidentIds = () => {
 };
 
 const recoverDraftForIncident = async (incidentId, baseUrl, showToast) => {
+    let response;
     try {
-        const result = await getJson(`${baseUrl}/${incidentId}/oem-handoff/recover`);
-        if (result?.session?.draft) {
-            renderDraftPanel(incidentId, result.session, { baseUrl, showToast });
-        }
+        response = await fetch(`${baseUrl}/${incidentId}/oem-handoff/recover`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        });
     } catch {
-        // No recoverable draft — expected after review or expiry.
+        return;
+    }
+
+    if (response.status === 404) {
+        if (hasPendingOemDraftReview(incidentId)) {
+            clearPendingOemDraftReview(incidentId);
+            showToast?.(OEM_DRAFT_NOT_RECOVERABLE_MESSAGE, { variant: 'warning' });
+        }
+        return;
+    }
+
+    if (!response.ok) {
+        return;
+    }
+
+    const result = await response.json().catch(() => ({}));
+    if (result?.session?.draft) {
+        renderDraftPanel(incidentId, result.session, { baseUrl, showToast });
     }
 };
 

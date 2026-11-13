@@ -26,5 +26,5 @@ return [
     /**
      * Scheduler gate for session retention cleanup (independent of handoff feature flag).
      */
-    'prune_enabled' => filter_var(env('DASHBOARD_OEM_HANDOFF_PRUNE_ENABLED', true), FILTER_VALIDATE_BOOL),
+    'prune_enabled' => filter_var(env('DASHBOARD_OEM_HANDOFF_PRUNE_ENABLED', false), FILTER_VALIDATE_BOOL),
 ];

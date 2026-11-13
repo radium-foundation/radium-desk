@@ -10,7 +10,7 @@ class DashboardOemHandoffConfigTest extends TestCase
     {
         $this->assertFalse(config('dashboard_oem_handoff.enabled'));
         $this->assertFalse(config('dashboard_oem_handoff.mantra_result_capture_enabled'));
-        $this->assertTrue(config('dashboard_oem_handoff.prune_enabled'));
+        $this->assertFalse(config('dashboard_oem_handoff.prune_enabled'));
         $this->assertSame(24, config('dashboard_oem_handoff.prune_grace_hours_after_expiry'));
     }
 }

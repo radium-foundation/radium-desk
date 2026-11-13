@@ -340,7 +340,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $schedule->command('dashboard-oem-handoff:prune-sessions --execute')
             ->dailyAt('04:10')
-            ->when(fn (): bool => (bool) config('dashboard_oem_handoff.prune_enabled', true))
+            ->when(fn (): bool => (bool) config('dashboard_oem_handoff.prune_enabled', false))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/dashboard-oem-handoff-prune-sessions.log'));
     })

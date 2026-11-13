@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { initDashboardOemWarrantyHandoff } from '../../resources/js/dashboard-oem-warranty-handoff';
+import {
+    clearPendingOemDraftReview,
+    initDashboardOemWarrantyHandoff,
+    markPendingOemDraftReview,
+    OEM_DRAFT_NOT_RECOVERABLE_MESSAGE,
+} from '../../resources/js/dashboard-oem-warranty-handoff';
 
 describe('initDashboardOemWarrantyHandoff', () => {
     const mountDashboardPage = (enabled = false) => {
@@ -66,6 +71,98 @@ describe('initDashboardOemWarrantyHandoff', () => {
                 credentials: 'same-origin',
             }),
         );
+        expect(showToast).not.toHaveBeenCalled();
+    });
+
+    it('shows recovery guidance on 404 only when a draft was pending review', async () => {
+        mountDashboardPage(true);
+        document.body.insertAdjacentHTML('beforeend', `
+            <table>
+                <tr id="service-case-row-42">
+                    <td class="case-serial-cell">
+                        <button data-oem-warranty-check data-incident-id="42" data-oem-vendor="mantra"></button>
+                    </td>
+                </tr>
+            </table>
+        `);
+
+        markPendingOemDraftReview(42);
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 404,
+            json: async () => ({}),
+        });
+
+        const showToast = vi.fn();
+        initDashboardOemWarrantyHandoff(showToast);
+
+        await new Promise((resolve) => {
+            setTimeout(resolve, 0);
+        });
+
+        expect(showToast).toHaveBeenCalledWith(
+            OEM_DRAFT_NOT_RECOVERABLE_MESSAGE,
+            { variant: 'warning' },
+        );
+        clearPendingOemDraftReview(42);
+    });
+
+    it('does not show recovery guidance on 404 without pending draft', async () => {
+        mountDashboardPage(true);
+        document.body.insertAdjacentHTML('beforeend', `
+            <table>
+                <tr id="service-case-row-99">
+                    <td class="case-serial-cell">
+                        <button data-oem-warranty-check data-incident-id="99" data-oem-vendor="mantra"></button>
+                    </td>
+                </tr>
+            </table>
+        `);
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 404,
+            json: async () => ({}),
+        });
+
+        const showToast = vi.fn();
+        initDashboardOemWarrantyHandoff(showToast);
+
+        await new Promise((resolve) => {
+            setTimeout(resolve, 0);
+        });
+
+        expect(showToast).not.toHaveBeenCalled();
+    });
+
+    it('does not show recovery guidance on server errors', async () => {
+        mountDashboardPage(true);
+        document.body.insertAdjacentHTML('beforeend', `
+            <table>
+                <tr id="service-case-row-42">
+                    <td class="case-serial-cell">
+                        <button data-oem-warranty-check data-incident-id="42" data-oem-vendor="mantra"></button>
+                    </td>
+                </tr>
+            </table>
+        `);
+
+        markPendingOemDraftReview(42);
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 500,
+            json: async () => ({}),
+        });
+
+        const showToast = vi.fn();
+        initDashboardOemWarrantyHandoff(showToast);
+
+        await new Promise((resolve) => {
+            setTimeout(resolve, 0);
+        });
+
+        expect(showToast).not.toHaveBeenCalled();
+        clearPendingOemDraftReview(42);
     });
 
     it('rejects OEM draft postMessage when handoff token does not match active session', () => {
