@@ -123,9 +123,9 @@ DESK_PHP_BIN=/opt/homebrew/bin/php ./bin/phpunit-isolated tests/Feature/Operatio
 DESK_PHP_BIN=/opt/homebrew/bin/php ./bin/phpunit-isolated tests/Feature/GraceExpiredValidationFailedAssignmentFallbackTest.php
 ```
 
-| Result | Status |
-| --- | --- |
-| Neighbour run | **PASS** (json footer; duration in runner output) |
+| Result | Tests | Assertions | Duration | Exit |
+| --- | ---: | ---: | ---: | ---: |
+| **PASS** | 8/8 | 32 | 9647 ms | 0 |
 
 **Pint:** `vendor/bin/pint --dirty` — **PASS**
 
@@ -151,9 +151,11 @@ Full PHPUnit suite: **NOT RUN**
 | --- | --- |
 | Branch | `feature/p13-18-ops-support-ownership` |
 | Starting HEAD | `1a930c83a839d3dab592e681b630ae70d988b92b` |
-| Commit | *(pending — see footer after push)* |
-| PR | *(pending)* |
-| Merge SHA | *(pending CI + merge)* |
+| Final branch HEAD (pre-merge) | `739d8036e86b11d9a9be0a556e9548f89f757151` |
+| PR | [#221](https://github.com/radium-foundation/radium-desk/pull/221) |
+| Pre-merge CI | `rip` + `release-rip` **SUCCESS** on `739d8036` |
+| Verified merge SHA | **`94cf761be6f97dc109a636b82e3e7e032c917759`** |
+| Post-merge `origin/main` | **`94cf761be6f97dc109a636b82e3e7e032c917759`** |
 
 Production / deployment: **NO — Not performed**
 
@@ -167,4 +169,4 @@ Production / deployment: **NO — Not performed**
 
 ---
 
-*End of P-13-18 report (pre-PR footer).*
+*End of P-13-18 report.*
