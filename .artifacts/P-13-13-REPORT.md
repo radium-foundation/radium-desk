@@ -78,10 +78,10 @@ Full PHPUnit suite: **NOT RUN**.
 
 | Item | Status |
 | --- | --- |
-| Commit | _(pending)_ |
-| PR | _(pending)_ |
-| CI | _(pending)_ |
-| Merge SHA | _(pending)_ |
+| Commit | `d3555ce4` |
+| PR | [#215](https://github.com/radium-foundation/radium-desk/pull/215) |
+| CI | **rip** + **release-rip** PASS ([rip](https://github.com/radium-foundation/radium-desk/actions/runs/43364838239)) |
+| Merge SHA | **`749f96e1f674ebb14dcca66d99214b9e56e9ae3c`** |
 
 ## Risks / Owner
 
