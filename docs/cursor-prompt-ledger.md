@@ -961,4 +961,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-09 | 2026-11-13 | **P-13-09** WS-10 Customer 360 drawer cluster (9 matrix rows) | **Claimed** **`RadiumDesk-P-13-09`**. Worktree **`.worktrees/p13-09-customer-360`** @ **`origin/main`** **`a99eda54`** (post-#208). Rows: Bonvoice health/timeline, RadiumBox sync UI/harness, inquiry metadata, support-appointments visibility. Full suite / deploy **NOT RUN**. Wallet **`d9481615`** verify only. |
 
+| RadiumDesk-P-13-10 | 2026-11-13 | **P-13-10** WS-10 Interakt / WhatsApp timeline persistence (6 matrix rows) | **Claimed** **`RadiumDesk-P-13-10`**. Worktree **`.worktrees/p13-10-interakt-whatsapp`** @ **`origin/main`** **`700526c6`**. Operator visibility + business-milestone WhatsApp summary presentation. Cluster **6/6** + regressions **33/33** (`phpunit-isolated`). Full suite / deploy / live messaging **NOT RUN**. Wallet **`d9481615`** verify only. |
+
 Do not renumber or overwrite earlier rows. Append only.

@@ -49,7 +49,7 @@
             @endif
 
             @if($item->displayFields !== [])
-                <dl class="c360-business-timeline-item-fields">
+                <dl class="c360-business-timeline-item-fields unified-timeline-summary-fields">
                     @foreach($item->displayFields as $field)
                         <div class="c360-business-timeline-item-field">
                             <dt>{{ $field['label'] }}</dt>
@@ -57,6 +57,22 @@
                         </div>
                     @endforeach
                 </dl>
+            @endif
+
+            @php
+                $primaryTimelineEvent = $item->rawEvents[0] ?? null;
+            @endphp
+            @if($item->unifiedPresentation
+                && $primaryTimelineEvent !== null
+                && filled($primaryTimelineEvent->actionUrl)
+                && filled($primaryTimelineEvent->actionLabel))
+                <a href="{{ $primaryTimelineEvent->actionUrl }}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="unified-timeline-action-link">
+                    {{ $primaryTimelineEvent->actionLabel }}
+                    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                </a>
             @endif
 
             @if($item->technicalFields !== [])
