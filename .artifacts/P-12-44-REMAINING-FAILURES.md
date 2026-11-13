@@ -1,50 +1,58 @@
-# P-12-44 — Remaining failures register
+# P-12-44 — Remaining failures register (reconciled P-13-48)
 
 
-**Matrix baseline:** P-12-32 @ `27b03d19`; **P-13-06** @ `b54b0a53`; **P-13-36** @ `bbf27961`; **P-13-38** @ `e34ac3cf`; **P-13-40** refresh @ `origin/main` **`65493e8b0548bb5146240edb2d245649a338a186`** (P-13-39 row 188).
+**Matrix baseline:** P-12-32 @ `27b03d19`; **P-13-48 refresh** @ `origin/main` **`51ee6d7e2c185bc61383636969b0e1c975ecf962`** (post PR #245).
 
 
 ## Totals (recomputed from 228 rows)
 
 
-| Classification | Count |
-| --- | ---: |
-| VERIFIED FIXED | 216 |
-| STILL FAILING | 12 |
-| ENVIRONMENT BLOCKED | 0 |
+| Classification | Count | Notes |
+| --- | ---: | --- |
+| **VERIFIED FIXED** | **222** | Includes merged PRs #241–#245 and prior WS-10 fixes |
+| **STILL FAILING** (active) | **4** | Actionable remediation targets |
+| **OWNER EXCLUDED** | **2** | Rows **19**, **98** — permanently out of scope |
+| **ENVIRONMENT BLOCKED** | **0** | CaMonthlyReport harness marked VERIFIED FIXED on main |
+| **UNKNOWN / unverified** | **0** | — |
 
-> **P-13-35:** Remaining rows were **VERIFIED FAIL** on `bbf27961` except rows **223** (P-13-37) and **188** (P-13-39).
+**Arithmetic:** 222 + 4 + 2 = **228** historical matrix rows.
 
-## Owner exclusions (P-13-47)
+**Active remediation total** (excludes Owner-excluded): **4** STILL FAILING.
 
-Permanent **out of scope** — retain historical STILL FAILING evidence in P-12-32; **do not** count as active remediation targets:
+### Delta vs prior P-12-44 (216 VERIFIED / 12 STILL FAILING)
+
+| Movement | Rows | Reason |
+| --- | --- | --- |
+| STILL FAILING → VERIFIED FIXED | **10**, **15**, **125**, **189**, **202** | Merged #243–#244, #241–#242; P-13-48 spot PASS @ `51ee6d7e` |
+| STILL FAILING → VERIFIED FIXED (already on CSV) | **124** | PR #245; evidence string finalized P-13-48 |
+| STILL FAILING → OWNER EXCLUDED | **19**, **98** | P-13-44 / P-13-46 Owner decisions (`.artifacts/P-13-47-OWNER-DECISIONS.md`) |
+| Prior duplicate stale list | — | P-12-44 listed **124** failing while CSV had begun VERIFIED FIXED; reconciled |
+
+Rows **188** remained **VERIFIED FIXED** from P-13-39 / #239 (unchanged).
+
+## OWNER EXCLUDED (not active)
+
 
 | Row | Test | Decision |
 | ---: | --- | --- |
-| **19** | `CashfreeHistoricalRecoveryCommandTest::test_failed_webhook_creates_missing_order_on_replay` | **WONT FIX** (P-13-46 skipped) |
-| **98** | `JulyLeaveReconcileCommandTest::test_reconcile_approves_pending_creates_missing_and_matches_matrix` | **WONT FIX** (P-13-44 skipped) |
+| **19** | `CashfreeHistoricalRecoveryCommandTest::test_failed_webhook_creates_missing_order_on_replay` | **WONT FIX** — P-13-46 |
+| **98** | `JulyLeaveReconcileCommandTest::test_reconcile_approves_pending_creates_missing_and_matches_matrix` | **WONT FIX** — P-13-44 |
 
-See **`.artifacts/P-13-47-OWNER-DECISIONS.md`**.
+Historical P-12-32 failure evidence preserved in matrix `evidence` column. **Not** marked PASS or VERIFIED FIXED.
 
-## STILL FAILING by workstream
+## STILL FAILING (active)
+
+
+| Row | Test | Last evidence |
+| ---: | --- | --- |
+| **135** | `RefundExecutionReferenceGuardTest::test_wallet_completion_ignores_manual_execution_reference_fields` | P-12-32 @ `27b03d19` → ERROR |
+| **136** | `RefundStatutoryAdjustmentTest::test_generated_credit_note_follows_ca_monthly_negative_offset_treatment` | P-12-32 @ `27b03d19` → FAIL |
+| **219** | `DriverInstallationGuideEmailTemplateTest::test_template_renders_branded_production_content_with_primary_cta` | P-12-32 @ `27b03d19` → FAIL |
+| **220** | `NotificationAuthorityServiceTest::test_ira_telegram_bridge_respects_global_channel_toggle` | P-12-32 @ `27b03d19` → FAIL |
+
+## STILL FAILING by workstream (active only)
 
 
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | 12 |
-
-## Full STILL FAILING list
-
-- `Tests.Feature.AssignReferencePhase9PerformanceTest::test_batch_assign_coalesces_driver_guide_snapshot_automation_and_preserves_audits` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Feature.BonvoiceLiveCallAssistTest::test_existing_customer_creates_agent_alert_and_notification` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Feature.CashfreeHistoricalRecoveryCommandTest::test_failed_webhook_creates_missing_order_on_replay` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Feature.JulyLeaveReconcileCommandTest::test_reconcile_approves_pending_creates_missing_and_matches_matrix` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Feature.PresenceEngineTest::test_superadmin_login_does_not_create_workforce_session` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Feature.ProductOrderRequestSerialExclusionTest::test_rd_order_missing_serial_still_shows_request_serial_action` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Feature.Refunds.RefundExecutionReferenceGuardTest::test_wallet_completion_ignores_manual_execution_reference_fields` (WS-10) — P-12-32 phpunit @27b03d19 → ERROR
-- `Tests.Feature.Refunds.RefundStatutoryAdjustmentTest::test_generated_credit_note_follows_ca_monthly_negative_offset_treatment` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Feature.Workforce.WorkforceEventIsolationTest::test_reserved_event_types_exist_but_are_not_produced_yet` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Feature.WorkspaceRemarkActionTest::test_note_action_returns_dashboard_refresh_payload` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Unit.Notifications.DriverInstallationGuideEmailTemplateTest::test_template_renders_branded_production_content_with_primary_cta` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Unit.Notifications.NotificationAuthorityServiceTest::test_ira_telegram_bridge_respects_global_channel_toggle` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-
+| WS-10 | **4** |

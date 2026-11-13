@@ -14,4 +14,5 @@ Administrative record only. **Not** implementation or test-completion claims for
 - Preserve historical failure evidence in P-12-32 artifacts.
 - Do **not** mark excluded rows **VERIFIED FIXED** or **PASS**.
 - Exclude rows **19** and **98** from **active remediation counts** in companion registers updated after P-13-47.
+- **P-13-48:** matrix CSV classification **OWNER EXCLUDED** applied; see `.artifacts/P-13-48-REGISTER-RECONCILE.md`.
 - Do not reopen without explicit Owner reversal.
