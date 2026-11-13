@@ -3,23 +3,30 @@
 namespace Tests\Feature;
 
 use App\Data\IncomingEmail\NormalizedInboundEmail;
-use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\IncomingEmailClassification;
+use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\TeamAvailabilityStatus;
 use App\Enums\TimelineEventType;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\IncidentIncomingEmailLink;
 use App\Models\IncomingEmailMessage;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\WorkSession;
+use App\Services\AuditLogService;
+use App\Services\AutomationIdentityService;
+use App\Services\IncomingEmail\IncomingEmailFilterService;
 use App\Services\IncomingEmail\IncomingEmailIngestService;
-use App\Services\Operations\PresenceEngineService;
-use App\Services\SettingService;
+use App\Services\IncomingEmail\IncomingEmailOutboxWriter;
 use App\Services\IncomingEmail\IncomingEmailServiceCaseLinkService;
+use App\Services\Operations\PresenceEngineService;
+use App\Services\Outbox\OutboxProcessorService;
 use App\Services\QuickServiceRequestService;
 use App\Services\ServiceCaseActivityTimelineService;
+use App\Services\SettingService;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\Sources\IncomingEmailTimelineEventSource;
 use Database\Seeders\RolePermissionSeeder;
@@ -142,8 +149,7 @@ class IncomingEmailIntakePhase1Test extends TestCase
             providerMessageId: 'prov-winner',
         );
 
-        $this->partialMock(IncomingEmailIngestService::class, function (MockInterface $mock) use ($existing): void {
-            $mock->shouldAllowMockingProtectedMethods();
+        $this->partialIngestServiceWithMockedFindExisting(function (MockInterface $mock) use ($existing): void {
             $mock->shouldReceive('findExisting')
                 ->twice()
                 ->andReturn(null, $existing);
@@ -164,8 +170,7 @@ class IncomingEmailIntakePhase1Test extends TestCase
     {
         $this->seedCustomerWithOpenIncident('customer@example.com');
 
-        $this->partialMock(IncomingEmailIngestService::class, function (MockInterface $mock): void {
-            $mock->shouldAllowMockingProtectedMethods();
+        $this->partialIngestServiceWithMockedFindExisting(function (MockInterface $mock): void {
             $mock->shouldReceive('findExisting')->once()->andReturn(null);
         });
 
@@ -247,7 +252,7 @@ class IncomingEmailIntakePhase1Test extends TestCase
 
         $this->assertSame(IncomingEmailMessageStatus::NeedsReview, $message?->status);
         $this->assertSame('unknown_customer', $message?->ignore_reason);
-        $this->assertSame(\App\Enums\IncomingEmailClassification::PossibleSalesLead, $message?->classification);
+        $this->assertSame(IncomingEmailClassification::PossibleSalesLead, $message?->classification);
         $this->assertSame($before, Incident::query()->count());
         $this->assertSame(0, IncidentIncomingEmailLink::query()->count());
         $this->assertDatabaseHas('audit_logs', [
@@ -334,7 +339,7 @@ class IncomingEmailIntakePhase1Test extends TestCase
 
         $this->assertSame(IncomingEmailMessageStatus::HistoricalCustomer, $message?->status);
 
-        $events = app(\App\Services\Timeline\Customer360TimelineService::class)
+        $events = app(Customer360TimelineService::class)
             ->forOrder($order)
             ->groups
             ->flatMap(fn ($group) => $group->events)
@@ -441,7 +446,7 @@ class IncomingEmailIntakePhase1Test extends TestCase
         $this->assertSame(1, IncidentIncomingEmailLink::query()->count());
         $this->assertSame(
             1,
-            \App\Models\AuditLog::query()
+            AuditLog::query()
                 ->where('event', 'incoming_email.promoted_to_service_case')
                 ->where('auditable_id', $incident->id)
                 ->count(),
@@ -651,6 +656,23 @@ class IncomingEmailIntakePhase1Test extends TestCase
         );
 
         return app(IncomingEmailIngestService::class)->ingest($dto);
+    }
+
+    /**
+     * Partial mock with real constructor dependencies (Laravel partialMock skips readonly DI).
+     */
+    private function partialIngestServiceWithMockedFindExisting(callable $configure): void
+    {
+        $mock = \Mockery::mock(IncomingEmailIngestService::class, [
+            app(IncomingEmailOutboxWriter::class),
+            app(OutboxProcessorService::class),
+            app(AuditLogService::class),
+            app(AutomationIdentityService::class),
+            app(IncomingEmailFilterService::class),
+        ])->makePartial();
+        $mock->shouldAllowMockingProtectedMethods();
+        $configure($mock);
+        $this->instance(IncomingEmailIngestService::class, $mock);
     }
 
     /**
