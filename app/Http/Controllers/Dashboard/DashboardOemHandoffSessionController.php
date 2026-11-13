@@ -67,6 +67,7 @@ class DashboardOemHandoffSessionController extends Controller
             ->firstOrFail();
 
         $this->sessionService->assertForIncident($session, $incident);
+        $this->sessionService->assertOwnedBy($session, $request->user());
 
         $tokenSession = $this->sessionService->resolveByHandoffToken($validated['handoff_token']);
         if ($tokenSession->public_id !== $session->public_id) {

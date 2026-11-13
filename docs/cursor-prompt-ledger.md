@@ -1012,4 +1012,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-97 | 2026-11-13 | **P-13-97** Mantra result-return foundation (session + draft review, no persist) | Branch **`feature/p13-97-mantra-result-return`** on **#256**. `dashboard_oem_handoff_sessions`; extension Mantra observer; flags **OFF** default. **NO** warranty persistence / merge / deploy. |
 
+| RadiumDesk-P-13-98 | 2026-11-13 | **P-13-98** Harden/verify Mantra OEM journey (pre-merge) | PR **#257** hardening: journey + concurrency tests; `mantra-result-parse`; extension **0.3.1** module; draft owner assert. PHPUnit **16**; desk vitest **3**; extension **22**. **NO** merge/deploy/live OEM. |
+
 Do not renumber or overwrite earlier rows. Append only.

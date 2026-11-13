@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Radium Desk OEM Warranty Handoff (Internal)",
     "description": "Private Desk → OEM serial handoff for admin-initiated warranty checks. Not for public distribution.",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "permissions": ["tabs"],
     "host_permissions": [
         "https://desk.radiumbox.com/*",
@@ -28,6 +28,7 @@
         {
             "matches": ["https://servico.mantratecapp.com/MasterForms/RDWarrantyCheck.aspx*"],
             "js": ["src/content/mantra-fill.js"],
+            "type": "module",
             "run_at": "document_idle"
         },
         {
