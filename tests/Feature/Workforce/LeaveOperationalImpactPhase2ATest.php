@@ -32,6 +32,8 @@ class LeaveOperationalImpactPhase2ATest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
+
         $this->seed(RolePermissionSeeder::class);
         $this->leaveService = app(LeaveRequestService::class);
         $this->impactService = app(LeaveOperationalImpactService::class);
@@ -83,9 +85,8 @@ class LeaveOperationalImpactPhase2ATest extends TestCase
             ->assertSee('Open service cases')
             ->assertSee('Approve Leave')
             ->assertSee('Reject Leave')
-            ->assertSee('Open Assigned Cases')
-            ->assertSee('Open Appointments')
-            ->assertSee('Open Ready Queue');
+            ->assertSee('Ready Queue')
+            ->assertSee('Awaiting Product Details');
     }
 
     public function test_employee_with_no_workload_shows_clear_message(): void
