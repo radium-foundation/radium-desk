@@ -1002,4 +1002,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 | RadiumDesk-P-13-60 | 2026-11-13 | **P-13-60** v4.1.65 CHANGELOG + release prep ChatGPT **P-13-60** | **PR #253** merged **`5475d8a`**. CHANGELOG **4.1.65**; focused validation (statutory/CA/POS/hardware/deploy guards) **PASS**. **NO** tag/deploy. Wallet **`d9481615`** verify only. |
 | RadiumDesk-P-13-64 | 2026-11-13 | **P-13-64** Annotated tag v4.1.65 ChatGPT **P-13-64** | Tag **`v4.1.65`** @ **`5475d8a6911a29bc50afa0cd9ac680f5acb2f6b0`** (tag object **`ffc9d7ecf3cea52b71a8673984ed9af6a0439350`**). Pushed **`origin`**. Rollback **`v4.1.64`** / **`c1626298`**. **NO** deploy/migrate/RIP/backup/prod. Wallet **`d9481615`** verify only. |
 
+| RadiumDesk-P-13-93 | 2026-11-13 | **P-13-93** Mock-only Morpho OTBS adapter foundation | Cherry-pick publish branch **`feature/p13-93-morpho-otbs-adapter`** from **`origin/main`** **`a066282d`**. **`MorphoSerialLookupPort`** + mock transport; **NO** live OEM HTTP. Focused Morpho PHPUnit **18/18 PASS**. Wallet branch commit **`09505b38`** preserved locally. |
+
+| RadiumDesk-P-13-94 | 2026-11-13 | **P-13-94** Isolate Morpho commit for PR (no wallet publish) | Wallet branch **`feature/p18-33-unified-wallet-display`** **BLOCKED** for PR (3 commits vs **`main`** incl. wallet). Isolated branch **`feature/p13-93-morpho-otbs-adapter`** → PR **`main`**. **NO** merge/deploy. |
+
 Do not renumber or overwrite earlier rows. Append only.
