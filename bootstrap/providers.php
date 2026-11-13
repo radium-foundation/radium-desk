@@ -4,6 +4,7 @@ use App\Providers\AppServiceProvider;
 use App\Providers\CentralWalletServiceProvider;
 use App\Providers\ExecutiveMetricsServiceProvider;
 use App\Providers\InfrastructureServiceProvider;
+use App\Providers\MorphoOtbsAdapterServiceProvider;
 use App\Providers\PlatformDashboardServiceProvider;
 
 return [
@@ -12,4 +13,5 @@ return [
     ExecutiveMetricsServiceProvider::class,
     PlatformDashboardServiceProvider::class,
     CentralWalletServiceProvider::class,
+    MorphoOtbsAdapterServiceProvider::class,
 ];
