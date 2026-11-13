@@ -261,6 +261,7 @@ class ChannelIngestService
                     $line->amcid,
                     $line->shippingLineKind,
                 ),
+                'uqc' => $line->uqc,
                 'qty' => $line->qty,
                 'unit_price' => $line->unitPrice,
                 'discount' => $line->discount,

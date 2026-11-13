@@ -7,6 +7,7 @@ use App\Enums\StatutoryInvoiceSourceType;
 use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\ChannelIngest\Data\ChannelOrderLineDraft;
 use App\Services\HardwareFulfilment\HardwareHandoffTenderContract;
+use App\Services\StatutoryInvoice\EInvoiceUqcMapper;
 use App\Support\Finance\IndianStates;
 use App\Support\StatutoryInvoice\StatutoryBillingAddressComposer;
 use Illuminate\Support\Arr;
@@ -19,6 +20,7 @@ class ChannelIngestPayloadValidator
         private readonly HardwareHandoffTenderContract $tenders,
         private readonly ChannelIngestBillableLinePolicy $billableLines,
         private readonly StatutoryBillingAddressComposer $billingAddresses,
+        private readonly EInvoiceUqcMapper $uqc,
     ) {}
 
     /**
@@ -61,6 +63,7 @@ class ChannelIngestPayloadValidator
                 sku: $this->nullableString($line['sku'] ?? null),
                 variant: $this->nullableString($line['variant'] ?? null),
                 hsnSac: $this->nullableString($line['hsn_sac'] ?? null),
+                uqc: $this->normalizedUqc($line['uqc'] ?? null),
                 discount: $this->nullableFloat($line['discount'] ?? null),
                 gstPercentage: $this->nullableFloat($line['gst_percentage'] ?? null),
                 taxableValue: $this->nullableFloat($line['taxable_value'] ?? null),
@@ -186,6 +189,7 @@ class ChannelIngestPayloadValidator
             'lines.*.sku' => ['nullable', 'string', 'max:64'],
             'lines.*.variant' => ['nullable', 'string', 'max:64'],
             'lines.*.hsn_sac' => ['nullable', 'string', 'max:16'],
+            'lines.*.uqc' => ['nullable', 'string', 'max:8'],
             'lines.*.discount' => ['nullable', 'numeric', 'min:0'],
             'lines.*.gst_percentage' => ['nullable', 'numeric', 'min:0'],
             'lines.*.taxable_value' => ['nullable', 'numeric', 'min:0'],
@@ -227,6 +231,22 @@ class ChannelIngestPayloadValidator
                     'billing_address.state',
                     'Billing state must be a recognised Indian state or union territory. Values are not invented from address text.',
                 );
+            }
+
+            $lines = Arr::get($validator->getData(), 'lines', []);
+            if (is_array($lines)) {
+                foreach ($lines as $index => $line) {
+                    if (! is_array($line) || ! array_key_exists('uqc', $line)) {
+                        continue;
+                    }
+                    $resolved = $this->uqc->resolve($line['uqc']);
+                    if ($resolved['gap'] === 'unsupported_uqc') {
+                        $validator->errors()->add(
+                            'lines.'.$index.'.uqc',
+                            'Line UQC must be a recognised NIC e-Invoice unit code.',
+                        );
+                    }
+                }
             }
 
             $paymentStatus = strtolower(trim((string) Arr::get($validator->getData(), 'payment_status', '')));
@@ -271,6 +291,11 @@ class ChannelIngestPayloadValidator
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    private function normalizedUqc(mixed $value): ?string
+    {
+        return $this->uqc->resolve($value)['code'];
     }
 
     private function nullableFloat(mixed $value): ?float

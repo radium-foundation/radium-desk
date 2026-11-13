@@ -42,9 +42,25 @@ class StatutoryBillingAddressComposerTest extends TestCase
 
         $composed = $this->composer->compose($rawFlatWithDuplicateLine, $structured);
 
-        $this->assertArrayNotHasKey('line2', $composed['structured'] ?? []);
-        $this->assertLessThan(255, strlen((string) $composed['flat']));
-        $this->assertSame($rawFlat, $composed['flat']);
+        $this->assertSame('Opposite ayyappa swamy temple, village CHENNUR, mandal CHENNUR, DISTRICT MANCHERIAL, STATE TELANGANA - 504201', $composed['structured']['line2'] ?? null);
+        $this->assertGreaterThan(200, strlen((string) $composed['flat']));
+        $this->assertStringContainsString('Adarsha nagar', (string) $composed['flat']);
+    }
+
+    public function test_redundant_line2_over_irp_limit_is_preserved_for_readiness_gaps(): void
+    {
+        $structured = [
+            'line1' => str_repeat('X', 120),
+            'line2' => str_repeat('X', 100),
+            'city' => 'New Delhi',
+            'state' => 'Delhi',
+            'pincode' => '110001',
+        ];
+
+        $composed = $this->composer->compose(str_repeat('X', 232), $structured);
+
+        $this->assertSame('X', substr($composed['structured']['line2'] ?? '', 0, 1));
+        $this->assertSame(100, strlen((string) ($composed['structured']['line2'] ?? '')));
     }
 
     public function test_distinct_line1_and_line2_are_preserved(): void

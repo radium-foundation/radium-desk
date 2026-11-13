@@ -186,10 +186,12 @@ class EInvoiceIssuancePathTest extends TestCase
             'currency' => 'INR',
             'customer_name' => 'Buyer Industries',
             'buyer_gstin' => $buyerGstin,
-            'billing_state' => 'Maharashtra',
-            'billing_address' => '1 Test Street, Mumbai',
-            'branch_code' => 'MUMBAI',
-            'place_of_supply_state' => 'Maharashtra',
+            'billing_state' => $buyerGstin !== null && str_starts_with($buyerGstin, '07') ? 'Delhi' : 'Maharashtra',
+            'billing_address' => $buyerGstin !== null && str_starts_with($buyerGstin, '07')
+                ? '1 Test Street, New Delhi'
+                : '1 Test Street, Mumbai',
+            'branch_code' => $buyerGstin !== null && str_starts_with($buyerGstin, '07') ? 'DELHI-RETAIL' : 'MUMBAI',
+            'place_of_supply_state' => $buyerGstin !== null && str_starts_with($buyerGstin, '07') ? 'Delhi' : 'Maharashtra',
             'taxable_value' => 100,
             'tax_total' => 18,
             'order_value' => 118,

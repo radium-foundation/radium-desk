@@ -260,7 +260,7 @@ class ServiceGstSplitIssuanceTest extends TestCase
         $intra = $this->invoices->issueFromCommerceOrder(
             $this->commerceOrder(
                 'RD-GST-B2B-INTRA',
-                billingState: 'Delhi',
+                billingState: 'Maharashtra',
                 buyerGstin: '27AAAAA0000A1Z5',
                 placeOfSupply: 'Maharashtra',
             ),
@@ -269,9 +269,9 @@ class ServiceGstSplitIssuanceTest extends TestCase
         $inter = $this->invoices->issueFromCommerceOrder(
             $this->commerceOrder(
                 'RD-GST-B2B-INTER',
-                billingState: 'Maharashtra',
-                buyerGstin: '07AAAAA0000A1Z5',
-                placeOfSupply: 'Maharashtra',
+                billingState: 'Karnataka',
+                buyerGstin: '29AAAAA0000A1Z5',
+                placeOfSupply: 'Karnataka',
             ),
             $this->actor,
         );
@@ -281,7 +281,7 @@ class ServiceGstSplitIssuanceTest extends TestCase
         $this->assertGstSplit($intra, 38.06, 38.06, 0.0);
 
         $this->assertSame($this->configuredSellerGstin('delhi'), $inter->seller_gstin);
-        $this->assertSame('07AAAAA0000A1Z5', $inter->buyer_gstin);
+        $this->assertSame('29AAAAA0000A1Z5', $inter->buyer_gstin);
         $this->assertGstSplit($inter, 0.0, 0.0, 76.12);
     }
 

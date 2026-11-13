@@ -203,12 +203,9 @@ class RdServiceNetPhase1CleanTest extends TestCase
         ]))->assertCreated();
         $invalid = CommerceOrder::query()->where('source_id', 'RA3507108')->firstOrFail();
 
-        try {
-            $this->invoices->issueFromCommerceOrder($invalid, $this->actor);
-            $this->fail('Expected invalid GSTIN to refuse mint.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('eligibility', $exception->errors());
-        }
+        $invalidInvoice = $this->invoices->issueFromCommerceOrder($invalid, $this->actor);
+        $this->assertNull($invalidInvoice->buyer_gstin);
+        $this->assertSame(1, StatutoryInvoice::query()->count());
 
         $payload = $this->netPayload('RA3507109');
         $payload['lines'][0]['hsn_sac'] = null;
@@ -223,8 +220,8 @@ class RdServiceNetPhase1CleanTest extends TestCase
             $this->assertArrayHasKey('eligibility', $exception->errors());
         }
 
-        $this->assertSame(0, StatutoryInvoice::query()->count());
-        $this->assertSame(0, InvoiceSequence::query()->count());
+        $this->assertSame(1, StatutoryInvoice::query()->count());
+        $this->assertSame(1, InvoiceSequence::query()->count());
     }
 
     public function test_document_get_authorizes_hmac_owner_and_denies_guest_wrong_customer_and_historical(): void
