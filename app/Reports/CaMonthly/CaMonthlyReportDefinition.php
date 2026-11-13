@@ -5,7 +5,9 @@ namespace App\Reports\CaMonthly;
 /**
  * Sales Report (statutory CA monthly register) output contract and period configuration.
  *
- * Period filter uses statutory invoice issue date (Date of Invoice).
+ * Period filter uses statutory invoice issue date (Date of Invoice) for standard rows.
+ * Refund-driven credit notes in-period also pull paired originals when cancellation
+ * initiation meets {@see CaMonthlyReportCancellationReportingScope::eligibleInitiationOnOrAfter()}.
  */
 final class CaMonthlyReportDefinition
 {
