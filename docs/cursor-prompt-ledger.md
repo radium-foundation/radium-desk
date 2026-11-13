@@ -996,4 +996,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-54 | 2026-11-13 | **P-13-54** CA monthly refund cancellation reporting row 136 ChatGPT **P-13-54** | Worktree **`.worktrees/p13-54-ca-monthly-cancellation`** branch **`feature/p13-54-ca-monthly-cancellation`** @ **`origin/main`** **`44c48ab1`**. **`CaMonthlyReportCancellationReportingScope`**; initiation ≥ **2026-09-07**; CN **`issued_at`** preserved. Matrix row **136** **VERIFIED FIXED**; P-12-44 **226** VERIFIED / **0** active failing. **`CaMonthlyReportRefundCancellationReportingTest`** **15/15**; row **136** + full **`RefundStatutoryAdjustmentTest`** **PASS**. **`.artifacts/P-13-54-REPORT.md`**. Wallet **`d9481615`** verify only. **NO** deploy/prod data/refund execution. |
 
+| RadiumDesk-P-13-55 | 2026-11-13 | **P-13-55** Statutory cancellation CI path filter gap ChatGPT **P-13-55** | Worktree **`.worktrees/p13-55-statutory-ci-paths`**. Root cause: PR **#250** paths absent from **`statutory-cancellation-phpunit`** filter. Extended paths + PHPUnit step for refund statutory / CA monthly regressions. **`.artifacts/P-13-55-REPORT.md`**. Wallet **`d9481615`** verify only. **NO** app/prod changes. |
+
 Do not renumber or overwrite earlier rows. Append only.
