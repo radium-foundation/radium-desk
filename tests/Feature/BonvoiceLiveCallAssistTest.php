@@ -47,6 +47,12 @@ class BonvoiceLiveCallAssistTest extends TestCase
         Notification::fake();
         Queue::fake();
 
+        config([
+            'radiumbox.enabled' => true,
+            'radiumbox.auto_sync.enabled' => true,
+            'radiumbox.auto_sync.min_interval_minutes' => 30,
+        ]);
+
         $agent = User::factory()->create([
             'bonvoice_extension' => '1800123456',
         ]);
