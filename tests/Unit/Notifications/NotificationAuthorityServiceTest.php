@@ -9,6 +9,7 @@ use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Services\Notifications\NotificationAuthorityService;
 use App\Services\SettingService;
+use App\Services\SystemSettingsAdminCollection;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -277,5 +278,6 @@ class NotificationAuthorityServiceTest extends TestCase
         );
 
         app(\App\Services\SystemSettingsService::class)->forget($key);
+        app(SystemSettingsAdminCollection::class)->invalidate();
     }
 }
