@@ -166,7 +166,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
             return 'not_cashfree_paid_order';
         }
 
-        if (! $this->radiumBoxService->needsEnrichment($order)) {
+        if (! $order->isMissingDeviceEnrichment()) {
             return 'already_complete';
         }
 
