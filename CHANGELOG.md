@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.1.65 — 2026-11-13 — Operations workspace + CA monthly refund reporting (P-13-60)
+
+- **Purpose:** Release mainline since **`v4.1.64`**: WS-10 operations/hardware dashboard reliability, channel-ingest replay correctness, support and customer-waiting fixes, POS UPI statutory snapshot fields, statutory PDF rendering, and CA monthly report selection for refund-driven credit notes with cancellation initiation eligibility.
+- **Production baseline (pre-deploy):** Owner must record live `release.json` before deploy. **Not verified in P-13-60.**
+- **Statutory / finance (CA monthly):** `CaMonthlyReportCancellationReportingScope` selects credit notes by real `statutory_invoices.issued_at` in the report period. Eligible rows require cancellation initiation on or after **`2026-09-07`** (inclusive), from succeeded refund statutory adjustment refund `executed_at` or, when no succeeded adjustment exists, `statutory_invoice_cancellations.completed_at` on the original invoice. Paired original invoices are included when a linked credit note qualifies; credit note issuance timestamps are **not** backdated. Config: `ca_monthly_report.refund_cancellation_eligible_on_or_after` (env override supported). **Owner validation:** focused `CaMonthlyReportRefundCancellationReportingTest`, `RefundStatutoryAdjustmentTest`, and CA monthly credit-note tests — **not** production smoke.
+- **Operations / dashboard:** Hardware progressive row loading, dashboard classification/snapshot updates, operations queue classifiers, hardware counts cache/TTL (`config/dashboard.php` optional env: `DASHBOARD_HARDWARE_ROWS_*`, `DASHBOARD_HARDWARE_SEARCH_DEBOUNCE_MS`).
+- **Channel ingest:** Legacy RDP payload hash restoration on replay (`ChannelIngestPayloadHasher`).
+- **Customer 360 / service cases:** Timeline presentation; assignment routing validation via focused support/assignment tests.
+- **POS UPI:** `PosUpiIntentService` persists statutory billing **city, state, and pincode** on intent payload (in addition to existing billing address / GSTIN fields). **Owner validation required:** `PosUpiPaymentIntentTest` (and statutory snapshot tests touching UPI intents) — **not** live payment execution.
+- **Statutory PDF:** `SimplePdfRenderer` adjustments; validate with `StatutoryInvoicePdfPresentationTest` / related PDF regression tests.
+- **Platform:** Backup watchdog and platform health snapshot services (monitoring only).
+- **Console — prohibited on deploy:** Do **not** run `BackfillRadiumBoxOrdersCommand`, `BackfillReadyQueueCommand`, or other backfill/sync commands during release or deploy windows unless separately Owner-authorized.
+- **Migrations:** **No new migration files** in this release delta (`v4.1.64` → release cut). Production `migrate:status` relative to historical **4.1.62** pending migrations remains **unknown** in prep; `DEPLOY_RUN_MIGRATIONS` defaults **0**.
+- **Deployment:** Annotated tag **`v4.1.65`** on clean tree; KVM `deploy-kvm.sh`; `DEPLOY_RUN_MIGRATIONS` / `DEPLOY_RUN_ROLE_PERMISSION_SEED` default **0**. Fresh encrypted DB backup + verified pre-deploy RIP on **current** live build required before separately authorized deploy. Post-deploy smoke is **not** claimed by this entry.
+- **Rollback target (application):** **`v4.1.64`** / **`c16262987022c374974224905c4574221b0a769c`** (annotated tag commit).
+- **Source:** **`main`** @ **`e4326ad5088fc55afb099a374a5330034a665e31`** (tag to be created on approved merge commit after P-13-60 gates).
+- **Validation (scoped, P-13-60):** Statutory-cancellation PHPUnit bundle (refund statutory + CA monthly), hardware dashboard feature tests, `DashboardClassificationIndexTest`, `ChannelIngestPayloadHasherTest`, `PosUpiPaymentIntentTest`, statutory PDF presentation tests, deploy guard shell tests, Pint on CHANGELOG-only diff. Full PHPUnit **NOT RUN**. **Status:** `deployed` / `smoke-verified` / `known-good` **not** claimed.
+
 ## 4.1.64 — 2026-11-11 — Deployment migration/seeder safeguards (P-11-21 / P-11-23)
 
 - **Purpose:** Operational safety release — prevent accidental full or targeted database migrations and `RolePermissionSeeder` runs from supported deploy entry points unless Owner sets explicit opt-in flags immediately before the operation.
