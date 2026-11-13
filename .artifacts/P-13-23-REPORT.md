@@ -125,8 +125,12 @@ DESK_PHP_BIN=/opt/homebrew/bin/php ./bin/phpunit-isolated \
 | --- | --- |
 | Branch | `feature/p13-23-inventory-pos` |
 | Starting HEAD | `870afab75f44d5f99234bf514faddefaa98c59a4` |
-| Feature commit / merge | *(filled after merge)* |
-| PR | *(filled after create)* |
+| Feature commit | `3e2ecf09154d217d61b7cdd5ce58894cf725f65f` |
+| PR | [#231](https://github.com/radium-foundation/radium-desk/pull/231) |
+| Pre-merge CI | `rip` + `release-rip` **SUCCESS** (PR branch) |
+| Post-merge main CI | **SUCCESS** @ merge push |
+| Verified merge SHA | **`ccf8860fa11ff1bcab963dd6f30d9f5c46e13bdb`** |
+| Post-merge `origin/main` | **`ccf8860fa11ff1bcab963dd6f30d9f5c46e13bdb`** |
 
 **Production:** **NO** — not performed.
 
