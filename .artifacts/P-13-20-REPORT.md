@@ -9,7 +9,7 @@
 | Worktree | `.worktrees/p13-20-team-availability` → `feature/p13-20-team-availability` |
 | Verified `origin/main` (start) | **`a3f6747842a887796d92b866300ca78d0c51ac5e`** |
 | Start | **2026-11-13 11:05:00 IST** |
-| End | **UNKNOWN** (pending close) |
+| End | **2026-11-13 11:12:00 IST** (estimate) |
 
 ---
 
@@ -72,7 +72,7 @@ DESK_PHP_BIN=/opt/homebrew/bin/php ./bin/phpunit-isolated tests/Unit/Operations/
 | Pre-fix | 1/3 | — | 4064 ms | 1 |
 | Post-fix | **3/3** | 12 | 4338 ms | 0 |
 
-**Neighbour:** `tests/Feature/TeamAvailabilityTest.php` — **PASS** (runner json; duration in CI log).
+**Neighbour:** `tests/Feature/TeamAvailabilityTest.php` — **BLOCKED** for full class in worktree: **21/24 PASS**, **3 FAILED** (`ViteManifestNotFoundException`; harness / no `public/build` — not caused by P-13-20 diff).
 
 Full PHPUnit suite: **NOT RUN**
 
@@ -80,7 +80,15 @@ Full PHPUnit suite: **NOT RUN**
 
 ## Git / PR / CI
 
-*(pending)*
+| Field | Value |
+| --- | --- |
+| Branch | `feature/p13-20-team-availability` |
+| Starting HEAD | `a3f6747842a887796d92b866300ca78d0c51ac5e` |
+| Feature commit | `f6be6a4bfebe024de355bd5a09ef2a0acb72a8d3` |
+| PR | [#225](https://github.com/radium-foundation/radium-desk/pull/225) |
+| Pre-merge CI | `rip` + `release-rip` **SUCCESS** |
+| Verified merge SHA | **`fee47b184957d68ba9a75f9151df871d80af1c0b`** |
+| Post-merge `origin/main` | **`fee47b184957d68ba9a75f9151df871d80af1c0b`** |
 
 Production / deployment: **NO — Not performed**
 
@@ -88,4 +96,4 @@ Wallet `feature/p18-33-unified-wallet-display` @ **`d9481615`**: **VERIFIED** un
 
 ---
 
-*End of P-13-20 report (pre-merge footer).*
+*End of P-13-20 report.*
