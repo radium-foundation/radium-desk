@@ -2,13 +2,15 @@
 
 namespace App\Services\Operations;
 
+use App\Data\Operations\WorkingHoursToday;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WorkSessionEndReason;
+use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Models\WorkSession;
-use App\Models\LeaveRequest;
 use App\ReadModels\Cases\CaseQueueReadModel;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class TeamAvailabilityOverviewService
@@ -21,6 +23,14 @@ class TeamAvailabilityOverviewService
 
     /** @var list<array<string, mixed>>|null */
     private ?array $cachedOperationalRoster = null;
+
+    /** @var Collection<int, Collection<int, WorkSession>>|null */
+    private ?Collection $cachedTodaySessionsByUser = null;
+
+    private ?string $cachedTodaySessionsUserKey = null;
+
+    /** @var array<int, array<string, mixed>>|null */
+    private ?array $cachedTodaySessionSummaries = null;
 
     public function __construct(
         private readonly TeamAvailabilityService $availabilityService,
@@ -77,7 +87,10 @@ class TeamAvailabilityOverviewService
         $openCounts = $this->caseQueue->forTeamMembers($teamMembers);
         $sessionSummaries = $this->todaySessionSummariesFor($userIds);
         $leaveReasons = $this->approvedLeaveReasonsFor($userIds);
-        $hoursByUser = $this->workingHoursToday->forUsers($userIds);
+        $hoursByUser = $this->workingHoursToday->forUsers(
+            $userIds,
+            preresolvedOpenUserIds: $this->openWorkSessionUserIds($userIds),
+        );
 
         $rows = [];
 
@@ -150,7 +163,7 @@ class TeamAvailabilityOverviewService
         }
 
         try {
-            $value = $time instanceof \Illuminate\Support\Carbon
+            $value = $time instanceof Carbon
                 ? $time->format('H:i:s')
                 : (string) $time;
 
@@ -158,7 +171,7 @@ class TeamAvailabilityOverviewService
                 $value .= ':00';
             }
 
-            return \Illuminate\Support\Carbon::today()
+            return Carbon::today()
                 ->setTimeFromTimeString($value)
                 ->format('g:i A');
         } catch (\Throwable) {
@@ -200,7 +213,10 @@ class TeamAvailabilityOverviewService
         $openCounts = $this->caseQueue->forTeamMembers($teamMembers);
         $userIds = $teamMembers->map(fn (User $user): int => $user->id)->all();
         $sessionSummaries = $this->todaySessionSummariesFor($userIds);
-        $hoursByUser = $this->workingHoursToday->forUsers($userIds);
+        $hoursByUser = $this->workingHoursToday->forUsers(
+            $userIds,
+            preresolvedOpenUserIds: $this->openWorkSessionUserIds($userIds),
+        );
 
         $onDuty = [];
         $unavailable = [];
@@ -252,7 +268,7 @@ class TeamAvailabilityOverviewService
     /**
      * @return array<string, mixed>
      */
-    private function memberRow(User $user, int $openWorkCount, ?\App\Data\Operations\WorkingHoursToday $hours = null): array
+    private function memberRow(User $user, int $openWorkCount, ?WorkingHoursToday $hours = null): array
     {
         $authority = $this->workforceAuthority->snapshotFor($user);
         $storedAvailability = $authority['availability'] ?? $this->availabilityService->snapshotFor($user);
@@ -344,18 +360,22 @@ class TeamAvailabilityOverviewService
             return [];
         }
 
-        $sessions = WorkSession::query()
-            ->whereIn('user_id', $userIds)
-            ->whereDate('work_date', now()->toDateString())
-            ->whereNotNull('logout_at')
-            ->orderByDesc('logout_at')
-            ->get()
-            ->groupBy('user_id');
+        $userKey = $this->teamMemberIdsCacheKey($userIds);
 
+        if ($this->cachedTodaySessionSummaries !== null && $this->cachedTodaySessionsUserKey === $userKey) {
+            return $this->cachedTodaySessionSummaries;
+        }
+
+        $sessionsByUser = $this->todaySessionsGroupedByUser($userIds);
         $summaries = [];
 
         foreach ($userIds as $userId) {
-            $userSessions = $sessions->get($userId, collect());
+            $userSessions = $sessionsByUser
+                ->get($userId, collect())
+                ->filter(fn (WorkSession $session): bool => $session->logout_at !== null)
+                ->sortByDesc(fn (WorkSession $session): int => $session->logout_at?->getTimestamp() ?? 0)
+                ->values();
+
             $lastSession = $userSessions->first();
             $lastLogoutAt = $lastSession?->logout_at;
 
@@ -374,7 +394,76 @@ class TeamAvailabilityOverviewService
             ];
         }
 
+        $this->cachedTodaySessionSummaries = $summaries;
+
         return $summaries;
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     * @return list<int>
+     */
+    private function openWorkSessionUserIds(array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        $sessionsByUser = $this->todaySessionsGroupedByUser($userIds);
+        $openUserIds = [];
+
+        foreach ($userIds as $userId) {
+            $hasOpen = $sessionsByUser
+                ->get($userId, collect())
+                ->contains(function (WorkSession $session): bool {
+                    if ($session->logout_at !== null) {
+                        return false;
+                    }
+
+                    return $session->is_attributable === true || $session->is_attributable === null;
+                });
+
+            if ($hasOpen) {
+                $openUserIds[] = $userId;
+            }
+        }
+
+        return $openUserIds;
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     * @return Collection<int, Collection<int, WorkSession>>
+     */
+    private function todaySessionsGroupedByUser(array $userIds): Collection
+    {
+        $userKey = $this->teamMemberIdsCacheKey($userIds);
+
+        if ($this->cachedTodaySessionsByUser !== null && $this->cachedTodaySessionsUserKey === $userKey) {
+            return $this->cachedTodaySessionsByUser;
+        }
+
+        $this->cachedTodaySessionsUserKey = $userKey;
+        $this->cachedTodaySessionsByUser = WorkSession::query()
+            ->whereIn('user_id', $userIds)
+            ->whereDate('work_date', now()->toDateString())
+            ->orderByDesc('logout_at')
+            ->get()
+            ->groupBy('user_id');
+        $this->cachedTodaySessionSummaries = null;
+
+        return $this->cachedTodaySessionsByUser;
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     */
+    private function teamMemberIdsCacheKey(array $userIds): string
+    {
+        $sorted = $userIds;
+        sort($sorted);
+
+        return implode(',', $sorted);
     }
 
     /**

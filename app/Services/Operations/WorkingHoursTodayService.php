@@ -4,8 +4,8 @@ namespace App\Services\Operations;
 
 use App\Data\Operations\WorkingHoursToday;
 use App\Models\User;
-use App\Models\WorkSession;
 use App\Models\WorkforceAttendanceDay;
+use App\Models\WorkSession;
 use App\Support\Workforce\AttendanceMatrixCellMapper;
 use Illuminate\Support\Carbon;
 
@@ -30,7 +30,10 @@ class WorkingHoursTodayService
      * @param  list<int>  $userIds
      * @return array<int, WorkingHoursToday>
      */
-    public function forUsers(array $userIds, ?Carbon $at = null): array
+    /**
+     * @param  list<int>|null  $preresolvedOpenUserIds  When provided, skips a batched work_sessions lookup (caller already loaded today's sessions).
+     */
+    public function forUsers(array $userIds, ?Carbon $at = null, ?array $preresolvedOpenUserIds = null): array
     {
         if ($userIds === []) {
             return [];
@@ -51,17 +54,21 @@ class WorkingHoursTodayService
             ->get()
             ->keyBy('id');
 
-        $openUserIds = WorkSession::query()
-            ->whereIn('user_id', $userIds)
-            ->whereNull('logout_at')
-            ->where(function ($query): void {
-                $query->where('is_attributable', true)->orWhereNull('is_attributable');
-            })
-            ->pluck('user_id')
-            ->map(fn (mixed $id): int => (int) $id)
-            ->unique()
-            ->all();
-        $openUserIdSet = array_fill_keys($openUserIds, true);
+        if ($preresolvedOpenUserIds !== null) {
+            $openUserIdSet = array_fill_keys($preresolvedOpenUserIds, true);
+        } else {
+            $openUserIds = WorkSession::query()
+                ->whereIn('user_id', $userIds)
+                ->whereNull('logout_at')
+                ->where(function ($query): void {
+                    $query->where('is_attributable', true)->orWhereNull('is_attributable');
+                })
+                ->pluck('user_id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->all();
+            $openUserIdSet = array_fill_keys($openUserIds, true);
+        }
 
         $existingDays = WorkforceAttendanceDay::query()
             ->whereIn('user_id', $userIds)
