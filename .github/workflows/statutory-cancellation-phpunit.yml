@@ -61,6 +61,18 @@ on:
       - 'tests/Unit/RadiumBox/RadiumBoxStatutoryInvoiceReceiptApiContractTest.php'
       - 'tests/Unit/RadiumBox/RadiumBoxWalletRefundReversalClientTest.php'
       - 'tests/Feature/CentralWallet/DeskFirstWalletRefundRevokeSpokeRoutingTest.php'
+      - 'app/Reports/CaMonthly/CaMonthlyReportCancellationReportingScope.php'
+      - 'app/Reports/CaMonthly/CaMonthlyReportDefinition.php'
+      - 'app/ReadModels/Finance/CaMonthlyStatutoryLineReadModel.php'
+      - 'config/ca_monthly_report.php'
+      - 'app/Services/Refunds/RefundStatutoryAdjustment*.php'
+      - 'app/Models/RefundStatutoryAdjustment.php'
+      - 'app/Enums/RefundStatutoryAdjustmentStatus.php'
+      - 'app/Listeners/Finance/EnqueueRefundStatutoryAdjustment.php'
+      - 'database/migrations/*refund_statutory_adjustments*'
+      - 'tests/Feature/Finance/CaMonthlyReportRefundCancellationReportingTest.php'
+      - 'tests/Feature/Refunds/RefundStatutoryAdjustmentTest.php'
+      - 'tests/Feature/Finance/CaMonthlyReportTest.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
   push:
     branches:
@@ -122,6 +134,18 @@ on:
       - 'tests/Unit/RadiumBox/RadiumBoxStatutoryInvoiceReceiptApiContractTest.php'
       - 'tests/Unit/RadiumBox/RadiumBoxWalletRefundReversalClientTest.php'
       - 'tests/Feature/CentralWallet/DeskFirstWalletRefundRevokeSpokeRoutingTest.php'
+      - 'app/Reports/CaMonthly/CaMonthlyReportCancellationReportingScope.php'
+      - 'app/Reports/CaMonthly/CaMonthlyReportDefinition.php'
+      - 'app/ReadModels/Finance/CaMonthlyStatutoryLineReadModel.php'
+      - 'config/ca_monthly_report.php'
+      - 'app/Services/Refunds/RefundStatutoryAdjustment*.php'
+      - 'app/Models/RefundStatutoryAdjustment.php'
+      - 'app/Enums/RefundStatutoryAdjustmentStatus.php'
+      - 'app/Listeners/Finance/EnqueueRefundStatutoryAdjustment.php'
+      - 'database/migrations/*refund_statutory_adjustments*'
+      - 'tests/Feature/Finance/CaMonthlyReportRefundCancellationReportingTest.php'
+      - 'tests/Feature/Refunds/RefundStatutoryAdjustmentTest.php'
+      - 'tests/Feature/Finance/CaMonthlyReportTest.php'
       - '.github/workflows/statutory-cancellation-phpunit.yml'
 
 permissions:
@@ -201,3 +225,12 @@ jobs:
             tests/Unit/RadiumBox/RadiumBoxWalletRefundReversalClientTest.php \
             tests/Feature/CentralWallet/DeskFirstWalletRefundRevokeSpokeRoutingTest.php \
             tests/Feature/CentralWallet/DeskFirstWalletRefundRevokeFlagOffRegressionTest.php
+
+      - name: PHPUnit (refund statutory credit notes + CA monthly cancellation reporting)
+        run: |
+          ./vendor/bin/phpunit \
+            tests/Feature/Refunds/RefundStatutoryAdjustmentTest.php \
+            tests/Feature/Finance/CaMonthlyReportRefundCancellationReportingTest.php
+          ./vendor/bin/phpunit \
+            tests/Feature/Finance/CaMonthlyReportTest.php \
+            --filter 'credit_note'
