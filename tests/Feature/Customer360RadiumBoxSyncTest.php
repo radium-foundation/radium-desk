@@ -175,6 +175,8 @@ class Customer360RadiumBoxSyncTest extends TestCase
 
     public function test_customer_360_shows_synchronization_history(): void
     {
+        Queue::fake();
+
         [$agent, $incident] = $this->createIncidentWithoutSerial();
 
         $response = $this->actingAs($agent)->get(route('dashboard.service-cases.customer-360', $incident));

@@ -13,6 +13,7 @@
     $lastPayment = $healthCard['last_payment'] ?? null;
     $lastWhatsapp = $healthCard['last_whatsapp'] ?? [];
     $lastEmail = $healthCard['last_email'] ?? [];
+    $lastCall = is_array($healthCard['last_call'] ?? null) ? $healthCard['last_call'] : null;
     $phone = trim((string) ($healthCard['phone'] ?? ''));
     $email = trim((string) ($healthCard['email'] ?? ''));
     $activeCases = (int) ($healthCard['active_service_cases'] ?? $summary['open_cases'] ?? 0);
@@ -196,6 +197,31 @@
                     </span>
                     <span class="c360-snapshot-comm-link">View history <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
                 </button>
+
+                <div class="c360-snapshot-comm-row c360-snapshot-comm-row--static" aria-label="Last call summary">
+                    <span class="c360-snapshot-comm-main">
+                        <span class="c360-snapshot-comm-channel">
+                            <i class="bi bi-telephone c360-snapshot-comm-icon" aria-hidden="true"></i>
+                            Last Call
+                        </span>
+                        @if($lastCall !== null)
+                            <span class="c360-snapshot-status-chip c360-snapshot-status-chip--info">
+                                {{ $lastCall['status_label'] ?? 'Unknown' }}
+                            </span>
+                            @if(filled($lastCall['occurred_at_label'] ?? null))
+                                <time class="c360-snapshot-comm-time"
+                                      @if(isset($lastCall['occurred_at']))
+                                          datetime="{{ $lastCall['occurred_at']->toIso8601String() }}"
+                                          title="{{ AppDateFormatter::timelineDatetime($lastCall['occurred_at']) }}"
+                                      @endif>
+                                    {{ $lastCall['occurred_at_label'] }}
+                                </time>
+                            @endif
+                        @else
+                            <span class="c360-snapshot-status-chip c360-snapshot-status-chip--neutral">No calls yet</span>
+                        @endif
+                    </span>
+                </div>
             </div>
         </div>
 

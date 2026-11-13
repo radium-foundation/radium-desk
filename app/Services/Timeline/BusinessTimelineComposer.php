@@ -13,7 +13,6 @@ use App\Support\AppDateFormatter;
 use App\Support\Timeline\BusinessMilestoneClassifier;
 use App\Support\Timeline\BusinessTimelineTitlePresenter;
 use App\Support\Timeline\TimelineGroupResolver;
-use App\Services\Timeline\IncomingEmailReopenTimelinePresenter;
 use Illuminate\Support\Collection;
 
 class BusinessTimelineComposer
@@ -285,9 +284,11 @@ class BusinessTimelineComposer
                     actionBadges: $event->actionBadges,
                     technicalFields: $event->technicalFields,
                     unifiedPresentation: $unified,
-                    iconClass: str_starts_with($event->dedupeKey, 'incoming_email:')
-                        ? 'bi-envelope'
-                        : null,
+                    iconClass: match (true) {
+                        str_starts_with($event->dedupeKey, 'incoming_email:') => 'bi-envelope',
+                        $event->type === TimelineEventType::IvrCall => 'bi-telephone',
+                        default => null,
+                    },
                 );
             })
             ->values();
@@ -319,12 +320,14 @@ class BusinessTimelineComposer
             /** @var BusinessTimelineItem $item */
             if ($buffer === []) {
                 $buffer[] = $item;
+
                 continue;
             }
 
             $head = $buffer[0];
             if ($this->canClusterWith($head, $item)) {
                 $buffer[] = $item;
+
                 continue;
             }
 

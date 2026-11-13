@@ -6,7 +6,9 @@
         ? $healthCard['name']
         : ($order?->customer_name);
     $referenceNumber = $order?->transaction_id ?? $incident->display_reference;
-    $orderId = $order?->order_id;
+    $orderId = ($order !== null && $order->isInquiryOrder())
+        ? null
+        : $order?->order_id;
 
     $searchPaletteActions = array_values($paletteActions ?? []);
 
@@ -139,11 +141,13 @@
             'incident' => $incident,
         ])
         @include('customer-360.partials.waiting-state-card', ['waitingStateCard' => $waitingStateCard ?? null])
-        @include('customer-360.partials.support-appointments', [
-            'supportAppointments' => $supportAppointments ?? collect(),
-            'incident' => $incident,
-            'profilePhone' => $healthCard['phone'] ?? null,
-        ])
+        @if(($supportAppointments ?? collect())->isNotEmpty())
+            @include('customer-360.partials.support-appointments', [
+                'supportAppointments' => $supportAppointments,
+                'incident' => $incident,
+                'profilePhone' => $healthCard['phone'] ?? null,
+            ])
+        @endif
         @include('customer-360.partials.device-section', [
             'device' => $device,
             'order' => $order,
