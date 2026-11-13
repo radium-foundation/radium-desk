@@ -959,4 +959,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-08 | 2026-11-13 | **P-13-08** WS-10 statutory issuance cluster (7 matrix rows) | Worktree **`.worktrees/p13-08-statutory-issuance`** @ **`origin/main`** **`f358ab04`**. Channel ingest UQC, IRP redundant line2 guard, test harness alignment. Focused **8/8** cluster + **11/11** `IrnInputSnapshotTest` + **7/7** `StatutoryBillingAddressComposerTest`. **`.artifacts/P-13-08-REPORT.md`**. Full suite **NOT RUN**; wallet **`d9481615`** verify only. |
 
+| RadiumDesk-P-13-09 | 2026-11-13 | **P-13-09** WS-10 Customer 360 drawer cluster (9 matrix rows) | **Claimed** **`RadiumDesk-P-13-09`**. Worktree **`.worktrees/p13-09-customer-360`** @ **`origin/main`** **`a99eda54`** (post-#208). Rows: Bonvoice health/timeline, RadiumBox sync UI/harness, inquiry metadata, support-appointments visibility. Full suite / deploy **NOT RUN**. Wallet **`d9481615`** verify only. |
+
 Do not renumber or overwrite earlier rows. Append only.

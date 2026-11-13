@@ -88,6 +88,13 @@
             </div>
         @endif
 
+        @if($device['is_inquiry'] ?? false)
+            <div class="c360-device-card-row">
+                <span class="c360-device-card-row-label">Type</span>
+                <span class="c360-device-card-row-value">Enquiry</span>
+            </div>
+        @endif
+
         <div class="c360-device-card-row">
             <span class="c360-device-card-row-label">{{ ($device['is_inquiry'] ?? false) ? 'Case' : 'Order' }}</span>
             <span class="c360-device-card-row-value font-monospace">
@@ -121,7 +128,12 @@
     </div>
 
     <div class="c360-device-card-status-chips">
-        <x-c360.chip :value="$syncLabel" :variant="$syncVariant" class="c360-chip--compact" />
+        <x-c360.chip
+            :value="$syncLabel"
+            :variant="$syncVariant"
+            :icon="$hasSerial ? 'bi-check-circle' : null"
+            class="c360-chip--compact"
+        />
         @if($hasSerial && ($device['show_sync_freshness'] ?? false))
             <x-c360.chip
                 :value="$device['last_synced_relative'] ?? $device['last_synced_label'] ?? 'Synced'"
