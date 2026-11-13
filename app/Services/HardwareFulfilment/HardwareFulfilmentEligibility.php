@@ -20,7 +20,7 @@ final class HardwareFulfilmentEligibility
     public const SOURCE_PREFIX = 'RDE';
 
     /** @var list<string> */
-    public const HARDWARE_SOURCE_PREFIXES = ['RDE', 'RBP'];
+    public const HARDWARE_SOURCE_PREFIXES = ['RDE'];
 
     public const RIN_SOURCE_PREFIX = 'RIN';
 
@@ -80,8 +80,14 @@ final class HardwareFulfilmentEligibility
         }
 
         $parsed = BusinessOrderId::parse($request->sourceId);
-        if ($parsed !== null && $parsed['hardware'] === false) {
-            return false;
+        if ($parsed !== null) {
+            if ($parsed['prefix'] === 'RBP') {
+                return false;
+            }
+
+            if ($parsed['hardware'] === false) {
+                return false;
+            }
         }
 
         if ($request->channel !== StatutoryInvoiceChannel::RadiumBoxCom) {
@@ -172,6 +178,10 @@ final class HardwareFulfilmentEligibility
     {
         $parsed = BusinessOrderId::parse($sourceId);
         if ($parsed !== null && $parsed['owner'] === 'radiumbox.com') {
+            if ($parsed['prefix'] === 'RBP') {
+                return false;
+            }
+
             return $parsed['hardware'] === true;
         }
 

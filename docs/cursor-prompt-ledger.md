@@ -963,4 +963,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-10 | 2026-11-13 | **P-13-10** WS-10 Interakt / WhatsApp timeline persistence (6 matrix rows) | **Claimed** **`RadiumDesk-P-13-10`**. Worktree **`.worktrees/p13-10-interakt-whatsapp`** @ **`origin/main`** **`700526c6`**. Operator visibility + business-milestone WhatsApp summary presentation. Cluster **6/6** + regressions **33/33** (`phpunit-isolated`). Full suite / deploy / live messaging **NOT RUN**. Wallet **`d9481615`** verify only. |
 
+| RadiumDesk-P-13-11 | 2026-11-13 | **P-13-11** WS-10 RBP hardware classification (3 matrix rows) | **Claimed** **`RadiumDesk-P-13-11`**. Worktree **`.worktrees/p13-11-rbp-hardware`** @ **`origin/main`** **`9da7f938`**. Split: preserve `BusinessOrderId` RBP product hardware; exclude RBP from `Order::isHardwareOrderId` and isolated hardware fulfilment. Cluster **3/3** + regressions **16/16** (`phpunit-isolated`). Full suite / deploy / prod **NOT RUN**. Wallet **`d9481615`** verify only. **`.artifacts/P-13-11-REPORT.md`**. |
+
 Do not renumber or overwrite earlier rows. Append only.
