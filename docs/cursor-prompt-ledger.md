@@ -1020,4 +1020,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-101 | 2026-11-13 | **P-13-101** Opt-in retention + Mantra draft recovery UX | `prune_enabled` default **false**; pending-review sessionStorage + 404 toast; ledger P-13-100. **NO** merge/deploy/cleanup. |
 
+| RadiumDesk-P-13-102 | 2026-11-13 | **P-13-102** OEM PR chain review, merge gates, deploy preflight | Merged **#255** `42437fbd`, **#256** `f9e7d80f`, **#257** (pending SHA); flags OFF; **NO** prod deploy/migrate/enable. |
+
 Do not renumber or overwrite earlier rows. Append only.
