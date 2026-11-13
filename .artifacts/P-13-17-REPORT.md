@@ -8,7 +8,7 @@
 | Worktree | `.worktrees/p13-17-incoming-email` → `feature/p13-17-incoming-email-intake` |
 | Verified `origin/main` (start) | **`f2b5eb237b7db4f08b9537c41f740d1e387b1de7`** |
 | Start | **2026-11-13 10:11:05 IST** |
-| End | **2026-11-13 10:16:42 IST** |
+| End | **2026-11-13 10:18:10 IST** |
 
 ---
 
@@ -93,9 +93,10 @@ Full PHPUnit suite: **NOT RUN**.
 | Field | Value |
 | --- | --- |
 | Branch | `feature/p13-17-incoming-email-intake` |
-| Commit | *(post-push)* |
-| PR | *(post-create)* |
-| Merge SHA | *(post-merge)* |
+| Commit | `742f82108eee69e43383d3faa3a6cfa21405afb8` |
+| PR | [#219](https://github.com/radium-foundation/radium-desk/pull/219) |
+| CI | `rip` + `release-rip` **PASS** |
+| Verified merge SHA | **`f44fc3acc10ae42419ff3ee6cf4eb0feaf98a36b`** |
 
 ---
 
