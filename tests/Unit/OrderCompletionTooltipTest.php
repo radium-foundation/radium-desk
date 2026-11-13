@@ -5,11 +5,14 @@ namespace Tests\Unit;
 use App\Enums\OrderCompletionStatus;
 use App\Models\Order;
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class OrderCompletionTooltipTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_format_duration_between_hours_and_minutes(): void
     {
         $from = Carbon::parse('2026-06-24 08:23:00');
