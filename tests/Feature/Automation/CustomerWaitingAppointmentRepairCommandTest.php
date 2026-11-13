@@ -72,9 +72,12 @@ class CustomerWaitingAppointmentRepairCommandTest extends TestCase
     {
         $this->seed(RolePermissionSeeder::class);
 
-        [, $incident, $waitingState] = $this->createScenario(
-            incidentStatus: IncidentStatus::Closed,
-        );
+        [, $incident, $waitingState] = $this->createScenario();
+
+        $incident->update(['status' => IncidentStatus::Closed]);
+
+        $this->assertNotNull($waitingState->fresh());
+        $this->assertNull($waitingState->fresh()->cleared_at);
 
         $this->artisan('customer-waiting:repair-appointments')
             ->expectsOutputToContain('appointments_found: 0')

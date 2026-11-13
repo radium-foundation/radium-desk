@@ -59,6 +59,7 @@ class ServiceCaseStatusService
         IncidentStatus $status,
         User $actor,
         bool $broadcast = true,
+        bool $issueStatutoryInvoice = true,
     ): Incident {
         if ($incident->status === $status) {
             return $incident;
@@ -131,7 +132,7 @@ class ServiceCaseStatusService
             return $freshIncident;
         });
 
-        if ($status === IncidentStatus::Closed) {
+        if ($status === IncidentStatus::Closed && $issueStatutoryInvoice) {
             $order = $updated->order ?? $updated->fresh(['order'])?->order;
             if ($order instanceof Order) {
                 app(ServiceStatutoryInvoiceIssuer::class)
