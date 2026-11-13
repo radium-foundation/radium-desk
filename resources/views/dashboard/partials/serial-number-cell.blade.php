@@ -1,10 +1,26 @@
 @props(['serviceCase'])
 
 @php
+    use App\Enums\SerialValidationSeverity;
+    use App\Services\SerialValidation\SerialPlaceholderService;
+    use App\Services\SerialValidation\SerialValidationService;
+    use App\Support\Oem\OemWarrantyCheckVendorResolver;
+
     $order = $serviceCase->order;
     $isInquiry = $order?->isInquiryOrder() ?? false;
     $isLocked = $order?->isSerialLocked() ?? false;
     $canAssign = $order && ! $isInquiry && auth()->user()?->can('assignSerial', $order);
+    $oemWarrantyVendor = null;
+
+    if ($order !== null && $isLocked && filled($order->serial_number)) {
+        $serialValidation = app(SerialPlaceholderService::class)->isPlaceholder((string) $order->serial_number)
+            ? null
+            : app(SerialValidationService::class)->validateForOrder((string) $order->serial_number, $order);
+
+        if ($serialValidation?->severity === SerialValidationSeverity::Pass) {
+            $oemWarrantyVendor = app(OemWarrantyCheckVendorResolver::class)->resolveForOrder($order);
+        }
+    }
 @endphp
 
 <td class="serial-number-cell case-serial-cell case-meta-cell"
@@ -26,6 +42,7 @@
                 data-bs-title="{{ $order->serial_number }}"
             />
             @include('orders.partials.serial-validation-badge', ['order' => $order, 'compact' => true])
+            @include('dashboard.partials.oem-warranty-check-trigger', ['vendor' => $oemWarrantyVendor])
         </div>
     @elseif($canAssign)
         <button type="button"

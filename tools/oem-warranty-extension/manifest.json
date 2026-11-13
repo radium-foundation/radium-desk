@@ -1,0 +1,39 @@
+{
+    "manifest_version": 3,
+    "name": "Radium Desk OEM Warranty Handoff (Internal)",
+    "description": "Private Desk → OEM serial handoff for admin-initiated warranty checks. Not for public distribution.",
+    "version": "0.2.0",
+    "permissions": ["tabs"],
+    "host_permissions": [
+        "https://desk.radiumbox.com/*",
+        "http://127.0.0.1/*",
+        "http://localhost/*",
+        "https://servico.mantratecapp.com/*",
+        "https://rdserviceonline.com/*"
+    ],
+    "background": {
+        "service_worker": "src/background.js",
+        "type": "module"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://desk.radiumbox.com/*",
+                "http://127.0.0.1/*",
+                "http://localhost/*"
+            ],
+            "js": ["src/content/desk-handoff.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["https://servico.mantratecapp.com/MasterForms/RDWarrantyCheck.aspx*"],
+            "js": ["src/content/mantra-fill.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["https://rdserviceonline.com/pages/172iserialvalidatenumber*"],
+            "js": ["src/content/morpho-fill.js"],
+            "run_at": "document_idle"
+        }
+    ]
+}
