@@ -72,10 +72,83 @@ class ChannelIngestPayloadHasher
      * Pre-v4.0.95 RDP hardware_direct_buy orders were hashed with serviceCanonical()
      * because RDP was not yet classified as hardware ingest. Replay must accept that
      * exact legacy hash without weakening verification for RIN, Box, or service orders.
+     *
+     * Legacy hashes used pre-composer flat addresses (comma-joined structured parts).
+     * Current ingest may persist StatutoryBillingAddressComposer output; replay identity
+     * must not follow that composer for stored legacy hashes.
      */
     public function legacyPreHardwareRdpServiceHash(ChannelOrderIngestRequest $request): string
     {
-        return hash('sha256', (string) json_encode($this->serviceCanonical($request)));
+        return hash('sha256', (string) json_encode($this->legacyPreV4095ServiceCanonical($request)));
+    }
+
+    /**
+     * Service canonical frozen for pre-v4.0.95 RDP hardware replay hashes only.
+     *
+     * @return array<string, mixed>
+     */
+    private function legacyPreV4095ServiceCanonical(ChannelOrderIngestRequest $request): array
+    {
+        $canonical = $this->serviceCanonical($request);
+        $canonical['billing_address'] = $this->legacyPreV4095FlatAddress(
+            $request->billingAddressStructured,
+            $request->billingAddress,
+        );
+        $canonical['shipping_address'] = $this->legacyPreV4095FlatAddress(
+            $request->shippingAddressStructured,
+            $request->shippingAddress,
+        );
+
+        return $canonical;
+    }
+
+    private function legacyPreV4095FlatAddress(?array $structured, ?string $flatFallback): ?string
+    {
+        if ($structured !== null) {
+            return $this->legacyJoinStructuredAddressParts($structured);
+        }
+
+        return $flatFallback;
+    }
+
+    /**
+     * Pre-v4.0.95 channel ingest flat address from structured checkout fields.
+     *
+     * @param  array<string, mixed>  $value
+     */
+    private function legacyJoinStructuredAddressParts(array $value): ?string
+    {
+        $parts = [];
+        foreach (['line1', 'line2', 'city', 'state', 'pincode', 'country'] as $key) {
+            if (! array_key_exists($key, $value)) {
+                continue;
+            }
+            $part = $value[$key];
+            if (! is_string($part) && ! is_numeric($part)) {
+                continue;
+            }
+            $part = trim((string) $part);
+            if ($part === '') {
+                continue;
+            }
+            $parts[] = $part;
+        }
+
+        if ($parts === []) {
+            $fallback = [];
+            foreach ($value as $item) {
+                if (is_scalar($item)) {
+                    $item = trim((string) $item);
+                    if ($item !== '') {
+                        $fallback[] = $item;
+                    }
+                }
+            }
+
+            return $fallback === [] ? null : implode(', ', $fallback);
+        }
+
+        return implode(', ', $parts);
     }
 
     private function usesLegacyPreHardwareRdpServiceHash(ChannelOrderIngestRequest $request): bool
