@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
 use App\Services\AssignReferenceBatchCoalescer;
 use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
+use App\Services\Dashboard\DashboardClassificationIndex;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -45,7 +46,10 @@ class AssignReferencePhase9PerformanceTest extends TestCase
         $snapshotForgetCount = 0;
         $automationDirtyCount = 0;
 
-        $snapshotStore = Mockery::mock(DashboardSnapshotStore::class)->makePartial();
+        $snapshotStore = Mockery::mock(
+            DashboardSnapshotStore::class,
+            [app(DashboardClassificationIndex::class)],
+        )->makePartial();
         $snapshotStore->shouldReceive('forget')->andReturnUsing(function () use (&$snapshotForgetCount): void {
             $snapshotForgetCount++;
         });
