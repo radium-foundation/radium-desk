@@ -2,15 +2,22 @@
 
 namespace Tests\Feature\Refunds;
 
+use App\CentralWallet\Domain\Enums\LedgerEntryType;
+use App\CentralWallet\Infrastructure\Persistence\CentralCustomer;
+use App\CentralWallet\Infrastructure\Persistence\CentralWallet;
+use App\CentralWallet\Infrastructure\Persistence\CentralWalletLedgerEntry;
 use App\Enums\ApprovedRefundMethod;
 use App\Enums\RefundStatus;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\RefundReferenceService;
+use App\Services\Refunds\WalletRefundExecutor;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class RefundExecutionReferenceGuardTest extends TestCase
@@ -21,6 +28,7 @@ class RefundExecutionReferenceGuardTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
 
         config([
@@ -117,26 +125,96 @@ class RefundExecutionReferenceGuardTest extends TestCase
 
     public function test_wallet_completion_ignores_manual_execution_reference_fields(): void
     {
+        $deskReference = 'REF-2026-000500';
+
+        config([
+            'central_wallet.wallet_refund.desk_first_enabled' => true,
+            'central_wallet.wallet_refund.desk_authoritative_enabled' => true,
+            'central_wallet.wallet_refund.desk_first_spoke_allowlist' => 'rdservice.in,rdservice.net,radiumbox.com',
+        ]);
+
         Http::fake([
-            'https://radiumbox.test/api/integrations/v1/wallet-refunds' => Http::response([
+            'https://rdservice.in.test/api/integrations/v1/wallet-refunds' => Http::response([
                 'status' => 201,
-                'message' => 'Wallet credit created',
+                'message' => 'Central Wallet audit recorded',
                 'data' => [
                     'wallet_transaction_id' => 91055,
-                    'wallet_reference' => 'RD91055',
-                    'desk_refund_reference' => 'REF-2026-000500',
+                    'wallet_reference' => 'CW:91055',
+                    'desk_refund_reference' => $deskReference,
                     'credit' => '617.00',
-                    'balance' => '617.00',
+                    'currency' => 'INR',
+                    'balance' => '0.00',
+                    'destination' => 'central_wallet',
                 ],
             ], 201),
         ]);
 
-        $ops = User::factory()->create();
+        [$ops, $refund] = $this->pendingDeskAuthoritativeWalletRefund(null, $deskReference);
+
+        $executor = app(WalletRefundExecutor::class);
+        config(['central_wallet.wallet_refund.desk_first_enabled' => false]);
+        try {
+            $executor->execute($refund, $ops, []);
+            $this->fail('Legacy spoke-only wallet execution must be rejected when desk-first is disabled under authoritative policy.');
+        } catch (ValidationException $exception) {
+            $messages = implode(' ', $exception->validator->errors()->all());
+            $this->assertStringContainsString('CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_ENABLED', $messages);
+        }
+        config(['central_wallet.wallet_refund.desk_first_enabled' => true]);
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [
+                'execution_reference_no' => $deskReference,
+                'execution_transaction_id' => $deskReference,
+            ])
+            ->assertRedirect(route('refunds.show', $refund))
+            ->assertSessionHas('status', 'refund-completed');
+
+        $this->assertSame(1, CentralWalletLedgerEntry::query()->where('business_reference', $deskReference)->count());
+        $entry = CentralWalletLedgerEntry::query()->where('business_reference', $deskReference)->firstOrFail();
+        $this->assertSame(LedgerEntryType::Credit, $entry->entry_type);
+
+        $refund->refresh();
+        $this->assertSame('CW:'.$entry->id, $refund->execution_reference_no);
+        $this->assertSame((string) $entry->id, $refund->execution_transaction_id);
+        $this->assertNotSame($deskReference, $refund->execution_reference_no);
+        $this->assertNotSame($deskReference, $refund->execution_transaction_id);
+
+        Http::assertSent(function ($request) use ($entry, $deskReference) {
+            return $request->url() === 'https://rdservice.in.test/api/integrations/v1/wallet-refunds'
+                && ($request['central_wallet_ledger_entry_id'] ?? null) === $entry->id
+                && ($request['desk_refund_reference'] ?? null) === $deskReference;
+        });
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund->fresh()), [
+                'execution_reference_no' => 'REF-OVERRIDE',
+                'execution_transaction_id' => 'TXN-OVERRIDE',
+            ])
+            ->assertSessionHasErrors('refund');
+    }
+
+    /**
+     * @return array{0: User, 1: RefundRequest}
+     */
+    private function pendingDeskAuthoritativeWalletRefund(?User $ops, string $deskReference): array
+    {
+        $ops ??= User::factory()->create();
         $ops->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
+        $customerId = (string) Str::uuid();
+        $cwid = (string) Str::uuid();
+        CentralWallet::query()->create(['id' => $cwid, 'status' => 'active']);
+        CentralCustomer::query()->create([
+            'id' => $customerId,
+            'central_wallet_id' => $cwid,
+            'status' => 'active',
+        ]);
+
         $order = Order::query()->create([
-            'order_id' => 'RBX3511999',
-            'serial_number' => 'SN-RBX3511999',
+            'order_id' => 'RD3511999',
+            'customer_id' => $customerId,
+            'serial_number' => 'SN-RD3511999',
             'product_name' => 'Device',
             'device_model' => 'Model',
             'status' => 'active',
@@ -147,10 +225,10 @@ class RefundExecutionReferenceGuardTest extends TestCase
 
         $refund = RefundRequest::query()->create([
             'order_id' => $order->id,
-            'reference_no' => 'REF-2026-000500',
+            'reference_no' => $deskReference,
             'amount' => '617.00',
             'refund_amount' => '617.00',
-            'reason' => 'Wallet refund execution guard test.',
+            'reason' => 'Desk-authoritative wallet execution reference guard test.',
             'status' => RefundStatus::PendingExecution,
             'approved_refund_method' => ApprovedRefundMethod::Wallet,
             'requested_by' => $ops->id,
@@ -159,17 +237,7 @@ class RefundExecutionReferenceGuardTest extends TestCase
             'communication_channels' => [],
         ]);
 
-        $this->actingAs($ops)
-            ->post(route('refunds.complete', $refund), [
-                'execution_reference_no' => 'REF-2026-000500',
-                'execution_transaction_id' => 'REF-2026-000500',
-            ])
-            ->assertRedirect(route('refunds.show', $refund));
-
-        $refund->refresh();
-        $this->assertSame('91055', $refund->execution_transaction_id);
-        $this->assertSame('RD91055', $refund->execution_reference_no);
-        $this->assertNotSame('REF-2026-000500', $refund->execution_reference_no);
+        return [$ops, $refund];
     }
 
     public function test_new_refund_reference_remains_auto_generated_and_sequential(): void

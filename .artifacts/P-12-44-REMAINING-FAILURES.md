@@ -9,15 +9,15 @@
 
 | Classification | Count | Notes |
 | --- | ---: | --- |
-| **VERIFIED FIXED** | **224** | P-13-50 row **220** (test harness admin settings cache) |
-| **STILL FAILING** (active) | **2** | Actionable remediation targets |
+| **VERIFIED FIXED** | **225** | P-13-53 row **135** (Desk-authoritative wallet execution reference guard) |
+| **STILL FAILING** (active) | **1** | Row **136** only |
 | **OWNER EXCLUDED** | **2** | Rows **19**, **98** — permanently out of scope |
 | **ENVIRONMENT BLOCKED** | **0** | CaMonthlyReport harness marked VERIFIED FIXED on main |
 | **UNKNOWN / unverified** | **0** | — |
 
-**Arithmetic:** 224 + 2 + 2 = **228** historical matrix rows.
+**Arithmetic:** 225 + 1 + 2 = **228** historical matrix rows.
 
-**Active remediation total** (excludes Owner-excluded): **2** STILL FAILING.
+**Active remediation total** (excludes Owner-excluded): **1** STILL FAILING.
 
 ### Delta vs prior P-12-44 (216 VERIFIED / 12 STILL FAILING)
 
@@ -45,11 +45,10 @@ Historical P-12-32 failure evidence preserved in matrix `evidence` column. **Not
 
 | Row | Test | Last evidence |
 | ---: | --- | --- |
-| **135** | `RefundExecutionReferenceGuardTest::test_wallet_completion_ignores_manual_execution_reference_fields` | P-12-32 @ `27b03d19` → ERROR |
 | **136** | `RefundStatutoryAdjustmentTest::test_generated_credit_note_follows_ca_monthly_negative_offset_treatment` | P-12-32 @ `27b03d19` → FAIL |
 ## STILL FAILING by workstream (active only)
 
 
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | **2** |
+| WS-10 | **1** |
