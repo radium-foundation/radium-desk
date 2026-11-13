@@ -1,7 +1,7 @@
 # P-12-44 — Remaining failures register
 
 
-**Matrix baseline:** P-12-32 @ `27b03d19`; **P-13-06** @ `b54b0a53`; **P-13-34** @ `7acde4aa`; **P-13-36** refresh @ `origin/main` **`bbf27961e7936de3d84ea9a08138a4501118315b`** (P-13-35 evidence).
+**Matrix baseline:** P-12-32 @ `27b03d19`; **P-13-06** @ `b54b0a53`; **P-13-36** @ `bbf27961`; **P-13-38** refresh @ `origin/main` **`e34ac3cf4e2b2c525a38cf82cda2361068c1900e`** (P-13-37 row 223).
 
 
 ## Totals (recomputed from 228 rows)
@@ -9,18 +9,19 @@
 
 | Classification | Count |
 | --- | ---: |
-| VERIFIED FIXED | 214 |
-| STILL FAILING | 14 |
+| VERIFIED FIXED | 215 |
+| STILL FAILING | 13 |
 | ENVIRONMENT BLOCKED | 0 |
 
-> **P-13-35:** The 14 rows below were **VERIFIED FAIL** on `bbf27961` via focused `phpunit-isolated` (not application defects by default).
+> **P-13-35:** Remaining rows were **VERIFIED FAIL** on `bbf27961` except row **223** closed in **P-13-37**.
+
 
 ## STILL FAILING by workstream
 
 
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | 14 |
+| WS-10 | 13 |
 
 ## Full STILL FAILING list
 
@@ -37,5 +38,4 @@
 - `Tests.Feature.WorkspaceRemarkActionTest::test_note_action_returns_dashboard_refresh_payload` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
 - `Tests.Unit.Notifications.DriverInstallationGuideEmailTemplateTest::test_template_renders_branded_production_content_with_primary_cta` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
 - `Tests.Unit.Notifications.NotificationAuthorityServiceTest::test_ira_telegram_bridge_respects_global_channel_toggle` (WS-10) — P-12-32 phpunit @27b03d19 → FAIL
-- `Tests.Unit.OrderCompletionTooltipTest::test_transaction_assign_tooltip_includes_service_reference_and_assignee` (WS-10) — P-12-32 phpunit @27b03d19 → ERROR
 
