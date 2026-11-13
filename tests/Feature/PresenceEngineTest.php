@@ -127,7 +127,7 @@ class PresenceEngineTest extends TestCase
         $this->post(route('login'), [
             'email' => $owner->email,
             'password' => 'password',
-        ])->assertRedirect(route('dashboard'));
+        ])->assertRedirect(route('admin.platform.index', absolute: false));
 
         $this->assertNull(WorkSession::query()->where('user_id', $owner->id)->first());
     }

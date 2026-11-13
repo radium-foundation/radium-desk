@@ -15,6 +15,16 @@
 
 > **P-13-35:** Remaining rows were **VERIFIED FAIL** on `bbf27961` except rows **223** (P-13-37) and **188** (P-13-39).
 
+## Owner exclusions (P-13-47)
+
+Permanent **out of scope** — retain historical STILL FAILING evidence in P-12-32; **do not** count as active remediation targets:
+
+| Row | Test | Decision |
+| ---: | --- | --- |
+| **19** | `CashfreeHistoricalRecoveryCommandTest::test_failed_webhook_creates_missing_order_on_replay` | **WONT FIX** (P-13-46 skipped) |
+| **98** | `JulyLeaveReconcileCommandTest::test_reconcile_approves_pending_creates_missing_and_matches_matrix` | **WONT FIX** (P-13-44 skipped) |
+
+See **`.artifacts/P-13-47-OWNER-DECISIONS.md`**.
 
 ## STILL FAILING by workstream
 
