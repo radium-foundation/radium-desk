@@ -1,4 +1,4 @@
-@props(['vendor' => null])
+@props(['vendor' => null, 'incidentId' => null])
 
 @php
     use App\Support\Oem\OemWarrantyCheckVendor;
@@ -11,6 +11,9 @@
             class="serial-validation-indicator oem-warranty-check-trigger"
             data-oem-warranty-check
             data-oem-vendor="{{ $vendorEnum->value }}"
+            @if($incidentId)
+                data-incident-id="{{ $incidentId }}"
+            @endif
             data-bs-toggle="tooltip"
             data-bs-placement="top"
             data-bs-title="Check OEM warranty / renewal"

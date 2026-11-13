@@ -2097,6 +2097,22 @@ a:focus-visible .stat-card {
     cursor: wait;
 }
 
+.oem-handoff-draft-panel__dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15rem 0.5rem;
+    margin: 0;
+}
+
+.oem-handoff-draft-panel__dl dt {
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.oem-handoff-draft-panel__dl dd {
+    margin: 0;
+}
+
 .dashboard-cases-table .dashboard-product-cell {
     color: #adb5bd;
     font-weight: 400;
