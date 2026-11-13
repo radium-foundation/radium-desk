@@ -13,8 +13,10 @@ use App\Services\IncidentWaitingStateService;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\RemarkService;
 use App\Services\ServiceCaseStatusService;
+use App\Support\Remarks\RemarkSystemSource;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -74,9 +76,9 @@ class CustomerWaitingLegacyCleanupService
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, Incident>
+     * @return Collection<int, Incident>
      */
-    public function legacyCandidates(): \Illuminate\Support\Collection
+    public function legacyCandidates(): Collection
     {
         return Incident::query()
             ->where('status', '!=', IncidentStatus::Closed)
@@ -143,10 +145,16 @@ class CustomerWaitingLegacyCleanupService
                     remarkable: $incident,
                     actor: $actor,
                     body: CustomerWaitingLifecycleService::LEGACY_CLEANUP_REMARK,
-                    systemSource: \App\Support\Remarks\RemarkSystemSource::CUSTOMER_WAITING_LEGACY_CLEANUP,
+                    systemSource: RemarkSystemSource::CUSTOMER_WAITING_LEGACY_CLEANUP,
                 );
 
-                $this->serviceCaseStatusService->updateStatus($incident, IncidentStatus::Closed, $actor);
+                $this->serviceCaseStatusService->updateStatus(
+                    incident: $incident,
+                    status: IncidentStatus::Closed,
+                    actor: $actor,
+                    broadcast: false,
+                    issueStatutoryInvoice: false,
+                );
                 $this->waitingStateService->clearActiveIfPresent($incident, $actor);
 
                 $this->auditLogService->log(
