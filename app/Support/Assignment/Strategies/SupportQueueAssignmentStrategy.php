@@ -31,16 +31,16 @@ class SupportQueueAssignmentStrategy implements AssignmentStrategy
     {
         $incident = $request->incident->fresh(['assignee', 'order']);
 
-        if ($incident->assigned_to_user_id !== null) {
-            return $incident;
-        }
-
         if ($request->trigger === AssignmentTrigger::ValidationFailure) {
             return $this->assignmentService->reassignToSupportAgentViaRoundRobin(
                 incident: $incident,
                 actor: $request->actor,
                 at: $request->at,
             );
+        }
+
+        if ($incident->assigned_to_user_id !== null) {
+            return $incident;
         }
 
         if ($request->trigger === AssignmentTrigger::OnCreate) {
