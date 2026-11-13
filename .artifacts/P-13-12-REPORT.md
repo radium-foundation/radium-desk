@@ -9,7 +9,7 @@
 | Baseline | `3fd6975c5376d37f1806de0c20490b44d31614da` (`origin/main` post PR #212) |
 | Program baseline | `f358ab04a9a57623085f19c47c6e0045d9b0a7ea` |
 | Report started | 2026-11-13 09:38:00 IST |
-| Report completed | 2026-11-13 09:45:00 IST |
+| Report completed | 2026-11-13 09:42:30 IST |
 
 ## Assigned rows (2)
 
@@ -71,10 +71,10 @@ Full PHPUnit suite: **NOT RUN**.
 
 | Item | Status |
 | --- | --- |
-| Commit | _(pending)_ |
-| PR | _(pending)_ |
-| CI | _(pending)_ |
-| Merge SHA | _(pending)_ |
+| Commit | `10aac3e3` |
+| PR | [#213](https://github.com/radium-foundation/radium-desk/pull/213) |
+| CI | **rip** + **release-rip** PASS ([rip](https://github.com/radium-foundation/radium-desk/actions/runs/43363886573)) |
+| Merge SHA | **`aaeb19354a63b62be5c444fbd670a761f72f8802`** |
 
 ## Data risks / Owner approval
 
@@ -99,4 +99,4 @@ No changes to P-12-49 dashboard snapshot rules or P-13-04 ready-queue eligibilit
 | Worktree + prechecks | ~3 min |
 | Repro + trace | ~5 min |
 | Fix + validation | ~4 min |
-| Report + git gates | _(in progress)_ |
+| Report + git gates | ~3 min |
