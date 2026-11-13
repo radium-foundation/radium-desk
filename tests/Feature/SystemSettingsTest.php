@@ -25,6 +25,7 @@ class SystemSettingsTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
     }
@@ -54,7 +55,7 @@ class SystemSettingsTest extends TestCase
             ->assertOk()
             ->assertSee('Settings')
             ->assertSee('General')
-            ->assertSee('Assignment');
+            ->assertSee('Application');
     }
 
     public function test_superadmin_can_view_notification_settings(): void
@@ -64,7 +65,7 @@ class SystemSettingsTest extends TestCase
         $this->actingAs($superadmin)
             ->get(route('settings.index', ['tab' => 'notifications']))
             ->assertOk()
-            ->assertSee('System Settings')
+            ->assertSee('Notifications')
             ->assertSee('Assignment notifications')
             ->assertSee('Transaction notifications')
             ->assertSee('High priority notifications')

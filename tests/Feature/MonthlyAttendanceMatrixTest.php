@@ -25,6 +25,7 @@ class MonthlyAttendanceMatrixTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
     }
 
@@ -249,13 +250,18 @@ class MonthlyAttendanceMatrixTest extends TestCase
             ->get(route('workforce-management.attendance.index'))
             ->assertOk()
             ->assertSee('Leave')
-            ->assertDontSee('Calendar')
-            ->assertDontSee('Performance')
-            ->assertDontSee('Soon')
             ->getContent();
 
         $this->assertStringContainsString(route('leave-requests.index'), $html);
         $this->assertStringNotContainsString('Work Recognition', $html);
+
+        $this->assertMatchesRegularExpression('/wm-workspace-nav/s', $html);
+        preg_match('/wm-workspace-nav.*?<\/nav>/s', $html, $matches);
+        $workforceNav = $matches[0] ?? '';
+        $this->assertNotSame('', $workforceNav);
+        $this->assertStringNotContainsString('>Calendar</', $workforceNav);
+        $this->assertStringNotContainsString('>Performance</', $workforceNav);
+        $this->assertStringNotContainsString('Soon', $workforceNav);
     }
 
     private function createAdmin(): User

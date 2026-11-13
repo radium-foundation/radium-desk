@@ -21,22 +21,23 @@ class HybridRealtimePhase3Test extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SystemSettingsSeeder::class);
     }
 
     public function test_system_settings_page_shows_phase_three_hybrid_features(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $superadmin = User::factory()->create();
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
-        $this->actingAs($admin)
-            ->get(route('admin.system-settings.index'))
+        $this->actingAs($superadmin)
+            ->get(route('admin.platform-configuration.index'))
             ->assertOk()
             ->assertSee('Incoming Calls')
             ->assertSee('Desktop Notifications')
             ->assertSee('Operator Alerts')
-            ->assertSee('Notification Delivery')
+            ->assertSee('Delivery Preferences')
             ->assertSee('Priority threshold');
     }
 

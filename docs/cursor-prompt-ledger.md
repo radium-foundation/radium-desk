@@ -967,4 +967,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-12 | 2026-11-13 | **P-13-12** WS-10 RadiumBox backfill commands (2 matrix rows) | **Claimed** **`RadiumDesk-P-13-12`**. Worktree **`.worktrees/p13-12-radiumbox-backfill`** @ **`origin/main`** **`3fd6975c`**. Backfill commands use `Order::isMissingDeviceEnrichment()` vs broad `needsEnrichment()`. Cluster **2/2** + regressions **30/30**. No prod backfill / no RadiumBox repo. **`.artifacts/P-13-12-REPORT.md`**. |
 
+| RadiumDesk-P-13-13 | 2026-11-13 | **P-13-13** WS-10 sidebar/settings labels (8 matrix rows) | **Claimed** **`RadiumDesk-P-13-13`**. Worktree **`.worktrees/p13-13-sidebar-labels`** @ **`origin/main`** **`a7df720b`**. Root cause **TEST_SETUP** (`withoutVite`) + stale `assertSee` vs current nav/settings surfaces. Cluster **8/8** + six classes **69/69**. **No** product label/permission changes. **`.artifacts/P-13-13-REPORT.md`**. |
+
 Do not renumber or overwrite earlier rows. Append only.
