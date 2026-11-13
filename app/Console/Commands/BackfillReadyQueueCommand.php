@@ -162,7 +162,7 @@ class BackfillReadyQueueCommand extends Command
         }
 
         $status = $this->syncStore->status($order->id);
-        $needsEnrichmentPath = $this->radiumBoxService->needsEnrichment($order)
+        $needsEnrichmentPath = $order->isMissingDeviceEnrichment()
             || $status === RadiumBoxEnrichmentSyncStatus::Pending
             || $status === RadiumBoxEnrichmentSyncStatus::Failed;
 
@@ -182,7 +182,7 @@ class BackfillReadyQueueCommand extends Command
             return ['type' => 'process', 'action' => 'retry_enrichment'];
         }
 
-        if ($this->radiumBoxService->needsEnrichment($order)) {
+        if ($order->isMissingDeviceEnrichment()) {
             return ['type' => 'process', 'action' => 'dispatch_enrichment'];
         }
 

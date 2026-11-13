@@ -965,4 +965,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-11 | 2026-11-13 | **P-13-11** WS-10 RBP hardware classification (3 matrix rows) | **Claimed** **`RadiumDesk-P-13-11`**. Worktree **`.worktrees/p13-11-rbp-hardware`** @ **`origin/main`** **`9da7f938`**. Split: preserve `BusinessOrderId` RBP product hardware; exclude RBP from `Order::isHardwareOrderId` and isolated hardware fulfilment. Cluster **3/3** + regressions **16/16** (`phpunit-isolated`). Full suite / deploy / prod **NOT RUN**. Wallet **`d9481615`** verify only. **`.artifacts/P-13-11-REPORT.md`**. |
 
+| RadiumDesk-P-13-12 | 2026-11-13 | **P-13-12** WS-10 RadiumBox backfill commands (2 matrix rows) | **Claimed** **`RadiumDesk-P-13-12`**. Worktree **`.worktrees/p13-12-radiumbox-backfill`** @ **`origin/main`** **`3fd6975c`**. Backfill commands use `Order::isMissingDeviceEnrichment()` vs broad `needsEnrichment()`. Cluster **2/2** + regressions **30/30**. No prod backfill / no RadiumBox repo. **`.artifacts/P-13-12-REPORT.md`**. |
+
 Do not renumber or overwrite earlier rows. Append only.
