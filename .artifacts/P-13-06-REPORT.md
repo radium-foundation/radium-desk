@@ -7,10 +7,10 @@
 | Claim artifact | `.artifacts/ledger-claim-RadiumDesk-P-13-06.md` |
 | Repository | `/Users/ravi/RadiumWebsites/radium-desk` |
 | Worktree | `.worktrees/p13-06-register-reconcile` → `feature/p13-06-ws10-register-reconcile` |
-| Verified `origin/main` SHA (reconcile baseline) | **`b54b0a53c26f1f123cf37921306929c0fce44543`** (merge **#216**, 2026-11-13) |
+| Verified `origin/main` SHA (post-merge) | **`041c616bb086d4758475b1d0111f28c90c4d6f26`** (merge **#217**); reconcile evidence baseline **`b54b0a53`** |
 | Wallet preservation | `feature/p18-33-unified-wallet-display` @ **`d94816153cd2c89f8175d29a1510b38b4c16df6b`** — **not modified** |
 | Start | **2026-11-13 10:04:12 IST** |
-| End | **2026-11-13 10:08:05 IST** (register + report; PR merge timestamp recorded below when available) |
+| End | **2026-11-13 10:08:35 IST** (register + report); merge **2026-11-13 10:08:34 IST** |
 
 ---
 
@@ -173,15 +173,15 @@ Full list: `.artifacts/P-12-44-REMAINING-FAILURES.md` @ `b54b0a53`.
 
 ---
 
-## 11. Git / PR / CI (fill after merge)
+## 11. Git / PR / CI
 
 | Field | Value |
 | --- | --- |
 | Branch | `feature/p13-06-ws10-register-reconcile` |
-| Commit | *(recorded post-push)* |
-| PR | *(recorded post-create)* |
-| CI | *(recorded post-run)* |
-| Verified merge SHA | *(recorded post-merge)* |
+| Commit | `3888e950a1d1f42cc13cc30b938f955e1bdafe68` |
+| PR | [#217](https://github.com/radium-foundation/radium-desk/pull/217) |
+| CI | `rip` **PASS**, `release-rip` **PASS** (runs 43366748887 / 43366748905) |
+| Verified merge SHA | **`041c616bb086d4758475b1d0111f28c90c4d6f26`** (merge PR #217) |
 
 ---
 
