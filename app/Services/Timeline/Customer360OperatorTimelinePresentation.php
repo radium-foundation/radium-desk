@@ -85,10 +85,6 @@ class Customer360OperatorTimelinePresentation
             return true;
         }
 
-        if (str_starts_with($event->dedupeKey, 'identity-protection:')) {
-            return true;
-        }
-
         if (str_starts_with($event->dedupeKey, 'order-created:')) {
             return true;
         }
@@ -131,10 +127,6 @@ class Customer360OperatorTimelinePresentation
         }
 
         if ($event->type === TimelineEventType::Email || $event->type === TimelineEventType::WhatsApp) {
-            return true;
-        }
-
-        if (str_starts_with($event->dedupeKey, 'serial-correction:audit:')) {
             return true;
         }
 

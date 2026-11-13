@@ -363,6 +363,7 @@ class OrderIdentityProtectionTest extends TestCase
             'serial_entered_by_user_id' => $admin->id,
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_pay_identity_protection',
             'status' => 'active',
             'created_by' => $admin->id,
         ]);
