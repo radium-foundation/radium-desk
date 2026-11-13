@@ -9,15 +9,15 @@
 
 | Classification | Count | Notes |
 | --- | ---: | --- |
-| **VERIFIED FIXED** | **225** | P-13-53 row **135** (Desk-authoritative wallet execution reference guard) |
-| **STILL FAILING** (active) | **1** | Row **136** only |
+| **VERIFIED FIXED** | **226** | P-13-54 row **136** (CA monthly refund cancellation reporting) |
+| **STILL FAILING** (active) | **0** | — |
 | **OWNER EXCLUDED** | **2** | Rows **19**, **98** — permanently out of scope |
 | **ENVIRONMENT BLOCKED** | **0** | CaMonthlyReport harness marked VERIFIED FIXED on main |
 | **UNKNOWN / unverified** | **0** | — |
 
 **Arithmetic:** 225 + 1 + 2 = **228** historical matrix rows.
 
-**Active remediation total** (excludes Owner-excluded): **1** STILL FAILING.
+**Active remediation total** (excludes Owner-excluded): **0** STILL FAILING.
 
 ### Delta vs prior P-12-44 (216 VERIFIED / 12 STILL FAILING)
 
@@ -42,13 +42,10 @@ Historical P-12-32 failure evidence preserved in matrix `evidence` column. **Not
 
 ## STILL FAILING (active)
 
+None (row **136** → **VERIFIED FIXED** via P-13-54).
 
-| Row | Test | Last evidence |
-| ---: | --- | --- |
-| **136** | `RefundStatutoryAdjustmentTest::test_generated_credit_note_follows_ca_monthly_negative_offset_treatment` | P-12-32 @ `27b03d19` → FAIL |
 ## STILL FAILING by workstream (active only)
-
 
 | Workstream | Count |
 | --- | ---: |
-| WS-10 | **1** |
+| — | **0** |

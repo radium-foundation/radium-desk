@@ -5,6 +5,7 @@ namespace App\ReadModels\Finance;
 use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceStatus;
 use App\Models\StatutoryInvoice;
+use App\Reports\CaMonthly\CaMonthlyReportCancellationReportingScope;
 use App\Reports\CaMonthly\CaMonthlyReportDefinition;
 use App\Reports\CaMonthly\CaMonthlyReportInvoiceExportBuilder;
 use App\Reports\CaMonthly\CaMonthlyReportInvoiceExportRow;
@@ -395,20 +396,11 @@ class CaMonthlyStatutoryLineReadModel
 
     private function filteredInvoiceQuery(Request $request): Builder
     {
-        return StatutoryInvoice::query()
-            ->where(function (Builder $query): void {
-                $query->where('document_type', StatutoryInvoiceDocumentType::CreditNote)
-                    ->orWhereIn('status', [
-                        StatutoryInvoiceStatus::Issued,
-                        StatutoryInvoiceStatus::Cancelled,
-                    ]);
-            })
-            ->tap(function (Builder $query) use ($request): void {
-                ReportPeriod::fromRequest($request)->apply(
-                    $query,
-                    CaMonthlyReportDefinition::AUTHORITATIVE_DATE_COLUMN,
-                );
-            });
+        $period = ReportPeriod::fromRequest($request);
+
+        return StatutoryInvoice::query()->tap(function (Builder $query) use ($period): void {
+            CaMonthlyReportCancellationReportingScope::applyPeriodFilter($query, $period);
+        });
     }
 
     /**

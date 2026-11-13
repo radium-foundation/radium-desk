@@ -46,6 +46,7 @@ class RefundStatutoryAdjustmentTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         Storage::fake('local');
         $this->seed(RolePermissionSeeder::class);
         $this->seed(FinanceMasterDataSeeder::class);
@@ -295,7 +296,13 @@ class RefundStatutoryAdjustmentTest extends TestCase
 
     public function test_generated_credit_note_follows_ca_monthly_negative_offset_treatment(): void
     {
+        Carbon::setTestNow('2026-11-15 12:00:00');
+
         [$order, $invoice, $refund] = $this->fullRefundFixture();
+        $refund->update([
+            'executed_at' => '2026-09-20 10:00:00',
+            'closed_at' => '2026-09-20 10:00:00',
+        ]);
         $this->attachSubmittedIrn($invoice, hoursAgo: 72);
 
         $this->enqueueAndProcess($refund);
@@ -305,10 +312,13 @@ class RefundStatutoryAdjustmentTest extends TestCase
             ->where('document_type', StatutoryInvoiceDocumentType::CreditNote)
             ->firstOrFail();
 
+        $this->assertSame('2026-11-15 12:00:00', $creditNote->fresh()->issued_at?->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-09-10 10:00:00', $invoice->fresh()->issued_at?->format('Y-m-d H:i:s'));
+
         $readModel = app(CaMonthlyStatutoryLineReadModel::class);
         $request = Request::create('/', 'GET', [
-            'date_from' => '2026-09-01',
-            'date_to' => '2026-09-30',
+            'date_from' => '2026-11-01',
+            'date_to' => '2026-11-30',
         ]);
         $preflight = $readModel->preflight($request);
         $rows = $readModel->exportRows($request);
@@ -317,7 +327,11 @@ class RefundStatutoryAdjustmentTest extends TestCase
         $this->assertSame('0.00', $preflight->taxableAmountTotal);
         $this->assertSame('0.00', $preflight->totalAmountTotal);
         $this->assertCount(2, $rows);
-        $this->assertSame($creditNote->invoice_number, $rows[1][2]);
+        $invoiceNumbers = array_column($rows, 2);
+        $this->assertContains($invoice->invoice_number, $invoiceNumbers);
+        $this->assertContains($creditNote->invoice_number, $invoiceNumbers);
+
+        Carbon::setTestNow();
     }
 
     public function test_refund_show_displays_statutory_adjustment_status(): void

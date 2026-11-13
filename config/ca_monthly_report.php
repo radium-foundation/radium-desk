@@ -79,6 +79,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Refund / credit-note cancellation reporting (CA monthly)
+    |--------------------------------------------------------------------------
+    |
+    | Credit notes appear in a report period by their real issued_at. Original
+    | invoices may be included in the same period when paired with an eligible
+    | credit note. Cancellation initiation must be on or after this date (inclusive).
+    |
+    */
+
+    'refund_cancellation_eligible_on_or_after' => env(
+        'CA_MONTHLY_REPORT_REFUND_CANCELLATION_ELIGIBLE_ON_OR_AFTER',
+        '2026-09-07',
+    ),
+
+    /*
+    |--------------------------------------------------------------------------
     | Super Admin download history window
     |--------------------------------------------------------------------------
     |

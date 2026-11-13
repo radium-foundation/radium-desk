@@ -18,6 +18,8 @@ use App\Models\EInvoiceRecord;
 use App\Models\InventoryBranch;
 use App\Models\InventoryCustomer;
 use App\Models\PaymentAllocation;
+use App\Models\StatutoryInvoice;
+use App\Models\StatutoryInvoiceCancellation;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
@@ -634,18 +636,27 @@ class CaMonthlyReportTest extends TestCase
 
     public function test_credit_note_is_included_with_document_type_label(): void
     {
+        $original = $this->makeTaxInvoice([
+            'issued_at' => '2026-09-08 10:00:00',
+            'invoice_number' => 'INV-CN-LABEL',
+        ]);
+        $this->recordEligibleCancellationInitiation($original, '2026-09-10 10:00:00');
+
         $this->makeTaxInvoice([
             'issued_at' => '2026-09-10 10:00:00',
             'document_type' => StatutoryInvoiceDocumentType::CreditNote,
             'invoice_number' => 'CN-2026-0001',
+            'original_statutory_invoice_id' => $original->id,
         ]);
 
         $readModel = app(CaMonthlyStatutoryLineReadModel::class);
         $preflight = $readModel->preflight($this->request());
-        $row = $readModel->exportRows($this->request())[0];
+        $rows = $readModel->exportRows($this->request());
+        $creditNoteRow = collect($rows)->first(fn (array $row): bool => $row[2] === 'CN-2026-0001');
 
         $this->assertSame(1, $preflight->creditNoteCount);
-        $this->assertSame('CN-2026-0001', $row[2]);
+        $this->assertNotNull($creditNoteRow);
+        $this->assertSame('Credit Note', $creditNoteRow[3]);
     }
 
     public function test_original_invoice_and_linked_credit_note_net_to_zero_without_double_counting(): void
@@ -663,6 +674,7 @@ class CaMonthlyReportTest extends TestCase
             'original_statutory_invoice_id' => $original->id,
             'buyer_gstin' => '07AAAAA0000A1Z5',
         ]);
+        $this->recordEligibleCancellationInitiation($original, '2026-09-11 10:00:00');
 
         $readModel = app(CaMonthlyStatutoryLineReadModel::class);
         $preflight = $readModel->preflight($this->request());
@@ -1302,6 +1314,19 @@ class CaMonthlyReportTest extends TestCase
         $this->assertSame('118.00', $this->readXlsxRow($path, 4)[19]);
 
         @unlink($path);
+    }
+
+    private function recordEligibleCancellationInitiation(StatutoryInvoice $original, string $completedAt): void
+    {
+        $actor = User::factory()->create();
+
+        StatutoryInvoiceCancellation::query()->create([
+            'statutory_invoice_id' => $original->id,
+            'idempotency_key' => 'ca-monthly-test-'.$original->id,
+            'actor_id' => $actor->id,
+            'reason' => 'Eligible cancellation for CA monthly reporting test.',
+            'completed_at' => $completedAt,
+        ]);
     }
 
     private function request(): Request
