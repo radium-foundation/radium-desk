@@ -10,6 +10,8 @@
 | Merge (matrix docs) | PR **#176** → **`65cc1d28`** on `main` |
 | Post-merge CI | **P-12-33 VERIFIED:** `rip` + `release-rip` **PASSED** on `65cc1d28` ([evidence](P-12-33-PR176-CI-EVIDENCE.md)); closes PR #176 “CI rip / release-rip pending at merge” |
 
+**P-13-48 register reconcile @ `51ee6d7e` (2026-11-13):** **222** VERIFIED FIXED · **4** STILL FAILING (active) · **2** OWNER EXCLUDED (rows **19**, **98**) · **0** ENVIRONMENT BLOCKED. See `.artifacts/P-13-48-REGISTER-RECONCILE.md` and updated `.artifacts/P-12-44-REMAINING-FAILURES.md`.
+
 ## Merged PRs #166–#175
 
 - **#166** merge `1ced12ea` — WS-02 Order factory / C360 timeline unit
