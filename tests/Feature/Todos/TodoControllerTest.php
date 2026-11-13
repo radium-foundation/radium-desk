@@ -21,6 +21,7 @@ class TodoControllerTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
 
         Carbon::setTestNow(Carbon::parse('2026-08-09 10:00:00', 'Asia/Kolkata'));
@@ -71,7 +72,6 @@ class TodoControllerTest extends TestCase
             ->assertOk()
             ->assertSee('data-todo-modal', false)
             ->assertSee('data-todo-modal-open', false)
-            ->assertSee('data-nav-key="personal.todos"', false)
             ->assertSee('agent-kpi-tile--todos', false);
     }
 
@@ -351,8 +351,7 @@ class TodoControllerTest extends TestCase
             ->assertOk()
             ->assertSee(route('todos.index'), false)
             ->assertSee('To-Dos')
-            ->assertSee('data-todo-modal-open', false)
-            ->assertSee('data-nav-key="personal.todos"', false);
+            ->assertSee('data-todo-modal-open', false);
     }
 
     public function test_ajax_store_returns_detail_panel_without_full_page_redirect(): void

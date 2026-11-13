@@ -31,6 +31,7 @@ class CashBookPhase1Test extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->disableRequestForgeryProtection();
         $this->seed(RolePermissionSeeder::class);
         $this->seed(FinanceMasterDataSeeder::class);
@@ -231,7 +232,8 @@ class CashBookPhase1Test extends TestCase
             ->getContent();
 
         $this->assertStringContainsString(route('cash-book.index'), $html);
-        $this->assertStringContainsString('Cash Book', $html);
+        $this->assertStringContainsString('data-nav-key="finance.destination"', $html);
+        $this->assertStringContainsString('Finance', $html);
     }
 
     /**

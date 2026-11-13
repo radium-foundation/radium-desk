@@ -22,6 +22,7 @@ class PlatformIdentityTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
 
@@ -197,8 +198,8 @@ class PlatformIdentityTest extends TestCase
     public function test_changelog_page_shows_empty_state_when_release_notes_missing(): void
     {
         (new ReleaseManifestStore)->write([
-            'version' => '4.0.2',
-            'tag' => 'v4.0.2',
+            'version' => '99.99.98',
+            'tag' => 'v99.99.98',
             'build' => '6b1b3f7',
             'deployed_at' => '2026-07-28T00:00:00+00:00',
             'release_date' => '2026-07-26',
@@ -214,7 +215,7 @@ class PlatformIdentityTest extends TestCase
         $response = $this->actingAs($user)->get(route('changelog.index'));
 
         $response->assertOk();
-        $response->assertSee('Release notes for v4.0.2 are not available.', false);
+        $response->assertSee('Release notes for v99.99.98 are not available.', false);
         $response->assertDontSee('Workforce availability intelligence', false);
     }
 
