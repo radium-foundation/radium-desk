@@ -142,7 +142,7 @@ class ProductOrderRequestSerialExclusionTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('data-workspace-trigger="request-serial"', false)
-            ->assertSee('Request Serial Number', false);
+            ->assertSee('Request Serial', false);
     }
 
     public function test_rd_order_missing_serial_automation_still_works(): void
