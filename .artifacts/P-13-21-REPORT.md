@@ -107,7 +107,15 @@ Full PHPUnit suite: **NOT RUN**
 
 ## Git / PR / CI
 
-*(pending merge footer)*
+| Field | Value |
+| --- | --- |
+| Branch | `feature/p13-21-customer-waiting` |
+| Starting HEAD | `ac3a3d03186d3b6f6f483529426c937e29c579e1` |
+| Feature commit | `595d32fca53dc39dd4658fa902cee5579cf394ec` |
+| PR | [#227](https://github.com/radium-foundation/radium-desk/pull/227) |
+| Pre-merge CI | `rip` + `release-rip` **SUCCESS** |
+| Verified merge SHA | **`011a120cc7eb805a83bce41730bacbb5f184d487`** |
+| Post-merge `origin/main` | **`011a120cc7eb805a83bce41730bacbb5f184d487`** |
 
 Production / deployment: **NO — Not performed**
 
@@ -115,4 +123,4 @@ Wallet @ **`d9481615`**: **VERIFIED** unchanged.
 
 ---
 
-*End of P-13-21 report (pre-merge footer).*
+*End of P-13-21 report.*
