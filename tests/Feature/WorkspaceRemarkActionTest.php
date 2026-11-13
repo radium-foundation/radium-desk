@@ -171,10 +171,15 @@ class WorkspaceRemarkActionTest extends TestCase
             ])
             ->assertJsonPath('refresh.replace_row.incident_id', $incident->id);
 
-        $this->assertStringContainsString(
-            'data-workspace-trigger="remark"',
-            (string) $response->json('refresh.replace_row.html'),
-        );
+        $rowHtml = (string) $response->json('refresh.replace_row.html');
+        $this->assertStringContainsString('id="service-case-row-'.$incident->id.'"', $rowHtml);
+        $this->assertStringContainsString('data-incident-id="'.$incident->id.'"', $rowHtml);
+        $this->assertStringNotContainsString('data-workspace-trigger="remark"', $rowHtml);
+
+        $this->assertDatabaseHas('remarks', [
+            'remarkable_id' => $incident->id,
+            'body' => 'Dashboard note from workspace.',
+        ]);
     }
 
     public function test_note_action_is_forbidden_for_unauthorized_user(): void
