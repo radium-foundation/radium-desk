@@ -1052,4 +1052,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-23 | 2026-11-14 | **P-14-23** Fix final Hostinger gate before remote chown ChatGPT **P-14-23** | **[PR #259](https://github.com/radium-foundation/radium-desk/pull/259)**: final GET **before** `ensure_remote_deploy_ownership`; deploy lock held until script **EXIT** (operator-local only). Order test **PASS**. **NO** merge/deploy/POST. |
 
+| RadiumDesk-P-14-05 | 2026-11-14 | **P-14-05** OEM `v4.1.66` release regression validation ChatGPT **P-14-05** | @ tag **`v4.1.66`** (`**28e33f8d**`); app tree = **`73f849f7`**. CW **438** (**430** pass, **8** skip); wallet/refund **122**; OEM **59**; journeys **54**; JS **7**; ext **22**. **Full PHPUnit BLOCKED** — PHP **540s** limit in `HistoricalInvoiceReprintTest` after **~4234s** (exit **2**). Artifacts **`.worktrees/p2130-validate/.artifacts/p14-05-validation/`**. **09:22–11:32 IST**. **NO** deploy/prod. DB restore **BLOCKED**. |
+
 Do not renumber or overwrite earlier rows. Append only.
