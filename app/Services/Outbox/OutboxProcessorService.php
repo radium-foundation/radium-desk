@@ -26,6 +26,8 @@ use App\Services\Interakt\InteraktFlowWebhookProcessorService;
 use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\Interakt\InteraktOutboundProcessorService;
 use App\Services\Interakt\InteraktWebhookOutboxWriter;
+use App\Services\RadiumBox\RadiumBoxPaymentConfirmationOutboxProcessor;
+use App\Services\RadiumBox\RadiumBoxPaymentConfirmationOutboxWriter;
 use App\Services\Interakt\InteraktWebhookProcessorService;
 use App\Services\Refunds\RefundStatutoryAdjustmentOutboxWriter;
 use App\Services\Refunds\RefundStatutoryAdjustmentProcessor;
@@ -62,6 +64,7 @@ class OutboxProcessorService
         private readonly ServiceStatutoryInvoiceMintProcessor $serviceStatutoryInvoiceMintProcessor,
         private readonly RefundStatutoryAdjustmentProcessor $refundStatutoryAdjustmentProcessor,
         private readonly HardwareFulfilmentCallbackProcessor $hardwareFulfilmentCallbackProcessor,
+        private readonly RadiumBoxPaymentConfirmationOutboxProcessor $radiumBoxPaymentConfirmationOutboxProcessor,
     ) {}
 
     public function process(?int $limit = null): int
@@ -208,6 +211,7 @@ class OutboxProcessorService
             ServiceStatutoryInvoiceMintOutboxWriter::EVENT_TYPE => $this->serviceStatutoryInvoiceMintProcessor->process($event),
             RefundStatutoryAdjustmentOutboxWriter::EVENT_TYPE => $this->refundStatutoryAdjustmentProcessor->process($event),
             HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE => $this->hardwareFulfilmentCallbackProcessor->process($event),
+            RadiumBoxPaymentConfirmationOutboxWriter::EVENT_TYPE => $this->radiumBoxPaymentConfirmationOutboxProcessor->process($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
     }

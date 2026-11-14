@@ -41,6 +41,10 @@ return [
     */
     'wallet_refund_credit_enabled' => filter_var(env('RADIUMBOX_WALLET_REFUND_CREDIT_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
+    'wallet_refund' => [
+        'resolve_spoke_order_id' => filter_var(env('RADIUMBOX_WALLET_REFUND_RESOLVE_SPOKE_ORDER_ID', true), FILTER_VALIDATE_BOOLEAN),
+    ],
+
     /*
     | Desk → radiumbox.com storefront catalog price sync. Uses the storefront
     | integration token/base URL from config/order_lookup.php (radiumbox_com spoke).
@@ -60,6 +64,8 @@ return [
         'enabled' => filter_var(env('RADIUMBOX_PAYMENT_CONFIRM_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
         'connect_timeout_seconds' => (int) env('RADIUMBOX_PAYMENT_CONFIRM_CONNECT_TIMEOUT_SECONDS', 3),
         'timeout_seconds' => (int) env('RADIUMBOX_PAYMENT_CONFIRM_TIMEOUT_SECONDS', 15),
+        'outbox_enabled' => filter_var(env('RADIUMBOX_PAYMENT_CONFIRM_OUTBOX_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'drain_on_enqueue' => filter_var(env('RADIUMBOX_PAYMENT_CONFIRM_DRAIN_ON_ENQUEUE', true), FILTER_VALIDATE_BOOLEAN),
     ],
 
     'handoff_reconciliation' => [
