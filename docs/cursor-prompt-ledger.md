@@ -1090,4 +1090,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-73 | 2026-11-14 | **P-14-73** Commit + annotated tag **`v4.1.67`** release metadata ChatGPT **P-14-73** | Branch from **`ecc98a9d5`**. Owner-approved **`CHANGELOG.md`** + ledger (**P-14-72** wording). Annotated tag **`v4.1.67`**. Push branch + tag to **origin**. **NO** deploy/migrate/seed/prod recovery. |
 
+| RadiumDesk-P-14-89 | 2026-11-14 | **P-14-89** Enable safe automatic RBP hardware fulfilment (Option A) ChatGPT **P-14-89** | Worktree **`.worktrees/p14-80-v4167-deploy`** **PR [#264](https://github.com/radium-foundation/radium-desk/pull/264)** **MERGED** → **`origin/main`** **`baa519325`** (feat **`1a961cadc`** @ base **`02cae82ac`**). Paid **physical RBP** channel ingest opens HF; **`desk:monitor-rbp-hardware-fulfilment-gaps`** scheduled read-only monitor. Focused PHPUnit **33/33 PASS**; full suite + MySQL RBP concurrency **NOT RUN**. CI **rip/release-rip/hardware-sku-map-rip PASS**. **NO** prod deploy. Cursor **`e6c3d1f5-d67d-4af0-a872-b849091c382b`**. |
+
 Do not renumber or overwrite earlier rows. Append only.
