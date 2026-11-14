@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 class RadiumBoxPaymentConfirmationService
 {
     public function __construct(
-        private readonly RadiumBoxPaymentConfirmationClient $client,
+        private readonly RadiumBoxPaymentDownstreamGatewayResolver $gatewayResolver,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
     ) {}
 
@@ -35,7 +35,7 @@ class RadiumBoxPaymentConfirmationService
         }
 
         return $parsed['owner'] === 'radiumbox.com'
-            && $parsed['hardware'] === true;
+            && ($parsed['hardware'] === true || BusinessOrderId::isRadiumBoxService($order->order_id));
     }
 
     public function missingCommerceHandoff(Order $order): bool
@@ -84,17 +84,14 @@ class RadiumBoxPaymentConfirmationService
             );
         }
 
-        // Box Cashfree sessions use the business order code (RBP*/RDE*) as cf_order_id.
+        // Box Cashfree sessions use the business order code (RBP*/RDE*/RB*) as cf_order_id.
         // Desk webhooks store Cashfree's numeric gateway_order_id separately; sending that
         // to Box confirm-payment breaks resolvePayable() and caused RBP94 not_found.
-        $gatewayOrderId = trim((string) $order->order_id);
-        $paymentId = trim((string) ($order->cashfree_payment_id ?? ''));
-        $paymentId = $paymentId !== '' ? $paymentId : null;
-
-        $result = $this->client->confirmPayment($gatewayOrderId, $paymentId, $dryRun);
+        $gateway = $this->gatewayResolver->resolve();
+        $result = $gateway->notifyPaid($order, $dryRun);
 
         if ($result->ok && ! $dryRun) {
-            $this->recordConfirmationOutcome($order, $result);
+            $this->recordConfirmationOutcome($order, $result, $gateway->contractName());
         } elseif ($result->retriable) {
             $this->syncStore->markReconciliationRequired(
                 $order->id,
@@ -107,10 +104,10 @@ class RadiumBoxPaymentConfirmationService
             );
         }
 
-        Log::info('[RadiumBox payment confirm] Desk invoked Box confirm-payment.', [
+        Log::info('[RadiumBox payment confirm] Desk delivered payment downstream notification.', [
             'order_id' => $order->order_id,
             'order_db_id' => $order->id,
-            'gateway_order_id' => $gatewayOrderId,
+            'contract' => $gateway->contractName(),
             'status' => $result->status,
             'ok' => $result->ok,
             'first_paid' => $result->firstPaid,
@@ -206,7 +203,12 @@ class RadiumBoxPaymentConfirmationService
             ->cashfreeVerified()
             ->where(function (Builder $query): void {
                 $query->where('order_id', 'like', 'RDE%')
-                    ->orWhere('order_id', 'like', 'RBP%');
+                    ->orWhere('order_id', 'like', 'RBP%')
+                    ->orWhere(function (Builder $query): void {
+                        $query->where('order_id', 'like', 'RB%')
+                            ->where('order_id', 'not like', 'RBP%')
+                            ->where('order_id', 'not like', 'RBX%');
+                    });
             })
             ->where('created_at', '<=', $cutoff)
             ->whereIn('radiumbox_sync_status', [
@@ -232,23 +234,29 @@ class RadiumBoxPaymentConfirmationService
             ->exists();
     }
 
-    private function recordConfirmationOutcome(Order $order, RadiumBoxPaymentConfirmationResult $result): void
-    {
+    private function recordConfirmationOutcome(
+        Order $order,
+        RadiumBoxPaymentConfirmationResult $result,
+        string $contract,
+    ): void {
+        $ackMetadata = [
+            'box_payment_confirmed' => true,
+            'box_confirm_status' => $result->status,
+            'downstream_contract' => $contract,
+            'box_acknowledged_at' => now()->toIso8601String(),
+            'box_local_order_id' => $result->handoff['local_order_id'] ?? null,
+            'handoff_id' => $result->handoff['id'] ?? null,
+            'handoff_idempotency_key' => $result->handoff['idempotency_key'] ?? null,
+        ];
+
         if ($this->hasCommerceFor($order)) {
-            $this->syncStore->markSynced($order->id, [
-                'box_payment_confirmed' => true,
-                'box_confirm_status' => $result->status,
-            ]);
+            $this->syncStore->markSynced($order->id, $ackMetadata);
 
             return;
         }
 
         if ($result->handoffEnqueued()) {
-            $this->syncStore->markHandoffPending($order->id, [
-                'box_payment_confirmed' => true,
-                'box_confirm_status' => $result->status,
-                'handoff_id' => $result->handoff['id'] ?? null,
-            ]);
+            $this->syncStore->markHandoffPending($order->id, $ackMetadata);
 
             return;
         }

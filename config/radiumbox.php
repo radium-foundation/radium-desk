@@ -62,10 +62,19 @@ return [
 
     'payment_confirm' => [
         'enabled' => filter_var(env('RADIUMBOX_PAYMENT_CONFIRM_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        /*
+         * legacy_cashfree_via_box — Box calls Cashfree (violates sole authority; default until Box ships v1 receiver).
+         * desk_authoritative_v1 — Desk sends signed payment event; Box must not call Cashfree.
+         */
+        'contract' => (string) env('RADIUMBOX_PAYMENT_CONFIRM_CONTRACT', 'legacy_cashfree_via_box'),
         'connect_timeout_seconds' => (int) env('RADIUMBOX_PAYMENT_CONFIRM_CONNECT_TIMEOUT_SECONDS', 3),
         'timeout_seconds' => (int) env('RADIUMBOX_PAYMENT_CONFIRM_TIMEOUT_SECONDS', 15),
         'outbox_enabled' => filter_var(env('RADIUMBOX_PAYMENT_CONFIRM_OUTBOX_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
         'drain_on_enqueue' => filter_var(env('RADIUMBOX_PAYMENT_CONFIRM_DRAIN_ON_ENQUEUE', true), FILTER_VALIDATE_BOOLEAN),
+        'authoritative' => [
+            'path' => (string) env('RADIUMBOX_PAYMENT_AUTHORITATIVE_PATH', '/api/integrations/v1/desk/payment-events'),
+            'signing_secret' => env('RADIUMBOX_PAYMENT_AUTHORITATIVE_SIGNING_SECRET'),
+        ],
     ],
 
     'handoff_reconciliation' => [

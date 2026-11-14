@@ -11,7 +11,9 @@ use Illuminate\Support\Facades\Log;
 class RadiumBoxPaymentConfirmationClient
 {
     /**
-     * Ask Box to server-side verify Cashfree and mark the order Paid + enqueue handoff.
+     * Legacy: ask Box to call Cashfree and mark the order Paid + enqueue handoff.
+     *
+     * @deprecated Spoke must not verify providers once desk_authoritative_v1 is live.
      */
     public function confirmPayment(
         string $gatewayOrderId,
