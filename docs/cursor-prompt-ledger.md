@@ -1030,4 +1030,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-03 | 2026-11-14 | **P-14-03** OEM release preflight @ **`73f849f7`** — deploy **BLOCKED** ChatGPT **P-14-03** | Target **#257** merge **`73f849f7`**; prod **`5475d8a6`**; backup **`20261113T203003Z`** manifest **`5475d8a6`**; RIP gate **PASS**; OEM PHPUnit **35/35** + extension **22/22**; **BLOCKED:** DB restorability **NOT RUN** (no isolated restore); **no** `v4.1.66` CHANGELOG/tag; wallet/full PHPUnit **NOT RUN**. **NO** deploy/migrate/RIP capture/flags. |
 
+| RadiumDesk-P-14-04 | 2026-11-14 | **P-14-04** OEM release metadata `v4.1.66` @ **`28e33f8d`** ChatGPT **P-14-04** | CHANGELOG **4.1.66** (app ancestry **`73f849f7`**); annotated tag **`v4.1.66`** → **`28e33f8d`**; `validate_release_metadata` **PASS**; `ChangelogServiceTest` **6/6**. **NO** deploy/migrate/prod. Remaining: DB restore drill, wallet regressions. |
+
 Do not renumber or overwrite earlier rows. Append only.
