@@ -1026,4 +1026,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-13-104 | 2026-11-13 | **P-13-104** Backup + RIP recovery readiness (read-only) | **`/root/.radium-backup.env`** exists (sudo); latest DB backup **`20261113T083003Z`** pre-v4.1.65; RIP **`RIP-131126-2031-…-5475d8a`** verify+gate **PASS**. **NO** backup/restore/RIP capture/deploy. |
 
+| RadiumDesk-P-14-01 | 2026-11-14 | **P-14-01** Post–02:00 IST prod DB backup verify (read-only) ChatGPT **P-14-01** | Backup **`20261113T203003Z`** @ **2026-11-14 02:00 IST**; prod build **`5475d8a6`**; local artifact SHA-256 **PASS**; Cloud upload + manifest correspondence **PASS**; decrypt/restore **NOT RUN**. **NO** prod mutations. |
+
 Do not renumber or overwrite earlier rows. Append only.
