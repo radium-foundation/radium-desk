@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.1.66 — 2026-11-14 — Dashboard OEM warranty handoff (Morpho + Mantra, flags default off)
+
+- **Purpose:** OEM warranty handoff for service-case serials on the hardware dashboard: Morpho OTBS adapter foundation (mock-only transport), dashboard trigger UI + desk bridge, MV3 extension sources under `tools/oem-warranty-extension` (not a distribution release), and Mantra session draft return with recovery and opt-in retention pruning.
+- **Production baseline (pre-deploy):** **`v4.1.65`** / **`5475d8a6`**. **Does not authorize deployment by itself.**
+- **Merged stack:** PR **#255** (`42437fbd`), **#256** (`f9e7d80f`), **#257** (`73f849f7`) — application source commit **`73f849f74f61f2279d97fcbac43ebfe92d4e82da`**.
+- **Feature flags (defaults):** `DASHBOARD_OEM_HANDOFF_ENABLED`, `DASHBOARD_OEM_HANDOFF_MANTRA_CAPTURE`, and `DASHBOARD_OEM_HANDOFF_PRUNE_ENABLED` default **false** (`config/dashboard_oem_handoff.php`). Live Morpho HTTP remains disabled (`UnavailableLiveMorphoTransport`).
+- **Migration:** **`2026_11_13_230000_create_dashboard_oem_handoff_sessions_table.php`** creates `dashboard_oem_handoff_sessions`. Requires **`DEPLOY_RUN_MIGRATIONS=1`** immediately before an Owner-authorized deploy; default deploy entry points do **not** run migrations.
+- **API / routes:** Authenticated dashboard OEM handoff session start, draft submit/review, and recover endpoints (JSON error contract on handoff paths). No wallet, refund, or payment path changes in this delta.
+- **Console:** `dashboard-oem-handoff:prune-sessions` scheduled only when `prune_enabled` is true.
+- **Deployment prerequisites (Owner, separate authorization):** Fresh encrypted DB backup on **current** live build, **demonstrated DB restorability** (isolated rehearsal — not claimed by this entry), verified pre-deploy RIP on live `release.json` `build`, scoped OEM + wallet regressions, then KVM deploy from annotated tag **`v4.1.66`** with migrations only when explicitly enabled. Post-deploy RIP and smoke are **not** claimed here.
+- **Rollback target (application):** **`v4.1.65`** / **`5475d8a6`**. After migration, rollback planning must include whether to retain or drop `dashboard_oem_handoff_sessions` under Owner direction.
+- **Source (application):** **`main`** ancestry through **`73f849f7`**. Release tag **`v4.1.66`** is on the CHANGELOG metadata commit (deploy guard requires HEAD === latest semver tag with matching `## 4.1.66` entry).
+- **Validation (scoped, P-13-97–101 / P-14-03):** OEM-focused PHPUnit (**35** tests), extension vitest (**22** tests), CI Release RIP on merge commit **SUCCESS**. Full PHPUnit, wallet/Central Wallet journey regressions, production smoke, decrypt/restore drill **NOT RUN** — **not** `deployed` / `smoke-verified` / `known-good`.
+
 ## 4.1.65 — 2026-11-13 — Operations workspace + CA monthly refund reporting (P-13-60)
 
 - **Purpose:** Release mainline since **`v4.1.64`**: WS-10 operations/hardware dashboard reliability, channel-ingest replay correctness, support and customer-waiting fixes, POS UPI statutory snapshot fields, statutory PDF rendering, and CA monthly report selection for refund-driven credit notes with cancellation initiation eligibility.
