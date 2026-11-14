@@ -110,6 +110,22 @@ class HardwareFulfilmentPrefixGuardTest extends TestCase
         $this->assertFalse(HardwareFulfilmentEligibility::isRdServiceInHardwareRequest($request));
     }
 
+    public function test_cancelled_metadata_blocks_rbp_fulfilment_open(): void
+    {
+        $request = $this->boxPhysical('RBP920099');
+        $request = new ChannelOrderIngestRequest(
+            channel: $request->channel,
+            sourceType: $request->sourceType,
+            sourceId: 'RBP920099',
+            lines: $request->lines,
+            paymentStatus: 'paid',
+            currency: 'INR',
+            metadata: ['order_status' => 'cancelled'],
+        );
+
+        $this->assertFalse(HardwareFulfilmentEligibility::shouldOpenRecord($request));
+    }
+
     public function test_rdp_hardware_direct_buy_on_box_channel_does_not_open_fulfilment(): void
     {
         $request = new ChannelOrderIngestRequest(
