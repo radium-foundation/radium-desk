@@ -1086,4 +1086,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-65 | 2026-11-14 | **P-14-65** Narrow RBP2138 recovery PR from `main` (isolated worktree) ChatGPT **P-14-65** | Worktree **`.worktrees/p14-65-rbp2138-narrow`** branch **`feature/p14-65-rbp2138-narrow`** base **`2a9a7990`**. Cherry-pick **`38e8ed931`** → **`01c492c84`** only (excludes wallet/Morpho/P-14-36–40 stack). Conflicts: `tests/bootstrap.php` (merge APP_BASE_PATH + storage dirs), `HardwareFulfilmentOpenRecoveredHttpTest` (`SettingsSeeder` + `withoutVite`). PHPUnit **41/41** @ **~22s** Homebrew PHP **8.5.10**. Serial-gap test **N/A** on `main` (lives on P-14-36 only). **NO** prod recovery/deploy. **PR #261 untouched**. |
 
+| RadiumDesk-P-14-70 | 2026-11-14 | **P-14-70** Draft CHANGELOG **4.1.67** full-main release metadata ChatGPT **P-14-70** | Worktree **`.worktrees/p14-70-changelog-4167`** detached **`ecc98a9d5`**. Modified **`CHANGELOG.md`** and **`docs/cursor-prompt-ledger.md`**. Covers **`5475d8a6..ecc98a9d5`** per **P-14-69**: OEM **4.1.66** stack, Hostinger **#258–260**, RBP **#262**; no payment/wallet/statutory/POS app delta; OEM migration optional, RBP none; recovery **not** auto on deploy. **NO** commit/tag/push/deploy. |
+
+| RadiumDesk-P-14-73 | 2026-11-14 | **P-14-73** Commit + annotated tag **`v4.1.67`** release metadata ChatGPT **P-14-73** | Branch from **`ecc98a9d5`**. Owner-approved **`CHANGELOG.md`** + ledger (**P-14-72** wording). Annotated tag **`v4.1.67`**. Push branch + tag to **origin**. **NO** deploy/migrate/seed/prod recovery. |
+
 Do not renumber or overwrite earlier rows. Append only.
