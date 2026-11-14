@@ -1040,4 +1040,10 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-12 | 2026-11-14 | **P-14-12** Push Hostinger preflight + open PR ChatGPT **P-14-12** | Pushed **`fix/p14-09-hostinger-vps-preflight`** @ **`0959b0fb`**; **`origin/main`** unchanged **`cee91a6b`**. **[PR #258](https://github.com/radium-foundation/radium-desk/pull/258)** vs **`main`**. Pre-push: **8** paths, no **`P-14-10` doc**/**`__pycache__`**. CI **pending** at open. **NO** merge/deploy/snapshot mutate/wallet tree touch. |
 
+| RadiumDesk-P-14-13 | 2026-11-14 | **P-14-13** Verify PR #258 checks + diff review ChatGPT **P-14-13** | **[PR #258](https://github.com/radium-foundation/radium-desk/pull/258)** head **`0aaeb36f`** base **`cee91a6b`** merge-base **`cee91a6b`** **MERGEABLE/CLEAN**. CI **`rip`**/**`release-rip`** **PASS** (~35s each). Diff **8** files **+648**; **GET-only**; no wallet/app; ledger mentions only. **0** PR reviews; branch protection API **404**. Verdict: **CI/diff ready**; merge awaits **Owner** review. **NO** merge/deploy/snapshot. |
+
+| RadiumDesk-P-14-14 | 2026-11-14 | **P-14-14** Owner review + merge gate PR #258 ChatGPT **P-14-14** | Head/base **unchanged**; **`mergeable_state=clean`**. Repo **rulesets `[]`**; classic **`main` protection 404**; org rulesets API **404** (token scope). **`reviewDecision` empty** — **0** GitHub approvals; **organizational Owner review still required** per desk policy. CI **`rip`/`release-rip` PASS**. **NO** merge/deploy/snapshot (await Owner explicit merge auth). |
+
+| RadiumDesk-P-14-15 | 2026-11-14 | **P-14-15** Post-merge verify PR #258 + preflight smoke ChatGPT **P-14-15** | **`origin/main`** **`e18b540a`** = merge **#258**; ancestor **OK**; **8** paths **+648** only. Focused tests **15/15 PASS**; live **`desk hostinger-vps-preflight`** **PASS** (~2s): VM **1910783** **`srv1910783.hstgr.cloud`** **KVM 8** **unlocked**; snapshot **455368**; backups **4**. **GET-only** confirmed. **NO** deploy/snapshot mutate/wallet touch. |
+
 Do not renumber or overwrite earlier rows. Append only.
