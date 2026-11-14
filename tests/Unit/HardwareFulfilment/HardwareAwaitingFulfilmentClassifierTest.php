@@ -2,7 +2,13 @@
 
 namespace Tests\Unit\HardwareFulfilment;
 
+use App\Enums\CommerceOrderStatus;
 use App\Enums\HardwareAwaitingFulfilmentReason;
+use App\Enums\StatutoryInvoiceChannel;
+use App\Models\ChannelSkuMap;
+use App\Models\CommerceOrder;
+use App\Models\CommerceOrderItem;
+use App\Models\InventoryProduct;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\HardwareFulfilment\Data\HardwareAwaitingFulfilmentClassifier;
@@ -13,6 +19,64 @@ use Tests\TestCase;
 class HardwareAwaitingFulfilmentClassifierTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_support_serial_with_paid_hardware_commerce_is_fulfilment_not_opened(): void
+    {
+        $product = InventoryProduct::query()->create([
+            'sku' => 'RBMFS110L1',
+            'name' => 'MFS110',
+            'hsn_code' => '84716050',
+            'gst_percentage' => 18,
+            'unit_price' => 2549,
+            'is_serialized' => true,
+            'is_active' => true,
+        ]);
+        ChannelSkuMap::query()->create([
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'model_id' => 946,
+            'inventory_product_id' => $product->id,
+            'catalog_sku' => 'RBMFS110L1',
+            'channel_sku' => '946',
+        ]);
+
+        $order = $this->order('RBP2138', [
+            'cashfree_payment_id' => 'paid',
+            'serial_number' => '11119634',
+            'created_at' => '2026-11-14 12:06:13',
+        ]);
+        $commerce = CommerceOrder::query()->create([
+            'order_no' => 'CO-022155',
+            'channel' => StatutoryInvoiceChannel::RadiumBoxCom,
+            'source_type' => 'commerce_order',
+            'source_id' => 'RBP2138',
+            'idempotency_key' => 'statutory:radiumbox_com:commerce_order:RBP2138',
+            'payload_hash' => hash('sha256', 'RBP2138'),
+            'status' => CommerceOrderStatus::Validated,
+            'payment_status' => 'paid',
+            'currency' => 'INR',
+            'customer_name' => 'Buyer',
+            'received_at' => '2026-11-14 12:03:29',
+        ]);
+        CommerceOrderItem::query()->create([
+            'commerce_order_id' => $commerce->id,
+            'line_no' => 1,
+            'model_id' => 946,
+            'shipping_line_kind' => HardwareFulfilmentEligibility::PHYSICAL_LINE_KIND,
+            'requires_shipping' => true,
+            'description' => 'MFS 110',
+            'qty' => 1,
+            'unit_price' => 2499,
+            'gst_percentage' => 18,
+            'taxable_value' => 2117.8,
+            'tax_total' => 381.2,
+            'line_total' => 2499,
+        ]);
+
+        $this->assertSame(
+            HardwareAwaitingFulfilmentReason::FulfilmentNotOpened,
+            HardwareAwaitingFulfilmentClassifier::reason($order, $commerce),
+        );
+    }
 
     public function test_classifies_review_candidate(): void
     {
@@ -76,7 +140,7 @@ class HardwareAwaitingFulfilmentClassifierTest extends TestCase
             ])),
         );
         $this->assertSame(
-            HardwareAwaitingFulfilmentReason::DeskAlreadyCompleted,
+            HardwareAwaitingFulfilmentReason::AwaitingHandoff,
             HardwareAwaitingFulfilmentClassifier::reason($this->order('RDE960005', [
                 'cashfree_payment_id' => 'paid',
                 'serial_number' => '10500001',

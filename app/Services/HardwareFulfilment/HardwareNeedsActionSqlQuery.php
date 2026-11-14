@@ -39,7 +39,8 @@ final class HardwareNeedsActionSqlQuery
         $inTransit = $this->fulfilmentCount($this->inTransitQuery($search));
         $readyForPickup = $this->fulfilmentCount($this->readyForPickupQuery($search));
 
-        $needsAction = $mapping + $awaitingSerial + $awbPending + $photo;
+        $needsAction = $mapping + $awaitingSerial + $awbPending + $photo
+            + $this->unfulfilledHardwareWorkCandidateOrderQuery($fromIst, $toIst, $search)->count();
 
         $counts = [];
         foreach (HardwareWorkspaceFilter::cases() as $filter) {
@@ -113,6 +114,7 @@ final class HardwareNeedsActionSqlQuery
         ], true)) {
             $orderQueries = [
                 $this->awaitingMappingOrderQuery($fromIst, $toIst, $search),
+                $this->unfulfilledHardwareWorkCandidateOrderQuery($fromIst, $toIst, $search),
                 $this->windowedRinQuery($fromIst, $toIst, $search),
             ];
         }
@@ -141,7 +143,7 @@ final class HardwareNeedsActionSqlQuery
         return $this->unionIdentifierPage(
             $this->activeFulfilmentQuery($search),
             [
-                $this->workCandidateOrderQuery($fromIst, $toIst, $search),
+                $this->unfulfilledHardwareWorkCandidateOrderQuery($fromIst, $toIst, $search),
                 $this->windowedRinQuery($fromIst, $toIst, $search),
             ],
             $page,
@@ -738,7 +740,7 @@ final class HardwareNeedsActionSqlQuery
         ];
     }
 
-    private function workCandidateOrderQuery(Carbon $fromIst, Carbon $toIst, string $search): Builder
+    private function unfulfilledHardwareWorkCandidateOrderQuery(Carbon $fromIst, Carbon $toIst, string $search): Builder
     {
         $blocked = $this->ownerBlockedSourceIds();
         $fromBound = HardwareFulfilmentEligibility::createdAtSqlBound($fromIst);
@@ -753,13 +755,8 @@ final class HardwareNeedsActionSqlQuery
                         ->where(function (Builder $paid): void {
                             $paid->whereNotNull('orders.cashfree_payment_id')
                                 ->where('orders.cashfree_payment_id', '!=', '');
-                        })
-                        ->where(function (Builder $serial): void {
-                            $serial->whereNull('orders.serial_number')->orWhere('orders.serial_number', '');
-                        })
-                        ->where(function (Builder $tx): void {
-                            $tx->whereNull('orders.transaction_id')->orWhere('orders.transaction_id', '');
                         });
+                    HardwareFulfilmentGapDiagnostics::constrainUnfulfilledHardwareWorkCandidates($review);
                 });
                 if ($blocked !== []) {
                     $inner->orWhereIn('orders.order_id', $blocked);

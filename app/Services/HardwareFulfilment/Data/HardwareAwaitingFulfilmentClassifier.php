@@ -38,8 +38,18 @@ final class HardwareAwaitingFulfilmentClassifier
             return HardwareAwaitingFulfilmentReason::RecoveredCommerce;
         }
 
-        if ($order->isSerialLocked() || $order->isTransactionLocked()) {
+        if ($order->isTransactionLocked()) {
             return HardwareAwaitingFulfilmentReason::DeskAlreadyCompleted;
+        }
+
+        if ($order->isSerialLocked()) {
+            if ($commerce !== null
+                && HardwareFulfilmentEligibility::isPaidCommerceOrder($commerce)
+                && HardwareFulfilmentEligibility::hasHardwareLines($commerce)) {
+                return self::isMissingProductMapping($commerce)
+                    ? HardwareAwaitingFulfilmentReason::ProductMappingRequired
+                    : HardwareAwaitingFulfilmentReason::FulfilmentNotOpened;
+            }
         }
 
         if (! HardwareFulfilmentEligibility::isOnOrAfterCutoff($order->created_at)) {

@@ -16,6 +16,7 @@ enum HardwareAwaitingFulfilmentReason: string
     case AwaitingHandoff = 'awaiting_handoff';
     case SplitTender = 'split_tender';
     case ProductMappingRequired = 'product_mapping_required';
+    case FulfilmentNotOpened = 'fulfilment_not_opened';
 
     public function label(): string
     {
@@ -32,6 +33,7 @@ enum HardwareAwaitingFulfilmentReason: string
             self::AwaitingHandoff => 'Awaiting handoff',
             self::SplitTender => 'Split-tender recovery required',
             self::ProductMappingRequired => 'Product mapping required',
+            self::FulfilmentNotOpened => 'Hardware fulfilment not opened',
         };
     }
 
@@ -44,12 +46,13 @@ enum HardwareAwaitingFulfilmentReason: string
             self::Blocked => 'Blocked until authorized. Do not ingest or ship.',
             self::Unpaid => 'No Cashfree payment on the Desk order. Do not ingest.',
             self::PreCutoff => 'Desk created_at is before 2026-09-05 00:00 IST. Isolated ingest refuses this cutoff. Do not mass-ingest history.',
-            self::DeskAlreadyCompleted => 'Desk already has a serial or transaction. Treat as processed outside Hardware Fulfilment unless an owner authorizes a single-order review.',
+            self::DeskAlreadyCompleted => 'Desk already has a hardware transaction id. Treat as processed outside Hardware Fulfilment unless an owner authorizes a single-order review.',
             self::Rin => 'Blocked — RIN mapping required. Direct Buy hardware cannot enter Desk fulfilment until a dedicated rdservice.in mapper and Owner SKU maps exist.',
             self::RecoveredCommerce => 'Owner-authorized recovered Commerce. Open exactly one Hardware Fulfilment from the existing paid order, then use markReady().',
             self::AwaitingHandoff => 'Awaiting handoff. Box still holds the product payload; Desk has no Commerce line yet.',
             self::SplitTender => 'Split-tender recovery required. Product identity exists at source; wallet plus Cashfree tenders are required before Desk ingest.',
             self::ProductMappingRequired => 'Product mapping required. An Owner-approved channel SKU map is missing for this model.',
+            self::FulfilmentNotOpened => 'Paid hardware commerce exists and a support serial is recorded, but no hardware_fulfilments row is open. Open fulfilment from the awaiting action dialog; do not treat the support serial as fulfilment completion.',
         };
     }
 }

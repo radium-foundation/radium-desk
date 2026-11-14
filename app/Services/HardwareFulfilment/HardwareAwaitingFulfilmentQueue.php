@@ -96,10 +96,7 @@ final class HardwareAwaitingFulfilmentQueue
             ->cashfreeVerified()
             ->whereNotIn('order_id', $blockedIds)
             ->where(function (Builder $inner): void {
-                $inner->whereNull('serial_number')->orWhere('serial_number', '');
-            })
-            ->where(function (Builder $inner): void {
-                $inner->whereNull('transaction_id')->orWhere('transaction_id', '');
+                HardwareFulfilmentGapDiagnostics::constrainUnfulfilledHardwareWorkCandidates($inner);
             })
             ->where('created_at', '>=', $fromBound)
             ->where('created_at', '<=', $toBound)
@@ -126,10 +123,7 @@ final class HardwareAwaitingFulfilmentQueue
             ->cashfreeVerified()
             ->whereNotIn('order_id', $blockedIds)
             ->where(function (Builder $inner): void {
-                $inner->whereNull('serial_number')->orWhere('serial_number', '');
-            })
-            ->where(function (Builder $inner): void {
-                $inner->whereNull('transaction_id')->orWhere('transaction_id', '');
+                HardwareFulfilmentGapDiagnostics::constrainUnfulfilledHardwareWorkCandidates($inner);
             })
             ->where('created_at', '>=', $fromBound)
             ->where('created_at', '<=', $toBound)
@@ -165,13 +159,8 @@ final class HardwareAwaitingFulfilmentQueue
                 ->cashfreeVerified()
                 ->whereNotIn('order_id', $blockedIds)
                 ->where(function (Builder $inner): void {
-                    $inner->where(function (Builder $serial): void {
-                        $serial->whereNotNull('serial_number')
-                            ->where('serial_number', '!=', '');
-                    })->orWhere(function (Builder $tx): void {
-                        $tx->whereNotNull('transaction_id')
-                            ->where('transaction_id', '!=', '');
-                    });
+                    $inner->whereNotNull('transaction_id')
+                        ->where('transaction_id', '!=', '');
                 })
                 ->count(),
             'rin' => Order::query()->where('order_id', 'like', 'RIN%')->count(),

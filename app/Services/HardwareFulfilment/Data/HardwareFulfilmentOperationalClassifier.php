@@ -225,7 +225,10 @@ final class HardwareFulfilmentOperationalClassifier
      */
     private function awaitingPresentation(HardwareAwaitingFulfilmentReason $reason, Order $order): array
     {
-        if ($reason === HardwareAwaitingFulfilmentReason::RecoveredCommerce) {
+        if (in_array($reason, [
+            HardwareAwaitingFulfilmentReason::RecoveredCommerce,
+            HardwareAwaitingFulfilmentReason::FulfilmentNotOpened,
+        ], true)) {
             return [
                 'stage' => HardwareFulfilmentOperationalStage::AwaitingFulfilment,
                 'nextAction' => 'Open Fulfilment',
