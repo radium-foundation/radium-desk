@@ -78,6 +78,10 @@ case "${1:-help}" in
         shift
         exec "$TOOLS_DIR/commands/hostinger-vps-preflight.sh" "$@"
         ;;
+    hostinger-vps-snapshot-gate)
+        shift
+        exec "$TOOLS_DIR/commands/hostinger-vps-snapshot-gate.sh" "$@"
+        ;;
     rollback)
         shift
         desk_rollback "$@"
@@ -99,6 +103,7 @@ Usage:
   desk logs           Tail remote Laravel logs
   desk cache          Clear and rebuild remote Laravel caches
   desk hostinger-vps-preflight  Read-only Hostinger VPS API preflight (GET only)
+  desk hostinger-vps-snapshot-gate  Verify-only Hostinger snapshot deploy gate (GET only)
   desk rollback       Unavailable on KVM (future: tag redeploy rollback)
   desk rollback-legacy Legacy shared-hosting rollback (remote git reset)
 
