@@ -49,12 +49,12 @@ class HardwareRbp2138OwnerAuthorizedRecoveryTest extends TestCase
         $this->authorizations = app(HardwareRecoveredFulfilmentAuthorization::class);
     }
 
-    public function test_channel_ingest_never_auto_opens_rbp2138(): void
+    public function test_paid_rbp_channel_ingest_request_is_eligible_for_hardware_fulfilment(): void
     {
         $request = $this->rbpIngestRequest('RBP2138');
 
-        $this->assertFalse(HardwareFulfilmentEligibility::shouldOpenRecord($request));
-        $this->assertFalse(HardwareFulfilmentEligibility::looksLikeHardwareSourceId('RBP2138'));
+        $this->assertTrue(HardwareFulfilmentEligibility::shouldOpenRecord($request));
+        $this->assertTrue(HardwareFulfilmentEligibility::looksLikeHardwareSourceId('RBP2138'));
     }
 
     public function test_unauthorized_rbp2138_cannot_ingest_from_existing_commerce(): void

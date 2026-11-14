@@ -261,6 +261,16 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
             ->appendOutputTo(storage_path('logs/radiumbox-reconcile-handoff.log'));
 
+        // Stagger +7 off handoff reconcile — paid RBP commerce missing hardware fulfilment (read-only).
+        $schedule->command('desk:monitor-rbp-hardware-fulfilment-gaps')
+            ->cron(sprintf(
+                '7-59/%d * * * *',
+                max(1, (int) config('hardware_fulfilment.rbp_gap_monitor.schedule_interval_minutes', 15)),
+            ))
+            ->when(fn (): bool => (bool) config('hardware_fulfilment.rbp_gap_monitor.enabled', true))
+            ->withoutOverlapping(max(1, (int) config('scheduler.overlap_minutes.every_fifteen_minutes', 15)))
+            ->appendOutputTo(storage_path('logs/rbp-hardware-fulfilment-gap-monitor.log'));
+
         // Stagger +5 off recover-sync — same 15-minute cadence (:05,:20,:35,:50).
         $schedule->command('missing-serial:process')
             ->cron(sprintf('5-59/%d * * * *', max(1, (int) config('missing_serial.schedule_interval_minutes', 15))))
