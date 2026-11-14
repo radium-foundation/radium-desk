@@ -80,8 +80,14 @@ final class HardwareFulfilmentEligibility
         }
 
         $parsed = BusinessOrderId::parse($request->sourceId);
-        if ($parsed !== null && $parsed['hardware'] === false) {
-            return false;
+        if ($parsed !== null) {
+            if ($parsed['prefix'] === 'RBP') {
+                return false;
+            }
+
+            if ($parsed['hardware'] === false) {
+                return false;
+            }
         }
 
         if ($request->channel !== StatutoryInvoiceChannel::RadiumBoxCom) {
@@ -172,10 +178,18 @@ final class HardwareFulfilmentEligibility
     {
         $parsed = BusinessOrderId::parse($sourceId);
         if ($parsed !== null && $parsed['owner'] === 'radiumbox.com') {
+            if ($parsed['prefix'] === 'RBP') {
+                return false;
+            }
+
             return $parsed['hardware'] === true;
         }
 
         $normalized = strtoupper(trim($sourceId));
+        if (str_starts_with($normalized, 'RBP')) {
+            return false;
+        }
+
         foreach (self::HARDWARE_SOURCE_PREFIXES as $prefix) {
             if ($prefix !== '' && str_starts_with($normalized, $prefix)) {
                 return true;

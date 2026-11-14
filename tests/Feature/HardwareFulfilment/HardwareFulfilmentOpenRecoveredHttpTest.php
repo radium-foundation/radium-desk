@@ -28,6 +28,7 @@ class HardwareFulfilmentOpenRecoveredHttpTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->withoutVite();
         config([
             'channel_ingest.auto_issue_invoice' => false,
             'hardware_fulfilment.correlate_cashfree' => false,

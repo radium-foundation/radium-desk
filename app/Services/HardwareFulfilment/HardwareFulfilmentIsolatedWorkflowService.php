@@ -668,12 +668,6 @@ class HardwareFulfilmentIsolatedWorkflowService
             ]);
         }
 
-        if (! HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)) {
-            throw ValidationException::withMessages([
-                'payload' => 'Isolated ingest requires --payload with exactly one verified handoff JSON object. Desk does not discover Box handoffs.',
-            ]);
-        }
-
         $matches = CommerceOrder::query()
             ->with('items')
             ->whereRaw('UPPER(source_id) = ?', [strtoupper($sourceId)])
@@ -692,8 +686,24 @@ class HardwareFulfilmentIsolatedWorkflowService
             ]);
         }
 
-        $this->recoveredAuthorizations->assertAuthorizableOrder($order);
-        $this->recoveredAuthorizations->requireAuthorized($order);
+        if (! HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)) {
+            if (! HardwareOwnerAuthorizedExistingCommerceProfiles::has($sourceId)) {
+                throw ValidationException::withMessages([
+                    'payload' => 'Isolated ingest requires --payload with exactly one verified handoff JSON object. Desk does not discover Box handoffs.',
+                ]);
+            }
+
+            if (! $this->recoveredAuthorizations->isAuthorized($order)) {
+                throw ValidationException::withMessages([
+                    'fulfilment' => 'Owner authorization is required before opening fulfilment for this existing Commerce order.',
+                ]);
+            }
+
+            HardwareOwnerAuthorizedExistingCommerceGate::assertOrderMatchesProfile($order);
+        } else {
+            $this->recoveredAuthorizations->assertAuthorizableOrder($order);
+            $this->recoveredAuthorizations->requireAuthorized($order);
+        }
 
         if ($order->ordered_at === null) {
             throw ValidationException::withMessages([
@@ -789,7 +799,8 @@ class HardwareFulfilmentIsolatedWorkflowService
 
     private function findExisting(string $id): ?HardwareFulfilment
     {
-        if (HardwareFulfilmentEligibility::looksLikeHardwareSourceId($id)) {
+        if (HardwareFulfilmentEligibility::looksLikeHardwareSourceId($id)
+            || HardwareOwnerAuthorizedExistingCommerceProfiles::has($id)) {
             $matches = HardwareFulfilment::query()
                 ->whereRaw('UPPER(source_id) = ?', [strtoupper($id)])
                 ->get();
