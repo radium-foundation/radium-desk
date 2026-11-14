@@ -82,6 +82,14 @@ case "${1:-help}" in
         shift
         exec "$TOOLS_DIR/commands/hostinger-vps-snapshot-gate.sh" "$@"
         ;;
+    hostinger-vps-snapshot-status)
+        shift
+        exec "$TOOLS_DIR/commands/hostinger-vps-snapshot-status.sh" "$@"
+        ;;
+    hostinger-vps-snapshot-create)
+        shift
+        exec "$TOOLS_DIR/commands/hostinger-vps-snapshot-create.sh" "$@"
+        ;;
     rollback)
         shift
         desk_rollback "$@"
