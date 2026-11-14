@@ -74,6 +74,10 @@ case "${1:-help}" in
     cache)
         exec "$TOOLS_DIR/commands/cache.sh" "$@"
         ;;
+    hostinger-vps-preflight)
+        shift
+        exec "$TOOLS_DIR/commands/hostinger-vps-preflight.sh" "$@"
+        ;;
     rollback)
         shift
         desk_rollback "$@"
@@ -94,6 +98,7 @@ Usage:
   desk deploy-legacy   Legacy shared-hosting deploy (git pull + public_html)
   desk logs           Tail remote Laravel logs
   desk cache          Clear and rebuild remote Laravel caches
+  desk hostinger-vps-preflight  Read-only Hostinger VPS API preflight (GET only)
   desk rollback       Unavailable on KVM (future: tag redeploy rollback)
   desk rollback-legacy Legacy shared-hosting rollback (remote git reset)
 
