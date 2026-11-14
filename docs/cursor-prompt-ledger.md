@@ -1062,4 +1062,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-21 | 2026-11-14 | **P-14-21** Recovery readiness assessment ChatGPT **P-14-21** | **`docs/P-14-21-*`**: DB restore + whole-VPS drill **BLOCKED** (no isolated env). **NO** restore/deploy. **10:38–10:45 IST**. |
 
+| RadiumDesk-P-14-24 | 2026-11-14 | **P-14-24** Rebase PR #260 onto merged main ChatGPT **P-14-24** | **`--onto`** drop **#259** stack; **4** commits **P-14-18→21**; base **`main`** **`e1e967d0`**; head **`45abff497`**. Focused tests **PASS** (~3s). **[PR #260](https://github.com/radium-foundation/radium-desk/pull/260)** **NOT merged**. **NO** deploy/POST/snapshot. **11:01–11:03 IST**. |
+
 Do not renumber or overwrite earlier rows. Append only.

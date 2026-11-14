@@ -30,8 +30,8 @@ pass "deploy lock EXIT trap present"
 for f in "$GATE_PY"; do
   grep -qE 'method=.POST|method=.PUT|method=.PATCH|method=.DELETE' "$f" && fail "gate must not use mutating HTTP"
 done
-[[ -f "$GATE_CREATE" ]] && grep -q POST "$GATE_CREATE" && fail "create must not be in PR #259 tree" || true
-pass "no mutating HTTP in gate module"
+grep -q 'hostinger_vps_snapshot_create' "$DEPLOY" && fail "deploy-kvm must not invoke snapshot create"
+pass "no mutating HTTP in gate; deploy does not wire create"
 
 # Snapshot identity change covered in python suite
 pass "deploy-kvm-hostinger-gate-order.test.sh complete"
