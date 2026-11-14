@@ -1092,4 +1092,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-89 | 2026-11-14 | **P-14-89** Enable safe automatic RBP hardware fulfilment (Option A) ChatGPT **P-14-89** | Worktree **`.worktrees/p14-80-v4167-deploy`** **PR [#264](https://github.com/radium-foundation/radium-desk/pull/264)** **MERGED** → **`origin/main`** **`baa519325`** (feat **`1a961cadc`** @ base **`02cae82ac`**). Paid **physical RBP** channel ingest opens HF; **`desk:monitor-rbp-hardware-fulfilment-gaps`** scheduled read-only monitor. Focused PHPUnit **33/33 PASS**; full suite + MySQL RBP concurrency **NOT RUN**. CI **rip/release-rip/hardware-sku-map-rip PASS**. **NO** prod deploy. Cursor **`e6c3d1f5-d67d-4af0-a872-b849091c382b`**. |
 
+| RadiumDesk-P-14-90 | 2026-11-14 | **P-14-90** RBP fulfilment regression + concurrency validation ChatGPT **P-14-90** | Parent **P-14-89**. **PR [#266](https://github.com/radium-foundation/radium-desk/pull/266)** **MERGED** → **`origin/main`** **`44b84ba3`** (head **`895520d92`** @ base **`2926e0da1`**). Cancelled/voided guards; payment correlation + RBP2138 race tests; InnoDB RBP ingest concurrency harness. PHPUnit **37 PASS**, **1 SKIP** (MySQL). Full suite **NOT RUN**. **NO** prod deploy. **~20:17–20:32 IST**. |
+
 Do not renumber or overwrite earlier rows. Append only.
