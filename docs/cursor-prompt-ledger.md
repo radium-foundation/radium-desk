@@ -1054,4 +1054,12 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-05 | 2026-11-14 | **P-14-05** OEM `v4.1.66` release regression validation ChatGPT **P-14-05** | @ tag **`v4.1.66`** (`**28e33f8d**`); app tree = **`73f849f7`**. CW **438** (**430** pass, **8** skip); wallet/refund **122**; OEM **59**; journeys **54**; JS **7**; ext **22**. **Full PHPUnit BLOCKED** — PHP **540s** limit in `HistoricalInvoiceReprintTest` after **~4234s** (exit **2**). Artifacts **`.worktrees/p2130-validate/.artifacts/p14-05-validation/`**. **09:22–11:32 IST**. **NO** deploy/prod. DB restore **BLOCKED**. |
 
+| RadiumDesk-P-14-18 | 2026-11-14 | **P-14-18** Snapshot create authorization + status commands ChatGPT **P-14-18** | **`snapshot-status`**/**`snapshot-create`** (dry-run default); Owner env auth model; overwrite guard. Create unit **4/4 PASS**. **NO** live POST. |
+
+| RadiumDesk-P-14-19 | 2026-11-14 | **P-14-19** Snapshot create POST path (mock-tested) ChatGPT **P-14-19** | **`--execute`** POST + re-GET in **`hostinger_vps_snapshot_create.py`**. Live POST **BLOCKED** (no Owner chat auth). **NO** prod snapshot mutate. |
+
+| RadiumDesk-P-14-20 | 2026-11-14 | **P-14-20** RIP `hostinger_vps_recovery` metadata ChatGPT **P-14-20** | **`RipHostingerSnapshotPolicy`** + optional manifest validation; **`build_rip_hostinger_block.py`**. PHPUnit **NOT RUN** (no worktree vendor). |
+
+| RadiumDesk-P-14-21 | 2026-11-14 | **P-14-21** Recovery readiness assessment ChatGPT **P-14-21** | **`docs/P-14-21-*`**: DB restore + whole-VPS drill **BLOCKED** (no isolated env). **NO** restore/deploy. **10:38–10:45 IST**. |
+
 Do not renumber or overwrite earlier rows. Append only.
