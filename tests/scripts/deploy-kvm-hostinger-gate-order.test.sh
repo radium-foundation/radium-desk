@@ -10,10 +10,10 @@ GATE_CREATE="$ROOT/tools/lib/hostinger_vps_snapshot_create.py"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "PASS: $*"; }
 
-line_initial="$(grep -n 'hostinger_verify_snapshot_gate_if_required' "$DEPLOY" | head -1 | cut -d: -f1)"
-line_final="$(grep -n 'hostinger_reverify_snapshot_gate_before_rsync' "$DEPLOY" | head -1 | cut -d: -f1)"
-line_chown="$(grep -n 'ensure_remote_deploy_ownership' "$DEPLOY" | head -1 | cut -d: -f1)"
-line_rsync="$(grep -n 'rsync_application_to_kvm' "$DEPLOY" | head -1 | cut -d: -f1)"
+line_initial="$(grep -n 'if ! hostinger_verify_snapshot_gate_if_required' "$DEPLOY" | cut -d: -f1)"
+line_final="$(grep -n 'if ! hostinger_reverify_snapshot_gate_before_rsync' "$DEPLOY" | cut -d: -f1)"
+line_chown="$(grep -n '^[[:space:]]*ensure_remote_deploy_ownership$' "$DEPLOY" | cut -d: -f1)"
+line_rsync="$(awk '/^main\(\)/{on=1} on && /^}/ && on>1 {exit} on{print NR":"$0}' "$DEPLOY" | grep 'rsync_application_to_kvm' | head -1 | cut -d: -f1)"
 
 [[ -n "$line_initial" && -n "$line_final" && -n "$line_chown" && -n "$line_rsync" ]] \
   || fail "could not locate gate/chown/rsync lines"
