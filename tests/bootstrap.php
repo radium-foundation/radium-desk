@@ -9,6 +9,19 @@ $_SERVER['APP_BASE_PATH'] = $basePath;
 
 require $basePath.'/vendor/autoload.php';
 
+spl_autoload_register(static function (string $class) use ($basePath): void {
+    $prefix = 'Tests\\Feature\\HardwareFulfilment\\Support\\';
+    if (! str_starts_with($class, $prefix)) {
+        return;
+    }
+
+    $relative = str_replace('\\', '/', substr($class, strlen('Tests\\')));
+    $path = $basePath.'/tests/'.$relative.'.php';
+    if (is_file($path)) {
+        require_once $path;
+    }
+});
+
 /*
  * Ensure writable storage paths used by finance ZIP/XLSX tests
  * (storage/app is gitignored except private/public).

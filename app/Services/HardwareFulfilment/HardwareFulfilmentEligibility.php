@@ -2,6 +2,7 @@
 
 namespace App\Services\HardwareFulfilment;
 
+use App\Enums\CommerceOrderStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Enums\StatutoryInvoiceSourceType;
 use App\Models\CommerceOrder;
@@ -72,6 +73,10 @@ final class HardwareFulfilmentEligibility
         }
 
         if (self::isFrozenSourceId($request->sourceId)) {
+            return false;
+        }
+
+        if (self::metadataShowsCancelled($request->metadata)) {
             return false;
         }
 
@@ -329,6 +334,51 @@ final class HardwareFulfilmentEligibility
         return $flag === 'HOLD';
     }
 
+    /**
+     * Box channel ingest persists business metadata; cancelled orders must not open fulfilment.
+     *
+     * @param  array<string, mixed>|null  $metadata
+     */
+    public static function metadataShowsCancelled(?array $metadata): bool
+    {
+        if ($metadata === null) {
+            return false;
+        }
+
+        foreach (['order_status', 'radiumbox_order_status', 'ordertype', 'order_type'] as $key) {
+            if (! array_key_exists($key, $metadata)) {
+                continue;
+            }
+            $normalized = strtolower(trim((string) $metadata[$key]));
+            if ($normalized === '') {
+                continue;
+            }
+            if (in_array($normalized, ['cancelled', 'canceled', 'void', 'voided', 'expired'], true)
+                || str_contains($normalized, 'cancel')
+                || str_contains($normalized, 'void')
+                || str_contains($normalized, 'expired')) {
+                return true;
+            }
+        }
+
+        $flag = strtoupper(trim((string) ($metadata['fulfilment_status'] ?? '')));
+
+        return in_array($flag, ['CANCELLED', 'CANCELED', 'VOID', 'VOIDED'], true);
+    }
+
+    public static function commerceOrderVoidsFulfilment(CommerceOrder $order): bool
+    {
+        if (! self::isPaidCommerceOrder($order)) {
+            return true;
+        }
+
+        if (in_array($order->status, [CommerceOrderStatus::Rejected, CommerceOrderStatus::Failed], true)) {
+            return true;
+        }
+
+        return self::metadataShowsCancelled($order->metadata);
+    }
+
     public static function isPaidCommerceOrder(CommerceOrder $order): bool
     {
         return strtolower(trim((string) $order->payment_status)) === 'paid';
@@ -393,6 +443,12 @@ final class HardwareFulfilmentEligibility
         if (! self::isPaidCommerceOrder($order)) {
             throw ValidationException::withMessages([
                 'payment' => 'Isolated fulfilment requires a paid commerce order.',
+            ]);
+        }
+
+        if (self::commerceOrderVoidsFulfilment($order)) {
+            throw ValidationException::withMessages([
+                'payment' => 'Cancelled or voided commerce orders cannot open hardware fulfilment.',
             ]);
         }
 

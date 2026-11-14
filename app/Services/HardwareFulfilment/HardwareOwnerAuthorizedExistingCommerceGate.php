@@ -2,6 +2,7 @@
 
 namespace App\Services\HardwareFulfilment;
 
+use App\Enums\CommerceOrderStatus;
 use App\Enums\StatutoryInvoiceChannel;
 use App\Models\CommerceOrder;
 use App\Models\Order;
@@ -67,6 +68,13 @@ final class HardwareOwnerAuthorizedExistingCommerceGate
         if (! HardwareFulfilmentEligibility::isPaidCommerceOrder($order)) {
             throw ValidationException::withMessages([
                 'payment' => 'Owner-authorized existing-commerce fulfilment requires a paid commerce order.',
+            ]);
+        }
+
+        if (in_array($order->status, [CommerceOrderStatus::Rejected, CommerceOrderStatus::Failed], true)
+            || HardwareFulfilmentEligibility::metadataShowsCancelled($order->metadata)) {
+            throw ValidationException::withMessages([
+                'payment' => 'Cancelled or voided commerce orders cannot receive Owner authorization.',
             ]);
         }
 

@@ -68,6 +68,10 @@ final class RbpHardwareFulfilmentGapMonitor
                 continue;
             }
 
+            if (HardwareFulfilmentEligibility::commerceOrderVoidsFulfilment($order)) {
+                continue;
+            }
+
             if (! HardwareFulfilmentEligibility::hasHardwareLines($order)) {
                 continue;
             }
