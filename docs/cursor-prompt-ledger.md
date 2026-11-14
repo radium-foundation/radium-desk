@@ -1054,4 +1054,30 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-05 | 2026-11-14 | **P-14-05** OEM `v4.1.66` release regression validation ChatGPT **P-14-05** | @ tag **`v4.1.66`** (`**28e33f8d**`); app tree = **`73f849f7`**. CW **438** (**430** pass, **8** skip); wallet/refund **122**; OEM **59**; journeys **54**; JS **7**; ext **22**. **Full PHPUnit BLOCKED** — PHP **540s** limit in `HistoricalInvoiceReprintTest` after **~4234s** (exit **2**). Artifacts **`.worktrees/p2130-validate/.artifacts/p14-05-validation/`**. **09:22–11:32 IST**. **NO** deploy/prod. DB restore **BLOCKED**. |
 
+| RadiumDesk-P-14-18 | 2026-11-14 | **P-14-18** Snapshot create authorization + status commands ChatGPT **P-14-18** | **`snapshot-status`**/**`snapshot-create`** (dry-run default); Owner env auth model; overwrite guard. Create unit **4/4 PASS**. **NO** live POST. |
+
+| RadiumDesk-P-14-19 | 2026-11-14 | **P-14-19** Snapshot create POST path (mock-tested) ChatGPT **P-14-19** | **`--execute`** POST + re-GET in **`hostinger_vps_snapshot_create.py`**. Live POST **BLOCKED** (no Owner chat auth). **NO** prod snapshot mutate. |
+
+| RadiumDesk-P-14-20 | 2026-11-14 | **P-14-20** RIP `hostinger_vps_recovery` metadata ChatGPT **P-14-20** | **`RipHostingerSnapshotPolicy`** + optional manifest validation; **`build_rip_hostinger_block.py`**. PHPUnit **NOT RUN** (no worktree vendor). |
+
+| RadiumDesk-P-14-21 | 2026-11-14 | **P-14-21** Recovery readiness assessment ChatGPT **P-14-21** | **`docs/P-14-21-*`**: DB restore + whole-VPS drill **BLOCKED** (no isolated env). **NO** restore/deploy. **10:38–10:45 IST**. |
+
+| RadiumDesk-P-14-24 | 2026-11-14 | **P-14-24** Rebase PR #260 onto merged main ChatGPT **P-14-24** | **`--onto`** drop **#259** stack; **4** commits **P-14-18→21**; base **`main`** **`e1e967d0`**; head **`45abff497`**. Focused tests **PASS** (~3s). **[PR #260](https://github.com/radium-foundation/radium-desk/pull/260)** **NOT merged**. **NO** deploy/POST/snapshot. **11:01–11:03 IST**. |
+
+| RadiumDesk-P-14-25 | 2026-11-14 | **P-14-25** Independent final review PR #260 ChatGPT **P-14-25** | **[PR #260](https://github.com/radium-foundation/radium-desk/pull/260)** **`main`/`e1e967d0`** head **`27e911c83`** CI **PASS**; verdict **CONDITIONALLY READY**. **HIGH:** `build_rip_hostinger_block` vs policy `authorization_reference`. **NO** merge/deploy/POST. **11:06–11:07 IST**. |
+
+| RadiumDesk-P-14-26 | 2026-11-14 | **P-14-26** Fix RIP builder vs policy `authorization_reference` ChatGPT **P-14-26** | Builder omits forbidden manifest keys; ledger stderr hint; integration + builder regression tests. **PR #260** updated; **NOT merged**. **NO** deploy/POST. |
+
+| RadiumDesk-P-14-27 | 2026-11-14 | **P-14-27** Snapshot create action poll + fail-closed expiry ChatGPT **P-14-27** | Poll **`GET .../actions/{id}`**; ambiguous **`expires_at`** blocks overwrite; **17** create unit tests **PASS**. **PR #260**; **NOT merged**. **NO** live POST/deploy. |
+
+| RadiumDesk-P-14-30 | 2026-11-14 | **P-14-30** Final PR #260 review (post P-14-26/27) ChatGPT **P-14-30** | Head **`d4cc54ff`**; CI **PASS**; verdict **CONDITIONALLY READY** (live action `started` gap). **NO** merge/deploy. **~12:14–12:20 IST**. |
+
+| RadiumDesk-P-14-31 | 2026-11-14 | **P-14-31** Owner-authorized live shared-VPS snapshot ChatGPT **P-14-31** | VM **1910783** **`srv1910783.hstgr.cloud`** **`187.127.129.16`**; overwrite **ON**; prev snap **455368** **`2026-11-14T03:40:37Z`**; tool **FAIL** poll `started`; GET verify new snap **455368** **`2026-11-14T06:45:59Z`** exp **`2026-11-15T06:45:59Z`**; **1 POST** **NO** retry. **NO** deploy/restore. **~12:15–12:16 IST**. |
+
+| RadiumDesk-P-14-32 | 2026-11-14 | **P-14-32** Action `started` + same-ID overwrite verify ChatGPT **P-14-32** | Pending **`started`**; **`snapshot_recovery_point_refreshed`** metadata check; expanded unit tests. **PR #260**; **NOT merged**. **NO** live POST/deploy. |
+
+| RadiumDesk-P-14-33 | 2026-11-14 | **P-14-33** PR #260 CI verify + merge-readiness ChatGPT **P-14-33** | Head **`f9b6d985f`**; GitHub CI **0 runs** on SHA; **`main` ledger conflict**; code review **OK**. Verdict **NOT READY**. **NO** merge/deploy/POST. **~12:30 IST**. |
+
+| RadiumDesk-P-14-35 | 2026-11-14 | **P-14-35** Rebase PR #260 + ledger conflict resolve ChatGPT **P-14-35** | Rebase onto **`origin/main`** **`e0dec5e0`**; merge **P-14-05** + **P-14-18..32**; push + fresh CI **pending**. **NOT merged**. **NO** deploy/POST/snapshot. |
+
 Do not renumber or overwrite earlier rows. Append only.

@@ -81,5 +81,9 @@ class RipCheckpointManifestValidator
         if (($storage['class'] ?? '') === 'public_web') {
             throw new InvalidArgumentException('Public web storage class is not permitted for RIP checkpoints.');
         }
+
+        if (isset($manifest['hostinger_vps_recovery']) && is_array($manifest['hostinger_vps_recovery'])) {
+            (new RipHostingerSnapshotPolicy)->validateRecoveryBlock($manifest['hostinger_vps_recovery']);
+        }
     }
 }
