@@ -1080,4 +1080,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-35 | 2026-11-14 | **P-14-35** Rebase PR #260 + ledger conflict resolve ChatGPT **P-14-35** | Rebase onto **`origin/main`** **`e0dec5e0`**; merge **P-14-05** + **P-14-18..32**; push + fresh CI **pending**. **NOT merged**. **NO** deploy/POST/snapshot. |
 
+| RadiumDesk-P-14-29 | 2026-11-14 | **P-14-29** Authoritative full PHPUnit @ **`v4.1.66`** ChatGPT **P-14-29** | **`28e33f8d`**; SQLite **`:memory:`**. Run1 Herd **540s** timeout (**~69m**, exit **2**) — env only, no assertion failures. Run3 homebrew **`-n`** **INTERRUPTED** (**~7m**). Grant **`RadiumDesk-P-14-29`**. Artifacts **`.artifacts/p14-29-validation/`**. Full-suite gate **BLOCKED**. **NO** deploy/prod. |
+
 Do not renumber or overwrite earlier rows. Append only.
