@@ -2,16 +2,20 @@
 
 declare(strict_types=1);
 
+$basePath = dirname(__DIR__);
+
+$_ENV['APP_BASE_PATH'] = $basePath;
+$_SERVER['APP_BASE_PATH'] = $basePath;
+
+require $basePath.'/vendor/autoload.php';
+
 /*
- * PHPUnit bootstrap: load Composer autoload, then ensure writable storage paths
- * used by finance ZIP/XLSX tests (storage/app is gitignored except private/public).
+ * Ensure writable storage paths used by finance ZIP/XLSX tests
+ * (storage/app is gitignored except private/public).
  */
-
-require dirname(__DIR__).'/vendor/autoload.php';
-
 $writableDirs = [
-    dirname(__DIR__).'/storage/app/tmp',
-    dirname(__DIR__).'/storage/app/tmp/ca-monthly-report',
+    $basePath.'/storage/app/tmp',
+    $basePath.'/storage/app/tmp/ca-monthly-report',
 ];
 
 foreach ($writableDirs as $directory) {
