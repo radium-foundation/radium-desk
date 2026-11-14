@@ -1,0 +1,14 @@
+{
+    "meta": {
+        "contract_version": "desk_authoritative_payment_v1",
+        "config_contract": "desk_authoritative_v1",
+        "global_id": "P-14-40",
+        "signing_secret": "p14-40-test-signing-secret"
+    },
+    "transmit_body": "{\"contract_version\":\"desk_authoritative_payment_v1\",\"event_id\":\"desk-payment:order:73007:6998469575\",\"idempotency_key\":\"desk-payment:radiumbox_com:RBP2138:6998469575\",\"business_order_id\":\"RBP2138\",\"desk_order_id\":73007,\"payment\":{\"provider\":\"cashfree\",\"status\":\"paid\",\"currency\":\"INR\",\"amount\":\"2499.00\",\"cashfree_payment_id\":\"6998469575\"},\"verification\":{\"verified_by\":\"radium_desk\",\"source\":\"cashfree_webhook\",\"verified_at\":\"2026-11-14T07:37:12+00:00\"}}",
+    "signature": "sha256=9f5571966a00fe5963d7c8d29d1ea83202d12bef484dc2d6ab3918cb6254c78b",
+    "headers": {
+        "X-Desk-Event-Id": "desk-payment:order:73007:6998469575",
+        "X-Desk-Idempotency-Key": "desk-payment:radiumbox_com:RBP2138:6998469575"
+    }
+}

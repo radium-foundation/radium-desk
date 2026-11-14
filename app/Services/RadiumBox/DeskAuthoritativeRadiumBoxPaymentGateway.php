@@ -56,11 +56,8 @@ final class DeskAuthoritativeRadiumBoxPaymentGateway implements RadiumBoxPayment
 
         $path = (string) config('radiumbox.payment_confirm.authoritative.path', '/api/integrations/v1/desk/payment-events');
         $secret = $this->signingSecret($token);
-        $signature = $this->signer->sign($event, $secret);
-        $payload = $event->payload();
-        if ($dryRun) {
-            $payload['dry_run'] = true;
-        }
+        $transmitJson = $event->transmitJson($dryRun);
+        $signature = $this->signer->signBody($transmitJson, $secret);
 
         try {
             $request = Http::baseUrl($baseUrl)
@@ -79,7 +76,9 @@ final class DeskAuthoritativeRadiumBoxPaymentGateway implements RadiumBoxPayment
                 $request = $request->withHeaders(['Host' => $host]);
             }
 
-            $response = $request->post($path, $payload);
+            $response = $request
+                ->withBody($transmitJson, 'application/json')
+                ->post($path);
             $body = $response->json();
             $body = is_array($body) ? $body : [];
 

@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\RadiumBox\DeskAuthoritativePaymentEventSigner;
 use App\Services\RadiumBox\DeskAuthoritativeRadiumBoxPaymentGateway;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxPaymentConfirmationService;
@@ -55,16 +56,23 @@ class RadiumBoxAuthoritativePaymentContractTest extends TestCase
 
         $this->assertTrue($result->ok);
         Http::assertSentCount(1);
-        Http::assertSent(function ($request): bool {
+        $signer = app(DeskAuthoritativePaymentEventSigner::class);
+        Http::assertSent(function ($request) use ($signer): bool {
             if (! str_contains($request->url(), '/desk/payment-events')) {
                 return false;
             }
 
+            $body = (string) $request->body();
+            $signature = (string) ($request->header('X-Desk-Signature')[0] ?? '');
+            $decoded = json_decode($body, true);
+
             return ($request->header('X-Desk-Idempotency-Key')[0] ?? '') === 'desk-payment:radiumbox_com:RBP2138:6998469575'
-                && str_starts_with($request->header('X-Desk-Signature')[0] ?? '', 'sha256=')
-                && ($request['payment']['cashfree_payment_id'] ?? null) === '6998469575'
-                && ($request['payment']['amount'] ?? null) === '2499.00'
-                && ($request['verification']['verified_by'] ?? null) === 'radium_desk';
+                && hash_equals($signature, $signer->signBody($body, 'test-signing-secret'))
+                && is_array($decoded)
+                && ($decoded['payment']['cashfree_payment_id'] ?? null) === '6998469575'
+                && ($decoded['payment']['amount'] ?? null) === '2499.00'
+                && ($decoded['verification']['verified_by'] ?? null) === 'radium_desk'
+                && ($decoded['contract_version'] ?? null) === 'desk_authoritative_payment_v1';
         });
         Http::assertNotSent(function ($request): bool {
             return str_contains($request->url(), 'cashfree/confirm-payment');

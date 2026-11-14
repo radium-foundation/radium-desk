@@ -1,7 +1,13 @@
 # RadiumBox implementation spec — Desk authoritative payment event v1
 
 **For:** Owner-approved **radiumbox.com** follow-up task (not P-14-38).  
-**Desk contract version:** `desk_authoritative_payment_v1`
+**Payload `contract_version` (canonical, Box-enforced):** `desk_authoritative_payment_v1`
+
+**Desk config selector only (not sent in JSON):** `RADIUMBOX_PAYMENT_CONFIRM_CONTRACT=desk_authoritative_v1` — selects the authoritative gateway implementation on Desk; must not be confused with the payload field.
+
+**Wire bytes:** Desk signs `JSON_UNESCAPED_SLASHES` encoding of the exact HTTP body (including optional `dry_run`). Box verifies `hash_hmac('sha256', raw_body, secret)` with constant-time compare. Re-encoding JSON with different key order or whitespace invalidates the signature.
+
+Shared golden vector: `tests/fixtures/desk-authoritative-payment-v1-golden.json` (both repos).
 
 ## Endpoint
 

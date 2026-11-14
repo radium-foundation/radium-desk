@@ -57,7 +57,18 @@ final class DeskAuthoritativePaymentEvent
 
     public function canonicalJson(): string
     {
+        return $this->transmitJson(false);
+    }
+
+    /**
+     * Bytes sent on the wire must be signed and posted identically (JSON_UNESCAPED_SLASHES).
+     */
+    public function transmitJson(bool $dryRun = false): string
+    {
         $payload = $this->payload();
+        if ($dryRun) {
+            $payload['dry_run'] = true;
+        }
 
         return json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
