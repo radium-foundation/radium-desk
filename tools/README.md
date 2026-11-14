@@ -27,6 +27,19 @@ Optional: add `tools/` to your `PATH` or symlink `tools/desk` as `desk` for shor
 
 Uses bearer token at `~/.config/hostinger/token` (mode `0600`, never in git). **GET only** — verifies VM `1910783` / `srv1910783.hstgr.cloud`, snapshot, and backup list. See `docs/P-14-09-hostinger-vps-preflight-implementation.md`.
 
+### Hostinger snapshot verify-only deploy gate (P-14-17)
+
+Optional fail-closed gate for **Tier A/B** KVM production deploys when enabled:
+
+```bash
+export HOSTINGER_SNAPSHOT_GATE=1
+export DEPLOY_TIER=A   # or B (Tier C exempt)
+export HOSTINGER_SNAPSHOT_GATE_ID=455368   # optional pin
+./tools/desk deploy
+```
+
+`deploy-kvm.sh` runs **initial** gate after the RIP pre-deploy check and a **final** re-verify immediately before rsync. Default **`HOSTINGER_SNAPSHOT_GATE=0`** — not production protection; Tier A without the gate emits an explicit warning. Manual check: `./tools/desk hostinger-vps-snapshot-gate --json`. See `docs/P-14-16-hostinger-snapshot-deployment-gate-design.md` and `docs/P-14-17-hostinger-snapshot-verify-gate.md`.
+
 ## Configuration
 
 Edit [`config.sh`](config.sh) before first use. **KVM connection** (`SSH_*`, `REMOTE_PROJECT`, `PHP_BIN`, `DEPLOY_MODE`) targets current production. **`LEGACY_REMOTE_PUBLIC`** and related `INDEX_*` / `SCHEDULE_RUN_WRAPPER` values are **legacy shared-hosting** settings used only by **`desk deploy-legacy`**.
