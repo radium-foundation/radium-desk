@@ -1046,4 +1046,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-15 | 2026-11-14 | **P-14-15** Post-merge verify PR #258 + preflight smoke ChatGPT **P-14-15** | **`origin/main`** **`e18b540a`** = merge **#258**; ancestor **OK**; **8** paths **+648** only. Focused tests **15/15 PASS**; live **`desk hostinger-vps-preflight`** **PASS** (~2s): VM **1910783** **`srv1910783.hstgr.cloud`** **KVM 8** **unlocked**; snapshot **455368**; backups **4**. **GET-only** confirmed. **NO** deploy/snapshot mutate/wallet touch. |
 
+| RadiumDesk-P-14-16 | 2026-11-14 | **P-14-16** Hostinger snapshot deployment-gate design ChatGPT **P-14-16** | Read-only design **`docs/P-14-16-hostinger-snapshot-deployment-gate-design.md`** @ **`main`** **`42e92e07`**: Tier **A/B/C** gate, fail-closed verify, separate Owner snapshot-create auth, RIP metadata v2 proposal, shared-KVM risks, restore-drill prereqs. Focused preflight tests **15/15 PASS** (~1s). **NO** implement/commit/push/POST/deploy/wallet. ~**7.5m** **10:27–10:35 IST**. |
+
+| RadiumDesk-P-14-17 | 2026-11-14 | **P-14-17** Hostinger snapshot verify-only deploy gate ChatGPT **P-14-17** | Branch **`fix/p14-17-hostinger-snapshot-verify-gate`**: **`hostinger_vps_snapshot_gate.py`** + **`deploy-kvm`** initial/final GET gate; **`HOSTINGER_SNAPSHOT_GATE`** default **off**. Tests **14+15** unittest **PASS**; shell **PASS**. **NO** POST/deploy/prod. **10:32–10:38 IST**. |
+
 Do not renumber or overwrite earlier rows. Append only.
