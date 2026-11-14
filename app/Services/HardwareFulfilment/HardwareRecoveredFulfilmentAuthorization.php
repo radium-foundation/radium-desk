@@ -19,6 +19,8 @@ class HardwareRecoveredFulfilmentAuthorization
 
     public const PURPOSE_OWNER_RECOVERED = 'owner-authorized-recovered-commerce-fulfilment';
 
+    public const PURPOSE_OWNER_EXISTING_COMMERCE = HardwareOwnerAuthorizedExistingCommerceProfiles::PURPOSE;
+
     public function isAuthorized(CommerceOrder $order): bool
     {
         $row = $this->activeMatchingRow($order);
@@ -115,6 +117,37 @@ class HardwareRecoveredFulfilmentAuthorization
     {
         $sourceId = strtoupper(trim((string) $order->source_id));
 
+        if (HardwareOwnerAuthorizedExistingCommerceProfiles::has($sourceId)) {
+            HardwareOwnerAuthorizedExistingCommerceGate::assertOrderMatchesProfile($order);
+
+            if (HardwareFulfilmentEligibility::isHoldSourceId($sourceId)
+                || HardwareFulfilmentEligibility::metadataShowsHold($order->metadata)) {
+                throw ValidationException::withMessages([
+                    'source' => 'Owner-HOLD sources cannot receive existing-commerce fulfilment authorization.',
+                ]);
+            }
+
+            if (HardwareFulfilmentEligibility::isBlockedUntilAuthorized($sourceId)) {
+                throw ValidationException::withMessages([
+                    'source' => 'Blocked-until-authorized sources cannot use existing-commerce fulfilment authorization.',
+                ]);
+            }
+
+            if ($this->channelValue($order) !== StatutoryInvoiceChannel::RadiumBoxCom->value) {
+                throw ValidationException::withMessages([
+                    'channel' => 'Existing-commerce fulfilment authorization requires channel radiumbox_com.',
+                ]);
+            }
+
+            if ((string) $order->source_type !== StatutoryInvoiceSourceType::CommerceOrder->value) {
+                throw ValidationException::withMessages([
+                    'source_type' => 'Existing-commerce fulfilment authorization requires source_type commerce_order.',
+                ]);
+            }
+
+            return;
+        }
+
         if (! HardwareFulfilmentEligibility::isFrozenSourceId($sourceId)) {
             throw ValidationException::withMessages([
                 'source' => 'Recovered-fulfilment authorization is only for owner-frozen hardware sources.',
@@ -164,6 +197,12 @@ class HardwareRecoveredFulfilmentAuthorization
     {
         if ($this->isAuthorized($order)) {
             return;
+        }
+
+        if (HardwareOwnerAuthorizedExistingCommerceProfiles::has((string) $order->source_id)) {
+            throw ValidationException::withMessages([
+                'fulfilment' => 'Owner authorization is required before opening fulfilment for this existing Commerce order.',
+            ]);
         }
 
         throw ValidationException::withMessages([

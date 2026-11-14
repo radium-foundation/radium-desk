@@ -186,6 +186,10 @@ final class HardwareFulfilmentEligibility
         }
 
         $normalized = strtoupper(trim($sourceId));
+        if (str_starts_with($normalized, 'RBP')) {
+            return false;
+        }
+
         foreach (self::HARDWARE_SOURCE_PREFIXES as $prefix) {
             if ($prefix !== '' && str_starts_with($normalized, $prefix)) {
                 return true;
