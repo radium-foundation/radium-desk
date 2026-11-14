@@ -6,6 +6,8 @@ Eligible **paid** RadiumBox **`RBP*`** channel ingest requests with **physical m
 
 **Unpaid** `RBP*` ingest requests do **not** open fulfilment (stricter than legacy `RDE*` unpaid behaviour).
 
+**Cancelled/voided** commerce (Box metadata order status, `failed`/`rejected` commerce status, non-paid payment) does **not** open fulfilment and is excluded from gap monitoring (**P-14-90**).
+
 ## Monitoring (read-only)
 
 | Item | Value |
