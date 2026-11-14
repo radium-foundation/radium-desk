@@ -18,6 +18,15 @@ All commands are run from the **project root**:
 
 Optional: add `tools/` to your `PATH` or symlink `tools/desk` as `desk` for shorter invocation.
 
+### Hostinger VPS preflight (read-only)
+
+```bash
+./tools/desk hostinger-vps-preflight          # human-readable report
+./tools/desk hostinger-vps-preflight --json   # JSON for automation/RIP metadata
+```
+
+Uses bearer token at `~/.config/hostinger/token` (mode `0600`, never in git). **GET only** — verifies VM `1910783` / `srv1910783.hstgr.cloud`, snapshot, and backup list. See `docs/P-14-09-hostinger-vps-preflight-implementation.md`.
+
 ## Configuration
 
 Edit [`config.sh`](config.sh) before first use. **KVM connection** (`SSH_*`, `REMOTE_PROJECT`, `PHP_BIN`, `DEPLOY_MODE`) targets current production. **`LEGACY_REMOTE_PUBLIC`** and related `INDEX_*` / `SCHEDULE_RUN_WRAPPER` values are **legacy shared-hosting** settings used only by **`desk deploy-legacy`**.

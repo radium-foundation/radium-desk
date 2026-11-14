@@ -1032,4 +1032,12 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-04 | 2026-11-14 | **P-14-04** OEM release metadata `v4.1.66` @ **`28e33f8d`** ChatGPT **P-14-04** | CHANGELOG **4.1.66** (app ancestry **`73f849f7`**); annotated tag **`v4.1.66`** → **`28e33f8d`**; `validate_release_metadata` **PASS**; `ChangelogServiceTest` **6/6**. **NO** deploy/migrate/prod. Remaining: DB restore drill, wallet regressions. |
 
+| RadiumDesk-P-14-09 | 2026-11-14 | **P-14-09** Hostinger VPS read-only preflight (implement) ChatGPT **P-14-09** | **`tools/lib/hostinger_vps_preflight.py`** + **`desk hostinger-vps-preflight`** (**GET** only, UA pinned, VM **1910783** hostname assert, token **0600** file). Tests **`hostinger-vps-preflight.test.sh`** **15/15 PASS**; live smoke **PASS** (~5s). Docs **`P-14-09-hostinger-vps-preflight-implementation.md`**, **`tools/README.md`**. **NO** commit/push/merge/deploy/snapshot mutate. ~**12m** @ **09:57–10:09 IST**. |
+
+| RadiumDesk-P-14-10 | 2026-11-14 | **P-14-10** Isolate P-14-09 from wallet branch ChatGPT **P-14-10** | Worktree **`.worktrees/p14-09-hostinger-preflight`** branch **`fix/p14-09-hostinger-vps-preflight`** @ **`origin/main`** **`cee91a6b`**. Transferred **8** paths only; wallet WIP **untouched** on **`feature/p18-33-unified-wallet-display`** **`09505b38`**. Focused tests **PASS**; live smoke **PASS** (~5s). **NO** commit/push/stash/reset on wallet tree. |
+
+| RadiumDesk-P-14-11 | 2026-11-14 | **P-14-11** Commit isolated Hostinger preflight ChatGPT **P-14-11** | Branch **`fix/p14-09-hostinger-vps-preflight`**: commit **8** paths only; tests **15/15 PASS** + live smoke **PASS**; **`P-14-10-isolate-*.md`** left unstaged. **NO** push/PR/merge/deploy. |
+
+| RadiumDesk-P-14-12 | 2026-11-14 | **P-14-12** Push Hostinger preflight + open PR ChatGPT **P-14-12** | Pushed **`fix/p14-09-hostinger-vps-preflight`** @ **`0959b0fb`**; **`origin/main`** unchanged **`cee91a6b`**. **[PR #258](https://github.com/radium-foundation/radium-desk/pull/258)** vs **`main`**. Pre-push: **8** paths, no **`P-14-10` doc**/**`__pycache__`**. CI **pending** at open. **NO** merge/deploy/snapshot mutate/wallet tree touch. |
+
 Do not renumber or overwrite earlier rows. Append only.
