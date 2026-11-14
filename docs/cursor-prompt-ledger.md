@@ -1068,4 +1068,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-26 | 2026-11-14 | **P-14-26** Fix RIP builder vs policy `authorization_reference` ChatGPT **P-14-26** | Builder omits forbidden manifest keys; ledger stderr hint; integration + builder regression tests. **PR #260** updated; **NOT merged**. **NO** deploy/POST. |
 
+| RadiumDesk-P-14-27 | 2026-11-14 | **P-14-27** Snapshot create action poll + fail-closed expiry ChatGPT **P-14-27** | Poll **`GET .../actions/{id}`**; ambiguous **`expires_at`** blocks overwrite; **17** create unit tests **PASS**. **PR #260**; **NOT merged**. **NO** live POST/deploy. |
+
 Do not renumber or overwrite earlier rows. Append only.

@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -19,6 +20,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 import hostinger_vps_preflight as preflight
+
+# P-14-06 verified Hostinger VPS action API (ActionResource.state).
+ACTION_STATE_SUCCESS = "success"
+ACTION_STATE_ERROR = "error"
+ACTION_PENDING_STATES = frozenset({"delayed", "sent", "created"})
+ACTION_POLL_INTERVAL_SECONDS = 5
+ACTION_POLL_TIMEOUT_SECONDS = 600
 
 
 class SnapshotCreateError(preflight.PreflightError):
@@ -77,13 +85,25 @@ def assess_existing_snapshot(preflight_data: dict, now: datetime | None = None) 
     now = now or datetime.now(timezone.utc)
     snap = preflight_data.get("snapshot") or {}
     present = snap.get("present") is True
-    expires = _parse_utc(snap.get("expires_at")) if present else None
-    still_valid = bool(present and expires and expires > now)
+    expires_raw = snap.get("expires_at") if present else None
+    expires = _parse_utc(expires_raw) if present else None
+    ambiguous_expiry = bool(present and (not expires_raw or expires is None))
+    if not present:
+        expiry_state = "absent"
+    elif ambiguous_expiry:
+        expiry_state = "ambiguous"
+    elif expires and expires > now:
+        expiry_state = "valid"
+    else:
+        expiry_state = "expired"
+    still_valid = expiry_state == "valid"
     return {
         "present": present,
         "snapshot_id": snap.get("id") if present else None,
         "created_at": snap.get("created_at"),
-        "expires_at": snap.get("expires_at"),
+        "expires_at": expires_raw,
+        "expiry_state": expiry_state,
+        "ambiguous_expiry": ambiguous_expiry,
         "still_valid_recovery_point": still_valid,
     }
 
@@ -113,6 +133,13 @@ def plan_snapshot_create(
         plan["abort_reason"] = (
             "valid_snapshot_exists_overwrite_not_authorized "
             f"(id={slot.get('snapshot_id')}, expires={slot.get('expires_at')})"
+        )
+        return plan
+    if slot.get("ambiguous_expiry") and not auth.allow_overwrite:
+        plan["abort"] = True
+        plan["abort_reason"] = (
+            "ambiguous_snapshot_expiry_overwrite_not_authorized "
+            f"(id={slot.get('snapshot_id')}, expires={slot.get('expires_at')!r})"
         )
         return plan
     if vm.get("actions_lock") != "unlocked":
@@ -165,32 +192,115 @@ def api_post_snapshot(
     return status, headers, data
 
 
+def fetch_vm_action(
+    runner: preflight.HostingerVpsPreflight,
+    token: str,
+    vm_id: int,
+    action_id: int,
+) -> tuple[int, Any]:
+    path = f"/api/vps/v1/virtual-machines/{vm_id}/actions/{action_id}"
+    try:
+        status, _headers, data = runner.api_get(path, token)
+        return status, data
+    except preflight.PreflightError as e:
+        raise SnapshotCreateError(str(e)) from e
+
+
+def poll_snapshot_action(
+    runner: preflight.HostingerVpsPreflight,
+    token: str,
+    vm_id: int,
+    action_id: int,
+    *,
+    timeout_seconds: int = ACTION_POLL_TIMEOUT_SECONDS,
+    interval_seconds: int = ACTION_POLL_INTERVAL_SECONDS,
+    sleep_fn=time.sleep,
+    monotonic_fn=time.monotonic,
+) -> dict[str, Any]:
+    """Poll GET .../actions/{actionId} until success, error, or timeout (P-14-06). No POST retry."""
+    deadline = monotonic_fn() + timeout_seconds
+    last_state: str | None = None
+    last_payload: dict[str, Any] | None = None
+    while monotonic_fn() < deadline:
+        status, data = fetch_vm_action(runner, token, vm_id, action_id)
+        if status >= 400:
+            raise SnapshotCreateError(f"action poll HTTP {status} (action_id={action_id})")
+        if not isinstance(data, dict):
+            raise SnapshotCreateError("malformed action poll response")
+        last_payload = data
+        state = data.get("state")
+        if not isinstance(state, str):
+            raise SnapshotCreateError("action poll response missing state")
+        last_state = state
+        if state == ACTION_STATE_SUCCESS:
+            return {**data, "poll_outcome": "success"}
+        if state == ACTION_STATE_ERROR:
+            return {**data, "poll_outcome": "error"}
+        if state not in ACTION_PENDING_STATES:
+            raise SnapshotCreateError(f"unknown action state: {state!r}")
+        sleep_fn(interval_seconds)
+    raise SnapshotCreateError(
+        f"action poll timeout after {timeout_seconds}s "
+        f"(action_id={action_id}, last_state={last_state!r})"
+    )
+
+
 def execute_snapshot_create(
     auth: SnapshotCreateAuthorization,
     runner: preflight.HostingerVpsPreflight,
     token: str,
 ) -> dict[str, Any]:
-    """Re-query slot, POST, then GET snapshot to confirm."""
+    """Re-query slot, POST once, poll action, then GET snapshot to confirm."""
     preflight_data = runner.run(token)
     plan = plan_snapshot_create(auth, preflight_data)
     if plan.get("abort"):
         raise SnapshotCreateError(str(plan.get("abort_reason")))
     vm_id = int(plan["vm_id"])
+    pre_slot = assess_existing_snapshot(preflight_data)
+    pre_snapshot_id = pre_slot.get("snapshot_id")
     status, _headers, action = api_post_snapshot(runner, token, vm_id)
     if status not in (200, 201, 202):
         raise SnapshotCreateError(f"snapshot POST failed (HTTP {status})")
-    action_id = action.get("id") if isinstance(action, dict) else None
+    if not isinstance(action, dict):
+        raise SnapshotCreateError("snapshot POST returned non-object body")
+    action_id = action.get("id")
+    if action_id is None:
+        raise SnapshotCreateError("snapshot POST succeeded but action id missing")
+    action_id = int(action_id)
+    polled = poll_snapshot_action(runner, token, vm_id, action_id)
+    action_state = polled.get("state")
+    if polled.get("poll_outcome") == "error" or action_state == ACTION_STATE_ERROR:
+        raise SnapshotCreateError(
+            f"snapshot action failed (action_id={action_id}, state={action_state!r})"
+        )
+    if action_state != ACTION_STATE_SUCCESS:
+        raise SnapshotCreateError(
+            f"snapshot action incomplete (action_id={action_id}, state={action_state!r})"
+        )
     verify = runner.run(token)
     snap = verify.get("snapshot") or {}
+    if snap.get("present") is not True:
+        raise SnapshotCreateError(
+            f"snapshot absent after successful action (action_id={action_id})"
+        )
+    new_id = snap.get("id")
+    if pre_snapshot_id is not None and new_id == pre_snapshot_id:
+        slot_after = assess_existing_snapshot(verify)
+        if slot_after.get("expiry_state") != "expired":
+            raise SnapshotCreateError(
+                "snapshot id unchanged after create; expected new recovery point "
+                f"(action_id={action_id}, snapshot_id={new_id})"
+            )
     return {
         "ok": True,
         "authorization_reference": auth.authorization_reference,
         "action_id": action_id,
+        "action_state": action_state,
         "post_http_status": status,
-        "snapshot_id": snap.get("id"),
+        "snapshot_id": new_id,
         "snapshot_created_at": snap.get("created_at"),
         "snapshot_expires_at": snap.get("expires_at"),
-        "verification_status": "recovery-point-verified" if snap.get("present") else "failed",
+        "verification_status": "recovery-point-verified",
     }
 
 
@@ -245,7 +355,9 @@ def _plan_human(plan: dict) -> str:
     ex = plan.get("existing_snapshot") or {}
     if ex.get("present"):
         lines.append(
-            f"  existing: id={ex.get('snapshot_id')} valid={ex.get('still_valid_recovery_point')}"
+            f"  existing: id={ex.get('snapshot_id')} "
+            f"expiry_state={ex.get('expiry_state')} "
+            f"valid={ex.get('still_valid_recovery_point')}"
         )
     else:
         lines.append("  existing: none")
