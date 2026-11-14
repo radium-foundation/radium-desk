@@ -1076,4 +1076,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-32 | 2026-11-14 | **P-14-32** Action `started` + same-ID overwrite verify ChatGPT **P-14-32** | Pending **`started`**; **`snapshot_recovery_point_refreshed`** metadata check; expanded unit tests. **PR #260**; **NOT merged**. **NO** live POST/deploy. |
 
+| RadiumDesk-P-14-33 | 2026-11-14 | **P-14-33** PR #260 CI verify + merge-readiness ChatGPT **P-14-33** | Head **`f9b6d985f`**; GitHub CI **0 runs** on SHA; **`main` ledger conflict**; code review **OK**. Verdict **NOT READY**. **NO** merge/deploy/POST. **~12:30 IST**. |
+
+| RadiumDesk-P-14-35 | 2026-11-14 | **P-14-35** Rebase PR #260 + ledger conflict resolve ChatGPT **P-14-35** | Rebase onto **`origin/main`** **`e0dec5e0`**; merge **P-14-05** + **P-14-18..32**; push + fresh CI **pending**. **NOT merged**. **NO** deploy/POST/snapshot. |
+
 Do not renumber or overwrite earlier rows. Append only.
