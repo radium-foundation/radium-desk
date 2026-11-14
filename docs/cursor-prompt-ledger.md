@@ -1064,4 +1064,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-24 | 2026-11-14 | **P-14-24** Rebase PR #260 onto merged main ChatGPT **P-14-24** | **`--onto`** drop **#259** stack; **4** commits **P-14-18→21**; base **`main`** **`e1e967d0`**; head **`45abff497`**. Focused tests **PASS** (~3s). **[PR #260](https://github.com/radium-foundation/radium-desk/pull/260)** **NOT merged**. **NO** deploy/POST/snapshot. **11:01–11:03 IST**. |
 
+| RadiumDesk-P-14-25 | 2026-11-14 | **P-14-25** Independent final review PR #260 ChatGPT **P-14-25** | **[PR #260](https://github.com/radium-foundation/radium-desk/pull/260)** **`main`/`e1e967d0`** head **`27e911c83`** CI **PASS**; verdict **CONDITIONALLY READY**. **HIGH:** `build_rip_hostinger_block` vs policy `authorization_reference`. **NO** merge/deploy/POST. **11:06–11:07 IST**. |
+
+| RadiumDesk-P-14-26 | 2026-11-14 | **P-14-26** Fix RIP builder vs policy `authorization_reference` ChatGPT **P-14-26** | Builder omits forbidden manifest keys; ledger stderr hint; integration + builder regression tests. **PR #260** updated; **NOT merged**. **NO** deploy/POST. |
+
 Do not renumber or overwrite earlier rows. Append only.

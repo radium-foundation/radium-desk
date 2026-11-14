@@ -51,4 +51,20 @@ class RipHostingerSnapshotPolicyTest extends TestCase
             'verification_status' => 'restorable',
         ]);
     }
+
+    public function test_rejects_authorization_reference_in_block(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('authorization_reference');
+        (new RipHostingerSnapshotPolicy)->validateRecoveryBlock([
+            'schema_version' => 1,
+            'provider' => 'hostinger',
+            'virtual_machine_id' => 1910783,
+            'hostname' => 'srv1910783.hstgr.cloud',
+            'snapshot_id' => 1,
+            'verified_at' => '2026-11-14T05:00:00Z',
+            'verification_status' => RipHostingerSnapshotPolicy::STATUS_VERIFIED,
+            'authorization_reference' => 'RadiumDesk-P-14-18',
+        ]);
+    }
 }

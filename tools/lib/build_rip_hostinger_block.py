@@ -9,7 +9,8 @@ import sys
 from datetime import datetime, timezone
 
 
-def build_block(gate: dict, source_commit: str, authorization_reference: str | None = None) -> dict:
+def build_block(gate: dict, source_commit: str) -> dict:
+    """Build manifest-safe recovery metadata. Owner auth belongs in the ledger, not manifest.json."""
     status = gate.get("verification_status", "failed")
     if gate.get("ok") and status == "verified":
         rip_status = "verified"
@@ -36,20 +37,33 @@ def build_block(gate: dict, source_commit: str, authorization_reference: str | N
         "verified_at": gate.get("checked_at") or datetime.now(timezone.utc).isoformat(),
         "verification_status": rip_status,
         "source_commit": source_commit[:7] if source_commit else None,
-        "authorization_reference": authorization_reference,
         "deploy_tier": gate.get("deploy_tier"),
         "phase": gate.get("phase"),
     }
+
+
+def _ledger_hint(authorization_reference: str | None) -> None:
+    if not authorization_reference:
+        return
+    print(
+        "Note: record Owner authorization in docs/cursor-prompt-ledger.md "
+        f"(not in manifest.json): {authorization_reference}",
+        file=sys.stderr,
+    )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("gate_json_file")
     parser.add_argument("--source-commit", required=True)
-    parser.add_argument("--authorization-reference")
+    parser.add_argument(
+        "--authorization-reference",
+        help="Owner ledger row id for create/verify auth; never written into manifest.json",
+    )
     args = parser.parse_args()
     gate = json.load(open(args.gate_json_file, encoding="utf-8"))
-    block = build_block(gate, args.source_commit, args.authorization_reference)
+    _ledger_hint(args.authorization_reference)
+    block = build_block(gate, args.source_commit)
     print(json.dumps(block, indent=2))
     return 0
 
