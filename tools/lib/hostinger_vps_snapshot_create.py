@@ -21,10 +21,10 @@ from typing import Any
 
 import hostinger_vps_preflight as preflight
 
-# P-14-06 verified Hostinger VPS action API (ActionResource.state).
+# P-14-06 OpenAPI + P-14-31 live: ActionResource.state pending/terminal values.
 ACTION_STATE_SUCCESS = "success"
 ACTION_STATE_ERROR = "error"
-ACTION_PENDING_STATES = frozenset({"delayed", "sent", "created"})
+ACTION_PENDING_STATES = frozenset({"delayed", "sent", "created", "started"})
 ACTION_POLL_INTERVAL_SECONDS = 5
 ACTION_POLL_TIMEOUT_SECONDS = 600
 
@@ -106,6 +106,31 @@ def assess_existing_snapshot(preflight_data: dict, now: datetime | None = None) 
         "ambiguous_expiry": ambiguous_expiry,
         "still_valid_recovery_point": still_valid,
     }
+
+
+def snapshot_recovery_point_refreshed(pre_slot: dict[str, Any], post_snap: dict[str, Any]) -> bool:
+    """True when GET snapshot shows a new recovery point after create (P-14-32 same-id overwrite)."""
+    if post_snap.get("present") is not True:
+        return False
+    pre_id = pre_slot.get("snapshot_id")
+    post_id = post_snap.get("id")
+    if pre_id is None:
+        return True
+    if post_id != pre_id:
+        return True
+    pre_created = pre_slot.get("created_at")
+    post_created = post_snap.get("created_at")
+    pre_expires = pre_slot.get("expires_at")
+    post_expires = post_snap.get("expires_at")
+    if post_created and post_created != pre_created:
+        return True
+    if post_expires and post_expires != pre_expires:
+        return True
+    pre_ct = _parse_utc(pre_created)
+    post_ct = _parse_utc(post_created)
+    if pre_ct and post_ct and post_ct > pre_ct:
+        return True
+    return False
 
 
 def plan_snapshot_create(
@@ -257,7 +282,6 @@ def execute_snapshot_create(
         raise SnapshotCreateError(str(plan.get("abort_reason")))
     vm_id = int(plan["vm_id"])
     pre_slot = assess_existing_snapshot(preflight_data)
-    pre_snapshot_id = pre_slot.get("snapshot_id")
     status, _headers, action = api_post_snapshot(runner, token, vm_id)
     if status not in (200, 201, 202):
         raise SnapshotCreateError(f"snapshot POST failed (HTTP {status})")
@@ -283,21 +307,18 @@ def execute_snapshot_create(
         raise SnapshotCreateError(
             f"snapshot absent after successful action (action_id={action_id})"
         )
-    new_id = snap.get("id")
-    if pre_snapshot_id is not None and new_id == pre_snapshot_id:
-        slot_after = assess_existing_snapshot(verify)
-        if slot_after.get("expiry_state") != "expired":
-            raise SnapshotCreateError(
-                "snapshot id unchanged after create; expected new recovery point "
-                f"(action_id={action_id}, snapshot_id={new_id})"
-            )
+    if not snapshot_recovery_point_refreshed(pre_slot, snap):
+        raise SnapshotCreateError(
+            "snapshot metadata unchanged after create; expected refreshed recovery point "
+            f"(action_id={action_id}, snapshot_id={snap.get('id')})"
+        )
     return {
         "ok": True,
         "authorization_reference": auth.authorization_reference,
         "action_id": action_id,
         "action_state": action_state,
         "post_http_status": status,
-        "snapshot_id": new_id,
+        "snapshot_id": snap.get("id"),
         "snapshot_created_at": snap.get("created_at"),
         "snapshot_expires_at": snap.get("expires_at"),
         "verification_status": "recovery-point-verified",

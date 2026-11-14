@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for snapshot create authorization (P-14-18/19/27, mocked POST/poll)."""
+"""Unit tests for snapshot create authorization (P-14-18/19/27/32, mocked POST/poll)."""
 
 from __future__ import annotations
 
@@ -23,9 +23,10 @@ def _preflight(
     *,
     expires_at="__default__",
     omit_expires_key=False,
+    created_at="x",
 ):
     now = datetime.now(timezone.utc)
-    snap = {"present": True, "id": snap_id, "created_at": "x"}
+    snap = {"present": True, "id": snap_id, "created_at": created_at}
     if not omit_expires_key:
         if expires_at == "__default__":
             snap["expires_at"] = (now + timedelta(hours=expires_hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -98,12 +99,9 @@ class AssessExistingSnapshotTests(unittest.TestCase):
 class PollSnapshotActionTests(unittest.TestCase):
     def _runner(self, states: list[str]):
         runner = mock.Mock()
-        responses = [
-            (200, {"id": 1, "state": state, "name": "snapshot_create"})
-            for state in states
-        ]
         runner.api_get.side_effect = [
-            (200, {}, body) for _status, body in responses
+            (200, {}, {"id": 1, "state": state, "name": "snapshot_create"})
+            for state in states
         ]
         return runner
 
@@ -160,6 +158,89 @@ class PollSnapshotActionTests(unittest.TestCase):
                 runner, "tok", 1910783, 99, interval_seconds=0, sleep_fn=lambda _: None
             )
 
+    def test_poll_started_then_success(self):
+        runner = self._runner(["started", "success"])
+        out = create.poll_snapshot_action(
+            runner, "tok", 1910783, 99, interval_seconds=0, sleep_fn=lambda _: None
+        )
+        self.assertEqual(out["poll_outcome"], "success")
+        self.assertEqual(runner.api_get.call_count, 2)
+
+    def test_poll_started_then_error(self):
+        runner = self._runner(["started", "error"])
+        out = create.poll_snapshot_action(
+            runner, "tok", 1910783, 99, interval_seconds=0, sleep_fn=lambda _: None
+        )
+        self.assertEqual(out["poll_outcome"], "error")
+
+    def test_poll_started_repeated_until_timeout(self):
+        runner = self._runner(["started"] * 10)
+        clock = iter([0.0, 0.4, 0.8, 1.2])
+
+        def _mono():
+            return next(clock, 1.2)
+
+        with self.assertRaises(create.SnapshotCreateError) as ctx:
+            create.poll_snapshot_action(
+                runner,
+                "tok",
+                1910783,
+                99,
+                timeout_seconds=1,
+                interval_seconds=0,
+                sleep_fn=lambda _: None,
+                monotonic_fn=_mono,
+            )
+        self.assertIn("timeout", str(ctx.exception).lower())
+        self.assertIn("started", str(ctx.exception).lower())
+
+    def test_poll_unknown_state_fails_closed(self):
+        runner = self._runner(["mystery"])
+        with self.assertRaises(create.SnapshotCreateError) as ctx:
+            create.poll_snapshot_action(
+                runner, "tok", 1910783, 99, interval_seconds=0, sleep_fn=lambda _: None
+            )
+        self.assertIn("unknown action state", str(ctx.exception))
+
+
+class SnapshotMetadataRefreshTests(unittest.TestCase):
+    def test_refresh_detects_new_id(self):
+        pre = create.assess_existing_snapshot(_preflight(snap_id=1))
+        post = {"present": True, "id": 2, "created_at": "a", "expires_at": "b"}
+        self.assertTrue(create.snapshot_recovery_point_refreshed(pre, post))
+
+    def test_same_id_with_updated_timestamps_is_refresh(self):
+        pre = create.assess_existing_snapshot(
+            _preflight(
+                snap_id=455368,
+                created_at="2026-11-14T03:40:37Z",
+                expires_at="2026-11-15T03:40:37Z",
+            )
+        )
+        post = {
+            "present": True,
+            "id": 455368,
+            "created_at": "2026-11-14T06:45:59Z",
+            "expires_at": "2026-11-15T06:45:59Z",
+        }
+        self.assertTrue(create.snapshot_recovery_point_refreshed(pre, post))
+
+    def test_same_id_unchanged_metadata_not_refresh(self):
+        pre = create.assess_existing_snapshot(
+            _preflight(
+                snap_id=455368,
+                created_at="2026-11-14T03:40:37Z",
+                expires_at="2026-11-15T03:40:37Z",
+            )
+        )
+        post = {
+            "present": True,
+            "id": 455368,
+            "created_at": "2026-11-14T03:40:37Z",
+            "expires_at": "2026-11-15T03:40:37Z",
+        }
+        self.assertFalse(create.snapshot_recovery_point_refreshed(pre, post))
+
 
 class ExecuteSnapshotCreateTests(unittest.TestCase):
     def test_execute_polls_before_verify_no_duplicate_post(self):
@@ -212,6 +293,57 @@ class ExecuteSnapshotCreateTests(unittest.TestCase):
                 create.execute_snapshot_create(auth, runner, "tok")
         post.assert_called_once()
         self.assertIn("action failed", str(ctx.exception).lower())
+
+    def test_execute_same_id_overwrite_with_refreshed_metadata(self):
+        auth = _auth(overwrite=True)
+        runner = mock.Mock()
+        pre = _preflight(
+            snap_id=455368,
+            created_at="2026-11-14T03:40:37Z",
+            expires_at="2026-11-15T03:40:37Z",
+        )
+        post = {
+            **pre,
+            "snapshot": {
+                "present": True,
+                "id": 455368,
+                "created_at": "2026-11-14T06:45:59Z",
+                "expires_at": "2026-11-15T06:45:59Z",
+            },
+        }
+        runner.run.side_effect = [pre, post]
+        runner.api_get.side_effect = [
+            (200, {}, {"id": 42, "state": "started"}),
+            (200, {}, {"id": 42, "state": "success"}),
+        ]
+
+        with mock.patch.object(
+            create, "api_post_snapshot", return_value=(202, {}, {"id": 42, "state": "started"})
+        ) as post:
+            result = create.execute_snapshot_create(auth, runner, "tok")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["snapshot_id"], 455368)
+        post.assert_called_once()
+
+    def test_execute_same_id_without_metadata_refresh_fails(self):
+        auth = _auth(overwrite=True)
+        runner = mock.Mock()
+        pre = _preflight(
+            snap_id=455368,
+            created_at="2026-11-14T03:40:37Z",
+            expires_at="2026-11-15T03:40:37Z",
+        )
+        runner.run.side_effect = [pre, pre]
+        runner.api_get.return_value = (200, {}, {"id": 42, "state": "success"})
+
+        with mock.patch.object(
+            create, "api_post_snapshot", return_value=(200, {}, {"id": 42, "state": "sent"})
+        ) as post:
+            with self.assertRaises(create.SnapshotCreateError) as ctx:
+                create.execute_snapshot_create(auth, runner, "tok")
+        post.assert_called_once()
+        self.assertIn("metadata unchanged", str(ctx.exception).lower())
 
 
 if __name__ == "__main__":

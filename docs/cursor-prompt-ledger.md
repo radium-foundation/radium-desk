@@ -1070,4 +1070,10 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-27 | 2026-11-14 | **P-14-27** Snapshot create action poll + fail-closed expiry ChatGPT **P-14-27** | Poll **`GET .../actions/{id}`**; ambiguous **`expires_at`** blocks overwrite; **17** create unit tests **PASS**. **PR #260**; **NOT merged**. **NO** live POST/deploy. |
 
+| RadiumDesk-P-14-30 | 2026-11-14 | **P-14-30** Final PR #260 review (post P-14-26/27) ChatGPT **P-14-30** | Head **`d4cc54ff`**; CI **PASS**; verdict **CONDITIONALLY READY** (live action `started` gap). **NO** merge/deploy. **~12:14–12:20 IST**. |
+
+| RadiumDesk-P-14-31 | 2026-11-14 | **P-14-31** Owner-authorized live shared-VPS snapshot ChatGPT **P-14-31** | VM **1910783** **`srv1910783.hstgr.cloud`** **`187.127.129.16`**; overwrite **ON**; prev snap **455368** **`2026-11-14T03:40:37Z`**; tool **FAIL** poll `started`; GET verify new snap **455368** **`2026-11-14T06:45:59Z`** exp **`2026-11-15T06:45:59Z`**; **1 POST** **NO** retry. **NO** deploy/restore. **~12:15–12:16 IST**. |
+
+| RadiumDesk-P-14-32 | 2026-11-14 | **P-14-32** Action `started` + same-ID overwrite verify ChatGPT **P-14-32** | Pending **`started`**; **`snapshot_recovery_point_refreshed`** metadata check; expanded unit tests. **PR #260**; **NOT merged**. **NO** live POST/deploy. |
+
 Do not renumber or overwrite earlier rows. Append only.
