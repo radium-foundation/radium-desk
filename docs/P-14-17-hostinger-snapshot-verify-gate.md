@@ -22,6 +22,12 @@
 | `HOSTINGER_SNAPSHOT_EXPIRY_MARGIN_SECONDS` | Default `1800` — abort if expiry is sooner |
 | `HOSTINGER_SNAPSHOT_GATE_PHASE` | Set by deploy script (`initial` / `final`) |
 
+## Deploy order (P-14-23)
+
+Live KVM deploy when the gate is enabled: **initial GET** → local confirm/build → **final GET** → `ensure_remote_deploy_ownership` (remote `chown`) → rsync safety → rsync.
+
+Deploy lock: held from initial gate success until `deploy-kvm` exits (EXIT trap). Blocks concurrent gated deploys on the same operator host; **does not** prevent snapshot overwrite via Hostinger API from other clients.
+
 ## Owner rollout note
 
 Default-off gate is **not** Tier A recovery protection. After validation, Owner may enable `HOSTINGER_SNAPSHOT_GATE=1` by default for Tier A only (future env default change requires explicit approval).

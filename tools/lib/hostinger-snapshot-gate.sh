@@ -65,6 +65,8 @@ hostinger_snapshot_gate_acquire_lock() {
             print_error "Another KVM deploy holds the Hostinger gate lock (${HOSTINGER_SNAPSHOT_GATE_LOCK})."
             return 1
         fi
+        HOSTINGER_SNAPSHOT_GATE_LOCK_HELD=1
+        export HOSTINGER_SNAPSHOT_GATE_LOCK_HELD
         return 0
     fi
     HOSTINGER_SNAPSHOT_GATE_LOCK_DIR="${HOSTINGER_SNAPSHOT_GATE_LOCK}.held"
@@ -72,10 +74,15 @@ hostinger_snapshot_gate_acquire_lock() {
         print_error "Another KVM deploy holds the Hostinger gate lock (${HOSTINGER_SNAPSHOT_GATE_LOCK_DIR})."
         return 1
     fi
+    HOSTINGER_SNAPSHOT_GATE_LOCK_HELD=1
+    export HOSTINGER_SNAPSHOT_GATE_LOCK_HELD
     return 0
 }
 
 hostinger_snapshot_gate_release_lock() {
+    if [[ "${HOSTINGER_SNAPSHOT_GATE_LOCK_HELD:-}" != "1" ]]; then
+        return 0
+    fi
     if [[ -n "${HOSTINGER_SNAPSHOT_GATE_LOCK_FD:-}" ]]; then
         flock -u "$HOSTINGER_SNAPSHOT_GATE_LOCK_FD" 2>/dev/null || true
         exec {HOSTINGER_SNAPSHOT_GATE_LOCK_FD}>&-
@@ -85,6 +92,7 @@ hostinger_snapshot_gate_release_lock() {
         rmdir "$HOSTINGER_SNAPSHOT_GATE_LOCK_DIR" 2>/dev/null || true
         unset HOSTINGER_SNAPSHOT_GATE_LOCK_DIR
     fi
+    unset HOSTINGER_SNAPSHOT_GATE_LOCK_HELD
 }
 
 hostinger_run_snapshot_gate_python() {
@@ -176,6 +184,6 @@ hostinger_reverify_snapshot_gate_before_rsync() {
         return 1
     fi
     print_success "Hostinger snapshot final gate passed (snapshot id ${HOSTINGER_SNAPSHOT_GATE_BASELINE_ID})"
-    hostinger_snapshot_gate_release_lock
+    print_warning "Deploy lock held until kvm deploy script exits (blocks concurrent gated deploy; does not block external snapshot API POST)."
     return 0
 }

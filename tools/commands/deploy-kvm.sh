@@ -369,15 +369,20 @@ main() {
         exit 1
     fi
 
+    if [[ "${HOSTINGER_SNAPSHOT_GATE_LOCK_HELD:-}" == "1" ]]; then
+        trap hostinger_snapshot_gate_release_lock EXIT
+    fi
+
     confirm_deploy
     build_frontend_assets
     write_local_release_snapshot
-    ensure_remote_deploy_ownership
 
     if ! hostinger_reverify_snapshot_gate_before_rsync; then
-        print_error "Deployment stopped by Hostinger snapshot gate (final, pre-rsync)."
+        print_error "Deployment stopped by Hostinger snapshot gate (final, before remote mutation)."
         exit 1
     fi
+
+    ensure_remote_deploy_ownership
 
     print_warning "Running rsync deletion safety gate before destructive synchronization..."
     if ! deploy_rsync_run_deletion_safety_gate; then
