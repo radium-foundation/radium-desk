@@ -11,12 +11,49 @@ use Tests\TestCase;
 
 class HardwareFulfilmentPrefixGuardTest extends TestCase
 {
-    public function test_rbp_never_opens_hardware_fulfilment_even_with_physical_lines(): void
+    public function test_paid_rbp_with_physical_lines_opens_hardware_fulfilment(): void
     {
         $request = $this->boxPhysical('RBP1');
 
+        $this->assertTrue(HardwareFulfilmentEligibility::shouldOpenRecord($request));
+        $this->assertTrue(HardwareFulfilmentEligibility::looksLikeHardwareSourceId('RBP1'));
+    }
+
+    public function test_unpaid_rbp_with_physical_lines_does_not_open_hardware_fulfilment(): void
+    {
+        $request = $this->boxPhysical('RBP2');
+        $request = new ChannelOrderIngestRequest(
+            channel: $request->channel,
+            sourceType: $request->sourceType,
+            sourceId: $request->sourceId,
+            lines: $request->lines,
+            paymentStatus: 'pending',
+            currency: $request->currency,
+        );
+
         $this->assertFalse(HardwareFulfilmentEligibility::shouldOpenRecord($request));
-        $this->assertFalse(HardwareFulfilmentEligibility::looksLikeHardwareSourceId('RBP1'));
+    }
+
+    public function test_rbp_without_physical_lines_does_not_open_hardware_fulfilment(): void
+    {
+        $request = new ChannelOrderIngestRequest(
+            channel: StatutoryInvoiceChannel::RadiumBoxCom,
+            sourceType: StatutoryInvoiceSourceType::CommerceOrder,
+            sourceId: 'RBP3',
+            lines: [new ChannelOrderLineDraft(
+                description: 'Service only',
+                qty: 1,
+                unitPrice: 100,
+                sku: 'svc',
+                shippingLineKind: 'service',
+                requiresShipping: false,
+                modelId: null,
+            )],
+            paymentStatus: 'paid',
+            currency: 'INR',
+        );
+
+        $this->assertFalse(HardwareFulfilmentEligibility::shouldOpenRecord($request));
     }
 
     public function test_rde_and_rin_remain_hardware(): void

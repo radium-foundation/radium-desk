@@ -20,7 +20,7 @@ final class HardwareFulfilmentEligibility
     public const SOURCE_PREFIX = 'RDE';
 
     /** @var list<string> */
-    public const HARDWARE_SOURCE_PREFIXES = ['RDE'];
+    public const HARDWARE_SOURCE_PREFIXES = ['RDE', 'RBP'];
 
     public const RIN_SOURCE_PREFIX = 'RIN';
 
@@ -80,12 +80,12 @@ final class HardwareFulfilmentEligibility
         }
 
         $parsed = BusinessOrderId::parse($request->sourceId);
-        if ($parsed !== null) {
-            if ($parsed['prefix'] === 'RBP') {
-                return false;
-            }
+        if ($parsed !== null && $parsed['hardware'] === false) {
+            return false;
+        }
 
-            if ($parsed['hardware'] === false) {
+        if ($parsed !== null && $parsed['prefix'] === 'RBP') {
+            if (strtolower(trim($request->paymentStatus)) !== 'paid') {
                 return false;
             }
         }
@@ -178,17 +178,11 @@ final class HardwareFulfilmentEligibility
     {
         $parsed = BusinessOrderId::parse($sourceId);
         if ($parsed !== null && $parsed['owner'] === 'radiumbox.com') {
-            if ($parsed['prefix'] === 'RBP') {
-                return false;
-            }
-
-            return $parsed['hardware'] === true;
+            return self::isRadiumBoxDeskFulfilmentProductPrefix($parsed['prefix'])
+                && $parsed['hardware'] === true;
         }
 
         $normalized = strtoupper(trim($sourceId));
-        if (str_starts_with($normalized, 'RBP')) {
-            return false;
-        }
 
         foreach (self::HARDWARE_SOURCE_PREFIXES as $prefix) {
             if ($prefix !== '' && str_starts_with($normalized, $prefix)) {
@@ -197,6 +191,15 @@ final class HardwareFulfilmentEligibility
         }
 
         return false;
+    }
+
+    /**
+     * RadiumBox commerce_order source ids that may use the Desk hardware fulfilment lane.
+     * RB* service orders and non-product prefixes remain excluded.
+     */
+    public static function isRadiumBoxDeskFulfilmentProductPrefix(string $prefix): bool
+    {
+        return in_array(strtoupper(trim($prefix)), ['RDE', 'RBP'], true);
     }
 
     public static function isFrozenSourceId(string $sourceId): bool

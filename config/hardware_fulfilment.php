@@ -187,4 +187,14 @@ return [
         ],
     ],
 
+    /*
+    | Paid RBP commerce orders that remain without a hardware_fulfilments row after grace.
+    | desk:monitor-rbp-hardware-fulfilment-gaps is scheduled; read-only (no auto-ingest).
+    */
+    'rbp_gap_monitor' => [
+        'enabled' => filter_var(env('HARDWARE_RBP_GAP_MONITOR_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'grace_minutes' => (int) env('HARDWARE_RBP_GAP_MONITOR_GRACE_MINUTES', 30),
+        'schedule_interval_minutes' => (int) env('HARDWARE_RBP_GAP_MONITOR_INTERVAL_MINUTES', 15),
+    ],
+
 ];

@@ -163,7 +163,7 @@ class Order extends Model
         $parsed = \App\Support\BusinessOrderId::parse($normalized);
         if ($parsed !== null) {
             if ($parsed['prefix'] === 'RBP') {
-                return false;
+                return $parsed['hardware'] === true;
             }
 
             return $parsed['hardware'] === true;
