@@ -46,12 +46,27 @@ if ($checkOnly) {
 }
 
 $phpunit = $projectRoot.'/vendor/bin/phpunit';
-if (! is_executable($phpunit)) {
-    fwrite(STDERR, "PHPUnit binary not found or not executable: {$phpunit}\n");
+if (! is_file($phpunit)) {
+    fwrite(STDERR, "PHPUnit binary not found: {$phpunit}\n");
     exit(1);
 }
 
-$parts = array_map(static fn (string $p): string => escapeshellarg($p), array_merge([$phpunit], $argv));
+$phpArgs = [PHP_BINARY];
+if (getenv('DESK_PHPUNIT_PROFILE') !== 'default_ini') {
+    $phpArgs[] = '-n';
+    $phpArgs[] = '-d';
+    $phpArgs[] = 'auto_prepend_file=';
+    $phpArgs[] = '-d';
+    $phpArgs[] = 'auto_append_file=';
+}
+$imagick = getenv('DESK_IMAGICK_SO');
+if (is_string($imagick) && $imagick !== '' && $imagick !== 'none') {
+    $phpArgs[] = '-d';
+    $phpArgs[] = 'extension='.$imagick;
+}
+putenv('PHP_INI_SCAN_DIR=');
+putenv('PHPRC');
+$parts = array_map(static fn (string $p): string => escapeshellarg($p), array_merge($phpArgs, [$phpunit], $argv));
 $command = implode(' ', $parts);
 passthru($command, $exitCode);
 exit((int) $exitCode);

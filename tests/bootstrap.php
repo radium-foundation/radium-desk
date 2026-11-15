@@ -10,6 +10,21 @@ $_SERVER['APP_BASE_PATH'] = $basePath;
 require $basePath.'/vendor/autoload.php';
 
 spl_autoload_register(static function (string $class) use ($basePath): void {
+    foreach (['Tests\\' => '/tests/', 'App\\' => '/app/'] as $prefix => $directory) {
+        if (! str_starts_with($class, $prefix)) {
+            continue;
+        }
+        $relative = str_replace('\\', '/', substr($class, strlen($prefix)));
+        $path = $basePath.$directory.$relative.'.php';
+        if (is_file($path)) {
+            require_once $path;
+        }
+
+        return;
+    }
+}, true, true);
+
+spl_autoload_register(static function (string $class) use ($basePath): void {
     $prefix = 'Tests\\Feature\\HardwareFulfilment\\Support\\';
     if (! str_starts_with($class, $prefix)) {
         return;
