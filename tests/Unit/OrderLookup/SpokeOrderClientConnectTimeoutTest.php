@@ -54,32 +54,11 @@ header('Content-Type: application/json');
 echo '{"id":"RB1092","ok":true}';
 return true;
 PHP);
-        $socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
-        $this->assertIsResource($socket);
-        $address = stream_socket_get_name($socket, false);
-        fclose($socket);
-        $port = (int) substr((string) strrchr((string) $address, ':'), 1);
-        $process = proc_open(
-            [PHP_BINARY, '-S', '127.0.0.1:'.$port, $router],
-            [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']],
-            $pipes,
-        );
-        $this->assertIsResource($process);
+        $server = $this->startLoopbackSpokeRouter($router);
+        $process = $server['process'];
+        $port = $server['port'];
 
         try {
-            $ready = false;
-            $deadline = microtime(true) + 2;
-            while (microtime(true) < $deadline) {
-                $probe = @fsockopen('127.0.0.1', $port, $errno, $errstr, 0.1);
-                if (is_resource($probe)) {
-                    fclose($probe);
-                    $ready = true;
-                    break;
-                }
-                usleep(20000);
-            }
-            $this->assertTrue($ready);
-
             config([
                 'order_lookup.spokes.radiumbox_com.enabled' => true,
                 'order_lookup.spokes.radiumbox_com.base_url' => 'http://127.0.0.1:'.$port,
@@ -94,11 +73,67 @@ PHP);
 
             $this->assertSame(['id' => 'RB1092', 'ok' => true], $payload);
         } finally {
-            if (is_resource($process)) {
-                proc_terminate($process, 15);
-                proc_close($process);
-            }
+            $this->stopLoopbackSpokeRouter($process, $server['stderr_file'] ?? null);
             @unlink($router);
+        }
+    }
+
+    /**
+     * @return array{process: resource, port: int, stderr_file: string}
+     */
+    private function startLoopbackSpokeRouter(string $router): array
+    {
+        $phpBinary = getenv('DESK_PHP_BIN');
+        if (! is_string($phpBinary) || $phpBinary === '') {
+            $phpBinary = PHP_BINARY;
+        }
+
+        $bootBudgetSeconds = 2.0;
+        $lastStderr = '';
+        for ($attempt = 0; $attempt < 8; $attempt++) {
+            $port = random_int(49152, 65535);
+            $stderrFile = (string) tempnam(sys_get_temp_dir(), 'spoke-php-s-err-');
+            $process = proc_open(
+                [$phpBinary, '-S', '127.0.0.1:'.$port, $router],
+                [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', $stderrFile, 'w']],
+                $pipes,
+            );
+            $this->assertNotFalse($process, 'Failed to start the loopback spoke router process.');
+
+            $deadline = microtime(true) + $bootBudgetSeconds;
+            while (microtime(true) < $deadline) {
+                $status = proc_get_status($process);
+                $lastStderr = is_readable($stderrFile) ? (string) file_get_contents($stderrFile) : '';
+                if (str_contains($lastStderr, 'Development Server')) {
+                    return [
+                        'process' => $process,
+                        'port' => $port,
+                        'stderr_file' => $stderrFile,
+                    ];
+                }
+                if (! $status['running'] && (int) $status['exitcode'] !== -1) {
+                    break;
+                }
+                usleep(10000);
+            }
+
+            $this->stopLoopbackSpokeRouter($process, $stderrFile);
+        }
+
+        $this->fail(
+            'Loopback spoke router did not emit a Development Server banner within '
+            .$bootBudgetSeconds."s across 8 port attempts. Last stderr:\n".$lastStderr
+        );
+    }
+
+    private function stopLoopbackSpokeRouter(mixed $process, ?string $stderrFile): void
+    {
+        if (is_resource($process)) {
+            proc_terminate($process, 15);
+            proc_close($process);
+        }
+        if (is_string($stderrFile) && $stderrFile !== '') {
+            @unlink($stderrFile);
         }
     }
 }
