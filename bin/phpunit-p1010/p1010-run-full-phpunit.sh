@@ -98,6 +98,10 @@ validate_junit() {
 classify_note() {
   local ec="$1"
   P1010_SCOPE_NOTE=""
+  if [[ "${P1010_BOUNDED_REASON:-}" == "wall_clock_cap" ]]; then
+    RUN_NOTE="wall_clock_cap"
+    return
+  fi
   if grep -q 'Allowed memory size' "$LOG" 2>/dev/null; then
     RUN_NOTE="oom"
   elif grep -qi 'Maximum execution time' "$LOG" 2>/dev/null; then
@@ -237,6 +241,18 @@ finalize_meta() {
     echo "P1010_PHPUNIT_CHILD_EXIT=$PHPUNIT_CHILD_EXIT"
     echo "P1010_EXIT=$WRAPPER_FINAL_EXIT"
     echo "P1010_NOTE=$RUN_NOTE"
+    echo "P1010_TERMINATION_REASON=${P1010_BOUNDED_REASON:-}"
+    if [[ "$RUN_NOTE" == "complete" && "$JUNIT_VALID" == "valid" ]]; then
+      echo "P1010_RESULT=PASSED"
+    else
+      echo "P1010_RESULT=NOT_PASSED"
+    fi
+    echo "P1010_SHUTDOWN_COMPLETED=1"
+    if [[ "$JUNIT_VALID" == "valid" ]]; then
+      echo "P1010_JUNIT_CLOSED=1"
+    else
+      echo "P1010_JUNIT_CLOSED=0"
+    fi
     echo "P1010_JUNIT_VALID=$JUNIT_VALID"
     echo "P1010_JUNIT_TESTS=$junit_tests"
     echo "P1010_JUNIT_BYTES=$(wc -c <"$JUNIT" 2>/dev/null | tr -d ' ')"
@@ -292,6 +308,12 @@ verify_no_descendants() {
 
 kill_run_tree() {
   local root="$1"
+  if [[ "${P1010_BOUNDED_CREATED:-0}" == 1 && -n "${P1010_BOUNDED_PGID:-}" && "$root" == "${P1010_BOUNDED_LEADER:-}" ]]; then
+    kill -TERM -"$P1010_BOUNDED_PGID" 2>/dev/null || true
+    sleep 2
+    kill -KILL -"$P1010_BOUNDED_PGID" 2>/dev/null || true
+    return 0
+  fi
   for d in $(tree_descendants_of "$root" 2>/dev/null); do
     kill -TERM "$d" 2>/dev/null || true
   done
@@ -305,31 +327,51 @@ kill_run_tree() {
 
 heartbeat_loop() {
   while [[ -f "$RUNNER_STATE" ]]; do
-    {
-      local log_bytes junit_bytes progress_bytes progress_mtime=0
-      local run_root phpunit_pid=0 timeout_alive=0 phpunit_alive=0 wrapper_alive=0 rss_kb=0
-      local progress_last summary_line=""
-      log_bytes=$(wc -c <"$LOG" 2>/dev/null | tr -d ' ' || echo 0)
-      junit_bytes=$(wc -c <"$JUNIT" 2>/dev/null | tr -d ' ' || echo 0)
-      progress_bytes=$(wc -c <"$PROGRESS" 2>/dev/null | tr -d ' ' || echo 0)
-      [[ -f "$PROGRESS" ]] && progress_mtime=$(stat -f %m "$PROGRESS" 2>/dev/null || echo 0)
-      wrapper_alive=0
-      kill -0 "$$" 2>/dev/null && wrapper_alive=1
-      run_root=$(resolve_run_root_pid)
-      if [[ -n "$run_root" ]] && kill -0 "$run_root" 2>/dev/null; then
-        timeout_alive=1
-        phpunit_pid=$(resolve_phpunit_pid "$run_root")
-        if [[ -n "$phpunit_pid" ]] && kill -0 "$phpunit_pid" 2>/dev/null; then
-          phpunit_alive=1
-          rss_kb=$(max_rss_in_tree "$phpunit_pid")
-        else
-          rss_kb=$(max_rss_in_tree "$run_root")
-        fi
-      fi
-      progress_last=$(last_progress_line | head -c 180)
-      summary_line=$(grep -E 'Tests:|OK \(|FAILURES!|ERRORS!|Fatal error:|Maximum execution time' "$LOG" 2>/dev/null | tail -1 || true)
-      echo "P1010_HEARTBEAT=$(date -Iseconds) wrapper_alive=$wrapper_alive timeout_alive=$timeout_alive phpunit_alive=$phpunit_alive run_root=${run_root:-0} phpunit_pid=${phpunit_pid:-0} log_bytes=$log_bytes junit_bytes=$junit_bytes progress_bytes=$progress_bytes progress_mtime=$progress_mtime rss_kb=$rss_kb progress_last=${progress_last} log_last=${summary_line:0:100}"
-    } >>"$HEARTBEAT"
+    local current_test="-" current_duration_s=0 last_completed="-" last_event="-" last_event_ts="-"
+    local leader=0 leader_alive=0 rss_kb=0
+    local snapshot
+    snapshot="$(python3 - "$PROGRESS" <<'PY'
+import json, os, sys, time
+path = sys.argv[1]
+current, started, last_finished, last_event, last_ts = "", 0.0, "", "", ""
+open_path = path + ".open"
+if os.path.isfile(open_path):
+    try:
+        row = json.load(open(open_path, encoding="utf-8"))
+        current = str(row.get("test") or "")
+        started = float(row.get("started_unix") or 0)
+    except (OSError, ValueError):
+        pass
+if os.path.isfile(path):
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - 16384))
+            tail = handle.read().decode("utf-8", "replace").splitlines()
+        for line in reversed(tail):
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if not last_event:
+                last_event = str(row.get("event") or "")
+                last_ts = str(row.get("ts") or "")
+            if row.get("event") == "finished":
+                last_finished = str(row.get("test") or "")
+                break
+    except OSError:
+        pass
+age = int(max(0, time.time() - started)) if started else 0
+print("\t".join([current or "-", str(age), last_finished or "-", last_event or "-", last_ts or "-"]))
+PY
+)" || snapshot=$'-\t0\t-\t-\t-'
+    IFS=$'\t' read -r current_test current_duration_s last_completed last_event last_event_ts <<<"$snapshot"
+    leader="${P1010_BOUNDED_LEADER:-0}"
+    if [[ "$leader" != "0" ]] && kill -0 "$leader" 2>/dev/null; then
+      leader_alive=1
+      rss_kb=$(ps -o rss= -p "$leader" 2>/dev/null | tr -d ' ' || echo 0)
+    fi
+    echo "P1010_HEARTBEAT=$(date -Iseconds) current_test=${current_test} current_duration_s=${current_duration_s} last_completed=${last_completed} last_event=${last_event} last_event_ts=${last_event_ts} leader_pid=${leader} leader_alive=${leader_alive} rss_kb=${rss_kb:-0} wrapper_pid=$$" >>"$HEARTBEAT"
     sleep "$HEARTBEAT_SEC"
   done
 }
@@ -353,7 +395,7 @@ log_phpunit_command() {
     echo "P1010_EFFECTIVE_PHPUNIT_ARGS=<none>"
   fi >>"$META"
   echo "P1010_PHP_BIN=$PHP_BIN" >>"$META"
-  echo "P1010_EFFECTIVE_PHPUNIT_CMD=$(printf '%q ' timeout --foreground -k 30 "$WALL_CAP_SEC" "$PHP_BIN" -c "$PHP_INI" "$PHPUNIT_BIN" -c "$CFG" --log-junit "$JUNIT")${extra_cmd}" >>"$META"
+  echo "P1010_EFFECTIVE_PHPUNIT_CMD=setsid wall_cap=${WALL_CAP_SEC}s grace=${P1010_KILL_GRACE_SEC:-15}s $(printf '%q ' "$PHP_BIN" -c "$PHP_INI" "$PHPUNIT_BIN" -c "$CFG" --log-junit "$JUNIT")${extra_cmd}" >>"$META"
 }
 
 p1010_build_phpunit_argv() {
@@ -381,9 +423,9 @@ run_command() {
     export PHPUNIT_PROGRESS_FILE="$PROGRESS"
     log_phpunit_command
     if command -v stdbuf >/dev/null 2>&1; then
-      cmd=(timeout --foreground -k 30 "$WALL_CAP_SEC" stdbuf -oL -eL env PHPUNIT_PROGRESS_FILE="$PROGRESS")
+      cmd=(stdbuf -oL -eL env PHPUNIT_PROGRESS_FILE="$PROGRESS")
     else
-      cmd=(timeout --foreground -k 30 "$WALL_CAP_SEC" env PHPUNIT_PROGRESS_FILE="$PROGRESS")
+      cmd=(env PHPUNIT_PROGRESS_FILE="$PROGRESS")
     fi
     p1010_build_phpunit_argv
     cmd+=("${P1010_PHPUNIT_ARGV[@]}")
@@ -392,39 +434,39 @@ run_command() {
     export PHPUNIT_PROGRESS_FILE="$PROGRESS"
     log_phpunit_command
     if command -v stdbuf >/dev/null 2>&1; then
-      cmd=(timeout --foreground -k 30 "$WALL_CAP_SEC" stdbuf -oL -eL env PHPUNIT_PROGRESS_FILE="$PROGRESS")
+      cmd=(stdbuf -oL -eL env PHPUNIT_PROGRESS_FILE="$PROGRESS")
     else
-      cmd=(timeout --foreground -k 30 "$WALL_CAP_SEC" env PHPUNIT_PROGRESS_FILE="$PROGRESS")
+      cmd=(env PHPUNIT_PROGRESS_FILE="$PROGRESS")
     fi
     p1010_build_phpunit_argv
     cmd+=("${P1010_PHPUNIT_ARGV[@]}")
   elif [[ -n "${P1010_SIM_CMD:-}" ]]; then
     RUN_ROLE="sim"
-    cmd=(timeout --foreground -k 30 "$WALL_CAP_SEC" bash -c "$P1010_SIM_CMD")
+    cmd=(bash -c "$P1010_SIM_CMD")
   else
     echo "P1010_NO_RUN" >>"$LOG"
     return 2
   fi
-  "${cmd[@]}" >>"$LOG" 2>&1 &
-  RUN_CHILD_PID=$!
+  local reason_file="$LOCK_DIR/termination-reason"
+  p1010_spawn_bounded "$WALL_CAP_SEC" "${P1010_KILL_GRACE_SEC:-15}" "$reason_file" "${cmd[@]}" >>"$LOG" 2>&1
+  RUN_CHILD_PID=$P1010_BOUNDED_LEADER
   echo "$RUN_CHILD_PID" >"$RUN_CHILD_FILE"
   : >"$PHPUNIT_PID_FILE"
   wait_for_phpunit_pid "$RUN_CHILD_PID" || true
   record_process_tree "$RUN_CHILD_PID"
-  log_wrap "run_child_pid=$RUN_CHILD_PID role=$RUN_ROLE"
+  log_wrap "run_child_pid=$RUN_CHILD_PID role=$RUN_ROLE session=$P1010_BOUNDED_PGID"
   if [[ -z "${HEART_PID:-}" ]]; then
     heartbeat_loop &
     HEART_PID=$!
   fi
-  wait "$RUN_CHILD_PID"
-  local ec=$?
+  p1010_finish_bounded
   local remain
   remain=$(verify_no_descendants "$RUN_CHILD_PID")
   if [[ "$remain" -gt 0 ]]; then
     log_wrap "descendants_remain=$remain sending_kill"
     kill_run_tree "$RUN_CHILD_PID"
   fi
-  return "$ec"
+  return "$P1010_BOUNDED_EXIT"
 }
 
 on_exit() {
@@ -432,6 +474,7 @@ on_exit() {
   if [[ "$FINALIZED" -eq 1 ]]; then
     exit "${WRAPPER_FINAL_EXIT:-$ec}"
   fi
+  p1010_cancel_bounded
   if [[ -n "${RUN_CHILD_PID:-}" ]] && kill -0 "$RUN_CHILD_PID" 2>/dev/null; then
     kill_run_tree "$RUN_CHILD_PID"
     wait "$RUN_CHILD_PID" 2>/dev/null || true
@@ -463,7 +506,7 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
 fi
 
 echo "$$" >"$LOCK_DIR/pid"
-CFG_SHA=$(shasum -a 256 "$CFG" 2>/dev/null | awk '{print $1}')
+CFG_SHA="$(shasum -a 256 "$CFG" 2>/dev/null | awk '{print $1}')" || CFG_SHA=""
 {
   echo "P1010_START=$(date -Iseconds)"
   echo "P1010_SHA=$(git -C "$WT" rev-parse HEAD)"

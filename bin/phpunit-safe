@@ -10,7 +10,7 @@ if [[ ! -f "$GUARD" ]]; then
   exit 1
 fi
 
-PHP_BIN="${PHPUNIT_GUARD_PHP_BIN:-}"
+PHP_BIN="${PHPUNIT_GUARD_PHP_BIN:-${DESK_PHP_BIN:-}}"
 if [[ -z "$PHP_BIN" ]]; then
   if [[ -x /opt/homebrew/bin/php ]]; then
     PHP_BIN=/opt/homebrew/bin/php
@@ -20,9 +20,24 @@ if [[ -z "$PHP_BIN" ]]; then
 fi
 
 if [[ -z "$PHP_BIN" || ! -x "$PHP_BIN" ]]; then
-  echo "PHP binary not found; set PHPUNIT_GUARD_PHP_BIN." >&2
-  exit 1
+  echo "BLOCKED: PHP binary not found. Set DESK_PHP_BIN. Refusing to search for another binary." >&2
+  exit 2
 fi
 
+PREFLIGHT_OUT="$("$ROOT/bin/phpunit-preflight" --php-bin "$PHP_BIN" --root "$ROOT" "$@")"
+PROFILE="$(printf '%s\n' "$PREFLIGHT_OUT" | sed -n 's/^PREFLIGHT_OK profile=\([^ ]*\).*/\1/p' | tail -1)"
+IMAGICK_SO="$(printf '%s\n' "$PREFLIGHT_OUT" | sed -n 's/.*imagick_so=\([^ ]*\).*/\1/p' | tail -1)"
+printf '%s\n' "$PREFLIGHT_OUT"
+
 export PHP_INI_SCAN_DIR=
-exec "$PHP_BIN" -n "$GUARD" --invoked-via=bin/phpunit-safe "$@"
+export DESK_PHPUNIT_PROFILE="${PROFILE:-isolated}"
+export DESK_IMAGICK_SO="${IMAGICK_SO:-none}"
+unset PHPRC
+PHP_ARGS=()
+if [[ "$PROFILE" != "default_ini" ]]; then
+  PHP_ARGS+=(-n)
+fi
+if [[ -n "$IMAGICK_SO" && "$IMAGICK_SO" != "none" ]]; then
+  PHP_ARGS+=(-d "extension=${IMAGICK_SO}")
+fi
+exec "$PHP_BIN" "${PHP_ARGS[@]}" "$GUARD" --invoked-via=bin/phpunit-safe "$@"

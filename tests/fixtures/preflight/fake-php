@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Fixture PHP used only by phpunit-preflight tests. Not a real interpreter.
+mode="${FAKE_PHP_MODE:-clean}"
+joined=" $* "
+if [[ "$joined" == *" validate "* || "$joined" == *" validate" ]]; then
+  exit "${FAKE_COMPOSER_EXIT:-1}"
+fi
+if [[ "$joined" == *phpunit* ]]; then
+  echo "PHPUnit ${FAKE_PHPUNIT_VERSION:-12.5.30} by Sebastian Bergmann and contributors."
+  exit 0
+fi
+if [[ "$joined" == *"--ini"* ]]; then
+  echo "Loaded Configuration File: ${FAKE_INI:-/dev/null}"
+  exit 0
+fi
+case "$mode" in
+  herd-prepend)
+    echo "/Applications/Herd.app/Contents/Resources/valet/dump-loader.php|8.4.0|pcntl|posix|pdo_sqlite|mbstring|xml|curl|zip|json|"
+    exit 0
+    ;;
+  herd-extension)
+    echo "Unable to load dynamic library herd-84-arm64.so" >&2
+    echo "|8.4.0|pcntl|posix|pdo_sqlite|mbstring|xml|curl|zip|json|"
+    exit 0
+    ;;
+  missing-sqlite)
+    echo "|8.4.0|pcntl|posix||mbstring|xml|curl|zip|json|"
+    exit 0
+    ;;
+  clean)
+    echo "|8.5.10|pcntl|posix|pdo_sqlite|mbstring|xml|curl|zip|json|imagick"
+    exit 0
+    ;;
+  *)
+    echo "unknown FAKE_PHP_MODE=$mode" >&2
+    exit 2
+    ;;
+esac

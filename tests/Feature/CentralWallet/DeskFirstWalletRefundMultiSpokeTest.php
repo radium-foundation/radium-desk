@@ -16,6 +16,7 @@ use App\Services\Refunds\WalletRefundDestinationResolver;
 use App\Support\Refunds\DeskFirstWalletRefundSpokePolicy;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -103,6 +104,9 @@ class DeskFirstWalletRefundMultiSpokeTest extends TestCase
                     'balance' => 0,
                 ],
             ], 201),
+            'https://radiumbox.test/api/integrations/v1/rd-orders/*' => function (): never {
+                throw new ConnectionException('RadiumBox order lookup is not part of this test.');
+            },
         ]);
 
         app(RadiumBoxWalletRefundClient::class)->creditWalletRefund(

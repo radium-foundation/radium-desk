@@ -19,6 +19,7 @@ use App\Services\RadiumBox\RadiumBoxWalletRefundReversalClient;
 use App\Services\RdService\RdServiceInWalletRefundReversalClient;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -66,6 +67,9 @@ class DeskFirstWalletRefundRevokeSpokeRoutingTest extends TestCase
                     'destination' => 'central_wallet',
                 ],
             ], 201),
+            'https://radiumbox.test/api/integrations/v1/rd-orders/*' => function (): never {
+                throw new ConnectionException('RadiumBox order lookup is not part of this test.');
+            },
         ]);
 
         config([
@@ -251,6 +255,9 @@ class DeskFirstWalletRefundRevokeSpokeRoutingTest extends TestCase
                 ],
             ], 201),
             $reversalUrl => Http::response(['message' => 'Spoke unavailable'], 503),
+            'https://radiumbox.test/api/integrations/v1/rd-orders/*' => function (): never {
+                throw new ConnectionException('RadiumBox order lookup is not part of this test.');
+            },
         ]);
 
         config([

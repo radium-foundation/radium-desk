@@ -24,13 +24,14 @@ jobs:
       - name: Verify Owner approval token
         env:
           EXPECTED: ${{ secrets.PHPUNIT_FULL_SUITE_OWNER_TOKEN }}
+          GIVEN: ${{ inputs.owner_approval_token }}
         run: |
           set -euo pipefail
           if [ -z "${EXPECTED:-}" ]; then
             echo "Repository secret PHPUNIT_FULL_SUITE_OWNER_TOKEN is not configured; refusing full suite."
             exit 2
           fi
-          if [ "${{ inputs.owner_approval_token }}" != "${EXPECTED}" ]; then
+          if [ "$GIVEN" != "$EXPECTED" ]; then
             echo "Invalid owner_approval_token."
             exit 2
           fi
@@ -40,10 +41,21 @@ jobs:
           php-version: '8.4'
           coverage: none
           tools: composer:v2
-          extensions: imagick, zip, gd, sqlite3, mbstring, xml, curl, intl
+          extensions: imagick, zip, gd, sqlite3, pdo_sqlite, mbstring, xml, curl, intl, pcntl
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build Vite assets
+        run: npm ci && npm run build
+
+      - name: PHPUnit environment preflight
+        run: ./bin/phpunit-preflight --require-vite --require-imagick
 
       - name: Write ephemeral full-suite auth (CI)
         run: |

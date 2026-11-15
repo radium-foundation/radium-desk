@@ -81,5 +81,6 @@
     <extensions>
         <bootstrap class="Tests\Support\PhpunitProgressExtension"/>
         <bootstrap class="Tests\Support\PhpunitMemoryProbeExtension"/>
+        <bootstrap class="Tests\Support\PhpunitTestBudgetExtension"/>
     </extensions>
 </phpunit>

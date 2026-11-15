@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+# P-15-19 — fail-closed PHPUnit environment preflight. Does not run tests or start services.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PHP_BIN="${DESK_PHP_BIN:-}"
+REQUIRE_VITE=0
+REQUIRE_IMAGICK=0
+INFO_ONLY=0
+
+usage() {
+  echo "Usage: bin/phpunit-preflight [--php-bin PATH] [--root DIR] [--require-vite] [--require-imagick] [phpunit args...]" >&2
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --php-bin)
+      PHP_BIN="$2"
+      shift 2
+      ;;
+    --root)
+      ROOT="$2"
+      shift 2
+      ;;
+    --require-vite)
+      REQUIRE_VITE=1
+      shift
+      ;;
+    --require-imagick)
+      REQUIRE_IMAGICK=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+blocked() {
+  echo "BLOCKED: $*" >&2
+  exit 2
+}
+
+if [[ -z "$PHP_BIN" ]]; then
+  if [[ -x /opt/homebrew/bin/php ]]; then
+    PHP_BIN=/opt/homebrew/bin/php
+  else
+    blocked "Homebrew PHP is not at /opt/homebrew/bin/php. Set DESK_PHP_BIN. Refusing to fall back to PATH."
+  fi
+fi
+[[ -x "$PHP_BIN" ]] || blocked "PHP binary is not executable: $PHP_BIN"
+
+for arg in "$@"; do
+  case "$arg" in
+    --help|--version|-h|--check-version|--atleast-version)
+      INFO_ONLY=1
+      ;;
+    tests/Feature/*|tests/js/*|*tests/Feature/*|*tests/js/*)
+      REQUIRE_VITE=1
+      ;;
+  esac
+done
+if [[ "$INFO_ONLY" -eq 0 && $# -eq 0 ]]; then
+  REQUIRE_VITE=1
+  REQUIRE_IMAGICK=1
+fi
+
+unset PHPRC
+unset HERD_PHP_INI
+export PHP_INI_SCAN_DIR=
+
+PROBE_CODE='echo ini_get("auto_prepend_file"), "|", PHP_VERSION, "|", (extension_loaded("pcntl")?"pcntl":""), "|", (extension_loaded("posix")?"posix":""), "|", (extension_loaded("pdo_sqlite")?"pdo_sqlite":""), "|", (extension_loaded("mbstring")?"mbstring":""), "|", (extension_loaded("xml")?"xml":""), "|", (extension_loaded("curl")?"curl":""), "|", (extension_loaded("zip")?"zip":""), "|", (extension_loaded("json")?"json":""), "|", (extension_loaded("imagick")?"imagick":"");'
+PROBE_ERR="$(mktemp)"
+trap 'rm -f "$PROBE_ERR"' EXIT
+PROFILE="isolated"
+IMAGICK_SO="none"
+PROBE="$("$PHP_BIN" -n -d auto_prepend_file= -d auto_append_file= -r "$PROBE_CODE" 2>"$PROBE_ERR")" || blocked "Isolated PHP probe failed for $PHP_BIN"
+if grep -Ei 'herd-|valet/dump-loader|Unable to load dynamic library' "$PROBE_ERR" >/dev/null 2>&1; then
+  blocked "Isolated PHP still reports a Herd/Valet preload or a missing dynamic extension. stderr: $(tr '\n' ' ' <"$PROBE_ERR")"
+fi
+IFS='|' read -r PREPEND PHP_VERSION HAS_PCNTL HAS_POSIX HAS_SQLITE HAS_MB HAS_XML HAS_CURL HAS_ZIP HAS_JSON HAS_IMAGICK <<<"$PROBE"
+if [[ -n "$PREPEND" ]]; then
+  blocked "Effective auto_prepend_file is set (${PREPEND}). Herd/Valet dump-loader is rejected."
+fi
+extensions_ready() {
+  [[ -n "$HAS_PCNTL" && -n "$HAS_POSIX" && -n "$HAS_SQLITE" && -n "$HAS_MB" && -n "$HAS_XML" && -n "$HAS_CURL" && -n "$HAS_ZIP" && -n "$HAS_JSON" ]]
+}
+if ! extensions_ready; then
+  : >"$PROBE_ERR"
+  PROFILE="default_ini"
+  PROBE="$("$PHP_BIN" -d auto_prepend_file= -d auto_append_file= -r "$PROBE_CODE" 2>"$PROBE_ERR")" || blocked "Default PHP probe failed for $PHP_BIN"
+  if grep -Ei 'herd-|valet/dump-loader|Unable to load dynamic library' "$PROBE_ERR" >/dev/null 2>&1; then
+    blocked "The same PHP binary's default ini is a Herd/Valet or broken-extension profile, and php -n lacks required extensions. Refusing to fall back to another binary. stderr: $(tr '\n' ' ' <"$PROBE_ERR")"
+  fi
+  IFS='|' read -r PREPEND PHP_VERSION HAS_PCNTL HAS_POSIX HAS_SQLITE HAS_MB HAS_XML HAS_CURL HAS_ZIP HAS_JSON HAS_IMAGICK <<<"$PROBE"
+  if [[ -n "$PREPEND" ]]; then
+    blocked "Effective auto_prepend_file is set (${PREPEND}). Herd/Valet dump-loader is rejected."
+  fi
+fi
+[[ -n "$HAS_PCNTL" ]] || blocked "Required PHP extension pcntl is missing from ${PROFILE}."
+[[ -n "$HAS_POSIX" ]] || blocked "Required PHP extension posix is missing from ${PROFILE}."
+[[ -n "$HAS_SQLITE" ]] || blocked "Required PHP extension pdo_sqlite is missing from ${PROFILE}."
+[[ -n "$HAS_MB" ]] || blocked "Required PHP extension mbstring is missing from ${PROFILE}."
+[[ -n "$HAS_XML" ]] || blocked "Required PHP extension xml is missing from ${PROFILE}."
+[[ -n "$HAS_CURL" ]] || blocked "Required PHP extension curl is missing from ${PROFILE}."
+[[ -n "$HAS_ZIP" ]] || blocked "Required PHP extension zip is missing from ${PROFILE}."
+[[ -n "$HAS_JSON" ]] || blocked "Required PHP extension json is missing from ${PROFILE}."
+if [[ "$REQUIRE_IMAGICK" -eq 1 && -z "$HAS_IMAGICK" && "$PROFILE" == "isolated" ]]; then
+  ext_dir="$("$PHP_BIN" -r 'echo PHP_EXTENSION_DIR;' 2>/dev/null || true)"
+  if [[ -n "$ext_dir" && -f "${ext_dir}/imagick.so" ]]; then
+    IMAGICK_SO="${ext_dir}/imagick.so"
+  else
+    api="$(basename "${ext_dir:-none}")"
+    for prefix in /opt/homebrew/lib/php/pecl /usr/local/lib/php/pecl; do
+      if [[ -f "${prefix}/${api}/imagick.so" ]]; then
+        IMAGICK_SO="${prefix}/${api}/imagick.so"
+        break
+      fi
+    done
+  fi
+  [[ "$IMAGICK_SO" != "none" ]] || blocked "Imagick is required and imagick.so was not found for $PHP_BIN."
+  if ! "$PHP_BIN" -n -d "extension=${IMAGICK_SO}" -r 'exit(extension_loaded("imagick") ? 0 : 1)'; then
+    blocked "imagick.so at ${IMAGICK_SO} did not load under php -n."
+  fi
+  HAS_IMAGICK="imagick"
+elif [[ "$REQUIRE_IMAGICK" -eq 1 && -z "$HAS_IMAGICK" ]]; then
+  blocked "Imagick is required for this invocation and is not loaded by ${PROFILE}."
+fi
+
+DEFAULT_INI="$("$PHP_BIN" --ini 2>/dev/null | awk -F': ' '/Loaded Configuration File/ {print $2}' | tail -1 || true)"
+if [[ -n "$DEFAULT_INI" && -f "$DEFAULT_INI" ]]; then
+  if grep -Ei 'auto_prepend_file.*(herd|valet)|herd-.*\.so' "$DEFAULT_INI" >/dev/null 2>&1; then
+    echo "NOTE: default php.ini ${DEFAULT_INI} references Herd/Valet and is not the effective test profile." >&2
+  fi
+fi
+
+if [[ "$INFO_ONLY" -eq 1 ]]; then
+  echo "PREFLIGHT_OK profile=${PROFILE} php=${PHP_BIN} version=${PHP_VERSION} info_only=1 imagick_so=${IMAGICK_SO}"
+  exit 0
+fi
+
+[[ -f "$ROOT/composer.json" && -f "$ROOT/composer.lock" ]] || blocked "composer.json and composer.lock must both exist. Dependencies were not installed."
+if [[ ! -x "$ROOT/vendor/bin/phpunit" && ! -f "$ROOT/vendor/bin/phpunit" ]]; then
+  blocked "vendor/bin/phpunit is missing. Refusing to run composer install."
+fi
+if [[ "${DESK_PREFLIGHT_COMPOSER_VALIDATE:-1}" == 1 ]]; then
+  COMPOSER_BIN="$(command -v composer || true)"
+  [[ -n "$COMPOSER_BIN" ]] || blocked "composer is not on PATH. Refusing to install dependencies or skip the lock check."
+  COMPOSER_PHP_ARGS=()
+  if [[ "$PROFILE" == "isolated" ]]; then
+    COMPOSER_PHP_ARGS=(-n)
+  fi
+  if ! "$PHP_BIN" "${COMPOSER_PHP_ARGS[@]}" "$COMPOSER_BIN" validate --no-interaction --no-check-publish --working-dir "$ROOT" >/dev/null; then
+    blocked "composer.json and composer.lock are inconsistent, or composer could not run on ${PHP_BIN}."
+  fi
+fi
+PHPUNIT_VERSION="$("$PHP_BIN" -n "$ROOT/vendor/bin/phpunit" --version 2>/dev/null | head -1 || true)"
+[[ "$PHPUNIT_VERSION" == PHPUnit\ 12.* ]] || blocked "Expected PHPUnit 12.x, found: ${PHPUNIT_VERSION:-missing}"
+
+xml_value() {
+  python3 - "$ROOT/phpunit.xml" "$1" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+name = re.escape(sys.argv[2])
+match = re.search(r'<env name="' + name + r'" value="([^"]*)"', text)
+print(match.group(1) if match else "")
+PY
+}
+DB_CONNECTION="$(xml_value DB_CONNECTION)"
+DB_DATABASE="$(xml_value DB_DATABASE)"
+echo "effective_db_connection=${DB_CONNECTION} effective_db_database=${DB_DATABASE}"
+[[ "$DB_CONNECTION" == "sqlite" && "$DB_DATABASE" == ":memory:" ]] || blocked "Default suite must force DB_CONNECTION=sqlite and DB_DATABASE=:memory:. Found ${DB_CONNECTION}/${DB_DATABASE}."
+
+APP_ENV_PROCESS="${APP_ENV:-}"
+if [[ "$APP_ENV_PROCESS" == "production" ]]; then
+  blocked "APP_ENV=production is rejected for tests."
+fi
+
+allowed_host() {
+  case "$1" in
+    127.0.0.1|localhost|::1) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+allowed_database() {
+  case "$1" in
+    radium_desk_cw_ceremony_test|radium_desk_inventory_pos_test|radium_desk_hw_fulfilment_concurrency_test) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+check_pair() {
+  local label="$1" host="$2" database="$3"
+  if [[ "$host" == "187.127.129.16" || "$database" == "radium_desk" ]]; then
+    blocked "${label} points at a production host or the production database name (${host}/${database})."
+  fi
+  allowed_host "$host" || blocked "${label} host is not loopback: ${host}"
+  allowed_database "$database" || blocked "${label} database is not an allowlisted disposable test database: ${database}"
+}
+
+explicit_mysql=0
+for arg in "$@"; do
+  case "$arg" in
+    *Mysql*|*MariaDb*) explicit_mysql=1 ;;
+  esac
+done
+
+if [[ -n "${INVENTORY_POS_MYSQL_HOST:-}${INVENTORY_POS_MYSQL_DATABASE:-}" ]]; then
+  check_pair "INVENTORY_POS_MYSQL" "${INVENTORY_POS_MYSQL_HOST:-127.0.0.1}" "${INVENTORY_POS_MYSQL_DATABASE:-radium_desk_inventory_pos_test}"
+fi
+if [[ -n "${HARDWARE_FULFILMENT_MYSQL_HOST:-}${HARDWARE_FULFILMENT_MYSQL_DATABASE:-}" ]]; then
+  check_pair "HARDWARE_FULFILMENT_MYSQL" "${HARDWARE_FULFILMENT_MYSQL_HOST:-127.0.0.1}" "${HARDWARE_FULFILMENT_MYSQL_DATABASE:-radium_desk_hw_fulfilment_concurrency_test}"
+fi
+if [[ -n "${CENTRAL_WALLET_MYSQL_HOST:-}${CENTRAL_WALLET_MYSQL_DATABASE:-}" ]]; then
+  check_pair "CENTRAL_WALLET_MYSQL" "${CENTRAL_WALLET_MYSQL_HOST:-127.0.0.1}" "${CENTRAL_WALLET_MYSQL_DATABASE:-radium_desk_cw_ceremony_test}"
+fi
+if [[ "$explicit_mysql" -eq 1 ]]; then
+  echo "mysql_or_mariadb_target=explicit effective_check=allowlist_only connection=not_attempted"
+fi
+
+if [[ "$REQUIRE_VITE" -eq 1 ]]; then
+  [[ -f "$ROOT/package-lock.json" ]] || blocked "package-lock.json is missing; a Vite build cannot be tied to the lockfile."
+  MANIFEST="$ROOT/public/build/manifest.json"
+  [[ -s "$MANIFEST" ]] || blocked "public/build/manifest.json is missing. Run npm ci && npm run build. View tests were not started."
+  python3 - "$MANIFEST" <<'PY' || blocked "public/build/manifest.json is not valid JSON."
+import json, sys
+json.load(open(sys.argv[1], encoding="utf-8"))
+PY
+fi
+
+echo "PREFLIGHT_OK profile=${PROFILE} php=${PHP_BIN} version=${PHP_VERSION} phpunit=${PHPUNIT_VERSION} db=${DB_CONNECTION}:${DB_DATABASE} vite=${REQUIRE_VITE} imagick=${HAS_IMAGICK:-0} imagick_so=${IMAGICK_SO}"
+exit 0

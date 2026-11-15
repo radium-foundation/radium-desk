@@ -9,8 +9,12 @@ use App\Services\RdService\RdServiceFetchResult;
 use App\Services\RdService\RdServiceOrderId;
 use App\Services\RdService\RdServiceOrderMapper;
 use App\Support\BusinessOrderId;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Factory;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -99,18 +103,21 @@ class SpokeOrderClient
         $normalized = trim($orderId);
 
         try {
-            $request = Http::baseUrl($baseUrl)
-                ->acceptJson()
-                ->withToken($this->token())
-                ->connectTimeout((int) ($this->config()['connect_timeout_seconds'] ?? 3))
-                ->timeout((int) ($this->config()['timeout_seconds'] ?? 8));
-
-            $host = $this->requestHostHeader();
-            if ($host !== null) {
-                $request = $request->withHeaders(['Host' => $host]);
+            $path = '/api/integrations/v1/rd-orders/'.rawurlencode($normalized);
+            if (! $this->facadeIsFaked()) {
+                $response = $this->curlGet(rtrim($baseUrl, '/').$path);
+            } else {
+                $request = Http::baseUrl($baseUrl)
+                    ->acceptJson()
+                    ->withToken($this->token())
+                    ->connectTimeout((int) ($this->config()['connect_timeout_seconds'] ?? 3))
+                    ->timeout((int) ($this->config()['timeout_seconds'] ?? 8));
+                $host = $this->requestHostHeader();
+                if ($host !== null) {
+                    $request = $request->withHeaders(['Host' => $host]);
+                }
+                $response = $request->get($path);
             }
-
-            $response = $request->get('/api/integrations/v1/rd-orders/'.rawurlencode($normalized));
             $payload = $response->json();
 
             return is_array($payload) ? $payload : null;
@@ -148,7 +155,7 @@ class SpokeOrderClient
                 $request = $request->withHeaders(['Host' => $host]);
             }
 
-            $response = $request->get('/api/integrations/v1/rd-orders/'.rawurlencode($normalized));
+            $response = $this->dispatchGet($request, $baseUrl, '/api/integrations/v1/rd-orders/'.rawurlencode($normalized));
 
             return $this->interpretResponse($normalized, $response->status(), $response->json(), $response->header('Retry-After'));
         } catch (ConnectionException $exception) {
@@ -199,7 +206,7 @@ class SpokeOrderClient
                 $request = $request->withHeaders(['Host' => $host]);
             }
 
-            $response = $request->get(rtrim($path, '/').'/'.rawurlencode($invoiceNumber));
+            $response = $this->dispatchGet($request, $baseUrl, rtrim($path, '/').'/'.rawurlencode($invoiceNumber));
             $payload = $response->json();
 
             return is_array($payload) ? $payload + ['_http_status' => $response->status()] : [
@@ -245,7 +252,7 @@ class SpokeOrderClient
                 $request = $request->withHeaders(['Host' => $host]);
             }
 
-            $response = $request->get(rtrim($path, '/'), [
+            $response = $this->dispatchGet($request, $baseUrl, rtrim($path, '/'), [
                 'orderid' => $orderId,
             ]);
             $payload = $response->json();
@@ -260,6 +267,255 @@ class SpokeOrderClient
                 'message' => 'Historical invoice source is temporarily unavailable.',
             ];
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     */
+    private function dispatchGet(PendingRequest $request, string $baseUrl, string $path, array $query = []): \Illuminate\Http\Client\Response
+    {
+        if ($this->facadeIsFaked()) {
+            return $query === [] ? $request->get($path) : $request->get($path, $query);
+        }
+
+        $url = rtrim($baseUrl, '/').'/'.ltrim($path, '/');
+        if ($query !== []) {
+            $url .= '?'.http_build_query($query);
+        }
+
+        return $this->curlGet($url);
+    }
+
+    private function facadeIsFaked(): bool
+    {
+        $factory = Http::getFacadeRoot();
+        if (! $factory instanceof Factory) {
+            return false;
+        }
+        if ($factory->preventingStrayRequests()) {
+            return true;
+        }
+        $stubs = (new \ReflectionProperty($factory, 'stubCallbacks'))->getValue($factory);
+
+        return $stubs instanceof Collection && $stubs->isNotEmpty();
+    }
+
+    /**
+     * ext-curl honors the connect timeout inside curl_exec, then CurlHandle
+     * destruction waits for the macOS resolver thread. A curl process exits
+     * with that timeout, so the resolver cannot keep this request open.
+     */
+    private function curlGet(string $url): \Illuminate\Http\Client\Response
+    {
+        $binary = $this->curlBinary();
+        if ($binary === null) {
+            throw new ConnectionException('Spoke request transport is unavailable.');
+        }
+
+        $connectSeconds = max(0.001, (float) ($this->config()['connect_timeout_seconds'] ?? 3));
+        $timeoutSeconds = max($connectSeconds, (float) ($this->config()['timeout_seconds'] ?? 8));
+        $headers = [
+            'Accept: application/json',
+            'Authorization: Bearer '.$this->token(),
+        ];
+        $host = $this->requestHostHeader();
+        if (is_string($host) && $host !== '') {
+            $headers[] = 'Host: '.$host;
+        }
+        foreach ([$url, ...$headers] as $value) {
+            if (str_contains($value, "\n") || str_contains($value, "\r")) {
+                throw new ConnectionException('Spoke request is invalid.');
+            }
+        }
+        $headerFile = tempnam(sys_get_temp_dir(), 'spoke-hdr-');
+        $bodyFile = tempnam(sys_get_temp_dir(), 'spoke-body-');
+        if ($headerFile === false || $bodyFile === false) {
+            if (is_string($headerFile)) {
+                @unlink($headerFile);
+            }
+            if (is_string($bodyFile)) {
+                @unlink($bodyFile);
+            }
+            throw new ConnectionException('Unable to prepare the spoke request.');
+        }
+
+        $config = "silent\nshow-error\nlocation\nmax-redirs = 5\n";
+        $config .= 'connect-timeout = '.sprintf('%.3F', $connectSeconds)."\n";
+        $config .= 'max-time = '.sprintf('%.3F', $timeoutSeconds)."\n";
+        $config .= 'dump-header = '.$this->curlConfigQuote($headerFile)."\n";
+        $config .= 'output = '.$this->curlConfigQuote($bodyFile)."\n";
+        $config .= 'url = '.$this->curlConfigQuote($url)."\n";
+        foreach ($headers as $header) {
+            $config .= 'header = '.$this->curlConfigQuote($header)."\n";
+        }
+
+        $pipes = [];
+        $process = proc_open(
+            [$binary, '--config', '-', '--write-out', '%{http_code}'],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        if (! is_resource($process)) {
+            @unlink($headerFile);
+            @unlink($bodyFile);
+            throw new ConnectionException('Unable to start the spoke request.');
+        }
+
+        $stdout = '';
+        $stderr = '';
+        try {
+            fwrite($pipes[0], $config);
+            fclose($pipes[0]);
+            unset($pipes[0]);
+            stream_set_blocking($pipes[1], false);
+            stream_set_blocking($pipes[2], false);
+            $deadline = microtime(true) + $timeoutSeconds + 1.0;
+            $timedOut = false;
+            $exitCode = null;
+            while (true) {
+                foreach ([1 => &$stdout, 2 => &$stderr] as $index => &$buffer) {
+                    if (! isset($pipes[$index]) || ! is_resource($pipes[$index])) {
+                        continue;
+                    }
+                    $chunk = stream_get_contents($pipes[$index]);
+                    if (is_string($chunk) && $chunk !== '') {
+                        $buffer .= $chunk;
+                    }
+                    if (feof($pipes[$index])) {
+                        fclose($pipes[$index]);
+                        unset($pipes[$index]);
+                    }
+                }
+                unset($buffer);
+                $status = proc_get_status($process);
+                if ($exitCode === null && ! $status['running']) {
+                    $exitCode = (int) $status['exitcode'];
+                }
+                if (! isset($pipes[1]) && ! isset($pipes[2])) {
+                    break;
+                }
+                if (microtime(true) >= $deadline) {
+                    $timedOut = true;
+                    $this->stopCurlProcess($process);
+                    break;
+                }
+                usleep(20000);
+            }
+
+            if ($exitCode === null && is_resource($process)) {
+                $status = proc_get_status($process);
+                if (! $status['running']) {
+                    $exitCode = (int) $status['exitcode'];
+                }
+            }
+            $this->closeCurlProcess($process, $pipes);
+            $exitCode ??= 1;
+            if ($timedOut) {
+                throw new ConnectionException('Spoke request exceeded the configured timeout.');
+            }
+            if ($exitCode !== 0) {
+                $message = trim($stderr);
+
+                throw new ConnectionException($message !== '' ? $message : 'Spoke request failed.');
+            }
+
+            $httpStatus = (int) trim($stdout);
+            if ($httpStatus <= 0) {
+                throw new ConnectionException(trim($stderr) !== '' ? trim($stderr) : 'Spoke request failed.');
+            }
+
+            return new \Illuminate\Http\Client\Response(new Response(
+                $httpStatus,
+                $this->parseCurlHeaderDump((string) file_get_contents($headerFile)),
+                (string) file_get_contents($bodyFile),
+            ));
+        } finally {
+            $this->closeCurlProcess($process, $pipes);
+            @unlink($headerFile);
+            @unlink($bodyFile);
+        }
+    }
+
+    private function curlBinary(): ?string
+    {
+        $configured = getenv('SPOKE_CURL_BIN');
+        $candidates = is_string($configured) && $configured !== '' ? [$configured] : [];
+        $candidates[] = '/usr/bin/curl';
+        $candidates[] = '/opt/homebrew/bin/curl';
+        foreach ($candidates as $path) {
+            if (is_executable($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    private function curlConfigQuote(string $value): string
+    {
+        return '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $value).'"';
+    }
+
+    /**
+     * @param  array<int, resource|null>  $pipes
+     */
+    private function closeCurlProcess(mixed &$process, array &$pipes): void
+    {
+        foreach ($pipes as $index => $pipe) {
+            if (is_resource($pipe)) {
+                fclose($pipe);
+            }
+            unset($pipes[$index]);
+        }
+        if (! is_resource($process)) {
+            return;
+        }
+        proc_close($process);
+        $process = null;
+    }
+
+    private function stopCurlProcess(mixed $process): void
+    {
+        if (! is_resource($process)) {
+            return;
+        }
+        $status = proc_get_status($process);
+        $pid = (int) ($status['pid'] ?? 0);
+        if (! $status['running'] || $pid <= 1) {
+            return;
+        }
+        if (function_exists('posix_kill')) {
+            posix_kill($pid, 15);
+            $grace = microtime(true) + 0.5;
+            while (microtime(true) < $grace && proc_get_status($process)['running']) {
+                usleep(20000);
+            }
+            if (proc_get_status($process)['running']) {
+                posix_kill($pid, 9);
+            }
+
+            return;
+        }
+        proc_terminate($process, 15);
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private function parseCurlHeaderDump(string $raw): array
+    {
+        $blocks = preg_split("/\r\n\r\n|\n\n|\r\r/", trim($raw)) ?: [];
+        $last = trim((string) (end($blocks) ?: ''));
+        $parsed = [];
+        foreach (preg_split("/\r\n|\n|\r/", $last) ?: [] as $line) {
+            if (! str_contains($line, ':')) {
+                continue;
+            }
+            [$name, $value] = explode(':', $line, 2);
+            $parsed[trim($name)][] = trim($value);
+        }
+
+        return $parsed;
     }
 
     private function historicalIntegrationBaseUrl(): ?string

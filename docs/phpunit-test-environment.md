@@ -116,7 +116,9 @@ PHP_INI_SCAN_DIR= /opt/homebrew/bin/php -n vendor/bin/phpunit \
 ## Related entrypoints
 
 - **`bin/phpunit-isolated`** — mandated `php -n` profile + Imagick autoload (this document).
-- **`bin/phpunit-safe`** — full-suite authorization gate (P-12-40); uses default PHP CLI unless you wrap with `phpunit-isolated` patterns yourself.
+- **`bin/phpunit-safe`** — full-suite authorization gate (P-12-40). It runs `bin/phpunit-preflight` first and exits non-zero on any failed prerequisite.
+- **`bin/phpunit-preflight`** — fail-closed environment check (P-15-19). It resolves one PHP binary, rejects a Herd/Valet `auto_prepend_file` and a missing Herd extension, checks the isolated or same-binary default profile, checks Composer metadata without installing, requires `public/build/manifest.json` for view/UI and full-suite runs, and requires SQLite `:memory:` for the default suite. Explicit MySQL/MariaDB targets must use a loopback host and an allowlisted disposable database name. A failure prints `BLOCKED` and does not start PHPUnit.
+- **`tests/Support/phpunit-test-budgets.php`** — explicit per-test budgets. Tests absent from this map have no extra limit. A listed test that exceeds its budget fails with a stack trace. It is not skipped.
 
 ## Related artifacts
 

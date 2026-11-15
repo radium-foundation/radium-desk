@@ -1,6 +1,8 @@
 # P-10-04 — shared PHPUnit wrapper helpers (source only).
 # shellcheck shell=bash
 
+P1010_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Evidence baseline: P-09-09 authoritative full run (8075 tests executed).
 P1010_BASELINE_FULL_SUITE_TESTS="${P1010_BASELINE_FULL_SUITE_TESTS:-8075}"
 # Ratio expressed in percent to avoid floating-point bash arithmetic (default 75% of baseline).
@@ -162,4 +164,52 @@ p1010_resolve_wrapper_exit() {
       fi
       ;;
   esac
+}
+
+# Start COMMAND in a new session. $! is the session leader after exec.
+# A separate timer signals that process group only.
+p1010_spawn_bounded() {
+  local cap="$1"
+  local grace="$2"
+  local reason_file="$3"
+  shift 3
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "BLOCKED: python3 is required for the process-group timeout" >&2
+    return 2
+  fi
+  : >"$reason_file"
+  python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@" &
+  P1010_BOUNDED_LEADER=$!
+  P1010_BOUNDED_PGID=$P1010_BOUNDED_LEADER
+  P1010_BOUNDED_CREATED=1
+  P1010_BOUNDED_REASON_FILE=$reason_file
+  local timer="${P1010_LIB_DIR}/p1010-bounded-timer.py"
+  python3 "$timer" "$cap" "$grace" "$reason_file" "$P1010_BOUNDED_LEADER" &
+  P1010_BOUNDED_TIMER=$!
+}
+
+p1010_finish_bounded() {
+  local ec=0
+  wait "$P1010_BOUNDED_LEADER" || ec=$?
+  if [[ -n "${P1010_BOUNDED_TIMER:-}" ]]; then
+    kill "$P1010_BOUNDED_TIMER" 2>/dev/null || true
+    wait "$P1010_BOUNDED_TIMER" 2>/dev/null || true
+  fi
+  P1010_BOUNDED_EXIT=$ec
+  P1010_BOUNDED_REASON="exit_${ec}"
+  if [[ -n "${P1010_BOUNDED_REASON_FILE:-}" && -f "$P1010_BOUNDED_REASON_FILE" ]] && grep -q '^wall_clock_cap$' "$P1010_BOUNDED_REASON_FILE"; then
+    P1010_BOUNDED_REASON="wall_clock_cap"
+  fi
+  return 0
+}
+
+p1010_cancel_bounded() {
+  if [[ -n "${P1010_BOUNDED_TIMER:-}" ]]; then
+    kill "$P1010_BOUNDED_TIMER" 2>/dev/null || true
+    wait "$P1010_BOUNDED_TIMER" 2>/dev/null || true
+    P1010_BOUNDED_TIMER=""
+  fi
+  if [[ "${P1010_BOUNDED_CREATED:-0}" == 1 && -n "${P1010_BOUNDED_PGID:-}" ]]; then
+    kill -TERM -"$P1010_BOUNDED_PGID" 2>/dev/null || true
+  fi
 }
