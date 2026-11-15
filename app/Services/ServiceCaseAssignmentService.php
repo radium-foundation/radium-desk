@@ -428,6 +428,10 @@ class ServiceCaseAssignmentService
 
         $incident = $incident->fresh(['assignee']);
 
+        if ((int) $incident->assigned_to_user_id === (int) $assignee->id) {
+            return $incident;
+        }
+
         return $this->applyAssignment(
             incident: $incident,
             assignee: $assignee,
