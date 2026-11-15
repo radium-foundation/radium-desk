@@ -141,6 +141,8 @@ LCDS uses the same SSH/rsync pattern (`ExtractFileTransporter.php`, `tools/confi
 
 Remote `upload-complete.json` contains `backup_id`, `uploaded_at`, `remote_path`, `manifest_sha256`, `status`.
 
+The `manifest_sha256` in `upload-complete.json` is the **pre-upload** revision (hashed before step 5). Cloud `manifest.json` matches that revision. KVM on-disk `manifest.json` after step 5 includes the `upload` block and a **different** SHA-256. That difference is expected, not ciphertext or artifact corruption. Compare artifact SHA-256 values in both manifest revisions (unchanged) or use `upload-complete.json` when validating the cloud copy.
+
 ---
 
 ## Cloud retention (Phase 4)
