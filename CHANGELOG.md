@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.1.68 — 2026-11-15 — Operations Ready queue, appointment overlay, and identity memo fixes (P-15-09)
+
+- **Purpose:** Release **PR [#268](https://github.com/radium-foundation/radium-desk/pull/268)** — remediate **P-15-07** Pass B focused validation failures for Admin Ready visibility, scheduled appointment dual membership, manual support identity republish, and related operator-queue classification after serial/model correction.
+- **Production baseline (pre-deploy):** **`v4.1.67`** / **`02cae82ac`**. **This entry does not authorize deployment, production data changes, or payment operations.**
+- **Source (release tag target):** Merge commit **`e75dba5a2d6c147e4730306286a8cab429f7917c`** on **`main`** (application changes in **`e1f9d7e9de78ab00e7e09a459cf3ade4f13085fb`**). Annotated tag **`v4.1.68`** must reference this source commit when Owner authorizes tagging.
+- **Application delta:** Service-layer operations queue and identity lifecycle only; **no new migrations**; **no** changes to payment authority, Cashfree signature verification, webhook idempotency rules, wallet, statutory mint, or production financial execution paths.
+- **Admin Ready / manual support:** Record manual identity republish before eligibility re-evaluation; preserve manual support ownership when validation succeeds; invalidate assignment validation and automation status request caches on serial/model identity change; treat identity-resolved orders as non–waiting-customer for queue classification when automation status was memoized earlier in the same request.
+- **Appointments:** Ready-eligible **Scheduled** cases mirror into the Admin Ready overlay (dual membership) without blocking legitimate Ready promotion.
+- **Tests (focused, P-15-09 evidence only):** `AdminReadyIdentityRepublishTest` **29/29**, `AppointmentDoesNotBlockReadyPromotionTest` **8/8**, `CashfreeHistoricalRecoveryCommandTest` **6/6** (test enables `cashfree.deferred_dashboard_broadcast_enabled` to match recovery contract), `Customer360DrawerTest` fragment assertion aligned to current `c360-ops-header` markup. **Full PHPUnit NOT RUN** for this release source — separate Owner gate required.
+- **Assets:** Standard KVM deploy expects **`npm run build`** before `deskd` when UI assets are included in the deploy bundle (per existing release workflow).
+- **Deployment prerequisites (Owner, separate authorization):** Fresh encrypted DB backup on current live build with attested `backup_id`; pre-deploy RIP matching live `release.json` `build`; demonstrated DB restorability **not claimed by this entry**; tag **`v4.1.68`** only after Owner approval; `deskd` only after all release gates.
+- **Rollback target (application):** **`v4.1.67`** / **`02cae82ac`**. Git redeploy rollback does not require schema rollback for this release.
+- **Validation (scoped, existing evidence only):** GitHub **rip** + **release-rip** **SUCCESS** on **`e75dba5a2`** and on PR head **`e1f9d7e9d`**. **Not** `deployed` / `smoke-verified` / `known-good`. Prompts **RadiumDesk-P-15-09**, **P-15-12**.
+
 ## 4.1.67 — 2026-11-14 — Full mainline (OEM handoff + Hostinger deploy gates + RBP2138 recovery)
 
 - **Purpose:** Single production release candidate from live **`v4.1.65`** to **`main`** @ **`ecc98a9d590ff6fa6aa1863c8416fc97a3254a17`** — **44 commits** (`5475d8a6..ecc98a9d5`, assessed **P-14-69**). Combines the unreleased **4.1.66** OEM dashboard stack, Hostinger snapshot / deploy-gate tooling (**PR #258, #259, #260**), and Owner-gated **RBP2138** existing-commerce hardware fulfilment recovery (**PR #262**).
