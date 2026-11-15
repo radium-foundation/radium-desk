@@ -118,11 +118,33 @@ class OrderIdentityLifecycleService
 
         $freshOrder->loadMissing('incidents.activeBusinessHold');
 
+        if ($serialChanged || $deviceModelChanged) {
+            $this->assignmentEligibility->forgetValidationMemoForOrder($freshOrder);
+            app(ServiceCaseAutomationStatusService::class)->forgetStatusForOrder($freshOrder);
+        }
+
         if ($freshOrder->incidents->contains(
             fn (Incident $incident): bool => $incident->isActive()
                 && app(BusinessHoldService::class)->blocksLifecycleAdvancement($incident),
         )) {
             return;
+        }
+
+        $assignmentService = app(ServiceCaseAssignmentService::class);
+
+        // SC28000: background validation / RadiumBox never republish.
+        // Meaningful human serial/model edits (allowlisted sources only) may.
+        // Record republish before eligibility re-evaluation so manual support
+        // ownership stays visible when validation succeeds in the same request.
+        $meaningfulManualIdentityChange = ($serialChanged || $deviceModelChanged)
+            && $assignmentService->isManualIdentityRepublishSource($source);
+
+        if ($meaningfulManualIdentityChange) {
+            $assignmentService->recordManualIdentityAdminReadyRepublish(
+                order: $freshOrder,
+                actor: $actor,
+                source: $source,
+            );
         }
 
         $this->assignmentEligibility->evaluateAssignmentEligibility($freshOrder, $actor);
@@ -134,21 +156,6 @@ class OrderIdentityLifecycleService
             // Notes, assignment, SLA, appointments never call this method.
             $this->automationMonitor->recordValidationPassed($freshOrder, $actor, allowRepeat: true);
             $this->waitingStateService->clearIdentityCorrectionWaitingWhenValidationPasses(
-                order: $freshOrder,
-                actor: $actor,
-                source: $source,
-            );
-        }
-
-        $assignmentService = app(ServiceCaseAssignmentService::class);
-
-        // SC28000: background validation / RadiumBox never republish.
-        // Meaningful human serial/model edits (allowlisted sources only) may.
-        $meaningfulManualIdentityChange = ($serialChanged || $deviceModelChanged)
-            && $assignmentService->isManualIdentityRepublishSource($source);
-
-        if ($meaningfulManualIdentityChange) {
-            $assignmentService->recordManualIdentityAdminReadyRepublish(
                 order: $freshOrder,
                 actor: $actor,
                 source: $source,

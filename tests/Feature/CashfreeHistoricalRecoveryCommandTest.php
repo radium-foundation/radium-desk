@@ -26,7 +26,10 @@ class CashfreeHistoricalRecoveryCommandTest extends TestCase
     {
         parent::setUp();
 
-        config(['cashfree.verify_signature' => false]);
+        config([
+            'cashfree.verify_signature' => false,
+            'cashfree.deferred_dashboard_broadcast_enabled' => true,
+        ]);
 
         $this->seed(RolePermissionSeeder::class);
 

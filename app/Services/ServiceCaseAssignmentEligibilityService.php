@@ -2,23 +2,23 @@
 
 namespace App\Services;
 
+use App\Data\Assignment\AssignmentRequest;
+use App\Enums\Assignment\AssignmentTrigger;
 use App\Enums\CommercialState;
 use App\Enums\IncidentStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SerialValidationSeverity;
 use App\Enums\SerialValidationStatus;
-use App\Services\Commercial\CommercialStateResolver;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Data\Assignment\AssignmentRequest;
-use App\Enums\Assignment\AssignmentTrigger;
+use App\Services\Commercial\CommercialStateResolver;
 use App\Services\Operations\SupportAppointmentSmartAssignmentService;
-use App\Support\Assignment\Strategies\ReadyQueueAssignmentStrategy;
-use App\Support\Assignment\Strategies\SupportQueueAssignmentStrategy;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SerialValidation\SerialValidationService;
+use App\Support\Assignment\Strategies\ReadyQueueAssignmentStrategy;
+use App\Support\Assignment\Strategies\SupportQueueAssignmentStrategy;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
 
@@ -53,6 +53,15 @@ class ServiceCaseAssignmentEligibilityService
 
         foreach ($incidentIds as $incidentId) {
             $this->evaluateSingleIncident((int) $incidentId, $actor);
+        }
+    }
+
+    public function forgetValidationMemoForOrder(Order $order): void
+    {
+        $orderId = (int) $order->getKey();
+
+        if ($orderId > 0) {
+            unset($this->passesValidationMemo[$orderId], $this->validationSeverityMemo[$orderId]);
         }
     }
 
@@ -264,6 +273,10 @@ class ServiceCaseAssignmentEligibilityService
             // Ready may refresh queue/SLA visibility, but must not steal Support /
             // Appointment / Refund / Sales / Manual ownership (preserves + audits).
             if ($assignee !== null && $this->isAgentUser($assignee)) {
+                if ($this->assignmentService->hasManualSupportOwnership($incident)) {
+                    return;
+                }
+
                 $this->assignmentService->reassignToShiftAdminAfterValidation(
                     incident: $incident,
                     actor: $actor,

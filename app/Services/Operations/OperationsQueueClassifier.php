@@ -205,10 +205,15 @@ class OperationsQueueClassifier
             return false;
         }
 
+        // Scheduled cases stay primary in Scheduled, but Ready-eligible work must
+        // still appear in the Admin Ready overlay (dual membership).
+        if ($primaryQueue === OperationQueue::Scheduled) {
+            return $this->isReadyForReferenceEntry($incident);
+        }
+
         if (in_array($primaryQueue, [
             OperationQueue::WaitingCustomer,
             OperationQueue::Hardware,
-            OperationQueue::Scheduled,
             OperationQueue::Completed,
             OperationQueue::BusinessHold,
         ], true)) {
@@ -323,6 +328,12 @@ class OperationsQueueClassifier
         }
 
         if ($incident->hasActiveSupportAppointment()) {
+            return false;
+        }
+
+        // Do not treat identity-resolved orders as waiting-customer when automation
+        // status was memoized before serial/model correction in the same request.
+        if (! $this->assignmentEligibility()->isWaitingForCustomerSerial($incident->order)) {
             return false;
         }
 
