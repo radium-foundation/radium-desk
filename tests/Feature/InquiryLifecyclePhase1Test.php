@@ -6,6 +6,7 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
 use App\Enums\ServiceCaseAutomationStatus;
+use App\Models\DeviceModel;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -220,6 +221,70 @@ class InquiryLifecyclePhase1Test extends TestCase
             ->assertDontSee('INQ-SC00333')
             ->assertDontSee('RD Service')
             ->assertDontSee('data-customer-360-radiumbox-sync', false);
+    }
+
+    public function test_product_order_retains_commercial_purchase_actions_in_menu_presenter_and_drawer(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $deviceModel = DeviceModel::query()->create([
+            'name' => 'MFS 110',
+            'buy_rd_service_url' => 'https://radiumbox.com/rd-service/mfs-110',
+            'buy_device_url' => 'https://radiumbox.com/shop/mfs-110',
+            'display_order' => 1,
+            'is_active' => true,
+        ]);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD3421999',
+            'serial_number' => '7881955',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'device_model_id' => $deviceModel->id,
+            'customer_phone' => '9123456799',
+            'customer_email' => 'product-buyer@example.com',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Product order purchase actions',
+            'description' => 'Product order purchase actions.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $menuKeys = collect(
+            app(CommunicationActionEligibilityService::class)
+                ->menuItems($incident->fresh(['order.deviceModel']), $agent),
+        )->pluck('key')->all();
+
+        $this->assertContains('buy_rd_service', $menuKeys);
+        $this->assertContains('buy_product', $menuKeys);
+
+        $statusKeys = collect(
+            app(Customer360CommunicationActionStatusPresenter::class)
+                ->forIncident($incident->fresh(['order.deviceModel']), $agent),
+        )->pluck('key')->all();
+
+        $this->assertContains('buy_rd_service', $statusKeys);
+        $this->assertContains('buy_product', $statusKeys);
+
+        $drawerData = app(Customer360Service::class)->drawerData($incident->fresh(['order.deviceModel']));
+        $this->assertSame('MFS 110', $drawerData['device']['product_name'] ?? null);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('data-workspace-communication-action-key="buy_rd_service"', false)
+            ->assertSee('data-workspace-communication-action-key="buy_product"', false);
     }
 
     public function test_inquiry_omits_commercial_purchase_actions_from_eligibility_menu_and_drawer_payload(): void

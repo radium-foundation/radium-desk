@@ -606,31 +606,35 @@ class ServiceCaseAssignmentService
 
     private function recordReadyQueueOwnerPreserved(Incident $incident, User $actor): void
     {
-        $alreadyPreserved = AuditLog::query()
-            ->where('event', self::READY_QUEUE_OWNER_PRESERVED_EVENT)
-            ->where('auditable_type', $incident->getMorphClass())
-            ->where('auditable_id', $incident->id)
-            ->exists();
+        DB::transaction(function () use ($incident, $actor): void {
+            Incident::query()->whereKey($incident->id)->lockForUpdate()->first();
 
-        if ($alreadyPreserved) {
-            return;
-        }
+            $alreadyPreserved = AuditLog::query()
+                ->where('event', self::READY_QUEUE_OWNER_PRESERVED_EVENT)
+                ->where('auditable_type', $incident->getMorphClass())
+                ->where('auditable_id', $incident->id)
+                ->exists();
 
-        $this->auditLogService->log(
-            userId: $actor->id,
-            event: self::READY_QUEUE_OWNER_PRESERVED_EVENT,
-            auditable: $incident,
-            oldValues: [
-                'assigned_to_user_id' => $incident->assigned_to_user_id,
-                'assignment_origin' => $incident->assignment_origin?->value,
-            ],
-            newValues: [
-                'assigned_to_user_id' => $incident->assigned_to_user_id,
-                'assignment_origin' => $incident->assignment_origin?->value,
-                'reason' => 'ready_queue_must_not_overwrite_human_ownership',
-                'preserved_origin' => $incident->assignment_origin?->value,
-            ],
-        );
+            if ($alreadyPreserved) {
+                return;
+            }
+
+            $this->auditLogService->log(
+                userId: $actor->id,
+                event: self::READY_QUEUE_OWNER_PRESERVED_EVENT,
+                auditable: $incident,
+                oldValues: [
+                    'assigned_to_user_id' => $incident->assigned_to_user_id,
+                    'assignment_origin' => $incident->assignment_origin?->value,
+                ],
+                newValues: [
+                    'assigned_to_user_id' => $incident->assigned_to_user_id,
+                    'assignment_origin' => $incident->assignment_origin?->value,
+                    'reason' => 'ready_queue_must_not_overwrite_human_ownership',
+                    'preserved_origin' => $incident->assignment_origin?->value,
+                ],
+            );
+        });
     }
 
     public function tryAssignViaHardwareOrderRouting(Incident $incident, User $actor, ?Carbon $at = null): ?Incident
