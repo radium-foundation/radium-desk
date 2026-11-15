@@ -48,6 +48,7 @@
         <env name="DESK_ORDER_API_TOKEN" value="" force="true"/>
         <env name="RDSERVICE_BASE_URL" value="https://rdservice.net" force="true"/>
         <env name="RADIUMBOX_ADMIN_FALLBACK_ENABLED" value="false" force="true"/>
+        <env name="RADIUMBOX_AVAILABILITY_SYNC_ENABLED" value="true" force="true"/>
         <env name="RDSERVICE_IN_LOOKUP_ENABLED" value="false" force="true"/>
         <env name="RADIUMBOX_STOREFRONT_LOOKUP_ENABLED" value="false" force="true"/>
         <env name="CHANNEL_INGEST_SECRET_RDSERVICE_IN" value="" force="true"/>

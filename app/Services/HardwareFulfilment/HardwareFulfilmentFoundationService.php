@@ -23,8 +23,7 @@ class HardwareFulfilmentFoundationService
 
     public function ensureIngested(CommerceOrder $order, ChannelOrderIngestRequest $request): ?HardwareFulfilment
     {
-        if (! HardwareFulfilmentEligibility::shouldOpenRecord($request)
-            || HardwareFulfilmentEligibility::commerceOrderVoidsFulfilment($order)) {
+        if (! HardwareFulfilmentEligibility::shouldOpenRecord($request)) {
             return HardwareFulfilment::query()
                 ->where('commerce_order_id', $order->id)
                 ->first();

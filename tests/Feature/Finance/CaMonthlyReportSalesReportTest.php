@@ -12,6 +12,8 @@ use App\Mail\CaMonthlyReportExportMail;
 use App\Models\CaMonthlyReportExport;
 use App\Models\CommerceOrder;
 use App\Models\EInvoiceRecord;
+use App\Models\StatutoryInvoice;
+use App\Models\StatutoryInvoiceCancellation;
 use App\Models\StatutoryInvoiceItem;
 use App\Models\User;
 use App\ReadModels\Finance\CaMonthlyStatutoryLineReadModel;
@@ -452,14 +454,23 @@ class CaMonthlyReportSalesReportTest extends TestCase
 
     public function test_credit_note_row_shows_credit_note_status_without_inventing_refund_amount(): void
     {
+        $original = $this->makeTaxInvoice([
+            'issued_at' => '2026-09-08 10:00:00',
+            'invoice_number' => 'INV-CN-SALES-1',
+        ]);
+        $this->recordEligibleCancellationInitiation($original, '2026-09-10 10:00:00');
+
         $this->makeTaxInvoice([
             'issued_at' => '2026-09-10 10:00:00',
             'document_type' => StatutoryInvoiceDocumentType::CreditNote,
             'invoice_number' => 'CN-0001',
+            'original_statutory_invoice_id' => $original->id,
         ]);
 
-        $row = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request())[0];
+        $rows = app(CaMonthlyStatutoryLineReadModel::class)->exportRows($this->request());
+        $row = collect($rows)->first(fn (array $row): bool => $row[2] === 'CN-0001');
 
+        $this->assertNotNull($row);
         $this->assertSame('Credit Note', $row[3]);
         $this->assertSame('CN-0001', $row[2]);
         $this->assertCount(32, $row);
@@ -633,6 +644,19 @@ class CaMonthlyReportSalesReportTest extends TestCase
     private function request(): Request
     {
         return Request::create('/finance/reports/ca-monthly', 'GET', self::RANGE);
+    }
+
+    private function recordEligibleCancellationInitiation(StatutoryInvoice $original, string $completedAt): void
+    {
+        $actor = User::factory()->create();
+
+        StatutoryInvoiceCancellation::query()->create([
+            'statutory_invoice_id' => $original->id,
+            'idempotency_key' => 'ca-sales-report-test-'.$original->id,
+            'actor_id' => $actor->id,
+            'reason' => 'Eligible cancellation for CA sales report test.',
+            'completed_at' => $completedAt,
+        ]);
     }
 
     private function requestEmailedXlsx(string $recipient, int $syncMaxLines): CaMonthlyReportExport

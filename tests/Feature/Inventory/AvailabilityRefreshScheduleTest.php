@@ -15,6 +15,15 @@ class AvailabilityRefreshScheduleTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['radiumbox.availability_sync.enabled' => true]);
+        $this->app->forgetInstance(Schedule::class);
+        $this->artisan('schedule:list')->assertSuccessful();
+    }
+
     public function test_refresh_and_prune_are_scheduled_without_overlap(): void
     {
         $refresh = $this->event('radiumbox:backfill-catalog-availability');

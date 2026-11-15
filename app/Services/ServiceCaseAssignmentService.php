@@ -428,10 +428,6 @@ class ServiceCaseAssignmentService
 
         $incident = $incident->fresh(['assignee']);
 
-        if ($incident->assigned_to_user_id === $assignee->id) {
-            return $incident;
-        }
-
         return $this->applyAssignment(
             incident: $incident,
             assignee: $assignee,
@@ -601,6 +597,11 @@ class ServiceCaseAssignmentService
         }
 
         return $incident->assignment_origin?->protectsReadyQueueOwnership() ?? false;
+    }
+
+    public function auditReadyQueueOwnerPreserved(Incident $incident, User $actor): void
+    {
+        $this->recordReadyQueueOwnerPreserved($incident, $actor);
     }
 
     private function recordReadyQueueOwnerPreserved(Incident $incident, User $actor): void

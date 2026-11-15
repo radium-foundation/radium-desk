@@ -691,7 +691,9 @@ class Customer360Service
         return [
             'model_short' => DeviceModelFormatter::shortDisplay($fullModelName),
             'model_canonical' => $fullModelName,
-            'product_name' => filled($order->product_name) ? $order->product_name : $fullModelName,
+            'product_name' => $order->isInquiryOrder()
+                ? null
+                : (filled($order->product_name) ? $order->product_name : $fullModelName),
             'service_plan' => $this->servicePlanLabel($order),
             'serial_number' => $order->serial_number,
             'serial_sync_status' => $syncStatus->value,

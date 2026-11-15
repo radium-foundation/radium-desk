@@ -3,8 +3,11 @@
 ])
 
 @php
+    use App\Services\Dashboard\OperationsWorkspaceResolver;
+    use App\Services\DashboardPersonalizationService;
     use App\Services\Operations\OperationsRoleService;
 
+    $workspaceLinks = app(OperationsWorkspaceResolver::class);
     $items = [];
     $currentUser = $viewer ?? auth()->user();
     $roles = app(OperationsRoleService::class);
@@ -21,7 +24,10 @@
             'value' => $stats['open_cases'] ?? $stats['open_incidents'] ?? 0,
             'icon' => 'bi-inbox',
             'color' => 'primary',
-            'href' => route('dashboard', ['queue' => 'action_required']).'#dashboard-service-cases-panel',
+            'href' => route('dashboard', $workspaceLinks->deepLinkQueryParams(
+                DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+                DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+            )).'#dashboard-service-cases-panel',
             'workspace' => 'action_required',
         ];
 
@@ -30,7 +36,10 @@
             'value' => $stats['overdue_cases'] ?? 0,
             'icon' => 'bi-exclamation-octagon-fill',
             'color' => 'danger',
-            'href' => route('dashboard', ['filter' => 'overdue']).'#dashboard-service-cases-panel',
+            'href' => route('dashboard', $workspaceLinks->deepLinkQueryParams(
+                DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+                'overdue',
+            )).'#dashboard-service-cases-panel',
             'workspace' => 'overdue',
         ];
 
@@ -39,7 +48,10 @@
             'value' => $stats['waiting_cases'] ?? 0,
             'icon' => 'bi-hourglass-split',
             'color' => 'warning',
-            'href' => route('dashboard', ['queue' => 'waiting_customer']).'#dashboard-service-cases-panel',
+            'href' => route('dashboard', $workspaceLinks->deepLinkQueryParams(
+                DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER,
+                DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER,
+            )).'#dashboard-service-cases-panel',
             'workspace' => 'waiting_customer',
         ];
     }
