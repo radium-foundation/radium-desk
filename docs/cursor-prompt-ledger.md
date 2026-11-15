@@ -1094,4 +1094,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-14-90 | 2026-11-14 | **P-14-90** RBP fulfilment regression + concurrency validation ChatGPT **P-14-90** | Parent **P-14-89**. **PR [#266](https://github.com/radium-foundation/radium-desk/pull/266)** **MERGED** → **`origin/main`** **`44b84ba3`** (head **`895520d92`** @ base **`2926e0da1`**). Cancelled/voided guards; payment correlation + RBP2138 race tests; InnoDB RBP ingest concurrency harness. PHPUnit **37 PASS**, **1 SKIP** (MySQL). Full suite **NOT RUN**. **NO** prod deploy. **~20:17–20:32 IST**. |
 
+| RadiumDesk-P-15-09 | 2026-11-15 | **P-15-09** Remediate P-15-07 Pass B focused failures ChatGPT **P-15-09** | Worktree **`.worktrees/p15-09-remediate`** branch **`chore/p15-09-focused-failures`** @ **`157bd0a58`**. **RISK HIGH.** Fixes: Ready overlay for scheduled appointments; manual-support Ready republish + validation memo; automation status cache invalidation on identity change; Cashfree deferred broadcast test config; Customer 360 HTML assertions. Focused PHPUnit **44/44** (AdminReady 29, Appointment 8, Cashfree 6, Customer360 1). Full suite **NOT RUN**. **NO** prod deploy. Artifacts **`.artifacts/p15-09-remediate/20261115T101056+0530/`**. |
+
 Do not renumber or overwrite earlier rows. Append only.

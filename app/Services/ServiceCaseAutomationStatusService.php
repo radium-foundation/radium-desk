@@ -4,10 +4,11 @@ namespace App\Services;
 
 use App\Enums\IncidentStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
-use App\Enums\ServiceCaseAutomationStatus;
 use App\Enums\SerialValidationSeverity;
+use App\Enums\ServiceCaseAutomationStatus;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\User;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\SerialValidation\SerialPlaceholderService;
 use Database\Seeders\RolePermissionSeeder;
@@ -22,6 +23,35 @@ class ServiceCaseAutomationStatusService
         private readonly SerialPlaceholderService $placeholderService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
     ) {}
+
+    /**
+     * @param  iterable<int, Incident>  $incidents
+     */
+    public function forgetStatusForIncidents(iterable $incidents): void
+    {
+        foreach ($incidents as $incident) {
+            if ($incident instanceof Incident) {
+                unset($this->statusCache[$incident->id]);
+            }
+        }
+    }
+
+    public function forgetStatusForOrder(Order $order): void
+    {
+        $orderId = (int) $order->getKey();
+
+        if ($orderId <= 0) {
+            return;
+        }
+
+        $incidentIds = $order->relationLoaded('incidents')
+            ? $order->incidents->pluck('id')
+            : Incident::query()->where('order_id', $orderId)->pluck('id');
+
+        foreach ($incidentIds as $incidentId) {
+            unset($this->statusCache[(int) $incidentId]);
+        }
+    }
 
     public function statusFor(Incident $incident): ServiceCaseAutomationStatus
     {
@@ -110,7 +140,7 @@ class ServiceCaseAutomationStatusService
         return $syncStatus === RadiumBoxEnrichmentSyncStatus::Pending;
     }
 
-    private function isAdminUser(\App\Models\User $user): bool
+    private function isAdminUser(User $user): bool
     {
         return $user->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,
@@ -119,7 +149,7 @@ class ServiceCaseAutomationStatusService
         ]);
     }
 
-    private function isAgentUser(\App\Models\User $user): bool
+    private function isAgentUser(User $user): bool
     {
         return $user->hasAnyRole([
             RolePermissionSeeder::ROLE_AGENT,
