@@ -606,6 +606,16 @@ class ServiceCaseAssignmentService
 
     private function recordReadyQueueOwnerPreserved(Incident $incident, User $actor): void
     {
+        $alreadyPreserved = AuditLog::query()
+            ->where('event', self::READY_QUEUE_OWNER_PRESERVED_EVENT)
+            ->where('auditable_type', $incident->getMorphClass())
+            ->where('auditable_id', $incident->id)
+            ->exists();
+
+        if ($alreadyPreserved) {
+            return;
+        }
+
         $this->auditLogService->log(
             userId: $actor->id,
             event: self::READY_QUEUE_OWNER_PRESERVED_EVENT,

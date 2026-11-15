@@ -9,11 +9,14 @@ use App\Enums\ServiceCaseAutomationStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CommunicationActions\CommunicationActionEligibilityService;
+use App\Services\Customer360Service;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\ServiceCaseAutomationStatusService;
+use App\Support\Customer360\Customer360CommunicationActionStatusPresenter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -219,6 +222,34 @@ class InquiryLifecyclePhase1Test extends TestCase
             ->assertDontSee('data-customer-360-radiumbox-sync', false);
     }
 
+    public function test_inquiry_omits_commercial_purchase_actions_from_eligibility_menu_and_drawer_payload(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createInquiryIncident($agent, 'SC00335', assignTo: $agent);
+        $incident->order->update(['customer_phone' => '9123456781']);
+
+        $menuKeys = collect(
+            app(CommunicationActionEligibilityService::class)
+                ->menuItems($incident->fresh(['order']), $agent),
+        )->pluck('key')->all();
+
+        $this->assertNotContains('buy_rd_service', $menuKeys);
+        $this->assertNotContains('buy_product', $menuKeys);
+
+        $statusKeys = collect(
+            app(Customer360CommunicationActionStatusPresenter::class)
+                ->forIncident($incident->fresh(['order']), $agent),
+        )->pluck('key')->all();
+
+        $this->assertNotContains('buy_rd_service', $statusKeys);
+        $this->assertNotContains('buy_product', $statusKeys);
+
+        $drawerData = app(Customer360Service::class)->drawerData($incident->fresh(['order']));
+        $this->assertNull($drawerData['device']['product_name'] ?? null);
+    }
+
     public function test_customer_360_inquiry_active_services_show_enquiry_only(): void
     {
         $agent = User::factory()->create();
@@ -226,7 +257,7 @@ class InquiryLifecyclePhase1Test extends TestCase
 
         $incident = $this->createInquiryIncident($agent, 'SC00334', assignTo: $agent);
 
-        $data = app(\App\Services\Customer360Service::class)->drawerData($incident->fresh(['order']));
+        $data = app(Customer360Service::class)->drawerData($incident->fresh(['order']));
 
         $this->assertFalse($data['device']['can_manual_sync']);
         $this->assertFalse($data['device']['show_sync_diagnostics']);

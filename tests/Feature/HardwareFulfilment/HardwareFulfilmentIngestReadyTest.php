@@ -117,10 +117,15 @@ class HardwareFulfilmentIngestReadyTest extends TestCase
 
         $fulfilment = HardwareFulfilment::query()->with('commerceOrder.items')->firstOrFail();
         $this->assertSame(HardwareFulfilmentState::Ingested, $fulfilment->state);
+        $this->assertNull($fulfilment->ready_at);
         $this->assertStringContainsString(
             'paid commerce order',
             (string) HardwareFulfilmentEligibility::isolatedTargetBlocker($fulfilment, $fulfilment->commerceOrder),
         );
+
+        $this->signedBoxPost($payload)->assertOk();
+        $this->assertSame(1, HardwareFulfilment::query()->count());
+        $this->assertSame(HardwareFulfilmentState::Ingested, $fulfilment->fresh()->state);
     }
 
     public function test_unauthorized_frozen_source_does_not_open_or_ready(): void

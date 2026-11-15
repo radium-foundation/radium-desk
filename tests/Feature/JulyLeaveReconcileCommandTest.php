@@ -5,11 +5,11 @@ namespace Tests\Feature;
 use App\Enums\AttendanceMatrixCellKind;
 use App\Enums\LeaveDuration;
 use App\Enums\LeaveRequestStatus;
+use App\Enums\WorkSessionEndReason;
 use App\Models\LeaveRequest;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Models\WorkSession;
-use App\Enums\WorkSessionEndReason;
 use App\Services\Workforce\MonthlyAttendanceMatrixService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -119,6 +119,24 @@ class JulyLeaveReconcileCommandTest extends TestCase
                 ->where('duration', LeaveDuration::HalfDay)
                 ->whereDate('start_date', '2026-07-21')
                 ->exists(),
+        );
+
+        $approvedCount = LeaveRequest::query()
+            ->where('status', LeaveRequestStatus::Approved)
+            ->whereDate('start_date', '>=', '2026-07-01')
+            ->whereDate('end_date', '<=', '2026-07-31')
+            ->count();
+
+        $this->artisan('workforce:july-leave-reconcile', ['--force' => true])
+            ->assertSuccessful();
+
+        $this->assertSame(
+            $approvedCount,
+            LeaveRequest::query()
+                ->where('status', LeaveRequestStatus::Approved)
+                ->whereDate('start_date', '>=', '2026-07-01')
+                ->whereDate('end_date', '<=', '2026-07-31')
+                ->count(),
         );
 
         $matrix = app(MonthlyAttendanceMatrixService::class)->build(

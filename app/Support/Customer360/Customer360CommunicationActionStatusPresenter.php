@@ -3,7 +3,6 @@
 namespace App\Support\Customer360;
 
 use App\Contracts\Context\ProvidesContextScope;
-use App\Enums\CommunicationActionKey;
 use App\Enums\CommunicationActionLifecycleStatus;
 use App\Enums\ContextScope;
 use App\Models\AuditLog;
@@ -59,7 +58,7 @@ final class Customer360CommunicationActionStatusPresenter implements ProvidesCon
 
         return $this->registry
             ->all()
-            ->reject(fn ($definition): bool => $this->shouldOmitFromCustomer360($incident, $definition->key))
+            ->reject(fn ($definition): bool => InquiryCommercialPurchaseActionPolicy::hidesFromCustomerSurfaces($incident, $definition->key))
             ->map(fn ($definition): array => $this->presentAction(
                 incident: $incident,
                 user: $user,
@@ -237,18 +236,6 @@ final class Customer360CommunicationActionStatusPresenter implements ProvidesCon
         return CommunicationActionLifecycleStatus::tryFrom(
             (string) ($auditLog->new_values['status'] ?? ''),
         );
-    }
-
-    private function shouldOmitFromCustomer360(Incident $incident, CommunicationActionKey $key): bool
-    {
-        if (! $incident->order?->isInquiryOrder()) {
-            return false;
-        }
-
-        return in_array($key, [
-            CommunicationActionKey::BuyRdService,
-            CommunicationActionKey::BuyProduct,
-        ], true);
     }
 
     private function formatSentLabel(?CarbonInterface $sentAt): string

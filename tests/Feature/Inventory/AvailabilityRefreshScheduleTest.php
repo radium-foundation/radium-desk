@@ -24,6 +24,19 @@ class AvailabilityRefreshScheduleTest extends TestCase
         $this->artisan('schedule:list')->assertSuccessful();
     }
 
+    public function test_backfill_schedule_filters_off_when_availability_sync_disabled(): void
+    {
+        config(['radiumbox.availability_sync.enabled' => false]);
+        $this->app->forgetInstance(Schedule::class);
+        $this->artisan('schedule:list')->assertSuccessful();
+
+        $refresh = $this->event('radiumbox:backfill-catalog-availability');
+        $this->assertFalse($refresh->filtersPass($this->app));
+
+        config(['radiumbox.availability_sync.enabled' => true]);
+        $this->assertTrue($refresh->filtersPass($this->app));
+    }
+
     public function test_refresh_and_prune_are_scheduled_without_overlap(): void
     {
         $refresh = $this->event('radiumbox:backfill-catalog-availability');
