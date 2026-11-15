@@ -30,7 +30,7 @@ class HardwareRbpChannelIngestMysqlConcurrencyTest extends TestCase
         $this->assertTrue(HardwareFulfilmentMysqlGate::isAllowedDatabase(HardwareFulfilmentMysqlGate::DATABASE));
     }
 
-    public function test_concurrent_unpaid_rbp_channel_ingest_stays_ingested_without_readiness(): void
+    public function test_concurrent_unpaid_rbp_channel_ingest_creates_one_commerce_without_fulfilment(): void
     {
         $context = $this->prepareContextOrSkip(
             base_path('tests/Feature/HardwareFulfilment/Support/mysql_rbp_channel_ingest_unpaid_prepare.php'),
@@ -42,18 +42,20 @@ class HardwareRbpChannelIngestMysqlConcurrencyTest extends TestCase
         $ok = array_values(array_filter($results, fn (array $row): bool => ($row['ok'] ?? false) === true));
         $this->assertGreaterThanOrEqual(1, count($ok), json_encode($results));
 
+        $commerceCounts = array_unique(array_map(fn (array $row): int => (int) ($row['commerce_count'] ?? -1), $results));
+        $fulfilmentCounts = array_unique(array_map(fn (array $row): int => (int) ($row['fulfilment_count'] ?? -1), $results));
+
+        $this->assertSame([1], $commerceCounts, json_encode($results));
+        $this->assertSame([0], $fulfilmentCounts, json_encode($results));
+        $this->assertIndependentConnections($results);
+
         $pdo = $this->safePdo();
         $this->assertSame(1, (int) $pdo->query('select count(*) from commerce_orders')->fetchColumn());
-        $this->assertSame(1, (int) $pdo->query('select count(*) from hardware_fulfilments')->fetchColumn());
-        $this->assertSame(
-            1,
-            (int) $pdo->query("select count(*) from hardware_fulfilments where state = 'ingested'")->fetchColumn(),
-        );
+        $this->assertSame(0, (int) $pdo->query('select count(*) from hardware_fulfilments')->fetchColumn());
         $this->assertSame(
             0,
             (int) $pdo->query("select count(*) from hardware_fulfilments where state = 'ready_for_fulfilment'")->fetchColumn(),
         );
-        $this->assertIndependentConnections($results);
     }
 
     public function test_concurrent_rbp_channel_ingest_creates_one_commerce_and_one_fulfilment(): void
