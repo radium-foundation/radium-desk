@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AssignmentOrigin;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
@@ -15,7 +16,6 @@ use App\Models\User;
 use App\Notifications\ServiceCaseCustomerRespondedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
 use App\Services\Dashboard\DashboardSnapshot;
-use App\Services\IncidentReferenceService;
 use App\Services\IncidentWaitingStateService;
 use App\Services\MissingSerial\MissingSerialAutomationService;
 use App\Services\Operations\OperationsQueueClassifier;
@@ -167,7 +167,10 @@ class WaitingStateOwnershipTest extends TestCase
         $assignee->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $incident = $this->createSc08197Case($assignee)[1];
-        $incident->update(['assigned_to_user_id' => $assignee->id]);
+        $incident->update([
+            'assigned_to_user_id' => $assignee->id,
+            'assignment_origin' => AssignmentOrigin::Manual,
+        ]);
 
         $auditCountBefore = AuditLog::query()
             ->where('auditable_type', Incident::class)

@@ -428,7 +428,8 @@ class ServiceCaseAssignmentService
 
         $incident = $incident->fresh(['assignee']);
 
-        if ((int) $incident->assigned_to_user_id === (int) $assignee->id) {
+        if ((int) $incident->assigned_to_user_id === (int) $assignee->id
+            && ($incident->assignment_origin?->protectsReadyQueueOwnership() ?? false)) {
             return $incident;
         }
 
