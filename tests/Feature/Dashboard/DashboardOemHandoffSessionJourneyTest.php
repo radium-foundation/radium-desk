@@ -81,18 +81,18 @@ class DashboardOemHandoffSessionJourneyTest extends TestCase
 
     public function test_full_mantra_journey_session_draft_review_without_warranty_table(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
-        $incident = $this->mantraIncident($agent);
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $incident = $this->mantraIncident($admin);
 
-        $start = $this->actingAs($agent)->sessionPayload($incident);
+        $start = $this->actingAs($admin)->sessionPayload($incident);
 
-        $this->actingAs($agent)->getJson(
+        $this->actingAs($admin)->getJson(
             route('dashboard.service-cases.oem-handoff.sessions.show', [$incident, $start['session_public_id']]),
         )->assertOk()
             ->assertJsonPath('session.status', DashboardOemHandoffSessionStatus::AwaitingVerification->value);
 
-        $draft = $this->actingAs($agent)->postJson(
+        $draft = $this->actingAs($admin)->postJson(
             route('dashboard.service-cases.oem-handoff.sessions.draft', [$incident, $start['session_public_id']]),
             $this->draftPayload($start['handoff_token']),
         )->assertOk();
@@ -104,8 +104,16 @@ class DashboardOemHandoffSessionJourneyTest extends TestCase
             $draft->json('session.draft.rd_expiry_date'),
         );
 
-        $this->actingAs($agent)->postJson(
-            route('dashboard.service-cases.oem-handoff.sessions.review', [$incident, $start['session_public_id']]),
+        $this->actingAs($admin)->postJson(route('orders.legacy-verification.store', $incident->order), [
+            'confirmed' => true,
+        ])->assertOk();
+
+        $this->actingAs($admin)->postJson(
+            route('dashboard.service-cases.oem-handoff.sessions.complete-assignment', [$incident, $start['session_public_id']]),
+            [
+                'service_reference' => 'SRV-MANTRA-JRN-001',
+                'subscription_expiry_date' => '2026-06-15',
+            ],
         )->assertOk()
             ->assertJsonPath('session.status', DashboardOemHandoffSessionStatus::Confirmed->value);
 
@@ -113,6 +121,13 @@ class DashboardOemHandoffSessionJourneyTest extends TestCase
         $this->assertSame(DashboardOemHandoffSessionStatus::Confirmed, $session->status);
         $this->assertNotNull($session->confirmed_payload);
         $this->assertNotNull($session->confirmed_at);
+        $this->assertSame('SYN6419897', $session->confirmed_payload['serial_number'] ?? null);
+
+        $incident->refresh();
+        $order = $incident->order?->fresh();
+        $this->assertNotNull($order);
+        $this->assertSame('SRV-MANTRA-JRN-001', $order->transaction_id);
+        $this->assertTrue($order->isTransactionLocked());
     }
 
     public function test_master_flag_disabled_blocks_session_start(): void
@@ -289,19 +304,19 @@ class DashboardOemHandoffSessionJourneyTest extends TestCase
         ]);
     }
 
-    public function test_morpho_draft_confirm_journey(): void
+    public function test_morpho_draft_complete_assignment_journey(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
-        $incident = $this->morphoIncident($agent);
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $incident = $this->morphoIncident($admin);
 
-        $start = $this->actingAs($agent)->postJson(
+        $start = $this->actingAs($admin)->postJson(
             route('dashboard.service-cases.oem-handoff.sessions.store', $incident),
         )->assertOk()->json();
 
         $this->assertSame('morpho', $start['oem']);
 
-        $this->actingAs($agent)->postJson(
+        $this->actingAs($admin)->postJson(
             route('dashboard.service-cases.oem-handoff.sessions.draft', [$incident, $start['session_public_id']]),
             [
                 'handoff_token' => $start['handoff_token'],
@@ -318,11 +333,21 @@ class DashboardOemHandoffSessionJourneyTest extends TestCase
             ->assertJsonPath('session.draft.whitelist_qualification', 'already_whitelisted')
             ->assertJsonPath('session.service_reference_prefill.eligible', true);
 
-        $this->actingAs($agent)->postJson(
-            route('dashboard.service-cases.oem-handoff.sessions.confirm', [$incident, $start['session_public_id']]),
+        $this->actingAs($admin)->postJson(route('orders.legacy-verification.store', $incident->order), [
+            'confirmed' => true,
+        ])->assertOk();
+
+        $this->actingAs($admin)->postJson(
+            route('dashboard.service-cases.oem-handoff.sessions.complete-assignment', [$incident, $start['session_public_id']]),
+            [
+                'service_reference' => 'SRV-MORPHO-JRN-001',
+                'subscription_expiry_date' => '2027-06-01',
+            ],
         )->assertOk()
-            ->assertJsonPath('session.status', DashboardOemHandoffSessionStatus::Confirmed->value)
-            ->assertJsonPath('service_reference_prefill.eligible', true);
+            ->assertJsonPath('session.status', DashboardOemHandoffSessionStatus::Confirmed->value);
+
+        $incident->refresh();
+        $this->assertSame('SRV-MORPHO-JRN-001', $incident->order?->transaction_id);
     }
 
     public function test_reject_captured_result(): void

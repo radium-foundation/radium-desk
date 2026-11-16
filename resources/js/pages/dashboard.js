@@ -352,7 +352,6 @@ export const bootDashboard = () => {
     setOrderWorkspaceLegacyVerificationModal(legacyVerificationModal);
 
     initServiceCasePaginationState(pageRoot);
-    initDashboardOemWarrantyHandoff(showAppToast);
     initDashboardKpiActions(pageRoot);
     initViewOnlyMetricRefresh(pageRoot);
 
@@ -371,6 +370,32 @@ export const bootDashboard = () => {
 
     workspaceHooks.replaceServiceCaseRow = (...args) => dashboardTransactionsRef.current?.replaceServiceCaseRow(...args);
     workspaceHooks.removeServiceCaseRow = (incidentId) => dashboardTransactionsRef.current?.removeServiceCaseRow?.(incidentId);
+
+    const handleOemAssignmentSaved = (data) => {
+        const removeIncidentIds = [
+            ...(data.remove_row?.incident_id !== undefined ? [Number(data.remove_row.incident_id)] : []),
+            ...((data.remove_rows ?? []).map((row) => Number(row.incident_id))),
+        ].filter((id) => Number.isFinite(id) && id > 0);
+
+        if (removeIncidentIds.length > 0) {
+            Array.from(new Set(removeIncidentIds)).forEach((id) => {
+                workspaceHooks.removeServiceCaseRow?.(id);
+            });
+        } else if (data.row_html && data.incident_id) {
+            workspaceHooks.replaceServiceCaseRow?.(data.incident_id, data.row_html);
+            dashboardTransactionsRef.current?.batchSession?.updateToolbar();
+        }
+
+        if (data.kpi_strip_html !== undefined) {
+            applyKpis(data.kpi_strip_html);
+        }
+    };
+
+    initDashboardOemWarrantyHandoff(showAppToast, {
+        onAssignmentSaved: handleOemAssignmentSaved,
+        legacyVerificationModal,
+    });
+
     workspaceHooks.afterSuccess = async (data) => {
         const batchSession = dashboardTransactionsRef.current?.batchSession;
 

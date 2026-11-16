@@ -207,6 +207,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.oem-handoff.sessions.draft');
     Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions/{sessionPublicId}/review', [DashboardOemHandoffSessionController::class, 'review'])
         ->name('dashboard.service-cases.oem-handoff.sessions.review');
+    Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions/{sessionPublicId}/complete-assignment', [DashboardOemHandoffSessionController::class, 'completeAssignment'])
+        ->name('dashboard.service-cases.oem-handoff.sessions.complete-assignment');
     Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions/{sessionPublicId}/confirm', [DashboardOemHandoffSessionController::class, 'confirm'])
         ->name('dashboard.service-cases.oem-handoff.sessions.confirm');
     Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions/{sessionPublicId}/reject', [DashboardOemHandoffSessionController::class, 'reject'])

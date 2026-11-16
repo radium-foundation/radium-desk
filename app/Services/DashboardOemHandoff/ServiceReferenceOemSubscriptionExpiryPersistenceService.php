@@ -82,6 +82,20 @@ final class ServiceReferenceOemSubscriptionExpiryPersistenceService
         return $this->persistExpiry($session, $actor, $serviceReference, $expiry);
     }
 
+    /**
+     * Administrator-provided RD subscription expiry (not OEM auto-trust). Runs regardless of expiry_persist feature flag.
+     *
+     * @return array{status: OemHandoffExpiryPersistStatus, service_reference: ?string, subscription_expiry_date: ?string}
+     */
+    public function persistAdministratorProvidedExpiry(
+        DashboardOemHandoffSession $session,
+        User $actor,
+        string $serviceReference,
+        string $expiryYmd,
+    ): array {
+        return $this->persistExpiry($session, $actor, $serviceReference, $expiryYmd);
+    }
+
     public function flushQuarantinedSessionsForOrder(Order $order, User $actor): void
     {
         if (! $this->persistenceEnabled()) {
