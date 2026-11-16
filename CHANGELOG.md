@@ -1,10 +1,11 @@
 # Changelog
 
-## 4.1.72 — Unreleased — OEM session handoff phased timeouts (P-16-48)
+## 4.1.72 — 2026-11-16 — OEM session handoff phased timeouts (P-16-48 / PR #294)
 
 - **Purpose:** Fix false **“OEM handoff timed out”** when Mantra session **`POST`** and extension tab open together exceed the legacy single **12s** watchdog; add **`RADESK_OEM_HANDOFF_SESSION_PENDING`** so the content script re-arms per phase. **Does not authorize deploy, production flags, or migrations.**
-- **Application delta:** `dashboard-oem-warranty-handoff.js` posts **`SESSION_PENDING`** before authenticated session creation; extension **`desk-handoff.js`** uses per-phase **12s** timers (re-arm on **`SESSION_PENDING`** and **`SESSION_READY`**). Internal OEM extension **`v0.3.9`** required with Desk **4.1.72+** for this latency fix ( **v0.3.8** still required minimum for isolated-world bridge from **4.1.71** ). Manual Mantra CAPTCHA/Check unchanged. **No** payment, Cashfree, or migration changes.
-- **Focused evidence target:** Extension vitest **56+**; `dashboard-oem-warranty-handoff.test.js` **8**; `session-handoff-timeout.test.js` documents phased deadline behaviour.
+- **Production baseline (pre-deploy):** KVM **`v4.1.71`** / **`71ff0e6fb`**. **Application merge:** PR **#294** @ **`a3a8b095fee1af9d5a70f1c8a1ffa3a527f7e1b5`**; feature **`896df529d9fb05efbe1d15d83a7675a7a09c64ba`**.
+- **Application delta:** `dashboard-oem-warranty-handoff.js` posts **`SESSION_PENDING`** before authenticated session creation; extension **`desk-handoff.js`** uses per-phase **12s** timers (re-arm on **`SESSION_PENDING`** and **`SESSION_READY`**). Internal OEM extension **`v0.3.9`** (`radium-desk-v0.3.9.zip`, SHA **`d7b2f51ad9b5df1d5b8ac07cfc01563efc5aba6ef2347021d0781471acbadc73`**) with Desk **4.1.72+**; **v0.3.8** remains minimum for isolated-world bridge (**4.1.71**). Manual Mantra CAPTCHA/Check unchanged. **No** payment, Cashfree, or migration changes.
+- **Focused evidence:** Extension vitest **56** pass; `dashboard-oem-warranty-handoff.test.js` **8** pass; GitHub **rip** + **release-rip** **SUCCESS** on PR branch. **Live browser E2E NOT RUN.**
 
 ## 4.1.71 — 2026-11-16 — Mantra OEM handoff isolated-world bridge (P-16-43 / PR #292)
 
