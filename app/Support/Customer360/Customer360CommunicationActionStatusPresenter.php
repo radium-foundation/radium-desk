@@ -54,8 +54,11 @@ final class Customer360CommunicationActionStatusPresenter implements ProvidesCon
     {
         $eventIndex = $this->lifecycleService->eventIndexForIncident($incident);
 
+        $incident->loadMissing('order');
+
         return $this->registry
             ->all()
+            ->reject(fn ($definition): bool => InquiryCommercialPurchaseActionPolicy::hidesFromCustomerSurfaces($incident, $definition->key))
             ->map(fn ($definition): array => $this->presentAction(
                 incident: $incident,
                 user: $user,

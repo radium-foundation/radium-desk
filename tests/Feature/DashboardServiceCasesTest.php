@@ -8,6 +8,8 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
+use App\Services\Dashboard\OperationsWorkspaceResolver;
+use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
@@ -1165,7 +1167,11 @@ class DashboardServiceCasesTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $expectedHref = route('dashboard', ['queue' => 'action_required']).'#dashboard-service-cases-panel';
+        $workspaceLinks = app(OperationsWorkspaceResolver::class);
+        $expectedHref = route('dashboard', $workspaceLinks->deepLinkQueryParams(
+            DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+            DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+        )).'#dashboard-service-cases-panel';
 
         $this->actingAs($admin)
             ->get(route('dashboard'))

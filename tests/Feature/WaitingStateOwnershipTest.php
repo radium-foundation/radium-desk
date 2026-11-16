@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AssignmentOrigin;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
@@ -15,7 +16,6 @@ use App\Models\User;
 use App\Notifications\ServiceCaseCustomerRespondedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
 use App\Services\Dashboard\DashboardSnapshot;
-use App\Services\IncidentReferenceService;
 use App\Services\IncidentWaitingStateService;
 use App\Services\MissingSerial\MissingSerialAutomationService;
 use App\Services\Operations\OperationsQueueClassifier;
@@ -24,6 +24,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class WaitingStateOwnershipTest extends TestCase
@@ -156,6 +157,7 @@ class WaitingStateOwnershipTest extends TestCase
         $this->assertSame(1, DashboardSnapshot::load()->incidentsForQueue('my_work', $admin)->count());
     }
 
+    #[Group('permanent_regression')]
     public function test_no_op_reassignment_does_not_create_audit_or_notification(): void
     {
         Notification::fake();
@@ -167,7 +169,10 @@ class WaitingStateOwnershipTest extends TestCase
         $assignee->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $incident = $this->createSc08197Case($assignee)[1];
-        $incident->update(['assigned_to_user_id' => $assignee->id]);
+        $incident->update([
+            'assigned_to_user_id' => $assignee->id,
+            'assignment_origin' => AssignmentOrigin::Manual,
+        ]);
 
         $auditCountBefore = AuditLog::query()
             ->where('auditable_type', Incident::class)

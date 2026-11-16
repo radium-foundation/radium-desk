@@ -93,6 +93,24 @@ class ReadyQueueOwnerPreservationTest extends TestCase
         $this->assertOwnerPreservedAudit($incident, AssignmentOrigin::Refund);
     }
 
+    public function test_manual_origin_preservation_audit_is_recorded_once_per_validation_pass(): void
+    {
+        [$admin, $agent, $actor, $incident] = $this->createOwnedReadyEligibleCase(
+            origin: AssignmentOrigin::Manual,
+        );
+
+        $this->evaluateReady($incident, $actor);
+        $this->evaluateReady($incident, $actor);
+
+        $this->assertSame(
+            1,
+            AuditLog::query()
+                ->where('event', ServiceCaseAssignmentService::READY_QUEUE_OWNER_PRESERVED_EVENT)
+                ->where('auditable_id', $incident->id)
+                ->count(),
+        );
+    }
+
     public function test_manual_origin_keeps_owner_when_ready_queue_validates(): void
     {
         [$admin, $agent, $actor, $incident] = $this->createOwnedReadyEligibleCase(

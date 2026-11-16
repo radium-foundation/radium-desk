@@ -10,6 +10,7 @@ use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\InventoryProduct;
 use App\Services\ChannelIngest\ChannelIngestAuthenticator;
+use App\Services\HardwareFulfilment\HardwareFulfilmentIsolatedWorkflowService;
 use App\Services\HardwareFulfilment\HardwareOwnerAuthorizedExistingCommerceProfiles;
 use App\Services\HardwareFulfilment\HardwareRecoveredFulfilmentAuthorization;
 use App\Services\HardwareFulfilment\RbpHardwareFulfilmentGapMonitor;
@@ -17,6 +18,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class HardwareRbpAutomaticFulfilmentJourneyTest extends TestCase
@@ -66,6 +68,7 @@ class HardwareRbpAutomaticFulfilmentJourneyTest extends TestCase
         $this->assertSame(HardwareFulfilmentState::ReadyForFulfilment, $fulfilment->state);
     }
 
+    #[Group('permanent_regression')]
     public function test_unpaid_rbp_does_not_open_hardware_fulfilment(): void
     {
         $payload = $this->eligibleBoxPayload('RBP910002');
@@ -244,7 +247,7 @@ class HardwareRbpAutomaticFulfilmentJourneyTest extends TestCase
         ]);
 
         try {
-            app(\App\Services\HardwareFulfilment\HardwareFulfilmentIsolatedWorkflowService::class)
+            app(HardwareFulfilmentIsolatedWorkflowService::class)
                 ->run(identifier: 'RBP2138', step: 'ingest');
             $this->fail('Isolated ingest without Owner authorization must fail.');
         } catch (ValidationException $exception) {

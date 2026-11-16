@@ -3,9 +3,9 @@
 namespace App\Services\CommunicationActions;
 
 use App\Data\CommunicationActions\CommunicationActionDefinition;
+use App\Enums\CommercialAction;
 use App\Enums\CommunicationActionExecutionMode;
 use App\Enums\CommunicationActionKey;
-use App\Enums\CommercialAction;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\User;
@@ -15,6 +15,7 @@ use App\Services\CommunicationActions\BuyRdService\BuyRdServiceEligibilityServic
 use App\Services\CommunicationActions\DriverInstallationGuide\DriverInstallationGuideEligibilityService;
 use App\Services\CommunicationActions\RefundConfirmation\RefundConfirmationEligibilityService;
 use App\Services\CommunicationActions\ReviewRequest\ReviewRequestEligibilityService;
+use App\Support\Customer360\InquiryCommercialPurchaseActionPolicy;
 
 class CommunicationActionEligibilityService
 {
@@ -27,6 +28,7 @@ class CommunicationActionEligibilityService
         private readonly BuyProductEligibilityService $buyProductEligibilityService,
         private readonly CommercialStateResolver $commercialStateResolver,
     ) {}
+
     public function canShowAction(
         CommunicationActionDefinition $definition,
         Incident $incident,
@@ -132,8 +134,14 @@ class CommunicationActionEligibilityService
      */
     public function menuItems(Incident $incident, ?User $user): array
     {
+        $incident->loadMissing('order');
+
         return $this->registry
             ->all()
+            ->reject(fn (CommunicationActionDefinition $definition): bool => InquiryCommercialPurchaseActionPolicy::hidesFromCustomerSurfaces(
+                $incident,
+                $definition->key,
+            ))
             ->map(function (CommunicationActionDefinition $definition) use ($incident, $user): array {
                 $reason = $this->ineligibilityReason($definition, $incident, $user);
 

@@ -32,6 +32,7 @@ use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class HardwareFulfilmentIngestReadyTest extends TestCase
@@ -109,18 +110,21 @@ class HardwareFulfilmentIngestReadyTest extends TestCase
         $this->assertNoDownstreamMutations();
     }
 
-    public function test_unpaid_commerce_keeps_ingested(): void
+    #[Group('permanent_regression')]
+    public function test_unpaid_commerce_does_not_open_fulfilment_and_reingest_is_idempotent(): void
     {
         $payload = $this->eligibleBoxPayload('RDE910103');
         $payload['payment_status'] = 'pending';
         $this->signedBoxPost($payload)->assertCreated();
 
-        $fulfilment = HardwareFulfilment::query()->with('commerceOrder.items')->firstOrFail();
-        $this->assertSame(HardwareFulfilmentState::Ingested, $fulfilment->state);
-        $this->assertStringContainsString(
-            'paid commerce order',
-            (string) HardwareFulfilmentEligibility::isolatedTargetBlocker($fulfilment, $fulfilment->commerceOrder),
-        );
+        $order = CommerceOrder::query()->with('items')->firstOrFail();
+        $this->assertSame(0, HardwareFulfilment::query()->count());
+        $this->assertTrue(HardwareFulfilmentEligibility::commerceOrderVoidsFulfilment($order));
+
+        $this->signedBoxPost($payload)->assertOk();
+        $this->assertSame(1, CommerceOrder::query()->count());
+        $this->assertSame(0, HardwareFulfilment::query()->count());
+        $this->assertNoDownstreamMutations();
     }
 
     public function test_unauthorized_frozen_source_does_not_open_or_ready(): void

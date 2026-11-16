@@ -30,6 +30,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class ManualAgentOwnershipWorkflowTest extends TestCase
@@ -81,6 +82,7 @@ class ManualAgentOwnershipWorkflowTest extends TestCase
         Carbon::setTestNow();
     }
 
+    #[Group('permanent_regression')]
     public function test_manual_assign_to_same_assignee_persists_manual_origin(): void
     {
         $admin = $this->createAdminUser('shipra@example.com', 'Shipra Kumari');

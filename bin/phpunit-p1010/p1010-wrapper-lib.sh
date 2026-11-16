@@ -61,6 +61,8 @@ p1010_log_reported_test_count() {
 p1010_log_has_phpunit_summary() {
   local log="$1"
   grep -qE '^(OK \(|Tests:)' "$log" 2>/dev/null && return 0
+  # PHPUnit 12 default summary is colorized (ANSI); lines do not start with ^Tests:.
+  grep -qE 'Tests:[[:space:]]*[0-9]+' "$log" 2>/dev/null && return 0
   grep -qE '"tool"[[:space:]]*:[[:space:]]*"phpunit"' "$log" 2>/dev/null
 }
 

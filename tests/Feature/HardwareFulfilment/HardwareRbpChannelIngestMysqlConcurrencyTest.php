@@ -5,6 +5,7 @@ namespace Tests\Feature\HardwareFulfilment;
 use Illuminate\Support\Facades\DB;
 use PDO;
 use PDOException;
+use PHPUnit\Framework\Attributes\Group;
 use Symfony\Component\Process\Process;
 use Tests\Feature\HardwareFulfilment\Support\HardwareFulfilmentMysqlGate;
 use Tests\TestCase;
@@ -18,7 +19,7 @@ class HardwareRbpChannelIngestMysqlConcurrencyTest extends TestCase
         parent::tearDown();
     }
 
-  private const DEFAULT_MYSQL_PORT = '33118';
+    private const DEFAULT_MYSQL_PORT = '33118';
 
     private const DEFAULT_MYSQL_USER = 'rd_hw_fulf_test';
 
@@ -28,6 +29,35 @@ class HardwareRbpChannelIngestMysqlConcurrencyTest extends TestCase
     {
         $this->assertTrue(HardwareFulfilmentMysqlGate::isAllowedHost('127.0.0.1'));
         $this->assertTrue(HardwareFulfilmentMysqlGate::isAllowedDatabase(HardwareFulfilmentMysqlGate::DATABASE));
+    }
+
+    #[Group('permanent_regression')]
+    public function test_concurrent_unpaid_rbp_channel_ingest_creates_one_commerce_without_fulfilment(): void
+    {
+        $context = $this->prepareContextOrSkip(
+            base_path('tests/Feature/HardwareFulfilment/Support/mysql_rbp_channel_ingest_unpaid_prepare.php'),
+        );
+
+        $workerPayload = ['ingest_payload' => $context['ingest_payload']];
+        $results = $this->runWorkers($workerPayload, 6);
+
+        $ok = array_values(array_filter($results, fn (array $row): bool => ($row['ok'] ?? false) === true));
+        $this->assertGreaterThanOrEqual(1, count($ok), json_encode($results));
+
+        $commerceCounts = array_unique(array_map(fn (array $row): int => (int) ($row['commerce_count'] ?? -1), $results));
+        $fulfilmentCounts = array_unique(array_map(fn (array $row): int => (int) ($row['fulfilment_count'] ?? -1), $results));
+
+        $this->assertSame([1], $commerceCounts, json_encode($results));
+        $this->assertSame([0], $fulfilmentCounts, json_encode($results));
+        $this->assertIndependentConnections($results);
+
+        $pdo = $this->safePdo();
+        $this->assertSame(1, (int) $pdo->query('select count(*) from commerce_orders')->fetchColumn());
+        $this->assertSame(0, (int) $pdo->query('select count(*) from hardware_fulfilments')->fetchColumn());
+        $this->assertSame(
+            0,
+            (int) $pdo->query("select count(*) from hardware_fulfilments where state = 'ready_for_fulfilment'")->fetchColumn(),
+        );
     }
 
     public function test_concurrent_rbp_channel_ingest_creates_one_commerce_and_one_fulfilment(): void
@@ -57,15 +87,16 @@ class HardwareRbpChannelIngestMysqlConcurrencyTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function prepareContextOrSkip(): array
-    {
+    private function prepareContextOrSkip(
+        ?string $prepareScript = null,
+    ): array {
         $this->assertSafeMysqlTarget();
         $pdo = $this->probeSafeMysqlOrSkip();
         unset($pdo);
         DB::disconnect('mysql');
 
         $prepare = $this->process(
-            [$this->phpBinary(), base_path('tests/Feature/HardwareFulfilment/Support/mysql_rbp_channel_ingest_prepare.php')],
+            [$this->phpBinary(), $prepareScript ?? base_path('tests/Feature/HardwareFulfilment/Support/mysql_rbp_channel_ingest_prepare.php')],
             300,
         );
         $prepare->mustRun();
@@ -210,7 +241,7 @@ class HardwareRbpChannelIngestMysqlConcurrencyTest extends TestCase
         }
     }
 
-  private function safePdo(): PDO
+    private function safePdo(): PDO
     {
         $host = getenv('HARDWARE_FULFILMENT_MYSQL_HOST') ?: '127.0.0.1';
         $port = getenv('HARDWARE_FULFILMENT_MYSQL_PORT') ?: self::DEFAULT_MYSQL_PORT;

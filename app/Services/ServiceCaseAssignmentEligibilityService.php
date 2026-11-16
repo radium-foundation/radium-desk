@@ -274,6 +274,10 @@ class ServiceCaseAssignmentEligibilityService
             // Appointment / Refund / Sales / Manual ownership (preserves + audits).
             if ($assignee !== null && $this->isAgentUser($assignee)) {
                 if ($this->assignmentService->hasManualSupportOwnership($incident)) {
+                    if ($this->assignmentService->shouldPreserveOwnerFromReadyQueue($incident)) {
+                        $this->assignmentService->auditReadyQueueOwnerPreserved($incident, $actor);
+                    }
+
                     return;
                 }
 

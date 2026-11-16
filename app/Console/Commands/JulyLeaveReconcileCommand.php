@@ -44,16 +44,17 @@ class JulyLeaveReconcileCommand extends Command
         config(['workforce_calendar.retroactive_leave_days' => 60]);
         Notification::fake();
 
-        $reviewerSuper = User::query()->where('email', 'info@radiumbox.com')->first()
-            ?? User::role(RolePermissionSeeder::ROLE_SUPERADMIN)->where('is_active', true)->orderBy('id')->first();
-        $reviewerOps = User::query()->where('email', 'shipra@radiumbox.com')->first()
-            ?? User::role(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN)->where('is_active', true)->orderBy('id')->first();
+        $reviewer = $leaveService->designatedApprover()
+            ?? User::query()->where('email', 'shipra@radiumbox.com')->where('is_active', true)->first();
 
-        if ($reviewerSuper === null || $reviewerOps === null) {
-            $this->error('Need an active superadmin and operations_admin reviewer.');
+        if ($reviewer === null) {
+            $this->error('Need an active leave approver (workforce.leave_approver.email).');
 
             return self::FAILURE;
         }
+
+        $reviewerSuper = $reviewer;
+        $reviewerOps = $reviewer;
 
         $spec = $this->verifiedSpec();
         $users = $this->resolveUsers(array_keys($spec));
