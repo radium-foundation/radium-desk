@@ -29,6 +29,25 @@ describe('initDashboardOemWarrantyHandoff', () => {
         expect(showToast.mock.calls[0][0]).toContain('extension');
     });
 
+    it('surfaces content-script HANDOFF_STATUS errors via window postMessage', () => {
+        mountDashboardPage();
+        const showToast = vi.fn();
+        initDashboardOemWarrantyHandoff(showToast);
+
+        window.dispatchEvent(new MessageEvent('message', {
+            data: {
+                type: DESK_OEM_WINDOW_MSG.HANDOFF_STATUS,
+                status: 'error',
+                code: 'timeout-awaiting-session',
+            },
+            origin: window.location.origin,
+            source: window,
+        }));
+
+        expect(showToast).toHaveBeenCalledTimes(1);
+        expect(showToast.mock.calls[0][0]).toContain('extension v0.3.9');
+    });
+
     it('ignores successful handoff events', () => {
         mountDashboardPage();
         const showToast = vi.fn();

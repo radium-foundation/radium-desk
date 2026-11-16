@@ -19,13 +19,14 @@
     const HANDOFF_TIMEOUT_MS = 12_000;
     const MSG_HANDOFF_REQUEST = 'OEM_HANDOFF_REQUEST';
 
-    function publishHandoffStatus(detail) {
+    function publishHandoffStatus(detail, incidentId = null) {
         document.dispatchEvent(new CustomEvent('radium:oem-handoff-status', { detail }));
         postToDeskPage(
             {
                 type: DESK_WINDOW_MSG.HANDOFF_STATUS,
                 status: detail?.status,
                 code: detail?.code,
+                incident_id: incidentId != null ? Number(incidentId) : null,
             },
             window.location.origin,
         );
@@ -78,7 +79,8 @@
             settled = true;
             clearTimeout(timeoutId);
             setBusy(trigger, false);
-            publishHandoffStatus(detail);
+            const incidentId = trigger.getAttribute('data-incident-id');
+            publishHandoffStatus(detail, incidentId);
         };
 
         const timeoutId = window.setTimeout(() => settle({ status: 'error', code: 'timeout' }), HANDOFF_TIMEOUT_MS);
@@ -184,7 +186,7 @@
             const settle = trigger ? sessionSettleByTrigger.get(trigger) : null;
             if (trigger && typeof settle === 'function') {
                 armSessionHandoffTimeout(trigger, () => {
-                    settle({ status: 'error', code: 'timeout' });
+                    settle({ status: 'error', code: 'timeout-awaiting-session' });
                 });
             }
             return;
@@ -196,6 +198,15 @@
 
         const trigger = findBusySessionTrigger(data.incident_id);
         if (!trigger) {
+            postToDeskPage(
+                {
+                    type: DESK_WINDOW_MSG.HANDOFF_STATUS,
+                    status: 'error',
+                    code: 'handoff-failed',
+                    incident_id: data.incident_id ?? null,
+                },
+                window.location.origin,
+            );
             return;
         }
 
@@ -210,7 +221,7 @@
         }
 
         armSessionHandoffTimeout(trigger, () => {
-            settle({ status: 'error', code: 'timeout' });
+            settle({ status: 'error', code: 'timeout-awaiting-extension' });
         });
         sendSessionHandoffToExtension(data, settle);
     });
@@ -243,7 +254,7 @@
             const sessionEnabled = document.getElementById('dashboard-page')?.dataset?.dashboardOemHandoffEnabled === '1';
 
             if (!oem || !serial) {
-                publishHandoffStatus({ status: 'error', code: 'missing-serial-or-oem' });
+                publishHandoffStatus({ status: 'error', code: 'missing-serial-or-oem' }, incidentId);
                 return;
             }
 
@@ -258,13 +269,14 @@
                     clearSessionHandoffTimeout(trigger);
                     sessionSettleByTrigger.delete(trigger);
                     setBusy(trigger, false);
-                    publishHandoffStatus(detail);
+                    const incidentIdAttr = trigger.getAttribute('data-incident-id');
+                    publishHandoffStatus(detail, incidentIdAttr);
                 };
 
                 sessionSettleByTrigger.set(trigger, settle);
                 armSessionHandoffTimeout(trigger, () => {
                     if (!settled) {
-                        settle({ status: 'error', code: 'timeout' });
+                        settle({ status: 'error', code: 'timeout-awaiting-session' });
                     }
                 });
                 publishHandoffRequest(trigger);

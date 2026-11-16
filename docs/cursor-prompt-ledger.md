@@ -1195,4 +1195,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-48 | 2026-11-16 | **P-16-48** OEM handoff timeout + latency investigation ChatGPT **P-16-48** | **RISK HIGH.** Prod **`v4.1.71`/`71ff0e6fb`**; **0** post-deploy session rows. **Root cause VERIFIED:** (1) isolated-world bridge — ops/ext **0.3.8**+desk **4.1.71** (P-16-43); (2) single **12s** timer spans POST+extension ack — **fix** phased watchdog + **`SESSION_PENDING`**; ext **v0.3.9** SHA **`d7b2f51a…dc73`**. Worktree **`.worktrees/p16-48-handoff-latency`**. Vitest ext **56** + desk OEM **8** exit **0**. **NO** prod deploy/E2E. |
 
+| RadiumDesk-P-16-50 | 2026-11-16 | **P-16-50** Mantra OEM page not opening diagnosis ChatGPT **P-16-50** | **RISK HIGH.** Prod **`v4.1.72`/`5b82b7b86`**; **`dashboard_oem_handoff_sessions` count=0** (POST never persisted). **Phase-1 timeout VERIFIED** (no `SESSION_READY` path completion). Ext **v0.3.9** workstation install **UNKNOWN**. **Fix (no deploy):** page listens for **`RADESK_OEM_HANDOFF_STATUS`**; phased timeout codes; ext **v0.3.10** SHA **`3b9aa081…a62`**. Worktree **`.worktrees/p16-50-oem-no-tab`**. Vitest desk **9** + ext **56** exit **0**. **NO** prod deploy/live E2E. |
+
 Do not renumber or overwrite earlier rows. Append only.
