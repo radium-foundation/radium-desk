@@ -1156,4 +1156,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-15 | 2026-11-16 | **P-16-15** 4.1.69 remaining release-gate assessment ChatGPT **P-16-15** | **RISK HIGH.** **`origin/main`** **`4b5a43ba0`** (app merge **`509954f0a`**, PR **#277** **MERGED**). Prod **`v4.1.67`/`02cae82ac`**. Snapshot **`459755`** present (**expires `2026-11-17T07:31:51Z`**). Backup **`20261115T203002Z`** fresh (**<26h**). **Owner exception:** no isolated DB restore drill — **NOT known-good**. Full suite **reused** @ **`a115ae139`** (**`git diff a115ae139..509954f0a -- app/`** empty). CI **rip**/**release-rip** **SUCCESS** @ **`4b5a43ba0`**. OEM migration **Pending**; flags default off — **omit `DEPLOY_RUN_MIGRATIONS`**. Tag **`v4.1.69`** **absent**. Payment processor diff **none** in **`02cae82ac..509954f0a`**. **NO** deploy/tag/`deskd`/backup/snapshot refresh. |
 
+| RadiumDesk-P-16-16 | 2026-11-16 | **P-16-16** Finalize v4.1.69 identity + pre-deploy gates ChatGPT **P-16-16** | **RISK HIGH.** Worktree **`.worktrees/p16-14-ledger`**. **CHANGELOG** fix + tag **`v4.1.69`** (app merge **`509954f0a`** documented). Fresh backup + pre-RIP captured (see report). Snapshot **`459755`** retained. **NO** deploy/`deskd`/migrations. |
+
 Do not renumber or overwrite earlier rows. Append only.
