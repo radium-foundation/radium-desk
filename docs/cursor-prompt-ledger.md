@@ -1181,4 +1181,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-39 | 2026-11-16 | **P-16-39** Hostinger snapshot API + fresh pre-v4170 KVM snapshot ChatGPT **P-16-39** | **RISK HIGH.** API **VERIFIED** (token file **0600**; VM **1910783**). Snapshot **`459755`** refreshed; action **`126013587`** **success**; **`created=2026-11-16T14:15:32Z`** **`expires=2026-11-17T14:15:32Z`**; **`recovery-point-verified`**. Governance + RIP checklist updated. **NO** deploy/migrate/flags/restore. |
 
+| RadiumDesk-P-16-40 | 2026-11-16 | **P-16-40** Production deploy v4.1.70 ChatGPT **P-16-40** | **RISK HIGH.** Worktree **`.worktrees/p16-40-v4170-deploy`** @ tag **`v4.1.70`/`2b6746f62`**. **`deskd`** + **`DEPLOY_RUN_MIGRATIONS=1`** + RIP pre **`RIP-161126-1939-…-50d43ad`**. Initial migrate **FAILED** (MariaDB identifier >64 on **`2026_11_16_120000`**); remediated on-server + hotfix migration identifiers. All **6** OEM migrations **Ran**; **`release.json` `4.1.70`/`2b6746f62`**. Post-RIP **`RIP-161126-2018-radium-desk-v4170-deploy-2b6746f`** **PASS**. OEM flags **false**. **`smoke-verified`** (`/up`+`/login` **200**); **`known-good` NOT claimed**. |
+
 Do not renumber or overwrite earlier rows. Append only.
