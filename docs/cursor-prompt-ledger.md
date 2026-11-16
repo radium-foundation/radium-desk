@@ -1183,4 +1183,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-40 | 2026-11-16 | **P-16-40** Production deploy v4.1.70 ChatGPT **P-16-40** | **RISK HIGH.** Worktree **`.worktrees/p16-40-v4170-deploy`** @ tag **`v4.1.70`/`2b6746f62`**. **`deskd`** + **`DEPLOY_RUN_MIGRATIONS=1`** + RIP pre **`RIP-161126-1939-…-50d43ad`**. Initial migrate **FAILED** (MariaDB identifier >64 on **`2026_11_16_120000`**); remediated on-server + hotfix migration identifiers. All **6** OEM migrations **Ran**; **`release.json` `4.1.70`/`2b6746f62`**. Post-RIP **`RIP-161126-2018-radium-desk-v4170-deploy-2b6746f`** **PASS**. OEM flags **false**. **`smoke-verified`** (`/up`+`/login` **200**); **`known-good` NOT claimed**. |
 
+| RadiumDesk-P-16-41 | 2026-11-16 | **P-16-41** Mantra warranty result reception diagnosis ChatGPT **P-16-41** | **RISK HIGH.** Prod **`v4.1.70`/`2b6746f62`**; OEM config **all false**. **Root cause:** legacy one-way handoff only — no Desk session / no capture. Code path **VERIFIED** (PHPUnit **13** + vitest Mantra parse **6**). Runbook **`docs/desk-p16-41-mantra-result-reception-runbook.md`**. **NO** prod flags/restart. Live E2E **NOT RUN**. Enable **`DASHBOARD_OEM_HANDOFF_ENABLED`** + **`MANTRA_CAPTURE`** + ext **v0.3.7** pending Owner. |
+
 Do not renumber or overwrite earlier rows. Append only.
