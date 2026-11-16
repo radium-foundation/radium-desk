@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.1.72 — Unreleased — OEM session handoff phased timeouts (P-16-48)
+
+- **Purpose:** Fix false **“OEM handoff timed out”** when Mantra session **`POST`** and extension tab open together exceed the legacy single **12s** watchdog; add **`RADESK_OEM_HANDOFF_SESSION_PENDING`** so the content script re-arms per phase. **Does not authorize deploy, production flags, or migrations.**
+- **Application delta:** `dashboard-oem-warranty-handoff.js` posts **`SESSION_PENDING`** before authenticated session creation; extension **`desk-handoff.js`** uses per-phase **12s** timers (re-arm on **`SESSION_PENDING`** and **`SESSION_READY`**). Internal OEM extension **`v0.3.9`** required with Desk **4.1.72+** for this latency fix ( **v0.3.8** still required minimum for isolated-world bridge from **4.1.71** ). Manual Mantra CAPTCHA/Check unchanged. **No** payment, Cashfree, or migration changes.
+- **Focused evidence target:** Extension vitest **56+**; `dashboard-oem-warranty-handoff.test.js` **8**; `session-handoff-timeout.test.js` documents phased deadline behaviour.
+
 ## 4.1.71 — 2026-11-16 — Mantra OEM handoff isolated-world bridge (P-16-43 / PR #292)
 
 - **Purpose:** Release **PR [#292](https://github.com/radium-foundation/radium-desk/pull/292)** — fix session-mode Mantra OEM handoff **timeouts** when **`DASHBOARD_OEM_HANDOFF_ENABLED`** and **`DASHBOARD_OEM_HANDOFF_MANTRA_CAPTURE`** are on. Desk page bundle and extension content script live in separate Chrome **isolated worlds**; **`document` CustomEvents** did not coordinate session creation with extension **`chrome.runtime.sendMessage`**. **This entry does not authorize deployment, production flag changes, queue restart, or migrations.**

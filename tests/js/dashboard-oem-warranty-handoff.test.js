@@ -222,6 +222,7 @@ describe('initDashboardOemWarrantyHandoff', () => {
             setTimeout(resolve, 0);
         });
 
+        expect(postCalls.some((msg) => msg?.type === DESK_OEM_WINDOW_MSG.SESSION_PENDING)).toBe(true);
         expect(postCalls.some((msg) => msg?.type === DESK_OEM_WINDOW_MSG.SESSION_READY)).toBe(true);
         window.postMessage = originalPost;
     });

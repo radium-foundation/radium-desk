@@ -3,6 +3,7 @@
         // Inline bridge constants (content script is not bundled; keep self-contained).
         const DESK_WINDOW_MSG = {
             HANDOFF_REQUEST: 'RADESK_OEM_HANDOFF_REQUEST',
+            SESSION_PENDING: 'RADESK_OEM_HANDOFF_SESSION_PENDING',
             SESSION_READY: 'RADESK_OEM_HANDOFF_SESSION_READY',
             HANDOFF_STATUS: 'RADESK_OEM_HANDOFF_STATUS',
         };
@@ -125,6 +126,23 @@
     /** @type {WeakMap<HTMLButtonElement, () => void>} */
     const sessionSettleByTrigger = new WeakMap();
 
+    /** @type {WeakMap<HTMLButtonElement, number>} */
+    const sessionTimeoutByTrigger = new WeakMap();
+
+    function clearSessionHandoffTimeout(trigger) {
+        const timeoutId = sessionTimeoutByTrigger.get(trigger);
+        if (timeoutId != null) {
+            window.clearTimeout(timeoutId);
+            sessionTimeoutByTrigger.delete(trigger);
+        }
+    }
+
+    function armSessionHandoffTimeout(trigger, onTimeout) {
+        clearSessionHandoffTimeout(trigger);
+        const timeoutId = window.setTimeout(onTimeout, HANDOFF_TIMEOUT_MS);
+        sessionTimeoutByTrigger.set(trigger, timeoutId);
+    }
+
     function findBusySessionTrigger(incidentId) {
         if (incidentId != null) {
             const scoped = document.querySelector(
@@ -161,6 +179,17 @@
             return;
         }
 
+        if (data.type === DESK_WINDOW_MSG.SESSION_PENDING) {
+            const trigger = findBusySessionTrigger(data.incident_id);
+            const settle = trigger ? sessionSettleByTrigger.get(trigger) : null;
+            if (trigger && typeof settle === 'function') {
+                armSessionHandoffTimeout(trigger, () => {
+                    settle({ status: 'error', code: 'timeout' });
+                });
+            }
+            return;
+        }
+
         if (data.type !== DESK_WINDOW_MSG.SESSION_READY) {
             return;
         }
@@ -180,6 +209,9 @@
             return;
         }
 
+        armSessionHandoffTimeout(trigger, () => {
+            settle({ status: 'error', code: 'timeout' });
+        });
         sendSessionHandoffToExtension(data, settle);
     });
 
@@ -223,20 +255,19 @@
                         return;
                     }
                     settled = true;
-                    clearTimeout(timeoutId);
+                    clearSessionHandoffTimeout(trigger);
                     sessionSettleByTrigger.delete(trigger);
                     setBusy(trigger, false);
                     publishHandoffStatus(detail);
                 };
 
                 sessionSettleByTrigger.set(trigger, settle);
-                publishHandoffRequest(trigger);
-
-                const timeoutId = window.setTimeout(() => {
+                armSessionHandoffTimeout(trigger, () => {
                     if (!settled) {
                         settle({ status: 'error', code: 'timeout' });
                     }
-                }, HANDOFF_TIMEOUT_MS);
+                });
+                publishHandoffRequest(trigger);
 
                 return;
             }
