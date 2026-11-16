@@ -170,6 +170,10 @@ class DashboardOemHandoffSessionController extends Controller
             'confirmed_at' => $session->confirmed_at?->toIso8601String(),
             'rejected_at' => $session->rejected_at?->toIso8601String(),
             'rejection_reason' => $session->rejection_reason,
+            'oem_expiry_persist' => [
+                'status' => $session->oem_expiry_persist_status,
+                'detail' => $session->oem_expiry_persist_detail,
+            ],
             'draft' => $draft ? $this->normalizedDraftView($draft) : null,
             'confirmed' => $session->confirmed_payload ? $this->normalizedDraftView($session->confirmed_payload) : null,
             'service_reference_prefill' => $this->morphoPrefillPayload($session),

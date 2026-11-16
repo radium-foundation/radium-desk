@@ -14,6 +14,17 @@
         <dt>Service Reference</dt>
         <dd>{{ $order->transaction_id ?: '—' }}</dd>
 
+        @php($oemExpiry = $order->serviceReferenceOemSubscriptionExpiry())
+        <dt>OEM RD subscription expiry</dt>
+        <dd>
+            @if ($oemExpiry)
+                {{ display_app_date($oemExpiry->subscription_expiry_date) }}
+                <span class="text-muted small">(OEM-reported, {{ strtoupper($oemExpiry->oem) }})</span>
+            @else
+                —
+            @endif
+        </dd>
+
         <dt>Payment Amount</dt>
         <dd>{{ $order->payment_amount !== null ? number_format((float) $order->payment_amount, 2) : '—' }}</dd>
 

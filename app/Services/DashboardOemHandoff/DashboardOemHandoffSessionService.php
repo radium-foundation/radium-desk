@@ -20,6 +20,7 @@ final class DashboardOemHandoffSessionService
     public function __construct(
         private readonly OemHandoffResultValidator $resultValidator,
         private readonly OemWarrantyCheckVendorResolver $vendorResolver,
+        private readonly ServiceReferenceOemSubscriptionExpiryPersistenceService $expiryPersistence,
     ) {}
 
     /**
@@ -135,19 +136,24 @@ final class DashboardOemHandoffSessionService
             throw ValidationException::withMessages(['session' => ['Captured result payload is missing.']]);
         }
 
-        $session->confirmed_at = now();
-        $session->confirmed_by_user_id = $user->id;
-        $session->confirmed_payload = $session->draft_payload;
-        $session->draft_reviewed_at = now();
-        $session->status = DashboardOemHandoffSessionStatus::Confirmed;
-        $session->save();
+        return DB::transaction(function () use ($session, $user): DashboardOemHandoffSession {
+            $session->confirmed_at = now();
+            $session->confirmed_by_user_id = $user->id;
+            $session->confirmed_payload = $session->draft_payload;
+            $session->draft_reviewed_at = now();
+            $session->status = DashboardOemHandoffSessionStatus::Confirmed;
+            $session->save();
 
-        return $session;
+            $session->loadMissing('incident.order');
+            $this->expiryPersistence->applyFromConfirmedSession($session, $user);
+
+            return $session->fresh();
+        });
     }
 
-  /**
-   * @param  array{reason?: string|null}  $options
-   */
+    /**
+     * @param  array{reason?: string|null}  $options
+     */
     public function rejectResult(DashboardOemHandoffSession $session, User $user, array $options = []): DashboardOemHandoffSession
     {
         $this->assertOwnedBy($session, $user);

@@ -14,9 +14,9 @@ return [
         FILTER_VALIDATE_BOOL,
     ),
 
-  /**
-   * When false (default), Morpho extension prefill only; DOM result capture is rejected server-side.
-   */
+    /**
+     * When false (default), Morpho extension prefill only; DOM result capture is rejected server-side.
+     */
     'morpho_result_capture_enabled' => filter_var(
         env('DASHBOARD_OEM_HANDOFF_MORPHO_CAPTURE', false),
         FILTER_VALIDATE_BOOL,
@@ -35,4 +35,12 @@ return [
      * Scheduler gate for session retention cleanup (independent of handoff feature flag).
      */
     'prune_enabled' => filter_var(env('DASHBOARD_OEM_HANDOFF_PRUNE_ENABLED', false), FILTER_VALIDATE_BOOL),
+
+    /**
+     * When false (default), confirming an OEM capture does not write subscription expiry to service references.
+     */
+    'expiry_persist_enabled' => filter_var(
+        env('DASHBOARD_OEM_HANDOFF_EXPIRY_PERSIST', false),
+        FILTER_VALIDATE_BOOL,
+    ),
 ];
