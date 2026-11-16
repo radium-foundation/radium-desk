@@ -44,6 +44,21 @@ p1010_classify_full_suite_success 0 "$TMP/fake-log.json" "$FIX_FULL" 1 || fail "
 [[ "$P1010_SCOPE_NOTE" == complete ]] || fail "scope note want complete got $P1010_SCOPE_NOTE"
 pass "accept plausible full-suite report"
 
+P16_LOG="$ROOT/.artifacts/p16-02-full-suite/20261116T083404+0530/p1010-phpunit.log"
+P16_JUNIT="$ROOT/.artifacts/p16-02-full-suite/20261116T083404+0530/p1010-junit.xml"
+if [[ -f "$P16_LOG" && -f "$P16_JUNIT" ]]; then
+  p1010_log_has_phpunit_summary "$P16_LOG" || fail "P-16-02 artifact log should have detectable PHPUnit summary"
+  P1010_SCOPE_NOTE=""
+  p1010_classify_full_suite_success 0 "$P16_LOG" "$P16_JUNIT" 1 || fail "P-16-02 artifact run should classify complete (got $P1010_SCOPE_NOTE)"
+  [[ "$P1010_SCOPE_NOTE" == complete ]] || fail "P-16-02 artifact scope want complete got $P1010_SCOPE_NOTE"
+  pass "P-16-02 preserved log classifies complete with ANSI summary"
+fi
+
+ansi_log="$TMP/phpunit-ansi-summary.log"
+printf '%s\n' $'\033[30;43mOK, but there were issues!\033[0m' $'\033[30;43mTests: 8298\033[0m' >"$ansi_log"
+p1010_log_has_phpunit_summary "$ansi_log" || fail "ANSI-colored Tests: line should count as summary"
+pass "ANSI summary detection"
+
 P1010_SCOPE_NOTE=""
 p1010_classify_full_suite_success 7 "$TMP/fake-log.json" "$FIX_FULL" 1 && fail "non-zero exit should fail classify"
 pass "non-zero exit rejected"
