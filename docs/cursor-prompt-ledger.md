@@ -1193,4 +1193,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-45 | 2026-11-16 | **P-16-45** v4.1.71 release metadata ChatGPT **P-16-45** | **RISK NORMAL.** **CHANGELOG 4.1.71** for app **`f3dd931ec`** (PR **#292**); annotated tag **`v4.1.71`**. **NO** deploy/migrate/prod flags. |
 
+| RadiumDesk-P-16-48 | 2026-11-16 | **P-16-48** OEM handoff timeout + latency investigation ChatGPT **P-16-48** | **RISK HIGH.** Prod **`v4.1.71`/`71ff0e6fb`**; **0** post-deploy session rows. **Root cause VERIFIED:** (1) isolated-world bridge — ops/ext **0.3.8**+desk **4.1.71** (P-16-43); (2) single **12s** timer spans POST+extension ack — **fix** phased watchdog + **`SESSION_PENDING`**; ext **v0.3.9** SHA **`d7b2f51a…dc73`**. Worktree **`.worktrees/p16-48-handoff-latency`**. Vitest ext **56** + desk OEM **8** exit **0**. **NO** prod deploy/E2E. |
+
 Do not renumber or overwrite earlier rows. Append only.

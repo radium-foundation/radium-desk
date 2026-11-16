@@ -4,6 +4,7 @@ import { csrfToken } from './workspace/http';
 /** window.postMessage types (must match extension content script). */
 export const DESK_OEM_WINDOW_MSG = {
     HANDOFF_REQUEST: 'RADESK_OEM_HANDOFF_REQUEST',
+    SESSION_PENDING: 'RADESK_OEM_HANDOFF_SESSION_PENDING',
     SESSION_READY: 'RADESK_OEM_HANDOFF_SESSION_READY',
     HANDOFF_STATUS: 'RADESK_OEM_HANDOFF_STATUS',
 };
@@ -359,6 +360,14 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
         }
 
         try {
+            window.postMessage(
+                {
+                    type: DESK_OEM_WINDOW_MSG.SESSION_PENDING,
+                    incident_id: Number(incidentId),
+                },
+                window.location.origin,
+            );
+
             const sessionUrl = `${baseUrl}/${incidentId}/oem-handoff/sessions`;
             const started = await postJson(sessionUrl);
             const context = {

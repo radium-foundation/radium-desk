@@ -2,10 +2,10 @@
 
 ## Current release (recommended)
 
-**Package:** `radium-desk-v0.3.8.zip`  
-**Extracted folder:** `radium-desk-v0.3.8/` (use for **Load unpacked**)  
-**Extension version:** **0.3.8** (Manifest V3) — session handoff `window.postMessage` bridge (P-16-43)  
-**Matched Desk release:** `v4.1.70`+ on `main` (OEM session + Mantra capture)  
+**Package:** `radium-desk-v0.3.9.zip`  
+**Extracted folder:** `radium-desk-v0.3.9/` (use for **Load unpacked**)  
+**Extension version:** **0.3.9** (Manifest V3) — phased session handoff timeouts (P-16-48); requires **`window.postMessage`** bridge from Desk **4.1.71+**  
+**Matched Desk release:** **4.1.72+** for phased timeouts; minimum **4.1.71** for session bridge (P-16-43)  
 **Built:** 2026-11-16
 
 Internal use only. **Not** for Chrome Web Store or public distribution.
