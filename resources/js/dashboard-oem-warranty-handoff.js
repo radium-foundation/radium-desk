@@ -1,6 +1,13 @@
 import { presentMorphoServiceReferencePrefill } from './dashboard-morpho-service-reference-prefill';
 import { csrfToken } from './workspace/http';
 
+/** window.postMessage types (must match extension content script). */
+export const DESK_OEM_WINDOW_MSG = {
+    HANDOFF_REQUEST: 'RADESK_OEM_HANDOFF_REQUEST',
+    SESSION_READY: 'RADESK_OEM_HANDOFF_SESSION_READY',
+    HANDOFF_STATUS: 'RADESK_OEM_HANDOFF_STATUS',
+};
+
 const HANDOFF_ERROR_MESSAGES = {
     'extension-unavailable':
         'OEM check extension is not installed or is disabled. Install the internal Radium OEM handoff extension.',
@@ -252,21 +259,6 @@ const renderResultsPanel = (incidentId, session, { baseUrl, showToast }) => {
     hostCell.appendChild(panel);
 };
 
-const sendExtensionHandoff = (payload) => new Promise((resolve) => {
-    if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
-        resolve({ ok: false, error: 'extension-unavailable' });
-        return;
-    }
-
-    chrome.runtime.sendMessage(payload, (response) => {
-        if (chrome.runtime.lastError) {
-            resolve({ ok: false, error: 'extension-unavailable' });
-            return;
-        }
-        resolve(response ?? { ok: false, error: 'handoff-failed' });
-    });
-});
-
 const visibleOemIncidentIds = () => {
     const ids = new Set();
     document.querySelectorAll('[data-oem-warranty-check][data-incident-id][data-oem-vendor]').forEach((el) => {
@@ -321,8 +313,17 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
     const handoffEnabled = pageRoot.dataset.dashboardOemHandoffEnabled === '1';
     const baseUrl = pageRoot.dataset.dashboardOemHandoffUrl ?? '';
 
-    const publishStatus = (detail) => {
+    const publishStatus = (detail, incidentId = null) => {
         document.dispatchEvent(new CustomEvent('radium:oem-handoff-status', { detail }));
+        window.postMessage(
+            {
+                type: DESK_OEM_WINDOW_MSG.HANDOFF_STATUS,
+                status: detail?.status,
+                code: detail?.code,
+                incident_id: incidentId != null ? Number(incidentId) : null,
+            },
+            window.location.origin,
+        );
     };
 
     if (handoffEnabled && baseUrl) {
@@ -341,29 +342,19 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
         showToast?.(message, { variant: 'danger' });
     });
 
-    document.addEventListener('radium:oem-handoff-request', async (event) => {
-        const trigger = event.detail?.trigger;
-        if (!(trigger instanceof HTMLButtonElement)) {
-            return;
-        }
-
-        const incidentId = trigger.getAttribute('data-incident-id');
-        const oem = trigger.getAttribute('data-oem-vendor');
-        const serial = trigger.closest('.case-serial-cell')?.querySelector('.dashboard-u-serial-value')?.textContent?.trim();
-
+    const startSessionBackedHandoff = async ({ incidentId, oem, serial }) => {
         if (!incidentId || !oem || !serial) {
-            publishStatus({ status: 'error', code: 'missing-serial-or-oem' });
+            publishStatus({ status: 'error', code: 'missing-serial-or-oem' }, incidentId);
             return;
         }
 
         if (!handoffEnabled) {
-            await sendExtensionHandoff({ type: 'OEM_HANDOFF_REQUEST', oem, serial });
-            publishStatus({ status: 'ok', code: 'handoff-started' });
+            publishStatus({ status: 'error', code: 'session-disabled' }, incidentId);
             return;
         }
 
         if (oem !== 'mantra' && oem !== 'morpho') {
-            publishStatus({ status: 'error', code: 'handoff-failed' });
+            publishStatus({ status: 'error', code: 'handoff-failed' }, incidentId);
             return;
         }
 
@@ -375,35 +366,56 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
                 session_public_id: started.session_public_id,
                 incident_id: Number(incidentId),
                 oem,
+                serial,
                 mantra_capture_enabled: started.mantra_capture_enabled === true,
                 morpho_capture_enabled: started.morpho_capture_enabled === true,
                 result_capture_enabled: started.result_capture_enabled === true,
             };
             ACTIVE_DRAFTS.set(Number(incidentId), context);
 
-            const response = await sendExtensionHandoff({
-                type: 'OEM_HANDOFF_REQUEST',
-                oem,
-                serial,
-                handoff_token: context.handoff_token,
-                session_public_id: context.session_public_id,
-                incident_id: context.incident_id,
-                mantra_capture_enabled: context.mantra_capture_enabled,
-                morpho_capture_enabled: context.morpho_capture_enabled,
-                result_capture_enabled: context.result_capture_enabled,
-            });
+            window.postMessage(
+                {
+                    type: DESK_OEM_WINDOW_MSG.SESSION_READY,
+                    ...context,
+                },
+                window.location.origin,
+            );
 
-            if (!response?.ok) {
-                publishStatus({ status: 'error', code: response?.error ?? 'handoff-failed' });
-                return;
-            }
-
-            publishStatus({ status: 'ok', code: 'handoff-started' });
             void getJson(`${baseUrl}/${incidentId}/oem-handoff/sessions/${context.session_public_id}`);
         } catch (error) {
-            publishStatus({ status: 'error', code: 'session-disabled' });
+            publishStatus({ status: 'error', code: 'session-disabled' }, incidentId);
             showToast?.(error.message, { variant: 'danger' });
         }
+    };
+
+    document.addEventListener('radium:oem-handoff-request', async (event) => {
+        const trigger = event.detail?.trigger;
+        if (!(trigger instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        const incidentId = trigger.getAttribute('data-incident-id');
+        const oem = trigger.getAttribute('data-oem-vendor');
+        const serial = trigger.closest('.case-serial-cell')?.querySelector('.dashboard-u-serial-value')?.textContent?.trim();
+
+        await startSessionBackedHandoff({ incidentId, oem, serial });
+    });
+
+    window.addEventListener('message', async (event) => {
+        if (event.source !== window || event.origin !== window.location.origin) {
+            return;
+        }
+
+        const data = event.data;
+        if (!data || data.type !== DESK_OEM_WINDOW_MSG.HANDOFF_REQUEST) {
+            return;
+        }
+
+        const incidentId = data.incident_id != null ? String(data.incident_id) : null;
+        const oem = typeof data.oem === 'string' ? data.oem : null;
+        const serial = typeof data.serial === 'string' ? data.serial : null;
+
+        await startSessionBackedHandoff({ incidentId, oem, serial });
     });
 
     window.addEventListener('message', async (event) => {

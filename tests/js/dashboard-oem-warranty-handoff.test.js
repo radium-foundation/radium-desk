@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
     clearPendingOemDraftReview,
+    DESK_OEM_WINDOW_MSG,
     initDashboardOemWarrantyHandoff,
     markPendingOemDraftReview,
     OEM_DRAFT_NOT_RECOVERABLE_MESSAGE,
@@ -163,6 +164,66 @@ describe('initDashboardOemWarrantyHandoff', () => {
 
         expect(showToast).not.toHaveBeenCalled();
         clearPendingOemDraftReview(42);
+    });
+
+    it('starts session via window postMessage from the extension content script', async () => {
+        mountDashboardPage(true);
+        document.body.insertAdjacentHTML('beforeend', `
+            <table>
+                <tr id="service-case-row-42">
+                    <td class="case-serial-cell">
+                        <span class="dashboard-u-serial-value">SYN6419897</span>
+                    </td>
+                </tr>
+            </table>
+        `);
+
+        const postCalls = [];
+        const originalPost = window.postMessage.bind(window);
+        window.postMessage = (...args) => {
+            postCalls.push(args[0]);
+            return originalPost(...args);
+        };
+
+        global.fetch = vi.fn(async (url, init) => {
+            if (init?.method === 'POST' && String(url).includes('/oem-handoff/sessions')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        handoff_token: 'tok-42',
+                        session_public_id: 'sess-42',
+                        mantra_capture_enabled: true,
+                        result_capture_enabled: true,
+                    }),
+                };
+            }
+
+            return {
+                ok: true,
+                json: async () => ({ session: { status: 'pending' } }),
+            };
+        });
+
+        const showToast = vi.fn();
+        initDashboardOemWarrantyHandoff(showToast);
+
+        window.dispatchEvent(new MessageEvent('message', {
+            data: {
+                type: DESK_OEM_WINDOW_MSG.HANDOFF_REQUEST,
+                incident_id: 42,
+                oem: 'mantra',
+                serial: 'SYN6419897',
+            },
+            origin: window.location.origin,
+            source: window,
+        }));
+
+        await new Promise((resolve) => {
+            setTimeout(resolve, 0);
+        });
+
+        expect(postCalls.some((msg) => msg?.type === DESK_OEM_WINDOW_MSG.SESSION_READY)).toBe(true);
+        window.postMessage = originalPost;
     });
 
     it('rejects OEM draft postMessage when handoff token does not match active session', () => {

@@ -1,7 +1,7 @@
 # P-16-41 — Mantra warranty result reception (configuration runbook)
 
 **Production baseline:** Radium Desk **v4.1.70** (`2b6746f62`, application **0fe4a964**).  
-**Extension authoritative build:** `tools/oem-warranty-extension` **v0.3.7** (`distribution/radium-desk-v0.3.7.zip`).
+**Extension authoritative build:** `tools/oem-warranty-extension` **v0.3.8** (`distribution/radium-desk-v0.3.8.zip`; session bridge P-16-43).
 
 ## Diagnosis summary (P-16-41)
 
