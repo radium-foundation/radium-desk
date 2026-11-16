@@ -35,3 +35,7 @@ npm test
 ## Load unpacked (developers only)
 
 Chrome → Extensions → Developer mode → Load unpacked → select this directory.
+
+## IT distribution ZIPs
+
+Staff packages live under `distribution/` as `radium-desk-v{version}.zip` (see `distribution/INSTALL-README.md`). Build from `npm test` output in `src/`; do not ship `node_modules` or tests.

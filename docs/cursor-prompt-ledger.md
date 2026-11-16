@@ -1166,4 +1166,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-26 | 2026-11-16 | **P-16-26** Morpho already-whitelisted → Add Service Reference prefill ChatGPT **P-16-26** | **RISK HIGH.** Worktree **`.worktrees/p16-26-morpho-whitelist`** @ **`38934dcaa`**. Strict Morpho `whitelist_qualification`; Desk `service_reference_prefill` after OEM confirm; operator opens inline service reference editor (no auto-save). Ext **v0.3.7**. Mantra unchanged. Flags default OFF. **NO** deploy/prod migrate/prod data. |
 
+| RadiumDesk-P-16-27 | 2026-11-16 | **P-16-27** Extension v0.3.7 distribution ZIP ChatGPT **P-16-27** | **RISK LOW.** Worktree **`.worktrees/p16-27-ext-zip`** @ **`f22f9fc4`**. Package **`radium-desk-v0.3.7.zip`** (25,934 bytes; SHA256 `5531ae59…98c28`). Permanent name `radium-desk-v{version}.zip`. Vitest **52** pass. Packaging/docs only. |
+
 Do not renumber or overwrite earlier rows. Append only.

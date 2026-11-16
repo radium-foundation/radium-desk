@@ -2,42 +2,47 @@
 
 ## Current release (recommended)
 
-**Package:** `radium-desk-oem-warranty-handoff-0.3.6-for-desk-v4.1.69.zip`  
-**Extension version:** **0.3.6** (Manifest V3) — Morpho result-serial capture hardening (P-16-25)  
-**Matched Desk release:** `v4.1.69`+ (requires Desk PR with session confirm/reject APIs)  
+**Package:** `radium-desk-v0.3.7.zip`  
+**Extracted folder:** `radium-desk-v0.3.7/` (use for **Load unpacked**)  
+**Extension version:** **0.3.7** (Manifest V3) — Morpho already-whitelisted qualification + Desk service-reference review (P-16-26)  
+**Matched Desk release:** `v4.1.69`+ on `main` including merge `f22f9fc4` (OEM session APIs)  
 **Built:** 2026-11-16
 
 Internal use only. **Not** for Chrome Web Store or public distribution.
 
-### Upgrade from 0.3.3
+### Distribution filename convention (permanent)
 
-**0.3.3** may show Desk toast *OEM handoff timed out* while the Mantra tab opens slowly. Upgrade to **0.3.4**:
+All new IT packages use:
 
-1. Chrome → **Extensions** → remove or disable the **0.3.3** unpacked folder.
-2. Extract the **0.3.4** ZIP → **Load unpacked** → folder `radium-desk-oem-warranty-handoff-0.3.4`.
-3. Confirm version **0.3.4** on the extension card.
+`radium-desk-v{version}.zip`
 
-### Upgrade from 0.3.2
+Examples: `radium-desk-v0.3.7.zip`, `radium-desk-v0.3.8.zip`.  
+The ZIP root folder matches: `radium-desk-v{version}/`.
 
-**0.3.2** may show `Cannot use import statement outside a module` on the Mantra page. Use **0.3.4** (includes the **0.3.3** bundle fix).
+Older packages named `radium-desk-oem-warranty-handoff-0.3.x-for-desk-v4.1.69.zip` remain in this directory for rollback reference only.
 
-Older packages **0.3.1**, **0.3.2**, and **0.3.3** remain in this folder for rollback reference only.
+### Upgrade from 0.3.6
+
+1. Chrome → **Extensions** → remove or disable the previous unpacked folder.
+2. Verify SHA-256 for `radium-desk-v0.3.7.zip` in `SHA256SUMS.txt`.
+3. Extract → **Load unpacked** → select `radium-desk-v0.3.7`.
+4. Confirm version **0.3.7** on the extension card.
 
 ## What it does
 
 When an authorized administrator clicks **Check OEM warranty / renewal** on Desk (`https://desk.radiumbox.com`):
 
 1. Opens the correct OEM warranty page (Mantra or Morpho).
-2. **Mantra:** bundled classic script (no ES imports on the page); retry handoff claim, wait for `#txtSerialNo`, fill serial, show status banner (CAPTCHA + **Check** remain manual).
-3. **Morpho:** bundled script; DOM serial prefill + optional result capture after manual OEM validation.
-4. **Two-way (Desk flags ON):** captured results return to Desk for **Confirm** or **Reject** — informational evidence only.
+2. **Mantra:** bundled classic script; retry handoff claim, wait for `#txtSerialNo`, fill serial, show status banner (CAPTCHA + **Check** remain manual).
+3. **Morpho:** bundled script; DOM serial prefill + optional result capture with strict **already-whitelisted** classification after manual OEM validation.
+4. **Two-way (Desk flags ON):** captured results return to Desk for **Confirm** or **Reject**; qualifying Morpho results can open the service-reference review UI (operator must still save manually).
 
 ## Installation (Google Chrome)
 
 1. Verify SHA-256 in `SHA256SUMS.txt`.
-2. Extract the **0.3.4** ZIP → `radium-desk-oem-warranty-handoff-0.3.4/` with `manifest.json`, `src/`, including `src/content/mantra-fill.bundle.js`.
-3. Chrome → **Extensions** → **Developer mode** → **Load unpacked** → select that folder.
-4. Ensure **Enabled** and version **0.3.4**.
+2. Extract `radium-desk-v0.3.7.zip` → folder `radium-desk-v0.3.7/` with `manifest.json`, `src/`, including `src/content/mantra-fill.bundle.js` and `src/content/morpho-fill.bundle.js`.
+3. Chrome → **Extensions** → **Developer mode** → **Load unpacked** → select `radium-desk-v0.3.7`.
+4. Ensure **Enabled** and version **0.3.7**.
 
 ## Mantra troubleshooting
 
@@ -47,8 +52,25 @@ When an authorized administrator clicks **Check OEM warranty / renewal** on Desk
 | Yellow: enter serial manually | Handoff or fill failed |
 | Red: form did not load | Refresh or contact IT |
 
-If DevTools still shows import errors on Mantra, confirm the loaded extension is **0.3.3** and manifest lists `mantra-fill.bundle.js` (not `mantra-fill.js`).
+If DevTools shows import errors on Mantra, confirm manifest lists `mantra-fill.bundle.js` (not `mantra-fill.js` alone).
 
 ## Permissions
 
 Unchanged: `tabs`; host access to Desk, Mantra, Morpho, and local dev origins only.
+
+## Building a new distribution ZIP (maintainers)
+
+From a clean checkout at the target release commit:
+
+1. `cd tools/oem-warranty-extension && npm test` (rebuilds bundles).
+2. Stage `manifest.json` and the full `src/` runtime tree (no `node_modules`, `tests`, or dev tooling).
+3. Zip as `distribution/radium-desk-v{X.Y.Z}.zip` with root folder `radium-desk-v{X.Y.Z}/`.
+4. Append SHA-256 to `SHA256SUMS.txt`; update this README.
+
+No credentials or API keys are bundled.
+
+## Desk server flags
+
+Mantra/Morpho result capture and Desk draft panels require **separate** Owner authorization on the server (not included in this package).
+
+Report issues with package version, SHA-256, browser version, and whether the OEM tab opened (no customer serials in tickets unless policy allows).
