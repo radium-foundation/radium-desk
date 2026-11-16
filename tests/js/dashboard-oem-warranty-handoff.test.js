@@ -246,6 +246,53 @@ describe('initDashboardOemWarrantyHandoff', () => {
         window.postMessage = originalPost;
     });
 
+    it('renders administrator completion controls when a draft is recovered', async () => {
+        mountDashboardPage(true);
+        document.body.insertAdjacentHTML('beforeend', `
+            <table>
+                <tr id="service-case-row-42">
+                    <td class="case-serial-cell">
+                        <button data-oem-warranty-check data-incident-id="42" data-oem-vendor="mantra"></button>
+                    </td>
+                </tr>
+            </table>
+        `);
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                session: {
+                    public_id: 'sess-42',
+                    status: 'draft_ready',
+                    status_label: 'Awaiting administrator review',
+                    draft: {
+                        oem: 'mantra',
+                        outcome: 'found',
+                        serial_number: 'SYN6419897',
+                        model: 'MFS 110',
+                        warranty_expiry_date: '2027-01-15',
+                        rd_expiry_date: '2026-06-01',
+                    },
+                },
+            }),
+        });
+
+        const showToast = vi.fn();
+        initDashboardOemWarrantyHandoff(showToast);
+
+        await new Promise((resolve) => {
+            setTimeout(resolve, 0);
+        });
+
+        const panel = document.querySelector('[data-oem-results-panel="42"]');
+        expect(panel).not.toBeNull();
+        expect(panel.querySelector('[data-oem-result-confirm]')).toBeNull();
+        expect(panel.querySelector('[data-oem-result-reject]')).toBeNull();
+        expect(panel.querySelector('[data-oem-complete-save]')).not.toBeNull();
+        expect(panel.querySelector('[data-oem-service-reference]')).not.toBeNull();
+        expect(panel.querySelector('[data-oem-expiry-date]')).not.toBeNull();
+    });
+
     it('rejects OEM draft postMessage when handoff token does not match active session', () => {
         mountDashboardPage(true);
         document.body.insertAdjacentHTML('beforeend', `

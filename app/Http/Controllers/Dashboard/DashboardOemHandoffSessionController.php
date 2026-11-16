@@ -3,10 +3,16 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CompleteOemHandoffAssignmentRequest;
 use App\Models\DashboardOemHandoffSession;
 use App\Models\Incident;
+use App\Models\User;
 use App\Services\DashboardOemHandoff\DashboardOemHandoffSessionService;
+use App\Services\DashboardOemHandoff\OemHandoffAdministratorCompletionService;
 use App\Services\DashboardOemHandoff\OemHandoffServiceReferencePrefillPresenter;
+use App\Services\DashboardService;
+use App\Services\ServiceCaseAssignmentService;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,6 +21,9 @@ class DashboardOemHandoffSessionController extends Controller
     public function __construct(
         private readonly DashboardOemHandoffSessionService $sessionService,
         private readonly OemHandoffServiceReferencePrefillPresenter $serviceReferencePrefill,
+        private readonly OemHandoffAdministratorCompletionService $administratorCompletion,
+        private readonly DashboardService $dashboardService,
+        private readonly ServiceCaseAssignmentService $assignmentService,
     ) {}
 
     public function store(Request $request, Incident $incident): JsonResponse
@@ -124,6 +133,65 @@ class DashboardOemHandoffSessionController extends Controller
             'session' => $this->sessionPayload($updated),
             'service_reference_prefill' => $this->serviceReferencePrefill->build($updated),
         ]);
+    }
+
+    public function completeAssignment(
+        CompleteOemHandoffAssignmentRequest $request,
+        Incident $incident,
+        string $sessionPublicId,
+    ): JsonResponse {
+        $session = DashboardOemHandoffSession::query()
+            ->where('public_id', $sessionPublicId)
+            ->where('incident_id', $incident->id)
+            ->firstOrFail();
+
+        $this->sessionService->assertForIncident($session, $incident);
+
+        try {
+            $result = $this->administratorCompletion->complete(
+                $session,
+                $request->user(),
+                $request->string('service_reference')->trim()->toString(),
+                $request->date('subscription_expiry_date')->toDateString(),
+            );
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => $exception->errors(),
+            ], 422);
+        }
+
+        $incident->load(['order.transactionAssigner', 'creator', 'assignee', 'activeWaitingState', 'supportAppointments']);
+        $user = $request->user();
+        $shouldRemoveFromReadyQueue = $this->assignmentService->shouldRemoveFromAdminReadyQueue($incident);
+
+        return response()->json([
+            'message' => 'Service reference and expiry saved. Case closed.',
+            'order_id' => $result['order_id'],
+            'incident_id' => $incident->id,
+            'session' => $this->sessionPayload($result['session']),
+            'remove_row' => $shouldRemoveFromReadyQueue
+                ? ['incident_id' => $incident->id]
+                : null,
+            'remove_rows' => $shouldRemoveFromReadyQueue
+                ? [['incident_id' => $incident->id]]
+                : [],
+            'row_html' => ! $shouldRemoveFromReadyQueue
+                ? view(
+                    'dashboard.partials.service-case-row',
+                    $this->dashboardService->serviceCaseRowViewData($incident, $user),
+                )->render()
+                : null,
+            'kpi_strip_html' => $this->kpiStripHtmlFor($user),
+        ]);
+    }
+
+    private function kpiStripHtmlFor(User $user): string
+    {
+        return $this->dashboardService->renderKpiStrip(
+            $this->dashboardService->statsFor($user),
+            $user,
+        );
     }
 
     public function reject(Request $request, Incident $incident, string $sessionPublicId): JsonResponse

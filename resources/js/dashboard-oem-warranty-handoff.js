@@ -1,4 +1,4 @@
-import { presentMorphoServiceReferencePrefill } from './dashboard-morpho-service-reference-prefill';
+import { guardServiceReferenceAssignment } from './customer-intake';
 import { csrfToken } from './workspace/http';
 
 /** window.postMessage types (must match extension content script). */
@@ -136,61 +136,89 @@ const renderMorphoDetails = (draft) => {
     </dl>`;
 };
 
-const attachPanelActions = ({
+const attachCompletionForm = ({
     baseUrl,
     incidentId,
     sessionPublicId,
     panel,
     showToast,
-    sessionStatus,
+    onAssignmentSaved,
+    legacyVerificationModal,
+    legacyContext,
 }) => {
-    panel.querySelector('[data-oem-result-confirm]')?.addEventListener('click', async (event) => {
+    const saveBtn = panel.querySelector('[data-oem-complete-save]');
+    const refInput = panel.querySelector('[data-oem-service-reference]');
+    const expiryInput = panel.querySelector('[data-oem-expiry-date]');
+    const errorEl = panel.querySelector('[data-oem-complete-error]');
+
+    const setError = (message) => {
+        const invalid = Boolean(message);
+        refInput?.classList.toggle('is-invalid', invalid);
+        expiryInput?.classList.toggle('is-invalid', invalid);
+        if (errorEl) {
+            errorEl.textContent = message ?? '';
+        }
+    };
+
+    saveBtn?.addEventListener('click', async (event) => {
         event.stopPropagation();
-        try {
-            const confirmUrl = `${baseUrl}/${incidentId}/oem-handoff/sessions/${sessionPublicId}/confirm`;
-            const confirmed = await postJson(confirmUrl);
-            removeResultsPanel(incidentId);
-            clearPendingOemDraftReview(incidentId);
-            const prefill = confirmed?.service_reference_prefill ?? confirmed?.session?.service_reference_prefill;
-            if (prefill?.eligible === true || prefill?.suggestion_generated === true) {
-                presentMorphoServiceReferencePrefill(incidentId, prefill);
-                showToast?.(
-                    prefill?.suggested_transaction_id
-                        ? 'OEM result confirmed. Review the suggested service reference before saving.'
-                        : 'OEM result confirmed. Review OEM dates and enter the service reference when ready.',
-                    { variant: 'success' },
-                );
-            } else {
-                showToast?.('OEM result confirmed and stored as informational evidence only.', { variant: 'success' });
+        if (panel.dataset.saving === '1') {
+            return;
+        }
+
+        const serviceReference = refInput?.value?.trim() ?? '';
+        const subscriptionExpiryDate = expiryInput?.value?.trim() ?? '';
+
+        if (!serviceReference || !subscriptionExpiryDate) {
+            setError('Service reference and expiry date are required.');
+            return;
+        }
+
+        const performSave = async () => {
+            if (panel.dataset.saving === '1') {
+                return;
             }
-            ACTIVE_DRAFTS.delete(incidentId);
-        } catch (error) {
-            showToast?.(error.message, { variant: 'danger' });
-        }
-    });
 
-    panel.querySelector('[data-oem-result-reject]')?.addEventListener('click', async (event) => {
-        event.stopPropagation();
-        try {
-            const rejectUrl = `${baseUrl}/${incidentId}/oem-handoff/sessions/${sessionPublicId}/reject`;
-            await postJson(rejectUrl, { reason: 'Administrator rejected OEM capture' });
-            removeResultsPanel(incidentId);
-            clearPendingOemDraftReview(incidentId);
-            showToast?.('OEM result rejected.', { variant: 'warning' });
-            ACTIVE_DRAFTS.delete(incidentId);
-        } catch (error) {
-            showToast?.(error.message, { variant: 'danger' });
-        }
-    });
+            panel.dataset.saving = '1';
+            setError('');
+            const previousButtonHtml = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.setAttribute('aria-busy', 'true');
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
 
-    if (sessionStatus === 'confirmed') {
-        panel.querySelectorAll('[data-oem-result-confirm], [data-oem-result-reject]').forEach((el) => {
-            el.remove();
+            try {
+                const url = `${baseUrl}/${incidentId}/oem-handoff/sessions/${sessionPublicId}/complete-assignment`;
+                const data = await postJson(url, {
+                    service_reference: serviceReference,
+                    subscription_expiry_date: subscriptionExpiryDate,
+                });
+                removeResultsPanel(incidentId);
+                clearPendingOemDraftReview(incidentId);
+                ACTIVE_DRAFTS.delete(incidentId);
+                showToast?.(data.message ?? 'Service reference and expiry saved.', { variant: 'success' });
+                onAssignmentSaved?.(data);
+            } catch (error) {
+                setError(error.message);
+                showToast?.(error.message, { variant: 'danger' });
+            } finally {
+                delete panel.dataset.saving;
+                saveBtn.disabled = false;
+                saveBtn.removeAttribute('aria-busy');
+                saveBtn.innerHTML = previousButtonHtml;
+            }
+        };
+
+        await guardServiceReferenceAssignment({
+            requiresLegacyVerification: legacyContext?.requiresLegacyVerification === true,
+            legacyVerificationUrl: legacyContext?.legacyVerificationUrl ?? null,
+            legacyVerificationModal,
+            legacyVerificationMode: legacyContext?.legacyVerificationMode ?? 'customer',
+            onProceed: performSave,
         });
-    }
+    });
 };
 
-const renderResultsPanel = (incidentId, session, { baseUrl, showToast }) => {
+const renderResultsPanel = (incidentId, session, { baseUrl, showToast, onAssignmentSaved, legacyVerificationModal }) => {
     removeResultsPanel(incidentId);
     const draft = session?.draft;
     if (!draft) {
@@ -210,6 +238,12 @@ const renderResultsPanel = (incidentId, session, { baseUrl, showToast }) => {
 
     const sessionPublicId = session.public_id;
     const oem = draft.oem ?? session.oem ?? 'mantra';
+    const txnCell = row?.querySelector('.transaction-id-cell[data-inline-transaction="true"]');
+    const legacyContext = txnCell ? {
+        requiresLegacyVerification: txnCell.dataset.requiresLegacyVerification === 'true',
+        legacyVerificationUrl: txnCell.dataset.legacyVerificationUrl ?? null,
+        legacyVerificationMode: txnCell.dataset.legacyVerificationMode ?? 'customer',
+    } : { requiresLegacyVerification: false };
     ACTIVE_DRAFTS.set(incidentId, {
         session_public_id: sessionPublicId,
         incident_id: incidentId,
@@ -220,13 +254,6 @@ const renderResultsPanel = (incidentId, session, { baseUrl, showToast }) => {
     const outcome = draft.outcome ?? 'inconclusive';
     const qualification = draft.whitelist_qualification ?? null;
     const details = oem === 'morpho' ? renderMorphoDetails(draft) : renderMantraDetails(draft);
-    const prefill = session.service_reference_prefill;
-    const populationHint = oem === 'morpho' && prefill
-        ? (prefill.eligible
-            ? '<p class="text-success mb-1">Eligible to open the service reference editor after you confirm this result.</p>'
-            : `<p class="text-warning mb-1">${prefill.rejection_reason ?? 'Not eligible for service reference prefill.'}</p>`)
-        : '';
-
     const panel = document.createElement('div');
     panel.className = 'oem-handoff-results-panel small border rounded bg-white p-2 mt-1';
     panel.setAttribute('data-oem-results-panel', String(incidentId));
@@ -236,31 +263,53 @@ const renderResultsPanel = (incidentId, session, { baseUrl, showToast }) => {
     panel.innerHTML = `
         <div class="fw-semibold">${formatOemLabel(oem)} OEM results</div>
         <div class="text-muted mb-1">Status: ${statusLabel} · Outcome: ${outcome}${qualification ? ` · Qualification: ${qualification}` : ''} · Source: extension DOM</div>
-        ${populationHint}
         ${details}
         <p class="text-muted mb-2">${draft.disclaimer ?? 'OEM-reported values are informational only — not verified warranty or renewal entitlement.'}</p>
         ${actionable ? `
-        <div class="d-flex gap-2 flex-wrap">
-            <button type="button" class="btn btn-sm btn-outline-success" data-oem-result-confirm>
-                Confirm result
-            </button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" data-oem-result-reject>
-                Reject result
-            </button>
-        </div>` : '<p class="text-success mb-0">Result confirmed for audit.</p>'}
+        <div class="oem-handoff-completion-form mt-2">
+            <p class="small fw-semibold mb-1">Administrator completion</p>
+            <p class="text-muted small mb-2">Enter the official service reference and RD subscription expiry to close this case.</p>
+            <div class="mb-2">
+                <label class="form-label small mb-0">Expiry Date</label>
+                <input type="date"
+                       class="form-control form-control-sm"
+                       data-oem-expiry-date
+                       aria-label="RD subscription expiry date">
+                <div class="form-text">RD subscription expiry — not OEM warranty expiry.</div>
+            </div>
+            <div class="input-group input-group-sm">
+                <input type="text"
+                       class="form-control"
+                       data-oem-service-reference
+                       placeholder="Service Reference"
+                       maxlength="100"
+                       aria-label="Service Reference Number">
+                <button type="button"
+                        class="btn btn-outline-success"
+                        data-oem-complete-save
+                        aria-label="Save service reference and close case">
+                    <i class="bi bi-check-lg" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="invalid-feedback d-block small" data-oem-complete-error></div>
+        </div>` : '<p class="text-success mb-0">OEM evidence stored. Case completion recorded.</p>'}
     `;
 
     if (actionable) {
         markPendingOemDraftReview(incidentId);
     }
-    attachPanelActions({
-        baseUrl,
-        incidentId,
-        sessionPublicId,
-        panel,
-        showToast,
-        sessionStatus: session.status,
-    });
+    if (actionable) {
+        attachCompletionForm({
+            baseUrl,
+            incidentId,
+            sessionPublicId,
+            panel,
+            showToast,
+            onAssignmentSaved,
+            legacyVerificationModal,
+            legacyContext,
+        });
+    }
     hostCell.appendChild(panel);
 };
 
@@ -277,7 +326,7 @@ const visibleOemIncidentIds = () => {
     return [...ids];
 };
 
-const recoverDraftForIncident = async (incidentId, baseUrl, showToast) => {
+const recoverDraftForIncident = async (incidentId, baseUrl, showToast, onAssignmentSaved, legacyVerificationModal) => {
     let response;
     try {
         response = await fetch(`${baseUrl}/${incidentId}/oem-handoff/recover`, {
@@ -305,11 +354,16 @@ const recoverDraftForIncident = async (incidentId, baseUrl, showToast) => {
 
     const result = await response.json().catch(() => ({}));
     if (result?.session?.draft) {
-        renderResultsPanel(incidentId, result.session, { baseUrl, showToast });
+        renderResultsPanel(incidentId, result.session, {
+            baseUrl,
+            showToast,
+            onAssignmentSaved,
+            legacyVerificationModal,
+        });
     }
 };
 
-export const initDashboardOemWarrantyHandoff = (showToast) => {
+export const initDashboardOemWarrantyHandoff = (showToast, { onAssignmentSaved, legacyVerificationModal } = {}) => {
     const pageRoot = document.getElementById('dashboard-page');
     if (!pageRoot) {
         return;
@@ -333,7 +387,7 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
 
     if (handoffEnabled && baseUrl) {
         visibleOemIncidentIds().forEach((incidentId) => {
-            void recoverDraftForIncident(incidentId, baseUrl, showToast);
+            void recoverDraftForIncident(incidentId, baseUrl, showToast, onAssignmentSaved, legacyVerificationModal);
         });
     }
 
@@ -474,8 +528,13 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
                 fields: data.fields ?? null,
             });
 
-            renderResultsPanel(incidentId, result.session, { baseUrl, showToast });
-            showToast?.('OEM result captured — awaiting your review in Desk.', { variant: 'info' });
+            renderResultsPanel(incidentId, result.session, {
+                baseUrl,
+                showToast,
+                onAssignmentSaved,
+                legacyVerificationModal,
+            });
+            showToast?.('OEM result captured — enter service reference and expiry to complete.', { variant: 'info' });
         } catch (error) {
             showToast?.(error.message, { variant: 'danger' });
         }

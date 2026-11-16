@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.1.74 — Unreleased — OEM administrator completion workflow (P-16-51)
+
+- **Purpose:** Replace dashboard **Confirm result** / **Reject result** OEM review controls with administrator-entered **Service Reference Number** and **RD subscription Expiry Date**, single save action, and atomic case closure via existing **`OrderTransactionService::assignTransactionId`**. OEM capture remains informational evidence only. **Does not authorize production deploy.**
+- **Application delta:** `POST .../complete-assignment`; `OemHandoffAdministratorCompletionService`; dashboard OEM panel JavaScript; confirm/reject API routes retained but no longer exposed in the primary dashboard workflow. **No** migrations. **No** payment, Cashfree, fulfilment, or feature-flag changes.
+- **Focused evidence:** Targeted PHPUnit on complete-assignment journey; Vitest `dashboard-oem-warranty-handoff.test.js`. Full PHPUnit **NOT RUN**. Live browser E2E **NOT RUN**.
+
 ## 4.1.73 — Unreleased — OEM handoff status bridge + phase timeout diagnostics (P-16-50)
 
 - **Purpose:** Diagnose “no Mantra tab” + generic timeout when **zero** OEM sessions are persisted — extend `HANDOFF_STATUS` `postMessage` to the Desk page bundle and split timeout codes (`timeout-awaiting-session` vs `timeout-awaiting-extension`). **Does not authorize production deploy.**
