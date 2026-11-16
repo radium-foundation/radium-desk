@@ -107,8 +107,9 @@
                     document.removeEventListener('radium:oem-handoff-status', onStatus);
                     if (trigger.hasAttribute('data-oem-handoff-busy')) {
                         setBusy(trigger, false);
+                        publishHandoffStatus({ status: 'error', code: 'timeout' });
                     }
-                }, HANDOFF_TIMEOUT_MS + 5000);
+                }, HANDOFF_TIMEOUT_MS);
 
                 return;
             }

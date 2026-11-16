@@ -1,7 +1,8 @@
 import { HandoffStore } from './lib/handoff-store.js';
-import { MSG, OEM_PAGE_URLS } from './lib/constants.js';
+import { MSG } from './lib/constants.js';
+import { handleHandoffRequest } from './lib/handoff-request-handler.js';
 import { isAllowedDeskSenderUrl, isValidExtensionSender } from './lib/origin-guard.js';
-import { isExpectedOemDestinationUrl, isOemVendor, isValidHandoffSerial } from './lib/handoff-payload.js';
+import { isExpectedOemDestinationUrl, isOemVendor } from './lib/handoff-payload.js';
 
 const store = new HandoffStore();
 
@@ -17,48 +18,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     if (message?.type === MSG.HANDOFF_REQUEST) {
-        const pageUrl = sender.tab?.url;
-        if (!isAllowedDeskSenderUrl(pageUrl)) {
-            sendResponse({ ok: false, error: 'origin-denied' });
-            return false;
-        }
-
-        const { oem, serial } = message;
-        if (!isOemVendor(oem) || typeof serial !== 'string' || !isValidHandoffSerial(serial)) {
-            sendResponse({ ok: false, error: 'invalid-payload' });
-            return false;
-        }
-
-        const url = OEM_PAGE_URLS[oem];
-        if (!isExpectedOemDestinationUrl(url, oem)) {
-            sendResponse({ ok: false, error: 'destination-mismatch' });
-            return false;
-        }
-
-        const { handoffId } = store.create({ oem, serial: serial.trim().toUpperCase() });
-
-        chrome.tabs.create({ url, active: true }, (tab) => {
-            if (!tab?.id) {
-                store.discard(handoffId);
-                sendResponse({ ok: false, error: 'tab-create-failed' });
-
-                return;
-            }
-
-            store.bindTab(handoffId, tab.id);
-
-            sessionMetaByTabId.set(tab.id, {
-                handoff_token: typeof message.handoff_token === 'string' ? message.handoff_token : undefined,
-                incident_id: typeof message.incident_id === 'number' ? message.incident_id : undefined,
-                session_public_id: typeof message.session_public_id === 'string' ? message.session_public_id : undefined,
-                mantra_capture_enabled: message.mantra_capture_enabled === true,
-                oem,
-            });
-
-            sendResponse({ ok: true, handoffId });
+        const result = handleHandoffRequest(sender, message, {
+            store,
+            setSessionMeta: (tabId, meta) => {
+                sessionMetaByTabId.set(tabId, meta);
+            },
+            openOemTab: (url) => chrome.tabs.create({ url, active: true }),
         });
 
-        return true;
+        sendResponse(result);
+        return false;
     }
 
     if (message?.type === MSG.HANDOFF_CLAIM) {
