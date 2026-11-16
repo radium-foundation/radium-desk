@@ -1185,4 +1185,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-41 | 2026-11-16 | **P-16-41** Mantra warranty result reception diagnosis ChatGPT **P-16-41** | **RISK HIGH.** Prod **`v4.1.70`/`2b6746f62`**; OEM config **all false**. **Root cause:** legacy one-way handoff only — no Desk session / no capture. Code path **VERIFIED** (PHPUnit **13** + vitest Mantra parse **6**). Runbook **`docs/desk-p16-41-mantra-result-reception-runbook.md`**. **NO** prod flags/restart. Live E2E **NOT RUN**. Enable **`DASHBOARD_OEM_HANDOFF_ENABLED`** + **`MANTRA_CAPTURE`** + ext **v0.3.7** pending Owner. |
 
+| RadiumDesk-P-16-42 | 2026-11-16 | **P-16-42** Activate Mantra result reception + prod E2E serial **10459321** ChatGPT **P-16-42** | **RISK HIGH.** Two OEM flags **enabled** + `config:cache`. Pre-gates **PASSED**; live E2E **BLOCKED** (auth/CAPTCHA). Operator **timeout** reported → **P-16-43**. |
+
+| RadiumDesk-P-16-43 | 2026-11-16 | **P-16-43** Mantra handoff timeout diagnosis + fix ChatGPT **P-16-43** | **RISK HIGH.** **Root cause:** CustomEvent/session handoff across Chrome **isolated worlds** — page bundle never ran session API (**≠ P-16-23**). Fix: **`window.postMessage`** bridge; ext **v0.3.8** (`61a8451c…032a`); vitest ext **53** + dashboard JS **8**. Worktree **`.worktrees/p16-43-handoff-bridge`**. **NO** prod deploy. PHPUnit journey **NOT RUN** (vendor missing in worktree). |
+
 Do not renumber or overwrite earlier rows. Append only.

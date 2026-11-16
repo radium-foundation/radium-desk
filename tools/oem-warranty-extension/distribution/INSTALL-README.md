@@ -2,10 +2,10 @@
 
 ## Current release (recommended)
 
-**Package:** `radium-desk-v0.3.7.zip`  
-**Extracted folder:** `radium-desk-v0.3.7/` (use for **Load unpacked**)  
-**Extension version:** **0.3.7** (Manifest V3) — Morpho already-whitelisted qualification + Desk service-reference review (P-16-26)  
-**Matched Desk release:** `v4.1.69`+ on `main` including merge `f22f9fc4` (OEM session APIs)  
+**Package:** `radium-desk-v0.3.8.zip`  
+**Extracted folder:** `radium-desk-v0.3.8/` (use for **Load unpacked**)  
+**Extension version:** **0.3.8** (Manifest V3) — session handoff `window.postMessage` bridge (P-16-43)  
+**Matched Desk release:** `v4.1.70`+ on `main` (OEM session + Mantra capture)  
 **Built:** 2026-11-16
 
 Internal use only. **Not** for Chrome Web Store or public distribution.
