@@ -140,10 +140,12 @@ const attachPanelActions = ({
             removeResultsPanel(incidentId);
             clearPendingOemDraftReview(incidentId);
             const prefill = confirmed?.service_reference_prefill ?? confirmed?.session?.service_reference_prefill;
-            if (prefill?.eligible === true) {
+            if (prefill?.eligible === true || prefill?.suggestion_generated === true) {
                 presentMorphoServiceReferencePrefill(incidentId, prefill);
                 showToast?.(
-                    'Morpho result confirmed. Review OEM dates and enter the service reference when ready.',
+                    prefill?.suggested_transaction_id
+                        ? 'OEM result confirmed. Review the suggested service reference before saving.'
+                        : 'OEM result confirmed. Review OEM dates and enter the service reference when ready.',
                     { variant: 'success' },
                 );
             } else {

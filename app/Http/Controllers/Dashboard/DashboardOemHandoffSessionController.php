@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DashboardOemHandoffSession;
 use App\Models\Incident;
 use App\Services\DashboardOemHandoff\DashboardOemHandoffSessionService;
-use App\Services\DashboardOemHandoff\MorphoHandoffServiceReferencePrefill;
+use App\Services\DashboardOemHandoff\OemHandoffServiceReferencePrefillPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,7 +14,7 @@ class DashboardOemHandoffSessionController extends Controller
 {
     public function __construct(
         private readonly DashboardOemHandoffSessionService $sessionService,
-        private readonly MorphoHandoffServiceReferencePrefill $morphoServiceReferencePrefill,
+        private readonly OemHandoffServiceReferencePrefillPresenter $serviceReferencePrefill,
     ) {}
 
     public function store(Request $request, Incident $incident): JsonResponse
@@ -122,7 +122,7 @@ class DashboardOemHandoffSessionController extends Controller
 
         return response()->json([
             'session' => $this->sessionPayload($updated),
-            'service_reference_prefill' => $this->morphoPrefillPayload($updated),
+            'service_reference_prefill' => $this->serviceReferencePrefill->build($updated),
         ]);
     }
 
@@ -176,25 +176,9 @@ class DashboardOemHandoffSessionController extends Controller
             ],
             'draft' => $draft ? $this->normalizedDraftView($draft) : null,
             'confirmed' => $session->confirmed_payload ? $this->normalizedDraftView($session->confirmed_payload) : null,
-            'service_reference_prefill' => $this->morphoPrefillPayload($session),
+            'service_reference_prefill' => $this->serviceReferencePrefill->build($session),
+            'suggested_service_reference' => $session->suggested_service_reference,
         ];
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function morphoPrefillPayload(DashboardOemHandoffSession $session): ?array
-    {
-        if ($session->oem !== 'morpho') {
-            return null;
-        }
-
-        $draft = $session->confirmed_payload ?? $session->draft_payload;
-        if (! is_array($draft)) {
-            return null;
-        }
-
-        return $this->morphoServiceReferencePrefill->build($session, $draft);
     }
 
     /**

@@ -60,11 +60,19 @@ export const presentMorphoServiceReferencePrefill = (incidentId, prefill) => {
     const review = prefill.oem_review ?? {};
     const eligible = prefill.eligible === true;
 
+    const suggestion = prefill.suggested_transaction_id?.trim();
+    const suggestionBlock = suggestion
+        ? `<p class="mb-2"><span class="fw-semibold">Suggested service reference:</span> <code>${suggestion}</code></p>`
+        : '';
+
     panel.innerHTML = `
-        <div class="fw-semibold">Morpho service reference review</div>
+        <div class="fw-semibold">Service reference suggestion</div>
+        ${suggestionBlock}
         <p class="text-muted mb-1 mb-sm-2">
             ${eligible
-        ? 'Device is already whitelisted on Morpho. Review OEM values, enter the service reference, then save.'
+        ? (suggestion
+            ? 'Review the OEM suggestion, open the editor, confirm the reference, then save.'
+            : 'Review OEM values, enter the service reference, then save.')
         : (prefill.rejection_reason ?? 'This Morpho result cannot prefill the service reference workflow.')}
         </p>
         <dl class="mb-2 oem-handoff-draft-panel__dl">
@@ -92,10 +100,10 @@ export const presentMorphoServiceReferencePrefill = (incidentId, prefill) => {
         event.stopPropagation();
         const opened = openInlineEditor(cell);
         const input = cell.querySelector('.transaction-inline-input');
-        const suggestion = prefill.suggested_transaction_id?.trim();
+        const suggestedRef = prefill.suggested_transaction_id?.trim();
 
-        if (opened && input && suggestion) {
-            input.value = suggestion;
+        if (opened && input && suggestedRef) {
+            input.value = suggestedRef;
         }
     });
 

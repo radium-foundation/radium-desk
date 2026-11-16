@@ -43,4 +43,12 @@ return [
         env('DASHBOARD_OEM_HANDOFF_EXPIRY_PERSIST', false),
         FILTER_VALIDATE_BOOL,
     ),
+
+    /**
+     * When false (default), confirming OEM capture does not allocate AW-DD-MM-YY-NN suggestions.
+     */
+    'service_reference_suggestion_enabled' => filter_var(
+        env('DASHBOARD_OEM_HANDOFF_SERVICE_REFERENCE_SUGGEST', false),
+        FILTER_VALIDATE_BOOL,
+    ),
 ];
