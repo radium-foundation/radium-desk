@@ -1189,4 +1189,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-43 | 2026-11-16 | **P-16-43** Mantra handoff timeout diagnosis + fix ChatGPT **P-16-43** | **RISK HIGH.** **Root cause:** CustomEvent/session handoff across Chrome **isolated worlds** — page bundle never ran session API (**≠ P-16-23**). Fix: **`window.postMessage`** bridge; ext **v0.3.8** (`61a8451c…032a`); vitest ext **53** + dashboard JS **8**. Worktree **`.worktrees/p16-43-handoff-bridge`**. **NO** prod deploy. PHPUnit journey **NOT RUN** (vendor missing in worktree). |
 
+| RadiumDesk-P-16-44 | 2026-11-16 | **P-16-44** Complete PR **#292** + handoff fix release prep ChatGPT **P-16-44** | **RISK HIGH.** Verified app merge **`f3dd931ec`**; CI **rip**+**release-rip** **PASS**; security review bridge; merged **#292**. Ext **v0.3.8** SHA verified. **NO** deploy/flags/restart. Deploy plan **v4.1.71** documented; await metadata. |
+
+| RadiumDesk-P-16-45 | 2026-11-16 | **P-16-45** v4.1.71 release metadata ChatGPT **P-16-45** | **RISK NORMAL.** **CHANGELOG 4.1.71** for app **`f3dd931ec`** (PR **#292**); annotated tag **`v4.1.71`**. **NO** deploy/migrate/prod flags. |
+
 Do not renumber or overwrite earlier rows. Append only.
