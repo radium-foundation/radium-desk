@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.1.73 — Unreleased — OEM handoff status bridge + phase timeout diagnostics (P-16-50)
+
+- **Purpose:** Diagnose “no Mantra tab” + generic timeout when **zero** OEM sessions are persisted — extend `HANDOFF_STATUS` `postMessage` to the Desk page bundle and split timeout codes (`timeout-awaiting-session` vs `timeout-awaiting-extension`). **Does not authorize production deploy.**
+- **Operator prerequisite unchanged:** extension **v0.3.9+** and hard-refresh remain mandatory for session handoff.
+
 ## 4.1.72 — 2026-11-16 — OEM session handoff phased timeouts (P-16-48 / PR #294)
 
 - **Purpose:** Fix false **“OEM handoff timed out”** when Mantra session **`POST`** and extension tab open together exceed the legacy single **12s** watchdog; add **`RADESK_OEM_HANDOFF_SESSION_PENDING`** so the content script re-arms per phase. **Does not authorize deploy, production flags, or migrations.**

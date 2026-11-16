@@ -13,6 +13,10 @@ const HANDOFF_ERROR_MESSAGES = {
     'extension-unavailable':
         'OEM check extension is not installed or is disabled. Install the internal Radium OEM handoff extension.',
     timeout: 'OEM handoff timed out. Try again or enter the serial manually on the OEM site.',
+    'timeout-awaiting-session':
+        'Desk did not finish creating the OEM session in time. Hard-refresh the dashboard, install extension v0.3.9+, then retry.',
+    'timeout-awaiting-extension':
+        'The OEM session was created but the browser extension did not open Mantra in time. Install extension v0.3.9+ and retry.',
     'origin-denied': 'This Desk origin is not permitted to start an OEM handoff.',
     'invalid-payload': 'Could not hand off an invalid serial or OEM selection.',
     'missing-serial-or-oem': 'Serial or device model is missing for this row.',
@@ -333,14 +337,31 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
         });
     }
 
-    document.addEventListener('radium:oem-handoff-status', (event) => {
-        const detail = event?.detail;
+    const surfaceHandoffError = (detail) => {
         if (!detail || detail.status === 'ok') {
             return;
         }
         const code = detail.code ?? 'handoff-failed';
         const message = HANDOFF_ERROR_MESSAGES[code] ?? HANDOFF_ERROR_MESSAGES['handoff-failed'];
         showToast?.(message, { variant: 'danger' });
+    };
+
+    document.addEventListener('radium:oem-handoff-status', (event) => {
+        surfaceHandoffError(event?.detail);
+    });
+
+    window.addEventListener('message', (event) => {
+        if (event.source !== window || event.origin !== window.location.origin) {
+            return;
+        }
+        const data = event.data;
+        if (!data || data.type !== DESK_OEM_WINDOW_MSG.HANDOFF_STATUS) {
+            return;
+        }
+        surfaceHandoffError({
+            status: data.status,
+            code: data.code,
+        });
     });
 
     const startSessionBackedHandoff = async ({ incidentId, oem, serial }) => {
