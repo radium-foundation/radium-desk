@@ -12,8 +12,10 @@
                 handoff_token: message.handoff_token,
                 incident_id: message.incident_id,
                 session_public_id: message.session_public_id,
+                oem: message.oem,
                 outcome: message.outcome,
                 rows: message.rows,
+                fields: message.fields,
             },
             window.location.origin,
         );

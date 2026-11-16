@@ -2,9 +2,9 @@
 
 ## Current release (recommended)
 
-**Package:** `radium-desk-oem-warranty-handoff-0.3.4-for-desk-v4.1.69.zip`  
-**Extension version:** **0.3.4** (Manifest V3) — fixes Desk OEM handoff timeout after **0.3.3** (P-16-23)  
-**Matched Desk release:** `v4.1.69` / `50d43ada1`  
+**Package:** `radium-desk-oem-warranty-handoff-0.3.5-for-desk-v4.1.69.zip`  
+**Extension version:** **0.3.5** (Manifest V3) — two-way Mantra/Morpho DOM capture (P-16-24)  
+**Matched Desk release:** `v4.1.69`+ (requires Desk PR with session confirm/reject APIs)  
 **Built:** 2026-11-16
 
 Internal use only. **Not** for Chrome Web Store or public distribution.
@@ -29,7 +29,8 @@ When an authorized administrator clicks **Check OEM warranty / renewal** on Desk
 
 1. Opens the correct OEM warranty page (Mantra or Morpho).
 2. **Mantra:** bundled classic script (no ES imports on the page); retry handoff claim, wait for `#txtSerialNo`, fill serial, show status banner (CAPTCHA + **Check** remain manual).
-3. **Morpho:** DOM-only serial prefill (unchanged).
+3. **Morpho:** bundled script; DOM serial prefill + optional result capture after manual OEM validation.
+4. **Two-way (Desk flags ON):** captured results return to Desk for **Confirm** or **Reject** — informational evidence only.
 
 ## Installation (Google Chrome)
 

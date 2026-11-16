@@ -11,14 +11,13 @@ const HANDOFF_ERROR_MESSAGES = {
     'session-disabled': 'Dashboard OEM handoff sessions are disabled.',
 };
 
-/** @type {Map<number, { handoff_token?: string, session_public_id: string, incident_id: number }>} */
+/** @type {Map<number, { handoff_token?: string, session_public_id: string, incident_id: number, oem?: string }>} */
 const ACTIVE_DRAFTS = new Map();
 
 const PENDING_REVIEW_STORAGE_KEY = 'radium-oem-handoff-pending-review';
 
-/** Shown when a draft was expected (e.g. after refresh) but recovery returned 404. */
 export const OEM_DRAFT_NOT_RECOVERABLE_MESSAGE =
-    'No saved Mantra OEM result is available for this row. Start a new OEM check from the OEM icon.';
+    'No saved OEM result is available for this row. Start a new OEM check from the OEM icon.';
 
 const readPendingReviewIds = () => {
     try {
@@ -93,37 +92,89 @@ const getJson = async (url) => {
     return payload;
 };
 
-const removeDraftPanel = (incidentId) => {
-    const existing = document.querySelector(`[data-oem-draft-panel="${incidentId}"]`);
+const removeResultsPanel = (incidentId) => {
+    const existing = document.querySelector(`[data-oem-results-panel="${incidentId}"]`);
     existing?.remove();
 };
 
-const attachReviewHandler = ({
+const formatOemLabel = (oem) => (oem === 'morpho' ? 'Morpho' : 'Mantra');
+
+const renderMantraDetails = (draft) => `
+    <dl class="mb-1 oem-handoff-draft-panel__dl">
+        <dt>Model</dt><dd>${draft.model ?? '—'}</dd>
+        <dt>Serial</dt><dd>${draft.serial_number ?? '—'}</dd>
+        <dt>OEM warranty expiry</dt><dd>${draft.warranty_expiry_date ?? '—'}</dd>
+        <dt>RD subscription expiry</dt><dd>${draft.rd_expiry_date ?? '—'}</dd>
+        <dt>Captured</dt><dd>${draft.captured_at ?? '—'}</dd>
+    </dl>`;
+
+const renderMorphoDetails = (draft) => {
+    const f = draft.fields ?? {};
+    return `
+    <dl class="mb-1 oem-handoff-draft-panel__dl">
+        <dt>Serial</dt><dd>${f.serial_number ?? draft.serial_number ?? '—'}</dd>
+        <dt>Device validity</dt><dd>${f.device_validity ?? '—'}</dd>
+        <dt>Whitelist status</dt><dd>${f.whitelist_status ?? '—'}</dd>
+        <dt>Whitelist date</dt><dd>${f.whitelist_date ?? '—'}</dd>
+        <dt>Expiry date</dt><dd>${f.expiry_date ?? '—'}</dd>
+        <dt>Validity (years)</dt><dd>${f.validity_years ?? '—'}</dd>
+        <dt>Device type</dt><dd>${f.device_type ?? '—'}</dd>
+        <dt>Captured</dt><dd>${draft.captured_at ?? '—'}</dd>
+    </dl>`;
+};
+
+const attachPanelActions = ({
     baseUrl,
     incidentId,
     sessionPublicId,
     panel,
     showToast,
+    sessionStatus,
 }) => {
-    panel.querySelector('[data-oem-draft-review]')?.addEventListener('click', async (event) => {
+    panel.querySelector('[data-oem-result-confirm]')?.addEventListener('click', async (event) => {
         event.stopPropagation();
         try {
-            const reviewUrl = `${baseUrl}/${incidentId}/oem-handoff/sessions/${sessionPublicId}/review`;
-            await postJson(reviewUrl);
-            removeDraftPanel(incidentId);
+            const confirmUrl = `${baseUrl}/${incidentId}/oem-handoff/sessions/${sessionPublicId}/confirm`;
+            await postJson(confirmUrl);
+            removeResultsPanel(incidentId);
             clearPendingOemDraftReview(incidentId);
-            showToast?.('Draft marked reviewed (not saved as warranty record).', { variant: 'success' });
+            showToast?.('OEM result confirmed and stored as informational evidence only.', { variant: 'success' });
             ACTIVE_DRAFTS.delete(incidentId);
         } catch (error) {
             showToast?.(error.message, { variant: 'danger' });
         }
     });
+
+    panel.querySelector('[data-oem-result-reject]')?.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        try {
+            const rejectUrl = `${baseUrl}/${incidentId}/oem-handoff/sessions/${sessionPublicId}/reject`;
+            await postJson(rejectUrl, { reason: 'Administrator rejected OEM capture' });
+            removeResultsPanel(incidentId);
+            clearPendingOemDraftReview(incidentId);
+            showToast?.('OEM result rejected.', { variant: 'warning' });
+            ACTIVE_DRAFTS.delete(incidentId);
+        } catch (error) {
+            showToast?.(error.message, { variant: 'danger' });
+        }
+    });
+
+    if (sessionStatus === 'confirmed') {
+        panel.querySelectorAll('[data-oem-result-confirm], [data-oem-result-reject]').forEach((el) => {
+            el.remove();
+        });
+    }
 };
 
-const renderDraftPanel = (incidentId, session, { baseUrl, showToast }) => {
-    removeDraftPanel(incidentId);
+const renderResultsPanel = (incidentId, session, { baseUrl, showToast }) => {
+    removeResultsPanel(incidentId);
     const draft = session?.draft;
-    if (!draft || session?.status !== 'draft_ready') {
+    if (!draft) {
+        return;
+    }
+
+  const actionable = session?.status === 'draft_ready';
+    if (!actionable && session?.status !== 'confirmed') {
         return;
     }
 
@@ -134,39 +185,50 @@ const renderDraftPanel = (incidentId, session, { baseUrl, showToast }) => {
     }
 
     const sessionPublicId = session.public_id;
+    const oem = draft.oem ?? session.oem ?? 'mantra';
     ACTIVE_DRAFTS.set(incidentId, {
         session_public_id: sessionPublicId,
         incident_id: incidentId,
+        oem,
     });
 
+    const statusLabel = session.status_label ?? session.status ?? 'unknown';
+    const outcome = draft.outcome ?? 'inconclusive';
+    const details = oem === 'morpho' ? renderMorphoDetails(draft) : renderMantraDetails(draft);
+
     const panel = document.createElement('div');
-    panel.className = 'oem-handoff-draft-panel small border rounded bg-white p-2 mt-1';
-    panel.setAttribute('data-oem-draft-panel', String(incidentId));
+    panel.className = 'oem-handoff-results-panel small border rounded bg-white p-2 mt-1';
+    panel.setAttribute('data-oem-results-panel', String(incidentId));
     panel.setAttribute('data-oem-session-public-id', sessionPublicId);
     panel.setAttribute('role', 'status');
 
-    const warranty = draft.warranty_expiry_date ?? '—';
-    const rd = draft.rd_expiry_date ?? '—';
-    const outcome = draft.outcome ?? 'inconclusive';
-
     panel.innerHTML = `
-        <div class="fw-semibold">Mantra OEM draft (review only)</div>
-        <div class="text-muted">Outcome: ${outcome} · Source: extension DOM</div>
-        <dl class="mb-1 oem-handoff-draft-panel__dl">
-            <dt>Model</dt><dd>${draft.model ?? '—'}</dd>
-            <dt>Serial</dt><dd>${draft.serial_number ?? '—'}</dd>
-            <dt>OEM warranty expiry</dt><dd>${warranty}</dd>
-            <dt>RD subscription expiry</dt><dd>${rd}</dd>
-            <dt>Captured</dt><dd>${draft.captured_at ?? '—'}</dd>
-        </dl>
-        <p class="text-muted mb-2">OEM-reported dates are not verified warranty confirmation.</p>
-        <button type="button" class="btn btn-sm btn-outline-primary" data-oem-draft-review>
-            Mark draft reviewed
-        </button>
+        <div class="fw-semibold">${formatOemLabel(oem)} OEM results</div>
+        <div class="text-muted mb-1">Status: ${statusLabel} · Outcome: ${outcome} · Source: extension DOM</div>
+        ${details}
+        <p class="text-muted mb-2">${draft.disclaimer ?? 'OEM-reported values are informational only — not verified warranty or renewal entitlement.'}</p>
+        ${actionable ? `
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-sm btn-outline-success" data-oem-result-confirm>
+                Confirm result
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-oem-result-reject>
+                Reject result
+            </button>
+        </div>` : '<p class="text-success mb-0">Result confirmed for audit.</p>'}
     `;
 
-    markPendingOemDraftReview(incidentId);
-    attachReviewHandler({ baseUrl, incidentId, sessionPublicId, panel, showToast });
+    if (actionable) {
+        markPendingOemDraftReview(incidentId);
+    }
+    attachPanelActions({
+        baseUrl,
+        incidentId,
+        sessionPublicId,
+        panel,
+        showToast,
+        sessionStatus: session.status,
+    });
     hostCell.appendChild(panel);
 };
 
@@ -185,11 +247,12 @@ const sendExtensionHandoff = (payload) => new Promise((resolve) => {
     });
 });
 
-const visibleMantraIncidentIds = () => {
+const visibleOemIncidentIds = () => {
     const ids = new Set();
-    document.querySelectorAll('[data-oem-warranty-check][data-incident-id][data-oem-vendor="mantra"]').forEach((el) => {
+    document.querySelectorAll('[data-oem-warranty-check][data-incident-id][data-oem-vendor]').forEach((el) => {
         const incidentId = el.getAttribute('data-incident-id');
-        if (incidentId) {
+        const vendor = el.getAttribute('data-oem-vendor');
+        if (incidentId && (vendor === 'mantra' || vendor === 'morpho')) {
             ids.add(Number(incidentId));
         }
     });
@@ -225,7 +288,7 @@ const recoverDraftForIncident = async (incidentId, baseUrl, showToast) => {
 
     const result = await response.json().catch(() => ({}));
     if (result?.session?.draft) {
-        renderDraftPanel(incidentId, result.session, { baseUrl, showToast });
+        renderResultsPanel(incidentId, result.session, { baseUrl, showToast });
     }
 };
 
@@ -243,7 +306,7 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
     };
 
     if (handoffEnabled && baseUrl) {
-        visibleMantraIncidentIds().forEach((incidentId) => {
+        visibleOemIncidentIds().forEach((incidentId) => {
             void recoverDraftForIncident(incidentId, baseUrl, showToast);
         });
     }
@@ -279,9 +342,8 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
             return;
         }
 
-        if (oem !== 'mantra') {
+        if (oem !== 'mantra' && oem !== 'morpho') {
             publishStatus({ status: 'error', code: 'handoff-failed' });
-            showToast?.('Mantra-only result return is enabled in this pilot.', { variant: 'warning' });
             return;
         }
 
@@ -292,7 +354,10 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
                 handoff_token: started.handoff_token,
                 session_public_id: started.session_public_id,
                 incident_id: Number(incidentId),
+                oem,
                 mantra_capture_enabled: started.mantra_capture_enabled === true,
+                morpho_capture_enabled: started.morpho_capture_enabled === true,
+                result_capture_enabled: started.result_capture_enabled === true,
             };
             ACTIVE_DRAFTS.set(Number(incidentId), context);
 
@@ -304,6 +369,8 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
                 session_public_id: context.session_public_id,
                 incident_id: context.incident_id,
                 mantra_capture_enabled: context.mantra_capture_enabled,
+                morpho_capture_enabled: context.morpho_capture_enabled,
+                result_capture_enabled: context.result_capture_enabled,
             });
 
             if (!response?.ok) {
@@ -332,7 +399,7 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
         const incidentId = Number(data.incident_id);
         const context = ACTIVE_DRAFTS.get(incidentId);
         if (!context || context.handoff_token !== data.handoff_token) {
-            showToast?.('OEM draft rejected (session mismatch).', { variant: 'danger' });
+            showToast?.('OEM result rejected (session mismatch).', { variant: 'danger' });
             return;
         }
 
@@ -342,10 +409,11 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
                 handoff_token: context.handoff_token,
                 outcome: data.outcome,
                 rows: data.rows ?? [],
+                fields: data.fields ?? null,
             });
 
-            renderDraftPanel(incidentId, result.session, { baseUrl, showToast });
-            showToast?.('Mantra OEM draft ready for review.', { variant: 'info' });
+            renderResultsPanel(incidentId, result.session, { baseUrl, showToast });
+            showToast?.('OEM result captured — awaiting your review in Desk.', { variant: 'info' });
         } catch (error) {
             showToast?.(error.message, { variant: 'danger' });
         }

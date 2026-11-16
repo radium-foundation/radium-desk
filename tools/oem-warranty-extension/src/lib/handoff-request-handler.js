@@ -39,11 +39,17 @@ export function handleHandoffRequest(sender, message, deps) {
         }
 
         deps.store.bindTab(handoffId, tab.id);
+        const resultCaptureEnabled = message.result_capture_enabled === true
+            || message.mantra_capture_enabled === true
+            || message.morpho_capture_enabled === true;
+
         deps.setSessionMeta(tab.id, {
             handoff_token: typeof message.handoff_token === 'string' ? message.handoff_token : undefined,
             incident_id: typeof message.incident_id === 'number' ? message.incident_id : undefined,
             session_public_id: typeof message.session_public_id === 'string' ? message.session_public_id : undefined,
+            result_capture_enabled: resultCaptureEnabled,
             mantra_capture_enabled: message.mantra_capture_enabled === true,
+            morpho_capture_enabled: message.morpho_capture_enabled === true,
             oem,
         });
     });

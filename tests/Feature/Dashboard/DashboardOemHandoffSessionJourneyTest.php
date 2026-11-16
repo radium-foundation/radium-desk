@@ -29,6 +29,7 @@ class DashboardOemHandoffSessionJourneyTest extends TestCase
         config([
             'dashboard_oem_handoff.enabled' => true,
             'dashboard_oem_handoff.mantra_result_capture_enabled' => true,
+            'dashboard_oem_handoff.morpho_result_capture_enabled' => true,
             'dashboard_oem_handoff.session_ttl_seconds' => 600,
         ]);
     }
@@ -106,10 +107,12 @@ class DashboardOemHandoffSessionJourneyTest extends TestCase
         $this->actingAs($agent)->postJson(
             route('dashboard.service-cases.oem-handoff.sessions.review', [$incident, $start['session_public_id']]),
         )->assertOk()
-            ->assertJsonPath('session.status', DashboardOemHandoffSessionStatus::Reviewed->value);
+            ->assertJsonPath('session.status', DashboardOemHandoffSessionStatus::Confirmed->value);
 
         $session = DashboardOemHandoffSession::query()->where('public_id', $start['session_public_id'])->firstOrFail();
-        $this->assertSame(DashboardOemHandoffSessionStatus::Reviewed, $session->status);
+        $this->assertSame(DashboardOemHandoffSessionStatus::Confirmed, $session->status);
+        $this->assertNotNull($session->confirmed_payload);
+        $this->assertNotNull($session->confirmed_at);
     }
 
     public function test_master_flag_disabled_blocks_session_start(): void
@@ -260,6 +263,86 @@ class DashboardOemHandoffSessionJourneyTest extends TestCase
                 ]],
             ],
         )->assertForbidden();
+    }
+
+    private function morphoIncident(User $agent, string $serial = '2441I041803', string $model = 'MSO E3'): Incident
+    {
+        $order = Order::query()->create([
+            'order_id' => 'RD-OEM-MRP-'.uniqid(),
+            'serial_number' => $serial,
+            'product_name' => $model,
+            'device_model' => $model,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        return Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Morpho OEM handoff journey',
+            'description' => 'Journey test.',
+            'status' => 'open',
+            'created_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+    }
+
+    public function test_morpho_draft_confirm_journey(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->morphoIncident($agent);
+
+        $start = $this->actingAs($agent)->postJson(
+            route('dashboard.service-cases.oem-handoff.sessions.store', $incident),
+        )->assertOk()->json();
+
+        $this->assertSame('morpho', $start['oem']);
+
+        $this->actingAs($agent)->postJson(
+            route('dashboard.service-cases.oem-handoff.sessions.draft', [$incident, $start['session_public_id']]),
+            [
+                'handoff_token' => $start['handoff_token'],
+                'outcome' => 'found',
+                'fields' => [
+                    'serial_number' => '2441I041803',
+                    'device_validity' => 'Valid',
+                    'whitelist_status' => 'Whitelisted',
+                    'expiry_date' => '2027-06-01',
+                ],
+            ],
+        )->assertOk()
+            ->assertJsonPath('session.draft.fields.device_validity', 'Valid');
+
+        $this->actingAs($agent)->postJson(
+            route('dashboard.service-cases.oem-handoff.sessions.confirm', [$incident, $start['session_public_id']]),
+        )->assertOk()
+            ->assertJsonPath('session.status', DashboardOemHandoffSessionStatus::Confirmed->value);
+    }
+
+    public function test_reject_captured_result(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->mantraIncident($agent);
+        $start = $this->actingAs($agent)->sessionPayload($incident);
+
+        $this->actingAs($agent)->postJson(
+            route('dashboard.service-cases.oem-handoff.sessions.draft', [$incident, $start['session_public_id']]),
+            $this->draftPayload($start['handoff_token']),
+        )->assertOk();
+
+        $this->actingAs($agent)->postJson(
+            route('dashboard.service-cases.oem-handoff.sessions.reject', [$incident, $start['session_public_id']]),
+            ['reason' => 'DOM mismatch'],
+        )->assertOk()
+            ->assertJsonPath('session.status', DashboardOemHandoffSessionStatus::Rejected->value);
+
+        $session = DashboardOemHandoffSession::query()->where('public_id', $start['session_public_id'])->firstOrFail();
+        $this->assertSame(DashboardOemHandoffSessionStatus::Rejected, $session->status);
+        $this->assertNull($session->confirmed_payload);
     }
 
     public function test_not_found_outcome_allowed_without_dates(): void

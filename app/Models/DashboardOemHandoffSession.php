@@ -21,6 +21,11 @@ class DashboardOemHandoffSession extends Model
         'draft_submitted_at',
         'draft_reviewed_at',
         'draft_payload',
+        'confirmed_at',
+        'rejected_at',
+        'confirmed_by_user_id',
+        'confirmed_payload',
+        'rejection_reason',
     ];
 
     protected function casts(): array
@@ -31,6 +36,9 @@ class DashboardOemHandoffSession extends Model
             'draft_submitted_at' => 'datetime',
             'draft_reviewed_at' => 'datetime',
             'draft_payload' => 'array',
+            'confirmed_at' => 'datetime',
+            'rejected_at' => 'datetime',
+            'confirmed_payload' => 'array',
         ];
     }
 

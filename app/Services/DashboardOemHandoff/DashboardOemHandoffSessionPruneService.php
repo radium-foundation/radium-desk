@@ -54,9 +54,16 @@ final class DashboardOemHandoffSessionPruneService
                         ])->where('expires_at', '<', $cutoff);
                     })
                     ->orWhere(function ($q) use ($cutoff) {
-                        $q->where('status', DashboardOemHandoffSessionStatus::Reviewed->value)
-                            ->whereNotNull('draft_reviewed_at')
-                            ->where('draft_reviewed_at', '<', $cutoff);
+                        $q->whereIn('status', [
+                            DashboardOemHandoffSessionStatus::Reviewed->value,
+                            DashboardOemHandoffSessionStatus::Confirmed->value,
+                            DashboardOemHandoffSessionStatus::Rejected->value,
+                        ])
+                            ->where(function ($inner) use ($cutoff) {
+                                $inner->whereNotNull('draft_reviewed_at')->where('draft_reviewed_at', '<', $cutoff)
+                                    ->orWhereNotNull('confirmed_at')->where('confirmed_at', '<', $cutoff)
+                                    ->orWhereNotNull('rejected_at')->where('rejected_at', '<', $cutoff);
+                            });
                     })
                     ->orWhere(function ($q) use ($cutoff) {
                         $q->whereIn('status', [
@@ -73,7 +80,11 @@ final class DashboardOemHandoffSessionPruneService
             })
             ->where(function ($q) use ($now) {
                 $q->where('expires_at', '<', $now)
-                    ->orWhere('status', DashboardOemHandoffSessionStatus::Reviewed->value);
+                    ->orWhereIn('status', [
+                        DashboardOemHandoffSessionStatus::Reviewed->value,
+                        DashboardOemHandoffSessionStatus::Confirmed->value,
+                        DashboardOemHandoffSessionStatus::Rejected->value,
+                    ]);
             });
     }
 }

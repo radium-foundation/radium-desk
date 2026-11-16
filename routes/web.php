@@ -207,6 +207,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.oem-handoff.sessions.draft');
     Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions/{sessionPublicId}/review', [DashboardOemHandoffSessionController::class, 'review'])
         ->name('dashboard.service-cases.oem-handoff.sessions.review');
+    Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions/{sessionPublicId}/confirm', [DashboardOemHandoffSessionController::class, 'confirm'])
+        ->name('dashboard.service-cases.oem-handoff.sessions.confirm');
+    Route::post('dashboard/service-cases/{incident}/oem-handoff/sessions/{sessionPublicId}/reject', [DashboardOemHandoffSessionController::class, 'reject'])
+        ->name('dashboard.service-cases.oem-handoff.sessions.reject');
     Route::get('dashboard/service-cases/{incident}/customer-360', [Customer360Controller::class, 'show'])
         ->name('dashboard.service-cases.customer-360');
     Route::patch('dashboard/service-cases/{incident}/conversation-workspace', [ConversationWorkspaceController::class, 'update'])

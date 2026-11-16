@@ -4,7 +4,8 @@
     HANDOFF_REQUEST: "OEM_HANDOFF_REQUEST",
     HANDOFF_CLAIM: "OEM_HANDOFF_CLAIM",
     HANDOFF_CLAIM_RESULT: "OEM_HANDOFF_CLAIM_RESULT",
-    HANDOFF_MANTRA_DRAFT: "OEM_HANDOFF_MANTRA_DRAFT"
+    HANDOFF_MANTRA_DRAFT: "OEM_HANDOFF_MANTRA_DRAFT",
+    HANDOFF_OEM_RESULT: "OEM_HANDOFF_OEM_RESULT"
   };
 
   // src/lib/mantra-handoff-claim.js
@@ -158,6 +159,39 @@
     return { ok: true };
   }
 
+  // src/lib/oem-result-observe.js
+  var OEM_RESULT_OBSERVE_MAX_MS = 6e5;
+  function observeOemResult(doc, options) {
+    const maxMs = options.maxObserveMs ?? OEM_RESULT_OBSERVE_MAX_MS;
+    let emitted = false;
+    const tryEmit = () => {
+      if (emitted || !options.isReady(doc)) {
+        return;
+      }
+      const payload = options.buildPayload(doc);
+      if (!payload) {
+        return;
+      }
+      emitted = true;
+      observer.disconnect();
+      clearTimeout(timeoutId);
+      options.onEmit(payload);
+    };
+    const observer = new MutationObserver(() => {
+      tryEmit();
+    });
+    observer.observe(doc.body, { childList: true, subtree: true });
+    const timeoutId = window.setTimeout(() => {
+      observer.disconnect();
+    }, maxMs);
+    tryEmit();
+    return () => {
+      emitted = true;
+      observer.disconnect();
+      clearTimeout(timeoutId);
+    };
+  }
+
   // src/lib/mantra-result-parse.js
   function readMantraResultTable(doc) {
     const rows = [];
@@ -225,34 +259,37 @@
       return;
     }
     showMantraHandoffStatus(document, "success");
-    if (claim.mantra_capture_enabled !== true) {
+    const captureEnabled = claim.result_capture_enabled === true || claim.mantra_capture_enabled === true;
+    if (!captureEnabled) {
       return;
     }
-    let draftSent = false;
-    const tryEmitDraft = () => {
-      if (draftSent) {
-        return;
+    observeOemResult(document, {
+      isReady: (doc) => {
+        const rows = readMantraResultTable(doc);
+        return rows.length > 0 && isMantraResultVisible(doc);
+      },
+      buildPayload: (doc) => {
+        const rows = readMantraResultTable(doc);
+        if (!rows.length) {
+          return null;
+        }
+        return {
+          outcome: inferMantraOutcome(rows),
+          rows
+        };
+      },
+      onEmit: ({ outcome, rows }) => {
+        chrome.runtime.sendMessage({
+          type: MSG.HANDOFF_OEM_RESULT,
+          oem: OEM,
+          handoff_token: claim.handoff_token,
+          incident_id: claim.incident_id,
+          session_public_id: claim.session_public_id,
+          outcome,
+          rows
+        });
       }
-      const rows = readMantraResultTable(document);
-      if (!rows.length || !isMantraResultVisible(document)) {
-        return;
-      }
-      draftSent = true;
-      observer.disconnect();
-      chrome.runtime.sendMessage({
-        type: MSG.HANDOFF_MANTRA_DRAFT,
-        handoff_token: claim.handoff_token,
-        incident_id: claim.incident_id,
-        session_public_id: claim.session_public_id,
-        outcome: inferMantraOutcome(rows),
-        rows
-      });
-    };
-    const observer = new MutationObserver(() => {
-      tryEmitDraft();
     });
-    observer.observe(document.body, { childList: true, subtree: true });
-    tryEmitDraft();
   };
   void runMantraHandoff();
 })();

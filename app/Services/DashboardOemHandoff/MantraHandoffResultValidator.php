@@ -30,9 +30,10 @@ final class MantraHandoffResultValidator
         }
 
         if ($outcome === 'not_found') {
-            return [
-                'oem' => 'mantra',
-                'outcome' => 'not_found',
+        return [
+            'oem' => 'mantra',
+            'schema_version' => 1,
+            'outcome' => 'not_found',
                 'serial_number' => $normalizedSerial,
                 'capture_method' => 'extension_dom',
                 'rows' => [],
@@ -51,6 +52,7 @@ final class MantraHandoffResultValidator
 
             return [
                 'oem' => 'mantra',
+                'schema_version' => 1,
                 'outcome' => 'inconclusive',
                 'serial_number' => $normalizedSerial,
                 'capture_method' => 'extension_dom',
@@ -79,6 +81,7 @@ final class MantraHandoffResultValidator
 
         return [
             'oem' => 'mantra',
+            'schema_version' => 1,
             'outcome' => $outcome === 'found' ? 'found' : 'inconclusive',
             'serial_number' => $normalizedSerial,
             'capture_method' => 'extension_dom',

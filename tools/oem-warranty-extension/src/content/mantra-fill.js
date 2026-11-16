@@ -6,6 +6,7 @@ import {
     MANTRA_SERIAL_FIELD_MAX_WAIT_MS,
     waitForMantraSerialField,
 } from '../lib/mantra-serial-field-wait.js';
+import { observeOemResult } from '../lib/oem-result-observe.js';
 import {
     inferMantraOutcome,
     isMantraResultVisible,
@@ -47,41 +48,39 @@ const runMantraHandoff = async () => {
 
     showMantraHandoffStatus(document, 'success');
 
-    if (claim.mantra_capture_enabled !== true) {
+    const captureEnabled = claim.result_capture_enabled === true || claim.mantra_capture_enabled === true;
+    if (!captureEnabled) {
         return;
     }
 
-    let draftSent = false;
+    observeOemResult(document, {
+        isReady: (doc) => {
+            const rows = readMantraResultTable(doc);
+            return rows.length > 0 && isMantraResultVisible(doc);
+        },
+        buildPayload: (doc) => {
+            const rows = readMantraResultTable(doc);
+            if (!rows.length) {
+                return null;
+            }
 
-    const tryEmitDraft = () => {
-        if (draftSent) {
-            return;
-        }
-
-        const rows = readMantraResultTable(document);
-        if (!rows.length || !isMantraResultVisible(document)) {
-            return;
-        }
-
-        draftSent = true;
-        observer.disconnect();
-
-        chrome.runtime.sendMessage({
-            type: MSG.HANDOFF_MANTRA_DRAFT,
-            handoff_token: claim.handoff_token,
-            incident_id: claim.incident_id,
-            session_public_id: claim.session_public_id,
-            outcome: inferMantraOutcome(rows),
-            rows,
-        });
-    };
-
-    const observer = new MutationObserver(() => {
-        tryEmitDraft();
+            return {
+                outcome: inferMantraOutcome(rows),
+                rows,
+            };
+        },
+        onEmit: ({ outcome, rows }) => {
+            chrome.runtime.sendMessage({
+                type: MSG.HANDOFF_OEM_RESULT,
+                oem: OEM,
+                handoff_token: claim.handoff_token,
+                incident_id: claim.incident_id,
+                session_public_id: claim.session_public_id,
+                outcome,
+                rows,
+            });
+        },
     });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-    tryEmitDraft();
 };
 
 void runMantraHandoff();
