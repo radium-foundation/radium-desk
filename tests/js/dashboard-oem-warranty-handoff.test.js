@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     clearPendingOemDraftReview,
     DESK_OEM_WINDOW_MSG,
+    getOemInlineCompletionContext,
     initDashboardOemWarrantyHandoff,
     markPendingOemDraftReview,
     OEM_DRAFT_NOT_RECOVERABLE_MESSAGE,
@@ -246,7 +247,7 @@ describe('initDashboardOemWarrantyHandoff', () => {
         window.postMessage = originalPost;
     });
 
-    it('renders administrator completion controls when a draft is recovered', async () => {
+    it('registers inline REF completion context when a draft is recovered (no serial-column panel)', async () => {
         mountDashboardPage(true);
         document.body.insertAdjacentHTML('beforeend', `
             <table>
@@ -284,13 +285,15 @@ describe('initDashboardOemWarrantyHandoff', () => {
             setTimeout(resolve, 0);
         });
 
-        const panel = document.querySelector('[data-oem-results-panel="42"]');
-        expect(panel).not.toBeNull();
-        expect(panel.querySelector('[data-oem-result-confirm]')).toBeNull();
-        expect(panel.querySelector('[data-oem-result-reject]')).toBeNull();
-        expect(panel.querySelector('[data-oem-complete-save]')).not.toBeNull();
-        expect(panel.querySelector('[data-oem-service-reference]')).not.toBeNull();
-        expect(panel.querySelector('[data-oem-expiry-date]')).not.toBeNull();
+        expect(document.querySelector('[data-oem-results-panel="42"]')).toBeNull();
+        expect(getOemInlineCompletionContext(42)).toMatchObject({
+            sessionPublicId: 'sess-42',
+            proposedRdExpiryYmd: '2026-06-01',
+        });
+        expect(showToast).toHaveBeenCalledWith(
+            expect.stringContaining('Add service reference'),
+            { variant: 'info' },
+        );
     });
 
     it('rejects OEM draft postMessage when handoff token does not match active session', () => {
