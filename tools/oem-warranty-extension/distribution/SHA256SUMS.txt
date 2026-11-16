@@ -1,0 +1,2 @@
+583e17010020a960890ce6e703f8d41b80e5a55d625f7a73a59ca22a7bf9788c  radium-desk-oem-warranty-handoff-0.3.1-for-desk-v4.1.69.zip
+93e2adec9ac47ca3a92249b3eea8ccab18f4a1fc2568ecd43f4f901993e694dd  radium-desk-oem-warranty-handoff-0.3.2-for-desk-v4.1.69.zip
