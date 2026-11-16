@@ -4051,6 +4051,22 @@ a:focus-visible .stat-card {
     line-height: 1;
 }
 
+.dashboard-cases-table .transaction-id-cell .transaction-inline-oem-expiry-wrap {
+    width: max-content;
+    max-width: 100%;
+    margin-bottom: 0.125rem;
+}
+
+.dashboard-cases-table .transaction-id-cell .transaction-inline-expiry {
+    height: 1.5rem;
+    min-height: 1.5rem;
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: 1.5rem;
+    font-size: 0.8125rem;
+    max-width: 9.5rem;
+}
+
 .dashboard-cases-table .transaction-inline-editor .input-group {
     width: max-content;
     max-width: 100%;

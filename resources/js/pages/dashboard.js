@@ -31,9 +31,19 @@ import { setOrderWorkspaceLegacyVerificationModal } from '../order-workspace';
 import { createCustomer360AwareToast, showAppToast } from '../core/toast';
 import { initMentionTextareas } from '../core/mention-textareas';
 import { keyboardShortcutHooks, workspaceApiRef, workspaceHooks } from '../core/workspace-registry';
-import { initDashboardOemWarrantyHandoff } from '../dashboard-oem-warranty-handoff';
+import {
+    clearOemHandoffDraftAfterAssignment,
+    getOemInlineCompletionContext,
+    initDashboardOemWarrantyHandoff,
+} from '../dashboard-oem-warranty-handoff';
 
-const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, legacyVerificationModal } = {}) => {
+const initDashboardTransactions = ({
+    pageRoot,
+    openBatchModal,
+    onRowUpdated,
+    onOemAssignmentSaved,
+    legacyVerificationModal,
+} = {}) => {
     const card = document.querySelector('.dashboard-service-cases-card');
 
     if (!card) {
@@ -64,11 +74,34 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
         openBatchModal,
     });
 
+    const configureOemInlineExpiryField = (cell) => {
+        const incidentId = Number(cell.dataset.incidentId);
+        const oemContext = getOemInlineCompletionContext(incidentId);
+        const expiryWrap = cell.querySelector('.transaction-inline-oem-expiry-wrap');
+        const expiryInput = cell.querySelector('.transaction-inline-expiry');
+
+        if (!expiryWrap || !expiryInput) {
+            return;
+        }
+
+        if (!oemContext) {
+            expiryWrap.classList.add('d-none');
+            expiryInput.value = '';
+            expiryInput.classList.remove('is-invalid');
+            return;
+        }
+
+        expiryWrap.classList.remove('d-none');
+        expiryInput.classList.remove('is-invalid');
+        expiryInput.value = oemContext.proposedRdExpiryYmd ?? '';
+    };
+
     const openInlineEditor = (cell) => {
         const trigger = cell.querySelector('.transaction-cell-trigger');
         const editor = cell.querySelector('.transaction-inline-editor');
         const input = cell.querySelector('.transaction-inline-input');
         const error = cell.querySelector('.transaction-inline-error');
+        const expiryInput = cell.querySelector('.transaction-inline-expiry');
 
         if (!editor || !input) {
             return;
@@ -83,6 +116,7 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
 
         input.classList.remove('is-invalid');
         input.value = '';
+        configureOemInlineExpiryField(cell);
         input.focus();
 
         getWorkspaceSession().acquire('inline-transaction', {
@@ -95,10 +129,17 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
         const editor = cell.querySelector('.transaction-inline-editor');
         const input = cell.querySelector('.transaction-inline-input');
         const error = cell.querySelector('.transaction-inline-error');
+        const expiryWrap = cell.querySelector('.transaction-inline-oem-expiry-wrap');
+        const expiryInput = cell.querySelector('.transaction-inline-expiry');
 
         editor?.classList.add('d-none');
         trigger?.classList.remove('d-none');
         input?.classList.remove('is-invalid');
+        expiryInput?.classList.remove('is-invalid');
+        expiryWrap?.classList.add('d-none');
+        if (expiryInput) {
+            expiryInput.value = '';
+        }
 
         if (error) {
             error.textContent = '';
@@ -113,17 +154,40 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
         }
 
         const input = cell.querySelector('.transaction-inline-input');
+        const expiryInput = cell.querySelector('.transaction-inline-expiry');
         const error = cell.querySelector('.transaction-inline-error');
         const saveButton = cell.querySelector('.transaction-inline-save');
         const storeUrl = cell.dataset.storeUrl;
-        const incidentId = cell.dataset.incidentId;
+        const incidentId = Number(cell.dataset.incidentId);
         const transactionId = input?.value.trim() ?? '';
         const requiresLegacyVerification = cell.dataset.requiresLegacyVerification === 'true';
         const legacyVerificationUrl = cell.dataset.legacyVerificationUrl;
         const legacyVerificationMode = cell.dataset.legacyVerificationMode ?? 'customer';
+        const oemContext = getOemInlineCompletionContext(incidentId);
+        const subscriptionExpiryDate = expiryInput?.value?.trim() ?? '';
 
-        if (!storeUrl || !input || transactionId === '') {
+        if (!input || transactionId === '') {
             input?.classList.add('is-invalid');
+
+            if (error) {
+                error.textContent = 'Service reference is required.';
+            }
+
+            return;
+        }
+
+        if (oemContext) {
+            if (!subscriptionExpiryDate) {
+                expiryInput?.classList.add('is-invalid');
+
+                if (error) {
+                    error.textContent = 'RD subscription expiry date is required.';
+                }
+
+                return;
+            }
+        } else if (!storeUrl) {
+            input.classList.add('is-invalid');
 
             if (error) {
                 error.textContent = 'Service reference is required.';
@@ -162,7 +226,18 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
             };
 
             try {
-                const response = await fetch(storeUrl, {
+                const requestUrl = oemContext?.completeAssignmentUrl ?? storeUrl;
+                const requestBody = oemContext
+                    ? {
+                        service_reference: transactionId,
+                        subscription_expiry_date: subscriptionExpiryDate,
+                    }
+                    : {
+                        transaction_id: transactionId,
+                        incident_id: incidentId,
+                    };
+
+                const response = await fetch(requestUrl, {
                     method: 'POST',
                     headers: {
                         Accept: 'application/json',
@@ -170,17 +245,20 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
                         'X-CSRF-TOKEN': csrfToken(),
                         'X-Requested-With': 'XMLHttpRequest',
                     },
-                    body: JSON.stringify({
-                        transaction_id: transactionId,
-                        incident_id: Number(incidentId),
-                    }),
+                    body: JSON.stringify(requestBody),
                 });
 
                 const data = await response.json();
 
                 if (!response.ok) {
-                    const message = data.errors?.transaction_id?.[0] ?? data.message ?? 'Unable to save service reference.';
+                    const message = oemContext
+                        ? (Object.values(data.errors ?? {}).flat()?.[0] ?? data.message ?? 'Unable to complete assignment.')
+                        : (data.errors?.transaction_id?.[0] ?? data.message ?? 'Unable to save service reference.');
                     input.classList.add('is-invalid');
+
+                    if (oemContext && data.errors?.subscription_expiry_date) {
+                        expiryInput?.classList.add('is-invalid');
+                    }
 
                     if (error) {
                         error.textContent = message;
@@ -191,27 +269,33 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
                     return;
                 }
 
-                const removeIncidentIds = [
-                    ...(data.remove_row?.incident_id !== undefined ? [Number(data.remove_row.incident_id)] : []),
-                    ...((data.remove_rows ?? []).map((row) => Number(row.incident_id))),
-                ].filter((id) => Number.isFinite(id) && id > 0);
-
                 getWorkspaceSession().release('inline-transaction');
 
-                if (removeIncidentIds.length > 0) {
-                    Array.from(new Set(removeIncidentIds)).forEach((id) => {
-                        removeServiceCaseRow(id);
-                    });
-                } else if (data.row_html && data.incident_id) {
-                    replaceServiceCaseRow(data.incident_id, data.row_html);
-                    batchSession.updateToolbar();
-                }
+                if (oemContext) {
+                    clearOemHandoffDraftAfterAssignment(incidentId);
+                    onOemAssignmentSaved?.(data);
+                    showAppToast(data.message ?? 'Service reference and expiry saved.');
+                } else {
+                    const removeIncidentIds = [
+                        ...(data.remove_row?.incident_id !== undefined ? [Number(data.remove_row.incident_id)] : []),
+                        ...((data.remove_rows ?? []).map((row) => Number(row.incident_id))),
+                    ].filter((id) => Number.isFinite(id) && id > 0);
 
-                if (data.kpi_strip_html !== undefined) {
-                    applyKpis(data.kpi_strip_html);
-                }
+                    if (removeIncidentIds.length > 0) {
+                        Array.from(new Set(removeIncidentIds)).forEach((id) => {
+                            removeServiceCaseRow(id);
+                        });
+                    } else if (data.row_html && data.incident_id) {
+                        replaceServiceCaseRow(data.incident_id, data.row_html);
+                        batchSession.updateToolbar();
+                    }
 
-                showAppToast(data.message ?? 'Service reference saved.');
+                    if (data.kpi_strip_html !== undefined) {
+                        applyKpis(data.kpi_strip_html);
+                    }
+
+                    showAppToast(data.message ?? 'Service reference saved.');
+                }
 
                 // Success replaces/removes the row; only release if the editor cell remains.
                 if (cell.isConnected) {
@@ -268,7 +352,7 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
             return;
         }
 
-        const input = event.target.closest('.transaction-inline-input');
+        const input = event.target.closest('.transaction-inline-input, .transaction-inline-expiry');
 
         if (input) {
             event.preventDefault();
@@ -355,22 +439,6 @@ export const bootDashboard = () => {
     initDashboardKpiActions(pageRoot);
     initViewOnlyMetricRefresh(pageRoot);
 
-    dashboardTransactionsRef.current = initDashboardTransactions({
-        pageRoot,
-        legacyVerificationModal,
-        openBatchModal: (incidentIds) => {
-            workspaceHooks.openBatchModal?.(incidentIds);
-        },
-        onRowUpdated: () => {
-            dashboardQuickFilter?.reapply();
-        },
-    });
-
-    const dashboardTransactions = dashboardTransactionsRef.current;
-
-    workspaceHooks.replaceServiceCaseRow = (...args) => dashboardTransactionsRef.current?.replaceServiceCaseRow(...args);
-    workspaceHooks.removeServiceCaseRow = (incidentId) => dashboardTransactionsRef.current?.removeServiceCaseRow?.(incidentId);
-
     const handleOemAssignmentSaved = (data) => {
         const removeIncidentIds = [
             ...(data.remove_row?.incident_id !== undefined ? [Number(data.remove_row.incident_id)] : []),
@@ -391,10 +459,24 @@ export const bootDashboard = () => {
         }
     };
 
-    initDashboardOemWarrantyHandoff(showAppToast, {
-        onAssignmentSaved: handleOemAssignmentSaved,
+    dashboardTransactionsRef.current = initDashboardTransactions({
+        pageRoot,
         legacyVerificationModal,
+        onOemAssignmentSaved: handleOemAssignmentSaved,
+        openBatchModal: (incidentIds) => {
+            workspaceHooks.openBatchModal?.(incidentIds);
+        },
+        onRowUpdated: () => {
+            dashboardQuickFilter?.reapply();
+        },
     });
+
+    const dashboardTransactions = dashboardTransactionsRef.current;
+
+    workspaceHooks.replaceServiceCaseRow = (...args) => dashboardTransactionsRef.current?.replaceServiceCaseRow(...args);
+    workspaceHooks.removeServiceCaseRow = (incidentId) => dashboardTransactionsRef.current?.removeServiceCaseRow?.(incidentId);
+
+    initDashboardOemWarrantyHandoff(showAppToast);
 
     workspaceHooks.afterSuccess = async (data) => {
         const batchSession = dashboardTransactionsRef.current?.batchSession;

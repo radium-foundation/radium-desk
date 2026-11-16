@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.1.75 — Unreleased — OEM RD expiry in REF inline workflow (P-16-53)
+
+- **Purpose:** Remove the serial-column OEM administrator completion panel (table layout regression). Prefill **Mantra RD Expiry Date** (`rd_expiry_date`) in the existing **REF.** inline service-reference editor; single tick calls unchanged **`complete-assignment`** (P-16-51). **Does not authorize production deploy.**
+- **Application delta:** Dashboard JavaScript + REF column blade/CSS only. **No** PHP/service/schema changes. **No** payment, Cashfree, fulfilment, or feature-flag changes.
+- **Focused evidence:** Vitest `dashboard-oem-warranty-handoff.test.js` **10/10**, `dashboard-oem-rd-expiry-prefill.test.js` **6/6** (exit **0**). PHPUnit unchanged — reuse P-16-51 complete-assignment tests. Full PHPUnit **NOT RUN**. Live browser E2E **NOT RUN**.
+
 ## 4.1.74 — Unreleased — OEM administrator completion workflow (P-16-51)
 
 - **Purpose:** Replace dashboard **Confirm result** / **Reject result** OEM review controls with administrator-entered **Service Reference Number** and **RD subscription Expiry Date**, single save action, and atomic case closure via existing **`OrderTransactionService::assignTransactionId`**. OEM capture remains informational evidence only. **Does not authorize production deploy.**
