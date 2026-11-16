@@ -269,6 +269,7 @@ Before production deployment:
 * Verify migration and rollback compatibility.  
 * Complete deployment preflight.  
 * Preserve the required recovery checkpoint.  
+* For **Radium Desk on Hostinger KVM (`1910783`)**: verify Hostinger API access and capture a **fresh provider-verified** whole-VM snapshot (`desk hostinger-vps-snapshot-create` with Owner authorization env) before deploy; record snapshot ID and expiry. Co-hosted apps share the same VPS — not Desk-only. **Not** a DB backup substitute.  
 * Stop if any mandatory safety check fails.
 
 A successful CI run, merge or release tag does not establish that production is safe or that a release is known-good.

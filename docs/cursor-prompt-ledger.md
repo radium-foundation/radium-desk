@@ -1175,6 +1175,10 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-36 | 2026-11-16 | **P-16-36** OEM Service Reference suggestions production release preflight ChatGPT **P-16-36** | **RISK HIGH.** **`origin/main`** **`0fe4a964`** (PR **#287**). Prod **`v4.1.69`/`50d43ada1`**. Focused PHPUnit **26** PASS; backup **`20261116T083001Z`**; RIP post–v4.1.69 **PASS** (reused). **BLOCKED** on missing **4.1.70** CHANGELOG/tag. **NO** deploy/migrate/flags. |
 
-| RadiumDesk-P-16-37 | 2026-11-16 | **P-16-37** v4.1.70 release metadata (CHANGELOG + tag) ChatGPT **P-16-37** | **RISK NORMAL.** Worktree **`.worktrees/p16-34-oem-sr-suggest`** branch **`feature/p16-37-v4170-release-metadata`**. **CHANGELOG 4.1.70** for app merge **`0fe4a964`** (PR **#287**); annotated tag **`v4.1.70`**; OEM flags remain OFF. **NO** deploy/migrate/prod flags. |
+| RadiumDesk-P-16-37 | 2026-11-16 | **P-16-37** v4.1.70 release metadata (CHANGELOG + tag) ChatGPT **P-16-37** | **RISK NORMAL.** Worktree **`.worktrees/p16-34-oem-sr-suggest`** branch **`feature/p16-37-v4170-release-metadata`**. **CHANGELOG 4.1.70** for app merge **`0fe4a964`** (PR **#287**); annotated tag **`v4.1.70`** @ **`2b6746f62`**; OEM flags remain OFF. **NO** deploy/migrate/prod flags. |
+
+| RadiumDesk-P-16-38 | 2026-11-16 | **P-16-38** v4.1.70 final production preflight ChatGPT **P-16-38** | **RISK HIGH.** Prod **`v4.1.69`/`50d43ada1`**. Backup **`20261116T140642Z`** Cloud uploaded; RIP **`RIP-161126-1939-radium-desk-pre-v4170-deploy-50d43ad`** verify **PASS**. **NO** deploy/migrate/flags. |
+
+| RadiumDesk-P-16-39 | 2026-11-16 | **P-16-39** Hostinger snapshot API + fresh pre-v4170 KVM snapshot ChatGPT **P-16-39** | **RISK HIGH.** API **VERIFIED** (token file **0600**; VM **1910783**). Snapshot **`459755`** refreshed; action **`126013587`** **success**; **`created=2026-11-16T14:15:32Z`** **`expires=2026-11-17T14:15:32Z`**; **`recovery-point-verified`**. Governance + RIP checklist updated. **NO** deploy/migrate/flags/restore. |
 
 Do not renumber or overwrite earlier rows. Append only.
