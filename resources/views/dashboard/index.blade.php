@@ -54,6 +54,7 @@
          data-customer-360-url="{{ url('dashboard/service-cases') }}"
          data-dashboard-oem-handoff-enabled="{{ config('dashboard_oem_handoff.enabled') ? '1' : '0' }}"
          data-dashboard-oem-handoff-mantra-capture="{{ config('dashboard_oem_handoff.mantra_result_capture_enabled') ? '1' : '0' }}"
+         data-dashboard-oem-handoff-morpho-capture="{{ config('dashboard_oem_handoff.morpho_result_capture_enabled') ? '1' : '0' }}"
          data-dashboard-oem-handoff-url="{{ url('dashboard/service-cases') }}"
          @if(isset($stats['next_appointment']) && is_array($stats['next_appointment']))
          data-next-appointment='@json($stats['next_appointment'])'

@@ -18,12 +18,12 @@ use Illuminate\Validation\ValidationException;
 final class DashboardOemHandoffSessionService
 {
     public function __construct(
-        private readonly MantraHandoffResultValidator $resultValidator,
+        private readonly OemHandoffResultValidator $resultValidator,
         private readonly OemWarrantyCheckVendorResolver $vendorResolver,
     ) {}
 
     /**
-     * @return array{session: DashboardOemHandoffSession, handoff_token: string, mantra_capture_enabled: bool}
+     * @return array{session: DashboardOemHandoffSession, handoff_token: string, result_capture_enabled: bool, mantra_capture_enabled: bool, morpho_capture_enabled: bool}
      */
     public function start(Incident $incident, User $user): array
     {
@@ -39,9 +39,9 @@ final class DashboardOemHandoffSessionService
         }
 
         $vendor = $this->vendorResolver->resolveForOrder($order);
-        if ($vendor !== OemWarrantyCheckVendor::Mantra) {
+        if ($vendor === null) {
             throw ValidationException::withMessages([
-                'oem' => ['Only Mantra (MIS 100 / MFS 110) handoff is available in this release.'],
+                'oem' => ['No supported OEM warranty portal is configured for this device model.'],
             ]);
         }
 
@@ -53,9 +53,12 @@ final class DashboardOemHandoffSessionService
         }
 
         $model = trim((string) ($order->displayDeviceModelName() ?? ''));
-        $mantraCapture = (bool) config('dashboard_oem_handoff.mantra_result_capture_enabled');
+        $mantraCapture = $vendor === OemWarrantyCheckVendor::Mantra
+            && (bool) config('dashboard_oem_handoff.mantra_result_capture_enabled');
+        $morphoCapture = $vendor === OemWarrantyCheckVendor::Morpho
+            && (bool) config('dashboard_oem_handoff.morpho_result_capture_enabled');
 
-        return DB::transaction(function () use ($incident, $user, $vendor, $serial, $model, $mantraCapture) {
+        return DB::transaction(function () use ($incident, $user, $vendor, $serial, $model, $mantraCapture, $morphoCapture) {
             $this->cancelActiveSessions($incident, $user);
 
             $handoffToken = Str::random(64);
@@ -75,7 +78,9 @@ final class DashboardOemHandoffSessionService
             return [
                 'session' => $session,
                 'handoff_token' => $handoffToken,
+                'result_capture_enabled' => $mantraCapture || $morphoCapture,
                 'mantra_capture_enabled' => $mantraCapture,
+                'morpho_capture_enabled' => $morphoCapture,
             ];
         });
     }
@@ -95,24 +100,20 @@ final class DashboardOemHandoffSessionService
      */
     public function submitDraft(string $handoffToken, User $user, array $payload): DashboardOemHandoffSession
     {
-        if (! config('dashboard_oem_handoff.mantra_result_capture_enabled')) {
-            throw ValidationException::withMessages([
-                'capture' => ['Mantra DOM result capture is disabled.'],
-            ]);
-        }
-
         $session = $this->resolveByHandoffToken($handoffToken);
         $this->assertOwnedBy($session, $user);
 
-        if ($session->oem !== OemWarrantyCheckVendor::Mantra->value) {
-            throw ValidationException::withMessages(['oem' => ['Only Mantra draft capture is supported.']]);
+        if (! $this->resultCaptureEnabledFor($session)) {
+            throw ValidationException::withMessages([
+                'capture' => ['OEM DOM result capture is disabled for this vendor.'],
+            ]);
         }
 
         if ($session->draft_submitted_at !== null || $session->status === DashboardOemHandoffSessionStatus::DraftReady) {
-            throw ValidationException::withMessages(['handoff_token' => ['This session already received a draft.']]);
+            throw ValidationException::withMessages(['handoff_token' => ['This session already received a result.']]);
         }
 
-        $validated = $this->resultValidator->validateDraft($session->serial_number, $payload);
+        $validated = $this->resultValidator->validateDraft($session->oem, $session->serial_number, $payload);
 
         $session->draft_payload = $validated;
         $session->draft_submitted_at = now();
@@ -122,24 +123,71 @@ final class DashboardOemHandoffSessionService
         return $session;
     }
 
+    public function confirmResult(DashboardOemHandoffSession $session, User $user): DashboardOemHandoffSession
+    {
+        $this->assertOwnedBy($session, $user);
+
+        if ($session->status !== DashboardOemHandoffSessionStatus::DraftReady) {
+            throw ValidationException::withMessages(['session' => ['No captured OEM result is ready for confirmation.']]);
+        }
+
+        if ($session->draft_payload === null) {
+            throw ValidationException::withMessages(['session' => ['Captured result payload is missing.']]);
+        }
+
+        $session->confirmed_at = now();
+        $session->confirmed_by_user_id = $user->id;
+        $session->confirmed_payload = $session->draft_payload;
+        $session->draft_reviewed_at = now();
+        $session->status = DashboardOemHandoffSessionStatus::Confirmed;
+        $session->save();
+
+        return $session;
+    }
+
+  /**
+   * @param  array{reason?: string|null}  $options
+   */
+    public function rejectResult(DashboardOemHandoffSession $session, User $user, array $options = []): DashboardOemHandoffSession
+    {
+        $this->assertOwnedBy($session, $user);
+
+        if ($session->status !== DashboardOemHandoffSessionStatus::DraftReady) {
+            throw ValidationException::withMessages(['session' => ['No captured OEM result is ready for rejection.']]);
+        }
+
+        $reason = isset($options['reason']) ? trim((string) $options['reason']) : '';
+        if (strlen($reason) > 255) {
+            throw ValidationException::withMessages(['reason' => ['Rejection reason is too long.']]);
+        }
+
+        $session->rejected_at = now();
+        $session->rejection_reason = $reason !== '' ? $reason : null;
+        $session->status = DashboardOemHandoffSessionStatus::Rejected;
+        $session->save();
+
+        return $session;
+    }
+
+    public function markReviewed(DashboardOemHandoffSession $session, User $user): DashboardOemHandoffSession
+    {
+        return $this->confirmResult($session, $user);
+    }
+
     public function recoverRecoverableDraft(Incident $incident, User $user): DashboardOemHandoffSession
     {
         if (! config('dashboard_oem_handoff.enabled')) {
-            throw new ModelNotFoundException('No recoverable draft.');
-        }
-
-        if (! config('dashboard_oem_handoff.mantra_result_capture_enabled')) {
-            throw new ModelNotFoundException('No recoverable draft.');
+            throw new ModelNotFoundException('No recoverable result.');
         }
 
         $order = $incident->order;
         if ($order === null) {
-            throw new ModelNotFoundException('No recoverable draft.');
+            throw new ModelNotFoundException('No recoverable result.');
         }
 
         $expectedSerial = OrderSerialOwnership::normalizeSerial($order->serial_number);
         if ($expectedSerial === null) {
-            throw new ModelNotFoundException('No recoverable draft.');
+            throw new ModelNotFoundException('No recoverable result.');
         }
 
         /** @var DashboardOemHandoffSession|null $session */
@@ -152,34 +200,11 @@ final class DashboardOemHandoffSessionService
             ->orderByDesc('draft_submitted_at')
             ->first();
 
-        if ($session === null) {
-            throw new ModelNotFoundException('No recoverable draft.');
+        if ($session === null || ! $this->resultCaptureEnabledFor($session)) {
+            throw new ModelNotFoundException('No recoverable result.');
         }
 
-        $sessionSerial = OrderSerialOwnership::normalizeSerial($session->serial_number);
-        if ($sessionSerial === null || strtoupper($sessionSerial) !== strtoupper($expectedSerial)) {
-            throw new AuthorizationException('Recoverable draft does not match the current service case serial.');
-        }
-
-        $draftSerial = OrderSerialOwnership::normalizeSerial($session->draft_payload['serial_number'] ?? null);
-        if ($draftSerial === null || strtoupper($draftSerial) !== strtoupper($expectedSerial)) {
-            throw new AuthorizationException('Recoverable draft does not match the current service case serial.');
-        }
-
-        return $session;
-    }
-
-    public function markReviewed(DashboardOemHandoffSession $session, User $user): DashboardOemHandoffSession
-    {
-        $this->assertOwnedBy($session, $user);
-
-        if ($session->status !== DashboardOemHandoffSessionStatus::DraftReady) {
-            throw ValidationException::withMessages(['session' => ['No draft is ready for review.']]);
-        }
-
-        $session->draft_reviewed_at = now();
-        $session->status = DashboardOemHandoffSessionStatus::Reviewed;
-        $session->save();
+        $this->assertDraftSerialMatchesCase($session, $expectedSerial);
 
         return $session;
     }
@@ -215,13 +240,39 @@ final class DashboardOemHandoffSessionService
         if ((int) $session->user_id !== (int) $user->id) {
             throw new AuthorizationException('Handoff session belongs to another user.');
         }
-
     }
 
     public function assertForIncident(DashboardOemHandoffSession $session, Incident $incident): void
     {
         if ((int) $session->incident_id !== (int) $incident->id) {
             throw new AuthorizationException('Handoff session does not belong to this service case.');
+        }
+    }
+
+    private function resultCaptureEnabledFor(DashboardOemHandoffSession $session): bool
+    {
+        return match ($session->oem) {
+            OemWarrantyCheckVendor::Mantra->value => (bool) config('dashboard_oem_handoff.mantra_result_capture_enabled'),
+            OemWarrantyCheckVendor::Morpho->value => (bool) config('dashboard_oem_handoff.morpho_result_capture_enabled'),
+            default => false,
+        };
+    }
+
+    private function assertDraftSerialMatchesCase(DashboardOemHandoffSession $session, string $expectedSerial): void
+    {
+        $sessionSerial = OrderSerialOwnership::normalizeSerial($session->serial_number);
+        if ($sessionSerial === null || strtoupper($sessionSerial) !== strtoupper($expectedSerial)) {
+            throw new AuthorizationException('Recoverable result does not match the current service case serial.');
+        }
+
+        $draft = $session->draft_payload;
+        if (! is_array($draft)) {
+            throw new AuthorizationException('Recoverable result payload is invalid.');
+        }
+
+        $draftSerial = OrderSerialOwnership::normalizeSerial($draft['serial_number'] ?? null);
+        if ($draftSerial === null || strtoupper($draftSerial) !== strtoupper($expectedSerial)) {
+            throw new AuthorizationException('Recoverable result does not match the current service case serial.');
         }
     }
 

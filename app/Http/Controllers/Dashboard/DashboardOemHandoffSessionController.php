@@ -31,6 +31,8 @@ class DashboardOemHandoffSessionController extends Controller
             'expires_at' => $session->expires_at->toIso8601String(),
             'handoff_token' => $result['handoff_token'],
             'mantra_capture_enabled' => $result['mantra_capture_enabled'],
+            'morpho_capture_enabled' => $result['morpho_capture_enabled'],
+            'result_capture_enabled' => $result['result_capture_enabled'],
             'status' => $session->status->value,
         ]);
     }
@@ -71,6 +73,7 @@ class DashboardOemHandoffSessionController extends Controller
             'handoff_token' => ['required', 'string', 'min:32', 'max:128'],
             'outcome' => ['required', 'string', 'in:found,not_found,inconclusive'],
             'rows' => ['nullable', 'array'],
+            'fields' => ['nullable', 'array'],
         ]);
 
         $session = DashboardOemHandoffSession::query()
@@ -99,6 +102,11 @@ class DashboardOemHandoffSessionController extends Controller
 
     public function review(Request $request, Incident $incident, string $sessionPublicId): JsonResponse
     {
+        return $this->confirm($request, $incident, $sessionPublicId);
+    }
+
+    public function confirm(Request $request, Incident $incident, string $sessionPublicId): JsonResponse
+    {
         $this->authorize('view', $incident);
 
         $session = DashboardOemHandoffSession::query()
@@ -108,7 +116,31 @@ class DashboardOemHandoffSessionController extends Controller
 
         $this->sessionService->assertForIncident($session, $incident);
         $this->sessionService->assertOwnedBy($session, $request->user());
-        $updated = $this->sessionService->markReviewed($session, $request->user());
+        $updated = $this->sessionService->confirmResult($session, $request->user());
+
+        return response()->json([
+            'session' => $this->sessionPayload($updated),
+        ]);
+    }
+
+    public function reject(Request $request, Incident $incident, string $sessionPublicId): JsonResponse
+    {
+        $this->authorize('view', $incident);
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $session = DashboardOemHandoffSession::query()
+            ->where('public_id', $sessionPublicId)
+            ->where('incident_id', $incident->id)
+            ->firstOrFail();
+
+        $this->sessionService->assertForIncident($session, $incident);
+        $this->sessionService->assertOwnedBy($session, $request->user());
+        $updated = $this->sessionService->rejectResult($session, $request->user(), [
+            'reason' => $validated['reason'] ?? null,
+        ]);
 
         return response()->json([
             'session' => $this->sessionPayload($updated),
@@ -128,21 +160,49 @@ class DashboardOemHandoffSessionController extends Controller
             'oem' => $session->oem,
             'device_model' => $session->device_model,
             'status' => $session->status->value,
+            'status_label' => $session->status->displayLabel(),
             'expires_at' => $session->expires_at->toIso8601String(),
             'draft_submitted_at' => $session->draft_submitted_at?->toIso8601String(),
             'draft_reviewed_at' => $session->draft_reviewed_at?->toIso8601String(),
-            'draft' => $draft ? [
-                'oem' => $draft['oem'] ?? 'mantra',
-                'outcome' => $draft['outcome'] ?? 'inconclusive',
-                'serial_number' => $draft['serial_number'] ?? null,
-                'model' => $draft['model'] ?? null,
-                'warranty_expiry_date' => $draft['warranty_expiry_date'] ?? null,
-                'rd_expiry_date' => $draft['rd_expiry_date'] ?? null,
-                'capture_method' => $draft['capture_method'] ?? 'extension_dom',
-                'captured_at' => $draft['captured_at'] ?? null,
-                'warranty_expiry_label' => 'OEM-reported warranty expiry (not verified)',
-                'rd_expiry_label' => 'OEM-reported RD subscription expiry (not warranty)',
-            ] : null,
+            'confirmed_at' => $session->confirmed_at?->toIso8601String(),
+            'rejected_at' => $session->rejected_at?->toIso8601String(),
+            'rejection_reason' => $session->rejection_reason,
+            'draft' => $draft ? $this->normalizedDraftView($draft) : null,
+            'confirmed' => $session->confirmed_payload ? $this->normalizedDraftView($session->confirmed_payload) : null,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $draft
+     * @return array<string, mixed>
+     */
+    private function normalizedDraftView(array $draft): array
+    {
+        $oem = (string) ($draft['oem'] ?? 'mantra');
+        $base = [
+            'oem' => $oem,
+            'outcome' => $draft['outcome'] ?? 'inconclusive',
+            'serial_number' => $draft['serial_number'] ?? null,
+            'capture_method' => $draft['capture_method'] ?? 'extension_dom',
+            'captured_at' => $draft['captured_at'] ?? null,
+            'schema_version' => $draft['schema_version'] ?? 1,
+            'disclaimer' => 'OEM-reported values are informational only — not verified warranty or renewal entitlement.',
+        ];
+
+        if ($oem === 'morpho') {
+            $fields = is_array($draft['fields'] ?? null) ? $draft['fields'] : [];
+
+            return array_merge($base, [
+                'fields' => $fields,
+            ]);
+        }
+
+        return array_merge($base, [
+            'model' => $draft['model'] ?? null,
+            'warranty_expiry_date' => $draft['warranty_expiry_date'] ?? null,
+            'rd_expiry_date' => $draft['rd_expiry_date'] ?? null,
+            'warranty_expiry_label' => 'OEM-reported warranty expiry (not verified)',
+            'rd_expiry_label' => 'OEM-reported RD subscription expiry (not warranty)',
+        ]);
     }
 }

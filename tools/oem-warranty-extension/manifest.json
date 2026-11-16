@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Radium Desk OEM Warranty Handoff (Internal)",
     "description": "Private Desk → OEM serial handoff for admin-initiated warranty checks. Not for public distribution.",
-    "version": "0.3.4",
+    "version": "0.3.5",
     "permissions": ["tabs"],
     "host_permissions": [
         "https://desk.radiumbox.com/*",
@@ -32,7 +32,7 @@
         },
         {
             "matches": ["https://rdserviceonline.com/pages/172iserialvalidatenumber*"],
-            "js": ["src/content/morpho-fill.js"],
+            "js": ["src/content/morpho-fill.bundle.js"],
             "run_at": "document_idle"
         }
     ]

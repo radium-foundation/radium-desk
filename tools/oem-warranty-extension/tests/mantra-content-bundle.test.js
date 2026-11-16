@@ -8,15 +8,19 @@ const bundlePath = path.join(root, 'src/content/mantra-fill.bundle.js');
 const manifestPath = path.join(root, 'manifest.json');
 
 describe('mantra content bundle (Chrome classic script)', () => {
-    it('manifest references the bundled Mantra script without module type', () => {
+    it('manifest references classic bundled OEM scripts without module type', () => {
         const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
         const mantra = manifest.content_scripts.find((cs) =>
             cs.matches?.some((m) => m.includes('mantratecapp.com')),
+        );
+        const morpho = manifest.content_scripts.find((cs) =>
+            cs.matches?.some((m) => m.includes('rdserviceonline.com')),
         );
 
         expect(mantra).toBeDefined();
         expect(mantra.js).toEqual(['src/content/mantra-fill.bundle.js']);
         expect(mantra.type).toBeUndefined();
+        expect(morpho?.js).toEqual(['src/content/morpho-fill.bundle.js']);
     });
 
     it('bundle exists and has no top-level ES module import/export statements', () => {

@@ -6,7 +6,7 @@ import { isExpectedOemDestinationUrl, isOemVendor } from './lib/handoff-payload.
 
 const store = new HandoffStore();
 
-/** @type {Map<number, { handoff_token?: string, incident_id?: number, session_public_id?: string, mantra_capture_enabled: boolean, oem: string }>} */
+/** @type {Map<number, { handoff_token?: string, incident_id?: number, session_public_id?: string, result_capture_enabled: boolean, mantra_capture_enabled: boolean, morpho_capture_enabled: boolean, oem: string }>} */
 const sessionMetaByTabId = new Map();
 
 const DRAFT_TO_DESK = 'OEM_HANDOFF_DRAFT_TO_DESK';
@@ -51,7 +51,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return false;
         }
 
-        const meta = sessionMetaByTabId.get(tabId) ?? { mantra_capture_enabled: false, oem };
+        const meta = sessionMetaByTabId.get(tabId) ?? {
+            result_capture_enabled: false,
+            mantra_capture_enabled: false,
+            morpho_capture_enabled: false,
+            oem,
+        };
 
         sendResponse({
             ok: true,
@@ -59,23 +64,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             handoff_token: meta.handoff_token,
             incident_id: meta.incident_id,
             session_public_id: meta.session_public_id,
-            mantra_capture_enabled: meta.mantra_capture_enabled,
+            result_capture_enabled: meta.result_capture_enabled === true,
+            mantra_capture_enabled: meta.mantra_capture_enabled === true,
+            morpho_capture_enabled: meta.morpho_capture_enabled === true,
         });
 
         return false;
     }
 
-    if (message?.type === MSG.HANDOFF_MANTRA_DRAFT) {
+    if (message?.type === MSG.HANDOFF_OEM_RESULT || message?.type === MSG.HANDOFF_MANTRA_DRAFT) {
         const tabId = sender.tab?.id;
         const pageUrl = sender.tab?.url;
+        const oem = message?.oem ?? 'mantra';
 
-        if (tabId == null || !isExpectedOemDestinationUrl(pageUrl, 'mantra')) {
-            sendResponse({ ok: false, error: 'invalid-mantra-draft-sender' });
+        if (tabId == null || !isOemVendor(oem) || !isExpectedOemDestinationUrl(pageUrl, oem)) {
+            sendResponse({ ok: false, error: 'invalid-oem-result-sender' });
             return false;
         }
 
         const meta = sessionMetaByTabId.get(tabId);
-        if (!meta || meta.mantra_capture_enabled !== true) {
+        if (!meta || meta.result_capture_enabled !== true) {
             sendResponse({ ok: false, error: 'capture-disabled' });
             return false;
         }
@@ -100,8 +108,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 handoff_token: meta.handoff_token,
                 incident_id: meta.incident_id,
                 session_public_id: meta.session_public_id,
+                oem,
                 outcome: message.outcome,
                 rows: message.rows ?? [],
+                fields: message.fields ?? null,
             });
 
             sessionMetaByTabId.delete(tabId);

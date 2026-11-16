@@ -135,7 +135,7 @@ class DashboardOemHandoffSessionSecurityTest extends TestCase
         )->assertOk();
 
         $session = DashboardOemHandoffSession::query()->where('public_id', $start['session_public_id'])->first();
-        $this->assertSame(DashboardOemHandoffSessionStatus::Reviewed, $session?->status);
+        $this->assertSame(DashboardOemHandoffSessionStatus::Confirmed, $session?->status);
         $this->assertNotNull($session?->draft_reviewed_at);
 
         if (Schema::hasTable('oem_warranty_checks')) {

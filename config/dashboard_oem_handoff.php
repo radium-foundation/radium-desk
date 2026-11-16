@@ -14,6 +14,14 @@ return [
         FILTER_VALIDATE_BOOL,
     ),
 
+  /**
+   * When false (default), Morpho extension prefill only; DOM result capture is rejected server-side.
+   */
+    'morpho_result_capture_enabled' => filter_var(
+        env('DASHBOARD_OEM_HANDOFF_MORPHO_CAPTURE', false),
+        FILTER_VALIDATE_BOOL,
+    ),
+
     'session_ttl_seconds' => (int) env('DASHBOARD_OEM_HANDOFF_SESSION_TTL_SECONDS', 600),
 
     'start_rate_limit_per_minute' => (int) env('DASHBOARD_OEM_HANDOFF_START_RATE_LIMIT', 20),

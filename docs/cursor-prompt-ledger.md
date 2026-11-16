@@ -1160,4 +1160,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-23 | 2026-11-16 | **P-16-23** Mantra OEM handoff timeout after v0.3.3 ChatGPT **P-16-23** | **RISK NORMAL.** Worktree **`.worktrees/p16-23-handoff-timeout`** @ **`origin/main`** **`430900e11`**. **Root cause:** MV3 **`OEM_HANDOFF_REQUEST`** deferred **`sendResponse`** until **`chrome.tabs.create`** callback — Desk **`legacyHandoff`** **12s** timer (`desk-handoff.js:45`) fires **timeout** toast (`dashboard-oem-warranty-handoff.js:6`) when response port closes. **Fix:** synchronous ack + async tab open (`handoff-request-handler.js`); session-path Desk status **timeout** after **12s**. Extension **v0.3.4**; Vitest **40** pass. **NO** Desk deploy/flags/migrations. Live Chrome **NOT RUN**. |
 
+| RadiumDesk-P-16-24 | 2026-11-16 | **P-16-24** Two-way OEM results (Mantra/Morpho) ChatGPT **P-16-24** | **RISK HIGH.** Worktree **`.worktrees/p16-24-oem-two-way`** @ **`origin/main`** **`9bc3303e0`**. Two-way capture + Desk confirm/reject; extension **v0.3.5**; migration **`2026_11_16_100000_add_oem_handoff_session_decisions`**; flags default **OFF**. Vitest **42** pass; local PHPUnit **BLOCKED** (PHP/Herd). **NO** prod deploy/migrate/flags. Deploy plan **`docs/desk-p16-24-oem-two-way-deploy-plan.md`**. |
+
 Do not renumber or overwrite earlier rows. Append only.
