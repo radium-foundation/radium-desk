@@ -4,6 +4,7 @@ import { populateMorphoSerialFieldDomOnly } from '../lib/morpho-populate.js';
 import {
     inferMorphoOutcome,
     isMorphoResultVisible,
+    morphoFieldsForCapture,
     readMorphoResultFields,
 } from '../lib/morpho-result-parse.js';
 import { observeOemResult } from '../lib/oem-result-observe.js';
@@ -72,10 +73,10 @@ const runMorphoHandoff = async () => {
     observeOemResult(document, {
         isReady: isMorphoResultVisible,
         buildPayload: (doc) => {
-            const fields = readMorphoResultFields(doc);
+            const parsed = readMorphoResultFields(doc);
             return {
-                outcome: inferMorphoOutcome(fields),
-                fields,
+                outcome: inferMorphoOutcome(parsed),
+                fields: morphoFieldsForCapture(parsed),
             };
         },
         onEmit: ({ outcome, fields }) => {

@@ -2,8 +2,8 @@
 
 ## Current release (recommended)
 
-**Package:** `radium-desk-oem-warranty-handoff-0.3.5-for-desk-v4.1.69.zip`  
-**Extension version:** **0.3.5** (Manifest V3) — two-way Mantra/Morpho DOM capture (P-16-24)  
+**Package:** `radium-desk-oem-warranty-handoff-0.3.6-for-desk-v4.1.69.zip`  
+**Extension version:** **0.3.6** (Manifest V3) — Morpho result-serial capture hardening (P-16-25)  
 **Matched Desk release:** `v4.1.69`+ (requires Desk PR with session confirm/reject APIs)  
 **Built:** 2026-11-16
 

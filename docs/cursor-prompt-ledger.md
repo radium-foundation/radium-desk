@@ -1162,4 +1162,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-24 | 2026-11-16 | **P-16-24** Two-way OEM results (Mantra/Morpho) ChatGPT **P-16-24** | **RISK HIGH.** Worktree **`.worktrees/p16-24-oem-two-way`** @ **`origin/main`** **`9bc3303e0`**. Two-way capture + Desk confirm/reject; extension **v0.3.5**; migration **`2026_11_16_100000_add_oem_handoff_session_decisions`**; flags default **OFF**. Vitest **42** pass; local PHPUnit **BLOCKED** (PHP/Herd). **NO** prod deploy/migrate/flags. Deploy plan **`docs/desk-p16-24-oem-two-way-deploy-plan.md`**. |
 
+| RadiumDesk-P-16-25 | 2026-11-16 | **P-16-25** Mantra/Morpho capture verification (ext only) ChatGPT **P-16-25** | **RISK NORMAL.** Worktree **`.worktrees/p16-25-capture-verify`** @ **`7a61ce7c8`**. **VERIFIED:** Morpho serial must not come from prefill `#device-serial-number1`; strip `panel_visible` from capture payload. Ext **v0.3.6**; Vitest **50** pass. **NO** Desk/DB/flags/deploy. Live Chrome **NOT RUN**. |
+
 Do not renumber or overwrite earlier rows. Append only.
