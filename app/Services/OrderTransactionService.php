@@ -13,6 +13,7 @@ use App\Notifications\TransactionCompletedNotification;
 use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Commercial\CommercialStateResolver;
 use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\DashboardOemHandoff\ServiceReferenceOemSubscriptionExpiryPersistenceService;
 use App\Services\Operations\TeamMemberActivityService;
 use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceIssuer;
@@ -38,6 +39,7 @@ class OrderTransactionService
         private readonly AutomationOperationsSnapshotInvalidator $automationSnapshotInvalidator,
         private readonly SettingService $settingService,
         private readonly SerialPlaceholderService $serialPlaceholderService,
+        private readonly ServiceReferenceOemSubscriptionExpiryPersistenceService $oemSubscriptionExpiryPersistence,
     ) {}
 
     public function assignTransactionId(
@@ -109,6 +111,8 @@ class OrderTransactionService
                         'completed_at' => $freshOrder->completed_at?->toIso8601String(),
                     ],
                 );
+
+                $this->oemSubscriptionExpiryPersistence->flushQuarantinedSessionsForOrder($freshOrder, $actor);
 
                 app(TeamMemberActivityService::class)
                     ->recordCaseAction($actor);

@@ -26,6 +26,8 @@ class DashboardOemHandoffSession extends Model
         'confirmed_by_user_id',
         'confirmed_payload',
         'rejection_reason',
+        'oem_expiry_persist_status',
+        'oem_expiry_persist_detail',
     ];
 
     protected function casts(): array
