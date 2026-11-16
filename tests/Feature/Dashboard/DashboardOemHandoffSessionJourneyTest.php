@@ -314,12 +314,15 @@ class DashboardOemHandoffSessionJourneyTest extends TestCase
                 ],
             ],
         )->assertOk()
-            ->assertJsonPath('session.draft.fields.device_validity', 'Valid');
+            ->assertJsonPath('session.draft.fields.device_validity', 'Valid')
+            ->assertJsonPath('session.draft.whitelist_qualification', 'already_whitelisted')
+            ->assertJsonPath('session.service_reference_prefill.eligible', true);
 
         $this->actingAs($agent)->postJson(
             route('dashboard.service-cases.oem-handoff.sessions.confirm', [$incident, $start['session_public_id']]),
         )->assertOk()
-            ->assertJsonPath('session.status', DashboardOemHandoffSessionStatus::Confirmed->value);
+            ->assertJsonPath('session.status', DashboardOemHandoffSessionStatus::Confirmed->value)
+            ->assertJsonPath('service_reference_prefill.eligible', true);
     }
 
     public function test_reject_captured_result(): void

@@ -1,3 +1,4 @@
+import { presentMorphoServiceReferencePrefill } from './dashboard-morpho-service-reference-prefill';
 import { csrfToken } from './workspace/http';
 
 const HANDOFF_ERROR_MESSAGES = {
@@ -135,10 +136,19 @@ const attachPanelActions = ({
         event.stopPropagation();
         try {
             const confirmUrl = `${baseUrl}/${incidentId}/oem-handoff/sessions/${sessionPublicId}/confirm`;
-            await postJson(confirmUrl);
+            const confirmed = await postJson(confirmUrl);
             removeResultsPanel(incidentId);
             clearPendingOemDraftReview(incidentId);
-            showToast?.('OEM result confirmed and stored as informational evidence only.', { variant: 'success' });
+            const prefill = confirmed?.service_reference_prefill ?? confirmed?.session?.service_reference_prefill;
+            if (prefill?.eligible === true) {
+                presentMorphoServiceReferencePrefill(incidentId, prefill);
+                showToast?.(
+                    'Morpho result confirmed. Review OEM dates and enter the service reference when ready.',
+                    { variant: 'success' },
+                );
+            } else {
+                showToast?.('OEM result confirmed and stored as informational evidence only.', { variant: 'success' });
+            }
             ACTIVE_DRAFTS.delete(incidentId);
         } catch (error) {
             showToast?.(error.message, { variant: 'danger' });
@@ -194,7 +204,14 @@ const renderResultsPanel = (incidentId, session, { baseUrl, showToast }) => {
 
     const statusLabel = session.status_label ?? session.status ?? 'unknown';
     const outcome = draft.outcome ?? 'inconclusive';
+    const qualification = draft.whitelist_qualification ?? null;
     const details = oem === 'morpho' ? renderMorphoDetails(draft) : renderMantraDetails(draft);
+    const prefill = session.service_reference_prefill;
+    const populationHint = oem === 'morpho' && prefill
+        ? (prefill.eligible
+            ? '<p class="text-success mb-1">Eligible to open the service reference editor after you confirm this result.</p>'
+            : `<p class="text-warning mb-1">${prefill.rejection_reason ?? 'Not eligible for service reference prefill.'}</p>`)
+        : '';
 
     const panel = document.createElement('div');
     panel.className = 'oem-handoff-results-panel small border rounded bg-white p-2 mt-1';
@@ -204,7 +221,8 @@ const renderResultsPanel = (incidentId, session, { baseUrl, showToast }) => {
 
     panel.innerHTML = `
         <div class="fw-semibold">${formatOemLabel(oem)} OEM results</div>
-        <div class="text-muted mb-1">Status: ${statusLabel} · Outcome: ${outcome} · Source: extension DOM</div>
+        <div class="text-muted mb-1">Status: ${statusLabel} · Outcome: ${outcome}${qualification ? ` · Qualification: ${qualification}` : ''} · Source: extension DOM</div>
+        ${populationHint}
         ${details}
         <p class="text-muted mb-2">${draft.disclaimer ?? 'OEM-reported values are informational only — not verified warranty or renewal entitlement.'}</p>
         ${actionable ? `

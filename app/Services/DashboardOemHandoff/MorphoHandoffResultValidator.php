@@ -2,6 +2,7 @@
 
 namespace App\Services\DashboardOemHandoff;
 
+use App\Support\Oem\MorphoWhitelistQualification;
 use App\Support\Orders\OrderSerialOwnership;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -32,34 +33,41 @@ final class MorphoHandoffResultValidator
             ]);
         }
 
-        if ($outcome === 'found') {
+        $normalizedOutcome = in_array($outcome, ['found', 'not_found', 'inconclusive'], true) ? $outcome : 'inconclusive';
+
+        $parsedFields = [
+            'serial_number' => $normalizedSerial,
+            'device_validity' => $this->stringOrNull($fields['device_validity'] ?? null),
+            'whitelist_status' => $this->stringOrNull($fields['whitelist_status'] ?? null),
+            'whitelist_date' => $this->parseDate($this->stringOrNull($fields['whitelist_date'] ?? null)),
+            'expiry_date' => $this->parseDate($this->stringOrNull($fields['expiry_date'] ?? null)),
+            'validity_years' => $this->stringOrNull($fields['validity_years'] ?? null),
+            'device_type' => $this->stringOrNull($fields['device_type'] ?? null),
+        ];
+
+        if ($normalizedOutcome === 'found') {
             $hasSignal = [
-                $this->stringOrNull($fields['device_validity'] ?? null),
-                $this->stringOrNull($fields['whitelist_status'] ?? null),
-                $this->stringOrNull($fields['expiry_date'] ?? null),
-                $this->stringOrNull($fields['device_type'] ?? null),
+                $parsedFields['device_validity'],
+                $parsedFields['whitelist_status'],
+                $parsedFields['expiry_date'],
+                $parsedFields['device_type'],
             ];
             if (! array_filter($hasSignal)) {
                 throw ValidationException::withMessages(['fields' => ['Morpho result contains no usable fields.']]);
             }
         }
 
+        $whitelistQualification = MorphoWhitelistQualification::classify($normalizedOutcome, $parsedFields);
+
         return [
             'oem' => 'morpho',
-            'schema_version' => 1,
-            'outcome' => in_array($outcome, ['found', 'not_found', 'inconclusive'], true) ? $outcome : 'inconclusive',
+            'schema_version' => 2,
+            'outcome' => $normalizedOutcome,
+            'whitelist_qualification' => $whitelistQualification,
             'serial_number' => $normalizedSerial,
             'capture_method' => 'extension_dom',
             'captured_at' => now()->toIso8601String(),
-            'fields' => [
-                'serial_number' => $normalizedSerial,
-                'device_validity' => $this->stringOrNull($fields['device_validity'] ?? null),
-                'whitelist_status' => $this->stringOrNull($fields['whitelist_status'] ?? null),
-                'whitelist_date' => $this->parseDate($this->stringOrNull($fields['whitelist_date'] ?? null)),
-                'expiry_date' => $this->parseDate($this->stringOrNull($fields['expiry_date'] ?? null)),
-                'validity_years' => $this->stringOrNull($fields['validity_years'] ?? null),
-                'device_type' => $this->stringOrNull($fields['device_type'] ?? null),
-            ],
+            'fields' => $parsedFields,
         ];
     }
 

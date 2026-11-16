@@ -1164,4 +1164,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-25 | 2026-11-16 | **P-16-25** Mantra/Morpho capture verification (ext only) ChatGPT **P-16-25** | **RISK NORMAL.** Worktree **`.worktrees/p16-25-capture-verify`** @ **`7a61ce7c8`**. **VERIFIED:** Morpho serial must not come from prefill `#device-serial-number1`; strip `panel_visible` from capture payload. Ext **v0.3.6**; Vitest **50** pass. **NO** Desk/DB/flags/deploy. Live Chrome **NOT RUN**. |
 
+| RadiumDesk-P-16-26 | 2026-11-16 | **P-16-26** Morpho already-whitelisted → Add Service Reference prefill ChatGPT **P-16-26** | **RISK HIGH.** Worktree **`.worktrees/p16-26-morpho-whitelist`** @ **`38934dcaa`**. Strict Morpho `whitelist_qualification`; Desk `service_reference_prefill` after OEM confirm; operator opens inline service reference editor (no auto-save). Ext **v0.3.7**. Mantra unchanged. Flags default OFF. **NO** deploy/prod migrate/prod data. |
+
 Do not renumber or overwrite earlier rows. Append only.

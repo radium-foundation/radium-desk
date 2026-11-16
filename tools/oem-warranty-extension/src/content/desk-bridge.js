@@ -16,6 +16,7 @@
                 outcome: message.outcome,
                 rows: message.rows,
                 fields: message.fields,
+                whitelist_qualification: message.whitelist_qualification ?? null,
             },
             window.location.origin,
         );

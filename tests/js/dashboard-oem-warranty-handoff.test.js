@@ -190,7 +190,7 @@ describe('initDashboardOemWarrantyHandoff', () => {
         }));
 
         expect(showToast).toHaveBeenCalledWith(
-            'OEM draft rejected (session mismatch).',
+            'OEM result rejected (session mismatch).',
             { variant: 'danger' },
         );
         expect(fetchMock).not.toHaveBeenCalled();

@@ -123,14 +123,42 @@
     const tbody = doc.querySelector("#tblDeviceResult tbody, table.device-result tbody");
     return Boolean(tbody && tbody.querySelectorAll("tr").length > 0);
   }
+  function classifyMorphoWhitelistQualification(fields) {
+    const deviceValidity = (fields.device_validity ?? "").trim();
+    const whitelistStatus = (fields.whitelist_status ?? "").trim();
+    const validityLower = deviceValidity.toLowerCase();
+    const whitelistLower = whitelistStatus.toLowerCase();
+    const isInvalidValidity = validityLower.includes("invalid") || validityLower.includes("not valid") || validityLower.includes("does not exist");
+    if (isInvalidValidity) {
+      return "invalid_device";
+    }
+    const isNotWhitelisted = /\bnot\s+whitelisted\b/.test(whitelistLower) || /\bvalid\b/.test(whitelistLower) && /\bnot\s+whitelisted\b/.test(whitelistLower);
+    if (isNotWhitelisted) {
+      return "valid_not_whitelisted";
+    }
+    const isAlreadyWhitelisted = /\balready\s+whitelisted\b/.test(whitelistLower) || /\bdevice\s+already\s+whitelisted\b/.test(whitelistLower) || /^\s*whitelisted\s*$/.test(whitelistLower);
+    if (isAlreadyWhitelisted) {
+      return "already_whitelisted";
+    }
+    if (deviceValidity !== "" && /\bvalid\b/.test(validityLower) && whitelistStatus === "") {
+      return "valid_not_whitelisted";
+    }
+    if (deviceValidity !== "" || whitelistStatus !== "") {
+      return "ambiguous";
+    }
+    return "inconclusive";
+  }
   function inferMorphoOutcome(fields) {
     const hasData = [fields.device_validity, fields.whitelist_status, fields.expiry_date, fields.device_type].some((value) => value && value !== "");
     if (!hasData) {
       return "inconclusive";
     }
-    const validity = (fields.device_validity ?? "").toLowerCase();
-    if (validity.includes("invalid") || validity.includes("not valid")) {
+    const qualification = classifyMorphoWhitelistQualification(fields);
+    if (qualification === "invalid_device") {
       return "not_found";
+    }
+    if (qualification === "inconclusive") {
+      return "inconclusive";
     }
     return "found";
   }
@@ -194,7 +222,7 @@
     const anchor = document.getElementById("device-serial-number1");
     anchor?.parentElement?.prepend(el);
   };
-  var emitMorphoResult = (claim, fields, outcome) => {
+  var emitMorphoResult = (claim, fields, outcome, whitelistQualification) => {
     chrome.runtime.sendMessage({
       type: MSG.HANDOFF_OEM_RESULT,
       oem: OEM,
@@ -202,6 +230,7 @@
       incident_id: claim.incident_id,
       session_public_id: claim.session_public_id,
       outcome,
+      whitelist_qualification: whitelistQualification,
       fields
     });
   };
@@ -227,12 +256,13 @@
         const parsed = readMorphoResultFields(doc);
         return {
           outcome: inferMorphoOutcome(parsed),
+          whitelist_qualification: classifyMorphoWhitelistQualification(parsed),
           fields: morphoFieldsForCapture(parsed)
         };
       },
-      onEmit: ({ outcome, fields }) => {
+      onEmit: ({ outcome, fields, whitelist_qualification: whitelistQualification }) => {
         showBanner("OEM result captured for Desk review. Return to Desk to confirm or reject.");
-        emitMorphoResult(claim, fields, outcome);
+        emitMorphoResult(claim, fields, outcome, whitelistQualification);
       }
     });
   };
