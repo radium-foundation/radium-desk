@@ -55,9 +55,47 @@ export class HandoffStore {
      * @param {{ handoffId?: string, tabId: number, oem: string }} query
      * @returns {{ serial: string } | null}
      */
+    /**
+     * When the OEM tab claims before bindTab runs, adopt the newest pending handoff for this OEM.
+     *
+     * @param {number} tabId
+     * @param {string} oem
+     * @returns {string | null}
+     */
+    adoptPendingHandoffForTab(tabId, oem) {
+        let candidateId = null;
+        let newestCreatedAt = 0;
+
+        for (const [id, entry] of this.byId) {
+            if (entry.consumed || entry.oem !== oem || entry.tabId !== null) {
+                continue;
+            }
+            if (entry.createdAt >= newestCreatedAt) {
+                newestCreatedAt = entry.createdAt;
+                candidateId = id;
+            }
+        }
+
+        if (!candidateId) {
+            return null;
+        }
+
+        const entry = this.byId.get(candidateId);
+        if (!entry) {
+            return null;
+        }
+
+        entry.tabId = tabId;
+        this.idByTabId.set(tabId, candidateId);
+        return candidateId;
+    }
+
     consume(query) {
         this.purgeExpired();
-        const handoffId = query.handoffId ?? this.idByTabId.get(query.tabId);
+        let handoffId = query.handoffId ?? this.idByTabId.get(query.tabId);
+        if (!handoffId) {
+            handoffId = this.adoptPendingHandoffForTab(query.tabId, query.oem);
+        }
         if (!handoffId) {
             return null;
         }

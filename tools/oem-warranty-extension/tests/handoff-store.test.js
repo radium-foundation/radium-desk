@@ -6,6 +6,16 @@ describe('HandoffStore', () => {
         vi.useRealTimers();
     });
 
+    it('adopts pending handoff when claim arrives before bindTab', () => {
+        const store = new HandoffStore({ ttlMs: 60_000 });
+        store.create({ oem: 'mantra', serial: '6540662' });
+
+        const claimed = store.consume({ tabId: 99, oem: 'mantra' });
+
+        expect(claimed).toEqual({ serial: '6540662' });
+        expect(store.consume({ tabId: 99, oem: 'mantra' })).toBeNull();
+    });
+
     it('consumes handoff once per tab', () => {
         const store = new HandoffStore({ ttlMs: 60_000 });
         const { handoffId } = store.create({ oem: 'mantra', serial: 'SYN-001' });

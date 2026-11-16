@@ -1,4 +1,11 @@
-import { populateMantraSerialField } from '../lib/mantra-populate.js';
+import { MSG } from '../lib/constants.js';
+import { claimHandoffWithRetry } from '../lib/mantra-handoff-claim.js';
+import { showMantraHandoffStatus } from '../lib/mantra-page-ui.js';
+import {
+    fillMantraSerialOnce,
+    MANTRA_SERIAL_FIELD_MAX_WAIT_MS,
+    waitForMantraSerialField,
+} from '../lib/mantra-serial-field-wait.js';
 import {
     inferMantraOutcome,
     isMantraResultVisible,
@@ -7,32 +14,40 @@ import {
 
 const OEM = 'mantra';
 
-function showFailure() {
-    const bannerId = 'radium-oem-handoff-banner';
-    if (document.getElementById(bannerId)) {
-        return;
-    }
-    const el = document.createElement('p');
-    el.id = bannerId;
-    el.setAttribute('role', 'status');
-    el.textContent = 'Serial could not be filled automatically. Enter it manually on this page.';
-    el.style.cssText = 'margin:8px 0;padding:8px;background:#fff3cd;border:1px solid #ffeeba;font-size:13px;';
-    document.getElementById('txtSerialNo')?.parentElement?.prepend(el);
-}
+const sendClaim = (payload) => new Promise((resolve) => {
+    chrome.runtime.sendMessage(payload, (response) => {
+        if (chrome.runtime.lastError) {
+            resolve({ ok: false, error: 'no-handoff' });
+            return;
+        }
+        resolve(response ?? { ok: false, error: 'handoff-failed' });
+    });
+});
 
-chrome.runtime.sendMessage({ type: 'OEM_HANDOFF_CLAIM', oem: OEM }, (response) => {
-    if (chrome.runtime.lastError || !response?.ok) {
-        showFailure();
-        return;
-    }
+const runMantraHandoff = async () => {
+    const claim = await claimHandoffWithRetry(sendClaim, { oem: OEM });
 
-    const populateResult = populateMantraSerialField(document, response.serial);
-    if (!populateResult.ok) {
-        showFailure();
+    if (!claim?.ok || typeof claim.serial !== 'string') {
+        showMantraHandoffStatus(document, 'failure');
         return;
     }
 
-    if (response.mantra_capture_enabled !== true) {
+    try {
+        await waitForMantraSerialField(document, '#txtSerialNo', MANTRA_SERIAL_FIELD_MAX_WAIT_MS);
+    } catch {
+        showMantraHandoffStatus(document, 'timeout');
+        return;
+    }
+
+    const fillResult = fillMantraSerialOnce(document, claim.serial);
+    if (!fillResult.ok) {
+        showMantraHandoffStatus(document, 'failure');
+        return;
+    }
+
+    showMantraHandoffStatus(document, 'success');
+
+    if (claim.mantra_capture_enabled !== true) {
         return;
     }
 
@@ -52,10 +67,10 @@ chrome.runtime.sendMessage({ type: 'OEM_HANDOFF_CLAIM', oem: OEM }, (response) =
         observer.disconnect();
 
         chrome.runtime.sendMessage({
-            type: 'OEM_HANDOFF_MANTRA_DRAFT',
-            handoff_token: response.handoff_token,
-            incident_id: response.incident_id,
-            session_public_id: response.session_public_id,
+            type: MSG.HANDOFF_MANTRA_DRAFT,
+            handoff_token: claim.handoff_token,
+            incident_id: claim.incident_id,
+            session_public_id: claim.session_public_id,
             outcome: inferMantraOutcome(rows),
             rows,
         });
@@ -67,4 +82,6 @@ chrome.runtime.sendMessage({ type: 'OEM_HANDOFF_CLAIM', oem: OEM }, (response) =
 
     observer.observe(document.body, { childList: true, subtree: true });
     tryEmitDraft();
-});
+};
+
+void runMantraHandoff();
