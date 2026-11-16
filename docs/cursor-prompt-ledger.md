@@ -1173,4 +1173,8 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-16-34 | 2026-11-16 | **P-16-34** AW-DD-MM-YY-NN OEM service reference suggestions ChatGPT **P-16-34** | **RISK HIGH.** Worktree **`.worktrees/p16-34-oem-sr-suggest`** branch **`feature/p16-34-oem-sr-suggest`** @ **`7be00f164`**. Formatter + **`rd_expiry_service_reference_sequences`** row lock allocator; suggestion on OEM confirm (flag **`service_reference_suggestion_enabled`** default OFF); manual assign via **`OrderTransactionService`**. P-16-31 table retained disabled. Focused PHPUnit PASS + MySQL parallel probe. **NO** prod migrate/flags/deploy. |
 
+| RadiumDesk-P-16-36 | 2026-11-16 | **P-16-36** OEM Service Reference suggestions production release preflight ChatGPT **P-16-36** | **RISK HIGH.** **`origin/main`** **`0fe4a964`** (PR **#287**). Prod **`v4.1.69`/`50d43ada1`**. Focused PHPUnit **26** PASS; backup **`20261116T083001Z`**; RIP post–v4.1.69 **PASS** (reused). **BLOCKED** on missing **4.1.70** CHANGELOG/tag. **NO** deploy/migrate/flags. |
+
+| RadiumDesk-P-16-37 | 2026-11-16 | **P-16-37** v4.1.70 release metadata (CHANGELOG + tag) ChatGPT **P-16-37** | **RISK NORMAL.** Worktree **`.worktrees/p16-34-oem-sr-suggest`** branch **`feature/p16-37-v4170-release-metadata`**. **CHANGELOG 4.1.70** for app merge **`0fe4a964`** (PR **#287**); annotated tag **`v4.1.70`**; OEM flags remain OFF. **NO** deploy/migrate/prod flags. |
+
 Do not renumber or overwrite earlier rows. Append only.
