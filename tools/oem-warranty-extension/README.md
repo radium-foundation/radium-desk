@@ -20,6 +20,10 @@ Implemented behavior:
 - Desk-origin gated handoffs; serial read from row DOM on explicit click (not URL/storage).
 - Morpho remains DOM-only prefill; OEM validation AJAX runs only when staff interact on the OEM page.
 
+## Build (Mantra content script)
+
+Chrome loads Mantra page code as a **classic** content script (`mantra-fill.bundle.js`). Source `mantra-fill.js` is ES modules; run `npm run build` after editing Mantra logic (also runs before `npm test`).
+
 ## Tests
 
 ```bash
