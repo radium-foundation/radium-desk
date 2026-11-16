@@ -32,6 +32,7 @@ use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class HardwareFulfilmentIngestReadyTest extends TestCase
@@ -109,6 +110,7 @@ class HardwareFulfilmentIngestReadyTest extends TestCase
         $this->assertNoDownstreamMutations();
     }
 
+    #[Group('permanent_regression')]
     public function test_unpaid_commerce_does_not_open_fulfilment_and_reingest_is_idempotent(): void
     {
         $payload = $this->eligibleBoxPayload('RDE910103');

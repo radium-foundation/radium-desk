@@ -24,6 +24,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
 class WaitingStateOwnershipTest extends TestCase
@@ -156,6 +157,7 @@ class WaitingStateOwnershipTest extends TestCase
         $this->assertSame(1, DashboardSnapshot::load()->incidentsForQueue('my_work', $admin)->count());
     }
 
+    #[Group('permanent_regression')]
     public function test_no_op_reassignment_does_not_create_audit_or_notification(): void
     {
         Notification::fake();

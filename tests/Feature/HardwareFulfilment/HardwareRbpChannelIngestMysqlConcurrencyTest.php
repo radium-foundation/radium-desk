@@ -5,6 +5,7 @@ namespace Tests\Feature\HardwareFulfilment;
 use Illuminate\Support\Facades\DB;
 use PDO;
 use PDOException;
+use PHPUnit\Framework\Attributes\Group;
 use Symfony\Component\Process\Process;
 use Tests\Feature\HardwareFulfilment\Support\HardwareFulfilmentMysqlGate;
 use Tests\TestCase;
@@ -30,6 +31,7 @@ class HardwareRbpChannelIngestMysqlConcurrencyTest extends TestCase
         $this->assertTrue(HardwareFulfilmentMysqlGate::isAllowedDatabase(HardwareFulfilmentMysqlGate::DATABASE));
     }
 
+    #[Group('permanent_regression')]
     public function test_concurrent_unpaid_rbp_channel_ingest_creates_one_commerce_without_fulfilment(): void
     {
         $context = $this->prepareContextOrSkip(
