@@ -112,6 +112,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 outcome: message.outcome,
                 rows: message.rows ?? [],
                 fields: message.fields ?? null,
+                whitelist_qualification: message.whitelist_qualification ?? null,
             });
 
             sessionMetaByTabId.delete(tabId);

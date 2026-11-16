@@ -2,6 +2,7 @@ import { MSG } from '../lib/constants.js';
 import { claimHandoffWithRetry } from '../lib/mantra-handoff-claim.js';
 import { populateMorphoSerialFieldDomOnly } from '../lib/morpho-populate.js';
 import {
+    classifyMorphoWhitelistQualification,
     inferMorphoOutcome,
     isMorphoResultVisible,
     morphoFieldsForCapture,
@@ -37,7 +38,7 @@ const showBanner = (message, tone = 'info') => {
     anchor?.parentElement?.prepend(el);
 };
 
-const emitMorphoResult = (claim, fields, outcome) => {
+const emitMorphoResult = (claim, fields, outcome, whitelistQualification) => {
     chrome.runtime.sendMessage({
         type: MSG.HANDOFF_OEM_RESULT,
         oem: OEM,
@@ -45,6 +46,7 @@ const emitMorphoResult = (claim, fields, outcome) => {
         incident_id: claim.incident_id,
         session_public_id: claim.session_public_id,
         outcome,
+        whitelist_qualification: whitelistQualification,
         fields,
     });
 };
@@ -76,12 +78,13 @@ const runMorphoHandoff = async () => {
             const parsed = readMorphoResultFields(doc);
             return {
                 outcome: inferMorphoOutcome(parsed),
+                whitelist_qualification: classifyMorphoWhitelistQualification(parsed),
                 fields: morphoFieldsForCapture(parsed),
             };
         },
-        onEmit: ({ outcome, fields }) => {
+        onEmit: ({ outcome, fields, whitelist_qualification: whitelistQualification }) => {
             showBanner('OEM result captured for Desk review. Return to Desk to confirm or reject.');
-            emitMorphoResult(claim, fields, outcome);
+            emitMorphoResult(claim, fields, outcome, whitelistQualification);
         },
     });
 };

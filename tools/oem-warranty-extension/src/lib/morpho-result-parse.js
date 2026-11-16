@@ -92,6 +92,50 @@ export function isMorphoResultVisible(doc) {
 
 /**
  * @param {ReturnType<typeof readMorphoResultFields>} fields
+ * @returns {'already_whitelisted' | 'valid_not_whitelisted' | 'invalid_device' | 'ambiguous' | 'inconclusive'}
+ */
+export function classifyMorphoWhitelistQualification(fields) {
+    const deviceValidity = (fields.device_validity ?? '').trim();
+    const whitelistStatus = (fields.whitelist_status ?? '').trim();
+    const validityLower = deviceValidity.toLowerCase();
+    const whitelistLower = whitelistStatus.toLowerCase();
+
+    const isInvalidValidity = validityLower.includes('invalid')
+        || validityLower.includes('not valid')
+        || validityLower.includes('does not exist');
+
+    if (isInvalidValidity) {
+        return 'invalid_device';
+    }
+
+    const isNotWhitelisted = /\bnot\s+whitelisted\b/.test(whitelistLower)
+        || (/\bvalid\b/.test(whitelistLower) && /\bnot\s+whitelisted\b/.test(whitelistLower));
+
+    if (isNotWhitelisted) {
+        return 'valid_not_whitelisted';
+    }
+
+    const isAlreadyWhitelisted = /\balready\s+whitelisted\b/.test(whitelistLower)
+        || /\bdevice\s+already\s+whitelisted\b/.test(whitelistLower)
+        || /^\s*whitelisted\s*$/.test(whitelistLower);
+
+    if (isAlreadyWhitelisted) {
+        return 'already_whitelisted';
+    }
+
+    if (deviceValidity !== '' && /\bvalid\b/.test(validityLower) && whitelistStatus === '') {
+        return 'valid_not_whitelisted';
+    }
+
+    if (deviceValidity !== '' || whitelistStatus !== '') {
+        return 'ambiguous';
+    }
+
+    return 'inconclusive';
+}
+
+/**
+ * @param {ReturnType<typeof readMorphoResultFields>} fields
  * @returns {'found' | 'not_found' | 'inconclusive'}
  */
 export function inferMorphoOutcome(fields) {
@@ -102,9 +146,13 @@ export function inferMorphoOutcome(fields) {
         return 'inconclusive';
     }
 
-    const validity = (fields.device_validity ?? '').toLowerCase();
-    if (validity.includes('invalid') || validity.includes('not valid')) {
+    const qualification = classifyMorphoWhitelistQualification(fields);
+    if (qualification === 'invalid_device') {
         return 'not_found';
+    }
+
+    if (qualification === 'inconclusive') {
+        return 'inconclusive';
     }
 
     return 'found';

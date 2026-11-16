@@ -30,6 +30,21 @@ class MorphoHandoffResultValidatorTest extends TestCase
 
         $this->assertSame('morpho', $result['oem']);
         $this->assertSame('2027-01-15', $result['fields']['expiry_date']);
+        $this->assertSame('already_whitelisted', $result['whitelist_qualification']);
+        $this->assertSame(2, $result['schema_version']);
+    }
+
+    public function test_marks_valid_without_whitelist_as_valid_not_whitelisted(): void
+    {
+        $result = $this->validator->validateDraft('2441I041803', [
+            'outcome' => 'found',
+            'fields' => [
+                'serial_number' => '2441I041803',
+                'device_validity' => 'Valid',
+            ],
+        ]);
+
+        $this->assertSame('valid_not_whitelisted', $result['whitelist_qualification']);
     }
 
     public function test_rejects_serial_mismatch(): void
