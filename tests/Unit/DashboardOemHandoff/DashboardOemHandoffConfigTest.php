@@ -13,6 +13,7 @@ class DashboardOemHandoffConfigTest extends TestCase
         $this->assertFalse(config('dashboard_oem_handoff.morpho_result_capture_enabled'));
         $this->assertFalse(config('dashboard_oem_handoff.prune_enabled'));
         $this->assertFalse(config('dashboard_oem_handoff.expiry_persist_enabled'));
+        $this->assertFalse(config('dashboard_oem_handoff.service_reference_suggestion_enabled'));
         $this->assertSame(24, config('dashboard_oem_handoff.prune_grace_hours_after_expiry'));
     }
 }

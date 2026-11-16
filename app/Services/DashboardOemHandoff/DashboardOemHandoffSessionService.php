@@ -21,6 +21,7 @@ final class DashboardOemHandoffSessionService
         private readonly OemHandoffResultValidator $resultValidator,
         private readonly OemWarrantyCheckVendorResolver $vendorResolver,
         private readonly ServiceReferenceOemSubscriptionExpiryPersistenceService $expiryPersistence,
+        private readonly OemHandoffServiceReferenceSuggestionService $serviceReferenceSuggestion,
     ) {}
 
     /**
@@ -146,6 +147,7 @@ final class DashboardOemHandoffSessionService
 
             $session->loadMissing('incident.order');
             $this->expiryPersistence->applyFromConfirmedSession($session, $user);
+            $this->serviceReferenceSuggestion->generateForConfirmedSession($session, $user);
 
             return $session->fresh();
         });

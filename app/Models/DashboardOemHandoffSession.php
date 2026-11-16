@@ -28,6 +28,10 @@ class DashboardOemHandoffSession extends Model
         'rejection_reason',
         'oem_expiry_persist_status',
         'oem_expiry_persist_detail',
+        'suggested_service_reference',
+        'suggested_service_reference_expiry_date',
+        'suggested_service_reference_sequence',
+        'suggested_service_reference_generated_at',
     ];
 
     protected function casts(): array
@@ -41,6 +45,8 @@ class DashboardOemHandoffSession extends Model
             'confirmed_at' => 'datetime',
             'rejected_at' => 'datetime',
             'confirmed_payload' => 'array',
+            'suggested_service_reference_expiry_date' => 'date',
+            'suggested_service_reference_generated_at' => 'datetime',
         ];
     }
 
