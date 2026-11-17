@@ -116,4 +116,25 @@ return [
         'other' => 'Other',
     ],
 
+    /*
+    | Read-only bulk download of persisted carrier document URLs (labels/manifests).
+    */
+    'document_download_allowed_hosts' => array_values(array_filter(array_map(
+        static fn (string $host): string => strtolower(trim($host)),
+        explode(',', (string) env(
+            'SHIPROCKET_DOCUMENT_DOWNLOAD_ALLOWED_HOSTS',
+            'apiv2.shiprocket.in,shiprocket.s3.amazonaws.com,kr-shipmultichannel.s3.amazonaws.com,kr-shiprocket.s3.amazonaws.com,sr-cdn-01.shiprocket.in,sr-cdn.shiprocket.in',
+        )),
+    ))),
+
+    'document_download_max_bytes' => max(
+        1024,
+        (int) env('SHIPROCKET_DOCUMENT_DOWNLOAD_MAX_BYTES', 15 * 1024 * 1024),
+    ),
+
+    'document_download_timeout_seconds' => max(
+        1,
+        (int) env('SHIPROCKET_DOCUMENT_DOWNLOAD_TIMEOUT_SECONDS', 20),
+    ),
+
 ];
