@@ -1,12 +1,15 @@
 # Changelog
 
-## 4.1.85 — Unreleased — Hardware dashboard performance (P-17-36)
+## 4.1.85 — 2026-11-17 — Hardware dashboard performance (P-17-36 / P-17-37)
 
 - **Purpose:** Reduce time-to-first hardware rows by deferring cold aggregate nav counts on the progressive first chunk; finish page 1 with one remainder request; idle page-2 prefetch; correct hardware KPI `kpis_only` workspace; optional `Server-Timing` on hardware rows API.
-- **Application delta:** `HardwareDashboardCountsCache` presentation SWR + `RefreshHardwareDashboardNavCountsJob`; `GET /dashboard/hardware/counts`; client async/KPI updates; **no** migrations.
-- **Production baseline:** **`v4.1.84`** / **`c4ed21f90`** (pre-merge).
-- **Evidence:** Focused PHPUnit hardware cluster **PASS** (counts defer, progressive, chunk, shell, stuck SWR, cache regression); Vitest **12/12**; `npm run build` **PASS**; Full PHPUnit **NOT RUN**; production P95 targets **NOT VERIFIED** (no deploy/measure).
-- **Deploy:** **NO** — merge only; see `docs/desk-p17-36-hardware-dashboard-performance.md`.
+- **Application delta:** `HardwareDashboardCountsCache` presentation SWR + `RefreshHardwareDashboardNavCountsJob` (`afterResponse`, default queue, `ShouldBeUnique`); `GET /dashboard/hardware/counts`; client async/KPI updates; **no** migrations.
+- **Production baseline:** **`v4.1.84`** / **`c4ed21f90`** (tag **`v4.1.84`**).
+- **Source:** **`main`** merge **#325** @ **`2cd08018abab1c9fc6f779f09dae7e8210c091d8`** (implementation **`7d5da02b8`**).
+- **Rollback:** **`v4.1.84`** / **`c4ed21f90`**.
+- **Evidence:** Focused PHPUnit **36/36** hardware dashboard cluster @ **`2cd08018a`**; Vitest **12/12**; `npm run build` **PASS**; PR **#325** CI **PASS**; Full PHPUnit **NOT RUN**; production P95 targets **NOT VERIFIED** (pre-deploy).
+- **Owner UAT:** `docs/desk-p17-37-hardware-dashboard-perf-uat.md` — **required** post-deploy; performance sign-off uses P-17-35 methodology.
+- **Deploy gate:** `docs/desk-p17-37-v4185-pre-deploy-gate.md` — queue worker required for background nav-count warm.
 
 ## 4.1.84 — 2026-11-17 — POS bulk serial batch validation (P-17-31 / P-17-32)
 
