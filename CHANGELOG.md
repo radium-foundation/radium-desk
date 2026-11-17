@@ -1,22 +1,11 @@
 # Changelog
 
-## Unreleased — Dashboard performance & UX (P-17-22)
+## 4.1.81 — 2026-11-17 — Dashboard optimization (P-17-20 / P-17-21 / P-17-22)
 
-- **Purpose:** Coordinated dashboard UX: reuse P-17-20 stuck KPI SWR and P-17-21 hardware progressive table; optimistic inline service reference saves; debounced global search + leaner universal search hydration.
-- **Application delta:** `inline-service-reference-optimistic.js`, universal search debounce config, `UniversalSearchService` constrained eager loads. **No** order/payment/fulfilment mutations.
-- **Evidence:** UniversalSearch PHPUnit **32/32**; Vitest optimistic + universal-search + hardware-stuck **10/10**; `npm run build` **PASS**. Full PHPUnit **NOT RUN**. Prod browser **NOT RUN**.
-
-## Unreleased — Hardware workspace progressive rows (P-17-21)
-
-- **Purpose:** Hardware `workspace=hardware` table shows first SQL chunk quickly, appends further chunks, and caches pages for instant pagination/prefetch.
-- **Application delta:** `HardwareDashboardRowChunkResolver`, chunked rows API, client page cache + prefetch. **No** order/fulfilment/payment mutations.
-- **Evidence:** Focused PHPUnit hardware cluster **16/16**; Vitest hardware-async **9/9**; `npm run build` **PASS**. Full PHPUnit **NOT RUN**.
-
-## Unreleased — Hardware Stuck Orders SWR (P-17-20)
-
-- **Purpose:** Operations Dashboard **Hardware Stuck Orders** KPI renders last-known snapshot on first paint; stale counts refresh in background via queue + optional Ably `HardwareStuckOrdersUpdated`.
-- **Application delta:** Snapshot store, refresh job/event, dashboard SWR client, config TTLs. **No** order/fulfilment/payment mutations.
-- **Evidence:** Focused PHPUnit **19/19** hardware dashboard cluster; Vitest hardware-stuck SWR **3/3**; `npm run build` **PASS**. Full PHPUnit **NOT RUN**. Prod browser timings **BLOCKED**.
+- **Purpose:** Ship dashboard performance UX: Hardware Stuck Orders KPI stale-while-revalidate; hardware workspace progressive rows + page cache; optimistic inline service reference saves; debounced global search.
+- **Application delta:** Stuck KPI snapshot store/job/Ably; hardware row chunks + client cache; `inline-service-reference-optimistic.js`; universal search debounce. **No** migrations; **no** payment, Cashfree, fulfilment or order lifecycle changes.
+- **Merge SHAs:** P-17-20 **`0aae38e2f`** (#316), P-17-21 **`b5df26fca`** (#317), P-17-22 **`bbd500140`** (#318); release tree **`bbd500140`**.
+- **Rollback:** **`v4.1.80`** / **`d52b56afd`**.
 
 ## 4.1.80 — 2026-11-17 — ELIMO GPS + SAMPANN Economy hardware SKU maps (P-17-17 / P-17-18)
 
