@@ -833,10 +833,34 @@ export const initUniversalSearch = ({
         }
     });
 
+    const parseDebounceMs = (raw, fallback) => {
+        const parsed = Number.parseInt(raw ?? '', 10);
+
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+    };
+
+    const searchDebounceMs = parseDebounceMs(form?.dataset.universalSearchDebounceMs, 350);
+    const searchMinLength = parseDebounceMs(form?.dataset.universalSearchMinLength, 3);
+    let liveSearchTimer = null;
+
     globalInput?.addEventListener('input', () => {
-        if ((globalInput.value ?? '').trim() === '') {
+        const trimmed = (globalInput.value ?? '').trim();
+
+        window.clearTimeout(liveSearchTimer);
+
+        if (trimmed === '') {
             clearSearch();
+
+            return;
         }
+
+        if (!dashboardIntegration || trimmed.length < searchMinLength) {
+            return;
+        }
+
+        liveSearchTimer = window.setTimeout(() => {
+            runUniversalSearch(trimmed);
+        }, searchDebounceMs);
     });
 
     const pendingQuery = new URLSearchParams(window.location.search).get('q')?.trim() ?? '';

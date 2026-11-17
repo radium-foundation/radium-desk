@@ -9,7 +9,9 @@
           role="search"
           data-universal-search-form
           data-search-url="{{ route('search.index') }}"
-          data-dashboard-url="{{ route('dashboard') }}">
+          data-dashboard-url="{{ route('dashboard') }}"
+          data-universal-search-debounce-ms="{{ (int) config('dashboard.universal_search_debounce_ms', 350) }}"
+          data-universal-search-min-length="{{ (int) config('dashboard.universal_search_min_length', 3) }}">
         <div class="input-group">
             <span class="input-group-text bg-white border-end-0" data-universal-search-control>
                 <span data-universal-search-icon aria-hidden="true">

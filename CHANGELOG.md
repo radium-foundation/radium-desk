@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Dashboard performance & UX (P-17-22)
+
+- **Purpose:** Coordinated dashboard UX: reuse P-17-20 stuck KPI SWR and P-17-21 hardware progressive table; optimistic inline service reference saves; debounced global search + leaner universal search hydration.
+- **Application delta:** `inline-service-reference-optimistic.js`, universal search debounce config, `UniversalSearchService` constrained eager loads. **No** order/payment/fulfilment mutations.
+- **Evidence:** UniversalSearch PHPUnit **32/32**; Vitest optimistic + universal-search + hardware-stuck **10/10**; `npm run build` **PASS**. Full PHPUnit **NOT RUN**. Prod browser **NOT RUN**.
+
 ## Unreleased — Hardware workspace progressive rows (P-17-21)
 
 - **Purpose:** Hardware `workspace=hardware` table shows first SQL chunk quickly, appends further chunks, and caches pages for instant pagination/prefetch.

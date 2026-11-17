@@ -37,6 +37,12 @@ import {
     initDashboardOemWarrantyHandoff,
     tryPrefillOemServiceReferenceInput,
 } from '../dashboard-oem-warranty-handoff';
+import {
+    bumpInlineSaveGeneration,
+    isInlineSaveGenerationCurrent,
+    revertOptimisticPendingReference,
+    showOptimisticPendingReference,
+} from '../inline-service-reference-optimistic';
 
 const initDashboardTransactions = ({
     pageRoot,
@@ -184,14 +190,20 @@ const initDashboardTransactions = ({
 
             cell.dataset.saving = '1';
 
-            const previousButtonHtml = saveButton?.innerHTML ?? '';
-            input.disabled = true;
+            const useOptimisticUi = !oemContext;
+            const saveGeneration = useOptimisticUi ? bumpInlineSaveGeneration(cell) : null;
 
-            if (saveButton) {
-                saveButton.disabled = true;
-                saveButton.setAttribute('aria-busy', 'true');
-                saveButton.innerHTML = 'Saving…';
-            }
+            const previousButtonHtml = saveButton?.innerHTML ?? '';
+
+            const beginBlockingSaveUi = () => {
+                input.disabled = true;
+
+                if (saveButton) {
+                    saveButton.disabled = true;
+                    saveButton.setAttribute('aria-busy', 'true');
+                    saveButton.innerHTML = 'Saving…';
+                }
+            };
 
             const releaseSavingState = () => {
                 delete cell.dataset.saving;
@@ -203,6 +215,12 @@ const initDashboardTransactions = ({
                     saveButton.innerHTML = previousButtonHtml;
                 }
             };
+
+            if (useOptimisticUi) {
+                showOptimisticPendingReference(cell, transactionId);
+            } else {
+                beginBlockingSaveUi();
+            }
 
             try {
                 const requestUrl = oemContext?.completeAssignmentUrl ?? storeUrl;
@@ -229,11 +247,21 @@ const initDashboardTransactions = ({
 
                 const data = await response.json();
 
+                if (useOptimisticUi && !isInlineSaveGenerationCurrent(cell, saveGeneration)) {
+                    return;
+                }
+
                 if (!response.ok) {
                     const message = oemContext
                         ? (Object.values(data.errors ?? {}).flat()?.[0] ?? data.message ?? 'Unable to complete assignment.')
                         : (data.errors?.transaction_id?.[0] ?? data.message ?? 'Unable to save service reference.');
-                    input.classList.add('is-invalid');
+
+                    if (useOptimisticUi) {
+                        revertOptimisticPendingReference(cell, { reopenEditor: true, transactionId });
+                        input.classList.add('is-invalid');
+                    } else {
+                        input.classList.add('is-invalid');
+                    }
 
                     if (error) {
                         error.textContent = message;
@@ -277,6 +305,10 @@ const initDashboardTransactions = ({
                     releaseSavingState();
                 }
             } catch (saveError) {
+                if (useOptimisticUi && isInlineSaveGenerationCurrent(cell, saveGeneration)) {
+                    revertOptimisticPendingReference(cell, { reopenEditor: true, transactionId });
+                }
+
                 input.classList.add('is-invalid');
 
                 if (error) {

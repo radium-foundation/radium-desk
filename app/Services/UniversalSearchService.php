@@ -6,6 +6,7 @@ use App\Models\Incident;
 use App\Models\InteraktMessage;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
 
 class UniversalSearchService
@@ -34,7 +35,7 @@ class UniversalSearchService
         }
 
         $builder = Incident::query()
-            ->with(['order.deviceModel', 'order.transactionAssigner', 'creator', 'assignee']);
+            ->with($this->searchEagerRelations());
 
         foreach ($tokens as $token) {
             $like = '%'.$token.'%';
@@ -127,6 +128,33 @@ class UniversalSearchService
             ->orderByDesc('incidents.updated_at')
             ->limit(self::RESULT_LIMIT)
             ->get();
+    }
+
+    /**
+     * @return list<string|callable>
+     */
+    private function searchEagerRelations(): array
+    {
+        return [
+            'assignee:id,name',
+            'creator:id,name',
+            'order' => function (BelongsTo $relation): void {
+                $relation->select([
+                    'id',
+                    'order_id',
+                    'customer_phone',
+                    'customer_name',
+                    'customer_email',
+                    'serial_number',
+                    'transaction_id',
+                    'device_model_id',
+                    'product_name',
+                    'device_model',
+                ]);
+            },
+            'order.deviceModel:id,name',
+            'order.transactionAssigner:id,name',
+        ];
     }
 
     /**
