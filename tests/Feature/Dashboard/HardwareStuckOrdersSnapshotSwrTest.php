@@ -61,7 +61,8 @@ class HardwareStuckOrdersSnapshotSwrTest extends TestCase
             ->assertOk()
             ->assertSee('data-hardware-stuck-loaded', false)
             ->assertDontSee('data-hardware-stuck-summary', false)
-            ->assertSee('admin-hardware-stuck-chip', false);
+            ->assertDontSee('admin-hardware-stuck-chip', false)
+            ->assertSee('data-hardware-stuck-breakdown', false);
     }
 
     public function test_stuck_summary_returns_stale_snapshot_and_queues_background_refresh(): void

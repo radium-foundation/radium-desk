@@ -34,6 +34,60 @@ const setErrorState = (host) => {
     }
 };
 
+const breakdownBindings = new WeakMap();
+
+const setBreakdownOpen = (host, open) => {
+    host.classList.toggle('admin-hardware-stuck-kpi--breakdown-open', open);
+    const trigger = host.querySelector('[data-hardware-stuck-breakdown-trigger]');
+    if (trigger) {
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+};
+
+const bindHardwareStuckBreakdown = (host) => {
+    if (!host?.hasAttribute('data-hardware-stuck-breakdown')) {
+        return;
+    }
+    if (breakdownBindings.get(host)) {
+        return;
+    }
+
+    const trigger = host.querySelector('[data-hardware-stuck-breakdown-trigger]');
+    if (!trigger) {
+        return;
+    }
+
+    const onTriggerClick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const isOpen = host.classList.contains('admin-hardware-stuck-kpi--breakdown-open');
+        setBreakdownOpen(host, !isOpen);
+    };
+
+    const onDocumentClick = (event) => {
+        if (!host.classList.contains('admin-hardware-stuck-kpi--breakdown-open')) {
+            return;
+        }
+        if (host.contains(event.target)) {
+            return;
+        }
+        setBreakdownOpen(host, false);
+    };
+
+    const onDocumentKeydown = (event) => {
+        if (event.key === 'Escape' && host.classList.contains('admin-hardware-stuck-kpi--breakdown-open')) {
+            setBreakdownOpen(host, false);
+            trigger.focus();
+        }
+    };
+
+    trigger.addEventListener('click', onTriggerClick);
+    document.addEventListener('click', onDocumentClick);
+    document.addEventListener('keydown', onDocumentKeydown);
+
+    breakdownBindings.set(host, { onTriggerClick, onDocumentClick, onDocumentKeydown, trigger });
+};
+
 const syncUpdatedLabel = (host) => {
     const updatedEl = host.querySelector('[data-hardware-stuck-updated]');
     const capturedAt = Number(host.dataset.hardwareStuckCapturedAt);
@@ -114,6 +168,7 @@ export const applyHardwareStuckSummaryHtml = (host, html, meta = {}) => {
 
     host.replaceWith(next);
     syncUpdatedLabel(next);
+    bindHardwareStuckBreakdown(next);
 
     return true;
 };
@@ -187,6 +242,7 @@ export const initHardwareStuckSummaryAsync = (root = document) => {
     }
 
     syncUpdatedLabel(host);
+    bindHardwareStuckBreakdown(host);
 
     if (stuckSummaryRefreshHandle !== null) {
         window.clearInterval(stuckSummaryRefreshHandle);

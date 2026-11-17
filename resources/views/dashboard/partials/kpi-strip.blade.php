@@ -95,7 +95,10 @@
     $onlineUsers = $stats['online_users'] ?? collect();
 @endphp
 
-<div class="dashboard-kpi-strip" role="region" aria-label="Dashboard metrics">
+<div @class([
+    'dashboard-kpi-strip',
+    'dashboard-kpi-strip--compact' => ! ($usesSupportQueues ?? false),
+]) role="region" aria-label="Dashboard metrics">
 @if($usesSupportQueues ?? false)
     @include('dashboard.partials.agent-action-cards', ['stats' => $stats])
 @else

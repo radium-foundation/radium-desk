@@ -53,7 +53,7 @@ class HardwareDashboardStuckSummaryDeferTest extends TestCase
             ->get(route('dashboard', ['workspace' => 'action_required']))
             ->assertOk()
             ->assertSee('data-hardware-stuck-summary', false)
-            ->assertSee('Counts not loaded yet', false)
+            ->assertSee('Loading counts', false)
             ->assertDontSee('admin-hardware-stuck-chip', false);
         $ssrHwQueries = collect(DB::getQueryLog())
             ->filter(fn (array $q): bool => str_contains($q['query'], 'hardware_fulfilments'))
