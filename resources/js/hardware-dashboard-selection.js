@@ -8,6 +8,10 @@ export const initHardwareDashboardSelection = (root = document) => {
 
     const bar = workspace.querySelector('[data-hardware-selection-bar]');
     const countLabel = workspace.querySelector('[data-hardware-selection-count]');
+    const eligibleLabel = workspace.querySelector('[data-hardware-selection-eligible]');
+    const downloadLabels = workspace.querySelector('[data-hardware-download-labels]');
+    const downloadManifests = workspace.querySelector('[data-hardware-download-manifests]');
+    const downloadPackage = workspace.querySelector('[data-hardware-download-package]');
     const openSelected = workspace.querySelector('[data-hardware-open-selected]');
     const clearSelected = workspace.querySelector('[data-hardware-clear-selected]');
     const selectAll = workspace.querySelector('[data-hardware-select-all]');
@@ -15,9 +19,30 @@ export const initHardwareDashboardSelection = (root = document) => {
     const visibleBoxes = () => Array.from(workspace.querySelectorAll('[data-hardware-select]'))
         .filter((input) => !input.closest('.dashboard-case-row--filtered-out'));
 
+    const fulfilmentIdFromInput = (input) => {
+        const direct = input.getAttribute('data-hardware-fulfilment-id');
+        if (direct) {
+            return Number(direct);
+        }
+        const fromRow = input.closest('tr')?.getAttribute('data-hardware-fulfilment-id');
+        return fromRow ? Number(fromRow) : null;
+    };
+
+    const selectedFulfilmentIds = (checked) => {
+        const ids = new Set();
+        checked.forEach((input) => {
+            const id = fulfilmentIdFromInput(input);
+            if (id) {
+                ids.add(id);
+            }
+        });
+        return [...ids];
+    };
+
     const update = () => {
         const boxes = visibleBoxes();
         const checked = boxes.filter((input) => input.checked);
+        const fulfilmentIds = selectedFulfilmentIds(checked);
         boxes.forEach((input) => {
             input.closest('tr')?.classList.toggle('dashboard-case-row--selected', input.checked);
         });
@@ -33,9 +58,32 @@ export const initHardwareDashboardSelection = (root = document) => {
         if (countLabel) {
             countLabel.textContent = selectedLabel(checked.length);
         }
+        if (eligibleLabel) {
+            const eligible = fulfilmentIds.length;
+            if (eligible > 0) {
+                eligibleLabel.textContent = eligible === 1
+                    ? '1 eligible for download on this page'
+                    : `${eligible} eligible for download on this page`;
+                eligibleLabel.classList.remove('d-none');
+            } else {
+                eligibleLabel.textContent = '';
+                eligibleLabel.classList.add('d-none');
+            }
+        }
         if (openSelected) {
             openSelected.disabled = checked.length === 0;
         }
+        const downloadReady = fulfilmentIds.length > 0;
+        if (downloadLabels) {
+            downloadLabels.disabled = !downloadReady;
+        }
+        if (downloadManifests) {
+            downloadManifests.disabled = !downloadReady;
+        }
+        if (downloadPackage) {
+            downloadPackage.disabled = !downloadReady;
+        }
+        workspace.dispatchEvent(new CustomEvent('hardware:selection-changed'));
     };
 
     workspace.addEventListener('change', (event) => {

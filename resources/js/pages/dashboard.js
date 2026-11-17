@@ -13,6 +13,7 @@ import { initOperationsWorkspaceSoftSwitch } from '../dashboard-operations-works
 import { initHardwareDashboardAsync } from '../hardware-dashboard-async';
 import { initHardwareDashboardKpiStrip } from '../hardware-dashboard-kpi';
 import { initHardwareStuckSummaryAsync } from '../hardware-stuck-summary-async';
+import { initHardwareDashboardBulkDownload } from '../hardware-dashboard-bulk-download';
 import { initHardwareDashboardSelection } from '../hardware-dashboard-selection';
 import { initServiceCasePaginationState } from '../dashboard-service-case-state';
 import { createServiceCaseRowReplacer } from '../service-case-row';
@@ -537,6 +538,7 @@ export const bootDashboard = () => {
     initHardwareDashboardAsync(pageRoot);
     initHardwareStuckSummaryAsync(pageRoot);
     initHardwareDashboardSelection(pageRoot);
+    initHardwareDashboardBulkDownload(pageRoot);
 
     initDashboardLoadMore({
         pageRoot,

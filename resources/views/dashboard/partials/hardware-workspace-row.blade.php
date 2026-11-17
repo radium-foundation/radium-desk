@@ -36,7 +36,8 @@
         <input type="checkbox"
                class="form-check-input"
                data-hardware-select
-               value="{{ $row->sourceId }}"
+               value="{{ $row->fulfilmentId ?? $row->sourceId }}"
+               @if($row->fulfilmentId) data-hardware-fulfilment-id="{{ $row->fulfilmentId }}" @endif
                aria-label="Select {{ $row->sourceId }}">
     </td>
     <td class="case-order-cell">
