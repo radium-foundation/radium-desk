@@ -1,3 +1,4 @@
+import { scheduleHybridKpiReconcile } from '../hybrid-kpi-reconcile';
 import { applyKpis as applyDashboardKpis, applyFilterCounts } from '../live-dashboard';
 import { maybeShowSuccessState } from './c360-dialog';
 import { allowWorkspaceModalClose, initWorkspaceDialogShell } from './dialog-shell';
@@ -179,6 +180,19 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
 
         if (lifecycle) {
             await lifecycle.run('afterSuccess', data, host);
+        }
+
+        if (
+            data.action === 'batch-transaction'
+            && data.success
+            && data.extensions?.operational_follow_up
+            && data.refresh?.kpis === false
+        ) {
+            const pageRoot = document.querySelector('[data-dashboard-page]');
+
+            if (pageRoot) {
+                scheduleHybridKpiReconcile(pageRoot);
+            }
         }
 
         if (data.extensions?.refresh_customer360 && data.incident_id) {
