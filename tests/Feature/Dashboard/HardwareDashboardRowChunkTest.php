@@ -56,30 +56,16 @@ class HardwareDashboardRowChunkTest extends TestCase
             ->getJson(route('dashboard.hardware.rows', [
                 'hw_filter' => 'all',
                 'hw_progressive' => '1',
-                'hw_chunk_limit' => 3,
+                'hw_chunk_limit' => 6,
                 'hw_chunk_offset' => 4,
                 'hw_skip_counts' => 1,
             ]))
             ->assertOk()
             ->json();
 
-        $this->assertSame(3, substr_count((string) $second['rows_html'], 'data-hardware-select'));
+        $this->assertSame(6, substr_count((string) $second['rows_html'], 'data-hardware-select'));
         $this->assertSame([], $second['filter_counts']);
-        $this->assertFalse((bool) ($second['chunk']['complete'] ?? true));
-
-        $third = $this->actingAs($admin)
-            ->getJson(route('dashboard.hardware.rows', [
-                'hw_filter' => 'all',
-                'hw_progressive' => '1',
-                'hw_chunk_limit' => 3,
-                'hw_chunk_offset' => 7,
-                'hw_skip_counts' => 1,
-            ]))
-            ->assertOk()
-            ->json();
-
-        $this->assertTrue((bool) ($third['chunk']['complete'] ?? false));
-        $this->assertSame(3, substr_count((string) $third['rows_html'], 'data-hardware-select'));
+        $this->assertTrue((bool) ($second['chunk']['complete'] ?? false));
     }
 
     public function test_non_chunk_request_remains_backward_compatible(): void

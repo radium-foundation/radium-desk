@@ -101,4 +101,20 @@ final class HardwareDashboardRowChunkResolver
     {
         return $request->boolean('hw_skip_counts');
     }
+
+    /**
+     * Progressive first chunk: serve rows without synchronous cold aggregate SQL.
+     */
+    public function deferExpensiveCounts(Request $request): bool
+    {
+        if ($this->skipCounts($request)) {
+            return false;
+        }
+
+        if (! $request->boolean('hw_progressive') || ! $request->filled('hw_chunk_limit')) {
+            return false;
+        }
+
+        return max(0, (int) $request->integer('hw_chunk_offset', 0)) === 0;
+    }
 }

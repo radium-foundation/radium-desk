@@ -168,16 +168,17 @@ final class HardwareFulfilmentWorkQueue
             HardwareWorkspaceFilter::Pickup,
         ], true);
 
-        $scopeCounts = $chunkResolver->skipCounts($request)
-            ? []
-            : $this->scopeCountsForDashboard($fromIst, $toIst);
+        $navCounts = $this->resolveNavCountsForRequest($request, $chunkResolver, $fromIst, $toIst, $search);
+        $scopeCounts = $navCounts['scope_counts'];
+        $filterCounts = $navCounts['filter_counts'];
+        $countsMeta = $navCounts['counts_meta'];
 
         if ($filter === HardwareWorkspaceFilter::Exceptions) {
-            $filterCounts = $chunkResolver->skipCounts($request)
-                ? []
-                : $this->cachedFilterCounts($fromIst, $toIst, $search);
             $pageSet = $this->needsActionSql->exceptionsPage($fromIst, $toIst, $search, $page, $perPage, $sqlOffset, $sqlLimit);
+            $timer = $request->attributes->get('hardware_rows_timer');
+            $timer?->mark('page_sql');
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+            $timer?->mark('hydrate');
 
             return $this->finishDashboardPagePayload(
                 $request,
@@ -193,15 +194,16 @@ final class HardwareFulfilmentWorkQueue
                 $perPage,
                 $sizer->lastPage($pageSet['total'], $request),
                 $sizer->progressiveEnabled($request),
+                $countsMeta,
             );
         }
 
         if ($filter === HardwareWorkspaceFilter::Scheduled) {
-            $filterCounts = $chunkResolver->skipCounts($request)
-                ? []
-                : $this->cachedFilterCounts($fromIst, $toIst, $search);
             $pageSet = $this->needsActionSql->scheduledPage($fromIst, $toIst, $search, $page, $perPage, $sqlOffset, $sqlLimit);
+            $timer = $request->attributes->get('hardware_rows_timer');
+            $timer?->mark('page_sql');
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+            $timer?->mark('hydrate');
 
             return $this->finishDashboardPagePayload(
                 $request,
@@ -217,15 +219,16 @@ final class HardwareFulfilmentWorkQueue
                 $perPage,
                 $sizer->lastPage($pageSet['total'], $request),
                 $sizer->progressiveEnabled($request),
+                $countsMeta,
             );
         }
 
         if ($filter === HardwareWorkspaceFilter::All && $scope === HardwareWorkspaceScope::Active) {
-            $filterCounts = $chunkResolver->skipCounts($request)
-                ? []
-                : $this->cachedFilterCounts($fromIst, $toIst, $search);
             $pageSet = $this->needsActionSql->allActivePage($fromIst, $toIst, $search, $page, $perPage, $sqlOffset, $sqlLimit);
+            $timer = $request->attributes->get('hardware_rows_timer');
+            $timer?->mark('page_sql');
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+            $timer?->mark('hydrate');
 
             return $this->finishDashboardPagePayload(
                 $request,
@@ -241,6 +244,7 @@ final class HardwareFulfilmentWorkQueue
                 $perPage,
                 $sizer->lastPage($pageSet['total'], $request),
                 $sizer->progressiveEnabled($request),
+                $countsMeta,
             );
         }
 
@@ -252,6 +256,8 @@ final class HardwareFulfilmentWorkQueue
                 $scope,
                 $filter,
                 $scopeCounts,
+                $filterCounts,
+                $countsMeta,
                 $page,
                 $offset,
                 $limit,
@@ -263,10 +269,6 @@ final class HardwareFulfilmentWorkQueue
             );
         }
 
-        $filterCounts = $chunkResolver->skipCounts($request)
-            ? []
-            : $this->cachedFilterCounts($fromIst, $toIst, $search);
-
         $searchAcrossActive = $search !== ''
             && $scope === HardwareWorkspaceScope::Active
             && ! $filter->isShipping()
@@ -277,7 +279,10 @@ final class HardwareFulfilmentWorkQueue
 
         if ($searchAcrossActive) {
             $pageSet = $this->needsActionSql->searchActivePage($fromIst, $toIst, $search, $page, $perPage, $sqlOffset, $sqlLimit);
+            $timer = $request->attributes->get('hardware_rows_timer');
+            $timer?->mark('page_sql');
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+            $timer?->mark('hydrate');
 
             return $this->finishDashboardPagePayload(
                 $request,
@@ -293,11 +298,15 @@ final class HardwareFulfilmentWorkQueue
                 $perPage,
                 $sizer->lastPage($pageSet['total'], $request),
                 $sizer->progressiveEnabled($request),
+                $countsMeta,
             );
         }
 
         $pageSet = $this->needsActionSql->page($scope, $filter, $fromIst, $toIst, $search, $page, $perPage, $sqlOffset, $sqlLimit);
+        $timer = $request->attributes->get('hardware_rows_timer');
+        $timer?->mark('page_sql');
         $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+        $timer?->mark('hydrate');
 
         return $this->finishDashboardPagePayload(
             $request,
@@ -313,6 +322,7 @@ final class HardwareFulfilmentWorkQueue
             $perPage,
             $sizer->lastPage($pageSet['total'], $request),
             $sizer->progressiveEnabled($request),
+            $countsMeta,
         );
     }
 
@@ -342,6 +352,7 @@ final class HardwareFulfilmentWorkQueue
         int $perPage,
         int $lastPage,
         bool $progressive,
+        ?array $countsMeta = null,
     ): array {
         $rowCount = $rows->count();
 
@@ -349,6 +360,7 @@ final class HardwareFulfilmentWorkQueue
             'rows' => $rows,
             'scope_counts' => $scopeCounts,
             'filter_counts' => $filterCounts,
+            'counts_meta' => $countsMeta,
             'total' => $rowCount,
             'unfiltered_total' => $unfilteredTotal,
             'page' => $page,
@@ -386,6 +398,8 @@ final class HardwareFulfilmentWorkQueue
         HardwareWorkspaceScope $scope,
         HardwareWorkspaceFilter $filter,
         array $scopeCounts,
+        array $filterCounts,
+        ?array $countsMeta,
         int $page,
         int $offset,
         int $limit,
@@ -395,9 +409,6 @@ final class HardwareFulfilmentWorkQueue
         HardwareDashboardRowChunkResolver $chunkResolver,
         array $chunkSql,
     ): array {
-        $filterCounts = $chunkResolver->skipCounts($request)
-            ? []
-            : $this->cachedFilterCounts($fromIst, $toIst, $search);
         $rows = $this->allRows($fromIst, $toIst, '', '');
 
         if ($search !== '') {
@@ -443,6 +454,7 @@ final class HardwareFulfilmentWorkQueue
             $perPage,
             $sizer->lastPage($total, $request),
             $sizer->progressiveEnabled($request),
+            $countsMeta,
         );
     }
 
@@ -687,5 +699,57 @@ final class HardwareFulfilmentWorkQueue
     private function cachedFilterCounts(Carbon $fromIst, Carbon $toIst, string $search): array
     {
         return app(HardwareDashboardCountsCache::class)->filterCounts($fromIst, $toIst, $search);
+    }
+
+    /**
+     * @return array{
+     *     scope_counts: array<string, int>,
+     *     filter_counts: array<string, int>,
+     *     counts_meta: array{stale: bool, refresh_queued: bool}|null
+     * }
+     */
+    private function resolveNavCountsForRequest(
+        Request $request,
+        HardwareDashboardRowChunkResolver $chunkResolver,
+        Carbon $fromIst,
+        Carbon $toIst,
+        string $search,
+    ): array {
+        if ($chunkResolver->skipCounts($request)) {
+            return [
+                'scope_counts' => [],
+                'filter_counts' => [],
+                'counts_meta' => null,
+            ];
+        }
+
+        /** @var HardwareDashboardRowsTimer|null $timer */
+        $timer = $request->attributes->get('hardware_rows_timer');
+        $timer?->mark('counts');
+
+        if ($chunkResolver->deferExpensiveCounts($request)) {
+            $presentation = app(HardwareDashboardCountsCache::class)->presentationCounts($fromIst, $toIst, $search);
+
+            return [
+                'scope_counts' => [
+                    HardwareWorkspaceScope::Active->value => (int) ($presentation['scope_counts']['active'] ?? 0),
+                    HardwareWorkspaceScope::Shipped->value => (int) ($presentation['scope_counts']['shipped'] ?? 0),
+                ],
+                'filter_counts' => $presentation['filter_counts'],
+                'counts_meta' => [
+                    'stale' => (bool) $presentation['stale'],
+                    'refresh_queued' => (bool) $presentation['refresh_queued'],
+                ],
+            ];
+        }
+
+        return [
+            'scope_counts' => $this->scopeCountsForDashboard($fromIst, $toIst),
+            'filter_counts' => $this->cachedFilterCounts($fromIst, $toIst, $search),
+            'counts_meta' => [
+                'stale' => false,
+                'refresh_queued' => false,
+            ],
+        ];
     }
 }

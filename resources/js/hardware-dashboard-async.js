@@ -9,6 +9,8 @@ import {
 let rowsAbortController = null;
 let rowsInFlight = false;
 let rowsRequestGeneration = 0;
+let prefetchIdleHandle = null;
+let prefetchGeneration = 0;
 
 const formatCount = (value) => `(${Math.max(0, Number(value) || 0)})`;
 
@@ -28,6 +30,45 @@ const fetchRowsPayload = async (workspace, options, signal) => {
     }
 
     return response.json();
+};
+
+const buildHardwareCountsUrl = (workspace) => {
+    const base = workspace.dataset.hardwareCountsUrl;
+    if (!base) {
+        return null;
+    }
+
+    const url = new URL(base, window.location.origin);
+    url.searchParams.set('hw_scope', workspace.dataset.hardwareScope || 'active');
+    url.searchParams.set('hw_filter', workspace.dataset.hardwareFilter || 'needs_action');
+    const search = workspace.dataset.hardwareSearch || '';
+    if (search !== '') {
+        url.searchParams.set('q', search);
+    }
+
+    return url;
+};
+
+const refreshHardwareNavCounts = async (workspace) => {
+    const url = buildHardwareCountsUrl(workspace);
+    if (!url) {
+        return;
+    }
+
+    try {
+        const response = await fetch(url, {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+        if (!response.ok) {
+            return;
+        }
+        const payload = await response.json();
+        const navRoot = workspace.closest('.dashboard-service-cases-card') ?? workspace;
+        updateCounts(navRoot, payload.scope_counts ?? {}, payload.filter_counts ?? {});
+    } catch {
+        // Non-blocking nav count refresh.
+    }
 };
 
 const applyRowsPayload = (workspace, tbody, paginationHost, payload, { appendRows = false } = {}) => {
@@ -130,6 +171,18 @@ const setChunkLoading = (workspace, show) => {
     tableWrap?.classList.toggle('dashboard-hardware-table-wrap--chunk-loading', show);
 };
 
+const cancelScheduledPrefetch = () => {
+    prefetchGeneration += 1;
+    if (prefetchIdleHandle !== null) {
+        if (typeof cancelIdleCallback === 'function') {
+            cancelIdleCallback(prefetchIdleHandle);
+        } else {
+            window.clearTimeout(prefetchIdleHandle);
+        }
+    }
+    prefetchIdleHandle = null;
+};
+
 const loadShiprocketBalance = async (workspace) => {
     const shiprocketUrl = workspace.dataset.hardwareShiprocketUrl;
     const card = workspace.closest('.dashboard-service-cases-card');
@@ -210,7 +263,7 @@ const bindDebouncedSearch = (workspace, loadRows) => {
 };
 
 const prefetchHardwarePage = (workspace, page) => {
-  if (readHardwarePageCache(workspace, page)) {
+    if (readHardwarePageCache(workspace, page)) {
         return;
     }
 
@@ -224,6 +277,29 @@ const prefetchHardwarePage = (workspace, page) => {
     });
 };
 
+const scheduleIdlePrefetch = (workspace, pageNum, payload) => {
+    cancelScheduledPrefetch();
+    const generation = prefetchGeneration;
+    const nextPage = parsePositiveInt(String(Number(pageNum) + 1), 0);
+
+    if (nextPage <= 1 || !payload.last_page || nextPage > payload.last_page) {
+        return;
+    }
+
+    const runPrefetch = () => {
+        if (generation !== prefetchGeneration || rowsInFlight) {
+            return;
+        }
+        prefetchHardwarePage(workspace, String(nextPage));
+    };
+
+    if (typeof requestIdleCallback === 'function') {
+        prefetchIdleHandle = requestIdleCallback(runPrefetch, { timeout: 4000 });
+    } else {
+        prefetchIdleHandle = window.setTimeout(runPrefetch, 2000);
+    }
+};
+
 export const initHardwareDashboardAsync = (root = document) => {
     const workspace = root.querySelector('[data-hardware-workspace]');
     if (!workspace || workspace.dataset.hardwareDeferRows !== '1') {
@@ -235,55 +311,59 @@ export const initHardwareDashboardAsync = (root = document) => {
     const tableWrap = workspace.querySelector('.dashboard-cases-table-wrap');
     const selectAll = workspace.querySelector('[data-hardware-select-all]');
 
-    const loadChunkedPage = async (requestGeneration, page, { skipCountsAfterFirst = true } = {}) => {
-        const { first, followUp } = parseChunkSizes(workspace);
-        let offset = 0;
-        let limit = first;
-        let mergedPayload = null;
-        let isFirstChunk = true;
+    const loadChunkedPage = async (requestGeneration, page) => {
+        const { first } = parseChunkSizes(workspace);
+        const initialPerPage = parsePositiveInt(workspace.dataset.hardwareInitialPerPage, 10);
 
-        while (true) {
-            const payload = await fetchRowsPayload(workspace, {
-                page,
-                chunkOffset: offset,
-                chunkLimit: limit,
-                skipCounts: skipCountsAfterFirst && !isFirstChunk,
-                origin: window.location.origin,
-            }, rowsAbortController.signal);
+        const firstPayload = await fetchRowsPayload(workspace, {
+            page,
+            chunkOffset: 0,
+            chunkLimit: first,
+            origin: window.location.origin,
+        }, rowsAbortController.signal);
 
-            if (requestGeneration !== rowsRequestGeneration) {
-                return null;
-            }
+        if (requestGeneration !== rowsRequestGeneration) {
+            return null;
+        }
 
-            if (isFirstChunk) {
-                tableWrap?.classList.remove('dashboard-hardware-table-wrap--loading');
-                applyRowsPayload(workspace, tbody, paginationHost, payload);
-            } else {
-                applyRowsPayload(workspace, tbody, paginationHost, payload, { appendRows: true });
-            }
+        tableWrap?.classList.remove('dashboard-hardware-table-wrap--loading');
+        applyRowsPayload(workspace, tbody, paginationHost, firstPayload);
+        void refreshHardwareNavCounts(workspace);
 
-            mergedPayload = isFirstChunk
-                ? { ...payload }
-                : {
+        let mergedPayload = { ...firstPayload };
+        const chunk = firstPayload.chunk ?? {};
+
+        if (chunk.complete === false) {
+            const nextOffset = Number(chunk.next_offset ?? first);
+            const pageRowTotal = Number(chunk.page_row_total ?? initialPerPage);
+            const remainder = Math.max(0, pageRowTotal - nextOffset);
+
+            if (remainder > 0) {
+                setChunkLoading(workspace, true);
+
+                const remainderPayload = await fetchRowsPayload(workspace, {
+                    page,
+                    chunkOffset: nextOffset,
+                    chunkLimit: remainder,
+                    skipCounts: true,
+                    origin: window.location.origin,
+                }, rowsAbortController.signal);
+
+                if (requestGeneration !== rowsRequestGeneration) {
+                    return null;
+                }
+
+                applyRowsPayload(workspace, tbody, paginationHost, remainderPayload, { appendRows: true });
+                mergedPayload = {
                     ...mergedPayload,
-                    inspected_fulfilment_count: payload.inspected_fulfilment_count,
-                    chunk: payload.chunk,
+                    inspected_fulfilment_count: remainderPayload.inspected_fulfilment_count,
+                    chunk: remainderPayload.chunk,
                 };
-
-            isFirstChunk = false;
-
-            const chunk = payload.chunk ?? {};
-            if (chunk.complete !== false) {
-                break;
             }
-
-            offset = Number(chunk.next_offset ?? offset + limit);
-            limit = followUp;
-            setChunkLoading(workspace, true);
         }
 
         setChunkLoading(workspace, false);
-        if (mergedPayload && tbody) {
+        if (tbody) {
             mergedPayload.rows_html = tbody.innerHTML;
         }
 
@@ -291,6 +371,7 @@ export const initHardwareDashboardAsync = (root = document) => {
     };
 
     const loadRows = async ({ page, subsequent = false, searchChanged = false } = {}) => {
+        cancelScheduledPrefetch();
         const requestGeneration = ++rowsRequestGeneration;
         const pageNum = String(page ?? workspace.dataset.hardwarePage ?? '1');
 
@@ -353,9 +434,8 @@ export const initHardwareDashboardAsync = (root = document) => {
                 setStatus(workspace, `Loaded page ${payload.page ?? pageNum} of ${payload.last_page ?? 1} (${total} matching orders).`);
             }
 
-            const nextPage = parsePositiveInt(String(Number(pageNum) + 1), 0);
-            if (nextPage > 1 && payload.last_page && nextPage <= payload.last_page) {
-                prefetchHardwarePage(workspace, String(nextPage));
+            if (pageNum === '1') {
+                scheduleIdlePrefetch(workspace, pageNum, payload);
             }
         } catch (error) {
             if (error?.name === 'AbortError') {
@@ -390,4 +470,8 @@ export const initHardwareDashboardAsync = (root = document) => {
 
     void loadRows();
     void loadShiprocketBalance(workspace);
+};
+
+export const resetHardwareDashboardPrefetchForTests = () => {
+    cancelScheduledPrefetch();
 };

@@ -41,6 +41,9 @@ class HardwareDashboardAsyncShellTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('data-hardware-defer-rows="1"', $html);
+        $this->assertStringContainsString('data-hardware-counts-url', $html);
+        $this->assertStringContainsString('data-kpi-live-workspace="action_required"', $html);
+        $this->assertStringContainsString('dashboard-kpi-value--pending', $html);
         $this->assertStringContainsString('dashboard-hardware-skeleton-row', $html);
         $this->assertStringNotContainsString('RDE980003', $html);
         $this->assertStringContainsString('data-hardware-inspected-count="0"', $html);

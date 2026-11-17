@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.85 — Unreleased — Hardware dashboard performance (P-17-36)
+
+- **Purpose:** Reduce time-to-first hardware rows by deferring cold aggregate nav counts on the progressive first chunk; finish page 1 with one remainder request; idle page-2 prefetch; correct hardware KPI `kpis_only` workspace; optional `Server-Timing` on hardware rows API.
+- **Application delta:** `HardwareDashboardCountsCache` presentation SWR + `RefreshHardwareDashboardNavCountsJob`; `GET /dashboard/hardware/counts`; client async/KPI updates; **no** migrations.
+- **Production baseline:** **`v4.1.84`** / **`c4ed21f90`** (pre-merge).
+- **Evidence:** Focused PHPUnit hardware cluster **PASS** (counts defer, progressive, chunk, shell, stuck SWR, cache regression); Vitest **12/12**; `npm run build` **PASS**; Full PHPUnit **NOT RUN**; production P95 targets **NOT VERIFIED** (no deploy/measure).
+- **Deploy:** **NO** — merge only; see `docs/desk-p17-36-hardware-dashboard-performance.md`.
+
 ## 4.1.84 — 2026-11-17 — POS bulk serial batch validation (P-17-31 / P-17-32)
 
 - **Purpose:** Fix Admin POS counter **bulk serial** entry when many production-length serial numbers are pasted or typed together (e.g. ~30 units on one invoice line).
