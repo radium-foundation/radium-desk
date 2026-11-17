@@ -1,4 +1,7 @@
-import { formatRdExpiryYmdForServiceReferenceInput } from './dashboard-oem-rd-expiry-prefill';
+import {
+    OEM_RD_EXPIRY_INELIGIBLE_FOR_AW_MESSAGE,
+    buildEligibleAwServiceReferenceFromMantraRdExpiry,
+} from './dashboard-oem-rd-expiry-prefill';
 import { getOemInlineCompletionContext } from './dashboard-oem-inline-completion';
 import { getWorkspaceSession } from './workspace/session';
 
@@ -15,15 +18,34 @@ const findRefTransactionCell = (incidentId) => {
     return row.querySelector('.transaction-id-cell[data-inline-transaction="true"]');
 };
 
-const proposedDisplayFromContext = (oemContext) => {
+let showOemRefPrefillToast = null;
+
+const eligibilityRejectionNotifiedIncidents = new Set();
+
+export const setOemRefPrefillToastHandler = (showToast) => {
+    showOemRefPrefillToast = typeof showToast === 'function' ? showToast : null;
+};
+
+/** @internal Vitest-only reset for notification de-duplication */
+export const resetOemRefPrefillEligibilityNotificationsForTests = () => {
+    eligibilityRejectionNotifiedIncidents.clear();
+};
+
+const proposedAwReferenceFromContext = (oemContext, todayYmd = null) => {
     if (!oemContext?.proposedRdExpiryYmd) {
         return null;
     }
 
-    return (
-        oemContext.proposedRdExpiryDisplay
-        ?? formatRdExpiryYmdForServiceReferenceInput(oemContext.proposedRdExpiryYmd)
-    );
+    return buildEligibleAwServiceReferenceFromMantraRdExpiry(oemContext.proposedRdExpiryYmd, todayYmd);
+};
+
+const notifyIneligibleOnce = (incidentId) => {
+    if (eligibilityRejectionNotifiedIncidents.has(incidentId)) {
+        return;
+    }
+
+    eligibilityRejectionNotifiedIncidents.add(incidentId);
+    showOemRefPrefillToast?.(OEM_RD_EXPIRY_INELIGIBLE_FOR_AW_MESSAGE, { variant: 'warning' });
 };
 
 const inputHasUnrelatedUserText = (input, displayValue) => {
@@ -47,17 +69,27 @@ const inputHasUnrelatedUserText = (input, displayValue) => {
  * Open REF inline editor and prefill Mantra RD expiry as plain text at caret position 0.
  * Does nothing when the Desk document is hidden (operator still on OEM tab).
  */
-export const tryPrefillOemServiceReferenceInput = (incidentId, { openEditor = true, focusInput = true } = {}) => {
+export const tryPrefillOemServiceReferenceInput = (
+    incidentId,
+    { openEditor = true, focusInput = true, todayYmd = null } = {},
+) => {
     const id = Number(incidentId);
     if (!Number.isFinite(id) || id <= 0) {
         return false;
     }
 
     const oemContext = getOemInlineCompletionContext(id);
-    const displayValue = proposedDisplayFromContext(oemContext);
-    if (!displayValue) {
+    if (!oemContext?.proposedRdExpiryYmd) {
         return false;
     }
+
+    const displayValue = proposedAwReferenceFromContext(oemContext, todayYmd);
+    if (!displayValue) {
+        notifyIneligibleOnce(id);
+        return false;
+    }
+
+    eligibilityRejectionNotifiedIncidents.delete(id);
 
     const cell = findRefTransactionCell(id);
     if (!cell) {
@@ -125,7 +157,9 @@ export const flushOemServiceReferencePrefillQueue = () => {
     });
 };
 
-export const initDashboardOemRefServicePrefill = () => {
+export const initDashboardOemRefServicePrefill = (showToast) => {
+    setOemRefPrefillToastHandler(showToast);
+
     document.addEventListener('visibilitychange', () => {
         if (isDeskDocumentVisible()) {
             flushOemServiceReferencePrefillQueue();

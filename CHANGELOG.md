@@ -1,6 +1,11 @@
 # Changelog
 
-## 4.1.76 — Unreleased — Mantra RD expiry prefill in Service Reference input (P-17-01)
+## 4.1.77 — Unreleased — Automatic AW Service Reference formatting and expiry eligibility (P-17-03)
+
+- **Purpose:** After Mantra capture, format **`rd_expiry_date`** as **`AW-DD-MM-YYYY`** in the existing REF Service Reference input when expiry is at least **three calendar days** after today (**Asia/Kolkata**). Reject nearer or past dates with a concise warning; no auto-save. **Does not authorize production deploy.**
+- **Application delta:** Dashboard JavaScript only. **No** PHP/schema changes.
+
+## 4.1.76 — 2026-11-17 — Mantra RD expiry prefill in Service Reference input (P-17-01)
 
 - **Purpose:** After Mantra OEM capture, prefill the existing REF **Service Reference** text input with **`rd_expiry_date`** as `d/m/Y` (caret at 0 for `AW- ` prefix). Remove separate date picker. **Does not authorize production deploy.**
 - **Application delta:** Dashboard JavaScript + blade/CSS only. **No** PHP/schema changes.
