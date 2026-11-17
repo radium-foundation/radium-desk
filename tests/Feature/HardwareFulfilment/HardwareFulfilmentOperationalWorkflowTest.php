@@ -285,8 +285,9 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
             ->assertSee('id="hardware-pickup-submit"', false)
-            ->assertDontSee('Upload Package Photo')
             ->assertDontSee('id="hardware-package-before-form"', false)
+            ->assertDontSee('id="hardware-package-before-submit"', false)
+            ->assertDontSee('>Upload Package Photo</label>', false)
             ->assertDontSee('id="hardware-package-label-form"', false);
 
         $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment->fresh());
