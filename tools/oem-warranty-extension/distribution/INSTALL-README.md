@@ -2,15 +2,15 @@
 
 ## Current release (recommended)
 
-**Package:** `radium-desk-v0.3.11.zip`  
-**Extracted folder:** `radium-desk-v0.3.11/` (use for **Load unpacked**)  
-**Extension version:** **0.3.11** (Manifest V3) — Morpho DOM prefill + result capture; Mantra CAPTCHA operator assist (P-17-05 / #303)  
+**Package:** `radium-desk-v0.3.12.zip`  
+**Extracted folder:** `radium-desk-v0.3.12/` (use for **Load unpacked**)  
+**Extension version:** **0.3.12** (Manifest V3) — Mantra CAPTCHA entry detection fix (P-17-14); includes Morpho **0.3.11** behavior  
 **Matched Desk release:** **v4.1.79+** with `DASHBOARD_OEM_HANDOFF_MORPHO_CAPTURE=true` on production (Owner-activated P-17-12)  
-**Built:** 2026-11-17 (P-17-13)
+**Built:** 2026-11-17 (P-17-14)
 
 Internal use only. **Not** for Chrome Web Store or public distribution.
 
-**Do not** install `radium-desk-v0.3.10.zip` or older for Morpho two-way capture — use **0.3.11** only.
+**Do not** install **0.3.11** or older on Mantra if CAPTCHA text detection is required — use **0.3.12**.
 
 ### Distribution filename convention (permanent)
 

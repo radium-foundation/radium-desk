@@ -44,6 +44,64 @@ describe('mantra-operator-assist', () => {
         expect(onChange).toHaveBeenCalledWith(true);
     });
 
+    it('does not report whitespace-only as entered', () => {
+        document.body.innerHTML = '<input id="txtCaptcha" type="text" />';
+        const onChange = vi.fn();
+        watchMantraCaptchaEntry(document, onChange);
+        onChange.mockClear();
+        const field = document.getElementById('txtCaptcha');
+        field.value = '   ';
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(onChange).toHaveBeenLastCalledWith(false);
+    });
+
+    it('detects paste into captcha field', () => {
+        document.body.innerHTML = '<input id="txtCaptcha" type="text" />';
+        const onChange = vi.fn();
+        watchMantraCaptchaEntry(document, onChange);
+        onChange.mockClear();
+        const field = document.getElementById('txtCaptcha');
+        field.value = 'abcd';
+        field.dispatchEvent(new Event('paste', { bubbles: true }));
+        expect(onChange).toHaveBeenCalledWith(true);
+    });
+
+    it('binds when captcha field is inserted after serial fill', async () => {
+        document.body.innerHTML = '<motion-root></motion-root>';
+        const onChange = vi.fn();
+        const stop = watchMantraCaptchaEntry(document, onChange);
+        onChange.mockClear();
+
+        const input = document.createElement('input');
+        input.id = 'txtCaptcha';
+        input.type = 'text';
+        document.body.appendChild(input);
+        await new Promise((r) => requestAnimationFrame(r));
+
+        input.value = 'ok';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(onChange).toHaveBeenCalledWith(true);
+        stop();
+    });
+
+    it('re-binds when captcha input node is replaced', async () => {
+        document.body.innerHTML = '<input id="txtCaptcha" type="text" />';
+        const onChange = vi.fn();
+        const stop = watchMantraCaptchaEntry(document, onChange);
+        onChange.mockClear();
+
+        const replacement = document.createElement('input');
+        replacement.id = 'txtCaptcha';
+        replacement.type = 'text';
+        document.getElementById('txtCaptcha').replaceWith(replacement);
+        await new Promise((r) => requestAnimationFrame(r));
+
+        replacement.value = 'new';
+        replacement.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(onChange).toHaveBeenCalledWith(true);
+        stop();
+    });
+
     it('copies serial on explicit clipboard call', async () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, 'clipboard', {

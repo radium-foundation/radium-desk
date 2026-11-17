@@ -98,11 +98,16 @@ export function showMantraHandoffStatus(doc, tone, options = {}) {
  */
 export function updateMantraCaptchaEntryHint(doc, entered) {
     const banner = doc.getElementById(MANTRA_STATUS_BANNER_ID);
-    if (!banner || !entered) {
+    if (!banner) {
         return;
     }
 
     const hint = banner.querySelector('[data-radium-captcha-hint]');
+    if (!entered) {
+        hint?.remove();
+        return;
+    }
+
     if (hint) {
         return;
     }

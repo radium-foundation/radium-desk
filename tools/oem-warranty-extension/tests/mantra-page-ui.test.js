@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MANTRA_STATUS_BANNER_ID, showMantraHandoffStatus } from '../src/lib/mantra-page-ui.js';
+import {
+    MANTRA_STATUS_BANNER_ID,
+    showMantraHandoffStatus,
+    updateMantraCaptchaEntryHint,
+} from '../src/lib/mantra-page-ui.js';
 
 describe('showMantraHandoffStatus', () => {
     it('shows success guidance without internal identifiers', () => {
@@ -16,5 +20,16 @@ describe('showMantraHandoffStatus', () => {
         showMantraHandoffStatus(document, 'failure');
         showMantraHandoffStatus(document, 'timeout');
         expect(document.querySelectorAll(`#${MANTRA_STATUS_BANNER_ID}`)).toHaveLength(1);
+    });
+});
+
+describe('updateMantraCaptchaEntryHint', () => {
+    it('shows then removes hint when entry cleared', () => {
+        document.body.innerHTML = '<input id="txtSerialNo" />';
+        showMantraHandoffStatus(document, 'success');
+        updateMantraCaptchaEntryHint(document, true);
+        expect(document.querySelector('[data-radium-captcha-hint]')).toBeTruthy();
+        updateMantraCaptchaEntryHint(document, false);
+        expect(document.querySelector('[data-radium-captcha-hint]')).toBeFalsy();
     });
 });
