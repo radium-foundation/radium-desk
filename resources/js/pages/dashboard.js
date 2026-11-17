@@ -1,4 +1,5 @@
 import { applyKpis, applyRows, refreshDashboard } from '../live-dashboard';
+import { scheduleHybridKpiReconcile } from '../hybrid-kpi-reconcile';
 import { initLiveDashboard } from '../live-dashboard';
 import { configureDashboardPolling } from '../live-dashboard-polling';
 import { initLiveDashboardReverb } from '../live-dashboard-reverb';
@@ -293,11 +294,19 @@ const initDashboardTransactions = ({
                         batchSession.updateToolbar();
                     }
 
-                    if (data.kpi_strip_html !== undefined) {
-                        applyKpis(data.kpi_strip_html);
-                    }
+                if (data.kpi_strip_html !== undefined) {
+                    applyKpis(data.kpi_strip_html);
+                }
 
-                    showAppToast(data.message ?? 'Service reference saved.');
+                if (data.extensions?.operational_follow_up) {
+                    const pageRoot = document.getElementById('dashboard-page');
+
+                    if (pageRoot) {
+                        scheduleHybridKpiReconcile(pageRoot);
+                    }
+                }
+
+                showAppToast(data.message ?? 'Service reference saved.');
                 }
 
                 // Success replaces/removes the row; only release if the editor cell remains.
