@@ -291,7 +291,7 @@ describe('initDashboardOemWarrantyHandoff', () => {
             proposedRdExpiryYmd: '2026-06-01',
         });
         expect(showToast).toHaveBeenCalledWith(
-            expect.stringContaining('AW-'),
+            expect.stringContaining('OEM RD expiry captured'),
             { variant: 'info' },
         );
     });

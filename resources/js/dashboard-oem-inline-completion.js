@@ -1,5 +1,5 @@
 import {
-    formatRdExpiryYmdForServiceReferenceInput,
+    buildEligibleAwServiceReferenceFromMantraRdExpiry,
     proposeRdSubscriptionExpiryFromMantraDraft,
 } from './dashboard-oem-rd-expiry-prefill';
 
@@ -41,7 +41,7 @@ export const registerOemInlineCompletionFromSession = (incidentId, session, base
         sessionPublicId,
         completeAssignmentUrl: `${baseUrl}/${id}/oem-handoff/sessions/${sessionPublicId}/complete-assignment`,
         proposedRdExpiryYmd,
-        proposedRdExpiryDisplay: formatRdExpiryYmdForServiceReferenceInput(proposedRdExpiryYmd),
+        proposedRdExpiryDisplay: buildEligibleAwServiceReferenceFromMantraRdExpiry(proposedRdExpiryYmd),
     });
 
     return true;

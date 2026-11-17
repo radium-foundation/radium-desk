@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+    addCalendarDaysToYmd,
+    buildEligibleAwServiceReferenceFromMantraRdExpiry,
+    formatRdExpiryYmdAsAwServiceReference,
     formatRdExpiryYmdForServiceReferenceInput,
+    getTodayYmdInAsiaKolkata,
+    isMantraRdExpiryEligibleForAwPrefill,
     normalizeRdSubscriptionExpiryYmd,
     proposeRdSubscriptionExpiryFromMantraDraft,
 } from '../../resources/js/dashboard-oem-rd-expiry-prefill';
@@ -9,6 +14,18 @@ import {
     registerOemInlineCompletionFromSession,
     clearOemInlineCompletionContext,
 } from '../../resources/js/dashboard-oem-inline-completion';
+
+const TODAY = '2026-11-17';
+
+describe('formatRdExpiryYmdAsAwServiceReference', () => {
+    it('formats Y-m-d as AW-DD-MM-YYYY', () => {
+        expect(formatRdExpiryYmdAsAwServiceReference('2026-07-08')).toBe('AW-08-07-2026');
+    });
+
+    it('returns null for invalid input', () => {
+        expect(formatRdExpiryYmdAsAwServiceReference('07/08/2026')).toBeNull();
+    });
+});
 
 describe('normalizeRdSubscriptionExpiryYmd', () => {
     it('accepts ISO Y-m-d strings', () => {
@@ -28,6 +45,66 @@ describe('formatRdExpiryYmdForServiceReferenceInput', () => {
 
     it('returns null for invalid input', () => {
         expect(formatRdExpiryYmdForServiceReferenceInput(null)).toBeNull();
+    });
+});
+
+describe('addCalendarDaysToYmd', () => {
+    it('adds calendar days across month boundaries', () => {
+        expect(addCalendarDaysToYmd('2026-01-29', 3)).toBe('2026-02-01');
+    });
+
+    it('adds calendar days across year boundaries', () => {
+        expect(addCalendarDaysToYmd('2025-12-30', 3)).toBe('2026-01-02');
+    });
+
+    it('handles leap day', () => {
+        expect(addCalendarDaysToYmd('2024-02-27', 3)).toBe('2024-03-01');
+    });
+});
+
+describe('isMantraRdExpiryEligibleForAwPrefill', () => {
+    const thirdDay = addCalendarDaysToYmd(TODAY, 3);
+    const tomorrow = addCalendarDaysToYmd(TODAY, 1);
+    const dayAfter = addCalendarDaysToYmd(TODAY, 2);
+
+    it('rejects today, tomorrow, and day-after-tomorrow', () => {
+        expect(isMantraRdExpiryEligibleForAwPrefill(TODAY, TODAY)).toBe(false);
+        expect(isMantraRdExpiryEligibleForAwPrefill(tomorrow, TODAY)).toBe(false);
+        expect(isMantraRdExpiryEligibleForAwPrefill(dayAfter, TODAY)).toBe(false);
+    });
+
+    it('accepts third calendar day after today', () => {
+        expect(isMantraRdExpiryEligibleForAwPrefill(thirdDay, TODAY)).toBe(true);
+    });
+
+    it('accepts later dates', () => {
+        expect(isMantraRdExpiryEligibleForAwPrefill('2028-02-05', TODAY)).toBe(true);
+    });
+
+    it('rejects past dates', () => {
+        expect(isMantraRdExpiryEligibleForAwPrefill('2025-01-01', TODAY)).toBe(false);
+    });
+
+    it('rejects invalid or missing dates', () => {
+        expect(isMantraRdExpiryEligibleForAwPrefill(null, TODAY)).toBe(false);
+        expect(isMantraRdExpiryEligibleForAwPrefill('2026-13-01', TODAY)).toBe(false);
+    });
+});
+
+describe('buildEligibleAwServiceReferenceFromMantraRdExpiry', () => {
+    it('returns AW reference only when eligible', () => {
+        const eligible = addCalendarDaysToYmd(TODAY, 3);
+        expect(buildEligibleAwServiceReferenceFromMantraRdExpiry(eligible, TODAY)).toBe(
+            formatRdExpiryYmdAsAwServiceReference(eligible),
+        );
+        expect(buildEligibleAwServiceReferenceFromMantraRdExpiry(TODAY, TODAY)).toBeNull();
+    });
+});
+
+describe('getTodayYmdInAsiaKolkata', () => {
+    it('uses Asia/Kolkata calendar date at day boundary', () => {
+        const lateUtc = new Date('2026-11-16T20:30:00.000Z');
+        expect(getTodayYmdInAsiaKolkata(lateUtc)).toBe('2026-11-17');
     });
 });
 
@@ -58,20 +135,21 @@ describe('proposeRdSubscriptionExpiryFromMantraDraft', () => {
 describe('registerOemInlineCompletionFromSession', () => {
     it('stores proposed RD expiry in memory without persisting', () => {
         clearOemInlineCompletionContext(42);
+        const eligibleDate = '2030-06-01';
         const registered = registerOemInlineCompletionFromSession(42, {
             public_id: 'sess-42',
             status: 'draft_ready',
             draft: {
                 oem: 'mantra',
-                rd_expiry_date: '2026-06-01',
+                rd_expiry_date: eligibleDate,
             },
         }, '/dashboard/service-cases');
 
         expect(registered).toBe(true);
         expect(getOemInlineCompletionContext(42)).toMatchObject({
             sessionPublicId: 'sess-42',
-            proposedRdExpiryYmd: '2026-06-01',
-            proposedRdExpiryDisplay: '01/06/2026',
+            proposedRdExpiryYmd: eligibleDate,
+            proposedRdExpiryDisplay: formatRdExpiryYmdAsAwServiceReference(eligibleDate),
         });
         clearOemInlineCompletionContext(42);
     });

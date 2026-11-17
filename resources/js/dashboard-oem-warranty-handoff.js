@@ -150,7 +150,7 @@ const registerOemDraftForInlineRefCompletion = (incidentId, session, baseUrl, sh
         oem,
     });
     markPendingOemDraftReview(incidentId);
-    showToast?.('OEM RD expiry captured — type AW- before the date in Service Reference.', { variant: 'info' });
+    showToast?.('OEM RD expiry captured — eligible Service Reference will be filled automatically.', { variant: 'info' });
     document.dispatchEvent(new CustomEvent(OEM_INLINE_COMPLETION_READY, {
         detail: { incidentId: Number(incidentId) },
     }));
@@ -208,7 +208,7 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
         return;
     }
 
-    initDashboardOemRefServicePrefill();
+    initDashboardOemRefServicePrefill(showToast);
 
     const handoffEnabled = pageRoot.dataset.dashboardOemHandoffEnabled === '1';
     const baseUrl = pageRoot.dataset.dashboardOemHandoffUrl ?? '';
