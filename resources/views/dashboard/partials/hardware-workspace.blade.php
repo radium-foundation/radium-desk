@@ -17,6 +17,7 @@
      data-hardware-workspace
      data-hardware-defer-rows="{{ $deferRows ? '1' : '0' }}"
      data-hardware-rows-url="{{ route('dashboard.hardware.rows') }}"
+     data-hardware-counts-url="{{ route('dashboard.hardware.counts') }}"
      data-hardware-shiprocket-url="{{ route('dashboard.hardware.shiprocket-balance') }}"
      data-hardware-scope="{{ $hardwareWorkspace['scope'] ?? HardwareWorkspaceScope::Active->value }}"
      data-hardware-filter="{{ $hardwareWorkspace['filter'] ?? 'needs_action' }}"

@@ -103,6 +103,7 @@ class DashboardService
         return [
             'online_count' => $onlineUsers->count(),
             'online_users' => $onlineUsers,
+            'kpi_strip_pending' => true,
             ...$this->slowChangingStatsFor($user),
         ];
     }

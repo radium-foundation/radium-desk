@@ -120,6 +120,8 @@ return [
 
     'hardware_counts_ttl_seconds' => (int) env('DASHBOARD_HARDWARE_COUNTS_TTL_SECONDS', 30),
 
+    'hardware_counts_last_known_ttl_seconds' => (int) env('DASHBOARD_HARDWARE_COUNTS_LAST_KNOWN_TTL_SECONDS', 86400),
+
     /*
     |--------------------------------------------------------------------------
     | Hardware stuck orders KPI snapshot (stale-while-revalidate)

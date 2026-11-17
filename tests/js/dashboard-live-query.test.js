@@ -36,4 +36,16 @@ describe('buildDashboardLiveQuery', () => {
         expect(query.get('workspace')).toBe('scheduled');
         expect(query.has('queue')).toBe(false);
     });
+
+    it('uses kpi live workspace for kpis_only on hardware dashboard', () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        pageRoot.dataset.liveWorkspace = 'hardware';
+        pageRoot.dataset.liveQueue = 'hardware';
+        pageRoot.dataset.kpiLiveWorkspace = 'action_required';
+
+        const query = buildDashboardLiveQuery(pageRoot, { kpis_only: 1 });
+
+        expect(query.get('workspace')).toBe('action_required');
+        expect(query.get('kpis_only')).toBe('1');
+    });
 });

@@ -12,6 +12,7 @@
         $usesAgentDashboard = auth()->user() && app(OperationsRoleService::class)->usesSupportQueues(auth()->user());
         $showMissionControlQuickNav = auth()->user()?->hasAnyRole(RolePermissionSeeder::ADMIN_TEAM_ROLES)
             && auth()->user()?->can('operations-dashboard.view');
+        $isHardwareDashboard = ($operationQueue ?? '') === DashboardPersonalizationService::QUEUE_HARDWARE;
     @endphp
 
     <div @class([
@@ -26,6 +27,10 @@
          data-live-hardware-url="{{ route('dashboard.live.hardware') }}"
          data-live-queue="{{ $operationQueue }}"
          data-live-workspace="{{ $operationsWorkspace ?? $operationQueue }}"
+         @if($isHardwareDashboard)
+         data-kpi-live-workspace="action_required"
+         data-hardware-kpi-refresh="1"
+         @endif
          data-live-scope="{{ $dashboardLiveScope ?? 'operations_scope' }}"
          data-live-filter="{{ $serviceCaseFilter ?? $operationQueue }}"
          data-operations-workspace-kind="{{ $operationsWorkspaceKind ?? 'case_queue' }}"

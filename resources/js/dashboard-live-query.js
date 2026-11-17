@@ -9,6 +9,7 @@ export const buildDashboardLiveQuery = (pageRoot, extras = {}) => {
         'pending_support',
     ]);
     const liveWorkspace = pageRoot.dataset.liveWorkspace ?? '';
+    const kpiLiveWorkspace = pageRoot.dataset.kpiLiveWorkspace ?? '';
     const isFilterWorkspace = filterWorkspaces.has(liveWorkspace);
     const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? fallbackQueue;
     const filter = pageRoot.dataset.liveFilter ?? queue;
@@ -22,7 +23,9 @@ export const buildDashboardLiveQuery = (pageRoot, extras = {}) => {
         query.set(key, String(value));
     });
 
-    const workspace = liveWorkspace || queue;
+    const workspace = (extras.kpis_only !== undefined && kpiLiveWorkspace !== '')
+        ? kpiLiveWorkspace
+        : (liveWorkspace || queue);
 
     if (workspace) {
         query.set('workspace', workspace);

@@ -176,6 +176,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard/live/rows', [DashboardLiveController::class, 'rows'])->name('dashboard.live.rows');
     Route::get('/dashboard/live/hardware', [DashboardLiveController::class, 'hardware'])->name('dashboard.live.hardware');
     Route::get('/dashboard/hardware/rows', [DashboardHardwareController::class, 'rows'])->name('dashboard.hardware.rows');
+    Route::get('/dashboard/hardware/counts', [DashboardHardwareController::class, 'navCounts'])->name('dashboard.hardware.counts');
     Route::get('/dashboard/hardware/shiprocket-balance', [DashboardHardwareController::class, 'shiprocketBalance'])->name('dashboard.hardware.shiprocket-balance');
     Route::get('/dashboard/hardware/stuck-summary', [DashboardHardwareController::class, 'stuckSummary'])->name('dashboard.hardware.stuck-summary');
     Route::get('/dashboard/workspace', [OperationsWorkspaceController::class, 'show'])

@@ -86,11 +86,14 @@ final class HardwareDashboardWorkspace
      *     inspected_fulfilment_count: int
      * }
      */
-    public function rowsPayload(Request $request): array
+    public function rowsPayload(Request $request, ?HardwareDashboardRowsTimer $timer = null): array
     {
         $search = trim((string) $request->query('q', ''));
         $scope = $this->resolveScope($request);
         $filter = $this->resolveFilter($request, $scope);
+
+        $timer ??= new HardwareDashboardRowsTimer;
+        $request->attributes->set('hardware_rows_timer', $timer);
 
         $range = $this->range($request);
         $dashboard = $this->workQueue->dashboard($range['from'], $range['to'], $search, $scope, $filter);
@@ -112,6 +115,36 @@ final class HardwareDashboardWorkspace
             'progressive' => (bool) ($dashboard['progressive'] ?? false),
             'inspected_fulfilment_count' => $this->workQueue->lastInspectedFulfilmentCount,
             'chunk' => $dashboard['chunk'] ?? null,
+            'counts_meta' => $dashboard['counts_meta'] ?? null,
+            'rows_timer' => $timer,
+        ];
+    }
+
+    /**
+     * Live nav counts for async refresh (does not use row chunk deferral).
+     *
+     * @return array{
+     *     scope_counts: array<string, int>,
+     *     filter_counts: array<string, int>,
+     *     stale: bool
+     * }
+     */
+    public function navCountsPayload(Request $request): array
+    {
+        $search = trim((string) $request->query('q', ''));
+        $range = $this->range($request);
+
+        $countsCache = app(HardwareDashboardCountsCache::class);
+        $scopeRaw = $countsCache->scopeCounts($range['from'], $range['to']);
+        $filterCounts = $countsCache->filterCounts($range['from'], $range['to'], $search);
+
+        return [
+            'scope_counts' => [
+                HardwareWorkspaceScope::Active->value => $scopeRaw['active'],
+                HardwareWorkspaceScope::Shipped->value => $scopeRaw['shipped'],
+            ],
+            'filter_counts' => $filterCounts,
+            'stale' => false,
         ];
     }
 

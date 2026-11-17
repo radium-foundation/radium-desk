@@ -9,6 +9,7 @@
     'workspace' => null,
     'metric' => null,
     'viewOnlyRefresh' => false,
+    'pending' => false,
 ])
 
 @php
@@ -52,6 +53,7 @@
         data-dashboard-kpi-action="{{ $kpiAction }}"
     @endif
     @class($itemClasses)
+    @if($pending) aria-busy="true" @endif
 >
     <div class="dashboard-kpi-icon text-{{ $color }}">
         <i class="bi {{ $icon }}" aria-hidden="true"></i>
@@ -69,7 +71,14 @@
                 </button>
             @endif
         </div>
-        <div class="dashboard-kpi-value">{{ number_format($value) }}</div>
+        <div class="dashboard-kpi-value">
+            @if($pending)
+                <span class="dashboard-kpi-value--pending" aria-hidden="true">—</span>
+                <span class="visually-hidden">Loading</span>
+            @else
+                {{ number_format((int) $value) }}
+            @endif
+        </div>
         @if($viewOnlyRefresh && $metric)
             <div class="dashboard-kpi-updated"
                  data-dashboard-metric-updated="{{ $metric }}"

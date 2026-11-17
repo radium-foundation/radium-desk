@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\DashboardPersonalizationService;
+use App\Services\HardwareFulfilment\HardwareDashboardRowsTimer;
 use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
 use App\Services\HardwareFulfilment\HardwareStuckOrdersSnapshotRefresher;
 use App\Services\HardwareFulfilment\HardwareStuckOrdersSnapshotStore;
@@ -26,7 +27,10 @@ class DashboardHardwareController extends Controller
             abort(403);
         }
 
-        $payload = $this->hardwareDashboard->rowsPayload($request);
+        $timer = new HardwareDashboardRowsTimer;
+        $timer->mark('start');
+        $payload = $this->hardwareDashboard->rowsPayload($request, $timer);
+        $timer->mark('render');
 
         $tbodyHtml = view('dashboard.partials.hardware-workspace-tbody', [
             'rows' => $payload['rows'],
@@ -41,7 +45,7 @@ class DashboardHardwareController extends Controller
             'hardwareWorkspace' => $payload,
         ])->render();
 
-        return response()->json([
+        $response = response()->json([
             'rows_html' => $tbodyHtml,
             'pagination_html' => $paginationHtml,
             'scope' => $payload['scope'],
@@ -53,12 +57,25 @@ class DashboardHardwareController extends Controller
             'inspected_fulfilment_count' => $payload['inspected_fulfilment_count'],
             'scope_counts' => $payload['scope_counts'],
             'filter_counts' => $payload['filter_counts'],
+            'counts_meta' => $payload['counts_meta'] ?? null,
             'operable_fulfilment_ids' => $payload['operableFulfilmentIds'],
             'can_operate_hardware' => $payload['canOperateHardware'],
             'last_page' => $payload['last_page'] ?? 1,
             'progressive' => (bool) ($payload['progressive'] ?? false),
             'chunk' => $payload['chunk'] ?? null,
         ]);
+
+        return $response->header('Server-Timing', $timer->toServerTimingHeader());
+    }
+
+    public function navCounts(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if ($user === null || ! $user->can('incidents.view') || ! $this->dashboardPersonalization->canViewHardwareOrders($user)) {
+            abort(403);
+        }
+
+        return response()->json($this->hardwareDashboard->navCountsPayload($request));
     }
 
     public function shiprocketBalance(Request $request): JsonResponse

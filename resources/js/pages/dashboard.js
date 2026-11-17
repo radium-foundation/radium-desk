@@ -11,6 +11,7 @@ import { initDashboardKpiActions } from '../dashboard-kpi';
 import { initViewOnlyMetricRefresh } from '../dashboard-live-counts';
 import { initOperationsWorkspaceSoftSwitch } from '../dashboard-operations-workspace';
 import { initHardwareDashboardAsync } from '../hardware-dashboard-async';
+import { initHardwareDashboardKpiStrip } from '../hardware-dashboard-kpi';
 import { initHardwareStuckSummaryAsync } from '../hardware-stuck-summary-async';
 import { initHardwareDashboardSelection } from '../hardware-dashboard-selection';
 import { initServiceCasePaginationState } from '../dashboard-service-case-state';
@@ -532,6 +533,7 @@ export const bootDashboard = () => {
         pageRoot,
         clearQuickFilter: () => dashboardQuickFilter?.clearFilter?.(),
     });
+    initHardwareDashboardKpiStrip(pageRoot);
     initHardwareDashboardAsync(pageRoot);
     initHardwareStuckSummaryAsync(pageRoot);
     initHardwareDashboardSelection(pageRoot);

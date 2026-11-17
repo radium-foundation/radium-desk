@@ -18,10 +18,13 @@
         // Support agent cards are rendered via agent-action-cards partial.
     }
 
+    $kpiPending = (bool) ($stats['kpi_strip_pending'] ?? false);
+
     if ($currentUser?->can('incidents.view') && ! $usesSupportQueues) {
         $items[] = [
             'label' => 'Open',
-            'value' => $stats['open_cases'] ?? $stats['open_incidents'] ?? 0,
+            'value' => $kpiPending ? null : ($stats['open_cases'] ?? $stats['open_incidents'] ?? 0),
+            'pending' => $kpiPending,
             'icon' => 'bi-inbox',
             'color' => 'primary',
             'href' => route('dashboard', $workspaceLinks->deepLinkQueryParams(
@@ -33,7 +36,8 @@
 
         $items[] = [
             'label' => 'Overdue',
-            'value' => $stats['overdue_cases'] ?? 0,
+            'value' => $kpiPending ? null : ($stats['overdue_cases'] ?? 0),
+            'pending' => $kpiPending,
             'icon' => 'bi-exclamation-octagon-fill',
             'color' => 'danger',
             'href' => route('dashboard', $workspaceLinks->deepLinkQueryParams(
@@ -45,7 +49,8 @@
 
         $items[] = [
             'label' => 'Customer Waiting',
-            'value' => $stats['waiting_cases'] ?? 0,
+            'value' => $kpiPending ? null : ($stats['waiting_cases'] ?? 0),
+            'pending' => $kpiPending,
             'icon' => 'bi-hourglass-split',
             'color' => 'warning',
             'href' => route('dashboard', $workspaceLinks->deepLinkQueryParams(
