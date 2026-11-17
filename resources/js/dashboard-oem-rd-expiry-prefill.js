@@ -19,6 +19,21 @@ export const normalizeRdSubscriptionExpiryYmd = (value) => {
  * @param {Record<string, unknown>|null|undefined} draft Normalized dashboard session draft view
  * @returns {string|null} ISO date (Y-m-d) for HTML date input, or null
  */
+/**
+ * @param {string|null|undefined} ymd ISO date Y-m-d from Mantra rd_expiry_date
+ * @returns {string|null} Human-readable d/m/Y for Service Reference input (e.g. 29/01/2027)
+ */
+export const formatRdExpiryYmdForServiceReferenceInput = (ymd) => {
+    const normalized = normalizeRdSubscriptionExpiryYmd(typeof ymd === 'string' ? ymd : null);
+    if (!normalized) {
+        return null;
+    }
+
+    const [year, month, day] = normalized.split('-');
+
+    return `${day}/${month}/${year}`;
+};
+
 export const proposeRdSubscriptionExpiryFromMantraDraft = (draft) => {
     if (!draft || typeof draft !== 'object') {
         return null;

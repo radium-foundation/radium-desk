@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    formatRdExpiryYmdForServiceReferenceInput,
     normalizeRdSubscriptionExpiryYmd,
     proposeRdSubscriptionExpiryFromMantraDraft,
 } from '../../resources/js/dashboard-oem-rd-expiry-prefill';
@@ -17,6 +18,16 @@ describe('normalizeRdSubscriptionExpiryYmd', () => {
     it('rejects non-ISO values', () => {
         expect(normalizeRdSubscriptionExpiryYmd('05/02/2028')).toBeNull();
         expect(normalizeRdSubscriptionExpiryYmd('')).toBeNull();
+    });
+});
+
+describe('formatRdExpiryYmdForServiceReferenceInput', () => {
+    it('formats Y-m-d as d/m/Y', () => {
+        expect(formatRdExpiryYmdForServiceReferenceInput('2027-01-29')).toBe('29/01/2027');
+    });
+
+    it('returns null for invalid input', () => {
+        expect(formatRdExpiryYmdForServiceReferenceInput(null)).toBeNull();
     });
 });
 
@@ -60,6 +71,7 @@ describe('registerOemInlineCompletionFromSession', () => {
         expect(getOemInlineCompletionContext(42)).toMatchObject({
             sessionPublicId: 'sess-42',
             proposedRdExpiryYmd: '2026-06-01',
+            proposedRdExpiryDisplay: '01/06/2026',
         });
         clearOemInlineCompletionContext(42);
     });
