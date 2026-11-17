@@ -62,13 +62,6 @@ final class RbpHardwareFulfilmentDeskPaymentAuthorityGate
             ]);
         }
 
-        $paymentReference = trim((string) ($commerceOrder->payment_reference ?? ''));
-        if ($paymentReference !== '' && $paymentReference !== $cfPaymentId) {
-            throw ValidationException::withMessages([
-                'payment' => 'Commerce payment_reference does not match Desk cashfree_payment_id.',
-            ]);
-        }
-
         if (! $this->hasSuccessfulCashfreeWebhookEvidence($cfPaymentId)) {
             throw ValidationException::withMessages([
                 'payment' => 'No successful Cashfree webhook evidence matches this Desk payment id.',
