@@ -1,9 +1,13 @@
 # Changelog
 
-## 4.1.78 — Unreleased — Morpho inline AW Service Reference prefill (P-17-05)
+## 4.1.78 — 2026-11-17 — Morpho inline AW prefill (flag-default off) + Mantra CAPTCHA assist (P-17-05 / P-17-07)
 
-- **Purpose:** Wire Morpho `already_whitelisted` DOM captures to the shared REF inline AW prefill path (`fields.expiry_date` only; same +3 calendar-day IST eligibility as Mantra). **No** live OTBS HTTP, **no** production flag changes, **no** deploy authorization.
-- **Application delta:** Dashboard JavaScript + investigation docs; OEM extension **v0.3.11** Mantra CAPTCHA operator assistance (focus/highlight/copy-serial banner; Desk tab focus after capture).
+- **Purpose:** Ship already-merged Morpho Desk path: `already_whitelisted` + `fields.expiry_date` → shared REF inline **`AW-DD-MM-YYYY`** prefill with **Asia/Kolkata +3 calendar-day** eligibility (same rules as Mantra P-17-03). Include OEM extension **v0.3.11** Mantra operator assistance (CAPTCHA focus/highlight; **no** CAPTCHA solve/submit).
+- **Source (release tag target):** Annotated tag **`v4.1.78`** on application tree **`9d3d211075191a081dd16118ef709083490a8957`** — merges **PR [#302](https://github.com/radium-foundation/radium-desk/pull/302)** (Morpho inline, **`aecee3842`**) and **PR [#303](https://github.com/radium-foundation/radium-desk/pull/303)** (extension **`9b041e7eb`**). Prior release baseline **`v4.1.77`** / **`da7081cf8`**.
+- **Feature flags (defaults unchanged):** `DASHBOARD_OEM_HANDOFF_MORPHO_CAPTURE` **false**; `MORPHO_OTBS_LIVE_ENABLED` **false**. **This release does not authorize production deploy, Morpho activation, or live OTBS HTTP.**
+- **Application delta:** Dashboard JavaScript + docs + internal extension sources. **No** PHP/schema/migration changes in PR #302/#303. **No** payment, Cashfree, or customer-data changes.
+- **Focused evidence (P-17-07):** Desk OEM Vitest **42/42** exit **0**; extension Vitest **61/61** exit **0**. Full PHPUnit **NOT RUN**. Live Morpho portal E2E **NOT RUN**. Staging **NOT AVAILABLE**.
+- **Deploy:** **STOP** at deploy gate until separate Owner authorization (existing prod may remain **`v4.1.77`**).
 
 ## 4.1.77 — 2026-11-17 — Automatic AW Service Reference formatting and expiry eligibility (P-17-03)
 
