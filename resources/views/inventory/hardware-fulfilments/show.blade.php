@@ -450,7 +450,7 @@
                     @if($shipment->canExternalDispatch)
                         <form method="POST" action="{{ route('inventory.hardware-fulfilments.external-dispatch.store', $fulfilment) }}" class="mt-3">
                             @csrf
-                            <p class="text-muted small mb-2">Marks this external shipment dispatched after package photo evidence is recorded.</p>
+                            <p class="text-muted small mb-2">Marks this external shipment as dispatched.</p>
                             <button type="submit" class="btn btn-primary">Mark Dispatched</button>
                         </form>
                     @endif
@@ -663,7 +663,7 @@
             @if($shipment->canMarkReadyForPickup)
                 <form method="POST" action="{{ route('inventory.hardware-fulfilments.ready-for-pickup.store', $fulfilment) }}" id="hardware-ready-form" class="mt-3">
                     @csrf
-                    <p class="text-muted small mb-2">Marks this fulfilment ready for pickup after pickup is requested. Package photo is not required.</p>
+                    <p class="text-muted small mb-2">Marks this fulfilment ready for pickup after pickup is requested.</p>
                     <button type="submit" class="btn btn-primary" id="hardware-ready-submit">Mark Ready for Pickup</button>
                 </form>
             @endif
@@ -1007,7 +1007,6 @@
             ['hardware-pickup-form', 'hardware-pickup-submit', 'Request Shiprocket pickup for this shipment?', 'Requesting pickup…'],
             ['hardware-manifest-form', 'hardware-manifest-submit', 'Generate the Shiprocket manifest for this shipment?', 'Generating manifest…'],
             ['hardware-ready-form', 'hardware-ready-submit', 'Mark this fulfilment ready for pickup?', 'Saving…'],
-            ['hardware-package-before-form', 'hardware-package-before-submit', 'Record this package photo? It does not block shipping.', 'Saving photo…'],
         ].forEach(function (row) {
             const form = document.getElementById(row[0]);
             const submit = document.getElementById(row[1]);
