@@ -3,20 +3,24 @@
 namespace Tests\Feature\CommunicationActions;
 
 use App\Enums\CommunicationActionKey;
-use App\Enums\WorkspaceContext;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\WorkspaceContext;
+use App\Jobs\ProcessAssignReferenceBatchFollowUpJob;
 use App\Jobs\SendServiceReferenceDriverGuideBatchJob;
 use App\Jobs\SendServiceReferenceDriverGuideJob;
 use App\Models\AuditLog;
 use App\Models\DeviceModel;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\AssignReference\AssignReferenceBatchFollowUpProcessor;
 use App\Services\CommunicationActions\CommunicationActionLifecycleAuditService;
 use App\Services\CommunicationActions\ReferenceNumberCommunicationService;
 use App\Services\IncidentReferenceService;
 use App\Services\Notifications\NotificationAuditTrailService;
+use App\Services\SystemSettingsService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -306,6 +310,11 @@ class ReferenceNumberAddedDriverInstallationGuideTest extends TestCase
         $this->assertSame('TXN-BATCH-QUEUED', $firstOrder->fresh()->transaction_id);
         $this->assertSame('TXN-BATCH-QUEUED', $secondOrder->fresh()->transaction_id);
 
+        Queue::assertPushed(ProcessAssignReferenceBatchFollowUpJob::class, 1);
+
+        $followUp = collect(Queue::pushed(ProcessAssignReferenceBatchFollowUpJob::class))->first();
+        $followUp?->handle(app(AssignReferenceBatchFollowUpProcessor::class));
+
         Queue::assertNotPushed(SendServiceReferenceDriverGuideJob::class);
         Queue::assertPushed(SendServiceReferenceDriverGuideBatchJob::class, 1);
         Queue::assertPushed(SendServiceReferenceDriverGuideBatchJob::class, function (SendServiceReferenceDriverGuideBatchJob $job) use ($firstOrder, $secondOrder, $admin): bool {
@@ -436,12 +445,12 @@ class ReferenceNumberAddedDriverInstallationGuideTest extends TestCase
         ], $settings);
 
         foreach ($settings as $key => $value) {
-            \App\Models\SystemSetting::query()->updateOrCreate(
+            SystemSetting::query()->updateOrCreate(
                 ['key' => $key],
                 ['value' => $value ? '1' : '0'],
             );
 
-            app(\App\Services\SystemSettingsService::class)->forget($key);
+            app(SystemSettingsService::class)->forget($key);
         }
     }
 }

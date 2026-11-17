@@ -13,6 +13,8 @@ use App\Models\InteraktWebhookLog;
 use App\Models\OutboxEvent;
 use App\Models\RadiumBoxStatutoryReceiptPublication;
 use App\Models\RefundStatutoryAdjustment;
+use App\Services\AssignReference\AssignReferenceBatchFollowUpOutboxWriter;
+use App\Services\AssignReference\AssignReferenceBatchFollowUpProcessor;
 use App\Services\Bonvoice\BonvoiceIncomingCallLatency;
 use App\Services\Bonvoice\BonvoiceWebhookOutboxWriter;
 use App\Services\Bonvoice\BonvoiceWebhookProcessorService;
@@ -29,15 +31,15 @@ use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\Interakt\InteraktOutboundProcessorService;
 use App\Services\Interakt\InteraktWebhookOutboxWriter;
 use App\Services\Interakt\InteraktWebhookProcessorService;
+use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationOutboxWriter;
+use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationPermanentFailureException;
+use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationProcessor;
+use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationRetryableException;
 use App\Services\Refunds\RefundStatutoryAdjustmentOutboxWriter;
 use App\Services\Refunds\RefundStatutoryAdjustmentProcessor;
 use App\Services\StatutoryInvoice\EInvoiceOutboxWriter;
 use App\Services\StatutoryInvoice\EInvoiceProcessor;
 use App\Services\StatutoryInvoice\EInvoiceRecoveryRequiredException;
-use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationOutboxWriter;
-use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationPermanentFailureException;
-use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationProcessor;
-use App\Services\RadiumBox\RadiumBoxStatutoryReceiptPublicationRetryableException;
 use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceMintOutboxWriter;
 use App\Services\StatutoryInvoice\ServiceStatutoryInvoiceMintProcessor;
 use App\Services\StatutoryInvoice\ServiceStatutoryInvoicePermanentFailureException;
@@ -69,6 +71,7 @@ class OutboxProcessorService
         private readonly RadiumBoxStatutoryReceiptPublicationProcessor $radiumBoxStatutoryReceiptPublicationProcessor,
         private readonly RefundStatutoryAdjustmentProcessor $refundStatutoryAdjustmentProcessor,
         private readonly HardwareFulfilmentCallbackProcessor $hardwareFulfilmentCallbackProcessor,
+        private readonly AssignReferenceBatchFollowUpProcessor $assignReferenceBatchFollowUpProcessor,
     ) {}
 
     public function process(?int $limit = null): int
@@ -216,6 +219,7 @@ class OutboxProcessorService
             RadiumBoxStatutoryReceiptPublicationOutboxWriter::EVENT_TYPE => $this->radiumBoxStatutoryReceiptPublicationProcessor->process($event),
             RefundStatutoryAdjustmentOutboxWriter::EVENT_TYPE => $this->refundStatutoryAdjustmentProcessor->process($event),
             HardwareFulfilmentCallbackOutboxWriter::EVENT_TYPE => $this->hardwareFulfilmentCallbackProcessor->process($event),
+            AssignReferenceBatchFollowUpOutboxWriter::EVENT_TYPE => $this->assignReferenceBatchFollowUpProcessor->process($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
     }

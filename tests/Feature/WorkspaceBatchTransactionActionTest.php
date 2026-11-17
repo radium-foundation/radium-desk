@@ -5,12 +5,12 @@ namespace Tests\Feature;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\WorkspaceContext;
+use App\Jobs\ProcessAssignReferenceBatchFollowUpJob;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\CustomerVerificationService;
 use App\Services\DashboardBroadcastService;
-use App\Services\DashboardService;
 use App\Services\OrderTransactionService;
 use App\Services\WorkspaceRefreshRenderer;
 use Database\Seeders\RolePermissionSeeder;
@@ -135,17 +135,17 @@ class WorkspaceBatchTransactionActionTest extends TestCase
             ->assertJsonPath('action', 'batch-transaction')
             ->assertJsonPath('success', true)
             ->assertJsonPath('ui.close_workspace_host', true)
-            ->assertJsonPath('refresh.kpis', true)
+            ->assertJsonPath('refresh.kpis', false)
             ->assertJsonStructure([
                 'refresh' => [
                     'remove_rows' => [
                         ['incident_id'],
                     ],
-                    'kpis_html' => ['kpi_strip_html'],
                 ],
                 'extensions' => [
                     'succeeded_incident_ids',
                     'failed_incidents',
+                    'operational_follow_up',
                 ],
             ]);
 
@@ -425,19 +425,13 @@ class WorkspaceBatchTransactionActionTest extends TestCase
         $this->assertSame('TX-BATCH-REFRESH', $second['order']->fresh()->transaction_id);
     }
 
-    public function test_bulk_assign_returns_success_when_replace_rows_rendering_throws(): void
+    public function test_bulk_assign_defers_row_rendering_and_still_returns_remove_rows(): void
     {
         Queue::fake();
-        Notification::fake();
 
         $admin = $this->createAdmin();
         $first = $this->createPendingCase($admin, 'ROWS-1');
         $second = $this->createPendingCase($admin, 'ROWS-2');
-
-        $this->partialMock(DashboardService::class, function ($mock): void {
-            $mock->shouldReceive('serviceCaseRowViewData')
-                ->andThrow(new RuntimeException('Simulated replace_rows render failure'));
-        });
 
         $response = $this->actingAs($admin)
             ->postJson(route('dashboard.workspace.batch-transaction'), [
@@ -447,9 +441,11 @@ class WorkspaceBatchTransactionActionTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('extensions.warning', OrderTransactionService::DASHBOARD_REFRESH_WARNING)
             ->assertJsonPath('refresh.replace_rows', [])
-            ->assertJsonCount(2, 'refresh.remove_rows');
+            ->assertJsonCount(2, 'refresh.remove_rows')
+            ->assertJsonStructure(['extensions' => ['operational_follow_up']]);
+
+        Queue::assertPushed(ProcessAssignReferenceBatchFollowUpJob::class, 1);
 
         $this->assertCount(2, $response->json('extensions.succeeded_incident_ids'));
         $this->assertSame('TX-BATCH-ROWS', $first['order']->fresh()->transaction_id);
@@ -460,6 +456,8 @@ class WorkspaceBatchTransactionActionTest extends TestCase
     {
         $admin = $this->createAdmin();
         $pending = $this->createPendingCase($admin, 'SHOW');
+
+        $this->withoutVite();
 
         $this->actingAs($admin)
             ->get(route('incidents.show', $pending['incident']))

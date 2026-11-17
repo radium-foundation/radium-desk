@@ -30,7 +30,7 @@ class WorkspaceRefreshPolicy
         return match ($component) {
             WorkspaceComponent::Timeline => new WorkspaceRefreshEffects,
             WorkspaceComponent::BatchTransaction => new WorkspaceRefreshEffects(
-                refreshKpis: true,
+                refreshKpis: false,
             ),
             WorkspaceComponent::BatchDeviceModel => new WorkspaceRefreshEffects(
                 refreshKpis: true,

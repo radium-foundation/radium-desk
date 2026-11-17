@@ -5,11 +5,14 @@ namespace App\Services;
 use App\Enums\CommercialAction;
 use App\Enums\IncidentStatus;
 use App\Enums\StatutoryInvoice\ServiceStatutoryInvoiceMintTrigger;
+use App\Jobs\ProcessAssignReferenceBatchFollowUpJob;
 use App\Jobs\SendServiceReferenceDriverGuideJob;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\OutboxEvent;
 use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
+use App\Services\AssignReference\AssignReferenceBatchFollowUpOutboxWriter;
 use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Commercial\CommercialStateResolver;
 use App\Services\Dashboard\DashboardSnapshotStore;
@@ -40,6 +43,7 @@ class OrderTransactionService
         private readonly SettingService $settingService,
         private readonly SerialPlaceholderService $serialPlaceholderService,
         private readonly ServiceReferenceOemSubscriptionExpiryPersistenceService $oemSubscriptionExpiryPersistence,
+        private readonly AssignReferenceBatchFollowUpOutboxWriter $batchFollowUpOutboxWriter,
     ) {}
 
     public function assignTransactionId(
@@ -294,10 +298,10 @@ class OrderTransactionService
 
         /** @var list<string> $postProcessingWarnings */
         $postProcessingWarnings = [];
-        $rows = [];
         $succeededIncidentIds = [];
         $failedIncidents = [];
         $batchCompletedCleanly = false;
+        $followUpOutbox = null;
 
         try {
             foreach ($ordersToUpdate as $orderId) {
@@ -351,11 +355,17 @@ class OrderTransactionService
 
             $coalesceStats = $this->batchCoalescer->stats();
 
-            // One snapshot forget + one automation dirty mark before row/KPI rebuild.
+            $invalidationPhaseAt = microtime(true);
             $this->batchCoalescer->flushInvalidations(
                 $this->dashboardSnapshotStore,
                 $this->automationSnapshotInvalidator,
             );
+
+            Log::info('bulk_assign.batch.phase', [
+                'batch_id' => $batchId,
+                'phase' => 'invalidations',
+                'duration_ms' => (int) round((microtime(true) - $invalidationPhaseAt) * 1000),
+            ]);
 
             $refreshedIncidents = Incident::query()
                 ->with(['order.transactionAssigner', 'creator', 'assignee'])
@@ -363,29 +373,7 @@ class OrderTransactionService
                 ->get()
                 ->keyBy('id');
 
-            foreach ($incidentIds as $incidentId) {
-                $incident = $refreshedIncidents->get($incidentId);
-
-                if ($incident === null) {
-                    continue;
-                }
-
-                try {
-                    $rows[] = [
-                        'incident_id' => $incident->id,
-                        'html' => view(
-                            'dashboard.partials.service-case-row',
-                            $this->dashboardService->serviceCaseRowViewData($incident, $actor),
-                        )->render(),
-                    ];
-                } catch (Throwable $exception) {
-                    $this->logPostProcessingFailure($batchId, 'replace_rows.render', $exception);
-
-                    if (! in_array(self::DASHBOARD_REFRESH_WARNING, $postProcessingWarnings, true)) {
-                        $postProcessingWarnings[] = self::DASHBOARD_REFRESH_WARNING;
-                    }
-                }
-            }
+            $classificationPhaseAt = microtime(true);
 
             foreach ($incidentIds as $incidentId) {
                 $incident = $refreshedIncidents->get($incidentId);
@@ -458,7 +446,15 @@ class OrderTransactionService
                 ];
             }
 
+            Log::info('bulk_assign.batch.phase', [
+                'batch_id' => $batchId,
+                'phase' => 'classification',
+                'duration_ms' => (int) round((microtime(true) - $classificationPhaseAt) * 1000),
+            ]);
+
             if ($succeededIncidentIds !== []) {
+                $ablyPhaseAt = microtime(true);
+
                 try {
                     $this->dashboardBroadcastService->transactionsAssigned($succeededIncidentIds, $actor);
                 } catch (Throwable $exception) {
@@ -468,11 +464,48 @@ class OrderTransactionService
                         $postProcessingWarnings[] = self::DASHBOARD_REFRESH_WARNING;
                     }
                 }
+
+                Log::info('bulk_assign.batch.phase', [
+                    'batch_id' => $batchId,
+                    'phase' => 'ably.transactions_assigned',
+                    'duration_ms' => (int) round((microtime(true) - $ablyPhaseAt) * 1000),
+                ]);
+
+                $communications = $this->batchCoalescer->communicationsSnapshot();
+                $followUpPhaseAt = microtime(true);
+
+                $followUpOutbox = $this->batchFollowUpOutboxWriter->enqueue(
+                    batchId: $batchId,
+                    actorId: $actor->id,
+                    pendingNotifications: $communications['pending_notifications'],
+                    pendingDriverGuides: $communications['pending_driver_guides'],
+                    succeededIncidentIds: $succeededIncidentIds,
+                );
+
+                try {
+                    ProcessAssignReferenceBatchFollowUpJob::dispatch($followUpOutbox->id);
+                } catch (Throwable $exception) {
+                    Log::error('bulk_assign.batch.follow_up.dispatch_failed', [
+                        'batch_id' => $batchId,
+                        'outbox_event_id' => $followUpOutbox->id,
+                        'exception' => $exception::class,
+                        'message' => $exception->getMessage(),
+                    ]);
+                }
+
+                Log::info('bulk_assign.batch.phase', [
+                    'batch_id' => $batchId,
+                    'phase' => 'follow_up.enqueued',
+                    'outbox_event_id' => $followUpOutbox->id,
+                    'duration_ms' => (int) round((microtime(true) - $followUpPhaseAt) * 1000),
+                ]);
+
+                // KPI rebuild + admin DB notifications + driver guide dispatch run in the durable follow-up job.
+                $this->dashboardBroadcastService->cancelKpiCoalesce();
+            } else {
+                $this->dashboardBroadcastService->cancelKpiCoalesce();
             }
 
-            // One TransactionCompletedNotification fan-out pass + one DriverGuide batch job.
-            $this->batchCoalescer->flushCommunications($this->settingService);
-            $this->dashboardBroadcastService->flushKpiCoalesce();
             $batchCompletedCleanly = true;
 
             Log::info('bulk_assign.batch.finished', [
@@ -483,6 +516,7 @@ class OrderTransactionService
                 'finished_at' => now()->toIso8601String(),
                 'duration_ms' => (int) round((microtime(true) - $batchTimerStartedAt) * 1000),
                 'coalesce' => $coalesceStats,
+                'follow_up_outbox_event_id' => $followUpOutbox?->id,
             ]);
         } catch (Throwable $exception) {
             $this->dashboardBroadcastService->cancelKpiCoalesce();
@@ -509,10 +543,37 @@ class OrderTransactionService
             'count' => count($succeededIncidentIds),
             'transaction_id' => $transactionId,
             'batch_id' => $batchId,
-            'rows' => $rows,
+            'rows' => [],
             'succeeded_incident_ids' => $succeededIncidentIds,
             'failed_incidents' => $failedIncidents,
             'post_processing_warnings' => $postProcessingWarnings,
+            'follow_up' => $this->followUpStatusPayload($batchId, $followUpOutbox, $succeededIncidentIds),
+        ];
+    }
+
+    /**
+     * @param  list<int>  $succeededIncidentIds
+     * @return array<string, mixed>|null
+     */
+    private function followUpStatusPayload(
+        string $batchId,
+        ?OutboxEvent $followUpOutbox,
+        array $succeededIncidentIds,
+    ): ?array {
+        if ($succeededIncidentIds === [] || $followUpOutbox === null) {
+            return null;
+        }
+
+        return [
+            'batch_id' => $batchId,
+            'status' => 'accepted',
+            'outbox_event_id' => $followUpOutbox->id,
+            'assignment' => 'committed',
+            'customer_whatsapp' => 'pending',
+            'customer_email' => 'pending',
+            'admin_notifications' => 'pending',
+            'dashboard_kpi_refresh' => 'pending',
+            'driver_installation_guide' => 'pending',
         ];
     }
 
