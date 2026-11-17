@@ -66,6 +66,7 @@ use App\Services\DashboardBroadcastService;
 use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearch\StatutoryInvoiceGlobalSearchProvider;
 use App\Services\GlobalSearchService;
+use App\Services\HardwareFulfilment\HardwareDashboardRowChunkResolver;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
 use App\Services\HardwareFulfilment\HardwareNeedsActionSqlQuery;
 use App\Services\HardwareFulfilment\HardwareSkuMapService;
@@ -193,6 +194,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(HardwareNeedsActionSqlQuery::class);
         $this->app->singleton(HardwareStuckOrdersSnapshotStore::class);
         $this->app->singleton(HardwareStuckOrdersSnapshotRefresher::class);
+        $this->app->singleton(HardwareDashboardRowChunkResolver::class);
         $this->app->scoped(DashboardClassificationIndex::class);
         $this->app->scoped(DashboardIncidentQueueMembership::class);
         $this->app->scoped(SettingService::class);

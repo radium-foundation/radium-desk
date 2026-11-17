@@ -143,6 +143,10 @@ return [
     |
     */
 
+    'hardware_rows_first_chunk' => max(1, (int) env('DASHBOARD_HARDWARE_ROWS_FIRST_CHUNK', 4)),
+    'hardware_rows_chunk_size' => max(1, (int) env('DASHBOARD_HARDWARE_ROWS_CHUNK_SIZE', 3)),
+    'hardware_rows_page_cache_max' => max(2, (int) env('DASHBOARD_HARDWARE_ROWS_PAGE_CACHE_MAX', 6)),
+
     'hardware_rows_initial_per_page' => max(1, (int) env('DASHBOARD_HARDWARE_ROWS_INITIAL_PER_PAGE', 10)),
     'hardware_rows_per_page' => max(1, (int) env('DASHBOARD_HARDWARE_ROWS_PER_PAGE', 40)),
     'hardware_skeleton_row_count' => max(1, (int) env('DASHBOARD_HARDWARE_SKELETON_ROW_COUNT', 10)),
