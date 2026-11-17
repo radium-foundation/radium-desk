@@ -115,6 +115,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 whitelist_qualification: message.whitelist_qualification ?? null,
             });
 
+            chrome.tabs.update(deskTab.id, { active: true });
+
             sessionMetaByTabId.delete(tabId);
             sendResponse({ ok: true });
         });
