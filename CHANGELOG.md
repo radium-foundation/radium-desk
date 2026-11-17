@@ -1,6 +1,18 @@
 # Changelog
 
-## 4.1.88 — Unreleased — Assign modal serial Excel export (P-17-60)
+## 4.1.89 — 2026-11-17 — Compact admin dashboard KPI strip (P-17-64)
+
+- **Purpose (P-17-64):** Unified compact admin KPI cards (~56px strip height); Hardware Stuck Orders micro-badges plus accessible breakdown popover; Email Intake and To-Do aligned; support-agent KPI grid unchanged.
+- **Application delta:** `.dashboard-kpi-strip--compact`, hardware stuck Blade/CSS/JS async re-bind, strip overflow for popovers.
+- **Migrations:** **None**.
+- **Production baseline:** **`v4.1.88`** / **`6d0cc4008`** (deployed 2026-11-17 P-17-61).
+- **Source:** **`main`** merge **#335** @ **`f45e45d28`** (feature **`feature/p17-64-kpi-compact`**).
+- **Rollback:** **`v4.1.88`** / **`6d0cc4008`** (reverts compact UI; no schema).
+- **Evidence:** Vitest **`hardware-stuck-summary-swr`** **4/4**; focused dashboard PHPUnit **3 suites**; Pint + `npm run build` **PASS**; PR **#335** CI **rip**/**release-rip** **PASS**; Full PHPUnit **NOT RUN**.
+- **Owner UAT:** Dashboard KPI layout + hardware breakdown hover/keyboard/touch **BLOCKED** without authenticated browser session.
+- **Deploy gate:** `docs/desk-p17-65-v4189-pre-deploy-gate.md`.
+
+## 4.1.88 — 2026-11-17 — Assign modal serial Excel export (P-17-60)
 
 - **Purpose (P-17-60):** Excel download beside **Copy All Serials** in Assign Service Reference modal; read-only export for Mantra `RDWarrantyCheckSampleSheet` (`SerialNo` column, text serials).
 - **Application delta:** `RdWarrantyCheckSerialNumbersXlsxWriter`, `GET dashboard/components/batch-transaction/serial-export`, modal icon + client download handler.
