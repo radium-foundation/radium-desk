@@ -26,11 +26,21 @@
             <div class="batch-serial-section__header">
                 <label class="form-label mb-0">Serial Numbers</label>
                 @if($serials->isNotEmpty())
-                    <button type="button"
-                            class="btn btn-sm btn-link batch-serial-section__copy-all p-0"
-                            data-copy-all-serials>
-                        📋 Copy All Serials
-                    </button>
+                    <div class="batch-serial-section__header-actions">
+                        <button type="button"
+                                class="btn btn-sm btn-link batch-serial-section__copy-all p-0"
+                                data-copy-all-serials>
+                            📋 Copy All Serials
+                        </button>
+                        <button type="button"
+                                class="btn btn-sm btn-link batch-serial-section__export-excel p-0"
+                                data-export-serials-excel
+                                data-batch-serial-export-url="{{ route('dashboard.components.batch-transaction.serial-export') }}"
+                                aria-label="Download serial numbers as Excel"
+                                title="Download Excel">
+                            <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 @endif
             </div>
             @if($serials->isNotEmpty())

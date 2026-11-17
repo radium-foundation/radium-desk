@@ -19,6 +19,7 @@ use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\CustomerOrderHistoryController;
 use App\Http\Controllers\Dashboard\DashboardOemHandoffSessionController;
 use App\Http\Controllers\DashboardActivityController;
+use App\Http\Controllers\DashboardBatchTransactionSerialExportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
 use App\Http\Controllers\DashboardHardwareController;
@@ -269,6 +270,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.transactions.bulk');
     Route::get('dashboard/components/batch-transaction', [DashboardWorkspaceComponentController::class, 'batchTransaction'])
         ->name('dashboard.components.batch-transaction');
+    Route::get('dashboard/components/batch-transaction/serial-export', DashboardBatchTransactionSerialExportController::class)
+        ->name('dashboard.components.batch-transaction.serial-export');
     Route::post('dashboard/workspace/batch-transaction', [DashboardWorkspaceActionController::class, 'batchTransaction'])
         ->name('dashboard.workspace.batch-transaction');
     Route::get('dashboard/components/batch-device-model', [DashboardDeviceModelComponentController::class, 'batchAssign'])
