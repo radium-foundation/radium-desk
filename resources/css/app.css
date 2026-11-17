@@ -4030,6 +4030,24 @@ a:focus-visible .stat-card {
     background-color: var(--dashboard-row-hover-bg);
 }
 
+.transaction-cell-trigger.transaction-cell-trigger--pending {
+    opacity: 1;
+    max-width: 8.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: progress;
+    color: var(--bs-body-color);
+    border-color: rgba(13, 110, 253, 0.25);
+    background-color: var(--dashboard-row-hover-bg);
+}
+
+.transaction-cell-trigger--pending .transaction-pending-value {
+    max-width: 5.5rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
 .serial-number-confirm-display {
     display: flex;
     justify-content: center;

@@ -152,4 +152,7 @@ return [
     'hardware_skeleton_row_count' => max(1, (int) env('DASHBOARD_HARDWARE_SKELETON_ROW_COUNT', 10)),
     'hardware_search_debounce_ms' => max(0, (int) env('DASHBOARD_HARDWARE_SEARCH_DEBOUNCE_MS', 300)),
 
+    'universal_search_debounce_ms' => max(0, (int) env('DASHBOARD_UNIVERSAL_SEARCH_DEBOUNCE_MS', 350)),
+    'universal_search_min_length' => max(1, (int) env('DASHBOARD_UNIVERSAL_SEARCH_MIN_LENGTH', 3)),
+
 ];

@@ -174,4 +174,56 @@ describe('initUniversalSearch', () => {
             expect.any(Object),
         );
     });
+
+    it('debounces live search input before fetching', async () => {
+        vi.useFakeTimers();
+
+        fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+            }),
+        });
+
+        document.body.innerHTML = `
+            <form data-universal-search-form
+                  data-search-url="/search"
+                  data-universal-search-debounce-ms="400"
+                  data-universal-search-min-length="3">
+                <input id="global-search-input" type="search" value="">
+            </form>
+            <div id="dashboard-page">
+                <div class="dashboard-service-cases-card">
+                    <div id="dashboard-service-cases-scroll">
+                        <table><tbody id="dashboard-service-cases-body"></tbody></table>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        initUniversalSearch({
+            dashboardIntegration: {
+                pageRoot: document.getElementById('dashboard-page'),
+                searchRowsUrl: '/dashboard/service-cases/search-rows',
+                applyRows: vi.fn(),
+                restoreDashboard: vi.fn(),
+            },
+        });
+
+        const input = document.getElementById('global-search-input');
+        input.value = 'RD3';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+
+        expect(fetch).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(399);
+        expect(fetch).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(fetch).toHaveBeenCalledTimes(1);
+
+        vi.useRealTimers();
+    });
 });
