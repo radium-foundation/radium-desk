@@ -45,6 +45,7 @@ class PosMultiSerialSelectionTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
         $this->seed(FinanceMasterDataSeeder::class);
 
@@ -143,6 +144,47 @@ class PosMultiSerialSelectionTest extends TestCase
         ]));
 
         $response->assertOk();
+        $response->assertJsonCount(3, 'results');
+    }
+
+    public function test_match_post_endpoint_accepts_large_batch_of_serials(): void
+    {
+        $serials = [];
+        for ($i = 1; $i <= 30; $i++) {
+            $number = 'BULK-SN-'.str_pad((string) $i, 3, '0', STR_PAD_LEFT);
+            $serials[] = $number;
+        }
+
+        app(InventoryStockService::class)->stockInSerialized(
+            $this->serializedProduct,
+            $this->branch,
+            $serials,
+            $this->seller,
+        );
+
+        $response = $this->actingAs($this->seller)->postJson(route('pos.serials.match.post'), [
+            'branch_id' => $this->branch->id,
+            'product_id' => $this->serializedProduct->id,
+            'serials' => implode("\n", $serials),
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('parsed_count', 30);
+        $response->assertJsonCount(30, 'results');
+        $response->assertJsonPath('results.0.status', 'available');
+        $response->assertJsonPath('results.29.status', 'available');
+    }
+
+    public function test_match_post_endpoint_reports_parsed_count_for_get_compatible_payload(): void
+    {
+        $response = $this->actingAs($this->seller)->postJson(route('pos.serials.match.post'), [
+            'branch_id' => $this->branch->id,
+            'product_id' => $this->serializedProduct->id,
+            'serials' => implode(',', $this->serials),
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('parsed_count', 3);
         $response->assertJsonCount(3, 'results');
     }
 
@@ -354,6 +396,8 @@ class PosMultiSerialSelectionTest extends TestCase
         $response->assertSee('pos-serial-entry', false);
         $response->assertSee('pos-serial-selected', false);
         $response->assertSee('matchSerialsUrl', false);
+        $response->assertSee('matchSerialsPostUrl', false);
+        $response->assertSee('pos-serial-submit', false);
         $response->assertSee('processSerialTokens', false);
         $response->assertSee('parseSerialList', false);
         $response->assertSee('Already selected:', false);

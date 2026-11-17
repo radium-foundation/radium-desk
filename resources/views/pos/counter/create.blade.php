@@ -68,12 +68,14 @@
                                     <div id="pos-serial-selected" class="d-flex flex-wrap gap-2 mb-3"></div>
                                 </div>
                                 <label class="form-label" for="pos-serial-entry">Add serials</label>
-                                <input type="text" id="pos-serial-entry" class="form-control" placeholder="Scan or paste serials..." autocomplete="off">
+                                <textarea id="pos-serial-entry" class="form-control font-monospace" rows="4" placeholder="Paste or type serial numbers…" autocomplete="off"></textarea>
+                                <p class="small text-muted mb-2 mt-1">Separate with newlines, commas, semicolons, or spaces. One serial is one unit.</p>
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="pos-serial-submit">Validate and add</button>
                                 <div id="pos-serial-feedback" class="small mt-2" hidden></div>
                                 <label class="form-label mt-3" for="pos-serial-filter">Browse available</label>
                                 <input type="search" id="pos-serial-filter" class="form-control form-control-sm" placeholder="Filter available serials..." autocomplete="off">
                                 <div id="pos-serial-results" class="list-group mt-2"></div>
-                                <p class="small text-muted mb-0 mt-2">One serial is one unit. Sold or reserved serials will not appear.</p>
+                                <p class="small text-muted mb-0 mt-2">Sold or reserved serials will not appear in browse.</p>
                             </div>
                         </div>
 
@@ -265,6 +267,8 @@
                 const productSearchUrl = @json($searchProductsUrl);
                 const serialSearchUrl = @json($searchSerialsUrl);
                 const matchSerialsUrl = @json($matchSerialsUrl);
+                const matchSerialsPostUrl = @json($matchSerialsPostUrl);
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
                 const oldLines = @json(array_values(old('lines', [])));
 
                 const productInput = document.getElementById('pos-product-search');
@@ -673,20 +677,27 @@
 
                 function matchSerialTokens(tokens) {
                     if (!pendingProduct || !tokens.length) {
-                        return Promise.resolve({ results: [] });
+                        return Promise.resolve({ results: [], parsed_count: 0 });
                     }
 
-                    const params = new URLSearchParams({
-                        branch_id: String(branchId),
-                        product_id: String(pendingProduct.product.id),
+                    const payload = {
+                        branch_id: branchId,
+                        product_id: pendingProduct.product.id,
                         serials: tokens.join('\n'),
-                    });
+                    };
                     if (pendingProduct.variant) {
-                        params.set('variant_id', String(pendingProduct.variant.id));
+                        payload.variant_id = pendingProduct.variant.id;
                     }
 
-                    return fetch(matchSerialsUrl + '?' + params.toString(), {
-                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    return fetch(matchSerialsPostUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': csrfToken,
+                        },
+                        body: JSON.stringify(payload),
                     }).then(function (response) {
                         if (!response.ok) {
                             throw new Error('serial-match-failed');
@@ -702,6 +713,7 @@
                     }
 
                     serialProcessing = true;
+                    const parsedCount = tokens.length;
                     const alreadySelected = [];
                     const toValidate = [];
 
@@ -769,6 +781,9 @@
                             });
 
                             const lines = [];
+                            const serverParsed = typeof data.parsed_count === 'number' ? data.parsed_count : parsedCount;
+                            lines.push('Parsed ' + parsedCount + ' serial' + (parsedCount === 1 ? '' : 's')
+                                + (serverParsed !== parsedCount ? ' (' + serverParsed + ' after normalisation)' : '') + '.');
                             if (added.length) {
                                 lines.push('✓ ' + added.length + ' serial' + (added.length === 1 ? '' : 's') + ' added');
                             }
@@ -918,9 +933,11 @@
                     searchTimer = setTimeout(function () { loadProducts(query); }, 200);
                 });
 
+                const serialSubmit = document.getElementById('pos-serial-submit');
+
                 if (serialEntry) {
                     serialEntry.addEventListener('keydown', function (event) {
-                        if (event.key === 'Enter' || event.key === 'Tab') {
+                        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
                             event.preventDefault();
                             submitSerialEntry(serialEntry.value);
                         }
@@ -933,8 +950,16 @@
                         }
 
                         event.preventDefault();
-                        serialEntry.value = '';
-                        submitSerialEntry(pasted);
+                        const existing = serialEntry.value.trim();
+                        serialEntry.value = existing ? existing + '\n' + pasted : pasted;
+                    });
+                }
+
+                if (serialSubmit) {
+                    serialSubmit.addEventListener('click', function () {
+                        if (serialEntry) {
+                            submitSerialEntry(serialEntry.value);
+                        }
                     });
                 }
 

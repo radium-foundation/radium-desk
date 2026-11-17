@@ -749,6 +749,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('products/search', [PosCounterController::class, 'searchProducts'])->name('products.search');
         Route::get('serials/search', [PosCounterController::class, 'searchSerials'])->name('serials.search');
         Route::get('serials/match', [PosCounterController::class, 'matchSerial'])->name('serials.match');
+        Route::post('serials/match', [PosCounterController::class, 'matchSerialPost'])->name('serials.match.post');
         Route::get('customers/search', [PosCustomerLookupController::class, 'search'])->name('customers.search');
         Route::get('customers/lookup', [PosCustomerLookupController::class, 'lookup'])->name('customers.lookup');
         Route::get('customers/{customer}', [PosCustomerLookupController::class, 'show'])->name('customers.show');
