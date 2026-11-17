@@ -39,7 +39,7 @@ enum HardwareDashboardQueue: string
         }
 
         if ($stage === HardwareFulfilmentOperationalStage::Completed) {
-            return $packagePhotoRecorded ? self::Completed : self::Ready;
+            return self::Completed;
         }
 
         if (in_array($stage, [

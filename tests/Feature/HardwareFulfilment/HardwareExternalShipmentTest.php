@@ -139,7 +139,7 @@ class HardwareExternalShipmentTest extends TestCase
         );
     }
 
-    public function test_rbp552_acceptance_flow_dispatches_after_package_photo(): void
+    public function test_rbp552_acceptance_flow_dispatches_without_package_photo(): void
     {
         $fulfilment = $this->invoicedFulfilment('RBP552', 'DELHI-RETAIL', pincode: '841437');
 
@@ -156,13 +156,9 @@ class HardwareExternalShipmentTest extends TestCase
         $fulfilment = $fulfilment->fresh(['shipment']);
         $this->assertSame(HardwareFulfilmentState::AwbAssigned, $fulfilment->state);
         $this->assertSame(0, $this->fake->creates);
-
-        app(HardwareFulfilmentPackageEvidenceService::class)->attach(
-            $fulfilment,
-            HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel,
-            UploadedFile::fake()->image('package.jpg'),
-            $this->actor,
-        );
+        $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment);
+        $this->assertFalse($ready->packagePhotoRecorded());
+        $this->assertTrue($ready->canExternalDispatch);
 
         $updated = $this->external->dispatch($fulfilment->fresh(['shipment']), $this->actor);
 

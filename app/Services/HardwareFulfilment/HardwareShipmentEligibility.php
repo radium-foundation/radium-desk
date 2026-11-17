@@ -545,8 +545,8 @@ class HardwareShipmentEligibility
             canGenerateLabel: $awbReady && $labelUrl === null && $notTerminal,
             canRequestPickup: $awbReady && ! $pickupRequested && $notTerminal,
             canGenerateManifest: $awbReady && $pickupRequested && $manifestUrl === null && $manifestId === null && $notTerminal,
-            canUploadPackageBeforeLabel: $notTerminal,
-            canUploadPackageLabelApplied: $awbReady && $notTerminal,
+            canUploadPackageBeforeLabel: false,
+            canUploadPackageLabelApplied: false,
             canMarkReadyForPickup: $awbReady && $pickupRequested && ! $readyForPickup && $notTerminal,
             labelUrl: $labelUrl,
             labelStatus: $labelUrl !== null ? 'Available' : 'Not generated',
@@ -668,8 +668,7 @@ class HardwareShipmentEligibility
         $canUploadExternalManifest = $canUploadExternalLabel;
         $canExternalDispatch = $awbRecorded
             && $notTerminal
-            && $fulfilment->state === HardwareFulfilmentState::AwbAssigned
-            && $packagePhotoRecorded;
+            && $fulfilment->state === HardwareFulfilmentState::AwbAssigned;
         $courierName = trim((string) ($shipment?->courier_name ?: $fulfilment->selected_courier_name ?: ''));
         $status = $awbRecorded
             ? ($fulfilment->state === HardwareFulfilmentState::AwbAssigned ? 'External (AWB assigned)' : 'External (Shipped)')
@@ -701,8 +700,8 @@ class HardwareShipmentEligibility
             email: $order !== null ? trim((string) $order->customer_email) : null,
             quantity: $order !== null ? $this->requiredPhysicalQty($order) : null,
             invoiceId: $invoice?->id,
-            canUploadPackageBeforeLabel: $notTerminal,
-            canUploadPackageLabelApplied: $awbRecorded && $notTerminal,
+            canUploadPackageBeforeLabel: false,
+            canUploadPackageLabelApplied: false,
             packageBeforeLabelRecorded: $beforeLabel !== null,
             packageLabelAppliedRecorded: $labelApplied !== null,
             packageBeforeLabelId: $beforeLabel?->id,

@@ -64,18 +64,8 @@ final class HardwareFulfilmentOperationalRow
         return $this->source === 'RIN' && ! $this->hasFulfilment;
     }
 
-    public function isPackagePhotoPending(): bool
-    {
-        return $this->nextAction === 'Upload Package Photo'
-            || $this->statusLabel === 'Package photo pending';
-    }
-
     public function isCompletedPresentation(): bool
     {
-        if ($this->isPackagePhotoPending()) {
-            return false;
-        }
-
         return $this->stage === HardwareFulfilmentOperationalStage::Delivered
             || $this->stage === HardwareFulfilmentOperationalStage::Completed;
     }
@@ -86,12 +76,10 @@ final class HardwareFulfilmentOperationalRow
             HardwareWorkspaceFilter::All => true,
             HardwareWorkspaceFilter::NeedsAction => $this->isProductMappingRequired()
                 || $this->stage === HardwareFulfilmentOperationalStage::AwaitingSerial
-                || $this->stage === HardwareFulfilmentOperationalStage::AwbPending
-                || $this->isPackagePhotoPending(),
+                || $this->stage === HardwareFulfilmentOperationalStage::AwbPending,
             HardwareWorkspaceFilter::MappingRequired => $this->isProductMappingRequired(),
             HardwareWorkspaceFilter::AwaitingSerial => $this->stage === HardwareFulfilmentOperationalStage::AwaitingSerial,
             HardwareWorkspaceFilter::AwbPending => $this->stage === HardwareFulfilmentOperationalStage::AwbPending,
-            HardwareWorkspaceFilter::PackagePhotoPending => $this->isPackagePhotoPending(),
             HardwareWorkspaceFilter::Shipping => in_array($this->stage, [
                 HardwareFulfilmentOperationalStage::LabelPackingPending,
                 HardwareFulfilmentOperationalStage::PickupManifestPending,
@@ -99,10 +87,9 @@ final class HardwareFulfilmentOperationalRow
                 HardwareFulfilmentOperationalStage::OutForPickup,
                 HardwareFulfilmentOperationalStage::PickedUp,
                 HardwareFulfilmentOperationalStage::InTransit,
-            ], true) && ! $this->isPackagePhotoPending(),
+            ], true),
             HardwareWorkspaceFilter::OutForPickup => $this->stage === HardwareFulfilmentOperationalStage::OutForPickup,
-            HardwareWorkspaceFilter::ReadyForPickup => $this->stage === HardwareFulfilmentOperationalStage::ReadyForPickup
-                && ! $this->isPackagePhotoPending(),
+            HardwareWorkspaceFilter::ReadyForPickup => $this->stage === HardwareFulfilmentOperationalStage::ReadyForPickup,
             HardwareWorkspaceFilter::InTransit => $this->stage === HardwareFulfilmentOperationalStage::InTransit,
             HardwareWorkspaceFilter::PickedUp => $this->stage === HardwareFulfilmentOperationalStage::PickedUp,
             HardwareWorkspaceFilter::Completed, HardwareWorkspaceFilter::Delivered => $this->isCompletedPresentation(),

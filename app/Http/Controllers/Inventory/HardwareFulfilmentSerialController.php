@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Enums\HardwareFulfilmentOperationalStage;
-use App\Enums\HardwareFulfilmentPackageEvidenceKind;
 use App\Enums\HardwareFulfilmentShippingMethod;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
@@ -31,7 +30,6 @@ use App\Http\Requests\Inventory\SearchHardwareFulfilmentSerialsRequest;
 use App\Http\Requests\Inventory\SelectHardwareFulfilmentCourierRequest;
 use App\Http\Requests\Inventory\SelectHardwareFulfilmentShippingMethodRequest;
 use App\Http\Requests\Inventory\ShipAndGenerateHardwareFulfilmentLabelRequest;
-use App\Http\Requests\Inventory\StoreHardwareFulfilmentPackageEvidenceRequest;
 use App\Http\Requests\Inventory\UploadHardwareExternalShipmentDocumentRequest;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentPackageEvidence;
@@ -49,7 +47,6 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentCountryCorrectionService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentIsolatedWorkflowService;
-use App\Services\HardwareFulfilment\HardwareFulfilmentPackageEvidenceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentParcelSnapshotService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
@@ -85,7 +82,6 @@ class HardwareFulfilmentSerialController extends Controller
         private readonly HardwareFulfilmentCountryCorrectionService $countries,
         private readonly HardwareShipmentCourierOptionsService $couriers,
         private readonly HardwareShipmentDocumentsService $documents,
-        private readonly HardwareFulfilmentPackageEvidenceService $packageEvidence,
         private readonly HardwareAwaitingFulfilmentQueue $awaitingQueue,
         private readonly HardwareFulfilmentWorkQueue $workQueue,
         private readonly HardwareOpenFulfilmentQueue $openFulfilmentQueue,
@@ -776,20 +772,6 @@ class HardwareFulfilmentSerialController extends Controller
         $this->documents->generateManifest($fulfilment, $request->user());
 
         return $this->mutationResponse($request, $fulfilment, 'Manifest generated.');
-    }
-
-    public function storePackageEvidence(StoreHardwareFulfilmentPackageEvidenceRequest $request, HardwareFulfilment $fulfilment): RedirectResponse|JsonResponse
-    {
-        $this->assertCanOperateFulfilment($request, $fulfilment);
-        $kind = HardwareFulfilmentPackageEvidenceKind::from($request->validated('kind'));
-        $this->packageEvidence->attach(
-            $fulfilment,
-            $kind,
-            $request->file('photo'),
-            $request->user(),
-        );
-
-        return $this->mutationResponse($request, $fulfilment, $kind->label().' recorded.');
     }
 
     public function showPackageEvidence(

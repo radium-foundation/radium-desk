@@ -2,7 +2,6 @@
 
 namespace App\Services\HardwareFulfilment;
 
-use App\Enums\HardwareFulfilmentPackageEvidenceKind;
 use App\Enums\HardwareFulfilmentSerialStatus;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareWorkspaceFilter;
@@ -32,7 +31,6 @@ final class HardwareNeedsActionSqlQuery
         $mapping = $this->mappingRequiredCount($fromIst, $toIst, $search);
         $awaitingSerial = $this->fulfilmentCount($this->awaitingSerialQuery($search));
         $awbPending = $this->fulfilmentCount($this->awbPendingQuery($search));
-        $photo = $this->fulfilmentCount($this->packagePhotoPendingQuery($search));
         $shipping = $this->fulfilmentCount($this->shippingQuery($search));
         $completed = $this->fulfilmentCount($this->completedQuery($search));
         $outForPickup = $this->fulfilmentCount($this->outForPickupQuery($search));
@@ -40,7 +38,7 @@ final class HardwareNeedsActionSqlQuery
         $inTransit = $this->fulfilmentCount($this->inTransitQuery($search));
         $readyForPickup = $this->fulfilmentCount($this->readyForPickupQuery($search));
 
-        $needsAction = $mapping + $awaitingSerial + $awbPending + $photo;
+        $needsAction = $mapping + $awaitingSerial + $awbPending;
 
         $counts = [];
         foreach (HardwareWorkspaceFilter::cases() as $filter) {
@@ -50,7 +48,6 @@ final class HardwareNeedsActionSqlQuery
         $counts[HardwareWorkspaceFilter::MappingRequired->value] = $mapping;
         $counts[HardwareWorkspaceFilter::AwaitingSerial->value] = $awaitingSerial;
         $counts[HardwareWorkspaceFilter::AwbPending->value] = $awbPending;
-        $counts[HardwareWorkspaceFilter::PackagePhotoPending->value] = $photo;
         $counts[HardwareWorkspaceFilter::NeedsAction->value] = $needsAction;
         $counts[HardwareWorkspaceFilter::Shipping->value] = $shipping;
         $counts[HardwareWorkspaceFilter::OutForPickup->value] = $outForPickup;
@@ -104,7 +101,6 @@ final class HardwareNeedsActionSqlQuery
             HardwareWorkspaceFilter::MappingRequired => $this->mappingRequiredFulfilmentQuery($search),
             HardwareWorkspaceFilter::AwaitingSerial => $this->awaitingSerialQuery($search),
             HardwareWorkspaceFilter::AwbPending => $this->awbPendingQuery($search),
-            HardwareWorkspaceFilter::PackagePhotoPending => $this->packagePhotoPendingQuery($search),
             HardwareWorkspaceFilter::NeedsAction => $this->activeNeedsActionFulfilmentQuery($search),
             default => $this->activeNeedsActionFulfilmentQuery($search),
         };
@@ -256,7 +252,6 @@ final class HardwareNeedsActionSqlQuery
             HardwareWorkspaceFilter::MappingRequired => $this->mappingRequiredFulfilmentQuery($search),
             HardwareWorkspaceFilter::AwaitingSerial => $this->awaitingSerialQuery($search),
             HardwareWorkspaceFilter::AwbPending => $this->awbPendingQuery($search),
-            HardwareWorkspaceFilter::PackagePhotoPending => $this->packagePhotoPendingQuery($search),
             HardwareWorkspaceFilter::NeedsAction => $this->activeNeedsActionFulfilmentQuery($search),
             default => throw new InvalidArgumentException('Unsupported hardware waiting reason filter: '.$filter->value),
         };
@@ -280,8 +275,6 @@ final class HardwareNeedsActionSqlQuery
                 $this->whereHasSkuMap($serial);
             })->orWhere(function (Builder $awb): void {
                 $this->constrainAwbPending($awb);
-            })->orWhere(function (Builder $photo): void {
-                $this->constrainPackagePhotoPending($photo);
             });
         });
     }
@@ -397,14 +390,6 @@ final class HardwareNeedsActionSqlQuery
         return $query;
     }
 
-    private function packagePhotoPendingQuery(string $search): Builder
-    {
-        $query = $this->activeFulfilmentQuery($search);
-        $this->constrainPackagePhotoPending($query);
-
-        return $query;
-    }
-
     private function shippingQuery(string $search): Builder
     {
         $query = $this->activeFulfilmentQuery($search);
@@ -412,11 +397,6 @@ final class HardwareNeedsActionSqlQuery
         $this->whereHasInvoice($query);
         $this->whereBoundShipment($query);
         $this->whereAwbFilled($query);
-        $query->where(function (Builder $inner): void {
-            $inner->whereNot(function (Builder $photo): void {
-                $this->constrainPackagePhotoPending($photo);
-            });
-        });
         $this->whereShipmentTrackNotIn($query, [ShiprocketTrackNormalized::Delivered->value]);
 
         return $query;
@@ -478,43 +458,6 @@ final class HardwareNeedsActionSqlQuery
         $this->whereHasInvoice($query);
         $this->whereBoundShipment($query);
         $this->whereAwbEmpty($query);
-    }
-
-    private function constrainPackagePhotoPending(Builder $query): void
-    {
-        $this->whereHasAllocatedSerial($query);
-        $this->whereHasInvoice($query);
-        $this->whereBoundShipment($query);
-        $this->whereAwbFilled($query);
-        $query->whereExists(function ($sub): void {
-            $sub->selectRaw('1')
-                ->from('shipments')
-                ->where(function ($join): void {
-                    $join->whereColumn('shipments.id', 'hardware_fulfilments.shipment_id')
-                        ->orWhereColumn('shipments.hardware_fulfilment_id', 'hardware_fulfilments.id');
-                })
-                ->whereNotNull('shipments.label_url')
-                ->where('shipments.label_url', '!=', '')
-                ->whereNotNull('shipments.pickup_requested_at')
-                ->where(function ($manifest): void {
-                    $manifest->where(function ($url): void {
-                        $url->whereNotNull('shipments.manifest_url')
-                            ->where('shipments.manifest_url', '!=', '');
-                    })->orWhere(function ($id): void {
-                        $id->whereNotNull('shipments.manifest_id')
-                            ->where('shipments.manifest_id', '!=', '');
-                    });
-                });
-        });
-        $query->whereNotExists(function ($sub): void {
-            $sub->selectRaw('1')
-                ->from('hardware_fulfilment_package_evidences')
-                ->whereColumn('hardware_fulfilment_package_evidences.hardware_fulfilment_id', 'hardware_fulfilments.id')
-                ->whereIn('hardware_fulfilment_package_evidences.kind', [
-                    HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel->value,
-                    HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied->value,
-                ]);
-        });
     }
 
     private function activeFulfilmentQuery(string $search): Builder

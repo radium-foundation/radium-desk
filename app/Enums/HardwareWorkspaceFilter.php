@@ -8,7 +8,6 @@ enum HardwareWorkspaceFilter: string
     case MappingRequired = 'mapping_required';
     case AwaitingSerial = 'awaiting_serial';
     case AwbPending = 'awb_pending';
-    case PackagePhotoPending = 'package_photo_pending';
     case Shipping = 'shipping';
     case OutForPickup = 'out_for_pickup';
     case ReadyForPickup = 'ready_for_pickup';
@@ -29,7 +28,6 @@ enum HardwareWorkspaceFilter: string
             self::MappingRequired => 'Product Mapping Required',
             self::AwaitingSerial => 'Awaiting Serial',
             self::AwbPending => 'AWB Pending',
-            self::PackagePhotoPending => 'Package Photo Pending',
             self::Shipping => 'Shipping',
             self::OutForPickup => 'Out for Pickup',
             self::ReadyForPickup => 'Ready for Pickup',
@@ -48,7 +46,7 @@ enum HardwareWorkspaceFilter: string
     public function tone(): string
     {
         return match ($this) {
-            self::NeedsAction, self::MappingRequired, self::AwaitingSerial, self::AwbPending, self::PackagePhotoPending => 'danger',
+            self::NeedsAction, self::MappingRequired, self::AwaitingSerial, self::AwbPending => 'danger',
             self::Shipping, self::OutForPickup, self::ReadyForPickup, self::InTransit, self::PickedUp => 'warning',
             self::Completed, self::Delivered => 'primary',
             self::All => 'secondary',
@@ -68,7 +66,6 @@ enum HardwareWorkspaceFilter: string
             self::MappingRequired,
             self::AwaitingSerial,
             self::AwbPending,
-            self::PackagePhotoPending,
         ];
     }
 

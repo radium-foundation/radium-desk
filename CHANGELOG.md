@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.86 — Unreleased — Retire Upload Package Photo (P-17-40)
+
+- **Purpose:** Remove operator package-photo upload and both enforcement gates (user mark shipped, external dispatch) while preserving historical evidence rows, files, and audit events.
+- **Application delta:** Remove `package_photo_pending` workspace filter/chip/actions; retire `POST` package-evidence; keep read-only `GET` package-evidence; classifier and SQL queues updated so ready-for-pickup rows without photos appear in Shipping. **No** migrations; **no** media/DB retirement.
+- **Production baseline:** **`v4.1.85`** / **`b87b10c6f`**.
+- **Evidence:** See `docs/desk-p17-40-retire-package-photo.md`. Deploy gate: separate Owner authorization.
+
 ## 4.1.85 — 2026-11-17 — Hardware dashboard performance (P-17-36 / P-17-37)
 
 - **Purpose:** Reduce time-to-first hardware rows by deferring cold aggregate nav counts on the progressive first chunk; finish page 1 with one remainder request; idle page-2 prefetch; correct hardware KPI `kpis_only` workspace; optional `Server-Timing` on hardware rows API.

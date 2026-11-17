@@ -295,7 +295,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertSame(5, (int) $this->hardwareRowsResponse(['queue' => 'hardware', 'hw_page' => 2])->json('inspected_fulfilment_count'));
     }
 
-    public function test_sql_counts_match_four_needs_action_queues_and_exclude_ingested_and_shipped(): void
+    public function test_sql_counts_match_three_needs_action_queues_and_exclude_ingested_and_shipped(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -336,11 +336,11 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertSame(1, $dashboard['filter_counts']['mapping_required']);
         $this->assertSame(1, $dashboard['filter_counts']['awaiting_serial']);
         $this->assertSame(1, $dashboard['filter_counts']['awb_pending']);
-        $this->assertSame(1, $dashboard['filter_counts']['package_photo_pending']);
-        $this->assertSame(4, $dashboard['filter_counts']['needs_action']);
-        $this->assertSame(4, $dashboard['unfiltered_total']);
-        $this->assertSame(4, $dashboard['rows']->count());
-        $this->assertSame(4, $queue->lastInspectedFulfilmentCount);
+        $this->assertArrayNotHasKey('package_photo_pending', $dashboard['filter_counts']);
+        $this->assertSame(3, $dashboard['filter_counts']['needs_action']);
+        $this->assertSame(3, $dashboard['unfiltered_total']);
+        $this->assertSame(3, $dashboard['rows']->count());
+        $this->assertSame(3, $queue->lastInspectedFulfilmentCount);
         $this->assertSame(1, $dashboard['filter_counts']['completed']);
 
         $mapping = $queue->dashboard($from, $to, '', HardwareWorkspaceScope::Active, HardwareWorkspaceFilter::MappingRequired);
@@ -353,14 +353,14 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $awb = $queue->dashboard($from, $to, '', HardwareWorkspaceScope::Active, HardwareWorkspaceFilter::AwbPending);
         $this->assertSame(['RDE982004'], $awb['rows']->pluck('sourceId')->all());
 
-        $photo = $queue->dashboard($from, $to, '', HardwareWorkspaceScope::Active, HardwareWorkspaceFilter::PackagePhotoPending);
-        $this->assertSame(['RDE982005'], $photo['rows']->pluck('sourceId')->all());
+        $shipping = $queue->dashboard($from, $to, '', HardwareWorkspaceScope::Active, HardwareWorkspaceFilter::Shipping);
+        $this->assertContains('RDE982005', $shipping['rows']->pluck('sourceId')->all());
 
         $search = $queue->dashboard($from, $to, 'RDE982003', HardwareWorkspaceScope::Active, HardwareWorkspaceFilter::NeedsAction);
         $this->assertSame(1, $search['filter_counts']['awaiting_serial']);
         $this->assertSame(0, $search['filter_counts']['mapping_required']);
         $this->assertSame(0, $search['filter_counts']['awb_pending']);
-        $this->assertSame(0, $search['filter_counts']['package_photo_pending']);
+        $this->assertArrayNotHasKey('package_photo_pending', $search['filter_counts']);
         $this->assertSame(['RDE982003'], $search['rows']->pluck('sourceId')->all());
 
         $this->actingAs($admin);
@@ -392,10 +392,9 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertSame(0, $counts['mapping_required']);
         $this->assertSame(1, $counts['awaiting_serial']);
         $this->assertSame(1, $counts['awb_pending']);
-        $this->assertSame(0, $counts['package_photo_pending']);
+        $this->assertArrayNotHasKey('package_photo_pending', $counts);
         $this->assertSame(2, $counts['needs_action']);
         $this->assertSame(1, $counts['completed']);
-        $this->assertSame(0, $counts['package_photo_pending']);
     }
 
     public function test_date_and_search_filters_apply_to_sql_counts_and_selected_queue_is_bounded(): void
@@ -594,14 +593,14 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
         $this->assertStringContainsString('RDE986073', $rowsHtml);
         $this->assertStringContainsString('RDE986074', $rowsHtml);
         $this->assertStringContainsString('RDE986075', $rowsHtml);
-        $this->assertStringContainsString('RDE986076', $rowsHtml);
+        $this->assertStringNotContainsString('RDE986076', $rowsHtml);
         $this->assertStringNotContainsString('RDE986001', $rowsHtml);
-        $this->assertSame(4, preg_match_all('/\sdata-hardware-select(\s|>)/', $rowsHtml));
-        $this->assertSame(4, (int) $rows->json('inspected_fulfilment_count'));
+        $this->assertSame(3, preg_match_all('/\sdata-hardware-select(\s|>)/', $rowsHtml));
+        $this->assertSame(3, (int) $rows->json('inspected_fulfilment_count'));
         $this->assertSame(1, (int) $rows->json('filter_counts.mapping_required'));
         $this->assertSame(1, (int) $rows->json('filter_counts.awaiting_serial'));
         $this->assertSame(1, (int) $rows->json('filter_counts.awb_pending'));
-        $this->assertSame(1, (int) $rows->json('filter_counts.package_photo_pending'));
+        $this->assertArrayNotHasKey('package_photo_pending', (array) $rows->json('filter_counts'));
         $this->assertLessThan(80, count($shellLog));
         $this->assertLessThan(2500, $shellMs);
         $this->assertLessThan(2500, $rowsMs);

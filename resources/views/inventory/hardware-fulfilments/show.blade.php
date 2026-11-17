@@ -602,38 +602,13 @@
             @endif
         </div>
 
+        @if($shipment->packagePhotoRecorded() && $shipment->packagePhotoId())
         <div class="hf-alloc-card mb-3" id="hardware-package-evidence">
-            <p class="text-muted small text-uppercase fw-semibold mb-2">Package Photo</p>
-            @if($shipment->packagePhotoRecorded())
-                <p class="mb-2">✓ Recorded</p>
-                @if($shipment->packagePhotoId())
-                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('inventory.hardware-fulfilments.package-evidence.show', [$fulfilment, $shipment->packagePhotoId()]) }}">View Photo</a>
-                @endif
-                @if($shipment->canUploadPackageBeforeLabel)
-                    <details class="mt-2">
-                        <summary class="small text-muted">Replace</summary>
-                        <form method="POST" action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}" id="hardware-package-before-form" class="mt-2" enctype="multipart/form-data">
-                            @csrf
-                            <input type="hidden" name="kind" value="package_before_label">
-                            <input class="form-control" type="file" id="hardware-package-before-photo" name="photo" accept="image/jpeg,image/png,image/webp" required>
-                            <button type="submit" class="btn btn-sm btn-outline-primary mt-2" id="hardware-package-before-submit">Replace</button>
-                        </form>
-                    </details>
-                @endif
-            @else
-                <p class="mb-2">Package photo pending</p>
-                @if($shipment->canUploadPackageBeforeLabel)
-                    <form method="POST" action="{{ route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment) }}" id="hardware-package-before-form" enctype="multipart/form-data">
-                        @csrf
-                        <input type="hidden" name="kind" value="package_before_label">
-                        <label class="form-label" for="hardware-package-before-photo">Upload Package Photo</label>
-                        <input class="form-control" type="file" id="hardware-package-before-photo" name="photo" accept="image/jpeg,image/png,image/webp" required>
-                        <p class="text-muted small mt-2 mb-2">Evidence can be added after shipment or pickup. It does not block shipping.</p>
-                        <button type="submit" class="btn btn-outline-primary" id="hardware-package-before-submit">Upload Package Photo</button>
-                    </form>
-                @endif
-            @endif
+            <p class="text-muted small text-uppercase fw-semibold mb-2">Package Photo (archived)</p>
+            <p class="mb-2 text-muted small">Historical evidence from the retired upload workflow.</p>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ route('inventory.hardware-fulfilments.package-evidence.show', [$fulfilment, $shipment->packagePhotoId()]) }}">View Photo</a>
         </div>
+        @endif
 
         @endif
 

@@ -277,7 +277,7 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_package_photo_is_non_blocking_evidence_and_ready_does_not_require_it(): void
+    public function test_retired_package_photo_upload_removed_and_pickup_flow_unchanged(): void
     {
         $fulfilment = $this->awbFulfilment('RDE940003');
 
@@ -285,16 +285,15 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->get(route('inventory.hardware-fulfilments.show', $fulfilment))
             ->assertOk()
             ->assertSee('id="hardware-pickup-submit"', false)
-            ->assertSee('Upload Package Photo')
-            ->assertSee('Evidence can be added after shipment or pickup.')
-            ->assertDontSee('id="hardware-package-label-form"', false)
-            ->assertDontSee('Record labelled package')
-            ->assertDontSee('Label-applied photo');
+            ->assertDontSee('Upload Package Photo')
+            ->assertDontSee('id="hardware-package-before-form"', false)
+            ->assertDontSee('id="hardware-package-label-form"', false);
 
         $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment->fresh());
         $this->assertTrue($ready->canRequestPickup);
         $this->assertFalse($ready->canMarkReadyForPickup);
         $this->assertFalse($ready->packagePhotoRecorded());
+        $this->assertFalse($ready->canUploadPackageBeforeLabel);
 
         $this->actingAs($this->admin)
             ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
@@ -309,14 +308,6 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
 
         $afterPickup = app(HardwareShipmentEligibility::class)->inspect($fulfilment->fresh());
         $this->assertTrue($afterPickup->canMarkReadyForPickup);
-        $this->assertFalse($afterPickup->packagePhotoRecorded());
-
-        $this->actingAs($this->admin)
-            ->get(route('inventory.hardware-fulfilments.show', $fulfilment->fresh()))
-            ->assertOk()
-            ->assertSee('id="hardware-ready-submit"', false)
-            ->assertSee('Upload Package Photo')
-            ->assertSee('id="hardware-package-before-form"', false);
 
         $this->actingAs($this->admin)
             ->post(route('inventory.hardware-fulfilments.ready-for-pickup.store', $fulfilment->fresh()))
@@ -324,41 +315,15 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
             ->assertSessionHas('status', 'Fulfilment marked ready for pickup.');
 
         $this->actingAs($this->admin)
-            ->post(route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment->fresh()), [
+            ->post('/inventory/hardware-fulfilments/'.$fulfilment->fresh()->id.'/package-evidence', [
                 'kind' => HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel->value,
                 'photo' => UploadedFile::fake()->image('package.jpg', 200, 200),
             ])
-            ->assertRedirect()
-            ->assertSessionHas('status', 'Package photo recorded.');
+            ->assertNotFound();
 
         $fresh = $fulfilment->fresh();
         $this->assertNotNull($fresh->ready_for_pickup_at);
-        $this->assertNotNull($fresh->shipment?->pickup_requested_at);
-        $this->assertSame(1, $this->fake->pickups);
-        $this->assertSame(1, HardwareFulfilmentPackageEvidence::query()->count());
-        $this->assertTrue(
-            HardwareFulfilmentEvent::query()
-                ->where('hardware_fulfilment_id', $fresh->id)
-                ->where('payload->reason', 'hardware_ready_for_pickup')
-                ->exists()
-        );
-
-        $evidence = HardwareFulfilmentPackageEvidence::query()
-            ->where('kind', HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel)
-            ->firstOrFail();
-
-        $this->actingAs($this->admin)
-            ->get(route('inventory.hardware-fulfilments.show', $fresh))
-            ->assertOk()
-            ->assertSee('✓ Recorded')
-            ->assertSee('View Photo')
-            ->assertDontSee('Upload Package Photo')
-            ->assertDontSee('id="hardware-package-label-form"', false);
-
-        $this->actingAs($this->admin)
-            ->get(route('inventory.hardware-fulfilments.package-evidence.show', [$fresh, $evidence]))
-            ->assertOk();
-
+        $this->assertSame(0, HardwareFulfilmentPackageEvidence::query()->count());
         $this->assertSame(HardwareFulfilmentState::AwbAssigned, $fresh->state);
         Http::assertNothingSent();
     }
@@ -650,18 +615,16 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
         );
     }
 
-    public function test_label_applied_photo_is_rejected_before_awb(): void
+    public function test_package_evidence_upload_route_is_retired(): void
     {
         $fulfilment = $this->invoicedFulfilment('RDE940004', 'DELHI-RETAIL');
 
         $this->actingAs($this->admin)
-            ->from(route('inventory.hardware-fulfilments.show', $fulfilment))
-            ->post(route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment), [
+            ->post('/inventory/hardware-fulfilments/'.$fulfilment->id.'/package-evidence', [
                 'kind' => HardwareFulfilmentPackageEvidenceKind::PackageLabelApplied->value,
                 'photo' => UploadedFile::fake()->image('early.jpg', 120, 120),
             ])
-            ->assertRedirect(route('inventory.hardware-fulfilments.show', $fulfilment))
-            ->assertSessionHasErrors('photo');
+            ->assertNotFound();
 
         $this->assertSame(0, HardwareFulfilmentPackageEvidence::query()->count());
     }
@@ -681,13 +644,6 @@ class HardwareFulfilmentOperationalWorkflowTest extends TestCase
 
         $this->actingAs($stranger)
             ->post(route('inventory.hardware-fulfilments.manifest.store', $fulfilment))
-            ->assertForbidden();
-
-        $this->actingAs($stranger)
-            ->post(route('inventory.hardware-fulfilments.package-evidence.store', $fulfilment), [
-                'kind' => HardwareFulfilmentPackageEvidenceKind::PackageBeforeLabel->value,
-                'photo' => UploadedFile::fake()->image('x.jpg', 80, 80),
-            ])
             ->assertForbidden();
 
         $this->actingAs($this->operator)
