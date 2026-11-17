@@ -154,16 +154,17 @@ class AssignReferenceBatchCoalescer
      * @param  list<array{order_id: int, transaction_id: string, actor_id: int}>  $pendingNotifications
      * @param  list<array{order_id: int, service_reference: string}>  $pendingDriverGuides
      */
-    public function flushCommunicationsFromSnapshot(
+    /**
+     * @param  list<array{order_id: int, transaction_id: string, actor_id: int}>  $pendingNotifications
+     */
+    public function flushAdminNotificationsFromSnapshot(
         array $pendingNotifications,
-        array $pendingDriverGuides,
-        ?int $driverGuideActorId,
         SettingService $settingService,
         string $batchId = '',
     ): void {
         $this->pendingNotifications = $pendingNotifications;
-        $this->pendingDriverGuides = $pendingDriverGuides;
-        $this->driverGuideActorId = $driverGuideActorId;
+        $this->pendingDriverGuides = [];
+        $this->driverGuideActorId = null;
         $this->active = true;
 
         $notificationPhaseAt = microtime(true);
@@ -175,6 +176,23 @@ class AssignReferenceBatchCoalescer
             'duration_ms' => (int) round((microtime(true) - $notificationPhaseAt) * 1000),
         ]);
 
+        $this->pendingNotifications = [];
+        $this->active = false;
+    }
+
+    /**
+     * @param  list<array{order_id: int, service_reference: string}>  $pendingDriverGuides
+     */
+    public function flushDriverGuidesFromSnapshot(
+        array $pendingDriverGuides,
+        ?int $driverGuideActorId,
+        string $batchId = '',
+    ): void {
+        $this->pendingNotifications = [];
+        $this->pendingDriverGuides = $pendingDriverGuides;
+        $this->driverGuideActorId = $driverGuideActorId;
+        $this->active = true;
+
         $driverGuidePhaseAt = microtime(true);
         $this->flushDriverGuides();
 
@@ -185,6 +203,17 @@ class AssignReferenceBatchCoalescer
         ]);
 
         $this->reset();
+    }
+
+    public function flushCommunicationsFromSnapshot(
+        array $pendingNotifications,
+        array $pendingDriverGuides,
+        ?int $driverGuideActorId,
+        SettingService $settingService,
+        string $batchId = '',
+    ): void {
+        $this->flushAdminNotificationsFromSnapshot($pendingNotifications, $settingService, $batchId);
+        $this->flushDriverGuidesFromSnapshot($pendingDriverGuides, $driverGuideActorId, $batchId);
     }
 
     public function cancel(): void

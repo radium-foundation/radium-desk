@@ -569,11 +569,12 @@ class OrderTransactionService
             'status' => 'accepted',
             'outbox_event_id' => $followUpOutbox->id,
             'assignment' => 'committed',
+            'processed_scope' => 'assignment_committed_outbox_registered',
             'customer_whatsapp' => 'pending',
             'customer_email' => 'pending',
-            'admin_notifications' => 'pending',
-            'dashboard_kpi_refresh' => 'pending',
-            'driver_installation_guide' => 'pending',
+            'admin_notifications' => 'pending_dispatch',
+            'dashboard_kpi_refresh' => 'pending_dispatch',
+            'driver_installation_guide' => 'pending_dispatch',
         ];
     }
 
