@@ -240,7 +240,8 @@ class QueueIntegrityLiveRefreshTest extends TestCase
         $fresh = $this->freshIncident($incident);
 
         $this->assertTrue(app(ServiceCaseAssignmentService::class)->shouldRemoveFromAdminReadyQueue($fresh));
-        $this->assertNotEmpty($response->json('kpi_strip_html'));
+        $this->assertNull($response->json('kpi_strip_html'));
+        $response->assertJsonPath('extensions.operational_follow_up.assignment', 'committed');
 
         app(DashboardSnapshotStore::class)->forget();
         $this->assertFalse($this->adminReadyQueueContains($fresh));

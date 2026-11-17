@@ -25,12 +25,27 @@ class OrderTransactionController extends Controller
 
     public function store(UpdateOrderTransactionRequest $request, Order $order): RedirectResponse|JsonResponse
     {
+        $user = $request->user();
+        $useDeferredDashboardFollowUp = $request->wantsJson() && $request->filled('incident_id');
+
         try {
-            $order = $this->orderTransactionService->assignTransactionId(
-                order: $order,
-                transactionId: $request->string('transaction_id')->trim()->toString(),
-                actor: $request->user(),
-            );
+            if ($useDeferredDashboardFollowUp) {
+                $result = $this->orderTransactionService->assignTransactionIdWithDeferredDashboardFollowUp(
+                    order: $order,
+                    transactionId: $request->string('transaction_id')->trim()->toString(),
+                    actor: $user,
+                    succeededIncidentIds: [$request->integer('incident_id')],
+                );
+                $order = $result['order'];
+                $deferredFollowUp = $result['follow_up'];
+            } else {
+                $order = $this->orderTransactionService->assignTransactionId(
+                    order: $order,
+                    transactionId: $request->string('transaction_id')->trim()->toString(),
+                    actor: $user,
+                );
+                $deferredFollowUp = null;
+            }
         } catch (ValidationException $exception) {
             if ($request->wantsJson()) {
                 return response()->json([
@@ -54,11 +69,10 @@ class OrderTransactionController extends Controller
                     ->find($request->integer('incident_id'));
             }
 
-            $user = $request->user();
             $shouldRemoveFromReadyQueue = $incident !== null
                 && $this->assignmentService->shouldRemoveFromAdminReadyQueue($incident);
 
-            return response()->json([
+            $payload = [
                 'message' => 'Transaction ID saved. Order marked as completed.',
                 'order_id' => $order->id,
                 'incident_id' => $incident?->id,
@@ -68,14 +82,28 @@ class OrderTransactionController extends Controller
                 'remove_rows' => $shouldRemoveFromReadyQueue
                     ? [['incident_id' => $incident->id]]
                     : [],
-                'row_html' => ($incident && ! $shouldRemoveFromReadyQueue)
+            ];
+
+            if ($useDeferredDashboardFollowUp) {
+                $payload['row_html'] = null;
+                $payload['kpi_strip_html'] = null;
+
+                if ($deferredFollowUp !== null) {
+                    $payload['extensions'] = [
+                        'operational_follow_up' => $deferredFollowUp,
+                    ];
+                }
+            } else {
+                $payload['row_html'] = ($incident && ! $shouldRemoveFromReadyQueue)
                     ? view(
                         'dashboard.partials.service-case-row',
                         $this->dashboardService->serviceCaseRowViewData($incident, $user),
                     )->render()
-                    : null,
-                'kpi_strip_html' => $this->kpiStripHtmlFor($user),
-            ]);
+                    : null;
+                $payload['kpi_strip_html'] = $this->kpiStripHtmlFor($user);
+            }
+
+            return response()->json($payload);
         }
 
         return redirect()

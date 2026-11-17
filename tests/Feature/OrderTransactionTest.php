@@ -3,12 +3,16 @@
 namespace Tests\Feature;
 
 use App\Enums\IncidentStatus;
+use App\Jobs\ProcessAssignReferenceBatchFollowUpJob;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\OutboxEvent;
 use App\Models\User;
+use App\Services\AssignReference\AssignReferenceBatchFollowUpOutboxWriter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class OrderTransactionTest extends TestCase
@@ -243,6 +247,8 @@ class OrderTransactionTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
+        Queue::fake();
+
         $this->actingAs($admin)
             ->postJson(route('orders.transaction.store', $order), [
                 'transaction_id' => 'TX123456',
@@ -251,12 +257,48 @@ class OrderTransactionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('order_id', $order->id)
             ->assertJsonPath('incident_id', $incident->id)
-            ->assertJsonStructure(['row_html', 'kpi_strip_html']);
+            ->assertJsonPath('row_html', null)
+            ->assertJsonPath('kpi_strip_html', null)
+            ->assertJsonPath('extensions.operational_follow_up.assignment', 'committed')
+            ->assertJsonPath('extensions.operational_follow_up.customer_whatsapp', 'pending');
 
         $order->refresh();
         $this->assertSame('TX123456', $order->transaction_id);
         $this->assertNotNull($order->completed_at);
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+
+        $this->assertNotNull(
+            OutboxEvent::query()
+                ->where('event_type', AssignReferenceBatchFollowUpOutboxWriter::EVENT_TYPE)
+                ->first()
+        );
+
+        Queue::assertPushed(ProcessAssignReferenceBatchFollowUpJob::class, 1);
+    }
+
+    public function test_inline_assign_without_incident_id_keeps_sync_dashboard_html(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-AJAX-NO-INCIDENT',
+            'serial_number' => 'SN-AJAX-NO-INCIDENT',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->verifyLegacyOrder($admin, $order);
+
+        $this->actingAs($admin)
+            ->postJson(route('orders.transaction.store', $order), [
+                'transaction_id' => 'TX999888',
+            ])
+            ->assertOk()
+            ->assertJsonStructure(['kpi_strip_html'])
+            ->assertJsonMissingPath('extensions.operational_follow_up');
     }
 
     public function test_inline_assignment_allows_shared_service_reference(): void

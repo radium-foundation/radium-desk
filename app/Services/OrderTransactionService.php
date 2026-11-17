@@ -206,6 +206,84 @@ class OrderTransactionService
         return $freshOrder;
     }
 
+    /**
+     * Dashboard inline assign: persist reference + closure, enqueue durable operational follow-up (P-17-28).
+     *
+     * @param  list<int>  $succeededIncidentIds
+     * @return array{order: Order, follow_up: array<string, mixed>|null}
+     */
+    public function assignTransactionIdWithDeferredDashboardFollowUp(
+        Order $order,
+        string $transactionId,
+        User $actor,
+        array $succeededIncidentIds,
+    ): array {
+        $batchId = (string) Str::uuid();
+
+        $this->batchCoalescer->begin();
+        $this->dashboardBroadcastService->beginKpiCoalesce($actor);
+
+        try {
+            $freshOrder = $this->assignTransactionId(
+                order: $order,
+                transactionId: $transactionId,
+                actor: $actor,
+                broadcast: false,
+            );
+
+            $this->batchCoalescer->flushInvalidations(
+                $this->dashboardSnapshotStore,
+                $this->automationSnapshotInvalidator,
+            );
+
+            $followUpOutbox = null;
+
+            if ($succeededIncidentIds !== []) {
+                try {
+                    $this->dashboardBroadcastService->transactionsAssigned($succeededIncidentIds, $actor);
+                } catch (Throwable $exception) {
+                    $this->logPostProcessingFailure($batchId, 'transactionsAssigned', $exception);
+                }
+
+                $communications = $this->batchCoalescer->communicationsSnapshot();
+
+                $followUpOutbox = $this->batchFollowUpOutboxWriter->enqueue(
+                    batchId: $batchId,
+                    actorId: $actor->id,
+                    pendingNotifications: $communications['pending_notifications'],
+                    pendingDriverGuides: $communications['pending_driver_guides'],
+                    succeededIncidentIds: $succeededIncidentIds,
+                );
+
+                try {
+                    ProcessAssignReferenceBatchFollowUpJob::dispatch($followUpOutbox->id);
+                } catch (Throwable $exception) {
+                    Log::error('inline_assign.follow_up.dispatch_failed', [
+                        'batch_id' => $batchId,
+                        'outbox_event_id' => $followUpOutbox->id,
+                        'exception' => $exception::class,
+                        'message' => $exception->getMessage(),
+                    ]);
+                }
+
+                $this->dashboardBroadcastService->cancelKpiCoalesce();
+            } else {
+                $this->dashboardBroadcastService->cancelKpiCoalesce();
+            }
+
+            return [
+                'order' => $freshOrder,
+                'follow_up' => $this->followUpStatusPayload($batchId, $followUpOutbox, $succeededIncidentIds),
+            ];
+        } catch (Throwable $exception) {
+            $this->dashboardBroadcastService->cancelKpiCoalesce();
+
+            throw $exception;
+        } finally {
+            $this->batchCoalescer->end();
+        }
+    }
+
     private function scheduleServiceReferenceAssignedCommunication(
         Order $order,
         string $serviceReference,
