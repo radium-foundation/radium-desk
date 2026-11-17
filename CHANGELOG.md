@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.84 — 2026-11-17 — POS bulk serial batch validation (P-17-31 / P-17-32)
+
+- **Purpose:** Fix Admin POS counter **bulk serial** entry when many production-length serial numbers are pasted or typed together (e.g. ~30 units on one invoice line).
+- **Application delta:** **POST** `pos.serials.match.post` with JSON body (shared `PosSerialMatchEvaluator` with existing GET match); counter textarea, **Validate and add**, and parsed/added feedback; **`parsed_count`** in API JSON. **No** migrations; **no** change to `completeSale`, payment verification, or Cashfree authority.
+- **Production baseline:** **`v4.1.83`** / **`033d93b9f`**.
+- **Source:** **`main`** merge **#323** @ **`18975cc25`** (implementation **`fe40bd65a`**).
+- **Rollback:** **`v4.1.83`** / **`033d93b9f`**.
+- **Evidence:** Focused PHPUnit **28/28** (`PosMultiSerialSelectionTest`, `PosSerializedCartMergeTest`, `PosSerialMatchEvaluatorTest`, `ReleaseSnapshotCommandTest`) @ **`18975cc25`**; PR **#323** CI **PASS**; Full PHPUnit **NOT RUN**.
+- **Owner UAT:** `docs/desk-p17-32-pos-bulk-serial-uat.md` — **required** post-deploy; **BLOCKED** until isolated test serials available.
+
 ## 4.1.83 — 2026-11-17 — Single dashboard inline reference assign fast path (P-17-28 / P-17-29)
 
 - **Purpose:** Extend P-17-25 batch defer pattern to **dashboard inline** assign (`POST orders/{order}/transaction` + `incident_id`) so HTTP does not wait for KPI strip HTML, admin notification fan-out, or driver-guide batch dispatch registration.
