@@ -126,17 +126,37 @@ class RadiumboxHardwareSkuMapResolutionTest extends TestCase
         $this->assertSame(2, (int) $fulfilment->fresh('commerceOrder.items')->commerceOrder->items->first()->qty);
     }
 
-    public function test_economy_model_1505_does_not_resolve_to_rbbpsr1200(): void
+    public function test_sampann_economy_model_1505_resolves_to_rbbpse1100_not_regular_sku(): void
     {
-        $this->assertNull(app(HardwareSkuMapService::class)->findProduct(
+        $product = app(HardwareSkuMapService::class)->requireProduct(
             StatutoryInvoiceChannel::RadiumBoxCom,
             1505,
-        ));
+        );
 
-        $row = $this->classifyReadyFulfilment('RBP1407-WRONG', 1505, true);
+        $this->assertSame('RBBPSE1100', $product->sku);
+        $this->assertNotSame('RBBPSR1200', $product->sku);
+        $this->assertTrue($product->is_serialized);
 
-        $this->assertSame('Product mapping required', $row->operatorStatus());
-        $this->assertSame('View', $row->nextAction);
+        $row = $this->classifyReadyFulfilment('RBP-SAMPANN-ECO', 1505, true);
+
+        $this->assertSame('Allocate Serial', $row->nextAction);
+        $this->assertNotSame('Product mapping required', $row->operatorStatus());
+    }
+
+    public function test_elimo_gps_model_1622_resolves_to_rbelimogps(): void
+    {
+        $product = app(HardwareSkuMapService::class)->requireProduct(
+            StatutoryInvoiceChannel::RadiumBoxCom,
+            1622,
+        );
+
+        $this->assertSame('RBELIMOGPS', $product->sku);
+        $this->assertTrue($product->is_serialized);
+
+        $row = $this->classifyReadyFulfilment('RBP-ELIMO-GPS', 1622, true);
+
+        $this->assertSame('Allocate Serial', $row->nextAction);
+        $this->assertNotSame('Product mapping required', $row->operatorStatus());
     }
 
     public function test_unmapped_model_id_still_shows_product_mapping_required(): void

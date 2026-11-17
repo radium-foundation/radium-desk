@@ -41,6 +41,8 @@ trait RadiumboxHardwareSkuMapTestCatalog
             'RBBPVRIDL1',
             'RBPRAGATI2',
             'RBBPSR1200',
+            'RBBPSE1100',
+            'RBELIMOGPS',
             'RBIBK2121U',
         ];
     }
