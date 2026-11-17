@@ -21,6 +21,8 @@
 3. Issued credentials stored only in production `.env` (never in git).  
 4. Separate prompt to enable `DASHBOARD_OEM_HANDOFF_MORPHO_CAPTURE` on production.
 
+Mantra CAPTCHA operator workflow: see `docs/desk-p17-05-mantra-captcha-operator-assist.md`.
+
 ## P-16-26 / feasibility lineage
 
 **RadiumDesk-P-16-26** (Morpho already-whitelisted → service reference prefill) and **P-13-93** (mock OTBS adapter) established server validation and strict whitelist classification. P-17-05 wires the **authorized** extension path to the Mantra-style inline REF editor without enabling live HTTP or production flags.

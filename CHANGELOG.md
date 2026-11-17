@@ -3,7 +3,7 @@
 ## 4.1.78 — Unreleased — Morpho inline AW Service Reference prefill (P-17-05)
 
 - **Purpose:** Wire Morpho `already_whitelisted` DOM captures to the shared REF inline AW prefill path (`fields.expiry_date` only; same +3 calendar-day IST eligibility as Mantra). **No** live OTBS HTTP, **no** production flag changes, **no** deploy authorization.
-- **Application delta:** Dashboard JavaScript + investigation doc only.
+- **Application delta:** Dashboard JavaScript + investigation docs; OEM extension **v0.3.11** Mantra CAPTCHA operator assistance (focus/highlight/copy-serial banner; Desk tab focus after capture).
 
 ## 4.1.77 — 2026-11-17 — Automatic AW Service Reference formatting and expiry eligibility (P-17-03)
 

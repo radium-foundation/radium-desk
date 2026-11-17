@@ -1,6 +1,11 @@
 import { MSG } from '../lib/constants.js';
 import { claimHandoffWithRetry } from '../lib/mantra-handoff-claim.js';
-import { showMantraHandoffStatus } from '../lib/mantra-page-ui.js';
+import {
+    focusMantraCaptchaField,
+    highlightMantraCaptchaField,
+    watchMantraCaptchaEntry,
+} from '../lib/mantra-operator-assist.js';
+import { showMantraHandoffStatus, updateMantraCaptchaEntryHint } from '../lib/mantra-page-ui.js';
 import {
     fillMantraSerialOnce,
     MANTRA_SERIAL_FIELD_MAX_WAIT_MS,
@@ -46,7 +51,12 @@ const runMantraHandoff = async () => {
         return;
     }
 
-    showMantraHandoffStatus(document, 'success');
+    showMantraHandoffStatus(document, 'success', { serial: claim.serial });
+    focusMantraCaptchaField(document);
+    highlightMantraCaptchaField(document);
+    watchMantraCaptchaEntry(document, (entered) => {
+        updateMantraCaptchaEntryHint(document, entered);
+    });
 
     const captureEnabled = claim.result_capture_enabled === true || claim.mantra_capture_enabled === true;
     if (!captureEnabled) {

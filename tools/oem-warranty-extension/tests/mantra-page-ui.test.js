@@ -4,9 +4,10 @@ import { MANTRA_STATUS_BANNER_ID, showMantraHandoffStatus } from '../src/lib/man
 describe('showMantraHandoffStatus', () => {
     it('shows success guidance without internal identifiers', () => {
         document.body.innerHTML = '<input id="txtSerialNo" />';
-        showMantraHandoffStatus(document, 'success');
+        showMantraHandoffStatus(document, 'success', { serial: 'SYN123' });
         const banner = document.getElementById(MANTRA_STATUS_BANNER_ID);
         expect(banner?.textContent).toMatch(/CAPTCHA/i);
+        expect(banner?.querySelector('button')?.textContent).toMatch(/Copy serial/i);
         expect(banner?.textContent).not.toMatch(/token|handoff|incident/i);
     });
 
