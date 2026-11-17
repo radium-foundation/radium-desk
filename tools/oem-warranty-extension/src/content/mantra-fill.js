@@ -5,9 +5,8 @@ import {
     highlightMantraCaptchaField,
     MANTRA_CAPTCHA_FIELD_MAX_WAIT_MS,
     waitForMantraCaptchaField,
-    watchMantraCaptchaEntry,
 } from '../lib/mantra-operator-assist.js';
-import { showMantraHandoffStatus, updateMantraCaptchaEntryHint } from '../lib/mantra-page-ui.js';
+import { showMantraHandoffStatus } from '../lib/mantra-page-ui.js';
 import {
     fillMantraSerialOnce,
     MANTRA_SERIAL_FIELD_MAX_WAIT_MS,
@@ -53,19 +52,14 @@ const runMantraHandoff = async () => {
         return;
     }
 
-    showMantraHandoffStatus(document, 'success', { serial: claim.serial });
-
     try {
         await waitForMantraCaptchaField(document, MANTRA_CAPTCHA_FIELD_MAX_WAIT_MS);
     } catch {
-        // Observer in watchMantraCaptchaEntry still binds when field appears.
+        // CAPTCHA field may appear later; focus/highlight are best-effort.
     }
 
     focusMantraCaptchaField(document);
     highlightMantraCaptchaField(document);
-    watchMantraCaptchaEntry(document, (entered) => {
-        updateMantraCaptchaEntryHint(document, entered);
-    });
 
     const captureEnabled = claim.result_capture_enabled === true || claim.mantra_capture_enabled === true;
     if (!captureEnabled) {

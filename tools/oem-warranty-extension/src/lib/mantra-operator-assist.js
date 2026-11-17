@@ -12,7 +12,26 @@ export const MANTRA_CAPTCHA_FIELD_SELECTORS = [
 
 export const MANTRA_CAPTCHA_HIGHLIGHT_CLASS = 'radium-mantra-captcha-highlight';
 
+const MANTRA_CAPTCHA_HIGHLIGHT_STYLE_ID = 'radium-mantra-captcha-highlight-style';
+
 export const MANTRA_CAPTCHA_FIELD_MAX_WAIT_MS = 10_000;
+
+const ensureMantraCaptchaHighlightStyles = (doc) => {
+    if (doc.getElementById(MANTRA_CAPTCHA_HIGHLIGHT_STYLE_ID)) {
+        return;
+    }
+
+    const style = doc.createElement('style');
+    style.id = MANTRA_CAPTCHA_HIGHLIGHT_STYLE_ID;
+    style.textContent = `
+.${MANTRA_CAPTCHA_HIGHLIGHT_CLASS} {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+  background-color: #f8f9fa;
+}
+`;
+    doc.head?.appendChild(style);
+};
 
 /**
  * @param {Document} doc
@@ -127,8 +146,8 @@ export function highlightMantraCaptchaField(doc) {
         return;
     }
 
+    ensureMantraCaptchaHighlightStyles(doc);
     field.classList.add(MANTRA_CAPTCHA_HIGHLIGHT_CLASS);
-    field.setAttribute('aria-describedby', 'radium-oem-handoff-banner');
 }
 
 /**
@@ -207,26 +226,4 @@ export function watchMantraCaptchaEntry(doc, onChange) {
         unbindCurrent();
         observer?.disconnect();
     };
-}
-
-/**
- * @param {string} serial
- * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
- */
-export async function copyMantraSerialToClipboard(serial) {
-    const normalized = String(serial).trim().toUpperCase();
-    if (normalized === '') {
-        return { ok: false, reason: 'serial-empty' };
-    }
-
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        try {
-            await navigator.clipboard.writeText(normalized);
-            return { ok: true };
-        } catch {
-            return { ok: false, reason: 'clipboard-denied' };
-        }
-    }
-
-    return { ok: false, reason: 'clipboard-unavailable' };
 }

@@ -51,7 +51,23 @@
     'input[id*="Captcha" i]'
   ];
   var MANTRA_CAPTCHA_HIGHLIGHT_CLASS = "radium-mantra-captcha-highlight";
+  var MANTRA_CAPTCHA_HIGHLIGHT_STYLE_ID = "radium-mantra-captcha-highlight-style";
   var MANTRA_CAPTCHA_FIELD_MAX_WAIT_MS = 1e4;
+  var ensureMantraCaptchaHighlightStyles = (doc) => {
+    if (doc.getElementById(MANTRA_CAPTCHA_HIGHLIGHT_STYLE_ID)) {
+      return;
+    }
+    const style = doc.createElement("style");
+    style.id = MANTRA_CAPTCHA_HIGHLIGHT_STYLE_ID;
+    style.textContent = `
+.${MANTRA_CAPTCHA_HIGHLIGHT_CLASS} {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+  background-color: #f8f9fa;
+}
+`;
+    doc.head?.appendChild(style);
+  };
   function findMantraCaptchaField(doc) {
     for (const selector of MANTRA_CAPTCHA_FIELD_SELECTORS) {
       const el = doc.querySelector(selector);
@@ -112,9 +128,6 @@
       }, Math.max(0, deadline - now()));
     });
   }
-  function isMantraCaptchaFieldEntered(field) {
-    return field.value.trim().length > 0;
-  }
   function focusMantraCaptchaField(doc) {
     const field = findMantraCaptchaField(doc);
     if (!field) {
@@ -129,105 +142,14 @@
     if (!field) {
       return;
     }
+    ensureMantraCaptchaHighlightStyles(doc);
     field.classList.add(MANTRA_CAPTCHA_HIGHLIGHT_CLASS);
-    field.setAttribute("aria-describedby", "radium-oem-handoff-banner");
-  }
-  function watchMantraCaptchaEntry(doc, onChange) {
-    let bound = null;
-    let unbindCurrent = () => {
-    };
-    const bindField = (field) => {
-      if (bound === field) {
-        onChange(isMantraCaptchaFieldEntered(field));
-        return;
-      }
-      unbindCurrent();
-      bound = field;
-      const notify = () => {
-        onChange(isMantraCaptchaFieldEntered(field));
-      };
-      const onInput = () => notify();
-      field.addEventListener("input", onInput);
-      field.addEventListener("change", onInput);
-      field.addEventListener("paste", onInput);
-      field.addEventListener("keyup", onInput);
-      notify();
-      unbindCurrent = () => {
-        field.removeEventListener("input", onInput);
-        field.removeEventListener("change", onInput);
-        field.removeEventListener("paste", onInput);
-        field.removeEventListener("keyup", onInput);
-        if (bound === field) {
-          bound = null;
-        }
-      };
-    };
-    const tryBind = () => {
-      const field = findMantraCaptchaField(doc);
-      if (field) {
-        bindField(field);
-        return;
-      }
-      if (bound) {
-        unbindCurrent();
-        onChange(false);
-      }
-    };
-    tryBind();
-    const observeRoot = doc.body ?? doc.documentElement;
-    let observer = null;
-    if (observeRoot) {
-      observer = new MutationObserver(() => {
-        tryBind();
-      });
-      observer.observe(observeRoot, { childList: true, subtree: true });
-    }
-    return () => {
-      unbindCurrent();
-      observer?.disconnect();
-    };
-  }
-  async function copyMantraSerialToClipboard(serial) {
-    const normalized = String(serial).trim().toUpperCase();
-    if (normalized === "") {
-      return { ok: false, reason: "serial-empty" };
-    }
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(normalized);
-        return { ok: true };
-      } catch {
-        return { ok: false, reason: "clipboard-denied" };
-      }
-    }
-    return { ok: false, reason: "clipboard-unavailable" };
   }
 
   // src/lib/mantra-page-ui.js
   var MANTRA_STATUS_BANNER_ID = "radium-oem-handoff-banner";
-  var MANTRA_ASSIST_STYLE_ID = "radium-mantra-operator-assist-style";
   var BANNER_STYLE_BASE = "margin:8px 0;padding:8px;font-size:13px;border-radius:4px;";
-  var ensureMantraAssistStyles = (doc) => {
-    if (doc.getElementById(MANTRA_ASSIST_STYLE_ID)) {
-      return;
-    }
-    const style = doc.createElement("style");
-    style.id = MANTRA_ASSIST_STYLE_ID;
-    style.textContent = `
-.${MANTRA_CAPTCHA_HIGHLIGHT_CLASS} {
-  outline: 2px solid #0d6efd;
-  outline-offset: 2px;
-  background-color: #f8f9fa;
-}
-`;
-    doc.head?.appendChild(style);
-  };
   var TONE_STYLES = {
-    success: {
-      bg: "#d4edda",
-      border: "#c3e6cb",
-      text: "Serial number filled. Complete the CAPTCHA and click Check to view warranty details."
-    },
     failure: {
       bg: "#fff3cd",
       border: "#ffeeba",
@@ -239,61 +161,24 @@
       text: "Warranty form did not load correctly. Refresh this page or contact IT if it persists."
     }
   };
-  function showMantraHandoffStatus(doc, tone, options = {}) {
+  function showMantraHandoffStatus(doc, tone, _options = {}) {
+    if (tone === "success") {
+      return;
+    }
     if (doc.getElementById(MANTRA_STATUS_BANNER_ID)) {
       return;
     }
-    ensureMantraAssistStyles(doc);
     const style = TONE_STYLES[tone];
+    if (!style) {
+      return;
+    }
     const el = doc.createElement("div");
     el.id = MANTRA_STATUS_BANNER_ID;
     el.setAttribute("role", "status");
     el.style.cssText = `${BANNER_STYLE_BASE}background:${style.bg};border:1px solid ${style.border};`;
-    if (tone === "success") {
-      el.innerHTML = `
-            <p class="mb-1 mb-sm-2">${style.text}</p>
-            <ol class="mb-2 ps-3" style="font-size:12px;">
-                <li>Type the <strong>CAPTCHA</strong> shown on this page (not automated).</li>
-                <li>Click <strong>Check</strong> yourself.</li>
-                <li>Return to the Desk tab after results appear.</li>
-            </ol>
-        `;
-      if (options.serial) {
-        const copyBtn = doc.createElement("button");
-        copyBtn.type = "button";
-        copyBtn.className = "btn btn-sm btn-outline-secondary";
-        copyBtn.textContent = "Copy serial";
-        copyBtn.addEventListener("click", async () => {
-          const result = await copyMantraSerialToClipboard(options.serial);
-          copyBtn.textContent = result.ok ? "Serial copied" : "Copy failed \u2014 select serial manually";
-        });
-        el.appendChild(copyBtn);
-      }
-    } else {
-      el.textContent = style.text;
-    }
+    el.textContent = style.text;
     const anchor = doc.getElementById("txtSerialNo")?.parentElement ?? doc.body;
     anchor.prepend(el);
-  }
-  function updateMantraCaptchaEntryHint(doc, entered) {
-    const banner = doc.getElementById(MANTRA_STATUS_BANNER_ID);
-    if (!banner) {
-      return;
-    }
-    const hint = banner.querySelector("[data-radium-captcha-hint]");
-    if (!entered) {
-      hint?.remove();
-      return;
-    }
-    if (hint) {
-      return;
-    }
-    const p = doc.createElement("p");
-    p.dataset.radiumCaptchaHint = "1";
-    p.className = "mb-0 mt-2";
-    p.style.fontSize = "12px";
-    p.textContent = "CAPTCHA field has text \u2014 click Check when ready (Desk does not submit for you).";
-    banner.appendChild(p);
   }
 
   // src/lib/mantra-populate.js
@@ -477,16 +362,12 @@
       showMantraHandoffStatus(document, "failure");
       return;
     }
-    showMantraHandoffStatus(document, "success", { serial: claim.serial });
     try {
       await waitForMantraCaptchaField(document, MANTRA_CAPTCHA_FIELD_MAX_WAIT_MS);
     } catch {
     }
     focusMantraCaptchaField(document);
     highlightMantraCaptchaField(document);
-    watchMantraCaptchaEntry(document, (entered) => {
-      updateMantraCaptchaEntryHint(document, entered);
-    });
     const captureEnabled = claim.result_capture_enabled === true || claim.mantra_capture_enabled === true;
     if (!captureEnabled) {
       return;
