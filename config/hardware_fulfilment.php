@@ -211,4 +211,28 @@ return [
         'schedule_interval_minutes' => (int) env('HARDWARE_RBP_GAP_MONITOR_INTERVAL_MINUTES', 15),
     ],
 
+    /*
+    | P-17-43: fixed allowlist for paid RBP commerce gaps missing hardware_fulfilments.
+    | Production recovery refuses any id not listed here.
+    */
+    'rbp_gap_recovery' => [
+        'allowlist' => [
+            'RBP2129',
+            'RBP2133',
+            'RBP2136',
+            'RBP2140',
+            'RBP2143',
+            'RBP2146',
+            'RBP2152',
+            'RBP2161',
+            'RBP2162',
+            'RBP2163',
+            'RBP2166',
+            'RBP2181',
+            'RBP2182',
+            'RBP2190',
+            'RBP2191',
+        ],
+    ],
+
 ];

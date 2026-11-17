@@ -103,6 +103,30 @@ class HardwareFulfilmentFoundationService
         $order->loadMissing('items');
         app(HardwareRecoveredFulfilmentAuthorization::class)->requireAuthorized($order);
 
+        return $this->openHardwareFulfilmentFromExistingCommerce($order, 'recovered_commerce_ingest');
+    }
+
+    /**
+     * Owner-gated P-17-43 RBP gap recovery only. Does not bypass Desk Cashfree authority checks
+     * (those run in {@see RbpHardwareFulfilmentGapRecoveryService} before this is called).
+     */
+    public function ensureIngestedFromExistingCommerceForRbpGapRecovery(
+        CommerceOrder $order,
+        RbpHardwareFulfilmentGapRecoveryExecution $execution,
+    ): HardwareFulfilment {
+        if (! $execution->isValid()) {
+            throw ValidationException::withMessages([
+                'recovery' => 'Invalid RBP gap recovery execution token.',
+            ]);
+        }
+
+        $order->loadMissing('items');
+
+        return $this->openHardwareFulfilmentFromExistingCommerce($order, 'rbp_gap_recovery_p17_43');
+    }
+
+    private function openHardwareFulfilmentFromExistingCommerce(CommerceOrder $order, string $eventReason): HardwareFulfilment
+    {
         $existing = HardwareFulfilment::query()
             ->where('commerce_order_id', $order->id)
             ->first();
@@ -177,7 +201,7 @@ class HardwareFulfilmentFoundationService
             'to_state' => HardwareFulfilmentState::Ingested,
             'actor_type' => 'system',
             'payload' => [
-                'reason' => 'recovered_commerce_ingest',
+                'reason' => $eventReason,
                 'source_id' => $order->source_id,
                 'commerce_order_id' => $order->id,
             ],
