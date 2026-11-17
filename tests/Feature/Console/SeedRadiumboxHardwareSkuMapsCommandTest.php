@@ -167,11 +167,28 @@ class SeedRadiumboxHardwareSkuMapsCommandTest extends TestCase
         $this->assertSame(1, ChannelSkuMap::query()->where('model_id', 1506)->count());
     }
 
-    public function test_economy_model_1505_is_not_defined_in_config(): void
+    public function test_sampann_economy_1505_maps_to_rbbpse1100(): void
     {
-        $modelIds = $this->configuredRadiumboxModelIds();
+        $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
+            ->assertSuccessful();
 
-        $this->assertNotContains(1505, $modelIds);
+        $map = ChannelSkuMap::query()->where('model_id', 1505)->with('product')->firstOrFail();
+        $this->assertSame('RBBPSE1100', $map->product->sku);
+        $this->assertSame('PBPSAMECO1', $map->catalog_sku);
+        $this->assertSame('1505', $map->channel_sku);
+        $this->assertTrue($map->product->is_serialized);
+    }
+
+    public function test_elimo_gps_model_1622_maps_to_rbelimogps(): void
+    {
+        $this->artisan('desk:seed-radiumbox-hardware-sku-maps', ['--apply' => true])
+            ->assertSuccessful();
+
+        $map = ChannelSkuMap::query()->where('model_id', 1622)->with('product')->firstOrFail();
+        $this->assertSame('RBELIMOGPS', $map->product->sku);
+        $this->assertSame('RBPELIMGPS', $map->catalog_sku);
+        $this->assertSame('1622', $map->channel_sku);
+        $this->assertTrue($map->product->is_serialized);
     }
 
     public function test_mbp401_map_is_created_idempotently(): void
