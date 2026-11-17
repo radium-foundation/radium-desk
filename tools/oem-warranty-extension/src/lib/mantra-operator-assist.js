@@ -12,6 +12,8 @@ export const MANTRA_CAPTCHA_FIELD_SELECTORS = [
 
 export const MANTRA_CAPTCHA_HIGHLIGHT_CLASS = 'radium-mantra-captcha-highlight';
 
+export const MANTRA_CAPTCHA_FIELD_MAX_WAIT_MS = 10_000;
+
 /**
  * @param {Document} doc
  * @returns {HTMLInputElement | null}
@@ -25,6 +27,79 @@ export function findMantraCaptchaField(doc) {
     }
 
     return null;
+}
+
+/**
+ * @param {Document} doc
+ * @param {number} maxMs
+ * @param {{ observe?: MutationObserver, now?: () => number }} [hooks]
+ */
+export function waitForMantraCaptchaField(doc, maxMs, hooks = {}) {
+    const immediate = findMantraCaptchaField(doc);
+    if (immediate) {
+        return Promise.resolve(immediate);
+    }
+
+    const observeRoot = doc.body ?? doc.documentElement;
+    if (!observeRoot) {
+        return Promise.reject(new Error('timeout'));
+    }
+
+    const now = hooks.now ?? (() => Date.now());
+    const deadline = now() + maxMs;
+
+    return new Promise((resolve, reject) => {
+        /** @type {MutationObserver | null} */
+        let observer = null;
+        let timeoutId = null;
+        let settled = false;
+
+        const finish = (/** @type {'resolve' | 'reject'} */ kind, /** @type {unknown} */ value) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            observer?.disconnect();
+            if (timeoutId != null) {
+                clearTimeout(timeoutId);
+            }
+            if (kind === 'resolve') {
+                resolve(value);
+            } else {
+                reject(value);
+            }
+        };
+
+        const tryResolve = () => {
+            const el = findMantraCaptchaField(doc);
+            if (el) {
+                finish('resolve', el);
+                return true;
+            }
+            if (now() >= deadline) {
+                finish('reject', new Error('timeout'));
+                return true;
+            }
+            return false;
+        };
+
+        observer = hooks.observe ?? new MutationObserver(() => {
+            tryResolve();
+        });
+        observer.observe(observeRoot, { childList: true, subtree: true });
+
+        timeoutId = setTimeout(() => {
+            tryResolve();
+        }, Math.max(0, deadline - now()));
+    });
+}
+
+/**
+ * @param {HTMLInputElement} field
+ * @returns {boolean}
+ */
+export function isMantraCaptchaFieldEntered(field) {
+    return field.value.trim().length > 0;
 }
 
 /**
@@ -58,27 +133,79 @@ export function highlightMantraCaptchaField(doc) {
 
 /**
  * Visual-only hint when operator typed into CAPTCHA (does not validate correctness).
+ * Re-binds when the portal replaces the input (ASP.NET / partial postback).
  *
  * @param {Document} doc
  * @param {(entered: boolean) => void} onChange
  * @returns {() => void}
  */
 export function watchMantraCaptchaEntry(doc, onChange) {
-    const field = findMantraCaptchaField(doc);
-    if (!field) {
-        return () => {};
-    }
+    /** @type {HTMLInputElement | null} */
+    let bound = null;
 
-    const handler = () => {
-        onChange(field.value.trim().length > 0);
+    /** @type {() => void} */
+    let unbindCurrent = () => {};
+
+    const bindField = (/** @type {HTMLInputElement} */ field) => {
+        if (bound === field) {
+            onChange(isMantraCaptchaFieldEntered(field));
+            return;
+        }
+
+        unbindCurrent();
+        bound = field;
+
+        const notify = () => {
+            onChange(isMantraCaptchaFieldEntered(field));
+        };
+
+        const onInput = () => notify();
+        field.addEventListener('input', onInput);
+        field.addEventListener('change', onInput);
+        field.addEventListener('paste', onInput);
+        field.addEventListener('keyup', onInput);
+
+        notify();
+
+        unbindCurrent = () => {
+            field.removeEventListener('input', onInput);
+            field.removeEventListener('change', onInput);
+            field.removeEventListener('paste', onInput);
+            field.removeEventListener('keyup', onInput);
+            if (bound === field) {
+                bound = null;
+            }
+        };
     };
 
-    field.addEventListener('input', handler);
-    field.addEventListener('change', handler);
+    const tryBind = () => {
+        const field = findMantraCaptchaField(doc);
+        if (field) {
+            bindField(field);
+            return;
+        }
+
+        if (bound) {
+            unbindCurrent();
+            onChange(false);
+        }
+    };
+
+    tryBind();
+
+    const observeRoot = doc.body ?? doc.documentElement;
+    /** @type {MutationObserver | null} */
+    let observer = null;
+    if (observeRoot) {
+        observer = new MutationObserver(() => {
+            tryBind();
+        });
+        observer.observe(observeRoot, { childList: true, subtree: true });
+    }
 
     return () => {
-        field.removeEventListener('input', handler);
-        field.removeEventListener('change', handler);
+        unbindCurrent();
+        observer?.disconnect();
     };
 }
 

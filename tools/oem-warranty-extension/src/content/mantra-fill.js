@@ -3,6 +3,8 @@ import { claimHandoffWithRetry } from '../lib/mantra-handoff-claim.js';
 import {
     focusMantraCaptchaField,
     highlightMantraCaptchaField,
+    MANTRA_CAPTCHA_FIELD_MAX_WAIT_MS,
+    waitForMantraCaptchaField,
     watchMantraCaptchaEntry,
 } from '../lib/mantra-operator-assist.js';
 import { showMantraHandoffStatus, updateMantraCaptchaEntryHint } from '../lib/mantra-page-ui.js';
@@ -52,6 +54,13 @@ const runMantraHandoff = async () => {
     }
 
     showMantraHandoffStatus(document, 'success', { serial: claim.serial });
+
+    try {
+        await waitForMantraCaptchaField(document, MANTRA_CAPTCHA_FIELD_MAX_WAIT_MS);
+    } catch {
+        // Observer in watchMantraCaptchaEntry still binds when field appears.
+    }
+
     focusMantraCaptchaField(document);
     highlightMantraCaptchaField(document);
     watchMantraCaptchaEntry(document, (entered) => {
