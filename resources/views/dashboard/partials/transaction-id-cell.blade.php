@@ -51,11 +51,6 @@
             <i class="bi bi-plus-lg" aria-hidden="true"></i>
         </button>
         <div class="transaction-inline-editor d-none">
-            <div class="transaction-inline-oem-expiry-wrap d-none">
-                <input type="date"
-                       class="form-control form-control-sm transaction-inline-expiry"
-                       aria-label="RD subscription expiry date">
-            </div>
             <div class="input-group input-group-sm">
                 <input type="text"
                        class="form-control transaction-inline-input"

@@ -35,6 +35,7 @@ import {
     clearOemHandoffDraftAfterAssignment,
     getOemInlineCompletionContext,
     initDashboardOemWarrantyHandoff,
+    tryPrefillOemServiceReferenceInput,
 } from '../dashboard-oem-warranty-handoff';
 
 const initDashboardTransactions = ({
@@ -74,34 +75,12 @@ const initDashboardTransactions = ({
         openBatchModal,
     });
 
-    const configureOemInlineExpiryField = (cell) => {
-        const incidentId = Number(cell.dataset.incidentId);
-        const oemContext = getOemInlineCompletionContext(incidentId);
-        const expiryWrap = cell.querySelector('.transaction-inline-oem-expiry-wrap');
-        const expiryInput = cell.querySelector('.transaction-inline-expiry');
-
-        if (!expiryWrap || !expiryInput) {
-            return;
-        }
-
-        if (!oemContext) {
-            expiryWrap.classList.add('d-none');
-            expiryInput.value = '';
-            expiryInput.classList.remove('is-invalid');
-            return;
-        }
-
-        expiryWrap.classList.remove('d-none');
-        expiryInput.classList.remove('is-invalid');
-        expiryInput.value = oemContext.proposedRdExpiryYmd ?? '';
-    };
-
     const openInlineEditor = (cell) => {
         const trigger = cell.querySelector('.transaction-cell-trigger');
         const editor = cell.querySelector('.transaction-inline-editor');
         const input = cell.querySelector('.transaction-inline-input');
         const error = cell.querySelector('.transaction-inline-error');
-        const expiryInput = cell.querySelector('.transaction-inline-expiry');
+        const incidentId = Number(cell.dataset.incidentId);
 
         if (!editor || !input) {
             return;
@@ -115,12 +94,19 @@ const initDashboardTransactions = ({
         }
 
         input.classList.remove('is-invalid');
-        input.value = '';
-        configureOemInlineExpiryField(cell);
-        input.focus();
+
+        const oemContext = getOemInlineCompletionContext(incidentId);
+        const appliedOemPrefill = oemContext
+            ? tryPrefillOemServiceReferenceInput(incidentId, { openEditor: false, focusInput: true })
+            : false;
+
+        if (!appliedOemPrefill) {
+            input.value = '';
+            input.focus();
+        }
 
         getWorkspaceSession().acquire('inline-transaction', {
-            incidentId: Number(cell.dataset.incidentId),
+            incidentId,
         });
     };
 
@@ -129,17 +115,11 @@ const initDashboardTransactions = ({
         const editor = cell.querySelector('.transaction-inline-editor');
         const input = cell.querySelector('.transaction-inline-input');
         const error = cell.querySelector('.transaction-inline-error');
-        const expiryWrap = cell.querySelector('.transaction-inline-oem-expiry-wrap');
-        const expiryInput = cell.querySelector('.transaction-inline-expiry');
 
         editor?.classList.add('d-none');
         trigger?.classList.remove('d-none');
         input?.classList.remove('is-invalid');
-        expiryInput?.classList.remove('is-invalid');
-        expiryWrap?.classList.add('d-none');
-        if (expiryInput) {
-            expiryInput.value = '';
-        }
+        delete input?.dataset.oemRdPrefillValue;
 
         if (error) {
             error.textContent = '';
@@ -154,7 +134,6 @@ const initDashboardTransactions = ({
         }
 
         const input = cell.querySelector('.transaction-inline-input');
-        const expiryInput = cell.querySelector('.transaction-inline-expiry');
         const error = cell.querySelector('.transaction-inline-error');
         const saveButton = cell.querySelector('.transaction-inline-save');
         const storeUrl = cell.dataset.storeUrl;
@@ -164,7 +143,7 @@ const initDashboardTransactions = ({
         const legacyVerificationUrl = cell.dataset.legacyVerificationUrl;
         const legacyVerificationMode = cell.dataset.legacyVerificationMode ?? 'customer';
         const oemContext = getOemInlineCompletionContext(incidentId);
-        const subscriptionExpiryDate = expiryInput?.value?.trim() ?? '';
+        const subscriptionExpiryDate = oemContext?.proposedRdExpiryYmd ?? '';
 
         if (!input || transactionId === '') {
             input?.classList.add('is-invalid');
@@ -178,10 +157,10 @@ const initDashboardTransactions = ({
 
         if (oemContext) {
             if (!subscriptionExpiryDate) {
-                expiryInput?.classList.add('is-invalid');
+                input.classList.add('is-invalid');
 
                 if (error) {
-                    error.textContent = 'RD subscription expiry date is required.';
+                    error.textContent = 'RD subscription expiry is required from OEM capture.';
                 }
 
                 return;
@@ -255,10 +234,6 @@ const initDashboardTransactions = ({
                         ? (Object.values(data.errors ?? {}).flat()?.[0] ?? data.message ?? 'Unable to complete assignment.')
                         : (data.errors?.transaction_id?.[0] ?? data.message ?? 'Unable to save service reference.');
                     input.classList.add('is-invalid');
-
-                    if (oemContext && data.errors?.subscription_expiry_date) {
-                        expiryInput?.classList.add('is-invalid');
-                    }
 
                     if (error) {
                         error.textContent = message;
@@ -352,7 +327,7 @@ const initDashboardTransactions = ({
             return;
         }
 
-        const input = event.target.closest('.transaction-inline-input, .transaction-inline-expiry');
+        const input = event.target.closest('.transaction-inline-input');
 
         if (input) {
             event.preventDefault();

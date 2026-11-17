@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.1.76 — Unreleased — Mantra RD expiry prefill in Service Reference input (P-17-01)
+
+- **Purpose:** After Mantra OEM capture, prefill the existing REF **Service Reference** text input with **`rd_expiry_date`** as `d/m/Y` (caret at 0 for `AW- ` prefix). Remove separate date picker. **Does not authorize production deploy.**
+- **Application delta:** Dashboard JavaScript + blade/CSS only. **No** PHP/schema changes.
+
 ## 4.1.75 — Unreleased — OEM RD expiry in REF inline workflow (P-16-53)
 
 - **Purpose:** Remove the serial-column OEM administrator completion panel (table layout regression). Prefill **Mantra RD Expiry Date** (`rd_expiry_date`) in the existing **REF.** inline service-reference editor; single tick calls unchanged **`complete-assignment`** (P-16-51). **Does not authorize production deploy.**

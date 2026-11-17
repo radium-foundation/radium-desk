@@ -1,6 +1,9 @@
-import { proposeRdSubscriptionExpiryFromMantraDraft } from './dashboard-oem-rd-expiry-prefill';
+import {
+    formatRdExpiryYmdForServiceReferenceInput,
+    proposeRdSubscriptionExpiryFromMantraDraft,
+} from './dashboard-oem-rd-expiry-prefill';
 
-/** @type {Map<number, { sessionPublicId: string, completeAssignmentUrl: string, proposedRdExpiryYmd: string|null }>} */
+/** @type {Map<number, { sessionPublicId: string, completeAssignmentUrl: string, proposedRdExpiryYmd: string|null, proposedRdExpiryDisplay: string|null }>} */
 const OEM_INLINE_COMPLETION = new Map();
 
 export const getOemInlineCompletionContext = (incidentId) => {
@@ -38,6 +41,7 @@ export const registerOemInlineCompletionFromSession = (incidentId, session, base
         sessionPublicId,
         completeAssignmentUrl: `${baseUrl}/${id}/oem-handoff/sessions/${sessionPublicId}/complete-assignment`,
         proposedRdExpiryYmd,
+        proposedRdExpiryDisplay: formatRdExpiryYmdForServiceReferenceInput(proposedRdExpiryYmd),
     });
 
     return true;

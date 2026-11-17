@@ -2,10 +2,20 @@ import {
     clearOemInlineCompletionContext,
     registerOemInlineCompletionFromSession,
 } from './dashboard-oem-inline-completion';
+import {
+    OEM_INLINE_COMPLETION_READY,
+    initDashboardOemRefServicePrefill,
+    scheduleOemServiceReferencePrefill,
+} from './dashboard-oem-ref-service-prefill';
 import { csrfToken } from './workspace/http';
 
 export { clearOemInlineCompletionContext, getOemInlineCompletionContext } from './dashboard-oem-inline-completion';
-export { normalizeRdSubscriptionExpiryYmd, proposeRdSubscriptionExpiryFromMantraDraft } from './dashboard-oem-rd-expiry-prefill';
+export {
+    formatRdExpiryYmdForServiceReferenceInput,
+    normalizeRdSubscriptionExpiryYmd,
+    proposeRdSubscriptionExpiryFromMantraDraft,
+} from './dashboard-oem-rd-expiry-prefill';
+export { initDashboardOemRefServicePrefill, tryPrefillOemServiceReferenceInput } from './dashboard-oem-ref-service-prefill';
 
 /** window.postMessage types (must match extension content script). */
 export const DESK_OEM_WINDOW_MSG = {
@@ -140,10 +150,11 @@ const registerOemDraftForInlineRefCompletion = (incidentId, session, baseUrl, sh
         oem,
     });
     markPendingOemDraftReview(incidentId);
-    showToast?.(
-        'OEM result captured — click Add service reference to enter the reference and save.',
-        { variant: 'info' },
-    );
+    showToast?.('OEM RD expiry captured — type AW- before the date in Service Reference.', { variant: 'info' });
+    document.dispatchEvent(new CustomEvent(OEM_INLINE_COMPLETION_READY, {
+        detail: { incidentId: Number(incidentId) },
+    }));
+    scheduleOemServiceReferencePrefill(incidentId);
 };
 
 const visibleOemIncidentIds = () => {
@@ -196,6 +207,8 @@ export const initDashboardOemWarrantyHandoff = (showToast) => {
     if (!pageRoot) {
         return;
     }
+
+    initDashboardOemRefServicePrefill();
 
     const handoffEnabled = pageRoot.dataset.dashboardOemHandoffEnabled === '1';
     const baseUrl = pageRoot.dataset.dashboardOemHandoffUrl ?? '';
