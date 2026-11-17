@@ -1974,6 +1974,12 @@ a:focus-visible .stat-card {
     margin-bottom: 0.5rem;
 }
 
+.batch-serial-section__header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .batch-serial-section__copy-all {
     font-size: 0.8125rem;
     text-decoration: none;
@@ -1983,6 +1989,23 @@ a:focus-visible .stat-card {
 .batch-serial-section__copy-all:hover,
 .batch-serial-section__copy-all:focus-visible {
     text-decoration: underline;
+}
+
+.batch-serial-section__export-excel {
+    line-height: 1;
+    text-decoration: none;
+    color: var(--dashboard-color-success, #198754);
+}
+
+.batch-serial-section__export-excel:hover,
+.batch-serial-section__export-excel:focus-visible {
+    color: var(--dashboard-color-success, #198754);
+    opacity: 0.85;
+}
+
+.batch-serial-section__export-excel:disabled {
+    opacity: 0.5;
+    cursor: wait;
 }
 
 .batch-serial-list {
