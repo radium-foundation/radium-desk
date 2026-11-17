@@ -34,15 +34,12 @@ final class RbpHardwareFulfilmentGapMonitor
 
         $query = CommerceOrder::query()
             ->with('items')
-            ->where('channel', StatutoryInvoiceChannel::RadiumBoxCom->value)
+            ->where('channel', StatutoryInvoiceChannel::RadiumBoxCom)
             ->whereRaw('UPPER(payment_status) = ?', ['PAID'])
+            ->whereRaw('UPPER(source_id) LIKE ?', ['RBP%'])
             ->whereDoesntHave('hardwareFulfilment')
             ->where('created_at', '<=', $cutoff)
             ->orderBy('id');
-
-        if ($limit !== null && $limit > 0) {
-            $query->limit($limit);
-        }
 
         /** @var Collection<int, CommerceOrder> $orders */
         $orders = $query->get();
@@ -87,6 +84,10 @@ final class RbpHardwareFulfilmentGapMonitor
                 'commerce_created_at' => $order->created_at?->toIso8601String() ?? '',
                 'reason' => 'paid_physical_rbp_commerce_without_hardware_fulfilment',
             ];
+
+            if ($limit !== null && $limit > 0 && count($gaps) >= $limit) {
+                break;
+            }
         }
 
         return $gaps;
