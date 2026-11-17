@@ -1,6 +1,18 @@
 # Changelog
 
-## 4.1.87 — Unreleased — Bulk hardware document download (P-17-54 / P-17-55)
+## 4.1.88 — Unreleased — Assign modal serial Excel export (P-17-60)
+
+- **Purpose (P-17-60):** Excel download beside **Copy All Serials** in Assign Service Reference modal; read-only export for Mantra `RDWarrantyCheckSampleSheet` (`SerialNo` column, text serials).
+- **Application delta:** `RdWarrantyCheckSerialNumbersXlsxWriter`, `GET dashboard/components/batch-transaction/serial-export`, modal icon + client download handler.
+- **Migrations:** **None**.
+- **Production baseline:** **`v4.1.87`** / **`72041beb9`** (deployed 2026-11-17 P-17-59).
+- **Source:** **`main`** merge **#334** @ **`b1c12bc70`** (feature **`f7f311590`**).
+- **Rollback:** **`v4.1.87`** / **`72041beb9`** (removes export; no schema).
+- **Evidence:** PHPUnit **8/8** (writer + export feature); Vitest **3/3**; Pint + `npm run build` **PASS**; PR **#334** CI **PASS**; Full PHPUnit **NOT RUN**.
+- **Owner UAT:** Mantra workbook upload **UNKNOWN** until operator test.
+- **Deploy gate:** `docs/desk-p17-61-v4188-pre-deploy-gate.md`.
+
+## 4.1.87 — 2026-11-17 — Bulk hardware document download (P-17-54 / P-17-55)
 
 - **Purpose (P-17-54):** Hardware workspace bulk **read-only** download of persisted shipping labels, manifests, and a complete ZIP (labels + deduped manifests + `reconciliation.csv`) without Shiprocket generation or fulfilment/shipment mutation.
 - **Application delta:** `HardwareShipmentBulkDownloadService`, URL allowlist fetcher, `POST hardware-fulfilments/bulk/download/*`, dashboard selection UX + reconciliation summary header.
