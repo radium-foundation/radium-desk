@@ -301,18 +301,7 @@ final class HardwareFulfilmentOperationalClassifier
             ];
         }
 
-        $photoRecorded = $ready->packagePhotoRecorded();
-
         if (in_array($fulfilment->state, [HardwareFulfilmentState::Shipped, HardwareFulfilmentState::Synced], true)) {
-            if (! $photoRecorded) {
-                return [
-                    HardwareFulfilmentOperationalStage::Completed,
-                    'Upload Package Photo',
-                    'hardware-package-evidence',
-                    'Ready / Open evidence',
-                ];
-            }
-
             return [HardwareFulfilmentOperationalStage::Completed, 'Ready', null, 'Completed'];
         }
 
@@ -388,28 +377,10 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         if ($ready->readyForPickup) {
-            if (! $photoRecorded) {
-                return [
-                    HardwareFulfilmentOperationalStage::ReadyForPickup,
-                    'Upload Package Photo',
-                    'hardware-package-evidence',
-                    'Package photo pending',
-                ];
-            }
-
             return [HardwareFulfilmentOperationalStage::ReadyForPickup, 'Ready', 'hardware-manifest-pickup', 'Ready for Pickup'];
         }
 
         if ($ready->alreadyCreated && filled($ready->awb)) {
-            if (! $photoRecorded) {
-                return [
-                    HardwareFulfilmentOperationalStage::PickupManifestPending,
-                    'Upload Package Photo',
-                    'hardware-package-evidence',
-                    'Package photo pending',
-                ];
-            }
-
             return [HardwareFulfilmentOperationalStage::PickupManifestPending, 'Ready', 'hardware-manifest-pickup', 'Ready for Pickup'];
         }
 
@@ -441,15 +412,6 @@ final class HardwareFulfilmentOperationalClassifier
         HardwareShipmentReadiness $ready,
     ): array {
         if (in_array($fulfilment->state, [HardwareFulfilmentState::Shipped, HardwareFulfilmentState::Synced], true)) {
-            if (! $ready->packagePhotoRecorded()) {
-                return [
-                    HardwareFulfilmentOperationalStage::Completed,
-                    'Upload Package Photo',
-                    'hardware-package-evidence',
-                    'External — Shipped',
-                ];
-            }
-
             return [HardwareFulfilmentOperationalStage::Completed, 'Completed', null, 'External — Shipped'];
         }
 
@@ -468,15 +430,6 @@ final class HardwareFulfilmentOperationalClassifier
                 'Mark Dispatched',
                 'hardware-external-dispatch',
                 'External — Ready to Dispatch',
-            ];
-        }
-
-        if ($ready->alreadyCreated && ! $ready->packagePhotoRecorded()) {
-            return [
-                HardwareFulfilmentOperationalStage::LabelPackingPending,
-                'Upload Package Photo',
-                'hardware-package-evidence',
-                'External — Awaiting Package Photo',
             ];
         }
 

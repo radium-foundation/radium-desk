@@ -3,7 +3,6 @@
 namespace App\Services\HardwareFulfilment;
 
 use App\Enums\HardwareFulfilmentSerialStatus;
-use App\Enums\HardwareFulfilmentShippingMethod;
 use App\Enums\HardwareFulfilmentState;
 use App\Models\HardwareFulfilment;
 use App\Models\HardwareFulfilmentEvent;
@@ -173,15 +172,6 @@ class HardwareFulfilmentWorkflowService
             if ($awb !== $providerAwb || $awb !== $shipmentAwb) {
                 throw ValidationException::withMessages([
                     'shipping' => 'SHIPPED requires the fulfilment AWB to match the provider shipment AWB.',
-                ]);
-            }
-        }
-
-        if ($actorType === 'user') {
-            $hasPackagePhoto = $locked->packageEvidences()->exists();
-            if (! $hasPackagePhoto) {
-                throw ValidationException::withMessages([
-                    'shipping' => 'Marking shipped requires a package photo.',
                 ]);
             }
         }

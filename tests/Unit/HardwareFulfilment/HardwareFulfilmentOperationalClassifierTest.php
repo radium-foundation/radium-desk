@@ -132,7 +132,7 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertNotSame('Record Packing', $row->nextAction);
     }
 
-    public function test_shipped_without_package_photo_stays_open_for_evidence(): void
+    public function test_shipped_without_package_photo_is_completed(): void
     {
         $fulfilment = $this->fulfilment('RDE971004', HardwareFulfilmentState::Shipped);
         $ready = $this->readiness([
@@ -146,10 +146,10 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         ]);
         $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
 
-        $this->assertSame('Upload Package Photo', $row->nextAction);
-        $this->assertSame('Ready / Open evidence', $row->operatorStatus());
-        $this->assertSame(HardwareDashboardQueue::Ready, $row->dashboardQueue());
-        $this->assertTrue($row->mutatingAction);
+        $this->assertSame('Ready', $row->nextAction);
+        $this->assertSame('Completed', $row->operatorStatus());
+        $this->assertSame(HardwareDashboardQueue::Completed, $row->dashboardQueue());
+        $this->assertFalse($row->mutatingAction);
     }
 
     public function test_valid_selected_courier_advances_to_create_shipment_even_when_options_remain(): void

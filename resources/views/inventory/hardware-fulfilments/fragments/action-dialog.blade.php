@@ -16,9 +16,8 @@
         'Generate Label' => 'Generate the shipping label for this shipment.',
         'Request Pickup' => 'Request pickup for the labeled shipment.',
         'Generate Manifest' => 'Generate the pickup manifest for this shipment.',
-        'Upload Package Photo' => 'Add package photo evidence. This does not block operations.',
         'Record External Shipment' => 'Record shipment details for a courier outside the Shiprocket workflow.',
-        'Mark Dispatched' => 'Mark this external shipment as dispatched after package photo is recorded.',
+        'Mark Dispatched' => 'Mark this external shipment as dispatched.',
     ];
     $icons = [
         'Ready for Fulfilment' => '✅',
@@ -36,7 +35,6 @@
         'Generate Label' => '🏷️',
         'Request Pickup' => '📦',
         'Generate Manifest' => '📋',
-        'Upload Package Photo' => '📷',
         'Record External Shipment' => '🚚',
         'Mark Dispatched' => '📦',
     ];
@@ -221,8 +219,6 @@
                         ],
                         'submitLabel' => 'Generate Manifest',
                     ])
-                @elseif($action === 'Upload Package Photo')
-                    @include('inventory.hardware-fulfilments.fragments.action-package-photo')
                 @elseif(in_array($action, ['Record External Shipment', 'Mark Dispatched'], true))
                     @include('inventory.hardware-fulfilments.fragments.action-start-shipment', [
                         'showUrl' => $showUrl ?? null,
