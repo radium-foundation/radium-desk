@@ -7,6 +7,12 @@ on:
     paths:
       - 'app/Contracts/Shipping/ShiprocketGateway.php'
       - 'app/Services/HardwareFulfilment/HardwareShipmentBulkDocumentsService.php'
+      - 'app/Services/HardwareFulfilment/HardwareShipmentBulkDownloadService.php'
+      - 'app/Services/HardwareFulfilment/HardwareCarrierDocumentFetcher.php'
+      - 'app/Services/HardwareFulfilment/CarrierDocumentUrlValidator.php'
+      - 'app/Http/Controllers/Inventory/HardwareFulfilmentBulkDownloadController.php'
+      - 'tests/Feature/HardwareFulfilment/HardwareFulfilmentBulkDownloadTest.php'
+      - 'tests/Unit/HardwareFulfilment/HardwareCarrierDocumentFetcherTest.php'
       - 'app/Services/HardwareFulfilment/HardwareShipmentDocumentsService.php'
       - 'app/Services/HardwareFulfilment/ShipmentDocumentPersistence.php'
       - 'app/Services/Shipping/HttpShiprocketGateway.php'
@@ -27,6 +33,12 @@ on:
     paths:
       - 'app/Contracts/Shipping/ShiprocketGateway.php'
       - 'app/Services/HardwareFulfilment/HardwareShipmentBulkDocumentsService.php'
+      - 'app/Services/HardwareFulfilment/HardwareShipmentBulkDownloadService.php'
+      - 'app/Services/HardwareFulfilment/HardwareCarrierDocumentFetcher.php'
+      - 'app/Services/HardwareFulfilment/CarrierDocumentUrlValidator.php'
+      - 'app/Http/Controllers/Inventory/HardwareFulfilmentBulkDownloadController.php'
+      - 'tests/Feature/HardwareFulfilment/HardwareFulfilmentBulkDownloadTest.php'
+      - 'tests/Unit/HardwareFulfilment/HardwareCarrierDocumentFetcherTest.php'
       - 'app/Services/HardwareFulfilment/HardwareShipmentDocumentsService.php'
       - 'app/Services/HardwareFulfilment/ShipmentDocumentPersistence.php'
       - 'app/Services/Shipping/HttpShiprocketGateway.php'
@@ -69,4 +81,6 @@ jobs:
             tests/Unit/Shipping/ShiprocketGatewayContractTest.php \
             tests/Unit/Shipping/ShiprocketManifestAlreadyGeneratedTest.php \
             tests/Feature/HardwareFulfilment/HardwareFulfilmentOperationalWorkflowTest.php \
+            tests/Feature/HardwareFulfilment/HardwareFulfilmentBulkDownloadTest.php \
+            tests/Unit/HardwareFulfilment/HardwareCarrierDocumentFetcherTest.php \
             tests/Feature/Shipping/HttpShiprocketGatewayTest.php
