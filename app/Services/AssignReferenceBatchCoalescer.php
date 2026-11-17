@@ -134,6 +134,59 @@ class AssignReferenceBatchCoalescer
         $this->flushDriverGuides();
     }
 
+    /**
+     * @return array{
+     *     pending_notifications: list<array{order_id: int, transaction_id: string, actor_id: int}>,
+     *     pending_driver_guides: list<array{order_id: int, service_reference: string}>,
+     *     driver_guide_actor_id: int|null
+     * }
+     */
+    public function communicationsSnapshot(): array
+    {
+        return [
+            'pending_notifications' => $this->pendingNotifications,
+            'pending_driver_guides' => $this->pendingDriverGuides,
+            'driver_guide_actor_id' => $this->driverGuideActorId,
+        ];
+    }
+
+    /**
+     * @param  list<array{order_id: int, transaction_id: string, actor_id: int}>  $pendingNotifications
+     * @param  list<array{order_id: int, service_reference: string}>  $pendingDriverGuides
+     */
+    public function flushCommunicationsFromSnapshot(
+        array $pendingNotifications,
+        array $pendingDriverGuides,
+        ?int $driverGuideActorId,
+        SettingService $settingService,
+        string $batchId = '',
+    ): void {
+        $this->pendingNotifications = $pendingNotifications;
+        $this->pendingDriverGuides = $pendingDriverGuides;
+        $this->driverGuideActorId = $driverGuideActorId;
+        $this->active = true;
+
+        $notificationPhaseAt = microtime(true);
+        $this->flushNotifications($settingService);
+
+        Log::info('bulk_assign.batch.follow_up.admin_notifications', [
+            'batch_id' => $batchId,
+            'order_count' => count($pendingNotifications),
+            'duration_ms' => (int) round((microtime(true) - $notificationPhaseAt) * 1000),
+        ]);
+
+        $driverGuidePhaseAt = microtime(true);
+        $this->flushDriverGuides();
+
+        Log::info('bulk_assign.batch.follow_up.driver_guides_dispatched', [
+            'batch_id' => $batchId,
+            'order_count' => count($pendingDriverGuides),
+            'duration_ms' => (int) round((microtime(true) - $driverGuidePhaseAt) * 1000),
+        ]);
+
+        $this->reset();
+    }
+
     public function cancel(): void
     {
         $this->reset();

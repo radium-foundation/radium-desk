@@ -4,13 +4,19 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\OutboxEventStatus;
 use App\Enums\WorkspaceContext;
+use App\Jobs\ProcessAssignReferenceBatchFollowUpJob;
 use App\Jobs\SendServiceReferenceDriverGuideBatchJob;
 use App\Jobs\SendServiceReferenceDriverGuideJob;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\OutboxEvent;
 use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
+use App\Services\AssignReference\AssignReferenceBatchFollowUpOutboxWriter;
+use App\Services\AssignReference\AssignReferenceBatchFollowUpProcessor;
 use App\Services\AssignReferenceBatchCoalescer;
 use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Dashboard\DashboardClassificationIndex;
@@ -112,9 +118,15 @@ class AssignReferencePhase9PerformanceTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('refresh.kpis', true);
+            ->assertJsonPath('refresh.kpis', false);
 
         $httpWallMs = (int) round((microtime(true) - $startedAt) * 1000);
+
+        Queue::assertPushed(ProcessAssignReferenceBatchFollowUpJob::class, 1);
+
+        $followUpJob = collect(Queue::pushed(ProcessAssignReferenceBatchFollowUpJob::class))->first();
+        $this->assertNotNull($followUpJob);
+        $followUpJob->handle(app(AssignReferenceBatchFollowUpProcessor::class));
 
         Queue::assertNotPushed(SendServiceReferenceDriverGuideJob::class);
         Queue::assertPushed(SendServiceReferenceDriverGuideBatchJob::class, 1);
@@ -129,11 +141,11 @@ class AssignReferencePhase9PerformanceTest extends TestCase
 
         $this->assertSame(
             8,
-            \App\Models\AuditLog::query()->where('event', 'service_reference.assigned')->count(),
+            AuditLog::query()->where('event', 'service_reference.assigned')->count(),
         );
         $this->assertSame(
             8,
-            \App\Models\AuditLog::query()->where('event', 'transaction.assigned')->count(),
+            AuditLog::query()->where('event', 'transaction.assigned')->count(),
         );
         $this->assertSame(
             8,
@@ -149,9 +161,17 @@ class AssignReferencePhase9PerformanceTest extends TestCase
         );
 
         $this->assertLessThan(
-            15_000,
+            3_000,
             $httpWallMs,
-            "Phase 9 batch HTTP wall {$httpWallMs}ms exceeded local budget",
+            "Batch assign HTTP wall {$httpWallMs}ms exceeded 3s budget",
+        );
+
+        $this->assertSame(
+            1,
+            OutboxEvent::query()
+                ->where('event_type', AssignReferenceBatchFollowUpOutboxWriter::EVENT_TYPE)
+                ->where('status', OutboxEventStatus::Completed)
+                ->count(),
         );
 
         $this->assertFalse(app(AssignReferenceBatchCoalescer::class)->isActive());

@@ -139,6 +139,10 @@ class WorkspaceBatchTransactionActionService
             'failed_incidents' => $result['failed_incidents'],
         ];
 
+        if (isset($result['follow_up']) && is_array($result['follow_up'])) {
+            $extensions['operational_follow_up'] = $result['follow_up'];
+        }
+
         if ($postProcessingWarnings !== [] && $isSuccess) {
             $extensions['warning'] = OrderTransactionService::DASHBOARD_REFRESH_WARNING;
 
