@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.79 — 2026-11-17 — Morpho production deploy release (P-17-11)
+
+- **Purpose:** Production deployment candidate for the merged Morpho browser workflow (PR **#302**, **#303**, **#304**, governance **#305**). Ships no new application logic beyond **`v4.1.78`** tree **`9d3d21107`** + documentation; enables Owner Desk validation after **separate** post-deploy flag activation.
+- **Deploy authorization:** Owner **P-17-11** — deploy after pre-flight snapshot **`459755`**, backup **`20261117T034121Z`**, pre-RIP **`RIP-171126-0913-radium-desk-pre-p17-11-morpho-v4179-da7081c`**.
+- **Post-deploy activation (not automatic):** Set **`DASHBOARD_OEM_HANDOFF_MORPHO_CAPTURE=true`** only after deploy smoke; keep **`MORPHO_OTBS_LIVE_ENABLED=false`**.
+- **Rollback:** **`v4.1.77`** / **`da7081cf8`** + Morpho capture flag off.
+- **Evidence:** Extension Vitest **61/61**; Desk OEM Vitest **42/42**; `DashboardOemHandoffSessionJourneyTest` **10/10**; Morpho PHPUnit focus **30/30**. Full PHPUnit **NOT RUN**. Live portal E2E **deferred to Owner** on prod after activation.
+- **Plan:** `docs/desk-p17-11-morpho-production-deploy-plan.md`.
+
 ## 4.1.78 — 2026-11-17 — Morpho inline AW prefill (flag-default off) + Mantra CAPTCHA assist (P-17-05 / P-17-07)
 
 - **Purpose:** Ship already-merged Morpho Desk path: `already_whitelisted` + `fields.expiry_date` → shared REF inline **`AW-DD-MM-YYYY`** prefill with **Asia/Kolkata +3 calendar-day** eligibility (same rules as Mantra P-17-03). Include OEM extension **v0.3.11** Mantra operator assistance (CAPTCHA focus/highlight; **no** CAPTCHA solve/submit).
