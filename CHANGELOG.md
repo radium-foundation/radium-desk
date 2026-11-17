@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.82 — 2026-11-17 — Fast batch reference assignment (P-17-25 / P-17-26)
+
+- **Purpose:** Reduce batch workspace reference-assignment HTTP wait while keeping customer WhatsApp/email obligations durable via outbox + queue follow-up.
+- **Application delta:** `assign_reference.batch_follow_up` outbox + `ProcessAssignReferenceBatchFollowUpJob`; phased idempotent follow-up; deferred batch row/KPI HTML; `scheduleHybridKpiReconcile` fallback after batch success. **No** migrations; **no** payment, Cashfree, fulfilment or single-order assign path changes.
+- **Merge SHAs:** #319 **`9606a9d16`**, #320 **`3230a3596`**; deploy tag **`v4.1.82`** on release metadata commit atop **`3230a3596`**.
+- **Rollback:** **`v4.1.81`** / **`9a2072082`**.
+
 ## 4.1.81 — 2026-11-17 — Dashboard optimization (P-17-20 / P-17-21 / P-17-22)
 
 - **Purpose:** Ship dashboard performance UX: Hardware Stuck Orders KPI stale-while-revalidate; hardware workspace progressive rows + page cache; optimistic inline service reference saves; debounced global search.
