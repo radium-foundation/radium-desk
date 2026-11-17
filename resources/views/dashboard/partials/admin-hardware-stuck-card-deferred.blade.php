@@ -9,7 +9,7 @@
      data-hardware-stuck-summary
      data-hardware-stuck-url="{{ route('dashboard.hardware.stuck-summary') }}"
      data-hardware-stuck-refresh-ms="{{ $refreshMs }}">
-    <div class="admin-hardware-stuck-kpi__head">
+    <div class="admin-hardware-stuck-kpi__nav">
         <div class="dashboard-kpi-icon text-danger">
             <i class="bi bi-cpu" aria-hidden="true"></i>
         </div>
@@ -20,8 +20,8 @@
                     —
                 </span>
             </div>
-            <p class="admin-hardware-stuck-kpi__meta mb-0 text-secondary" data-hardware-stuck-status>
-                Counts not loaded yet — refreshing in background
+            <p class="dashboard-kpi-updated small text-secondary mb-0 text-truncate" data-hardware-stuck-status>
+                Loading counts…
             </p>
         </div>
     </div>

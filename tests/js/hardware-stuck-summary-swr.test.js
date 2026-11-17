@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     applyHardwareStuckOrdersRealtimePayload,
     applyHardwareStuckSummaryHtml,
+    initHardwareStuckSummaryAsync,
 } from '../../resources/js/hardware-stuck-summary-async';
 
 describe('hardware stuck summary SWR', () => {
@@ -63,5 +64,27 @@ describe('hardware stuck summary SWR', () => {
 
         const status = document.querySelector('[data-hardware-stuck-status]');
         expect(status?.textContent).toBe('ok');
+    });
+
+    it('re-binds breakdown controls after async html swap', () => {
+        document.body.innerHTML = `
+            <div id="host" data-hardware-stuck-loaded="1" data-hardware-stuck-breakdown>
+                <span class="dashboard-kpi-value">1</span>
+            </div>
+        `;
+
+        const host = document.getElementById('host');
+        const html = `
+            <div class="admin-hardware-stuck-kpi" data-hardware-stuck-loaded="1" data-hardware-stuck-breakdown>
+                <span class="dashboard-kpi-value">3</span>
+                <button type="button" data-hardware-stuck-breakdown-trigger aria-expanded="false"></button>
+            </div>
+        `;
+
+        expect(applyHardwareStuckSummaryHtml(host, html)).toBe(true);
+        const trigger = document.querySelector('[data-hardware-stuck-breakdown-trigger]');
+        trigger?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        expect(document.querySelector('[data-hardware-stuck-breakdown]')?.classList
+            .contains('admin-hardware-stuck-kpi--breakdown-open')).toBe(true);
     });
 });
