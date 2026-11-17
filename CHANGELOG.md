@@ -1,9 +1,12 @@
 # Changelog
 
-## 4.1.77 — Unreleased — Automatic AW Service Reference formatting and expiry eligibility (P-17-03)
+## 4.1.77 — 2026-11-17 — Automatic AW Service Reference formatting and expiry eligibility (P-17-03)
 
-- **Purpose:** After Mantra capture, format **`rd_expiry_date`** as **`AW-DD-MM-YYYY`** in the existing REF Service Reference input when expiry is at least **three calendar days** after today (**Asia/Kolkata**). Reject nearer or past dates with a concise warning; no auto-save. **Does not authorize production deploy.**
-- **Application delta:** Dashboard JavaScript only. **No** PHP/schema changes.
+- **Purpose:** After Mantra capture, format **`rd_expiry_date`** as **`AW-DD-MM-YYYY`** in the existing REF Service Reference input when expiry is at least **three calendar days** after today (**Asia/Kolkata**). Reject nearer or past dates with a concise warning; no auto-save.
+- **Source (release tag target):** Annotated tag **`v4.1.77`** on application merge **`da7081cf8c17b2070a382e69de0c9aaebe201708`** — merge **PR [#300](https://github.com/radium-foundation/radium-desk/pull/300)** (**2026-11-17**). Feature **`35111bf5c`**.
+- **Application delta:** Dashboard JavaScript only. **No** PHP/schema/migration changes. **No** payment, Cashfree, or feature-flag changes.
+- **Focused evidence:** Vitest OEM bundle **35/35** exit **0**. GitHub **rip** + **release-rip** **SUCCESS** on PR **#300**. Full PHPUnit **NOT RUN**. Protected-journey E2E **NOT RUN**.
+- **Production deploy:** Owner-authorized under **P-17-04** (separate from merge/tag).
 
 ## 4.1.76 — 2026-11-17 — Mantra RD expiry prefill in Service Reference input (P-17-01)
 
