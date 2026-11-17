@@ -1,3 +1,7 @@
+/**
+ * @deprecated P-17-05 — Morpho uses the shared REF inline AW prefill path (`dashboard-oem-ref-service-prefill.js`).
+ * This panel module is retained for historical tests only; do not wire into the dashboard bundle.
+ */
 import { getWorkspaceSession } from './workspace/session';
 
 const PANEL_CLASS = 'morpho-service-reference-prefill-panel';

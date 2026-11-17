@@ -106,6 +106,25 @@ describe('tryPrefillOemServiceReferenceInput', () => {
         expect(showToast).toHaveBeenCalledTimes(1);
     });
 
+    it('prefills Morpho already-whitelisted expiry as AW reference', () => {
+        clearOemInlineCompletionContext(42);
+        registerOemInlineCompletionFromSession(42, {
+            public_id: 'sess-morpho',
+            status: 'draft_ready',
+            oem: 'morpho',
+            draft: {
+                oem: 'morpho',
+                whitelist_qualification: 'already_whitelisted',
+                fields: { expiry_date: ELIGIBLE_EXPIRY },
+            },
+        }, '/dashboard/service-cases');
+
+        expect(tryPrefillOemServiceReferenceInput(42, { todayYmd: TODAY })).toBe(true);
+        expect(document.querySelector('.transaction-inline-input')?.value).toBe(
+            formatRdExpiryYmdAsAwServiceReference(ELIGIBLE_EXPIRY),
+        );
+    });
+
     it('does not trigger save — only sets input value', () => {
         const input = document.querySelector('.transaction-inline-input');
         const fetchMock = vi.fn();
