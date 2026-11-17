@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.1.83 — 2026-11-17 — Single dashboard inline reference assign fast path (P-17-28 / P-17-29)
+
+- **Purpose:** Extend P-17-25 batch defer pattern to **dashboard inline** assign (`POST orders/{order}/transaction` + `incident_id`) so HTTP does not wait for KPI strip HTML, admin notification fan-out, or driver-guide batch dispatch registration.
+- **Application delta:** `assignTransactionIdWithDeferredDashboardFollowUp()`; reuses `assign_reference.batch_follow_up` outbox + `ProcessAssignReferenceBatchFollowUpJob`; `scheduleHybridKpiReconcile` in `dashboard.js`. **Synchronous statutory mint unchanged.** **No** migrations.
+- **Production baseline:** **`v4.1.82`** / **`15fd092e3`** (deployed 2026-11-17).
+- **Source:** **`main`** merge **#321** @ **`ec3450d30`** (implementation **`b7985751d`**).
+- **Rollback:** **`v4.1.82`** / **`15fd092e3`**.
+- **Evidence:** Focused PHPUnit **42/42** (OrderTransaction + AssignReferenceBatchFollowUp + QueueIntegrity + driver-guide cluster); Full PHPUnit **NOT RUN**.
+
+## 4.1.82 — 2026-11-17 — Fast batch reference assignment (P-17-25 / P-17-26 / P-17-27)
+
+- **Purpose:** Batch workspace reference assignment fast HTTP response with durable customer/admin follow-up via outbox (merged **#319**, **#320**); deployed from release metadata **`15fd092e3`** atop **`3230a3596`**.
+- **Note:** Production **`v4.1.82`** is live; this entry documents the deployed release. **`main`** CHANGELOG was not updated until **4.1.83** metadata.
+
 ## 4.1.81 — 2026-11-17 — Dashboard optimization (P-17-20 / P-17-21 / P-17-22)
 
 - **Purpose:** Ship dashboard performance UX: Hardware Stuck Orders KPI stale-while-revalidate; hardware workspace progressive rows + page cache; optimistic inline service reference saves; debounced global search.
