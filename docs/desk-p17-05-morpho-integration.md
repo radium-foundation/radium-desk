@@ -26,3 +26,7 @@ Mantra CAPTCHA operator workflow: see `docs/desk-p17-05-mantra-captcha-operator-
 ## P-16-26 / feasibility lineage
 
 **RadiumDesk-P-16-26** (Morpho already-whitelisted → service reference prefill) and **P-13-93** (mock OTBS adapter) established server validation and strict whitelist classification. P-17-05 wires the **authorized** extension path to the Mantra-style inline REF editor without enabling live HTTP or production flags.
+
+## Live E2E completion (P-17-10)
+
+Owner browser-workflow authorization, environment gates, operator checklist, and automated regression evidence: **`docs/desk-p17-10-morpho-e2e-readiness.md`**.
