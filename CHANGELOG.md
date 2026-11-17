@@ -1,6 +1,18 @@
 # Changelog
 
-## 4.1.86 — Unreleased — Package photo retirement + RBP gap recovery (P-17-40 / P-17-43)
+## 4.1.87 — Unreleased — Bulk hardware document download (P-17-54 / P-17-55)
+
+- **Purpose (P-17-54):** Hardware workspace bulk **read-only** download of persisted shipping labels, manifests, and a complete ZIP (labels + deduped manifests + `reconciliation.csv`) without Shiprocket generation or fulfilment/shipment mutation.
+- **Application delta:** `HardwareShipmentBulkDownloadService`, URL allowlist fetcher, `POST hardware-fulfilments/bulk/download/*`, dashboard selection UX + reconciliation summary header.
+- **Migrations:** **None**.
+- **Production baseline:** **`v4.1.86`** / **`c3d6bb969`** (deployed 2026-11-17; does **not** include PR **#332**).
+- **Source:** **`main`** merge **#332** @ **`bd2c5e840`** (feature **`7e803cdb0`**).
+- **Rollback:** **`v4.1.86`** / **`c3d6bb969`** (removes bulk download; no schema rollback).
+- **Evidence:** P-17-55 focused PHPUnit bulk-download + hardware-shipment-documents RIP bundle; Vitest hardware selection; Pint + `npm run build` **PASS**; Full PHPUnit **NOT RUN**.
+- **Owner UAT:** `docs/desk-p17-55-v4187-uat.md`.
+- **Deploy gate:** `docs/desk-p17-55-v4187-pre-deploy-gate.md` — **fresh backup + snapshot BLOCKED** until post-**`bd2c5e840`** attestation (P-17-52 snapshot **459755** predates PR **#332**).
+
+## 4.1.86 — 2026-11-17 — Package photo retirement + RBP gap recovery (P-17-40 / P-17-43)
 
 - **Purpose (P-17-40):** Remove operator package-photo upload and both enforcement gates (user mark shipped, external dispatch) while preserving historical evidence rows, files, and audit events.
 - **Purpose (P-17-43):** RBP hardware fulfilment gap monitor limit fix; Owner-gated `desk:recover-rbp-hardware-fulfilment-gaps` with Desk Cashfree authority (production data recovery already executed — deploy aligns artifact with hotpatch).

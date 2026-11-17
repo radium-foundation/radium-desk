@@ -20,6 +20,7 @@ use App\Services\HardwareFulfilment\CarrierDocumentUrlValidator;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\Feature\Shipping\Support\FakeShiprocketGateway;
 use Tests\TestCase;
@@ -188,6 +189,246 @@ class HardwareFulfilmentBulkDownloadTest extends TestCase
         $this->assertFalse($validator->isAllowedUrl('http://127.0.0.1/a.pdf'));
         $this->assertFalse($validator->isAllowedUrl('https://evil.test/a.pdf'));
         $this->assertTrue($validator->isAllowedUrl('https://apiv2.shiprocket.in/v1/labels/1.pdf'));
+    }
+
+    public function test_external_shipment_local_label_is_included_without_http(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('external/AWBEXT001.pdf', '%PDF-external%');
+
+        $admin = $this->adminUser();
+        [$fulfilment] = $this->fulfilmentWithDocuments(
+            'RDE910051',
+            'AWBEXT001',
+            'MANEXT001',
+            labelUrl: null,
+            manifestUrl: null,
+        );
+        $fulfilment->shipment?->forceFill([
+            'provider' => 'external',
+            'label_disk' => 'local',
+            'label_path' => 'external/AWBEXT001.pdf',
+            'label_url' => null,
+        ])->save();
+
+        $response = $this->actingAs($admin)
+            ->post(route('inventory.hardware-fulfilments.bulk.download.labels'), [
+                'fulfilment_ids' => [$fulfilment->id],
+            ]);
+
+        $response->assertOk();
+        Http::assertNothingSent();
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertSame(0, $this->fake->awbs);
+    }
+
+    public function test_operator_in_wrong_branch_is_excluded(): void
+    {
+        $mumbai = InventoryBranch::query()->firstOrCreate(
+            ['code' => 'MUMBAI'],
+            ['name' => 'Mumbai', 'is_active' => true],
+        );
+        $operator = User::factory()->create(['is_active' => true]);
+        $operator->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+        InventoryUserBranch::query()->firstOrCreate([
+            'user_id' => $operator->id,
+            'branch_id' => $mumbai->id,
+        ]);
+
+        $delhi = InventoryBranch::query()->firstOrCreate(
+            ['code' => 'DELHI-RETAIL'],
+            ['name' => 'Delhi', 'is_active' => true],
+        );
+
+        [$fulfilment] = $this->fulfilmentWithDocuments('RDE910061', 'AWB910061', 'MAN910061');
+        $fulfilment->forceFill(['fulfilment_branch_id' => $delhi->id])->save();
+
+        $response = $this->actingAs($operator)
+            ->postJson(route('inventory.hardware-fulfilments.bulk.download.labels'), [
+                'fulfilment_ids' => [$fulfilment->id],
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('excluded', 1);
+        $response->assertJsonPath('rows.0.exclusion_reason', 'Not authorized for this fulfilment branch.');
+    }
+
+    public function test_distinct_manifest_identities_produce_separate_manifest_files(): void
+    {
+        $admin = $this->adminUser();
+        [$fulfilmentA] = $this->fulfilmentWithDocuments('RDE910071', 'AWB910071', 'MAN-A');
+        [$fulfilmentB] = $this->fulfilmentWithDocuments('RDE910072', 'AWB910072', 'MAN-B');
+
+        Http::fake([
+            'https://apiv2.shiprocket.in/*' => Http::response('%PDF-manifest%', 200),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->post(route('inventory.hardware-fulfilments.bulk.download.manifests'), [
+                'fulfilment_ids' => [$fulfilmentA->id, $fulfilmentB->id],
+            ]);
+
+        $response->assertOk();
+        $zipBytes = $response->streamedContent();
+        $path = storage_path('app/temp-test-'.Str::uuid().'.zip');
+        file_put_contents($path, $zipBytes);
+        $zip = new ZipArchive;
+        $zip->open($path);
+        $this->assertSame(2, $this->countZipEntriesMatching($zip, '/^manifests\//'));
+        $zip->close();
+        @unlink($path);
+    }
+
+    public function test_missing_label_and_manifest_surfaces_failed_rows(): void
+    {
+        $admin = $this->adminUser();
+        [$fulfilment] = $this->fulfilmentWithDocuments(
+            'RDE910081',
+            'AWB910081',
+            'MAN910081',
+            labelUrl: null,
+            manifestUrl: null,
+        );
+        $fulfilment->shipment?->forceFill([
+            'label_url' => null,
+            'manifest_url' => null,
+            'manifest_id' => null,
+            'label_disk' => null,
+            'label_path' => null,
+        ])->save();
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('inventory.hardware-fulfilments.bulk.download.labels'), [
+                'fulfilment_ids' => [$fulfilment->id],
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('failed', 1);
+    }
+
+    public function test_partial_package_includes_available_documents_and_csv(): void
+    {
+        $admin = $this->adminUser();
+        [$withLabel] = $this->fulfilmentWithDocuments('RDE910091', 'AWB910091', 'MAN910091');
+        [$without] = $this->fulfilmentWithDocuments(
+            'RDE910092',
+            'AWB910092',
+            'MAN910092',
+            labelUrl: null,
+            manifestUrl: null,
+        );
+        $without->shipment?->forceFill([
+            'label_url' => null,
+            'manifest_url' => null,
+            'manifest_id' => null,
+        ])->save();
+
+        Http::fake([
+            'https://apiv2.shiprocket.in/*' => Http::response('%PDF%', 200),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->post(route('inventory.hardware-fulfilments.bulk.download.package'), [
+                'fulfilment_ids' => [$withLabel->id, $without->id],
+            ]);
+
+        $response->assertOk();
+        $summary = json_decode(base64_decode((string) $response->headers->get('X-Hardware-Bulk-Download-Summary')), true);
+        $this->assertSame(1, $summary['included']);
+        $this->assertGreaterThanOrEqual(1, $summary['failed']);
+    }
+
+    public function test_repeated_downloads_do_not_mutate_shipment_rows(): void
+    {
+        $admin = $this->adminUser();
+        [$fulfilment, $shipment] = $this->fulfilmentWithDocuments('RDE910101', 'AWB910101', 'MAN910101');
+        Http::fake([
+            'https://apiv2.shiprocket.in/*' => Http::response('%PDF%', 200),
+        ]);
+
+        $hashBefore = $shipment->only(['label_url', 'manifest_url', 'awb', 'status']);
+
+        $this->actingAs($admin)
+            ->post(route('inventory.hardware-fulfilments.bulk.download.labels'), [
+                'fulfilment_ids' => [$fulfilment->id],
+            ])
+            ->assertOk();
+
+        $this->actingAs($admin)
+            ->post(route('inventory.hardware-fulfilments.bulk.download.labels'), [
+                'fulfilment_ids' => [$fulfilment->id],
+            ])
+            ->assertOk();
+
+        $shipment->refresh();
+        $this->assertSame($hashBefore, $shipment->only(['label_url', 'manifest_url', 'awb', 'status']));
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertSame(0, $this->fake->awbs);
+        $this->assertSame(0, $this->fake->labels);
+        $this->assertSame(0, $this->fake->manifests);
+    }
+
+    public function test_zip_entry_names_sanitize_path_traversal_attempts(): void
+    {
+        $admin = $this->adminUser();
+        $orderId = '../evil/RDE910111';
+        [$fulfilment] = $this->fulfilmentWithDocuments($orderId, 'AWB910111', 'MAN910111');
+
+        Http::fake([
+            'https://apiv2.shiprocket.in/*' => Http::response('%PDF%', 200),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->post(route('inventory.hardware-fulfilments.bulk.download.labels'), [
+                'fulfilment_ids' => [$fulfilment->id],
+            ]);
+
+        $response->assertOk();
+        $zipBytes = $response->streamedContent();
+        $path = storage_path('app/temp-test-'.Str::uuid().'.zip');
+        file_put_contents($path, $zipBytes);
+        $zip = new ZipArchive;
+        $zip->open($path);
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = (string) $zip->getNameIndex($i);
+            $this->assertStringStartsWith('labels/', $name);
+            $this->assertDoesNotMatchRegularExpression('#(^|/)\.\.(/|$)#', $name);
+        }
+        $zip->close();
+        @unlink($path);
+    }
+
+    public function test_unknown_fulfilment_id_is_excluded_without_archive(): void
+    {
+        $admin = $this->adminUser();
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('inventory.hardware-fulfilments.bulk.download.labels'), [
+                'fulfilment_ids' => [999999],
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('excluded', 1);
+    }
+
+    public function test_gateway_generation_endpoints_remain_unused(): void
+    {
+        $admin = $this->adminUser();
+        [$fulfilment] = $this->fulfilmentWithDocuments('RDE910121', 'AWB910121', 'MAN910121');
+        Http::fake([
+            'https://apiv2.shiprocket.in/*' => Http::response('%PDF%', 200),
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('inventory.hardware-fulfilments.bulk.download.package'), [
+                'fulfilment_ids' => [$fulfilment->id],
+            ])
+            ->assertOk();
+
+        $this->assertSame(0, $this->fake->labelBatchCalls);
+        $this->assertSame(0, $this->fake->manifestBatchCalls);
+        $this->assertSame(0, $this->fake->creates);
+        $this->assertSame(0, $this->fake->awbs);
     }
 
     private function adminUser(): User
