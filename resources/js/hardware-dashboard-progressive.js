@@ -3,7 +3,13 @@ export const parsePositiveInt = (value, fallback) => {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
-export const buildHardwareRowsUrl = (workspace, { page, origin = 'https://desk.example' } = {}) => {
+export const buildHardwareRowsUrl = (workspace, {
+    page,
+    chunkOffset,
+    chunkLimit,
+    skipCounts = false,
+    origin = 'https://desk.example',
+} = {}) => {
     const url = new URL(workspace.dataset.hardwareRowsUrl, origin);
     const params = new URLSearchParams(window?.location?.search ?? '');
 
@@ -24,6 +30,15 @@ export const buildHardwareRowsUrl = (workspace, { page, origin = 'https://desk.e
 
     if (search !== '') {
         url.searchParams.set('q', search);
+    }
+
+    if (chunkLimit !== undefined && chunkLimit !== null) {
+        url.searchParams.set('hw_chunk_limit', String(chunkLimit));
+        url.searchParams.set('hw_chunk_offset', String(chunkOffset ?? 0));
+    }
+
+    if (skipCounts) {
+        url.searchParams.set('hw_skip_counts', '1');
     }
 
     return url;

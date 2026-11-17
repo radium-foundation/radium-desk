@@ -111,6 +111,7 @@ final class HardwareDashboardWorkspace
             'last_page' => $dashboard['last_page'] ?? 1,
             'progressive' => (bool) ($dashboard['progressive'] ?? false),
             'inspected_fulfilment_count' => $this->workQueue->lastInspectedFulfilmentCount,
+            'chunk' => $dashboard['chunk'] ?? null,
         ];
     }
 

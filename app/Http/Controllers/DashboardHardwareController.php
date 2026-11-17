@@ -57,6 +57,7 @@ class DashboardHardwareController extends Controller
             'can_operate_hardware' => $payload['canOperateHardware'],
             'last_page' => $payload['last_page'] ?? 1,
             'progressive' => (bool) ($payload['progressive'] ?? false),
+            'chunk' => $payload['chunk'] ?? null,
         ]);
     }
 

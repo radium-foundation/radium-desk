@@ -156,73 +156,116 @@ final class HardwareFulfilmentWorkQueue
         $perPage = $slice['per_page'];
         $offset = $slice['offset'];
         $limit = $slice['limit'];
+        $chunkResolver = app(HardwareDashboardRowChunkResolver::class);
+        $chunkSql = $chunkResolver->sqlSlice($request, $offset, $limit);
+        $offsetOverride = $chunkSql['offset_override'];
+        $limitOverride = $chunkSql['limit_override'];
+        $sqlOffset = $offsetOverride ?? $offset;
+        $sqlLimit = $limitOverride ?? $limit;
 
         $legacyMemoryFilters = in_array($filter, [
             HardwareWorkspaceFilter::Ready,
             HardwareWorkspaceFilter::Pickup,
         ], true);
 
-        $scopeCounts = $this->scopeCountsForDashboard($fromIst, $toIst);
+        $scopeCounts = $chunkResolver->skipCounts($request)
+            ? []
+            : $this->scopeCountsForDashboard($fromIst, $toIst);
 
         if ($filter === HardwareWorkspaceFilter::Exceptions) {
-            $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
-            $pageSet = $this->needsActionSql->exceptionsPage($fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
+            $filterCounts = $chunkResolver->skipCounts($request)
+                ? []
+                : $this->cachedFilterCounts($fromIst, $toIst, $search);
+            $pageSet = $this->needsActionSql->exceptionsPage($fromIst, $toIst, $search, $page, $perPage, $sqlOffset, $sqlLimit);
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
 
-            return [
-                'rows' => $rows,
-                'scope_counts' => $scopeCounts,
-                'filter_counts' => $filterCounts,
-                'total' => $rows->count(),
-                'unfiltered_total' => $pageSet['total'],
-                'page' => $page,
-                'per_page' => $perPage,
-                'last_page' => $sizer->lastPage($pageSet['total'], $request),
-                'progressive' => $sizer->progressiveEnabled($request),
-            ];
+            return $this->finishDashboardPagePayload(
+                $request,
+                $chunkResolver,
+                $chunkSql,
+                $offset,
+                $limit,
+                $rows,
+                $scopeCounts,
+                $filterCounts,
+                $pageSet['total'],
+                $page,
+                $perPage,
+                $sizer->lastPage($pageSet['total'], $request),
+                $sizer->progressiveEnabled($request),
+            );
         }
 
         if ($filter === HardwareWorkspaceFilter::Scheduled) {
-            $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
-            $pageSet = $this->needsActionSql->scheduledPage($fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
+            $filterCounts = $chunkResolver->skipCounts($request)
+                ? []
+                : $this->cachedFilterCounts($fromIst, $toIst, $search);
+            $pageSet = $this->needsActionSql->scheduledPage($fromIst, $toIst, $search, $page, $perPage, $sqlOffset, $sqlLimit);
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
 
-            return [
-                'rows' => $rows,
-                'scope_counts' => $scopeCounts,
-                'filter_counts' => $filterCounts,
-                'total' => $rows->count(),
-                'unfiltered_total' => $pageSet['total'],
-                'page' => $page,
-                'per_page' => $perPage,
-                'last_page' => $sizer->lastPage($pageSet['total'], $request),
-                'progressive' => $sizer->progressiveEnabled($request),
-            ];
+            return $this->finishDashboardPagePayload(
+                $request,
+                $chunkResolver,
+                $chunkSql,
+                $offset,
+                $limit,
+                $rows,
+                $scopeCounts,
+                $filterCounts,
+                $pageSet['total'],
+                $page,
+                $perPage,
+                $sizer->lastPage($pageSet['total'], $request),
+                $sizer->progressiveEnabled($request),
+            );
         }
 
         if ($filter === HardwareWorkspaceFilter::All && $scope === HardwareWorkspaceScope::Active) {
-            $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
-            $pageSet = $this->needsActionSql->allActivePage($fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
+            $filterCounts = $chunkResolver->skipCounts($request)
+                ? []
+                : $this->cachedFilterCounts($fromIst, $toIst, $search);
+            $pageSet = $this->needsActionSql->allActivePage($fromIst, $toIst, $search, $page, $perPage, $sqlOffset, $sqlLimit);
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
 
-            return [
-                'rows' => $rows,
-                'scope_counts' => $scopeCounts,
-                'filter_counts' => $filterCounts,
-                'total' => $rows->count(),
-                'unfiltered_total' => $pageSet['total'],
-                'page' => $page,
-                'per_page' => $perPage,
-                'last_page' => $sizer->lastPage($pageSet['total'], $request),
-                'progressive' => $sizer->progressiveEnabled($request),
-            ];
+            return $this->finishDashboardPagePayload(
+                $request,
+                $chunkResolver,
+                $chunkSql,
+                $offset,
+                $limit,
+                $rows,
+                $scopeCounts,
+                $filterCounts,
+                $pageSet['total'],
+                $page,
+                $perPage,
+                $sizer->lastPage($pageSet['total'], $request),
+                $sizer->progressiveEnabled($request),
+            );
         }
 
         if ($legacyMemoryFilters) {
-            return $this->legacyDashboard($fromIst, $toIst, $search, $scope, $filter, $scopeCounts, $page, $offset, $limit, $perPage, $sizer, $request);
+            return $this->legacyDashboard(
+                $fromIst,
+                $toIst,
+                $search,
+                $scope,
+                $filter,
+                $scopeCounts,
+                $page,
+                $offset,
+                $limit,
+                $perPage,
+                $sizer,
+                $request,
+                $chunkResolver,
+                $chunkSql,
+            );
         }
 
-        $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
+        $filterCounts = $chunkResolver->skipCounts($request)
+            ? []
+            : $this->cachedFilterCounts($fromIst, $toIst, $search);
 
         $searchAcrossActive = $search !== ''
             && $scope === HardwareWorkspaceScope::Active
@@ -233,35 +276,94 @@ final class HardwareFulfilmentWorkQueue
             ], true);
 
         if ($searchAcrossActive) {
-            $pageSet = $this->needsActionSql->searchActivePage($fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
+            $pageSet = $this->needsActionSql->searchActivePage($fromIst, $toIst, $search, $page, $perPage, $sqlOffset, $sqlLimit);
             $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
 
-            return [
-                'rows' => $rows,
-                'scope_counts' => $scopeCounts,
-                'filter_counts' => $filterCounts,
-                'total' => $rows->count(),
-                'unfiltered_total' => $pageSet['total'],
-                'page' => $page,
-                'per_page' => $perPage,
-                'last_page' => $sizer->lastPage($pageSet['total'], $request),
-                'progressive' => $sizer->progressiveEnabled($request),
-            ];
+            return $this->finishDashboardPagePayload(
+                $request,
+                $chunkResolver,
+                $chunkSql,
+                $offset,
+                $limit,
+                $rows,
+                $scopeCounts,
+                $filterCounts,
+                $pageSet['total'],
+                $page,
+                $perPage,
+                $sizer->lastPage($pageSet['total'], $request),
+                $sizer->progressiveEnabled($request),
+            );
         }
 
-        $pageSet = $this->needsActionSql->page($scope, $filter, $fromIst, $toIst, $search, $page, $perPage, $offset, $limit);
+        $pageSet = $this->needsActionSql->page($scope, $filter, $fromIst, $toIst, $search, $page, $perPage, $sqlOffset, $sqlLimit);
         $rows = $this->hydratePage($pageSet['fulfilment_ids'], $pageSet['order_ids']);
+
+        return $this->finishDashboardPagePayload(
+            $request,
+            $chunkResolver,
+            $chunkSql,
+            $offset,
+            $limit,
+            $rows,
+            $scopeCounts,
+            $filterCounts,
+            $pageSet['total'],
+            $page,
+            $perPage,
+            $sizer->lastPage($pageSet['total'], $request),
+            $sizer->progressiveEnabled($request),
+        );
+    }
+
+    /**
+     * @param  Collection<int, HardwareFulfilmentOperationalRow>  $rows
+     * @param  array<string, int>  $scopeCounts
+     * @param  array<string, int>  $filterCounts
+     * @param  array{
+     *     offset_override: int|null,
+     *     limit_override: int|null,
+     *     chunk_offset: int,
+     *     chunk_limit: int|null
+     * }  $chunkSql
+     * @return array<string, mixed>
+     */
+    private function finishDashboardPagePayload(
+        Request $request,
+        HardwareDashboardRowChunkResolver $chunkResolver,
+        array $chunkSql,
+        int $pageOffset,
+        int $pageLimit,
+        Collection $rows,
+        array $scopeCounts,
+        array $filterCounts,
+        int $unfilteredTotal,
+        int $page,
+        int $perPage,
+        int $lastPage,
+        bool $progressive,
+    ): array {
+        $rowCount = $rows->count();
 
         return [
             'rows' => $rows,
             'scope_counts' => $scopeCounts,
             'filter_counts' => $filterCounts,
-            'total' => $rows->count(),
-            'unfiltered_total' => $pageSet['total'],
+            'total' => $rowCount,
+            'unfiltered_total' => $unfilteredTotal,
             'page' => $page,
             'per_page' => $perPage,
-            'last_page' => $sizer->lastPage($pageSet['total'], $request),
-            'progressive' => $sizer->progressiveEnabled($request),
+            'last_page' => $lastPage,
+            'progressive' => $progressive,
+            'chunk' => $chunkResolver->buildMeta(
+                $request,
+                $pageOffset,
+                $pageLimit,
+                $unfilteredTotal,
+                $rowCount,
+                $chunkSql['chunk_offset'],
+                $chunkSql['chunk_limit'],
+            ),
         ];
     }
 
@@ -290,8 +392,12 @@ final class HardwareFulfilmentWorkQueue
         int $perPage,
         HardwareDashboardPageSizer $sizer,
         Request $request,
+        HardwareDashboardRowChunkResolver $chunkResolver,
+        array $chunkSql,
     ): array {
-        $filterCounts = $this->cachedFilterCounts($fromIst, $toIst, $search);
+        $filterCounts = $chunkResolver->skipCounts($request)
+            ? []
+            : $this->cachedFilterCounts($fromIst, $toIst, $search);
         $rows = $this->allRows($fromIst, $toIst, '', '');
 
         if ($search !== '') {
@@ -317,19 +423,27 @@ final class HardwareFulfilmentWorkQueue
         }
 
         $total = $scopedRows->count();
-        $paged = $scopedRows->slice($offset, $limit)->values();
+        $chunkOffset = $chunkSql['chunk_offset'];
+        $chunkLimit = $chunkSql['chunk_limit'];
+        $sliceOffset = $offset + ($chunkLimit !== null ? $chunkOffset : 0);
+        $sliceLimit = $chunkLimit ?? $limit;
+        $paged = $scopedRows->slice($sliceOffset, $sliceLimit)->values();
 
-        return [
-            'rows' => $paged,
-            'scope_counts' => $scopeCounts,
-            'filter_counts' => $filterCounts,
-            'total' => $paged->count(),
-            'unfiltered_total' => $total,
-            'page' => $page,
-            'per_page' => $perPage,
-            'last_page' => $sizer->lastPage($total, $request),
-            'progressive' => $sizer->progressiveEnabled($request),
-        ];
+        return $this->finishDashboardPagePayload(
+            $request,
+            $chunkResolver,
+            $chunkSql,
+            $offset,
+            $limit,
+            $paged,
+            $scopeCounts,
+            $filterCounts,
+            $total,
+            $page,
+            $perPage,
+            $sizer->lastPage($total, $request),
+            $sizer->progressiveEnabled($request),
+        );
     }
 
     /**

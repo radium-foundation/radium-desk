@@ -1738,6 +1738,14 @@ a:focus-visible .stat-card {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+    .dashboard-hardware-table-wrap--chunk-loading .dashboard-hardware-table tbody::after {
+        content: 'Loading more orders…';
+        display: block;
+        font-size: 0.75rem;
+        color: #64748b;
+        padding: 0.35rem 0.75rem;
+    }
+
     .dashboard-hardware-table-wrap--loading .dashboard-hardware-skeleton-row__bar {
         background: linear-gradient(90deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.06) 100%);
         background-size: 200% 100%;

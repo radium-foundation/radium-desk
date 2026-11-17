@@ -95,4 +95,35 @@ describe('hardware dashboard pagination transitions', () => {
         expect(url.searchParams.get('hw_page')).toBe('2');
         expect(url.searchParams.get('hw_progressive')).toBe('1');
     });
+
+    it('adds chunk and skip-count params when requested', () => {
+        const workspace = buildWorkspace();
+        const url = buildHardwareRowsUrl(workspace, {
+            page: '1',
+            chunkOffset: 4,
+            chunkLimit: 3,
+            skipCounts: true,
+        });
+
+        expect(url.searchParams.get('hw_chunk_offset')).toBe('4');
+        expect(url.searchParams.get('hw_chunk_limit')).toBe('3');
+        expect(url.searchParams.get('hw_skip_counts')).toBe('1');
+    });
+});
+
+describe('hardware dashboard page cache', () => {
+    it('stores and returns cached page payloads', async () => {
+        const {
+            readHardwarePageCache,
+            resetHardwarePageCacheForTests,
+            writeHardwarePageCache,
+        } = await import('../../resources/js/hardware-dashboard-page-cache');
+
+        resetHardwarePageCacheForTests();
+        const workspace = buildWorkspace({ hardwarePage: '2', hardwarePageCacheMax: '3' });
+        writeHardwarePageCache(workspace, '2', { rows_html: '<tr id="cached"></tr>', pagination_html: '' });
+
+        const cached = readHardwarePageCache(workspace, '2');
+        expect(cached?.rowsHtml).toContain('cached');
+    });
 });

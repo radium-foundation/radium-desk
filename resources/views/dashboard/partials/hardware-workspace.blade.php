@@ -25,6 +25,9 @@
      data-hardware-initial-per-page="{{ $initialPerPage }}"
      data-hardware-search-debounce-ms="{{ $searchDebounceMs }}"
      data-hardware-progressive="1"
+     data-hardware-first-chunk="{{ max(1, (int) config('dashboard.hardware_rows_first_chunk', 4)) }}"
+     data-hardware-row-chunk="{{ max(1, (int) config('dashboard.hardware_rows_chunk_size', 3)) }}"
+     data-hardware-page-cache-max="{{ max(2, (int) config('dashboard.hardware_rows_page_cache_max', 6)) }}"
      data-hardware-inspected-count="{{ $hardwareWorkspace['inspected_fulfilment_count'] ?? 0 }}"
      @if($search !== '') data-hardware-search="{{ $search }}" @endif>
     <div class="dashboard-hardware-selection d-none" data-hardware-selection-bar hidden>

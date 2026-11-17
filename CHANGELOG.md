@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Hardware workspace progressive rows (P-17-21)
+
+- **Purpose:** Hardware `workspace=hardware` table shows first SQL chunk quickly, appends further chunks, and caches pages for instant pagination/prefetch.
+- **Application delta:** `HardwareDashboardRowChunkResolver`, chunked rows API, client page cache + prefetch. **No** order/fulfilment/payment mutations.
+- **Evidence:** Focused PHPUnit hardware cluster **16/16**; Vitest hardware-async **9/9**; `npm run build` **PASS**. Full PHPUnit **NOT RUN**.
+
 ## Unreleased — Hardware Stuck Orders SWR (P-17-20)
 
 - **Purpose:** Operations Dashboard **Hardware Stuck Orders** KPI renders last-known snapshot on first paint; stale counts refresh in background via queue + optional Ably `HardwareStuckOrdersUpdated`.
