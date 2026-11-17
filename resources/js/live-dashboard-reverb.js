@@ -42,6 +42,7 @@ import {
     resolveReadyQueueCountDeltaFromListAction,
 } from './ready-queue-count-delta';
 import { setRealtimeTransportConnected } from './realtime-transport-status';
+import { applyHardwareStuckOrdersRealtimePayload } from './hardware-stuck-summary-async';
 
 const SERVICE_CASE_EVENTS = [
     'ServiceCaseCreated',
@@ -835,6 +836,10 @@ export const initLiveDashboardReverb = ({
 
         dashboardChannel.listen('.DashboardKpisUpdated', (payload) => {
             handleKpisUpdated(payload);
+        });
+
+        dashboardChannel.listen('.HardwareStuckOrdersUpdated', (payload) => {
+            applyHardwareStuckOrdersRealtimePayload(pageRoot, payload);
         });
     }
 

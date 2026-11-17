@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Hardware Stuck Orders SWR (P-17-20)
+
+- **Purpose:** Operations Dashboard **Hardware Stuck Orders** KPI renders last-known snapshot on first paint; stale counts refresh in background via queue + optional Ably `HardwareStuckOrdersUpdated`.
+- **Application delta:** Snapshot store, refresh job/event, dashboard SWR client, config TTLs. **No** order/fulfilment/payment mutations.
+- **Evidence:** Focused PHPUnit **19/19** hardware dashboard cluster; Vitest hardware-stuck SWR **3/3**; `npm run build` **PASS**. Full PHPUnit **NOT RUN**. Prod browser timings **BLOCKED**.
+
 ## 4.1.80 — 2026-11-17 — ELIMO GPS + SAMPANN Economy hardware SKU maps (P-17-17 / P-17-18)
 
 - **Purpose:** Ship Owner-approved `radiumbox_com` channel SKU map configuration for Box **`model_id` 1622** (`RBPELIMGPS` → `RBELIMOGPS`) and **1505** (`PBPSAMECO1` → `RBBPSE1100`) per PR **#312** / merge **`fc9e49038`**.

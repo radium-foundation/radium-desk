@@ -69,6 +69,8 @@ use App\Services\GlobalSearchService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkQueue;
 use App\Services\HardwareFulfilment\HardwareNeedsActionSqlQuery;
 use App\Services\HardwareFulfilment\HardwareSkuMapService;
+use App\Services\HardwareFulfilment\HardwareStuckOrdersSnapshotRefresher;
+use App\Services\HardwareFulfilment\HardwareStuckOrdersSnapshotStore;
 use App\Services\HardwareFulfilment\NullBoxFulfilmentCallbackGateway;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\MissingSerial\MissingSerialAutomationService;
@@ -189,6 +191,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(HardwareSkuMapService::class);
         $this->app->scoped(HardwareFulfilmentWorkQueue::class);
         $this->app->scoped(HardwareNeedsActionSqlQuery::class);
+        $this->app->singleton(HardwareStuckOrdersSnapshotStore::class);
+        $this->app->singleton(HardwareStuckOrdersSnapshotRefresher::class);
         $this->app->scoped(DashboardClassificationIndex::class);
         $this->app->scoped(DashboardIncidentQueueMembership::class);
         $this->app->scoped(SettingService::class);

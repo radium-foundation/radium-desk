@@ -10,6 +10,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\Feature\Dashboard\Concerns\CreatesHardwareDashboardFulfilments;
@@ -66,6 +67,7 @@ class HardwareDashboardCountsCacheRegressionTest extends TestCase
 
     public function test_admin_dashboard_chip_and_stuck_summary_share_warm_filter_bucket(): void
     {
+        Bus::fake();
         config(['dashboard.hardware_counts_ttl_seconds' => 30]);
         Cache::flush();
 

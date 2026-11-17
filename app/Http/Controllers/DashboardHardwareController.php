@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Services\DashboardPersonalizationService;
 use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
+use App\Services\HardwareFulfilment\HardwareStuckOrdersSnapshotRefresher;
+use App\Services\HardwareFulfilment\HardwareStuckOrdersSnapshotStore;
 use App\Services\Operations\OperationsRoleService;
 use App\Services\Shipping\ShiprocketWalletBalanceReadService;
 use Illuminate\Http\JsonResponse;
@@ -88,13 +90,67 @@ class DashboardHardwareController extends Controller
             abort(403);
         }
 
-        $summary = $this->hardwareDashboard->stuckOrderSummary();
+        $store = app(HardwareStuckOrdersSnapshotStore::class);
+        $refresher = app(HardwareStuckOrdersSnapshotRefresher::class);
+        $presentation = $store->presentationForRender();
+        $stale = true;
+        $summary = null;
+        $capturedAt = null;
+        $version = null;
+
+        if ($presentation !== null) {
+            $summary = $presentation['summary'];
+            $stale = $presentation['stale'];
+            $capturedAt = $presentation['captured_at'];
+            $version = $presentation['version'];
+        }
+
+        $refreshQueued = false;
+        if ($stale || $summary === null) {
+            $refreshQueued = true;
+            if ($summary === null) {
+                $result = $refresher->refreshAndBroadcast();
+                if ($result['refreshed'] && is_array($result['summary'])) {
+                    $summary = $result['summary'];
+                    $stale = false;
+                    $presentation = $store->presentationForRender();
+                    $capturedAt = $presentation['captured_at'] ?? null;
+                    $version = $presentation['version'] ?? null;
+                    $refreshQueued = false;
+                } else {
+                    $presentation = $store->presentationForRender();
+                    if ($presentation !== null) {
+                        $summary = $presentation['summary'];
+                        $stale = $presentation['stale'];
+                        $capturedAt = $presentation['captured_at'];
+                        $version = $presentation['version'];
+                    } else {
+                        return response()->json([
+                            'message' => 'Stuck order counts are temporarily unavailable.',
+                        ], 503);
+                    }
+                }
+            } else {
+                $refresher->queueBackgroundRefreshIfNeeded();
+            }
+        }
+
+        $stuckMeta = [
+            'captured_at' => $capturedAt,
+            'version' => $version,
+            'stale' => $stale,
+        ];
 
         return response()->json([
             'html' => view('dashboard.partials.admin-hardware-stuck-card', [
                 'summary' => $summary,
+                'stuckMeta' => $stuckMeta,
             ])->render(),
             'summary' => $summary,
+            'stale' => $stale,
+            'captured_at' => $capturedAt,
+            'version' => $version,
+            'refresh_queued' => $refreshQueued,
         ]);
     }
 }
