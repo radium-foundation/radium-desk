@@ -1231,4 +1231,6 @@ In-repo sequence record for `RadiumDesk-P-*` prompts. No prior ledger file was p
 
 | RadiumDesk-P-17-31 | 2026-11-17 | **P-17-31** POS bulk serial batch validation (HIGH) | Branch **`feature/p17-31-pos-bulk-serial`** from **`origin/main`** @ **`2a7b5451b`**. Root cause: counter used **GET** `pos.serials.match` with serials in query string — large batches (e.g. ~30 production-length SNs) exceed safe URL limits → **`serial-match-failed`**. Fix: **POST** `pos.serials.match.post` + JSON body; counter textarea + explicit validate; `parsed_count` in response. GET match preserved. **NO** deploy/prod. |
 
+| RadiumDesk-P-17-32 | 2026-11-17 | **P-17-32** Prepare **v4.1.84** release metadata (P-17-31 POS bulk serial) | **`feature/p17-32-v4184-release`** from **`origin/main`** @ **`18975cc25`**. **CHANGELOG 4.1.84**, pre-deploy gate + UAT docs. Tag **`v4.1.84`** on metadata commit after CI. **NO** deploy/backup/snapshot refresh/prod UAT. |
+
 Do not renumber or overwrite earlier rows. Append only.
