@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-    copyMantraSerialToClipboard,
     findMantraCaptchaField,
     focusMantraCaptchaField,
     highlightMantraCaptchaField,
@@ -102,15 +101,4 @@ describe('mantra-operator-assist', () => {
         stop();
     });
 
-    it('copies serial on explicit clipboard call', async () => {
-        const writeText = vi.fn().mockResolvedValue(undefined);
-        Object.defineProperty(navigator, 'clipboard', {
-            configurable: true,
-            value: { writeText },
-        });
-
-        const result = await copyMantraSerialToClipboard('syn123');
-        expect(result).toEqual({ ok: true });
-        expect(writeText).toHaveBeenCalledWith('SYN123');
-    });
 });

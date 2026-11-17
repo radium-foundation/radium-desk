@@ -2,15 +2,15 @@
 
 ## Current release (recommended)
 
-**Package:** `radium-desk-v0.3.12.zip`  
-**Extracted folder:** `radium-desk-v0.3.12/` (use for **Load unpacked**)  
-**Extension version:** **0.3.12** (Manifest V3) — Mantra CAPTCHA entry detection fix (P-17-14); includes Morpho **0.3.11** behavior  
+**Package:** `radium-desk-v0.3.13.zip`  
+**Extracted folder:** `radium-desk-v0.3.13/` (use for **Load unpacked**)  
+**Extension version:** **0.3.13** (Manifest V3) — Mantra UI simplified (P-17-16): no green operator banner; serial prefill + CAPTCHA focus/highlight unchanged; includes Morpho **0.3.11** behavior  
 **Matched Desk release:** **v4.1.79+** with `DASHBOARD_OEM_HANDOFF_MORPHO_CAPTURE=true` on production (Owner-activated P-17-12)  
-**Built:** 2026-11-17 (P-17-14)
+**Built:** 2026-11-17 (P-17-16)
 
 Internal use only. **Not** for Chrome Web Store or public distribution.
 
-**Do not** install **0.3.11** or older on Mantra if CAPTCHA text detection is required — use **0.3.12**.
+**Recommended:** **0.3.13** for Mantra (clean OEM page). **0.3.12** remains available for rollback.
 
 ### Distribution filename convention (permanent)
 
@@ -35,7 +35,7 @@ Older packages named `radium-desk-oem-warranty-handoff-0.3.x-for-desk-v4.1.69.zi
 When an authorized administrator clicks **Check OEM warranty / renewal** on Desk (`https://desk.radiumbox.com`):
 
 1. Opens the correct OEM warranty page (Mantra or Morpho).
-2. **Mantra:** bundled classic script; retry handoff claim, wait for `#txtSerialNo`, fill serial, CAPTCHA assist (focus/highlight); **Check** remains manual.
+2. **Mantra:** bundled classic script; retry handoff claim, wait for `#txtSerialNo`, fill serial; optional CAPTCHA focus/highlight (no on-page instruction banner); **Check** remains manual.
 3. **Morpho:** portal `https://rdserviceonline.com/pages/172iserialvalidatenumber`; **DOM-only** serial prefill; no Selectize/AJAX replay; operator completes CAPTCHA and **Check** manually; extension reads displayed result when capture is enabled.
 4. **Two-way (Desk flags ON):** session-correlated draft to Desk; Morpho whitelist → inline **AW-DD-MM-YYYY** REF prefill when eligible (Desk **4.1.79+**).
 
