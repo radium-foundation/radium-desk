@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.80 — 2026-11-17 — ELIMO GPS + SAMPANN Economy hardware SKU maps (P-17-17 / P-17-18)
+
+- **Purpose:** Ship Owner-approved `radiumbox_com` channel SKU map configuration for Box **`model_id` 1622** (`RBPELIMGPS` → `RBELIMOGPS`) and **1505** (`PBPSAMECO1` → `RBBPSE1100`) per PR **#312** / merge **`fc9e49038`**.
+- **Application delta:** `config/hardware_fulfilment.php` only. **No** migrations, payment, Cashfree, or flag changes.
+- **Production data:** `desk:seed-radiumbox-hardware-sku-maps --apply` is **separate** Owner approval (P-17-18 stops at `--dry-run`).
+- **Rollback:** **`v4.1.79`** / **`c813c2f74`**; remove map rows from DB only if separately authorized after apply.
+- **Runbook:** `docs/runbooks/product-sku-mapping.md`.
+
 ## 4.1.79 — 2026-11-17 — Morpho production deploy release (P-17-11)
 
 - **Purpose:** Production deployment candidate for the merged Morpho browser workflow (PR **#302**, **#303**, **#304**, governance **#305**). Ships no new application logic beyond **`v4.1.78`** tree **`9d3d21107`** + documentation; enables Owner Desk validation after **separate** post-deploy flag activation.
