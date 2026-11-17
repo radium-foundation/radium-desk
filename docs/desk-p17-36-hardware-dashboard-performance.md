@@ -10,7 +10,7 @@
 
 ## Production deployment
 
-**NO** — merge only; deploy gate separate.
+**NO** — implementation merged **#325** @ **`2cd08018a`**. Release metadata **v4.1.85**: **P-17-37** (`docs/desk-p17-37-v4185-pre-deploy-gate.md`).
 
 ## Regression evidence (local, 2026-11-17)
 
