@@ -180,3 +180,62 @@ export const proposeRdSubscriptionExpiryFromMantraDraft = (draft) => {
         typeof draft.rd_expiry_date === 'string' ? draft.rd_expiry_date : null,
     );
 };
+
+export const MORPHO_WHITELIST_ALREADY = 'already_whitelisted';
+
+/**
+ * Morpho uses DOM-captured `fields.expiry_date` only (never Mantra rd_expiry_date or warranty fields).
+ *
+ * @param {Record<string, unknown>|null|undefined} draft
+ * @returns {string|null} ISO Y-m-d when already-whitelisted Morpho draft
+ */
+export const proposeMorphoSubscriptionExpiryFromDraft = (draft) => {
+    if (!draft || typeof draft !== 'object') {
+        return null;
+    }
+
+    const oem = typeof draft.oem === 'string' ? draft.oem : null;
+    if (oem !== 'morpho') {
+        return null;
+    }
+
+    const qualification = typeof draft.whitelist_qualification === 'string'
+        ? draft.whitelist_qualification
+        : null;
+    if (qualification !== MORPHO_WHITELIST_ALREADY) {
+        return null;
+    }
+
+    const fields = draft.fields;
+    if (!fields || typeof fields !== 'object') {
+        return null;
+    }
+
+    return normalizeRdSubscriptionExpiryYmd(
+        typeof fields.expiry_date === 'string' ? fields.expiry_date : null,
+    );
+};
+
+/**
+ * @param {Record<string, unknown>|null|undefined} draft
+ * @returns {string|null} Y-m-d from Mantra or eligible Morpho draft
+ */
+export const proposeOemSubscriptionExpiryFromDraft = (draft, sessionOem = null) => {
+    if (!draft || typeof draft !== 'object') {
+        return null;
+    }
+
+    const oem = typeof draft.oem === 'string' ? draft.oem : sessionOem;
+    if (oem === 'morpho') {
+        return proposeMorphoSubscriptionExpiryFromDraft({ ...draft, oem: 'morpho' });
+    }
+
+    if (oem === 'mantra' || oem == null) {
+        return proposeRdSubscriptionExpiryFromMantraDraft({
+            ...draft,
+            oem: 'mantra',
+        });
+    }
+
+    return null;
+};

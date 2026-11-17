@@ -1,9 +1,9 @@
 import {
     buildEligibleAwServiceReferenceFromMantraRdExpiry,
-    proposeRdSubscriptionExpiryFromMantraDraft,
+    proposeOemSubscriptionExpiryFromDraft,
 } from './dashboard-oem-rd-expiry-prefill';
 
-/** @type {Map<number, { sessionPublicId: string, completeAssignmentUrl: string, proposedRdExpiryYmd: string|null, proposedRdExpiryDisplay: string|null }>} */
+/** @type {Map<number, { sessionPublicId: string, completeAssignmentUrl: string, oem: string, proposedRdExpiryYmd: string|null, proposedRdExpiryDisplay: string|null }>} */
 const OEM_INLINE_COMPLETION = new Map();
 
 export const getOemInlineCompletionContext = (incidentId) => {
@@ -32,14 +32,18 @@ export const registerOemInlineCompletionFromSession = (incidentId, session, base
         return false;
     }
 
-    const proposedRdExpiryYmd = proposeRdSubscriptionExpiryFromMantraDraft({
-        ...draft,
-        oem: draft.oem ?? session.oem ?? 'mantra',
-    });
+    const oem = draft.oem ?? session.oem ?? 'mantra';
+    const proposedRdExpiryYmd = proposeOemSubscriptionExpiryFromDraft(draft, oem);
+
+    if (!proposedRdExpiryYmd) {
+        clearOemInlineCompletionContext(id);
+        return false;
+    }
 
     OEM_INLINE_COMPLETION.set(id, {
         sessionPublicId,
         completeAssignmentUrl: `${baseUrl}/${id}/oem-handoff/sessions/${sessionPublicId}/complete-assignment`,
+        oem,
         proposedRdExpiryYmd,
         proposedRdExpiryDisplay: buildEligibleAwServiceReferenceFromMantraRdExpiry(proposedRdExpiryYmd),
     });

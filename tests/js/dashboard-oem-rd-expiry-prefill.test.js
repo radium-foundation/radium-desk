@@ -7,6 +7,8 @@ import {
     getTodayYmdInAsiaKolkata,
     isMantraRdExpiryEligibleForAwPrefill,
     normalizeRdSubscriptionExpiryYmd,
+    proposeMorphoSubscriptionExpiryFromDraft,
+    proposeOemSubscriptionExpiryFromDraft,
     proposeRdSubscriptionExpiryFromMantraDraft,
 } from '../../resources/js/dashboard-oem-rd-expiry-prefill';
 import {
@@ -132,6 +134,48 @@ describe('proposeRdSubscriptionExpiryFromMantraDraft', () => {
     });
 });
 
+describe('proposeMorphoSubscriptionExpiryFromDraft', () => {
+    it('uses fields.expiry_date only when already whitelisted', () => {
+        expect(proposeMorphoSubscriptionExpiryFromDraft({
+            oem: 'morpho',
+            whitelist_qualification: 'already_whitelisted',
+            fields: { expiry_date: '2028-03-15', warranty_expiry_date: '2027-01-01' },
+        })).toBe('2028-03-15');
+    });
+
+    it('rejects non-whitelisted Morpho drafts', () => {
+        expect(proposeMorphoSubscriptionExpiryFromDraft({
+            oem: 'morpho',
+            whitelist_qualification: 'valid_not_whitelisted',
+            fields: { expiry_date: '2028-03-15' },
+        })).toBeNull();
+    });
+
+    it('never uses Mantra rd_expiry_date on Morpho oem', () => {
+        expect(proposeMorphoSubscriptionExpiryFromDraft({
+            oem: 'morpho',
+            whitelist_qualification: 'already_whitelisted',
+            rd_expiry_date: '2028-03-15',
+            fields: {},
+        })).toBeNull();
+    });
+});
+
+describe('proposeOemSubscriptionExpiryFromDraft', () => {
+    it('isolates Mantra and Morpho field sources', () => {
+        expect(proposeOemSubscriptionExpiryFromDraft({
+            oem: 'mantra',
+            rd_expiry_date: '2028-02-05',
+        }, 'mantra')).toBe('2028-02-05');
+
+        expect(proposeOemSubscriptionExpiryFromDraft({
+            oem: 'morpho',
+            whitelist_qualification: 'already_whitelisted',
+            fields: { expiry_date: '2028-04-01' },
+        }, 'morpho')).toBe('2028-04-01');
+    });
+});
+
 describe('registerOemInlineCompletionFromSession', () => {
     it('stores proposed RD expiry in memory without persisting', () => {
         clearOemInlineCompletionContext(42);
@@ -152,5 +196,45 @@ describe('registerOemInlineCompletionFromSession', () => {
             proposedRdExpiryDisplay: formatRdExpiryYmdAsAwServiceReference(eligibleDate),
         });
         clearOemInlineCompletionContext(42);
+    });
+
+    it('registers Morpho draft when already whitelisted with expiry_date', () => {
+        clearOemInlineCompletionContext(43);
+        const eligibleDate = '2030-08-20';
+        const registered = registerOemInlineCompletionFromSession(43, {
+            public_id: 'sess-43',
+            status: 'draft_ready',
+            oem: 'morpho',
+            draft: {
+                oem: 'morpho',
+                whitelist_qualification: 'already_whitelisted',
+                fields: { expiry_date: eligibleDate },
+            },
+        }, '/dashboard/service-cases');
+
+        expect(registered).toBe(true);
+        expect(getOemInlineCompletionContext(43)).toMatchObject({
+            oem: 'morpho',
+            proposedRdExpiryYmd: eligibleDate,
+        });
+        clearOemInlineCompletionContext(43);
+    });
+
+    it('does not register Morpho draft when not already whitelisted', () => {
+        clearOemInlineCompletionContext(44);
+        const registered = registerOemInlineCompletionFromSession(44, {
+            public_id: 'sess-44',
+            status: 'draft_ready',
+            oem: 'morpho',
+            draft: {
+                oem: 'morpho',
+                whitelist_qualification: 'valid_not_whitelisted',
+                fields: { expiry_date: '2030-08-20' },
+            },
+        }, '/dashboard/service-cases');
+
+        expect(registered).toBe(false);
+        expect(getOemInlineCompletionContext(44)).toBeNull();
+        clearOemInlineCompletionContext(44);
     });
 });
