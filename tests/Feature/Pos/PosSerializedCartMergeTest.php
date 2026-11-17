@@ -34,6 +34,7 @@ class PosSerializedCartMergeTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
         $this->seed(RolePermissionSeeder::class);
         $this->seed(FinanceMasterDataSeeder::class);
 

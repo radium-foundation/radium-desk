@@ -14,12 +14,12 @@ use App\Services\Pos\PosUpiIntentService;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Services\StatutoryInvoice\StatutoryLocationSeries;
 use App\Support\Finance\IndianStates;
-use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use App\Support\Inventory\InventoryBranchScope;
 use App\Support\Inventory\InventorySerialNumber;
 use App\Support\Inventory\PosAccess;
 use App\Support\Inventory\PosSalePaymentState;
 use App\Support\Inventory\PosSerialMatchEvaluator;
+use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -76,6 +76,7 @@ class CounterController extends Controller
             'searchProductsUrl' => route('pos.products.search'),
             'searchSerialsUrl' => route('pos.serials.search'),
             'matchSerialsUrl' => route('pos.serials.match'),
+            'matchSerialsPostUrl' => route('pos.serials.match.post'),
             'customerLookupConfig' => $this->customerLookupConfig(
                 resultsId: 'pos-customer-results',
                 statusId: 'pos-customer-status',
@@ -357,6 +358,16 @@ class CounterController extends Controller
 
     public function matchSerial(Request $request, PosSerialMatchEvaluator $evaluator): JsonResponse
     {
+        return $this->respondSerialMatch($request, $evaluator);
+    }
+
+    public function matchSerialPost(Request $request, PosSerialMatchEvaluator $evaluator): JsonResponse
+    {
+        return $this->respondSerialMatch($request, $evaluator);
+    }
+
+    private function respondSerialMatch(Request $request, PosSerialMatchEvaluator $evaluator): JsonResponse
+    {
         abort_unless(
             PosAccess::allowsPermission($request->user(), RolePermissionSeeder::PERMISSION_POS_SELL),
             403,
@@ -376,7 +387,7 @@ class CounterController extends Controller
 
         $rawSerials = $request->input('serials', $request->input('serial'));
         if ($rawSerials === null) {
-            return response()->json(['results' => []]);
+            return response()->json(['parsed_count' => 0, 'results' => []]);
         }
 
         $serialNumbers = is_array($rawSerials)
@@ -384,6 +395,7 @@ class CounterController extends Controller
             : InventorySerialNumber::parseList((string) $rawSerials);
 
         return response()->json([
+            'parsed_count' => count($serialNumbers),
             'results' => $evaluator->evaluate($branch, $product, $variant, $serialNumbers),
         ]);
     }
