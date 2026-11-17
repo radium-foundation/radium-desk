@@ -1,11 +1,18 @@
 # Changelog
 
-## 4.1.86 — Unreleased — Retire Upload Package Photo (P-17-40)
+## 4.1.86 — Unreleased — Package photo retirement + RBP gap recovery (P-17-40 / P-17-43)
 
-- **Purpose:** Remove operator package-photo upload and both enforcement gates (user mark shipped, external dispatch) while preserving historical evidence rows, files, and audit events.
-- **Application delta:** Remove `package_photo_pending` workspace filter/chip/actions; retire `POST` package-evidence; keep read-only `GET` package-evidence; classifier and SQL queues updated so ready-for-pickup rows without photos appear in Shipping. **No** migrations; **no** media/DB retirement.
-- **Production baseline:** **`v4.1.85`** / **`b87b10c6f`**.
-- **Evidence:** See `docs/desk-p17-40-retire-package-photo.md`. Deploy gate: separate Owner authorization.
+- **Purpose (P-17-40):** Remove operator package-photo upload and both enforcement gates (user mark shipped, external dispatch) while preserving historical evidence rows, files, and audit events.
+- **Purpose (P-17-43):** RBP hardware fulfilment gap monitor limit fix; Owner-gated `desk:recover-rbp-hardware-fulfilment-gaps` with Desk Cashfree authority (production data recovery already executed — deploy aligns artifact with hotpatch).
+- **Application delta (P-17-40):** Remove `package_photo_pending` workspace filter/chip/actions; retire `POST` package-evidence; keep read-only `GET` package-evidence; classifier and SQL queues updated so ready-for-pickup rows without photos appear in Shipping.
+- **Application delta (P-17-43):** See `docs/desk-p17-43-rbp-gap-recovery.md`.
+- **Migrations:** **None**.
+- **Production baseline:** **`v4.1.85`** / **`b87b10c6f`** (partial P-17-43 file rsync on prod — reconcile via deploy).
+- **Source:** **`main`** merges **#328** @ **`c452967d3`**, **#329** / **#330** @ **`5dff026aa`**.
+- **Rollback:** **`v4.1.85`** / **`b87b10c6f`** (restores upload workflow; does not undo P-17-43 HF rows).
+- **Evidence:** P-17-46 focused PHPUnit **11+7** package/RBP cluster; `npm run build` **PASS**; Full PHPUnit **NOT RUN**.
+- **Owner UAT:** `docs/desk-p17-46-v4186-uat.md`.
+- **Deploy gate:** `docs/desk-p17-46-v4186-pre-deploy-gate.md` — **fresh backup BLOCKED** until attested run after current prod state.
 
 ## 4.1.85 — 2026-11-17 — Hardware dashboard performance (P-17-36 / P-17-37)
 

@@ -65,7 +65,7 @@ class HardwareDashboardNeedsActionQueueTest extends TestCase
             ->assertSee('Product Mapping Required')
             ->assertSee('Awaiting Serial')
             ->assertSee('AWB Pending')
-            ->assertSee('Package Photo Pending')
+            ->assertDontSee('Package Photo Pending')
             ->assertSee('Shipping')
             ->assertSee('Completed')
             ->assertSee('All')
