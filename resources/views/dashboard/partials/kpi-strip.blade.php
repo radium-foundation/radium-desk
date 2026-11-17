@@ -120,6 +120,7 @@
         @if(isset($stats['hardware_stuck_orders']))
             @include('dashboard.partials.admin-hardware-stuck-card', [
                 'summary' => $stats['hardware_stuck_orders'],
+                'stuckMeta' => $stats['hardware_stuck_orders_meta'] ?? null,
             ])
         @elseif(($deferHardwareStuckSummary ?? false) && ! ($omitDeferredHardwareStuckKpi ?? false))
             @include('dashboard.partials.admin-hardware-stuck-card-deferred')

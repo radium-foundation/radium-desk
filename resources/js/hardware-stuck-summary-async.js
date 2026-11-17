@@ -1,3 +1,5 @@
+import { formatMetricUpdatedAgo } from './dashboard-live-counts';
+
 let stuckSummaryInFlight = null;
 let stuckSummaryRefreshHandle = null;
 
@@ -11,16 +13,18 @@ const parseRefreshMs = (host) => {
     return parsed;
 };
 
+const parseVersion = (host) => {
+    const raw = host?.dataset?.hardwareStuckVersion;
+    const parsed = Number(raw);
+
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
 const setErrorState = (host) => {
     host.setAttribute('aria-busy', 'false');
-    const loading = host.querySelector('[data-hardware-stuck-loading]');
     const status = host.querySelector('[data-hardware-stuck-status]');
     const error = host.querySelector('[data-hardware-stuck-error]');
-    if (loading) {
-        loading.textContent = 'Unavailable';
-        loading.classList.add('text-danger');
-    }
-    if (status) {
+    if (status && host.dataset.hardwareStuckSummary !== undefined) {
         status.textContent = 'Stuck order counts are temporarily unavailable.';
         status.classList.add('text-danger');
     }
@@ -30,7 +34,17 @@ const setErrorState = (host) => {
     }
 };
 
-const fetchStuckSummary = async (host) => {
+const syncUpdatedLabel = (host) => {
+    const updatedEl = host.querySelector('[data-hardware-stuck-updated]');
+    const capturedAt = Number(host.dataset.hardwareStuckCapturedAt);
+    if (!updatedEl || !Number.isFinite(capturedAt) || capturedAt <= 0) {
+        return;
+    }
+
+    updatedEl.textContent = formatMetricUpdatedAgo(capturedAt * 1000);
+};
+
+const fetchStuckSummary = async (host, { background = false } = {}) => {
     const url = host.dataset.hardwareStuckUrl;
     if (!url) {
         return null;
@@ -54,6 +68,9 @@ const fetchStuckSummary = async (host) => {
                 signal: controller.signal,
             });
             if (!response.ok) {
+                if (background && host.dataset.hardwareStuckLoaded === '1') {
+                    return null;
+                }
                 throw new Error(`HTTP ${response.status}`);
             }
             const payload = await response.json();
@@ -71,20 +88,47 @@ const fetchStuckSummary = async (host) => {
     return stuckSummaryInFlight;
 };
 
-const applyStuckSummaryHtml = (host, html) => {
+export const applyHardwareStuckSummaryHtml = (host, html, meta = {}) => {
     const wrapper = document.createElement('div');
     wrapper.innerHTML = html.trim();
     const next = wrapper.firstElementChild;
     if (!next) {
-        setErrorState(host);
-        return;
+        if (host) {
+            setErrorState(host);
+        }
+
+        return false;
     }
-    if (host.dataset.hardwareStuckUrl) {
-        next.dataset.hardwareStuckLoaded = '1';
+
+    const incomingVersion = Number(meta.version ?? next.dataset.hardwareStuckVersion);
+    const currentVersion = parseVersion(host);
+    if (currentVersion !== null && Number.isFinite(incomingVersion) && incomingVersion > 0
+        && incomingVersion < currentVersion) {
+        return false;
+    }
+
+    if (host?.dataset?.hardwareStuckUrl) {
         next.dataset.hardwareStuckUrl = host.dataset.hardwareStuckUrl;
         next.dataset.hardwareStuckRefreshMs = host.dataset.hardwareStuckRefreshMs || '';
     }
+
     host.replaceWith(next);
+    syncUpdatedLabel(next);
+
+    return true;
+};
+
+const applyStuckSummaryPayload = (host, payload) => {
+    const nextVersion = Number(payload.version);
+    const currentVersion = parseVersion(host);
+    if (currentVersion !== null && Number.isFinite(nextVersion) && nextVersion > 0
+        && nextVersion < currentVersion) {
+        return;
+    }
+
+    applyHardwareStuckSummaryHtml(host, payload.html, {
+        version: payload.version,
+    });
 };
 
 const findStuckSummaryHost = (root) => (
@@ -92,35 +136,65 @@ const findStuckSummaryHost = (root) => (
     || root.querySelector('[data-hardware-stuck-loaded="1"]')
 );
 
-const loadStuckSummary = async (host) => {
+const loadStuckSummary = async (host, { background = false } = {}) => {
     if (document.hidden) {
         return;
     }
 
+    const hasRenderedCounts = host.dataset.hardwareStuckLoaded === '1';
+    if (background && hasRenderedCounts) {
+        host.classList.add('admin-hardware-stuck-kpi--refreshing');
+    }
+
     try {
-        const payload = await fetchStuckSummary(host);
+        const payload = await fetchStuckSummary(host, { background });
         if (!payload) {
-            setErrorState(host);
+            if (!background || !hasRenderedCounts) {
+                setErrorState(host);
+            }
+
             return;
         }
-        applyStuckSummaryHtml(host, payload.html);
+
+        if (hasRenderedCounts) {
+            applyStuckSummaryPayload(host, payload);
+        } else {
+            applyStuckSummaryPayload(host, payload);
+        }
     } catch {
-        setErrorState(host);
+        if (!background || !hasRenderedCounts) {
+            setErrorState(host);
+        }
+    } finally {
+        const current = findStuckSummaryHost(document);
+        current?.classList.remove('admin-hardware-stuck-kpi--refreshing');
     }
 };
 
+export const applyHardwareStuckOrdersRealtimePayload = (root, payload) => {
+    const host = findStuckSummaryHost(root);
+    if (!host || typeof payload?.html !== 'string') {
+        return;
+    }
+
+    applyStuckSummaryPayload(host, payload);
+};
+
 export const initHardwareStuckSummaryAsync = (root = document) => {
-    const host = root.querySelector('[data-hardware-stuck-summary]');
+    const host = findStuckSummaryHost(root);
     if (!host) {
         return;
     }
+
+    syncUpdatedLabel(host);
 
     if (stuckSummaryRefreshHandle !== null) {
         window.clearInterval(stuckSummaryRefreshHandle);
         stuckSummaryRefreshHandle = null;
     }
 
-    void loadStuckSummary(host);
+    const background = host.dataset.hardwareStuckLoaded === '1';
+    void loadStuckSummary(host, { background });
 
     const refreshMs = parseRefreshMs(host);
     stuckSummaryRefreshHandle = window.setInterval(() => {
@@ -128,6 +202,6 @@ export const initHardwareStuckSummaryAsync = (root = document) => {
         if (!current || document.hidden) {
             return;
         }
-        void loadStuckSummary(current);
+        void loadStuckSummary(current, { background: true });
     }, refreshMs);
 };

@@ -106,7 +106,7 @@ class AdminHardwareStuckOrderNavigationTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Hardware Stuck Orders', false)
-            ->assertSee('Loading…', false);
+            ->assertSee('Counts not loaded yet', false);
 
         $this->actingAs($admin)
             ->getJson(route('dashboard.hardware.stuck-summary'))

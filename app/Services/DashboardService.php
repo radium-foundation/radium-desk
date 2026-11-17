@@ -20,6 +20,8 @@ use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Dashboard\LiveReverbMetricsBatch;
 use App\Services\Dashboard\OperatorDashboardCache;
 use App\Services\HardwareFulfilment\HardwareDashboardWorkspace;
+use App\Services\HardwareFulfilment\HardwareStuckOrdersSnapshotRefresher;
+use App\Services\HardwareFulfilment\HardwareStuckOrdersSnapshotStore;
 use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
 use App\Services\Operations\OperationsRoleService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -68,7 +70,7 @@ class DashboardService
      */
     public function statsForInitialDashboardRender(User $user): array
     {
-        return [
+        $stats = [
             ...$this->buildFastChangingStats(
                 $user,
                 leanForKpiStrip: false,
@@ -76,6 +78,11 @@ class DashboardService
             ),
             ...$this->slowChangingStatsFor($user),
         ];
+
+        $stats = $this->applyCachedHardwareStuckOrdersStats($stats, $user);
+        $this->queueHardwareStuckSnapshotRefreshIfNeeded($user);
+
+        return $stats;
     }
 
     public function shouldDeferHardwareStuckSummary(User $user): bool
@@ -818,7 +825,7 @@ class DashboardService
         }
 
         $fast = $this->fastChangingStatsForKpiStrip($user);
-        $stats = $fast;
+        $stats = $this->applyCachedHardwareStuckOrdersStats($fast, $user);
 
         $filterCounts = $user->can('incidents.view')
             ? $this->dashboardChipCounts($assignedTo, $user)
@@ -851,7 +858,10 @@ class DashboardService
      */
     public function liveReverbMetricsFor(User $user, ?LiveReverbMetricsBatch $batch = null): array
     {
-        $stats = $this->fastChangingStatsForKpiStrip($user);
+        $stats = $this->applyCachedHardwareStuckOrdersStats(
+            $this->fastChangingStatsForKpiStrip($user),
+            $user,
+        );
         $variants = [
             DashboardPersonalizationService::SCOPE_OPERATIONS => $user->can('incidents.view')
                 ? ($batch?->operationsFilterCounts ?? $this->dashboardChipCounts(null, $user))
@@ -950,6 +960,41 @@ class DashboardService
     /**
      * @param  array<string, int>  $stats
      */
+    /**
+     * @param  array<string, mixed>  $stats
+     * @return array<string, mixed>
+     */
+    public function applyCachedHardwareStuckOrdersStats(array $stats, User $user): array
+    {
+        if (! $this->shouldDeferHardwareStuckSummary($user)) {
+            return $stats;
+        }
+
+        $presentation = app(HardwareStuckOrdersSnapshotStore::class)->presentationForRender();
+        if ($presentation === null) {
+            return $stats;
+        }
+
+        $stats['hardware_stuck_orders'] = $presentation['summary'];
+        $stats['hardware_stuck_orders_meta'] = [
+            'captured_at' => $presentation['captured_at'],
+            'version' => $presentation['version'],
+            'stale' => $presentation['stale'],
+            'source' => $presentation['source'],
+        ];
+
+        return $stats;
+    }
+
+    public function queueHardwareStuckSnapshotRefreshIfNeeded(User $user): void
+    {
+        if (! $this->shouldDeferHardwareStuckSummary($user)) {
+            return;
+        }
+
+        app(HardwareStuckOrdersSnapshotRefresher::class)->queueBackgroundRefreshIfNeeded();
+    }
+
     public function renderKpiStrip(
         array $stats,
         ?User $viewer = null,

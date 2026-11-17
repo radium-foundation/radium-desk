@@ -122,6 +122,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Hardware stuck orders KPI snapshot (stale-while-revalidate)
+    |--------------------------------------------------------------------------
+    */
+
+    'hardware_stuck_snapshot_ttl_seconds' => (int) env('DASHBOARD_HARDWARE_STUCK_SNAPSHOT_TTL_SECONDS', 30),
+
+    'hardware_stuck_last_known_ttl_seconds' => (int) env('DASHBOARD_HARDWARE_STUCK_LAST_KNOWN_TTL_SECONDS', 86400),
+
+    'hardware_stuck_refresh_lock_seconds' => (int) env('DASHBOARD_HARDWARE_STUCK_REFRESH_LOCK_SECONDS', 120),
+
+    /*
+    |--------------------------------------------------------------------------
     | Hardware dashboard progressive row loading
     |--------------------------------------------------------------------------
     |

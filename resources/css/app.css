@@ -16122,6 +16122,14 @@ button.agent-kpi-tile {
     min-width: min(100%, 14rem);
 }
 
+.admin-hardware-stuck-kpi--stale .admin-hardware-stuck-kpi__stale {
+    font-style: italic;
+}
+
+.admin-hardware-stuck-kpi--refreshing {
+    opacity: 0.94;
+}
+
 .admin-hardware-stuck-kpi__head {
     display: flex;
     gap: 0.75rem;
