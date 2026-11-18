@@ -66,7 +66,8 @@ class RefundCaseCloseService
                         request: $request,
                     );
 
-                    $this->statusService->updateStatus($incident, IncidentStatus::Closed, $actor);
+                    // Refund completion defers dashboard fan-out; statutory mint still runs after commit.
+                    $this->statusService->updateStatus($incident, IncidentStatus::Closed, $actor, broadcast: false);
                 }
 
                 $this->markRefundClosed($refund, $actor, $request);
