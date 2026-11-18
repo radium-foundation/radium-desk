@@ -6097,7 +6097,10 @@ a:focus-visible .stat-card {
 /* Customer 360 Drawer */
 .customer-360-drawer {
     position: fixed;
-    inset: 0;
+    top: var(--topbar-height);
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 1080;
     pointer-events: none;
     visibility: hidden;
