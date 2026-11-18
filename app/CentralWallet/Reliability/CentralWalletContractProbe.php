@@ -24,15 +24,17 @@ final class CentralWalletContractProbe
         string $siteCode,
         string $localUserId,
         string $email,
+        string $hostHeader = '',
     ): array {
         $checks = [];
         $url = rtrim($baseUrl, '/').'/api/central-wallet/v1/wallet-visibility';
 
-        $unauth = Http::acceptJson()->get($url, [
-            'site_code' => $siteCode,
-            'local_user_id' => $localUserId,
-            'email' => $email,
-        ]);
+        $unauth = CentralWalletReleaseGateProbeHttpTransport::apply(Http::acceptJson(), $baseUrl, $hostHeader)
+            ->get($url, [
+                'site_code' => $siteCode,
+                'local_user_id' => $localUserId,
+                'email' => $email,
+            ]);
         $checks[] = [
             'id' => 'unauthenticated',
             'result' => $unauth->status() === 401 ? 'PASS' : 'FAIL',
@@ -41,7 +43,7 @@ final class CentralWalletContractProbe
 
         $mismatchSiteCode = $siteCode === 'radiumbox.com' ? 'rdservice.in' : 'radiumbox.com';
 
-        $mismatch = Http::acceptJson()
+        $mismatch = CentralWalletReleaseGateProbeHttpTransport::apply(Http::acceptJson(), $baseUrl, $hostHeader)
             ->withToken($integrationToken)
             ->withHeaders(['X-Site-Code' => $siteCode])
             ->get($url, [

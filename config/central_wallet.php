@@ -267,6 +267,7 @@ return [
         'project_key' => 'radium-desk',
         'synthetic_probe' => [
             'base_url' => rtrim((string) env('CENTRAL_WALLET_RELEASE_GATE_PROBE_BASE_URL', ''), '/'),
+            'host_header' => env('CENTRAL_WALLET_RELEASE_GATE_PROBE_HOST_HEADER', ''),
             'integration_token' => env('CENTRAL_WALLET_RELEASE_GATE_PROBE_TOKEN'),
             'site_code' => env('CENTRAL_WALLET_RELEASE_GATE_PROBE_SITE_CODE'),
             'local_user_id' => env('CENTRAL_WALLET_RELEASE_GATE_PROBE_LOCAL_USER_ID'),
