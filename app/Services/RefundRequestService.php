@@ -10,6 +10,7 @@ use App\Enums\RefundDeductionProfile;
 use App\Enums\RefundDifferenceReason;
 use App\Enums\RefundStatus;
 use App\Events\Finance\RefundCompleted;
+use App\Jobs\Refunds\RefundCompletionFollowUpJob;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
@@ -22,9 +23,7 @@ use App\Services\Refunds\RefundExecutorResolver;
 use App\Services\Refunds\WalletRefundDestinationResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 
 class RefundRequestService
 {
@@ -391,6 +390,18 @@ class RefundRequestService
         array $data,
         Request $request,
     ): RefundRequest {
+        $existing = $refund->fresh(['requester']);
+
+        if ($existing !== null && $existing->status === RefundStatus::Closed) {
+            return $existing;
+        }
+
+        if ($existing !== null && $existing->status === RefundStatus::Completed) {
+            $this->dispatchCompletionFollowUp($existing, $user);
+
+            return $existing;
+        }
+
         DB::transaction(function () use ($refund): void {
             $locked = RefundRequest::query()->lockForUpdate()->findOrFail($refund->id);
 
@@ -461,37 +472,16 @@ class RefundRequestService
 
         RefundCompleted::dispatch($completed, $user);
 
-        // Business close is independent of customer/requester notifications.
-        $this->caseCloseService->closeLinkedCase($completed, $user, $request);
+        // Case close, holds, and customer comms run after the HTTP response so payout
+        // completion is not lost to PHP max_execution_time on heavy post-commit work.
+        $this->dispatchCompletionFollowUp($completed, $user);
 
-        $closed = $completed->fresh(['requester']) ?? $completed;
+        return $completed->fresh(['requester']) ?? $completed;
+    }
 
-        try {
-            $this->notificationService->notifyCustomer(
-                refund: $closed,
-                actor: $user,
-                channels: $closed->communication_channels,
-                request: $request,
-            );
-        } catch (Throwable $exception) {
-            Log::warning('[Refunds] Customer notification failed after refund completion; workflow continued.', [
-                'refund_id' => $closed->id,
-                'reference_no' => $closed->reference_no,
-                'message' => $exception->getMessage(),
-            ]);
-        }
-
-        try {
-            $this->notificationService->notifyRequesterOfDecision($closed, 'completed');
-        } catch (Throwable $exception) {
-            Log::warning('[Refunds] Requester notification failed after refund completion; workflow continued.', [
-                'refund_id' => $closed->id,
-                'reference_no' => $closed->reference_no,
-                'message' => $exception->getMessage(),
-            ]);
-        }
-
-        return $closed->fresh() ?? $closed;
+    private function dispatchCompletionFollowUp(RefundRequest $refund, User $user): void
+    {
+        RefundCompletionFollowUpJob::dispatch($refund->id, $user->id)->afterResponse();
     }
 
     public function delete(RefundRequest $refund, User $user, Request $request): void
