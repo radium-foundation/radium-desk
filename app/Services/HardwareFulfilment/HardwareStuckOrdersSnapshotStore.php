@@ -84,13 +84,45 @@ final class HardwareStuckOrdersSnapshotStore
         return $version;
     }
 
-    public function acquireRefreshLock(): bool
+    public function acquireRefreshLock(int $blockSeconds = 0): bool
     {
         try {
-            return Cache::lock(self::REFRESH_LOCK_KEY, $this->refreshLockSeconds())->get();
+            $lock = Cache::lock(self::REFRESH_LOCK_KEY, $this->refreshLockSeconds());
+            if ($blockSeconds > 0) {
+                return $lock->block($blockSeconds);
+            }
+
+            return $lock->get();
         } catch (Throwable) {
-            return false;
+            return $blockSeconds <= 0;
         }
+    }
+
+    /**
+     * Poll briefly when another request is refreshing a cold snapshot.
+     *
+     * @return array{
+     *     summary: array{needs_action_total: int, breakdown: list<array{filter: string, label: string, count: int, tone: string}>},
+     *     captured_at: int,
+     *     version: int,
+     *     stale: bool,
+     *     source: string
+     * }|null
+     */
+    public function waitForPresentation(int $maxWaitSeconds = 3): ?array
+    {
+        $deadline = microtime(true) + max(0, $maxWaitSeconds);
+
+        do {
+            $presentation = $this->presentationForRender();
+            if ($presentation !== null) {
+                return $presentation;
+            }
+
+            usleep(100_000);
+        } while (microtime(true) < $deadline);
+
+        return null;
     }
 
     public function releaseRefreshLock(): void

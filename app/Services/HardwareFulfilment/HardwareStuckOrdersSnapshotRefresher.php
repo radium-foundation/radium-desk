@@ -34,9 +34,9 @@ final class HardwareStuckOrdersSnapshotRefresher
      *     summary: array|null
      * }
      */
-    public function refreshAndBroadcast(): array
+    public function refreshAndBroadcast(bool $blockForLock = false): array
     {
-        if (! $this->snapshotStore->acquireRefreshLock()) {
+        if (! $this->snapshotStore->acquireRefreshLock($blockForLock ? 30 : 0)) {
             return [
                 'refreshed' => false,
                 'version' => null,

@@ -838,7 +838,7 @@ class DashboardService
                 $stats,
                 $user,
                 deferHardwareStuckSummary: $this->shouldDeferHardwareStuckSummary($user),
-                omitDeferredHardwareStuckKpi: $this->shouldDeferHardwareStuckSummary($user),
+                omitDeferredHardwareStuckKpi: false,
             ),
             'service_case_filter_counts' => $filterCounts,
             'next_appointment' => $fast['next_appointment'] ?? null,
@@ -880,7 +880,7 @@ class DashboardService
                 $stats,
                 $user,
                 deferHardwareStuckSummary: $this->shouldDeferHardwareStuckSummary($user),
-                omitDeferredHardwareStuckKpi: $this->shouldDeferHardwareStuckSummary($user),
+                omitDeferredHardwareStuckKpi: false,
             ),
             'service_case_filter_count_variants' => $variants,
         ];

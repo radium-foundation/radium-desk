@@ -137,4 +137,17 @@ class HardwareStuckOrdersSnapshotSwrTest extends TestCase
             ->getJson(route('dashboard.hardware.stuck-summary'))
             ->assertForbidden();
     }
+
+    public function test_stuck_summary_endpoint_returns_zero_counts_on_cold_cache(): void
+    {
+        Cache::flush();
+
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($admin)
+            ->getJson(route('dashboard.hardware.stuck-summary'))
+            ->assertOk()
+            ->assertJsonStructure(['html', 'summary' => ['needs_action_total', 'breakdown']]);
+    }
 }
