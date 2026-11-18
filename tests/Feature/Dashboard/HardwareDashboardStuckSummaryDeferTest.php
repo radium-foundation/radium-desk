@@ -10,6 +10,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\Feature\Dashboard\Concerns\CreatesHardwareDashboardFulfilments;
 use Tests\TestCase;
@@ -96,5 +97,18 @@ class HardwareDashboardStuckSummaryDeferTest extends TestCase
         $this->actingAs($agent)
             ->getJson(route('dashboard.hardware.stuck-summary'))
             ->assertForbidden();
+    }
+
+    public function test_live_metrics_kpi_strip_includes_deferred_shell_without_cached_snapshot(): void
+    {
+        Cache::flush();
+
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $html = app(DashboardService::class)->liveMetricsFor($admin)['kpi_strip_html'];
+
+        $this->assertStringContainsString('data-hardware-stuck-summary', $html);
+        $this->assertStringContainsString('Loading counts', $html);
     }
 }

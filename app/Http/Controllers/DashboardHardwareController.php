@@ -127,7 +127,7 @@ class DashboardHardwareController extends Controller
         if ($stale || $summary === null) {
             $refreshQueued = true;
             if ($summary === null) {
-                $result = $refresher->refreshAndBroadcast();
+                $result = $refresher->refreshAndBroadcast(blockForLock: true);
                 if ($result['refreshed'] && is_array($result['summary'])) {
                     $summary = $result['summary'];
                     $stale = false;
@@ -136,13 +136,17 @@ class DashboardHardwareController extends Controller
                     $version = $presentation['version'] ?? null;
                     $refreshQueued = false;
                 } else {
-                    $presentation = $store->presentationForRender();
+                    $presentation = $store->waitForPresentation(3)
+                        ?? $store->presentationForRender();
                     if ($presentation !== null) {
                         $summary = $presentation['summary'];
                         $stale = $presentation['stale'];
                         $capturedAt = $presentation['captured_at'];
                         $version = $presentation['version'];
+                        $refresher->queueBackgroundRefreshIfNeeded();
                     } else {
+                        $refresher->queueBackgroundRefreshIfNeeded();
+
                         return response()->json([
                             'message' => 'Stuck order counts are temporarily unavailable.',
                         ], 503);
