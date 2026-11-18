@@ -225,7 +225,11 @@ return [
             env('CENTRAL_WALLET_DESK_AUTHORITATIVE_WALLET_REFUNDS', true),
             FILTER_VALIDATE_BOOLEAN,
         ),
-        /** Comma-separated order owners allowed for desk-first spoke audit after Desk ledger credit. */
+        /**
+         * Comma-separated order owners allowed for desk-first spoke audit after Desk ledger credit.
+         * Production should set `CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_SPOKES` explicitly; add `rdservice.net`
+         * only after spoke audit contract verification (rdservice.net P-18-33 @ 336610cc).
+         */
         'desk_first_spoke_allowlist' => env(
             'CENTRAL_WALLET_DESK_FIRST_WALLET_REFUND_SPOKES',
             'rdservice.in,rdservice.net,radiumbox.com',
