@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.1.93 — 2026-11-18 — Dashboard drawer layout and stuck-order KPI (P-18-79 / P-18-76)
+
+- **Purpose (P-18-79 / P-18-76):** Customer 360° drawer no longer clips under the fixed topbar; hardware stuck-order KPI shell stays visible during live metric refresh; cold `stuck-summary` uses bounded lock wait instead of premature **503** on cache contention.
+- **Application delta:** `resources/css/app.css` (drawer `top: var(--topbar-height)`); `DashboardService` deferred KPI omit flag; `DashboardHardwareController` + stuck snapshot store/refresher blocking wait and SWR queue.
+- **Migrations:** **None**.
+- **Production baseline:** **`v4.1.92`** / **`2fdc7ab4e`** (P-18-67).
+- **Source:** **`main`** merges **#346** @ **`e42303a26`**, **#347** @ **`31fd60781`** (release tag on merge commit + changelog).
+- **Rollback:** PRE-RIP **`RIP-181126-2352-radium-desk-pre-p18-82-dashboard-2fdc7ab`** or redeploy **`v4.1.92`**.
+- **Evidence:** Vitest customer-360 drawer/more-menu/layout **36/36**; hardware stuck-summary SWR **4/4**; focused PHPUnit dashboard stuck suites **17/17**; Pint + build **PASS**. Full PHPUnit **NOT RUN**.
+- **Deploy gate:** P-18-82 (Owner-authorized dashboard fixes).
+
+## 4.1.92 — 2026-11-18 — Release-gate probe loopback Host header (P-18-62)
+
+- **Purpose (P-18-62):** Shared HTTP transport for release-gate contract/synthetic probes; optional `CENTRAL_WALLET_RELEASE_GATE_PROBE_HOST_HEADER` for loopback base URLs with Desk vhost selection. Public HTTPS probe defaults unchanged when unset.
+- **Application delta:** `CentralWalletReleaseGateProbeHttpTransport`, probe wiring in `CentralWalletContractProbe` / `CentralWalletSyntheticWalletProbe`, `CentralWalletReleaseGateConfiguration`, `config/central_wallet.php` (`release_gate.synthetic_probe.host_header`).
+- **Migrations:** **None**.
+- **Production baseline:** **`v4.1.91`** / **`966567336`** (P-18-44).
+- **Source:** **`main`** merge **#345** @ **`01332c81a`**.
+- **Rollback:** PRE-RIP **`RIP-181126-1544-radium-desk-pre-p18-62-9665673`** or redeploy **`v4.1.91`**.
+- **Evidence:** `CentralWalletReleaseGateProbeHttpTransportTest` **5/5 PASS** (focused PHPUnit only).
+- **Deploy gate:** P-18-67 (Owner-authorized four-project P-18-62 rollout).
+
 ## 4.1.91 — 2026-11-18 — Wallet refund ledger concurrent idempotency (P-18-43 / P-18-44)
 
 - **Purpose (P-18-43 / P-18-44):** When two refund-completion workers race on desk-first Central Wallet credit, the unique index `cw_ledger_business_ref_type_uq` must not surface as an unhandled duplicate; the loser must replay the existing credit for the same refund business reference.
