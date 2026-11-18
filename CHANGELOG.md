@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.1.91 — 2026-11-18 — Wallet refund ledger concurrent idempotency (P-18-43 / P-18-44)
+
+- **Purpose (P-18-43 / P-18-44):** When two refund-completion workers race on desk-first Central Wallet credit, the unique index `cw_ledger_business_ref_type_uq` must not surface as an unhandled duplicate; the loser must replay the existing credit for the same refund business reference.
+- **Application delta:** `CentralWalletRefundLedgerCreditService::creditForRefund` catches `UniqueConstraintViolationException`, re-reads via `findExistingCredit()`, validates amount, returns `idempotent_replay: true`; MariaDB concurrent harness `RefundCompletionMysqlConcurrencyTest` (permanent regression).
+- **Migrations:** **None**.
+- **Production baseline:** **`v4.1.90`** / **`c10d499a6`** (deployed 2026-11-18 P-18-41).
+- **Source:** **`main`** merge **#341** @ **`910ba39fd`**; release metadata via P-18-44.
+- **Rollback:** **`v4.1.90`** / **`c10d499a6`** (reverts race replay only; no schema; P-18-42 post-commit behavior unchanged).
+- **Evidence:** `RefundCompletionMysqlConcurrencyTest` **3/3 PASS** (MariaDB 11.8.8 `127.0.0.1:33118`, **3×** wallet + **3×** bank); `RefundCompletionPostCommitStabilityTest` **7/7**; `CentralWalletRefundLedgerCreditServiceTest` **PASS**; PR **#341** CI **rip**/**release-rip** **SUCCESS**; Full PHPUnit **NOT RUN**.
+- **Owner UAT:** Live concurrent refund completion **NOT AUTHORIZED** on production; regression is isolated MariaDB only.
+- **Deploy gate:** P-18-44 (fresh backup + snapshot + pre-RIP).
+
 ## 4.1.90 — 2026-11-18 — Refund completion HTTP reliability (P-18-37)
 
 - **Purpose (P-18-37):** Prevent refund **Complete** from returning HTTP **500** after a successful financial commit when post-commit case close, statutory workflow, and notifications exceed PHP `max_execution_time` (~35s prod on REF-67494 / refund **479**).
