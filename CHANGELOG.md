@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.1.90 — 2026-11-18 — Refund completion HTTP reliability (P-18-37)
+
+- **Purpose (P-18-37):** Prevent refund **Complete** from returning HTTP **500** after a successful financial commit when post-commit case close, statutory workflow, and notifications exceed PHP `max_execution_time` (~35s prod on REF-67494 / refund **479**).
+- **Application delta:** `RefundCompletionFollowUpJob` + `RefundCompletionFollowUpService` defer case close/holds/notifications via `afterResponse()`; idempotent **completed/closed** re-POST; refund-driven service case close uses `broadcast: false`.
+- **Migrations:** **None**.
+- **Production baseline:** **`v4.1.89`** / **`41ccf222d`** (deployed 2026-11-17 P-17-65).
+- **Source:** **`main`** merge **#338** @ **`ad42a57a4`** (fix **`fix/p18-37-refund-complete-postcommit`**).
+- **Rollback:** **`v4.1.89`** / **`41ccf222d`** (reverts deferral; no schema).
+- **Evidence:** `RefundCompletionPostCommitStabilityTest` + `RefundCompletionNotificationDecoupleTest` **14 PASS**; PR **#338** CI **rip**/**release-rip** **SUCCESS**; Full PHPUnit **NOT RUN**.
+- **Owner UAT:** Refund complete redirect under slow follow-up **BLOCKED** without controlled staging/prod observation post-deploy.
+- **Deploy gate:** P-18-38 / P-18-39 preflight (`RadiumDesk-P-18-38`, `RadiumDesk-P-18-39`).
+
 ## 4.1.89 — 2026-11-17 — Compact admin dashboard KPI strip (P-17-64)
 
 - **Purpose (P-17-64):** Unified compact admin KPI cards (~56px strip height); Hardware Stuck Orders micro-badges plus accessible breakdown popover; Email Intake and To-Do aligned; support-agent KPI grid unchanged.
