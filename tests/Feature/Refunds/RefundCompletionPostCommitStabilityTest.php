@@ -6,6 +6,7 @@ use App\Enums\ApprovedRefundMethod;
 use App\Enums\BusinessHoldType;
 use App\Enums\IncidentStatus;
 use App\Enums\RefundStatus;
+use App\Events\Finance\RefundCompleted;
 use App\Jobs\Refunds\RefundCompletionFollowUpJob;
 use App\Models\BusinessHold;
 use App\Models\Incident;
@@ -17,6 +18,8 @@ use App\Services\Refunds\RefundCompletionFollowUpService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -135,6 +138,60 @@ class RefundCompletionPostCommitStabilityTest extends TestCase
         $this->assertSame('UTR-IDEM-1', $refund->execution_reference_no);
         $this->assertSame($executedAt, $refund->executed_at?->toIso8601String());
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+    }
+
+    public function test_first_completion_dispatches_refund_completed_finance_event(): void
+    {
+        Event::fake([RefundCompleted::class]);
+
+        [$ops, $refund] = $this->pendingExecutionRefund();
+
+        $this->actingAs($ops)
+            ->post(route('refunds.complete', $refund), [
+                'execution_reference_no' => 'UTR-EVENT-1',
+                'execution_transaction_id' => 'TXN-EVENT-1',
+            ])
+            ->assertSessionHas('status', 'refund-completed');
+
+        Event::assertDispatched(RefundCompleted::class, function (RefundCompleted $event) use ($refund, $ops): bool {
+            return $event->refund->id === $refund->id && $event->actor->id === $ops->id;
+        });
+
+        Event::assertDispatchedTimes(RefundCompleted::class, 1);
+    }
+
+    public function test_follow_up_job_logs_post_commit_failure_without_rethrowing(): void
+    {
+        Log::spy();
+
+        $followUp = Mockery::mock(RefundCompletionFollowUpService::class);
+        $followUp->shouldReceive('run')->once()->andThrow(new RuntimeException('Simulated follow-up job failure.'));
+
+        [$ops, $refund] = $this->pendingExecutionRefund();
+
+        $refund->update([
+            'status' => RefundStatus::Completed,
+            'executed_by' => $ops->id,
+            'executed_at' => now(),
+            'execution_reference_no' => 'UTR-JOB-FAIL',
+            'execution_transaction_id' => 'TXN-JOB-FAIL',
+        ]);
+
+        $job = new RefundCompletionFollowUpJob($refund->id, $ops->id);
+        $job->handle($followUp);
+
+        $refund->refresh();
+        $this->assertSame(RefundStatus::Completed, $refund->status);
+        $this->assertSame('UTR-JOB-FAIL', $refund->execution_reference_no);
+
+        Log::shouldHaveReceived('error')
+            ->once()
+            ->withArgs(function (string $message, array $context) use ($refund): bool {
+                return $message === '[Refunds] Completion follow-up failed after financial commit.'
+                    && ($context['refund_id'] ?? null) === $refund->id
+                    && ($context['reference_no'] ?? null) === $refund->reference_no
+                    && str_contains((string) ($context['message'] ?? ''), 'Simulated follow-up job failure.');
+            });
     }
 
     public function test_completed_refund_repost_schedules_follow_up_without_re_execution(): void

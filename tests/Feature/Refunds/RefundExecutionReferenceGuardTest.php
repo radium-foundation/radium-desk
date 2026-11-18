@@ -186,12 +186,21 @@ class RefundExecutionReferenceGuardTest extends TestCase
                 && ($request['desk_refund_reference'] ?? null) === $deskReference;
         });
 
+        $executionReference = $refund->execution_reference_no;
+        $executionTransactionId = $refund->execution_transaction_id;
+
         $this->actingAs($ops)
             ->post(route('refunds.complete', $refund->fresh()), [
                 'execution_reference_no' => 'REF-OVERRIDE',
                 'execution_transaction_id' => 'TXN-OVERRIDE',
             ])
-            ->assertSessionHasErrors('refund');
+            ->assertRedirect(route('refunds.show', $refund))
+            ->assertSessionHas('status', 'refund-completed');
+
+        $refund->refresh();
+        $this->assertSame($executionReference, $refund->execution_reference_no);
+        $this->assertSame($executionTransactionId, $refund->execution_transaction_id);
+        $this->assertSame(1, CentralWalletLedgerEntry::query()->where('business_reference', $deskReference)->count());
     }
 
     /**
