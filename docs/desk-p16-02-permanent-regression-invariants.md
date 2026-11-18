@@ -24,7 +24,16 @@ When an operator manually reassigns to the **current** assignee and origin is **
 |------|--------|
 | `test_manual_assign_to_same_assignee_persists_manual_origin` | `ManualAgentOwnershipWorkflowTest` |
 
-## 3. Protected Manual same-assignee reassign is a true no-op
+## 3. Concurrent refund completion must not double-credit
+
+Two simultaneous `RefundRequestService::complete` workers against one pending refund must yield exactly one wallet ledger credit (when desk-first wallet) and exactly one `refund.completed` audit.
+
+| Test | Class |
+|------|--------|
+| `test_two_workers_concurrent_desk_first_wallet_completion_single_ledger_credit` | `RefundCompletionMysqlConcurrencyTest` (MariaDB `radium_desk_refund_completion_concurrency_test` @ `127.0.0.1:33118` when disposable DB up) |
+| `test_two_workers_concurrent_bank_transfer_completion_single_financial_outcome` | `RefundCompletionMysqlConcurrencyTest` (MariaDB when disposable DB up) |
+
+## 4. Protected Manual same-assignee reassign is a true no-op
 
 When ownership already has a **protected** origin (e.g. **Manual**), redundant reassign to the same user must not emit duplicate reassignment audits or notifications.
 

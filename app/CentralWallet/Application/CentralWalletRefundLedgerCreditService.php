@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Services\Refunds\WalletRefundDestinationResolver;
 use App\Support\Money\WalletMoney;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
@@ -97,20 +98,40 @@ final class CentralWalletRefundLedgerCreditService
             ];
         }
 
-        $entry = $this->ledger->appendEntry(
-            centralWalletId: $centralWalletId,
-            entryType: LedgerEntryType::Credit,
-            amount: $amount,
-            sourceSystem: $sourceSystem,
-            correlationId: $correlationId,
-            sourceReference: RefundMigrationIdempotencyKey::ledgerSourceReference((int) $refund->id),
-            businessReference: $reference,
-            metadata: [
-                'refund_request_id' => (int) $refund->id,
-                'desk_order_id' => $orderId,
-                'wallet_refund_flow' => 'desk_first',
-            ],
-        );
+        try {
+            $entry = $this->ledger->appendEntry(
+                centralWalletId: $centralWalletId,
+                entryType: LedgerEntryType::Credit,
+                amount: $amount,
+                sourceSystem: $sourceSystem,
+                correlationId: $correlationId,
+                sourceReference: RefundMigrationIdempotencyKey::ledgerSourceReference((int) $refund->id),
+                businessReference: $reference,
+                metadata: [
+                    'refund_request_id' => (int) $refund->id,
+                    'desk_order_id' => $orderId,
+                    'wallet_refund_flow' => 'desk_first',
+                ],
+            );
+        } catch (UniqueConstraintViolationException) {
+            $raced = $this->findExistingCredit($refund, $reference);
+            if ($raced === null) {
+                throw new InvalidArgumentException('refund_ledger_credit_race_unresolved');
+            }
+
+            $existingAmount = WalletMoney::normalize($raced->amount) ?? (string) $raced->amount;
+            if (bccomp($existingAmount, $amount, WalletMoney::SCALE) !== 0) {
+                throw new InvalidArgumentException('refund_ledger_credit_amount_mismatch');
+            }
+
+            return [
+                'ledger_entry_id' => (int) $raced->id,
+                'central_wallet_id' => $centralWalletId,
+                'wallet_reference' => $this->walletReference((int) $raced->id),
+                'available_balance' => $this->ledger->availableBalance($centralWalletId),
+                'idempotent_replay' => true,
+            ];
+        }
 
         return [
             'ledger_entry_id' => (int) $entry->id,
