@@ -15,7 +15,7 @@ final class CentralWalletSyntheticWalletProbe
     ) {}
 
     /**
-     * @param  array{configured: bool, base_url: string, token: string, site_code: string, local_user_id: string, email: string}  $config
+     * @param  array{configured: bool, base_url: string, host_header: string, token: string, site_code: string, local_user_id: string, email: string}  $config
      * @return array{status: string, checks: list<array<string, mixed>>}
      */
     public function probe(array $config): array
@@ -37,6 +37,7 @@ final class CentralWalletSyntheticWalletProbe
             siteCode: (string) $config['site_code'],
             localUserId: (string) $config['local_user_id'],
             email: (string) $config['email'],
+            hostHeader: (string) ($config['host_header'] ?? ''),
         ))['checks'];
 
         $checks[] = $this->probeAuthorizedFixture($config);
@@ -48,14 +49,18 @@ final class CentralWalletSyntheticWalletProbe
     }
 
     /**
-     * @param  array{base_url: string, token: string, site_code: string, local_user_id: string, email: string}  $config
+     * @param  array{base_url: string, host_header?: string, token: string, site_code: string, local_user_id: string, email: string}  $config
      * @return array<string, mixed>
      */
     private function probeAuthorizedFixture(array $config): array
     {
         $url = rtrim((string) $config['base_url'], '/').'/api/central-wallet/v1/wallet-visibility';
 
-        $response = Http::acceptJson()
+        $response = CentralWalletReleaseGateProbeHttpTransport::apply(
+            Http::acceptJson(),
+            (string) $config['base_url'],
+            (string) ($config['host_header'] ?? ''),
+        )
             ->withToken((string) $config['token'])
             ->withHeaders(['X-Site-Code' => (string) $config['site_code']])
             ->get($url, [

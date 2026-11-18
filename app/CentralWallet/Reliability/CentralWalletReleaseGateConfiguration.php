@@ -20,19 +20,24 @@ final class CentralWalletReleaseGateConfiguration
     }
 
     /**
-     * @return array{configured: bool, base_url: string, token: string, site_code: string, local_user_id: string, email: string}
+     * @return array{configured: bool, base_url: string, host_header: string, token: string, site_code: string, local_user_id: string, email: string}
      */
     public function syntheticProbe(): array
     {
         $baseUrl = rtrim(trim((string) config('central_wallet.release_gate.synthetic_probe.base_url', '')), '/');
+        $hostHeader = trim((string) config('central_wallet.release_gate.synthetic_probe.host_header', ''));
         $token = trim((string) config('central_wallet.release_gate.synthetic_probe.integration_token', ''));
         $siteCode = trim((string) config('central_wallet.release_gate.synthetic_probe.site_code', ''));
         $localUserId = trim((string) config('central_wallet.release_gate.synthetic_probe.local_user_id', ''));
         $email = trim((string) config('central_wallet.release_gate.synthetic_probe.email', ''));
 
+        $fieldsPresent = $baseUrl !== '' && $token !== '' && $siteCode !== '' && $localUserId !== '' && $email !== '';
+        $transportReady = CentralWalletReleaseGateProbeHttpTransport::transportReady($baseUrl, $hostHeader);
+
         return [
-            'configured' => $baseUrl !== '' && $token !== '' && $siteCode !== '' && $localUserId !== '' && $email !== '',
+            'configured' => $fieldsPresent && $transportReady,
             'base_url' => $baseUrl,
+            'host_header' => $hostHeader,
             'token' => $token,
             'site_code' => $siteCode,
             'local_user_id' => $localUserId,

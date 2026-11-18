@@ -49,11 +49,21 @@ Cross-project orchestration (run on each host after deploy):
 
 ```env
 CENTRAL_WALLET_RELEASE_GATE_PROBE_BASE_URL=https://desk.radiumbox.com
+CENTRAL_WALLET_RELEASE_GATE_PROBE_HOST_HEADER=
 CENTRAL_WALLET_RELEASE_GATE_PROBE_TOKEN=...
 CENTRAL_WALLET_RELEASE_GATE_PROBE_SITE_CODE=rdservice.in
 CENTRAL_WALLET_RELEASE_GATE_PROBE_LOCAL_USER_ID=...
 CENTRAL_WALLET_RELEASE_GATE_PROBE_EMAIL=...
 ```
+
+Loopback Desk routing (required before P-18-24 origin ACL):
+
+```env
+CENTRAL_WALLET_RELEASE_GATE_PROBE_BASE_URL=http://127.0.0.1
+CENTRAL_WALLET_RELEASE_GATE_PROBE_HOST_HEADER=desk.radiumbox.com
+```
+
+When the base URL is loopback, `CENTRAL_WALLET_RELEASE_GATE_PROBE_HOST_HEADER` is **required** (synthetic gate remains BLOCKED until set). Public `https://desk.radiumbox.com` probes do not need the host header (backward compatible).
 
 Optional account-link variance snapshot (SELECT-only):
 
