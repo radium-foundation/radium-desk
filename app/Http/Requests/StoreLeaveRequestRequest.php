@@ -6,7 +6,6 @@ use App\Enums\LeaveDuration;
 use App\Services\Operations\LeaveRequestService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Validator;
 
 class StoreLeaveRequestRequest extends FormRequest
 {
@@ -27,24 +26,16 @@ class StoreLeaveRequestRequest extends FormRequest
         return [
             'start_date' => ['required', 'date', 'after_or_equal:'.$earliestStartDate],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
-            'duration' => ['required', 'string', Rule::in(LeaveDuration::values())],
+            'duration' => ['sometimes', 'string', Rule::in([LeaveDuration::FullDay->value])],
             'reason' => ['required', 'string', 'max:2000'],
+            'manual_exception' => ['sometimes', 'boolean'],
         ];
     }
 
-    public function withValidator(Validator $validator): void
+    protected function prepareForValidation(): void
     {
-        $validator->after(function (Validator $validator): void {
-            if ($this->input('duration') !== LeaveDuration::HalfDay->value) {
-                return;
-            }
-
-            $start = (string) $this->input('start_date', '');
-            $end = (string) $this->input('end_date', '');
-
-            if ($start !== '' && $end !== '' && $start !== $end) {
-                $validator->errors()->add('duration', 'Half day leave must be for a single date.');
-            }
-        });
+        $this->merge([
+            'duration' => LeaveDuration::FullDay->value,
+        ]);
     }
 }

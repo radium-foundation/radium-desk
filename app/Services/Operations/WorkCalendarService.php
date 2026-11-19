@@ -178,8 +178,17 @@ class WorkCalendarService
         $leave = LeaveRequest::query()
             ->where('user_id', $user->id)
             ->where('status', LeaveRequestStatus::Approved)
-            ->whereDate('start_date', '<=', $dayKey)
-            ->whereDate('end_date', '>=', $dayKey)
+            ->where(function ($query) use ($dayKey): void {
+                $query->where(function ($q) use ($dayKey): void {
+                    $q->whereNotNull('policy_effective_start_date')
+                        ->whereDate('policy_effective_start_date', '<=', $dayKey)
+                        ->whereDate('policy_effective_end_date', '>=', $dayKey);
+                })->orWhere(function ($q) use ($dayKey): void {
+                    $q->whereNull('policy_effective_start_date')
+                        ->whereDate('start_date', '<=', $dayKey)
+                        ->whereDate('end_date', '>=', $dayKey);
+                });
+            })
             ->orderByDesc('id')
             ->first();
 

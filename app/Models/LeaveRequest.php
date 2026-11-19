@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\LeaveAmendmentStatus;
+use App\Enums\LeaveApprovalSource;
 use App\Enums\LeaveDuration;
 use App\Enums\LeavePayClass;
 use App\Enums\LeaveRequestStatus;
@@ -9,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 class LeaveRequest extends Model
 {
@@ -20,6 +23,18 @@ class LeaveRequest extends Model
         'duration',
         'pay_class',
         'status',
+        'approval_source',
+        'policy_phase',
+        'requires_manual_review',
+        'is_manual_exception',
+        'is_half_day_exception',
+        'authorized_override',
+        'authorized_override_by',
+        'authorized_override_reason',
+        'policy_effective_start_date',
+        'policy_effective_end_date',
+        'notice_calendar_days',
+        'policy_metadata',
         'reviewed_by',
         'reviewed_at',
         'review_notes',
@@ -33,8 +48,26 @@ class LeaveRequest extends Model
             'duration' => LeaveDuration::class,
             'pay_class' => LeavePayClass::class,
             'status' => LeaveRequestStatus::class,
+            'approval_source' => LeaveApprovalSource::class,
+            'requires_manual_review' => 'boolean',
+            'is_manual_exception' => 'boolean',
+            'is_half_day_exception' => 'boolean',
+            'authorized_override' => 'boolean',
+            'policy_effective_start_date' => 'date',
+            'policy_effective_end_date' => 'date',
+            'policy_metadata' => 'array',
             'reviewed_at' => 'datetime',
         ];
+    }
+
+    public function policyEffectiveStart(): Carbon
+    {
+        return ($this->policy_effective_start_date ?? $this->start_date)->copy()->startOfDay();
+    }
+
+    public function policyEffectiveEnd(): Carbon
+    {
+        return ($this->policy_effective_end_date ?? $this->end_date)->copy()->startOfDay();
     }
 
     public function isHalfDay(): bool
@@ -77,7 +110,7 @@ class LeaveRequest extends Model
     public function pendingAmendment(): HasOne
     {
         return $this->hasOne(LeaveRequestAmendment::class)
-            ->where('status', \App\Enums\LeaveAmendmentStatus::Pending->value)
+            ->where('status', LeaveAmendmentStatus::Pending->value)
             ->latestOfMany();
     }
 

@@ -137,6 +137,7 @@ class LeaveRequestController extends Controller
             leaveRequest: $leaveRequest,
             reviewer: $request->user(),
             reviewNotes: $request->validated('review_notes'),
+            approvalOptions: $request->only(['authorized_override', 'authorized_override_reason']),
         );
 
         return $this->redirectAfterReview($request, $leaveRequest, 'leave-request-approved');
