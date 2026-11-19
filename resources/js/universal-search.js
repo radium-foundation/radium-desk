@@ -26,7 +26,7 @@ const SEARCH_ROWS_ERROR = 'Unable to load matching service cases. Please try aga
 const INTAKE_FALLBACK_SELECTOR = '[data-dashboard-search-intake-fallback]';
 const HISTORICAL_FALLBACK_SELECTOR = '[data-dashboard-search-historical-fallback]';
 const SEARCH_RESULT_ACTIONS_SELECTOR = '[data-dashboard-search-result-actions]';
-const SEARCH_ORDER_HISTORY_SELECTOR = '[data-dashboard-search-order-history-panel]';
+const SEARCH_ORDER_HISTORY_PANEL_SELECTOR = '[data-dashboard-search-order-history-panel]';
 
 const prefillIntakeSearchFields = (form, parsedQuery = {}, query = '') => {
     const phoneField = form.querySelector('#intake_phone');
@@ -228,22 +228,18 @@ const reopenServiceCaseFromSearch = async (
 
 const buildSearchResultActionItemHtml = (result) => {
     const actions = result.actions ?? {};
+    const caseLabel = result.service_case ?? actions.display_reference ?? 'Service case';
     const reopenButton = actions.can_reopen
         ? '<button type="button" class="btn btn-outline-secondary" data-search-reopen-case>Reopen</button>'
         : '';
 
     return `
         <div class="dashboard-search-result-action list-group-item px-0 py-2 border-0 border-bottom"
-             data-search-result-action>
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                <div class="small min-w-0">
-                    <span class="fw-semibold">${result.service_case ?? actions.display_reference ?? '—'}</span>
-                    <span class="text-muted">
-                        · ${result.order_id ?? '—'}
-                        · ${result.status ?? actions.status_label ?? '—'}
-                    </span>
-                </div>
-                <div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="Service case actions">
+             data-search-result-action
+             data-search-result-incident-id="${actions.incident_id ?? result.incident_id ?? ''}">
+            <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
+                <span class="visually-hidden">${caseLabel}</span>
+                <div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="${caseLabel} actions">
                     <button type="button"
                             class="btn btn-outline-primary"
                             data-search-open-customer-360>
@@ -419,34 +415,8 @@ export const initUniversalSearch = ({
         card?.querySelector(SEARCH_RESULT_ACTIONS_SELECTOR)?.remove();
     };
 
-    const hideSearchOrderHistory = (card) => {
-        card?.querySelector(SEARCH_ORDER_HISTORY_SELECTOR)?.remove();
-    };
-
-    const showSearchOrderHistory = (card, orderHistory) => {
-        hideSearchOrderHistory(card);
-
-        const banner = card?.querySelector('[data-dashboard-search-banner]');
-
-        if (!banner || !orderHistory) {
-            return;
-        }
-
-        const panel = document.createElement('div');
-        panel.className = 'dashboard-search-order-history border-top px-3 py-2';
-        panel.dataset.dashboardSearchOrderHistoryPanel = '';
-        panel.innerHTML = '<div data-dashboard-search-order-history></div>';
-
-        renderIntakeOrderHistory(
-            panel.querySelector('[data-dashboard-search-order-history]'),
-            orderHistory,
-        );
-
-        if (panel.querySelector('[data-dashboard-search-order-history]')?.innerHTML?.trim() === '') {
-            return;
-        }
-
-        banner.appendChild(panel);
+    const hideSearchOrderHistoryPanel = (card) => {
+        card?.querySelector(SEARCH_ORDER_HISTORY_PANEL_SELECTOR)?.remove();
     };
 
     const showSearchResultActions = (card, results) => {
@@ -631,7 +601,6 @@ export const initUniversalSearch = ({
         }
 
         showSearchResultActions(card, results);
-        showSearchOrderHistory(card, orderHistory);
 
         return true;
     };
@@ -641,7 +610,7 @@ export const initUniversalSearch = ({
         hideIntakeFallback(getDashboardCard());
         hideHistoricalFallback(getDashboardCard());
         hideSearchResultActions(getDashboardCard());
-        hideSearchOrderHistory(getDashboardCard());
+        hideSearchOrderHistoryPanel(getDashboardCard());
         hideSearchBanner(getDashboardCard());
         clearSearchMatchHighlight(getDashboardCard());
         dashboardIntegration?.closeDrawer?.();
@@ -740,7 +709,7 @@ export const initUniversalSearch = ({
             hideIntakeFallback(card);
             hideHistoricalFallback(card);
             hideSearchResultActions(card);
-            hideSearchOrderHistory(card);
+            hideSearchOrderHistoryPanel(card);
             showSearchBanner(card, { matchCount, query: trimmedQuery });
 
             await applySearchRows(

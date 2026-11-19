@@ -76,6 +76,9 @@
                     :order="$order"
                     :incident="$serviceCase"
                     :href="route('orders.show', $order)"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    data-bs-title="{{ $order->order_id }}"
                 />
                 @if(filled($hardwareFulfilmentUrl))
                     <a href="{{ $hardwareFulfilmentUrl }}"
