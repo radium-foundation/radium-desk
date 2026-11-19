@@ -69,6 +69,8 @@ class StatutoryInvoiceService
         private readonly ServiceStatutoryAutoIssuancePolicy $autoIssuancePolicy,
         private readonly RadiumBoxStatutoryReceiptPublicationOutboxWriter $radiumBoxStatutoryReceiptPublicationOutbox,
         private readonly StatutoryBillingAddressComposer $billingAddressComposer,
+        private readonly CommerceOrderBillToResolver $commerceBillTo,
+        private readonly CommerceBuyerGstMintGate $commerceBuyerGstMintGate,
     ) {}
 
     public function findBySource(
@@ -372,7 +374,14 @@ class StatutoryInvoiceService
 
         $this->mintCommercialAt = $this->eligibility->commercialDate($order);
         $gstDecision = $this->serviceGstIssuanceDecision($order, $resolvedHsns);
+        if ($gstDecision->requiresGstReview) {
+            throw ValidationException::withMessages([
+                'commerce_order' => $gstDecision->reviewNote() ?? 'Buyer GST details require GST review.',
+            ]);
+        }
+
         $buyerGstinForMint = $gstDecision->buyerGstinForMint;
+        $billTo = $this->commerceBillTo->resolveForMint($order);
 
         try {
             $invoice = $this->mint(new StatutoryInvoiceMintRequest(
@@ -386,7 +395,7 @@ class StatutoryInvoiceService
                 buyerName: $order->customer_name,
                 buyerPhone: $order->customer_phone,
                 buyerGstin: $buyerGstinForMint,
-                billingAddress: $order->billing_address,
+                billingAddress: $billTo['flat'],
                 placeOfSupplyState: $order->place_of_supply_state,
                 discount: (float) ($order->discount ?? 0),
                 paymentMethod: $order->payment_method,
@@ -403,7 +412,7 @@ class StatutoryInvoiceService
                     : null,
                 radiumboxServicePublishSellingGst: $order->channel === StatutoryInvoiceChannel::RadiumBoxCom
                     && BusinessOrderId::isRadiumBoxService($order->source_id),
-                billingAddressStructured: StatutoryBillingStructured::fromStored($order->billing_address_structured),
+                billingAddressStructured: StatutoryBillingStructured::fromStored($billTo['structured']),
             ), $actor);
         } finally {
             $this->mintCommercialAt = null;
@@ -1061,21 +1070,23 @@ class StatutoryInvoiceService
             return;
         }
 
-        $blocked = [];
+        $blocked = $this->commerceBuyerGstMintGate->blockingReasonsForMintRequest($request);
         $pos = $this->placeOfSupply->resolveForMint($request);
         if (! $pos->isResolvable()) {
             $blocked[] = 'place_of_supply_unresolved';
         }
 
-        $structured = StatutoryBillingStructured::fromStored($request->billingAddressStructured);
-        $billingStateCode = $structured !== null
-            ? GstStateCodes::codeForName((string) ($structured['state'] ?? ''))
-            : null;
-        $gstinStateCode = BuyerGstin::stateCode($buyerGstin);
-        if ($gstinStateCode !== null
-            && $billingStateCode !== null
-            && $gstinStateCode !== $billingStateCode) {
-            $blocked[] = 'buyer_pin_gstin_state_mismatch';
+        if (! config('statutory_invoices.buyer_gstin_verification.enabled', false)) {
+            $structured = StatutoryBillingStructured::fromStored($request->billingAddressStructured);
+            $billingStateCode = $structured !== null
+                ? GstStateCodes::codeForName((string) ($structured['state'] ?? ''))
+                : null;
+            $gstinStateCode = BuyerGstin::stateCode($buyerGstin);
+            if ($gstinStateCode !== null
+                && $billingStateCode !== null
+                && $gstinStateCode !== $billingStateCode) {
+                $blocked[] = 'buyer_pin_gstin_state_mismatch';
+            }
         }
 
         foreach ($request->lines as $line) {

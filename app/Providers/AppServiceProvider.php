@@ -7,6 +7,7 @@ use App\Contracts\Customer360\CaseIntelligenceLanguageEnhancer;
 use App\Contracts\HardwareFulfilment\BoxFulfilmentCallbackGateway;
 use App\Contracts\Operations\IraReasoningProvider;
 use App\Contracts\Shipping\ShiprocketGateway;
+use App\Contracts\StatutoryInvoice\BuyerGstinVerificationGateway;
 use App\Contracts\StatutoryInvoice\EInvoiceGateway;
 use App\Contracts\Workforce\CalendarPolicy;
 use App\Contracts\Workforce\ContributionPolicy;
@@ -99,7 +100,9 @@ use App\Services\ServiceCaseAutomationStatusService;
 use App\Services\SettingService;
 use App\Services\Shipping\HttpShiprocketGateway;
 use App\Services\Shipping\NullShiprocketGateway;
+use App\Services\StatutoryInvoice\NullBuyerGstinVerificationGateway;
 use App\Services\StatutoryInvoice\NullEInvoiceGateway;
+use App\Services\StatutoryInvoice\Whitebooks\WhitebooksBuyerGstinVerificationGateway;
 use App\Services\StatutoryInvoice\Whitebooks\WhitebooksEInvoiceGateway;
 use App\Services\SupportContactConfiguration;
 use App\Services\SupportContactResolver;
@@ -335,6 +338,14 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return $app->make(NullEInvoiceGateway::class);
+        });
+        $this->app->bind(BuyerGstinVerificationGateway::class, function ($app) {
+            $provider = config('statutory_invoices.buyer_gstin_verification.provider', 'none');
+            if ($provider === 'whitebooks') {
+                return $app->make(WhitebooksBuyerGstinVerificationGateway::class);
+            }
+
+            return $app->make(NullBuyerGstinVerificationGateway::class);
         });
         $this->app->bind(ShiprocketGateway::class, function ($app) {
             if ($this->shouldBindHttpShiprocket()) {
