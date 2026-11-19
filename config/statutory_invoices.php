@@ -130,6 +130,17 @@ return [
         'provider' => env('STATUTORY_BUYER_GSTIN_VERIFICATION_PROVIDER', 'whitebooks'),
     ],
 
+    /*
+    | POS retail customer shipping (header shipping_amount on statutory invoices).
+    | When STATUTORY_POS_RETAIL_SHIPPING_HSN_SAC is empty, shipping incidental to the
+    | goods supply uses the HSN/SAC of the highest-rate product line (goods tax treatment).
+    */
+    'pos_retail_shipping' => [
+        'hsn_sac' => $statutoryEnv('STATUTORY_POS_RETAIL_SHIPPING_HSN_SAC'),
+        'description' => $statutoryEnv('STATUTORY_POS_RETAIL_SHIPPING_DESCRIPTION', 'Shipping & Delivery Charges'),
+        'uqc' => $statutoryEnv('STATUTORY_POS_RETAIL_SHIPPING_UQC', 'NOS'),
+    ],
+
     'einvoice' => [
         'provider' => env('STATUTORY_EINVOICE_PROVIDER', 'none'),
         /*

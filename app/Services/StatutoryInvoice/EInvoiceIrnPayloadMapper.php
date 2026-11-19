@@ -12,6 +12,7 @@ use App\Models\StatutoryInvoiceItem;
 use App\Services\StatutoryInvoice\Data\EInvoiceIrnPayload;
 use App\Services\StatutoryInvoice\Data\PlaceOfSupplyResolution;
 use App\Support\Finance\GstStateCodes;
+use App\Support\Inventory\PosRetailShippingGst;
 use App\Support\StatutoryInvoice\StatutoryBillingStructured;
 
 /**
@@ -83,6 +84,9 @@ class EInvoiceIrnPayloadMapper
             $items[] = $mapped;
         }
 
+        [$items, $shippingGaps, $assessableTaxable] = $this->appendPosRetailShippingLine($invoice, $items);
+        $gaps = array_merge($gaps, $shippingGaps);
+
         $documentType = $invoice->document_type;
         $irpType = match ($documentType) {
             StatutoryInvoiceDocumentType::TaxInvoice => 'INV',
@@ -128,7 +132,7 @@ class EInvoiceIrnPayloadMapper
             buyer: $buyer['fields'],
             items: $items,
             values: [
-                'taxable_value' => $this->storedDecimal($invoice->taxable_value),
+                'taxable_value' => $this->storedDecimal($assessableTaxable),
                 'cgst' => $this->storedDecimal($invoice->cgst),
                 'sgst' => $this->storedDecimal($invoice->sgst),
                 'igst' => $this->storedDecimal($invoice->igst),
@@ -469,5 +473,88 @@ class EInvoiceIrnPayloadMapper
         }
 
         return number_format((float) $value, 2, '.', '');
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return array{0: list<array<string, mixed>>, 1: list<string>, 2: float}
+     */
+    private function appendPosRetailShippingLine(StatutoryInvoice $invoice, array $items): array
+    {
+        $assessable = (float) $invoice->taxable_value;
+        if (PosRetailShippingStatutoryLine::invoiceHasShippingLine($invoice)) {
+            $sum = 0.0;
+            foreach ($invoice->items as $item) {
+                $sum += (float) $item->taxable_value;
+            }
+
+            return [$items, [], round($sum, 2)];
+        }
+
+        if (! StatutoryInvoicePosShippingGstSnapshot::reconcilesHeaderOnlyShipping($invoice)) {
+            return [$items, [], $assessable];
+        }
+
+        $shipping = StatutoryInvoicePosShippingGstSnapshot::shippingAmount($invoice);
+        $invoice->loadMissing('items');
+        $maxRate = PosRetailShippingGst::maxLineGstRate(
+            $invoice->items->map(fn (StatutoryInvoiceItem $item) => (float) $item->gst_percentage)->all(),
+        );
+
+        $lineCgst = 0;
+        $lineSgst = 0;
+        $lineIgst = 0;
+        foreach ($invoice->items as $item) {
+            $lineCgst += IntraStateCgstSgstRules::moneyPaise((float) $item->cgst);
+            $lineSgst += IntraStateCgstSgstRules::moneyPaise((float) $item->sgst);
+            $lineIgst += IntraStateCgstSgstRules::moneyPaise((float) $item->igst);
+        }
+
+        $shipCgst = IntraStateCgstSgstRules::fromPaise(
+            IntraStateCgstSgstRules::moneyPaise((float) $invoice->cgst) - $lineCgst,
+        );
+        $shipSgst = IntraStateCgstSgstRules::fromPaise(
+            IntraStateCgstSgstRules::moneyPaise((float) $invoice->sgst) - $lineSgst,
+        );
+        $shipIgst = IntraStateCgstSgstRules::fromPaise(
+            IntraStateCgstSgstRules::moneyPaise((float) $invoice->igst) - $lineIgst,
+        );
+        $shipTax = round($shipCgst + $shipSgst + $shipIgst, 2);
+
+        $hsn = $this->nullable(config('statutory_invoices.pos_retail_shipping.hsn_sac'))
+            ?? PosRetailShippingStatutoryLine::incidentalHsnSacFromInvoiceItems($invoice);
+        $gaps = [];
+        if ($hsn === null) {
+            $gaps[] = 'missing_pos_shipping_hsn_sac';
+        }
+
+        $description = $this->nullable(config('statutory_invoices.pos_retail_shipping.description'))
+            ?? 'Shipping & Delivery Charges';
+        $uqcCode = $this->nullable(config('statutory_invoices.pos_retail_shipping.uqc')) ?? 'NOS';
+        $uqc = $this->uqc->resolveLineOrCatalog($uqcCode, null);
+
+        if ($uqc['gap'] !== null) {
+            $gaps[] = $uqc['gap'];
+        }
+
+        $items[] = [
+            'line_no' => count($items) + 1,
+            'sku' => null,
+            'description' => $description,
+            'hsn_sac' => $hsn,
+            'qty' => 1,
+            'unit' => $uqc['code'],
+            'is_servc' => 'N',
+            'unit_price' => $this->storedDecimal($shipping),
+            'taxable_value' => $this->storedDecimal($shipping),
+            'gst_percentage' => $this->storedDecimal($maxRate),
+            'cgst' => $this->storedDecimal($shipCgst),
+            'sgst' => $this->storedDecimal($shipSgst),
+            'igst' => $this->storedDecimal($shipIgst),
+            'tax_total' => $this->storedDecimal($shipTax),
+            'line_total' => $this->storedDecimal(round($shipping + $shipTax, 2)),
+        ];
+
+        return [$items, $gaps, round($assessable + $shipping, 2)];
     }
 }
