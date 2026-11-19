@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.98 — 2026-11-19 — Shiprocket AWB/label state sync (P-19-22 / P-19-25)
+
+- **Purpose:** Separate AWB-bound **Generate Label** from pre-AWB **Ship & Generate Label**; persist read-only provider track after AWB assign; surface and gate **Pickup Error** (status id 13) without Desk pickup API calls.
+- **Application delta:** `HardwareShipmentEligibility`, `HardwareFulfilmentOperationalClassifier`, `HardwareShipmentOrchestrationService`, `HardwareShipmentService`, `HardwareShipmentDocumentsService`, `ShiprocketTrackingNormalizer`.
+- **Migrations:** **None**.
+- **Evidence:** Focused PHPUnit **10/10 PASS** (tracking, classifier, orchestration, P5 AWB/track/pickup gate). Full PHPUnit **NOT RUN**. PR **#354**.
+- **Deploy gate:** Owner PRE-RIP + production deploy **NOT AUTHORIZED** in P-19-25 (stop before deploy).
+
 ## 4.1.97 — 2026-11-19 — Leave policy concurrency + amendment regressions (P-19-19)
 
 - **Purpose:** Close MariaDB concurrency gaps on leave approval (coverage group locks, `READ COMMITTED` on approve/amendment transactions, approve-time peer-pending exclusion); portable MySQL/MariaDB regression harness; amendment coverage/idempotency tests.

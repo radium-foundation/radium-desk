@@ -105,7 +105,7 @@ class HardwareShipmentOrchestrationService
         $fulfilment = $this->preparePrerequisites($fulfilment, $actor);
         $ready = $this->eligibility->inspect($fulfilment);
 
-        if (! $ready->canShipAndGenerateLabel) {
+        if (! $ready->canShipAndGenerateLabel && ! $ready->canGenerateLabel) {
             if ($ready->canConfirmRecommendedCourier) {
                 throw ValidationException::withMessages([
                     'courier_id' => 'Confirm the recommended courier before shipping and generating the label.',

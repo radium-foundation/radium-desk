@@ -122,6 +122,8 @@ final class FakeShiprocketGateway implements ShiprocketGateway
 
     public ?string $nextPickupMode = null;
 
+    public ?string $nextTrackMode = null;
+
     /**
      * @var list<ShiprocketTrackResult|null>
      */
@@ -483,6 +485,14 @@ final class FakeShiprocketGateway implements ShiprocketGateway
     public function trackByAwb(string $awb): ShiprocketTrackResult
     {
         $this->tracks++;
+        if ($this->nextTrackMode === 'non_retryable') {
+            $this->nextTrackMode = null;
+            throw new ShiprocketNonRetryableException('Shiprocket track rejected.');
+        }
+        if ($this->nextTrackMode === 'retryable') {
+            $this->nextTrackMode = null;
+            throw new ShiprocketRetryableException('Shiprocket track is retryable.');
+        }
         if ($this->trackByAwbQueue !== []) {
             $next = array_shift($this->trackByAwbQueue);
             if ($next !== null) {
@@ -497,6 +507,24 @@ final class FakeShiprocketGateway implements ShiprocketGateway
             $awb,
             (string) ($row['courier_id'] ?? '12'),
             (string) ($row['courier_name'] ?? 'Fake Courier'),
+        );
+    }
+
+    public static function pickupErrorTrack(string $awb, string $courierId = '12', string $courierName = 'Fake Courier'): ShiprocketTrackResult
+    {
+        return new ShiprocketTrackResult(
+            provider: 'shiprocket',
+            status: '13',
+            activities: [[
+                'awb' => $awb,
+                'current_status' => 'Pickup Error',
+                'current_status_id' => 13,
+                'courier_company_id' => (int) $courierId,
+                'courier_name' => $courierName,
+            ]],
+            awb: $awb,
+            courierId: $courierId,
+            courierName: $courierName,
         );
     }
 

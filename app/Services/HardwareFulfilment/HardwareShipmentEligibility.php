@@ -456,10 +456,7 @@ class HardwareShipmentEligibility
         $orchestrationAutoSelectEnabled = (bool) config('shipping.auto_select_recommended_courier', false);
         $canResumeShipAndLabel = $notTerminal
             && $this->providerReady()
-            && (
-                ($alreadyCreated && ! filled($shipment?->awb))
-                || ($awbReady && $labelUrl === null)
-            );
+            && ($alreadyCreated && ! filled($shipment?->awb));
         $canShipAndGenerateLabel = $notTerminal
             && $this->providerReady()
             && $parcelReadyForOrchestration
@@ -468,6 +465,18 @@ class HardwareShipmentEligibility
                 || ($needsReconcile && $localReady)
                 || ($localReady && $validSelection && ! $needsReconcile)
             );
+
+        $providerPickupError = ShiprocketTrackingNormalizer::isPickupErrorLabel(
+            filled($shipment?->provider_track_status) ? (string) $shipment->provider_track_status : null,
+        );
+
+        if ($awbReady && $providerPickupError) {
+            $blockers = $this->prependUnique(
+                $blockers,
+                'Shiprocket reports Pickup Error on provider track. Resolve with Shiprocket before requesting Desk pickup.',
+            );
+        }
+
         $recommendedOption = ($optionsFresh && $courierOptions !== [])
             ? app(HardwareShipmentCourierSelector::class)->choose(
                 $courierOptions,
@@ -543,7 +552,7 @@ class HardwareShipmentEligibility
             quantity: $order !== null ? $this->requiredPhysicalQty($order) : null,
             invoiceId: $invoice?->id,
             canGenerateLabel: $awbReady && $labelUrl === null && $notTerminal,
-            canRequestPickup: $awbReady && ! $pickupRequested && $notTerminal,
+            canRequestPickup: $awbReady && ! $pickupRequested && ! $providerPickupError && $notTerminal,
             canGenerateManifest: $awbReady && $pickupRequested && $manifestUrl === null && $manifestId === null && $notTerminal,
             canUploadPackageBeforeLabel: false,
             canUploadPackageLabelApplied: false,

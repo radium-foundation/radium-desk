@@ -13,6 +13,7 @@ use App\Models\Order;
 use App\Services\HardwareFulfilment\HardwareFulfilmentEligibility;
 use App\Services\HardwareFulfilment\HardwarePhysicalStockCommitment;
 use App\Services\HardwareFulfilment\HardwareSkuMapService;
+use App\Services\Shipping\ShiprocketTrackingNormalizer;
 use App\Services\StatutoryInvoice\BuyerGstin;
 use App\Support\HardwareFulfilment\HardwareFulfilmentActivityTimestamps;
 
@@ -361,11 +362,19 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         if ($ready->labelUrl === null) {
-            if ($ready->canShipAndGenerateLabel) {
-                return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Ship & Generate Label', 'hardware-ship-and-label', 'Label Pending'];
+            $labelStatus = ShiprocketTrackingNormalizer::isPickupErrorLabel($ready->providerTrackStatus)
+                ? 'Pickup Error'
+                : 'Label Pending';
+
+            if (filled($ready->awb)) {
+                return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Generate Label', 'hardware-label', $labelStatus];
             }
 
-            return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Generate Label', 'hardware-label', 'Label Pending'];
+            if ($ready->canShipAndGenerateLabel) {
+                return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Ship & Generate Label', 'hardware-ship-and-label', $labelStatus];
+            }
+
+            return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Generate Label', 'hardware-label', $labelStatus];
         }
 
         if ($ready->pickupStatus === 'Not requested') {
