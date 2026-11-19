@@ -30,7 +30,7 @@ return [
     | Triad: all three must not be on approved/pending leave on the same day.
     | Admin pair: Dileep and Avinash must not both be on leave the same day.
     |
-    | Abhinav and Kanchan emails are Owner-configured (not verified in repo).
+    | Owner-approved triad emails: see docs/P-19-17-coverage-configuration.md
     |
     */
     'coverage' => [
