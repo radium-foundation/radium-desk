@@ -7,6 +7,7 @@ use App\Enums\HardwareFulfilmentOperationalStage;
 use App\Enums\HardwareFulfilmentState;
 use App\Enums\HardwareOperationsSection;
 use App\Enums\ShiprocketTrackNormalized;
+use App\Services\Shipping\ShiprocketTrackingNormalizer;
 use App\Models\CommerceOrder;
 use App\Models\HardwareFulfilment;
 use App\Models\Order;
@@ -361,11 +362,19 @@ final class HardwareFulfilmentOperationalClassifier
         }
 
         if ($ready->labelUrl === null) {
-            if ($ready->canShipAndGenerateLabel) {
-                return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Ship & Generate Label', 'hardware-ship-and-label', 'Label Pending'];
+            $labelStatus = ShiprocketTrackingNormalizer::isPickupErrorLabel($ready->providerTrackStatus)
+                ? 'Pickup Error'
+                : 'Label Pending';
+
+            if (filled($ready->awb)) {
+                return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Generate Label', 'hardware-label', $labelStatus];
             }
 
-            return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Generate Label', 'hardware-label', 'Label Pending'];
+            if ($ready->canShipAndGenerateLabel) {
+                return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Ship & Generate Label', 'hardware-ship-and-label', $labelStatus];
+            }
+
+            return [HardwareFulfilmentOperationalStage::LabelPackingPending, 'Generate Label', 'hardware-label', $labelStatus];
         }
 
         if ($ready->pickupStatus === 'Not requested') {

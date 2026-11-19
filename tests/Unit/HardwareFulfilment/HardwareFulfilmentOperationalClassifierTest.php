@@ -422,6 +422,39 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
         $this->assertNotSame('Create Shipment', $row->nextAction);
     }
 
+    public function test_awb_assigned_without_label_offers_generate_label_not_ship_and_label(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971088', HardwareFulfilmentState::AwbAssigned);
+        $ready = $this->readiness([
+            'alreadyCreated' => true,
+            'canShipAndGenerateLabel' => true,
+            'canGenerateLabel' => true,
+            'awb' => 'SF4531928841SPF',
+            'labelUrl' => null,
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Generate Label', $row->nextAction);
+        $this->assertSame('hardware-label', $row->nextAnchor);
+        $this->assertSame('Label Pending', $row->statusLabel);
+    }
+
+    public function test_provider_pickup_error_surfaces_in_status_when_awb_assigned(): void
+    {
+        $fulfilment = $this->fulfilment('RDE971089', HardwareFulfilmentState::AwbAssigned);
+        $ready = $this->readiness([
+            'alreadyCreated' => true,
+            'canGenerateLabel' => true,
+            'awb' => 'SF4531928884SPF',
+            'labelUrl' => null,
+            'providerTrackStatus' => 'Pickup Error',
+        ]);
+        $row = app(HardwareFulfilmentOperationalClassifier::class)->fromFulfilment($fulfilment, $ready);
+
+        $this->assertSame('Generate Label', $row->nextAction);
+        $this->assertSame('Pickup Error', $row->statusLabel);
+    }
+
     public function test_authorized_recovered_commerce_offers_open_fulfilment_not_customer_360_review(): void
     {
         $sourceId = HardwareFulfilmentEligibility::FROZEN_SOURCE_IDS[1];
@@ -636,8 +669,10 @@ class HardwareFulfilmentOperationalClassifierTest extends TestCase
             providerRejection: $overrides['providerRejection'] ?? null,
             canConfirmRecommendedCourier: (bool) ($overrides['canConfirmRecommendedCourier'] ?? false),
             canShipAndGenerateLabel: (bool) ($overrides['canShipAndGenerateLabel'] ?? false),
+            canGenerateLabel: (bool) ($overrides['canGenerateLabel'] ?? false),
             recommendedCourierLabel: $overrides['recommendedCourierLabel'] ?? null,
             orchestrationAutoSelectEnabled: (bool) ($overrides['orchestrationAutoSelectEnabled'] ?? false),
+            providerTrackStatus: $overrides['providerTrackStatus'] ?? null,
         );
     }
 

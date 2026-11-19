@@ -72,6 +72,40 @@ final class ShiprocketTrackingNormalizer
         return $normalized !== null && in_array($normalized, self::advancedPickupStates(), true);
     }
 
+    /** Production-verified Shiprocket status id for provider-side pickup failure (e.g. instant pickup). */
+    private const PICKUP_ERROR_STATUS_IDS = [13];
+
+    public static function pickupErrorOnTrack(ShiprocketTrackResult $result): bool
+    {
+        $activity = self::firstActivity($result);
+        $activityStatusId = isset($activity['current_status_id']) && is_numeric($activity['current_status_id'])
+            ? (int) $activity['current_status_id']
+            : null;
+
+        if ($activityStatusId !== null && in_array($activityStatusId, self::PICKUP_ERROR_STATUS_IDS, true)) {
+            return true;
+        }
+
+        $rawStatus = trim($result->status);
+        if ($rawStatus !== '' && ctype_digit($rawStatus) && in_array((int) $rawStatus, self::PICKUP_ERROR_STATUS_IDS, true)) {
+            return true;
+        }
+
+        $label = trim((string) ($activity['current_status'] ?? ''));
+        if ($label === '' && ! is_numeric($rawStatus)) {
+            $label = $rawStatus;
+        }
+
+        return self::isPickupErrorLabel($label);
+    }
+
+    public static function isPickupErrorLabel(?string $providerTrackStatus): bool
+    {
+        $haystack = strtolower(trim((string) $providerTrackStatus));
+
+        return $haystack !== '' && str_contains($haystack, 'pickup error');
+    }
+
     private static function normalizeLabel(string $label, string $rawStatus, ?int $activityStatusId): ShiprocketTrackNormalized
     {
         if ($activityStatusId !== null && in_array($activityStatusId, self::OUT_FOR_PICKUP_STATUS_IDS, true)) {

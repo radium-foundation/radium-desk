@@ -702,6 +702,27 @@ class HardwareShipmentService
         }
     }
 
+    private function persistProviderTrackAfterAwb(Shipment $shipment): void
+    {
+        $awb = trim((string) $shipment->awb);
+        if ($awb === '' || $this->gateway instanceof NullShiprocketGateway) {
+            return;
+        }
+
+        try {
+            $track = $this->gateway->trackByAwb($awb);
+        } catch (ShiprocketRetryableException|ShiprocketNonRetryableException) {
+            return;
+        }
+
+        $normalized = ShiprocketTrackingNormalizer::normalize($track);
+        $shipment->forceFill([
+            'provider_track_status' => $normalized['provider_track_status'],
+            'provider_track_normalized' => $normalized['normalized']->value,
+            'provider_tracked_at' => now(),
+        ])->save();
+    }
+
     private function bindAwbFromProviderSearch(
         HardwareFulfilment $fulfilment,
         Shipment $shipment,
@@ -836,6 +857,8 @@ class HardwareShipmentService
             'failure_class' => null,
             'last_error' => null,
         ])->save();
+
+        $this->persistProviderTrackAfterAwb($shipment);
 
         ShipmentEvent::query()->create([
             'shipment_id' => $shipment->id,

@@ -59,4 +59,26 @@ class ShiprocketTrackingNormalizerTest extends TestCase
             ShiprocketTrackingNormalizer::pickupAdvancedOnShipment(null, now())
         );
     }
+
+    public function test_status_id_13_and_pickup_error_label_are_detected(): void
+    {
+        $result = new ShiprocketTrackResult(
+            provider: 'shiprocket',
+            status: '13',
+            activities: [[
+                'current_status' => 'Pickup Error',
+                'current_status_id' => 13,
+            ]],
+            awb: 'SF4531928884SPF',
+        );
+
+        $this->assertTrue(ShiprocketTrackingNormalizer::pickupErrorOnTrack($result));
+        $this->assertTrue(ShiprocketTrackingNormalizer::isPickupErrorLabel('Pickup Error'));
+        $this->assertFalse(ShiprocketTrackingNormalizer::pickupAlreadyAdvanced($result));
+
+        $normalized = ShiprocketTrackingNormalizer::normalize($result);
+
+        $this->assertSame('Pickup Error', $normalized['provider_track_status']);
+        $this->assertSame(ShiprocketTrackNormalized::Unknown, $normalized['normalized']);
+    }
 }

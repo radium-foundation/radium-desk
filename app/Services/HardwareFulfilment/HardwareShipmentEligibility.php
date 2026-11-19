@@ -456,10 +456,7 @@ class HardwareShipmentEligibility
         $orchestrationAutoSelectEnabled = (bool) config('shipping.auto_select_recommended_courier', false);
         $canResumeShipAndLabel = $notTerminal
             && $this->providerReady()
-            && (
-                ($alreadyCreated && ! filled($shipment?->awb))
-                || ($awbReady && $labelUrl === null)
-            );
+            && ($alreadyCreated && ! filled($shipment?->awb));
         $canShipAndGenerateLabel = $notTerminal
             && $this->providerReady()
             && $parcelReadyForOrchestration
@@ -468,6 +465,18 @@ class HardwareShipmentEligibility
                 || ($needsReconcile && $localReady)
                 || ($localReady && $validSelection && ! $needsReconcile)
             );
+
+        if ($awbReady
+            && $labelUrl === null
+            && ShiprocketTrackingNormalizer::isPickupErrorLabel(
+                filled($shipment?->provider_track_status) ? (string) $shipment->provider_track_status : null,
+            )) {
+            $blockers = $this->prependUnique(
+                $blockers,
+                'Shiprocket reports Pickup Error on provider track. Resolve with Shiprocket before Desk pickup or relabel actions.',
+            );
+        }
+
         $recommendedOption = ($optionsFresh && $courierOptions !== [])
             ? app(HardwareShipmentCourierSelector::class)->choose(
                 $courierOptions,
