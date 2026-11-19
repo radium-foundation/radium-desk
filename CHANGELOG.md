@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.1.94 — 2026-11-19 — Dashboard search UI and exact order-ID lookup (P-19-07 / P-19-02)
+
+- **Purpose (P-19-07):** Remove the duplicate **Customer service order history** panel from dashboard global search results; keep intake and Quick Create order-history panels and the `/search` `order_history` payload unchanged. Simplify multi-hit search actions to Customer 360 / Reopen only. Improve service-case row readability (order-id contrast, truncation, tooltips, search-match highlight).
+- **Purpose (P-19-02):** For single-token business order identifiers, use indexed-friendly `order_id` equality and prefix matching in `UniversalSearchService` before broad `LIKE` filters; partial and multi-token searches unchanged.
+- **Application delta:** `resources/js/universal-search.js`, `resources/css/app.css`, `resources/views/dashboard/partials/service-case-row.blade.php`, `app/Services/UniversalSearchService.php`, focused JS/PHP tests.
+- **Migrations:** **None**.
+- **Production baseline:** **`v4.1.93`** / **`3ce24d840`** (P-18-82).
+- **Source:** **`main`** merges **#348** @ **`8d2356d71`** (P-19-02), **#349** @ **`b63d99c28`** (P-19-07); release metadata via P-19-09.
+- **Rollback:** Redeploy **`v4.1.93`** / **`3ce24d840`** or PRE-RIP from P-18-82 deploy (**`RIP-181126-2352-radium-desk-pre-p18-82-dashboard-2fdc7ab`**).
+- **Evidence:** Vitest `dashboard-global-search` **46/46**; intake search-flow errors **2/2**; focused `UniversalSearchServiceTest` **11/11** (P-19-02); `npm run build` **PASS**; PR **#348**/**#349** and `main` push CI **rip**/**release-rip** **SUCCESS** @ **`b63d99c28`**. Production search latency **NOT CLAIMED** (P-19-05). Full PHPUnit **NOT RUN**.
+- **Deploy gate:** Fresh PRE-RIP + Owner-authorized deploy (P-19-08); post-deploy smoke including authenticated dashboard search.
+
 ## 4.1.93 — 2026-11-18 — Dashboard drawer layout and stuck-order KPI (P-18-79 / P-18-76)
 
 - **Purpose (P-18-79 / P-18-76):** Customer 360° drawer no longer clips under the fixed topbar; hardware stuck-order KPI shell stays visible during live metric refresh; cold `stuck-summary` uses bounded lock wait instead of premature **503** on cache contention.
