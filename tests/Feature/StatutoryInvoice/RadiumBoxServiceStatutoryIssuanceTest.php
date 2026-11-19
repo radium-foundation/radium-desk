@@ -132,6 +132,24 @@ class RadiumBoxServiceStatutoryIssuanceTest extends TestCase
         $this->assertSame(1, $first->items()->count());
     }
 
+    public function test_rb1040_overlay_snapshot_when_service_commerce_block_is_absent(): void
+    {
+        Http::fake([
+            'radiumbox.test/api/integrations/v1/rd-orders/RB1040' => Http::response(
+                $this->rb1040LookupPayloadWithoutServiceCommerce(),
+            ),
+        ]);
+
+        $order = $this->deskOrder('RB1040');
+        $commerce = $this->snapshots->ensureForSupportOrder($order);
+
+        $this->assertSame('RB1040', $commerce->source_id);
+        $this->assertSame('Uttar Pradesh', $commerce->billing_state);
+        $this->assertSame(744.92, (float) $commerce->taxable_value);
+        $this->assertSame(134.08, (float) $commerce->tax_total);
+        $this->assertSame(879.0, (float) $commerce->order_value);
+    }
+
     public function test_missing_billing_state_fails_closed_before_commerce_snapshot(): void
     {
         Http::fake([
@@ -683,6 +701,43 @@ class RadiumBoxServiceStatutoryIssuanceTest extends TestCase
                     'catalog_hsn_sac' => '998314',
                     'service_description' => 'Information Technology (IT) Consulting & Support Services (SAC - 998313) - (Sr. No. 7675286) - 1 Year Unlimited',
                     'ordered_at' => '2026-09-17 15:56:31',
+                ],
+                'lines' => [],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rb1040LookupPayloadWithoutServiceCommerce(): array
+    {
+        return [
+            'status' => 200,
+            'message' => 'OK',
+            'data' => [
+                'correlation' => ['rdorderid' => 'RB1040'],
+                'snapshot' => [
+                    'customer_name' => 'Fixture Buyer',
+                    'address' => '12 Fixture Lane, Lucknow',
+                    'pincode' => '226001',
+                    'serial_number' => 'MFS110-SERIAL',
+                    'rd_service' => '3 Year Unlimited',
+                    'product' => 'MFS 110',
+                    'order_date' => '2026-10-01 12:00:00',
+                ],
+                'rd_order' => [
+                    'rdorderid' => 'RB1040',
+                    'state' => 'Uttar Pradesh',
+                    'district' => 'Lucknow',
+                    'amount' => 744.92,
+                    'tax_amount' => 134.08,
+                    'paid_amount' => 879,
+                    'product_name' => 'MFS 110',
+                    'rd_service_name' => '3 Year Unlimited',
+                    'serial_no' => 'MFS110-SERIAL',
+                    'duration' => '3 Year Unlimited',
+                    'created_at' => '2026-10-01 12:00:00',
                 ],
                 'lines' => [],
             ],

@@ -24,6 +24,7 @@ use App\Services\Shipping\ShiprocketTrackingNormalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class HardwareShipmentService
 {
@@ -711,16 +712,15 @@ class HardwareShipmentService
 
         try {
             $track = $this->gateway->trackByAwb($awb);
-        } catch (ShiprocketRetryableException|ShiprocketNonRetryableException) {
-            return;
+            $normalized = ShiprocketTrackingNormalizer::normalize($track);
+            $shipment->forceFill([
+                'provider_track_status' => $normalized['provider_track_status'],
+                'provider_track_normalized' => $normalized['normalized']->value,
+                'provider_tracked_at' => now(),
+            ])->save();
+        } catch (Throwable) {
+            // Best-effort read-only enrichment; never fail AWB binding.
         }
-
-        $normalized = ShiprocketTrackingNormalizer::normalize($track);
-        $shipment->forceFill([
-            'provider_track_status' => $normalized['provider_track_status'],
-            'provider_track_normalized' => $normalized['normalized']->value,
-            'provider_tracked_at' => now(),
-        ])->save();
     }
 
     private function bindAwbFromProviderSearch(

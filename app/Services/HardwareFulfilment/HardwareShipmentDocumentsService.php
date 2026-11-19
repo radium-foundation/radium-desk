@@ -77,6 +77,7 @@ class HardwareShipmentDocumentsService
             }
 
             $this->assertAwbReady($locked, $shipment);
+            $this->assertProviderPickupNotInError($shipment);
             $this->assertProviderCallable();
 
             $advanced = $this->applyProviderTrackPickupReconciliation($locked, $shipment, $actor);
@@ -157,6 +158,7 @@ class HardwareShipmentDocumentsService
             }
 
             $this->assertAwbReady($locked, $shipment);
+            $this->assertProviderPickupNotInError($shipment);
             $this->assertProviderCallable();
 
             $advanced = $this->applyProviderTrackPickupReconciliation($locked, $shipment, $actor);
@@ -349,6 +351,15 @@ class HardwareShipmentDocumentsService
         if (! filled($shipment->awb)) {
             throw ValidationException::withMessages([
                 'shipping' => 'This action requires a persisted provider AWB.',
+            ]);
+        }
+    }
+
+    private function assertProviderPickupNotInError(Shipment $shipment): void
+    {
+        if (ShiprocketTrackingNormalizer::isPickupErrorLabel($shipment->provider_track_status)) {
+            throw ValidationException::withMessages([
+                'shipping' => 'Shiprocket reports Pickup Error on provider track. Resolve with Shiprocket before requesting Desk pickup.',
             ]);
         }
     }

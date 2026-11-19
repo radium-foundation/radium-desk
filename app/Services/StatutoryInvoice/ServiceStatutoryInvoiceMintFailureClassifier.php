@@ -2,6 +2,7 @@
 
 namespace App\Services\StatutoryInvoice;
 
+use App\Services\RadiumBox\Exceptions\RadiumBoxInvalidResponseException;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
 use PDOException;
@@ -23,6 +24,13 @@ final class ServiceStatutoryInvoiceMintFailureClassifier
             );
         }
 
+        if ($this->isMissingServiceCommerceContract($exception)) {
+            return new ServiceStatutoryInvoiceTemporaryFailureException(
+                message: $exception->getMessage(),
+                classification: 'missing_service_commerce_upstream',
+            );
+        }
+
         if ($this->isTransient($exception)) {
             return new ServiceStatutoryInvoiceTemporaryFailureException(
                 message: $exception->getMessage(),
@@ -41,6 +49,15 @@ final class ServiceStatutoryInvoiceMintFailureClassifier
         $classified = $this->toRetryableException($exception);
 
         return $classified instanceof ServiceStatutoryInvoicePermanentFailureException;
+    }
+
+    private function isMissingServiceCommerceContract(Throwable $exception): bool
+    {
+        if (! $exception instanceof RadiumBoxInvalidResponseException) {
+            return false;
+        }
+
+        return str_contains(strtolower($exception->getMessage()), 'missing service_commerce');
     }
 
     private function isTransient(Throwable $exception): bool

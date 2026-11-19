@@ -27,6 +27,7 @@ use App\Services\HardwareFulfilment\HardwareFulfilmentInvoiceService;
 use App\Services\HardwareFulfilment\HardwareFulfilmentWorkflowService;
 use App\Services\HardwareFulfilment\HardwareSerialAllocationService;
 use App\Services\HardwareFulfilment\HardwareShipmentDocumentsService;
+use App\Services\HardwareFulfilment\HardwareShipmentEligibility;
 use App\Services\HardwareFulfilment\HardwareShipmentService;
 use App\Services\Inventory\InventoryStockService;
 use App\Services\Shipping\Data\ShiprocketSearchResult;
@@ -1343,5 +1344,64 @@ class HardwareFulfilmentP5ShipmentTest extends TestCase
         ], $body)->assertCreated();
 
         return HardwareFulfilment::query()->where('source_id', $sourceId)->firstOrFail();
+    }
+
+    public function test_awb_assignment_persists_read_only_provider_track_without_setting_pickup(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900901', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $this->fake->trackByAwbQueue = [
+            FakeShiprocketGateway::pickupErrorTrack('SF-TRACK-901'),
+        ];
+
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh());
+
+        $this->assertNotNull($assigned->awb);
+        $fresh = $assigned->fresh();
+        $this->assertSame('Pickup Error', $fresh->provider_track_status);
+        $this->assertSame('unknown', $fresh->provider_track_normalized);
+        $this->assertNotNull($fresh->provider_tracked_at);
+        $this->assertNull($fresh->pickup_requested_at);
+        $this->assertSame(1, $this->fake->tracks);
+    }
+
+    public function test_awb_assignment_succeeds_when_read_only_track_lookup_fails(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900902', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $this->fake->nextTrackMode = 'non_retryable';
+
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh());
+
+        $this->assertNotNull($assigned->fresh()->awb);
+        $this->assertNull($assigned->fresh()->provider_track_status);
+        $this->assertSame(1, $this->fake->awbs);
+        $this->assertSame(1, $this->fake->tracks);
+    }
+
+    public function test_pickup_request_is_blocked_when_provider_track_reports_pickup_error(): void
+    {
+        $fulfilment = $this->invoicedFulfilment('RDE900903', 'DELHI-RETAIL');
+        $this->shipments->createShipment($fulfilment);
+        $assigned = $this->shipments->assignAwb($fulfilment->fresh());
+        $assigned->forceFill([
+            'provider_track_status' => 'Pickup Error',
+            'provider_track_normalized' => 'unknown',
+        ])->save();
+        $fulfilment = $fulfilment->fresh(['shipment']);
+
+        $ready = app(HardwareShipmentEligibility::class)->inspect($fulfilment);
+        $this->assertTrue($ready->canGenerateLabel);
+        $this->assertFalse($ready->canRequestPickup);
+
+        $documents = app(HardwareShipmentDocumentsService::class);
+        try {
+            $documents->requestPickup($fulfilment, $this->actor);
+            $this->fail('Expected pickup request to be blocked.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('Pickup Error', implode(' ', $exception->errors()['shipping'] ?? []));
+        }
+
+        $this->assertSame(0, $this->fake->pickups);
     }
 }
