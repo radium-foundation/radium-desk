@@ -145,6 +145,57 @@ class Customer360StatutoryMintOutboxDiagnosticTest extends TestCase
             ->assertSee('no statutory mint outbox record exists', false);
     }
 
+    public function test_customer_360_rn387_blocked_issuance_shows_sanitized_failure_only(): void
+    {
+        [$incident, $order] = $this->serviceCase('RN387', 'SC75934');
+
+        OutboxEvent::query()->create([
+            'idempotency_key' => ServiceStatutoryInvoiceMintOutboxWriter::idempotencyKeyForOrder($order->id),
+            'event_type' => ServiceStatutoryInvoiceMintOutboxWriter::EVENT_TYPE,
+            'aggregate_type' => ServiceStatutoryInvoiceMintOutboxWriter::AGGREGATE_TYPE,
+            'aggregate_id' => $order->id,
+            'payload' => ['order_pk' => $order->id, 'order_id' => $order->order_id, 'trigger' => 'invoice_reconciliation'],
+            'status' => OutboxEventStatus::Failed,
+            'attempts' => 1,
+            'available_at' => now(),
+            'last_error' => 'Automatic statutory invoice issuance for RN387 (rdservice_net) is blocked: no linked commerce order.',
+        ]);
+
+        $this->actingAs($this->agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('linked commerce order', false)
+            ->assertDontSee('rdservice_net', false)
+            ->assertDontSee('Automatic statutory', false);
+    }
+
+    public function test_cross_customer_agent_cannot_access_statutory_mint_diagnostics(): void
+    {
+        [$incident, $order] = $this->serviceCase('RB1040-XC', 'SC-XC-01');
+
+        OutboxEvent::query()->create([
+            'idempotency_key' => ServiceStatutoryInvoiceMintOutboxWriter::idempotencyKeyForOrder($order->id),
+            'event_type' => ServiceStatutoryInvoiceMintOutboxWriter::EVENT_TYPE,
+            'aggregate_type' => ServiceStatutoryInvoiceMintOutboxWriter::AGGREGATE_TYPE,
+            'aggregate_id' => $order->id,
+            'payload' => ['order_pk' => $order->id, 'order_id' => $order->order_id, 'trigger' => 'invoice_retry'],
+            'status' => OutboxEventStatus::Failed,
+            'attempts' => 1,
+            'available_at' => now(),
+            'last_error' => 'missing service_commerce',
+        ]);
+
+        $unauthorized = User::factory()->create(['is_active' => true]);
+
+        $this->assertNull(
+            app(Customer360StatutoryMintOutboxPresenter::class)->forIncident($incident, $unauthorized),
+        );
+
+        $this->actingAs($unauthorized)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertForbidden();
+    }
+
     public function test_existing_statutory_invoice_hides_mint_outbox_block(): void
     {
         [$incident, $order] = $this->serviceCase('RD-P19-34-INV', 'SC-P19-34-INV');
