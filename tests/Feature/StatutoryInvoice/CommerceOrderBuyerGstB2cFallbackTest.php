@@ -3,11 +3,16 @@
 namespace Tests\Feature\StatutoryInvoice;
 
 use App\Enums\BuyerGstB2cConversionStatus;
+use App\Enums\BuyerGstVerificationStatus;
 use App\Enums\CommerceOrderStatus;
 use App\Enums\StatutoryInvoiceChannel;
+use App\Enums\StatutoryInvoiceDocumentType;
 use App\Enums\StatutoryInvoiceSourceType;
+use App\Enums\StatutoryInvoiceStatus;
 use App\Models\CommerceOrder;
+use App\Models\CommerceOrderBuyerGstB2cConversion;
 use App\Models\CommerceOrderBuyerGstVerification;
+use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\StatutoryInvoice\CommerceBuyerGstMintGate;
 use App\Services\StatutoryInvoice\CommerceOrderBuyerGstB2cConversionService;
@@ -194,6 +199,175 @@ class CommerceOrderBuyerGstB2cFallbackTest extends TestCase
 
         $reasons = app(CommerceBuyerGstMintGate::class)->blockingReasonsForMintRequest($request);
         $this->assertContains('B2B mint is blocked after authorized B2C conversion.', $reasons);
+    }
+
+    public function test_b2c_conversion_rejected_after_persisted_statutory_invoice_mint(): void
+    {
+        $order = $this->seedInactiveVerification('Suspended');
+        $verificationBefore = CommerceOrderBuyerGstVerification::query()->firstOrFail();
+        $verificationSnapshot = $verificationBefore->only([
+            'submitted_gstin',
+            'verification_status',
+            'registration_status',
+            'review_reason',
+            'provider_payload_hash',
+        ]);
+
+        $invoice = $this->persistedCommerceStatutoryInvoice($order, buyerGstin: '07AAICB5215F2ZX');
+        $invoiceSnapshot = $invoice->only(['buyer_gstin', 'source_id', 'status']);
+
+        $user = User::factory()->create();
+        try {
+            app(CommerceOrderBuyerGstB2cConversionService::class)->approve($order->fresh(), $user, 'Too late');
+            $this->fail('Expected conversion rejection after invoice mint.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString(
+                'Cannot approve B2C conversion after statutory invoice issuance.',
+                implode(' ', $exception->validator->errors()->all()),
+            );
+        }
+
+        $this->assertSame(0, CommerceOrderBuyerGstB2cConversion::query()->count());
+        $verificationAfter = CommerceOrderBuyerGstVerification::query()->firstOrFail();
+        $this->assertSame($verificationSnapshot, $verificationAfter->only(array_keys($verificationSnapshot)));
+
+        $freshInvoice = StatutoryInvoice::query()->findOrFail($invoice->id);
+        $this->assertSame($invoiceSnapshot['buyer_gstin'], $freshInvoice->buyer_gstin);
+        $this->assertSame($invoiceSnapshot['status'], $freshInvoice->status);
+    }
+
+    public function test_provisional_registration_stays_b2b_and_is_not_conversion_eligible(): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/public/search*' => Http::response([
+                'data' => [
+                    'gstin' => '07AAICB5215F2ZX',
+                    'lgnm' => 'Provisional Co',
+                    'sts' => 'Provisional',
+                    'pradr' => ['addr' => ['bno' => '1', 'dst' => 'Delhi', 'stcd' => 'Delhi', 'pncd' => '110001']],
+                ],
+            ], 200),
+        ]);
+
+        $order = $this->commerceOrder();
+        app(CommerceOrderBuyerGstVerificationService::class)->ensureSubmittedSnapshot($order);
+        $record = app(CommerceOrderBuyerGstVerificationService::class)->verifyAndPersist($order->fresh());
+        $this->assertSame(BuyerGstVerificationStatus::Verified, $record?->verification_status);
+
+        $decision = app(ServiceStatutoryGstB2bClassification::class)->resolveForServiceOrder($order->fresh());
+        $this->assertTrue($decision->issueAsB2b);
+        $this->assertFalse(BuyerGstB2cConversionPolicy::isEligibleForManualConversion($record));
+    }
+
+    public function test_malformed_provider_response_stays_in_review_without_auto_b2c(): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/public/search*' => Http::response('not-json', 200),
+        ]);
+
+        $order = $this->commerceOrder();
+        app(CommerceOrderBuyerGstVerificationService::class)->ensureSubmittedSnapshot($order);
+        $record = app(CommerceOrderBuyerGstVerificationService::class)->verifyAndPersist($order->fresh());
+        $this->assertSame('provider_malformed_response', $record?->review_reason);
+        $this->assertFalse(BuyerGstB2cConversionPolicy::isEligibleForManualConversion($record));
+
+        $decision = app(ServiceStatutoryGstB2bClassification::class)->resolveForServiceOrder($order->fresh());
+        $this->assertTrue($decision->requiresGstReview);
+        $this->assertNull($decision->b2cDowngradeCode);
+    }
+
+    public function test_provider_error_payload_stays_in_review_without_auto_b2c(): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/public/search*' => Http::response([
+                'error' => 'Invalid auth token',
+            ], 401),
+        ]);
+
+        $order = $this->commerceOrder();
+        app(CommerceOrderBuyerGstVerificationService::class)->ensureSubmittedSnapshot($order);
+        $record = app(CommerceOrderBuyerGstVerificationService::class)->verifyAndPersist($order->fresh());
+        $this->assertSame('provider_error', $record?->review_reason);
+        $this->assertFalse(BuyerGstB2cConversionPolicy::isEligibleForManualConversion($record));
+    }
+
+    public function test_invalid_gstin_response_eligible_only_with_explicit_approval(): void
+    {
+        Http::fake([
+            'https://api.whitebooks.in/public/search*' => Http::response([
+                'data' => [
+                    'gstin' => 'INVALID',
+                    'lgnm' => 'Bad',
+                    'sts' => 'Active',
+                    'pradr' => ['addr' => ['bno' => '1', 'dst' => 'Delhi', 'stcd' => 'Delhi', 'pncd' => '110001']],
+                ],
+            ], 200),
+        ]);
+
+        $order = $this->commerceOrder();
+        app(CommerceOrderBuyerGstVerificationService::class)->ensureSubmittedSnapshot($order);
+        $record = app(CommerceOrderBuyerGstVerificationService::class)->verifyAndPersist($order->fresh());
+        $this->assertSame('invalid_gstin_response', $record?->review_reason);
+        $this->assertTrue(BuyerGstB2cConversionPolicy::isEligibleForManualConversion($record));
+
+        $user = User::factory()->create();
+        $conversion = app(CommerceOrderBuyerGstB2cConversionService::class)->approve($order->fresh(), $user, 'CA approved invalid GSTIN B2C.');
+        $this->assertSame('07AAICB5215F2ZX', $conversion->submitted_gstin);
+    }
+
+    public function test_order_retains_submitted_gstin_after_authorized_conversion(): void
+    {
+        $order = $this->seedInactiveVerification('Cancelled');
+        $user = User::factory()->create();
+        app(CommerceOrderBuyerGstB2cConversionService::class)->approve($order->fresh(), $user, 'OK');
+
+        $this->assertSame('07AAICB5215F2ZX', $order->fresh()->buyer_gstin);
+    }
+
+    public function test_conversion_audit_records_approver_and_provider_hash(): void
+    {
+        $order = $this->seedInactiveVerification('Suspended');
+        $user = User::factory()->create(['name' => 'Finance Approver']);
+        $verification = CommerceOrderBuyerGstVerification::query()->firstOrFail();
+
+        $conversion = app(CommerceOrderBuyerGstB2cConversionService::class)->approve(
+            $order->fresh(),
+            $user,
+            'Documented CA authorization ref TEST-001',
+        );
+
+        $this->assertSame($user->id, $conversion->authorized_by);
+        $this->assertNotNull($conversion->authorized_at);
+        $this->assertSame($verification->id, $conversion->commerce_order_buyer_gst_verification_id);
+        $this->assertSame($verification->provider_payload_hash, $conversion->provider_payload_hash);
+        $this->assertSame('Documented CA authorization ref TEST-001', $conversion->decision_reason);
+    }
+
+    private function persistedCommerceStatutoryInvoice(CommerceOrder $order, ?string $buyerGstin): StatutoryInvoice
+    {
+        return StatutoryInvoice::query()->create([
+            'invoice_number' => 'INV-GST-B2C-'.bin2hex(random_bytes(3)),
+            'document_type' => StatutoryInvoiceDocumentType::TaxInvoice,
+            'status' => StatutoryInvoiceStatus::Issued,
+            'channel' => $order->channel,
+            'source_type' => StatutoryInvoiceSourceType::CommerceOrder->value,
+            'source_id' => $order->source_id,
+            'idempotency_key' => 'statutory:gst-b2c-post-mint:'.bin2hex(random_bytes(4)),
+            'seller_gstin' => '07AAICP1128M1Z9',
+            'seller_name' => 'Phil Technologies (P) Limited',
+            'buyer_name' => $order->customer_name,
+            'buyer_gstin' => $buyerGstin,
+            'billing_address' => 'Test billing',
+            'place_of_supply_state' => $order->place_of_supply_state,
+            'taxable_value' => 84.75,
+            'tax_total' => 15.25,
+            'cgst' => 0,
+            'sgst' => 0,
+            'igst' => 15.25,
+            'rounding' => 0,
+            'invoice_value' => 100,
+            'issued_at' => now(),
+        ]);
     }
 
     private function seedInactiveVerification(string $status): CommerceOrder
