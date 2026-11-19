@@ -1,0 +1,18 @@
+{
+  "data": {
+    "gstin": "07AAICB5215F2ZX",
+    "lgnm": "BIOVATEC INDIA PRIVATE LIMITED",
+    "sts": "Active",
+    "pradr": {
+      "addr": {
+        "bno": "1312",
+        "bnm": "Hemkunt Chambers",
+        "st": "Nehru Place",
+        "loc": "New Delhi",
+        "dst": "South Delhi",
+        "stcd": "Delhi",
+        "pncd": "110019"
+      }
+    }
+  }
+}

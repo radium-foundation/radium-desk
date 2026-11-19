@@ -12,6 +12,7 @@ use App\Models\InventoryBranch;
 use App\Models\StatutoryInvoice;
 use App\Models\User;
 use App\Services\StatutoryInvoice\BuyerGstin;
+use App\Services\StatutoryInvoice\CommerceOrderBillToResolver;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceLineDraft;
 use App\Services\StatutoryInvoice\Data\StatutoryInvoiceMintRequest;
 use App\Services\StatutoryInvoice\StatutoryDocumentService;
@@ -34,6 +35,7 @@ class HardwareFulfilmentInvoiceService
         private readonly StatutoryDocumentService $documents,
         private readonly StatutoryMintEligibility $eligibility,
         private readonly HardwareInclusiveGstReconciler $gst,
+        private readonly CommerceOrderBillToResolver $commerceBillTo,
     ) {}
 
     public function issueInvoice(HardwareFulfilment $fulfilment, ?User $actor = null): StatutoryInvoice
@@ -317,6 +319,7 @@ class HardwareFulfilmentInvoiceService
         }
 
         $commercialDate = $this->eligibility->commercialDate($order);
+        $billTo = $this->commerceBillTo->resolveForMint($order);
 
         return new StatutoryInvoiceMintRequest(
             channel: $order->channel,
@@ -329,7 +332,7 @@ class HardwareFulfilmentInvoiceService
             buyerName: $order->customer_name,
             buyerPhone: $order->customer_phone,
             buyerGstin: BuyerGstin::normalize($order->buyer_gstin),
-            billingAddress: $order->billing_address,
+            billingAddress: $billTo['flat'],
             placeOfSupplyState: $order->place_of_supply_state,
             discount: (float) ($order->discount ?? 0),
             paymentMethod: $order->payment_method,
@@ -341,7 +344,7 @@ class HardwareFulfilmentInvoiceService
                 ? StatutoryFinancialYear::containing($commercialDate)->token()
                 : null,
             inclusiveHardwareGst: true,
-            billingAddressStructured: StatutoryBillingStructured::fromStored($order->billing_address_structured),
+            billingAddressStructured: StatutoryBillingStructured::fromStored($billTo['structured']),
         );
     }
 
