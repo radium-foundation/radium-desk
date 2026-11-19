@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.99 — 2026-11-19 — Statutory service-mint outbox diagnostics (P-19-34)
+
+- **Purpose:** Read-only Customer 360 visibility for statutory service-invoice mint outbox state (`statutory-service-mint:order:{pk}`): failed / queued / in-progress / completed-without-invoice / missing record, with sanitized failure reasons.
+- **Application delta:** `Customer360StatutoryMintOutboxPresenter`, `ServiceStatutoryInvoiceMintOutboxErrorSanitizer`, Customer 360 statutory invoice partial; **no** retry/mint/IRN/outbox mutation controls.
+- **Migrations:** **None**.
+- **Evidence:** Focused PHPUnit **11/11 PASS** (`Customer360StatutoryMintOutboxDiagnosticTest`, sanitizer unit, C360 empty-invoice regression); PR **#357** CI **rip** + **release-rip** **PASS**. Full PHPUnit **NOT RUN**.
+- **Rollback target:** **v4.1.98** / **`0d72c5919`**.
+
 ## 4.1.98 — 2026-11-19 — Shiprocket AWB/label state sync (P-19-22 / P-19-25)
 
 - **Purpose:** Separate AWB-bound **Generate Label** from pre-AWB **Ship & Generate Label**; persist read-only provider track after AWB assign; surface and gate **Pickup Error** (status id 13) without Desk pickup API calls.
