@@ -82,6 +82,20 @@ final class EInvoiceStoredGstGuard
             $reasons[] = 'invoice_total_mismatch';
         }
 
+        if (PosRetailShippingStatutoryLine::persistedLinesReconcile($invoice)) {
+            $reasons = array_values(array_diff($reasons, [
+                'line_header_gst_mismatch',
+                'invoice_total_mismatch',
+                IntraStateCgstSgstRules::LINE_HEADER_GST_MISMATCH,
+            ]));
+        } elseif (StatutoryInvoicePosShippingGstSnapshot::reconcilesHeaderOnlyShipping($invoice)) {
+            $reasons = array_values(array_diff($reasons, [
+                'line_header_gst_mismatch',
+                'invoice_total_mismatch',
+                IntraStateCgstSgstRules::LINE_HEADER_GST_MISMATCH,
+            ]));
+        }
+
         return array_values(array_unique($reasons));
     }
 
