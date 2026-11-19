@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Incident;
 use App\Models\InteraktMessage;
 use App\Models\User;
+use App\Support\BusinessOrderId;
+use App\Support\StatutoryInvoice\StatutoryInvoiceNumber;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
@@ -34,16 +36,29 @@ class UniversalSearchService
             return collect();
         }
 
+        $exactOrderIdentifier = $this->resolveExactOrderIdentifierSearch($query, $tokens);
+
         $builder = Incident::query()
             ->with($this->searchEagerRelations());
 
         foreach ($tokens as $token) {
             $like = '%'.$token.'%';
+            $useExactOrderFilters = $exactOrderIdentifier !== null
+                && count($tokens) === 1
+                && strcasecmp($token, $exactOrderIdentifier) === 0;
 
-            $builder->where(function (Builder $incidentQuery) use ($token, $like): void {
+            $builder->where(function (Builder $incidentQuery) use ($token, $like, $exactOrderIdentifier, $useExactOrderFilters): void {
                 $incidentQuery->where(function (Builder $referenceQuery) use ($token): void {
                     $referenceQuery->matchingReference($token);
-                })->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like))
+                })->orWhereHas('order', function (Builder $orderQuery) use ($like, $exactOrderIdentifier, $useExactOrderFilters): void {
+                    if ($useExactOrderFilters && $exactOrderIdentifier !== null) {
+                        $this->applyOrderSearchFiltersForExactOrderIdentifier($orderQuery, $exactOrderIdentifier);
+
+                        return;
+                    }
+
+                    $this->applyOrderSearchFilters($orderQuery, $like);
+                })
                     ->orWhereHas('closeExceptions', fn (Builder $exceptionQuery) => $exceptionQuery
                         ->where('exception_id', 'like', $like));
 
@@ -231,5 +246,99 @@ class UniversalSearchService
                 $builder->whereRaw('0 = 1');
             }
         });
+    }
+
+    /**
+     * Indexed-friendly order filters for a single-token exact business order identifier
+     * (equality + prefix on order_id; contains on other enabled fields).
+     */
+    private function applyOrderSearchFiltersForExactOrderIdentifier(Builder $orderQuery, string $canonicalOrderId): void
+    {
+        $containsLike = '%'.$canonicalOrderId.'%';
+        $prefixLike = $canonicalOrderId.'%';
+
+        $orderQuery->where(function (Builder $builder) use ($canonicalOrderId, $containsLike, $prefixLike): void {
+            $applied = false;
+
+            if ($this->settingService->getBool('search.order_id_enabled', true)) {
+                $builder->where(function (Builder $orderIdQuery) use ($canonicalOrderId, $prefixLike): void {
+                    $orderIdQuery->where('order_id', $canonicalOrderId)
+                        ->orWhere('order_id', 'like', $prefixLike);
+                });
+                $applied = true;
+            }
+
+            if ($this->settingService->getBool('search.mobile_enabled', true)) {
+                $applied ? $builder->orWhere('customer_phone', 'like', $containsLike) : $builder->where('customer_phone', 'like', $containsLike);
+                $applied = true;
+            }
+
+            if ($this->settingService->getBool('search.serial_number_enabled', true)) {
+                $applied ? $builder->orWhere('serial_number', 'like', $containsLike) : $builder->where('serial_number', 'like', $containsLike);
+                $applied = true;
+            }
+
+            if ($this->settingService->getBool('search.transaction_id_enabled', true)) {
+                $applied ? $builder->orWhere('transaction_id', 'like', $containsLike) : $builder->where('transaction_id', 'like', $containsLike);
+                $applied = true;
+            }
+
+            if ($this->settingService->getBool('search.customer_name_enabled', true)) {
+                $applied ? $builder->orWhere('customer_name', 'like', $containsLike) : $builder->where('customer_name', 'like', $containsLike);
+                $applied = true;
+            }
+
+            if ($this->settingService->getBool('search.email_enabled', true)) {
+                $applied ? $builder->orWhere('customer_email', 'like', $containsLike) : $builder->where('customer_email', 'like', $containsLike);
+                $applied = true;
+            }
+
+            $applied ? $builder->orWhere('device_model', 'like', $containsLike) : $builder->where('device_model', 'like', $containsLike);
+            $applied = true;
+
+            $builder->orWhere('product_name', 'like', $containsLike);
+            $builder->orWhereHas('deviceModel', fn (Builder $deviceModelQuery) => $deviceModelQuery
+                ->where('name', 'like', $containsLike));
+
+            if (! $applied) {
+                $builder->whereRaw('0 = 1');
+            }
+        });
+    }
+
+    /**
+     * @param  list<string>  $tokens
+     */
+    private function resolveExactOrderIdentifierSearch(string $query, array $tokens): ?string
+    {
+        if (count($tokens) !== 1) {
+            return null;
+        }
+
+        if (StatutoryInvoiceNumber::looksLike($query)) {
+            return null;
+        }
+
+        $normalized = strtoupper(trim($query));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $parsed = BusinessOrderId::parse($normalized);
+
+        if ($parsed !== null) {
+            return $parsed['id'];
+        }
+
+        if (preg_match('/^(RD|RDE|CF|INQ|ORD)[A-Z0-9\-]+$/', $normalized) === 1) {
+            return $normalized;
+        }
+
+        if (preg_match('/^RD\d/', $normalized) === 1) {
+            return $normalized;
+        }
+
+        return null;
     }
 }

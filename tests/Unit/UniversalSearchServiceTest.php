@@ -11,6 +11,7 @@ use App\Services\IncidentReferenceService;
 use App\Services\UniversalSearchService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class UniversalSearchServiceTest extends TestCase
@@ -155,5 +156,145 @@ class UniversalSearchServiceTest extends TestCase
 
         $fmTwentyTwoResults = $service->search($user, 'fm 22')->pluck('id')->all();
         $this->assertSame([$fm220->id], $fmTwentyTwoResults);
+    }
+
+    public function test_exact_order_identifier_fast_path_finds_exact_order_case(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createServiceCase($user, [
+            'order_id' => 'RD3437143',
+        ], [
+            'status' => IncidentStatus::Closed,
+        ]);
+
+        $results = app(UniversalSearchService::class)->search($user, 'RD3437143');
+
+        $this->assertSame([$incident->id], $results->pluck('id')->all());
+    }
+
+    public function test_exact_order_identifier_fast_path_returns_empty_for_unknown_order(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $results = app(UniversalSearchService::class)->search($user, 'RD9999999999');
+
+        $this->assertTrue($results->isEmpty());
+    }
+
+    public function test_partial_order_fragment_uses_broad_search_not_fast_path(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $match = $this->createServiceCase($user, [
+            'order_id' => 'RD3437999',
+        ]);
+
+        $results = app(UniversalSearchService::class)->search($user, 'RD3437');
+
+        $this->assertContains($match->id, $results->pluck('id')->all());
+    }
+
+    public function test_exact_order_fast_path_returns_multiple_incidents_for_same_order(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-MULTI-001',
+            'serial_number' => 'SN-MULTI',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $user->id,
+        ]);
+
+        $first = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'First',
+            'description' => 'First',
+            'status' => IncidentStatus::Open,
+            'created_by' => $user->id,
+            'assigned_to_user_id' => $user->id,
+        ]);
+
+        $second = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Second',
+            'description' => 'Second',
+            'status' => IncidentStatus::Closed,
+            'created_by' => $user->id,
+            'assigned_to_user_id' => $user->id,
+            'updated_at' => now()->subMinute(),
+        ]);
+
+        $results = app(UniversalSearchService::class)->search($user, 'RD-MULTI-001');
+
+        $this->assertEqualsCanonicalizing(
+            [$first->id, $second->id],
+            $results->pluck('id')->all(),
+        );
+    }
+
+    public function test_exact_order_fast_path_deduplicates_incidents(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createServiceCase($user, [
+            'order_id' => 'RD-DEDUP-001',
+        ]);
+
+        $results = app(UniversalSearchService::class)->search($user, 'RD-DEDUP-001');
+
+        $this->assertCount(1, $results);
+        $this->assertSame($incident->id, $results->first()->id);
+    }
+
+    public function test_exact_order_identifier_fast_path_uses_indexed_order_lookup(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        for ($index = 1; $index <= 30; $index++) {
+            $this->createServiceCase($user, [
+                'order_id' => 'RD-NOISE-'.str_pad((string) $index, 3, '0', STR_PAD_LEFT),
+            ]);
+        }
+
+        $target = $this->createServiceCase($user, [
+            'order_id' => 'RD3437143',
+        ]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $results = app(UniversalSearchService::class)->search($user, 'RD3437143');
+        $queryLog = DB::getQueryLog();
+
+        $this->assertSame([$target->id], $results->pluck('id')->all());
+        $this->assertNotEmpty($queryLog);
+
+        $sql = implode("\n", array_map(
+            fn (array $entry): string => (string) ($entry['query'] ?? $entry['sql'] ?? ''),
+            $queryLog,
+        ));
+
+        $this->assertStringContainsString('order_id', $sql);
+        $this->assertTrue(
+            str_contains($sql, 'order_id =')
+            || str_contains($sql, '"order_id" =')
+            || str_contains($sql, '`order_id` ='),
+            'Expected indexed equality predicate on orders.order_id',
+        );
     }
 }
