@@ -156,7 +156,11 @@ final class CommerceOrderBuyerGstVerificationService
                     'review_reason' => $this->gateway->isConfigured() ? 'verification_not_run' : 'verification_provider_unconfigured',
                 ])->save();
 
-                return $record->fresh();
+                $fresh = $record->fresh() ?? $record;
+                app(CommerceOrderBuyerGstB2cConversionService::class)
+                    ->ensureAutomaticConversion($order->fresh() ?? $order);
+
+                return $fresh;
             }
 
             $result = $this->gateway->verify($gstin);
@@ -181,7 +185,11 @@ final class CommerceOrderBuyerGstVerificationService
 
             $record->save();
 
-            return $record->fresh();
+            $fresh = $record->fresh() ?? $record;
+            app(CommerceOrderBuyerGstB2cConversionService::class)
+                ->ensureAutomaticConversion($order->fresh() ?? $order);
+
+            return $fresh;
         });
     }
 

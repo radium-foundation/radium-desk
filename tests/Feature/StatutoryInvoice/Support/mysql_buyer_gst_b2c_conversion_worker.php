@@ -2,7 +2,6 @@
 
 use App\Models\CommerceOrder;
 use App\Models\CommerceOrderBuyerGstB2cConversion;
-use App\Models\User;
 use App\Services\StatutoryInvoice\CommerceOrderBuyerGstB2cConversionService;
 use App\Services\StatutoryInvoice\ServiceStatutoryGstB2bClassification;
 use Illuminate\Support\Facades\DB;
@@ -50,13 +49,11 @@ $workerLabel = (string) ($payload['worker_label'] ?? 'w0');
 
 try {
     $order = CommerceOrder::query()->findOrFail((int) ($payload['commerce_order_id'] ?? 0));
-    $actor = User::query()->findOrFail((int) ($payload['actor_user_id'] ?? 0));
 
-    $conversion = app(CommerceOrderBuyerGstB2cConversionService::class)->approve(
-        $order,
-        $actor,
-        'Concurrent worker '.$workerLabel,
-    );
+    $conversion = app(CommerceOrderBuyerGstB2cConversionService::class)->ensureAutomaticConversion($order);
+    if ($conversion === null) {
+        throw new RuntimeException('Automatic B2C conversion did not run for concurrency worker '.$workerLabel);
+    }
 
     $decision = app(ServiceStatutoryGstB2bClassification::class)->resolveForServiceOrder($order->fresh());
 

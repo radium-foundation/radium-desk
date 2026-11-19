@@ -16,6 +16,8 @@ use Illuminate\Validation\ValidationException;
 
 final class CommerceOrderBuyerGstB2cConversionService
 {
+    private const AUTOMATIC_DECISION_REASON = 'Automatic B2C conversion: buyer GSTIN cannot support B2B billing.';
+
     public function __construct(
         private readonly CommerceOrderBuyerGstVerificationService $verifications,
     ) {}
@@ -26,6 +28,47 @@ final class CommerceOrderBuyerGstB2cConversionService
             ->where('commerce_order_id', $order->id)
             ->where('status', BuyerGstB2cConversionStatus::Approved)
             ->first();
+    }
+
+    public function ensureAutomaticConversion(CommerceOrder $order): ?CommerceOrderBuyerGstB2cConversion
+    {
+        if (! BuyerGstB2cConversionPolicy::fallbackPolicyEnabled()) {
+            return null;
+        }
+
+        if ($this->orderHasIssuedStatutoryInvoice($order)) {
+            return null;
+        }
+
+        $existing = $this->approvedConversion($order);
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        $record = $this->verifications->recordForOrder($order);
+        if (! BuyerGstB2cConversionPolicy::isEligibleForAutomaticConversion($record, $order)) {
+            return null;
+        }
+
+        $snapshot = BuyerGstB2cConversionPolicy::automaticConversionSnapshot($order, $record);
+        if ($snapshot === null) {
+            return null;
+        }
+
+        $masked = BuyerGstB2cConversionPolicy::maskedGstinForRemark($snapshot['submitted_gstin']);
+        $remark = BuyerGstB2cConversionPolicy::defaultInvoiceRemark(
+            $masked,
+            $snapshot['registration_status'],
+            $snapshot['review_reason'],
+        );
+
+        return $this->persistApprovedConversion(
+            $order,
+            $snapshot,
+            $remark,
+            authorizedBy: null,
+            decisionReason: self::AUTOMATIC_DECISION_REASON,
+        );
     }
 
     public function attachIssuedStatutoryInvoice(CommerceOrder $order, StatutoryInvoice $invoice): void
@@ -58,72 +101,33 @@ final class CommerceOrderBuyerGstB2cConversionService
         }
 
         $record = $this->verifications->recordForOrder($order);
-        if (! BuyerGstB2cConversionPolicy::isEligibleForManualConversion($record)) {
+        if (! BuyerGstB2cConversionPolicy::isEligibleForAutomaticConversion($record, $order)) {
             throw ValidationException::withMessages([
                 'commerce_order' => 'This order is not eligible for authorized B2C conversion.',
             ]);
         }
 
-        $masked = BuyerGstB2cConversionPolicy::maskedGstinForRemark($record->submitted_gstin);
+        $snapshot = BuyerGstB2cConversionPolicy::automaticConversionSnapshot($order, $record);
+        if ($snapshot === null) {
+            throw ValidationException::withMessages([
+                'commerce_order' => 'This order is not eligible for authorized B2C conversion.',
+            ]);
+        }
+
+        $masked = BuyerGstB2cConversionPolicy::maskedGstinForRemark($snapshot['submitted_gstin']);
         $remark = BuyerGstB2cConversionPolicy::defaultInvoiceRemark(
             $masked,
-            $record->registration_status,
-            (string) $record->review_reason,
+            $snapshot['registration_status'],
+            $snapshot['review_reason'],
         );
 
-        return DB::transaction(function () use ($order, $actor, $decisionReason, $record, $remark): CommerceOrderBuyerGstB2cConversion {
-            CommerceOrder::query()->whereKey($order->id)->lockForUpdate()->first();
-
-            $existing = CommerceOrderBuyerGstB2cConversion::query()
-                ->where('commerce_order_id', $order->id)
-                ->lockForUpdate()
-                ->first();
-
-            if ($existing?->status === BuyerGstB2cConversionStatus::Approved) {
-                return $existing;
-            }
-
-            if ($existing?->status === BuyerGstB2cConversionStatus::Rejected) {
-                throw ValidationException::withMessages([
-                    'commerce_order' => 'A rejected B2C conversion exists for this order.',
-                ]);
-            }
-
-            $payload = [
-                'commerce_order_id' => $order->id,
-                'commerce_order_buyer_gst_verification_id' => $record->id,
-                'submitted_gstin' => $record->submitted_gstin,
-                'verification_status' => $record->verification_status->value,
-                'registration_status' => $record->registration_status,
-                'review_reason' => $record->review_reason,
-                'provider_payload_hash' => $record->provider_payload_hash,
-                'status' => BuyerGstB2cConversionStatus::Approved,
-                'authorized_by' => $actor->id,
-                'authorized_at' => now(),
-                'decision_reason' => trim($decisionReason) !== '' ? trim($decisionReason) : null,
-                'invoice_remark' => $remark,
-            ];
-
-            if ($existing !== null) {
-                $existing->fill($payload)->save();
-
-                return $existing->fresh() ?? $existing;
-            }
-
-            try {
-                return CommerceOrderBuyerGstB2cConversion::query()->create($payload);
-            } catch (UniqueConstraintViolationException $exception) {
-                $wonRace = CommerceOrderBuyerGstB2cConversion::query()
-                    ->where('commerce_order_id', $order->id)
-                    ->where('status', BuyerGstB2cConversionStatus::Approved)
-                    ->first();
-                if ($wonRace !== null) {
-                    return $wonRace;
-                }
-
-                throw $exception;
-            }
-        }, 5);
+        return $this->persistApprovedConversion(
+            $order,
+            $snapshot,
+            $remark,
+            authorizedBy: $actor->id,
+            decisionReason: trim($decisionReason) !== '' ? trim($decisionReason) : null,
+        );
     }
 
     public function reject(CommerceOrder $order, User $actor, string $decisionReason): CommerceOrderBuyerGstB2cConversion
@@ -174,6 +178,78 @@ final class CommerceOrderBuyerGstB2cConversionService
 
             return CommerceOrderBuyerGstB2cConversion::query()->create($payload);
         });
+    }
+
+    /**
+     * @param  array{
+     *     submitted_gstin: string,
+     *     verification_status: string,
+     *     registration_status: ?string,
+     *     review_reason: string,
+     *     commerce_order_buyer_gst_verification_id: ?int,
+     *     provider_payload_hash: ?string,
+     * }  $snapshot
+     */
+    private function persistApprovedConversion(
+        CommerceOrder $order,
+        array $snapshot,
+        string $remark,
+        ?int $authorizedBy,
+        ?string $decisionReason,
+    ): CommerceOrderBuyerGstB2cConversion {
+        return DB::transaction(function () use ($order, $snapshot, $remark, $authorizedBy, $decisionReason): CommerceOrderBuyerGstB2cConversion {
+            CommerceOrder::query()->whereKey($order->id)->lockForUpdate()->first();
+
+            $existing = CommerceOrderBuyerGstB2cConversion::query()
+                ->where('commerce_order_id', $order->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing?->status === BuyerGstB2cConversionStatus::Approved) {
+                return $existing;
+            }
+
+            if ($existing?->status === BuyerGstB2cConversionStatus::Rejected) {
+                throw ValidationException::withMessages([
+                    'commerce_order' => 'A rejected B2C conversion exists for this order.',
+                ]);
+            }
+
+            $payload = [
+                'commerce_order_id' => $order->id,
+                'commerce_order_buyer_gst_verification_id' => $snapshot['commerce_order_buyer_gst_verification_id'],
+                'submitted_gstin' => $snapshot['submitted_gstin'],
+                'verification_status' => $snapshot['verification_status'],
+                'registration_status' => $snapshot['registration_status'],
+                'review_reason' => $snapshot['review_reason'],
+                'provider_payload_hash' => $snapshot['provider_payload_hash'],
+                'status' => BuyerGstB2cConversionStatus::Approved,
+                'authorized_by' => $authorizedBy,
+                'authorized_at' => now(),
+                'decision_reason' => $decisionReason,
+                'invoice_remark' => $remark,
+            ];
+
+            if ($existing !== null) {
+                $existing->fill($payload)->save();
+
+                return $existing->fresh() ?? $existing;
+            }
+
+            try {
+                return CommerceOrderBuyerGstB2cConversion::query()->create($payload);
+            } catch (UniqueConstraintViolationException $exception) {
+                $wonRace = CommerceOrderBuyerGstB2cConversion::query()
+                    ->where('commerce_order_id', $order->id)
+                    ->where('status', BuyerGstB2cConversionStatus::Approved)
+                    ->first();
+                if ($wonRace !== null) {
+                    return $wonRace;
+                }
+
+                throw $exception;
+            }
+        }, 5);
     }
 
     private function orderHasIssuedStatutoryInvoice(CommerceOrder $order): bool
