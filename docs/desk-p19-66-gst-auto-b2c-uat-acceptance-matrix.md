@@ -28,4 +28,4 @@ Legend: **PASS** = evidenced in this task · **BLOCKED** = environment/approval 
 | 19 | IRN not queued for B2C | `b2c_not_eligible` | **PASS** (billing rule EInvoice test) | **BLOCKED** | **NOT RUN** |
 | 20 | GST rate / POS unchanged | Same order mint inputs | **INFERRED** (no tax regression in suite; mint uses order totals) | **BLOCKED** | **NOT RUN** |
 
-**Live isolated UAT blocker:** No Owner-verified isolated Desk UAT (URL, DB name, isolation proof, backup) re-validated on **2026-11-19** for GST flag-on mint journeys. Historical **`radium-desk-uat`** references exist in ledger but are **not** treated as current isolated GST UAT without re-verification.
+**Live isolated UAT blocker (updated P-19-67):** Candidate **`radium_desk_uat`** on KVM — schema isolation **VERIFIED**; GST journey UAT **NOT APPROVED** until deploy/migrations/TLS/backup per `docs/desk-p19-67-uat-environment-discovery.md`.
