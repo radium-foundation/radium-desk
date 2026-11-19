@@ -32,10 +32,11 @@ class LeaveCoverageGuard
         Carbon $effectiveStart,
         Carbon $effectiveEnd,
         array $excludeLeaveRequestIds = [],
+        bool $countPendingPeerLeaves = true,
     ): void {
         $this->assertTriadGroupReadyForMember($requester);
-        $this->assertTriadCoverage($requester, $effectiveStart, $effectiveEnd, $excludeLeaveRequestIds);
-        $this->assertAdminPairCoverage($requester, $effectiveStart, $effectiveEnd, $excludeLeaveRequestIds);
+        $this->assertTriadCoverage($requester, $effectiveStart, $effectiveEnd, $excludeLeaveRequestIds, $countPendingPeerLeaves);
+        $this->assertAdminPairCoverage($requester, $effectiveStart, $effectiveEnd, $excludeLeaveRequestIds, $countPendingPeerLeaves);
     }
 
     /**
@@ -70,6 +71,7 @@ class LeaveCoverageGuard
         Carbon $effectiveStart,
         Carbon $effectiveEnd,
         array $excludeLeaveRequestIds,
+        bool $countPendingPeerLeaves,
     ): void {
         $triadIds = $this->resolveTriadUserIds();
         if (count($this->configuredTriadEmails()) !== 3 || count($triadIds) !== 3) {
@@ -84,7 +86,13 @@ class LeaveCoverageGuard
         $end = $effectiveEnd->copy()->startOfDay();
 
         while ($cursor->lte($end)) {
-            $onLeaveTriad = $this->triadOnLeaveOnDate($triadIds, $cursor, $requester, $excludeLeaveRequestIds);
+            $onLeaveTriad = $this->triadOnLeaveOnDate(
+                $triadIds,
+                $cursor,
+                $requester,
+                $excludeLeaveRequestIds,
+                $countPendingPeerLeaves,
+            );
             if (count($onLeaveTriad) >= 3) {
                 throw ValidationException::withMessages([
                     'start_date' => 'Operational coverage rule: Shubhanshi, Abhinav and Kanchan cannot all be on leave on '
@@ -105,13 +113,20 @@ class LeaveCoverageGuard
         Carbon $day,
         User $requester,
         array $excludeLeaveRequestIds,
+        bool $countPendingPeerLeaves,
     ): array {
         $onLeave = [];
         $dayKey = $day->toDateString();
 
         foreach ($triadIds as $userId) {
             $wouldBeOnLeave = (int) $userId === (int) $requester->id
-                || $this->userHasActiveLeaveCovering($userId, $dayKey, $excludeLeaveRequestIds);
+                || $this->userHasActiveLeaveCovering(
+                    $userId,
+                    $dayKey,
+                    $excludeLeaveRequestIds,
+                    $countPendingPeerLeaves,
+                    (int) $requester->id,
+                );
 
             if ($wouldBeOnLeave) {
                 $onLeave[] = (int) $userId;
@@ -129,6 +144,7 @@ class LeaveCoverageGuard
         Carbon $effectiveStart,
         Carbon $effectiveEnd,
         array $excludeLeaveRequestIds,
+        bool $countPendingPeerLeaves,
     ): void {
         $pairIds = $this->resolveAdminPairUserIds();
         if (count($pairIds) !== 2) {
@@ -147,7 +163,13 @@ class LeaveCoverageGuard
             $both = true;
             foreach ($pairIds as $userId) {
                 $onLeave = (int) $userId === (int) $requester->id
-                    || $this->userHasActiveLeaveCovering($userId, $dayKey, $excludeLeaveRequestIds);
+                    || $this->userHasActiveLeaveCovering(
+                        $userId,
+                        $dayKey,
+                        $excludeLeaveRequestIds,
+                        $countPendingPeerLeaves,
+                        (int) $requester->id,
+                    );
                 if (! $onLeave) {
                     $both = false;
                     break;
@@ -166,14 +188,22 @@ class LeaveCoverageGuard
     /**
      * @param  list<int>  $excludeLeaveRequestIds
      */
-    private function userHasActiveLeaveCovering(int $userId, string $dayKey, array $excludeLeaveRequestIds): bool
-    {
+    private function userHasActiveLeaveCovering(
+        int $userId,
+        string $dayKey,
+        array $excludeLeaveRequestIds,
+        bool $countPendingPeerLeaves = true,
+        ?int $requesterUserId = null,
+    ): bool {
+        $statuses = [LeaveRequestStatus::Approved->value];
+        if ($countPendingPeerLeaves
+            || ($requesterUserId !== null && $userId === $requesterUserId)) {
+            $statuses[] = LeaveRequestStatus::Pending->value;
+        }
+
         return LeaveRequest::query()
             ->where('user_id', $userId)
-            ->whereIn('status', [
-                LeaveRequestStatus::Pending->value,
-                LeaveRequestStatus::Approved->value,
-            ])
+            ->whereIn('status', $statuses)
             ->when($excludeLeaveRequestIds !== [], fn ($q) => $q->whereNotIn('id', $excludeLeaveRequestIds))
             ->where(function ($query) use ($dayKey): void {
                 $query->where(function ($q) use ($dayKey): void {

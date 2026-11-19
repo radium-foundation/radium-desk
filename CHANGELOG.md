@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.1.97 — 2026-11-19 — Leave policy concurrency + amendment regressions (P-19-19)
+
+- **Purpose:** Close MariaDB concurrency gaps on leave approval (coverage group locks, `READ COMMITTED` on approve/amendment transactions, approve-time peer-pending exclusion); portable MySQL/MariaDB regression harness; amendment coverage/idempotency tests.
+- **Application delta:** `LeaveCoverageGuard`, `LeaveRequestService`, `LeaveRequestAmendmentService`; `LeavePolicyMysqlConcurrencyTest` + support workers; `LeavePolicyAmendmentCoverageTest`.
+- **Migrations:** **None** (same schema as **v4.1.96**).
+- **Tag note:** **`v4.1.96`** @ **`a016195a0`** remains the P-19-17 release anchor; **`v4.1.97`** tags this merge only (concurrency fixes not present at **`v4.1.96`**).
+- **Evidence:** Focused PHPUnit **22/22 PASS** (MariaDB **11.8.8** disposable @ `127.0.0.1:33118` + SQLite suites). Full PHPUnit **NOT RUN**.
+- **Deploy gate:** Owner PRE-RIP; MariaDB locking evidence from disposable harness (not substitute for prod drill). **No** production deploy in P-19-19.
+
 ## 4.1.96 — 2026-11-19 — Leave policy coverage activation + deployment gate (P-19-17)
 
 - **Purpose:** Release bundle **P-19-15** / **P-19-16** leave policy for deploy: Owner triad identity configuration, coverage regression tests, staging/migration runbook. **Does not** set production env or deploy.
