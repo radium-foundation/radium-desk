@@ -8,6 +8,9 @@ SSH_HOST="187.127.129.16"
 SSH_PORT="22"
 SSH_USER="ravi"
 REMOTE_PROJECT="/var/www/radium-desk"
+if [[ -n "${DEPLOY_KVM_REMOTE_PROJECT:-}" ]]; then
+    REMOTE_PROJECT="$DEPLOY_KVM_REMOTE_PROJECT"
+fi
 
 # Canonical KVM production identity for RIP deploy warnings (must match SSH_HOST / REMOTE_PROJECT above).
 RIP_KVM_PRODUCTION_SSH_HOST="${RIP_KVM_PRODUCTION_SSH_HOST:-187.127.129.16}"
