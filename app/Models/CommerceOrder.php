@@ -93,4 +93,9 @@ class CommerceOrder extends Model
     {
         return $this->belongsTo(StatutoryInvoice::class, 'statutory_invoice_id');
     }
+
+    public function buyerGstVerification(): HasOne
+    {
+        return $this->hasOne(CommerceOrderBuyerGstVerification::class);
+    }
 }
