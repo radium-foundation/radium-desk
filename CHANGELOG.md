@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.1.96 — 2026-11-19 — Leave policy coverage activation + deployment gate (P-19-17)
+
+- **Purpose:** Release bundle **P-19-15** / **P-19-16** leave policy for deploy: Owner triad identity configuration, coverage regression tests, staging/migration runbook. **Does not** set production env or deploy.
+- **Application delta:** Triad coverage tests (`LeavePolicyTriadCoverageTest`); `docs/P-19-17-coverage-configuration.md`; `.env.example` leave coverage keys; P-19-15/P-19-16 doc alignment.
+- **Includes merges:** **#350** @ `711173a4c` (P-19-15), **#351** @ `e7d80ae9c` (P-19-16), release metadata via P-19-17.
+- **Migrations:** `2026_11_19_100000_add_leave_policy_columns_to_leave_requests_table.php` — short index names (`leave_req_*`) for MariaDB/MySQL 64-char limit; idempotent column/index guards (P-19-17). Staging **applied** on `radium_desk_uat`; **not** applied on production in P-19-17.
+- **Configuration (deploy-time):** `WORKFORCE_LEAVE_COVERAGE_TRIAD_EMAILS`, `WORKFORCE_LEAVE_ADMIN_PAIR_LEAVE_EMAILS`, `WORKFORCE_LEAVE_AUTO_APPROVAL_ENABLED=false`.
+- **Production baseline:** **`v4.1.94`** deployed (**`b6b39f081`** per live `release.json`); **`v4.1.95`** tag on **`711173a4c`**; **`main`** **`e7d80ae9c`** ahead of prod tree.
+- **Rollback:** Redeploy prior tag; migration `down()` only on staging after isolated backup (drops policy columns).
+- **Evidence:** `LeavePolicyControlsTest` **10/10**; `LeavePolicyTriadCoverageTest` **3/3**; `LeaveRequestNotificationWorkflowTest` **6/6**; UAT schema migration drill (isolated DB). Full PHPUnit **NOT RUN**.
+- **Deploy gate:** Owner PRE-RIP; staging migration + triad env on target host; **no** auto-approval until leave-balance ledger exists.
+
 ## 4.1.95 — 2026-11-19 — Leave policy controls (P-19-15)
 
 - **Purpose:** Company leave policy: full-day default; HR half-day exceptions; Sunday sandwich for Sat/Mon short notice; coverage groups (triad + admin pair); two manual exceptions per month; authorized overrides; auto-approval framework disabled without leave-balance ledger.

@@ -3,7 +3,7 @@
 ## Configuration
 
 - `config/leave_policy.php` — Sunday sandwich, coverage emails, manual exception cap, auto-approval gates.
-- **Triad coverage:** set `WORKFORCE_LEAVE_COVERAGE_TRIAD_EMAILS` (comma-separated). **Abhinav and Kanchan emails are not in repo** — Owner must supply.
+- **Triad coverage:** set `WORKFORCE_LEAVE_COVERAGE_TRIAD_EMAILS` (comma-separated). Owner-approved list (P-19-17): `shubhanshi@radiumbox.com`, `abhinavjharadiumbox@gmail.com`, `kanchan@radiumbox.com` — see `docs/P-19-17-coverage-configuration.md`.
 - **Admin pair:** default `dileep@radiumbox.com,avinash@radiumbox.com` (verified in tests).
 - **Auto-approval:** `WORKFORCE_LEAVE_AUTO_APPROVAL_ENABLED=false` (default). Blocked until leave-balance ledger exists.
 
@@ -12,7 +12,7 @@
 - Employees: full-day only; half-day via HR manage + `half_day_exception`.
 - Sunday sandwich: Sat/Mon with &lt;7 calendar days from `created_at` → effective range includes Sunday (deduped per weekend).
 - Manual exceptions: max 2 approved per employee per calendar month (`is_manual_exception`, not `authorized_override`).
-- Authorized override on approve (requires `leave-requests.manage` + reason) for cap/coverage edge cases.
+- Authorized override on approve (requires `leave-requests.manage` + reason) for **monthly manual-exception cap only** — not coverage violations.
 
 ## Rollback
 
