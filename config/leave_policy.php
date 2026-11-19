@@ -38,7 +38,7 @@ return [
             static fn (string $email): string => strtolower(trim($email)),
             explode(',', (string) env(
                 'WORKFORCE_LEAVE_COVERAGE_TRIAD_EMAILS',
-                'shubhanshi@radiumbox.com',
+                '',
             )),
         ))),
         'admin_pair_emails' => array_values(array_filter(array_map(

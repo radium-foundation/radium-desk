@@ -211,7 +211,7 @@
                                     <div class="mb-3">
                                         <div class="form-check">
                                             <input type="checkbox" class="form-check-input" name="authorized_override" value="1" id="authorized_override" @checked(old('authorized_override'))>
-                                            <label class="form-check-label" for="authorized_override">Authorized override (coverage cap / monthly exception limit)</label>
+                                            <label class="form-check-label" for="authorized_override">Authorized override (monthly manual-exception limit only — coverage rules cannot be overridden)</label>
                                         </div>
                                         <textarea name="authorized_override_reason" rows="2" class="form-control mt-2" placeholder="Override reason (required when checked)">{{ old('authorized_override_reason') }}</textarea>
                                     </div>

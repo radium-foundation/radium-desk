@@ -308,14 +308,12 @@ class LeaveRequestService
                     $authorizedOverride,
                 );
 
-                if (! $authorizedOverride) {
-                    $this->leaveCoverageGuard->assertCoverageAllows(
-                        $requester,
-                        $effectiveStart,
-                        $effectiveEnd,
-                        excludeLeaveRequestIds: [$lockedLeaveRequest->id],
-                    );
-                }
+                $this->leaveCoverageGuard->assertCoverageAllows(
+                    $requester,
+                    $effectiveStart,
+                    $effectiveEnd,
+                    excludeLeaveRequestIds: [$lockedLeaveRequest->id],
+                );
 
                 $this->assertNoOverlappingLeave(
                     user: $requester,
