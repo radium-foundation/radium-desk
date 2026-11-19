@@ -4,6 +4,8 @@
 **Engineering baseline:** PR #365 + P-19-62 regressions  
 **Statutory rollout:** **NOT READY** until rows below marked APPROVED with written evidence.
 
+**Engineering note (P-19-65 / P-19-66):** When `STATUTORY_BUYER_GSTIN_B2C_FALLBACK_ENABLED=true`, eligible GSTIN failures **auto-convert** without manual approval. CA rows that say “manual approval” need **written updates** to approve the automatic runtime path — not a return to GSTIN-only invoice holds.
+
 | Decision | Engineering proposal (informational) | Status | Evidence |
 | --- | --- | --- | --- |
 | Suspended recipient registration may be treated as B2C after authorized conversion | Eligible when `inactive_registration` + manual approval | **PENDING** | — |
