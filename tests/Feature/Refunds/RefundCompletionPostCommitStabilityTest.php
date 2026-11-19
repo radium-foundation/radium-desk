@@ -194,6 +194,63 @@ class RefundCompletionPostCommitStabilityTest extends TestCase
             });
     }
 
+    public function test_completion_follow_up_does_not_overwrite_revoked_status(): void
+    {
+        [$ops, $refund] = $this->pendingExecutionRefund();
+
+        $refund->update([
+            'status' => RefundStatus::Completed,
+            'executed_by' => $ops->id,
+            'executed_at' => now(),
+            'execution_reference_no' => 'UTR-REVOKED-RACE',
+            'execution_transaction_id' => 'TXN-REVOKED-RACE',
+        ]);
+
+        $refund->update([
+            'status' => RefundStatus::Revoked,
+            'revoked_by' => $ops->id,
+            'revoked_at' => now(),
+        ]);
+
+        $job = new RefundCompletionFollowUpJob($refund->id, $ops->id);
+        $job->handle(app(RefundCompletionFollowUpService::class));
+
+        $refund->refresh();
+        $this->assertSame(RefundStatus::Revoked, $refund->status);
+    }
+
+    public function test_completion_follow_up_after_revoke_leaves_incident_open_and_is_idempotent(): void
+    {
+        [$ops, $refund, $incident] = $this->pendingExecutionRefund(withHold: true);
+
+        $refund->update([
+            'status' => RefundStatus::Completed,
+            'executed_by' => $ops->id,
+            'executed_at' => now(),
+            'execution_reference_no' => 'UTR-REVOKED-HOLD',
+            'execution_transaction_id' => 'TXN-REVOKED-HOLD',
+        ]);
+
+        $refund->update([
+            'status' => RefundStatus::Revoked,
+            'revoked_by' => $ops->id,
+            'revoked_at' => now(),
+        ]);
+
+        $service = app(RefundCompletionFollowUpService::class);
+        $job = new RefundCompletionFollowUpJob($refund->id, $ops->id);
+
+        $job->handle($service);
+        $job->handle($service);
+
+        $refund->refresh();
+        $incident->refresh();
+
+        $this->assertSame(RefundStatus::Revoked, $refund->status);
+        $this->assertSame(IncidentStatus::Open, $incident->status);
+        $this->assertTrue(app(BusinessHoldService::class)->hasActiveHold($incident, BusinessHoldType::Refund));
+    }
+
     public function test_completed_refund_repost_schedules_follow_up_without_re_execution(): void
     {
         Bus::fake([RefundCompletionFollowUpJob::class]);

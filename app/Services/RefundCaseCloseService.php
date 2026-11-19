@@ -23,6 +23,11 @@ class RefundCaseCloseService
 
     public function closeLinkedCase(RefundRequest $refund, User $actor, ?Request $request = null): void
     {
+        $refund->refresh();
+        if ($refund->status?->isRevoked() ?? false) {
+            return;
+        }
+
         $refund->loadMissing('incident');
 
         $incident = $refund->incident;
@@ -90,6 +95,10 @@ class RefundCaseCloseService
 
     private function markRefundClosed(RefundRequest $refund, User $actor, ?Request $request): void
     {
+        if ($refund->status?->isRevoked() ?? false) {
+            return;
+        }
+
         if ($refund->status->value === 'closed') {
             return;
         }
