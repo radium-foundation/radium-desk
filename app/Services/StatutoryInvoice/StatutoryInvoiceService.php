@@ -71,6 +71,7 @@ class StatutoryInvoiceService
         private readonly StatutoryBillingAddressComposer $billingAddressComposer,
         private readonly CommerceOrderBillToResolver $commerceBillTo,
         private readonly CommerceBuyerGstMintGate $commerceBuyerGstMintGate,
+        private readonly CommerceOrderBuyerGstB2cConversionService $buyerGstB2cConversions,
     ) {}
 
     public function findBySource(
@@ -419,6 +420,7 @@ class StatutoryInvoiceService
         }
 
         $this->linkCommerceOrder($order, $invoice);
+        $this->buyerGstB2cConversions->attachIssuedStatutoryInvoice($order, $invoice);
         $this->generateDocumentSafely($invoice);
         $this->queueEinvoiceIfEligible($invoice);
 

@@ -10,6 +10,7 @@ class CommerceOrderBuyerGstB2cConversion extends Model
 {
     protected $fillable = [
         'commerce_order_id',
+        'statutory_invoice_id',
         'commerce_order_buyer_gst_verification_id',
         'submitted_gstin',
         'verification_status',
@@ -44,5 +45,10 @@ class CommerceOrderBuyerGstB2cConversion extends Model
     public function authorizer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'authorized_by');
+    }
+
+    public function statutoryInvoice(): BelongsTo
+    {
+        return $this->belongsTo(StatutoryInvoice::class);
     }
 }

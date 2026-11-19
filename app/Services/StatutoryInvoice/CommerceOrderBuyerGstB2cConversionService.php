@@ -28,6 +28,21 @@ final class CommerceOrderBuyerGstB2cConversionService
             ->first();
     }
 
+    public function attachIssuedStatutoryInvoice(CommerceOrder $order, StatutoryInvoice $invoice): void
+    {
+        $buyerGstin = is_string($invoice->buyer_gstin) ? trim($invoice->buyer_gstin) : '';
+        if ($buyerGstin !== '') {
+            return;
+        }
+
+        $conversion = $this->approvedConversion($order);
+        if ($conversion === null || $conversion->statutory_invoice_id !== null) {
+            return;
+        }
+
+        $conversion->forceFill(['statutory_invoice_id' => $invoice->id])->save();
+    }
+
     public function approve(CommerceOrder $order, User $actor, string $decisionReason): CommerceOrderBuyerGstB2cConversion
     {
         if (! BuyerGstB2cConversionPolicy::fallbackPolicyEnabled()) {
