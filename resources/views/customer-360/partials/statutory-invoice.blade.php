@@ -2,6 +2,17 @@
          data-customer-360-section="statutory-invoice"
          aria-labelledby="customer-360-statutory-invoice-heading">
     <h3 class="customer-360-section-title" id="customer-360-statutory-invoice-heading">Invoice</h3>
+    @if(is_array($buyerGstVerification ?? null) && filled($buyerGstVerification['status_label'] ?? null))
+        <div class="c360-buyer-gst-verification mb-3" data-c360-buyer-gst-verification role="status">
+            <p class="small mb-1"><strong>Buyer GST verification:</strong> {{ $buyerGstVerification['status_label'] }}</p>
+            @if(filled($buyerGstVerification['reason'] ?? null))
+                <p class="small text-muted mb-1">{{ $buyerGstVerification['reason'] }}</p>
+            @endif
+            @if(filled($buyerGstVerification['verified_at_label'] ?? null))
+                <p class="small text-muted mb-0">Verified at {{ $buyerGstVerification['verified_at_label'] }}</p>
+            @endif
+        </div>
+    @endif
     @forelse(($statutoryInvoices ?? []) as $invoice)
         <div class="c360-statutory-invoice-card" data-c360-invoice-id="{{ $invoice['id'] }}">
             <dl class="c360-statutory-invoice-meta">

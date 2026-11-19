@@ -211,6 +211,7 @@ class StatutoryMintEligibility
             $errors = array_merge($errors, app(CommerceBuyerGstMintGate::class)->blockingReasonsForOrder($order));
         } elseif ($issuerError === null && $place !== '' && GstStateCodes::codeForName($place) !== null) {
             $errors = array_merge($errors, $this->serviceGstSplitErrors($order, $place, $hsnSacs, $issuerBuyerGstin));
+            $errors = array_merge($errors, app(CommerceBuyerGstMintGate::class)->blockingReasonsForOrder($order));
         }
 
         return new StatutoryMintEligibilityResult($errors === [], array_values(array_unique($errors)));

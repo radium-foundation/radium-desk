@@ -25,7 +25,7 @@ final class CommerceOrderBillToResolver
         $structured = StatutoryBillingStructured::fromStored($order->billing_address_structured);
         $flat = $order->billing_address;
 
-        if (! $this->verifications->isEnabled()) {
+        if (! $this->verifications->requiresProviderVerification($order)) {
             return $this->billingAddressComposer->compose($flat, $structured);
         }
 

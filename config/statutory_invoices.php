@@ -122,7 +122,8 @@ return [
 
     /*
     | Buyer GSTIN verification via WhiteBooks GST Public API (GET /public/search).
-    | Default disabled. Does not call the provider until enabled and credentials exist.
+    | Default disabled. When enabled, WhiteBooks runs only when GSTIN state and submitted
+    | billing state differ. Matching states preserve legacy Bill To behaviour with no lookup.
     */
     'buyer_gstin_verification' => [
         'enabled' => filter_var(env('STATUTORY_BUYER_GSTIN_VERIFICATION_ENABLED', false), FILTER_VALIDATE_BOOLEAN),

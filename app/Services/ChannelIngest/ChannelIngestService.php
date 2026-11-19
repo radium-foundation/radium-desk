@@ -241,7 +241,7 @@ class ChannelIngestService
         ]);
 
         if (trim((string) ($request->buyerGstin ?? '')) !== '') {
-            $this->buyerGstVerification->ensureSubmittedSnapshot($order->fresh());
+            $this->buyerGstVerification->processAfterChannelIngest($order->fresh());
         }
 
         foreach ($request->lines as $index => $line) {

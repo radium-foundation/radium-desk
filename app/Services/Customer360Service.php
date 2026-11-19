@@ -13,6 +13,7 @@ use App\Enums\ApprovedRefundMethod;
 use App\Enums\CommercialState;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SupportAppointmentStatus;
+use App\Models\CommerceOrder;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -42,6 +43,7 @@ use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
+use App\Services\StatutoryInvoice\CommerceOrderBuyerGstVerificationService;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Support\AppDateFormatter;
 use App\Support\Commercial\CommercialStatePresenter;
@@ -133,8 +135,28 @@ class Customer360Service
             ->forIncident($incident, $user instanceof User ? $user : null);
         $data['statutoryMintOutbox'] = app(Customer360StatutoryMintOutboxPresenter::class)
             ->forIncident($incident, $user instanceof User ? $user : null);
+        $commerceOrder = $this->commerceOrderForIncident($incident);
+        $data['buyerGstVerification'] = $commerceOrder !== null
+            ? app(CommerceOrderBuyerGstVerificationService::class)->customer360Summary($commerceOrder)
+            : null;
 
         return $data;
+    }
+
+    private function commerceOrderForIncident(Incident $incident): ?CommerceOrder
+    {
+        $sourceId = trim((string) ($incident->order?->order_id ?? ''));
+        if ($sourceId === '') {
+            return null;
+        }
+
+        return CommerceOrder::query()
+            ->where(function ($query) use ($sourceId): void {
+                $query->where('source_id', $sourceId)
+                    ->orWhere('source_order_id', $sourceId);
+            })
+            ->orderByDesc('id')
+            ->first();
     }
 
     /**

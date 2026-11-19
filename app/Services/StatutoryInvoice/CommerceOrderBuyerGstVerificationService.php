@@ -23,8 +23,80 @@ final class CommerceOrderBuyerGstVerificationService
         return (bool) config('statutory_invoices.buyer_gstin_verification.enabled', false);
     }
 
+    public function requiresProviderVerification(CommerceOrder $order): bool
+    {
+        return CommerceOrderBuyerGstStateAlignment::requiresProviderVerification($order, $this->isEnabled());
+    }
+
+    public function processAfterChannelIngest(CommerceOrder $order): ?CommerceOrderBuyerGstVerification
+    {
+        if (! $this->requiresProviderVerification($order)) {
+            return null;
+        }
+
+        $fresh = $order->fresh() ?? $order;
+        $this->ensureSubmittedSnapshot($fresh);
+
+        return $this->verifyAndPersist($fresh);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function customer360Summary(CommerceOrder $order): ?array
+    {
+        $gstin = BuyerGstin::normalize($order->buyer_gstin);
+        if ($gstin === null) {
+            return null;
+        }
+
+        if (! $this->isEnabled()) {
+            return [
+                'scope' => 'disabled',
+                'status_label' => 'Verification policy disabled',
+                'reason' => null,
+                'verified_at_label' => null,
+            ];
+        }
+
+        if (! $this->requiresProviderVerification($order)) {
+            return [
+                'scope' => 'not_required',
+                'status_label' => 'No verification required',
+                'reason' => 'GSTIN state matches submitted billing state.',
+                'verified_at_label' => null,
+            ];
+        }
+
+        $record = $this->recordForOrder($order);
+        if ($record === null) {
+            return [
+                'scope' => 'mismatch',
+                'status_label' => 'Verification pending',
+                'reason' => 'GSTIN and billing state conflict — provider verification has not been recorded yet.',
+                'verified_at_label' => null,
+            ];
+        }
+
+        return [
+            'scope' => 'mismatch',
+            'status_label' => match ($record->verification_status) {
+                BuyerGstVerificationStatus::Verified => 'Verified registration',
+                BuyerGstVerificationStatus::Pending => 'Verification pending',
+                BuyerGstVerificationStatus::ReviewRequired => 'Review required',
+                BuyerGstVerificationStatus::Failed => 'Verification failed',
+            },
+            'reason' => $this->sanitizedReason($record->review_reason),
+            'verified_at_label' => $record->verified_at?->timezone(config('app.timezone'))->format('j M Y, g:i A'),
+        ];
+    }
+
     public function ensureSubmittedSnapshot(CommerceOrder $order): ?CommerceOrderBuyerGstVerification
     {
+        if (! $this->requiresProviderVerification($order)) {
+            return null;
+        }
+
         $gstin = BuyerGstin::normalize($order->buyer_gstin);
         if ($gstin === null) {
             return null;
@@ -50,7 +122,7 @@ final class CommerceOrderBuyerGstVerificationService
 
     public function verifyAndPersist(CommerceOrder $order, bool $callProvider = true): ?CommerceOrderBuyerGstVerification
     {
-        if (! $this->isEnabled()) {
+        if (! $this->requiresProviderVerification($order)) {
             return null;
         }
 
@@ -178,5 +250,20 @@ final class CommerceOrderBuyerGstVerificationService
         }
 
         return null;
+    }
+
+    private function sanitizedReason(?string $reason): ?string
+    {
+        return match ($reason) {
+            'inactive_registration' => 'GST registration is not active.',
+            'registration_address_incomplete' => 'Provider registration address is incomplete.',
+            'provider_unavailable' => 'Provider temporarily unavailable — retry pending.',
+            'provider_rate_limited' => 'Provider rate limited — retry pending.',
+            'verification_provider_unconfigured' => 'Verification provider is not configured.',
+            'verification_not_run' => 'Verification has not completed.',
+            'invalid_gstin_format' => 'GSTIN format is invalid.',
+            'gstin_state_mismatch' => 'GSTIN and billing state conflict.',
+            default => $reason !== null && $reason !== '' ? 'GST review required.' : null,
+        };
     }
 }

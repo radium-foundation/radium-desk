@@ -51,10 +51,11 @@ final class ServiceStatutoryGstB2bClassification
             : GstStateCodes::codeForName($order->billing_state);
         $placeOfSupplyCode = GstStateCodes::codeForName($order->place_of_supply_state);
 
-        $stateMismatch = ($billingStateCode !== null && $gstinStateCode !== $billingStateCode)
-            || ($placeOfSupplyCode !== null && $gstinStateCode !== $placeOfSupplyCode);
+        $billingGstMismatch = $billingStateCode !== null && $gstinStateCode !== $billingStateCode;
+        $placeGstMismatch = $placeOfSupplyCode !== null && $gstinStateCode !== $placeOfSupplyCode;
+        $requiresVerification = $this->buyerGstVerification->requiresProviderVerification($order);
 
-        if ($stateMismatch && $this->buyerGstVerification->isEnabled()) {
+        if ($requiresVerification) {
             $record = $this->buyerGstVerification->recordForOrder($order);
             if ($record !== null
                 && $record->verification_status === BuyerGstVerificationStatus::Verified
@@ -89,7 +90,7 @@ final class ServiceStatutoryGstB2bClassification
             );
         }
 
-        if ($stateMismatch) {
+        if (! $this->buyerGstVerification->isEnabled() && ($billingGstMismatch || $placeGstMismatch)) {
             return $this->b2cDowngrade('gstin_state_mismatch');
         }
 

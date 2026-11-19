@@ -34,6 +34,35 @@ class CommerceOrderBuyerGstVerificationTest extends TestCase
         ]);
     }
 
+    public function test_matching_billing_and_gstin_states_skip_whitebooks_and_legacy_mint_gate(): void
+    {
+        Http::fake();
+
+        $order = $this->commerceOrder([
+            'buyer_gstin' => '09AAJFV1437D1Z7',
+            'billing_address_structured' => [
+                'state' => 'Uttar Pradesh',
+                'city' => 'Lucknow',
+                'pincode' => '226001',
+            ],
+            'place_of_supply_state' => 'Rajasthan',
+        ]);
+
+        $service = app(CommerceOrderBuyerGstVerificationService::class);
+        $this->assertNull($service->processAfterChannelIngest($order));
+        $this->assertNull($service->verifyAndPersist($order->fresh()));
+        $this->assertSame(0, CommerceOrderBuyerGstVerification::query()->count());
+        Http::assertNothingSent();
+
+        $decision = app(ServiceStatutoryGstB2bClassification::class)->resolveForServiceOrder($order->fresh());
+        $this->assertTrue($decision->issueAsB2b);
+        $this->assertFalse($decision->requiresGstReview);
+
+        $billTo = app(CommerceOrderBillToResolver::class)->resolveForMint($order->fresh());
+        $this->assertSame('Uttar Pradesh', $billTo['structured']['state'] ?? null);
+        $this->assertEmpty(app(CommerceBuyerGstMintGate::class)->blockingReasonsForOrder($order->fresh()));
+    }
+
     public function test_state_mismatch_resolves_with_verified_bill_to_without_touching_ship_to(): void
     {
         $shipping = [
@@ -136,15 +165,15 @@ class CommerceOrderBuyerGstVerificationTest extends TestCase
         Http::fake([
             'https://api.whitebooks.in/public/search*' => Http::response([
                 'data' => [
-                    'gstin' => '09AAJFV1437D1Z7',
+                    'gstin' => '07AAICB5215F2ZX',
                     'lgnm' => 'Match Co',
                     'sts' => 'Active',
                     'pradr' => [
                         'addr' => [
                             'bno' => '1',
-                            'dst' => 'Lucknow',
-                            'stcd' => 'Uttar Pradesh',
-                            'pncd' => '226001',
+                            'dst' => 'Delhi',
+                            'stcd' => 'Delhi',
+                            'pncd' => '110001',
                         ],
                     ],
                 ],
@@ -152,11 +181,11 @@ class CommerceOrderBuyerGstVerificationTest extends TestCase
         ]);
 
         $order = $this->commerceOrder([
-            'buyer_gstin' => '09AAJFV1437D1Z7',
+            'buyer_gstin' => '07AAICB5215F2ZX',
             'billing_address_structured' => [
-                'state' => 'Uttar Pradesh',
-                'city' => 'Lucknow',
-                'pincode' => '226001',
+                'state' => 'Rajasthan',
+                'city' => 'Jodhpur',
+                'pincode' => '304012',
             ],
         ]);
 

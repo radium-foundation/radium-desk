@@ -24,7 +24,7 @@ final class CommerceBuyerGstMintGate
      */
     public function blockingReasonsForOrder(CommerceOrder $order): array
     {
-        if (! $this->verifications->isEnabled()) {
+        if (! $this->verifications->requiresProviderVerification($order)) {
             return [];
         }
 
