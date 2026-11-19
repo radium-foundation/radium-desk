@@ -5,6 +5,8 @@ use Illuminate\Foundation\Application;
 use Tests\Feature\StatutoryInvoice\Support\BuyerGstB2cConversionMysqlGate;
 
 require dirname(__DIR__, 4).'/vendor/autoload.php';
+require_once __DIR__.'/BuyerGstB2cConversionMysqlGate.php';
+require_once __DIR__.'/BuyerGstB2cConversionMysqlPrepareLock.php';
 
 /**
  * @return array{host: string, port: string, database: string, username: string, password: string}
