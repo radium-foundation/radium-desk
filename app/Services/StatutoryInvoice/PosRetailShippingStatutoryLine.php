@@ -63,27 +63,4 @@ final class PosRetailShippingStatutoryLine
 
         return $expectedInvoicePaise === IntraStateCgstSgstRules::moneyPaise((float) $invoice->invoice_value);
     }
-
-    public static function incidentalHsnSacFromInvoiceItems(StatutoryInvoice $invoice): ?string
-    {
-        $invoice->loadMissing('items');
-        $bestHsn = null;
-        $bestRate = -1.0;
-        foreach ($invoice->items as $item) {
-            if ((string) $item->sku === self::LINE_SKU) {
-                continue;
-            }
-            $hsn = trim((string) ($item->hsn_sac ?? ''));
-            if ($hsn === '') {
-                continue;
-            }
-            $rate = (float) $item->gst_percentage;
-            if ($rate > $bestRate) {
-                $bestRate = $rate;
-                $bestHsn = $hsn;
-            }
-        }
-
-        return $bestHsn;
-    }
 }

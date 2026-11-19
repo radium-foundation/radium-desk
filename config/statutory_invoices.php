@@ -132,13 +132,23 @@ return [
 
     /*
     | POS retail customer shipping (header shipping_amount on statutory invoices).
-    | STATUTORY_POS_RETAIL_SHIPPING_HSN_SAC must be set to an Owner/CA-approved code before
-    | legacy header-only shipping lines are IRP-submittable. Desk does not default to product HSN.
+    |
+    | Fail-closed by default. Either:
+    | - STATUTORY_POS_RETAIL_SHIPPING_HSN_SAC (Owner/CA-approved freight/SAC override), or
+    | - STATUTORY_POS_RETAIL_SHIPPING_COMPOSITE_SUPPLY=true after Finance approves composite
+    |   supply (CGST Act s.2(30)/s.8: goods principal, ancillary delivery) for POS retail —
+    |   mapper then uses the predominant goods line HSN and rate (single GST rate only).
     */
     'pos_retail_shipping' => [
         'hsn_sac' => $statutoryEnv('STATUTORY_POS_RETAIL_SHIPPING_HSN_SAC'),
         'description' => $statutoryEnv('STATUTORY_POS_RETAIL_SHIPPING_DESCRIPTION', 'Shipping & Delivery Charges'),
         'uqc' => $statutoryEnv('STATUTORY_POS_RETAIL_SHIPPING_UQC', 'NOS'),
+        'composite_supply' => [
+            'enabled' => filter_var(
+                env('STATUTORY_POS_RETAIL_SHIPPING_COMPOSITE_SUPPLY', false),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
+        ],
     ],
 
     'einvoice' => [

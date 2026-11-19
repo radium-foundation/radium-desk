@@ -521,9 +521,9 @@ class EInvoiceIrnPayloadMapper
         );
         $shipTax = round($shipCgst + $shipSgst + $shipIgst, 2);
 
-        $hsn = $this->nullable(config('statutory_invoices.pos_retail_shipping.hsn_sac'));
-        if ($hsn === null) {
-            return [$items, ['missing_pos_shipping_hsn_sac'], $assessable];
+        [$hsn, $lineGstRate, $classificationGaps] = $this->resolvePosRetailShippingHsnAndRate($invoice, $maxRate);
+        if ($hsn === null || $classificationGaps !== []) {
+            return [$items, $classificationGaps !== [] ? $classificationGaps : ['missing_pos_shipping_hsn_sac'], $assessable];
         }
 
         $gaps = [];
@@ -547,7 +547,7 @@ class EInvoiceIrnPayloadMapper
             'is_servc' => 'N',
             'unit_price' => $this->storedDecimal($shipping),
             'taxable_value' => $this->storedDecimal($shipping),
-            'gst_percentage' => $this->storedDecimal($maxRate),
+            'gst_percentage' => $this->storedDecimal($lineGstRate),
             'cgst' => $this->storedDecimal($shipCgst),
             'sgst' => $this->storedDecimal($shipSgst),
             'igst' => $this->storedDecimal($shipIgst),
@@ -556,5 +556,39 @@ class EInvoiceIrnPayloadMapper
         ];
 
         return [$items, $gaps, round($assessable + $shipping, 2)];
+    }
+
+    /**
+     * @return array{0: ?string, 1: float, 2: list<string>}
+     */
+    private function resolvePosRetailShippingHsnAndRate(StatutoryInvoice $invoice, float $maxLineGstRate): array
+    {
+        $configuredHsn = $this->nullable(config('statutory_invoices.pos_retail_shipping.hsn_sac'));
+        if ($configuredHsn !== null) {
+            return [$configuredHsn, $maxLineGstRate, []];
+        }
+
+        if (! filter_var(
+            config('statutory_invoices.pos_retail_shipping.composite_supply.enabled'),
+            FILTER_VALIDATE_BOOLEAN,
+        )) {
+            return [null, $maxLineGstRate, ['missing_pos_shipping_hsn_sac']];
+        }
+
+        $reasons = PosRetailShippingCompositePrincipal::unresolvedReasons($invoice);
+        if ($reasons !== []) {
+            return [null, $maxLineGstRate, $reasons];
+        }
+
+        $principal = PosRetailShippingCompositePrincipal::resolve($invoice);
+        if ($principal === null) {
+            return [null, $maxLineGstRate, ['pos_shipping_composite_principal_unresolved']];
+        }
+
+        if (round((float) $principal['gst_percentage'], 2) !== round($maxLineGstRate, 2)) {
+            return [null, $maxLineGstRate, ['pos_shipping_composite_rate_mismatch']];
+        }
+
+        return [$principal['hsn_sac'], (float) $principal['gst_percentage'], []];
     }
 }

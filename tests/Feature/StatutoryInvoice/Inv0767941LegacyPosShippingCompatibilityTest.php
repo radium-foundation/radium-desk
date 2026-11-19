@@ -49,6 +49,26 @@ class Inv0767941LegacyPosShippingCompatibilityTest extends TestCase
         $this->assertSame('200237.28', $payload->values['taxable_value']);
     }
 
+    public function test_mapper_uses_principal_goods_hsn_when_composite_supply_enabled(): void
+    {
+        config([
+            'statutory_invoices.pos_retail_shipping.hsn_sac' => null,
+            'statutory_invoices.pos_retail_shipping.composite_supply.enabled' => true,
+        ]);
+
+        $payload = app(EInvoiceIrnPayloadMapper::class)->map($this->inv0767941Shape());
+
+        $this->assertNotContains('missing_pos_shipping_hsn_sac', $payload->gaps);
+        $this->assertCount(2, $payload->items);
+        $this->assertSame('84716050', $payload->items[1]['hsn_sac']);
+        $this->assertSame('18.00', $payload->items[1]['gst_percentage']);
+        $this->assertSame('2237.28', $payload->items[1]['taxable_value']);
+        $this->assertSame('402.71', $payload->items[1]['igst']);
+        $this->assertSame('200237.28', $payload->values['taxable_value']);
+        $this->assertSame('236280.00', $payload->values['invoice_value']);
+        $this->assertSame('0.01', $payload->values['rounding']);
+    }
+
     private function inv0767941Shape(): StatutoryInvoice
     {
         $invoice = new StatutoryInvoice([
