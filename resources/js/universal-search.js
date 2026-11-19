@@ -16,8 +16,6 @@ import {
     openLegacySearchConfirmModal,
 } from './intake-search-flow';
 import { renderIntakeOrderHistory } from './intake-order-history';
-import { csrfToken } from './workspace/http';
-
 const SEARCH_ICON_HTML = '<i class="bi bi-search"></i>';
 const SEARCH_LOADING_HTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
 const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
@@ -166,113 +164,6 @@ const openCustomer360FromSearch = (actions, dashboardIntegration) => {
     }));
 };
 
-const reopenServiceCaseFromSearch = async (
-    actions,
-    button,
-    errorElement,
-    dashboardIntegration,
-    { onSuccess } = {},
-) => {
-    if (!actions?.reopen_url) {
-        return;
-    }
-
-    if (errorElement) {
-        errorElement.classList.add('d-none');
-        errorElement.textContent = '';
-    }
-
-    if (button) {
-        button.disabled = true;
-    }
-
-    try {
-        const response = await fetch(actions.reopen_url, {
-            method: 'PATCH',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken(),
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            body: JSON.stringify({
-                workspace_context: actions.reopen_workspace_context,
-                action_type: 'reopen',
-                body: 'Reopened from global search.',
-            }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            if (errorElement) {
-                errorElement.textContent = data.message ?? 'Unable to reopen service case.';
-                errorElement.classList.remove('d-none');
-            }
-
-            return;
-        }
-
-        await onSuccess?.(actions);
-    } catch {
-        if (errorElement) {
-            errorElement.textContent = 'Unable to reopen service case.';
-            errorElement.classList.remove('d-none');
-        }
-    } finally {
-        if (button) {
-            button.disabled = false;
-        }
-    }
-};
-
-const buildSearchResultActionItemHtml = (result) => {
-    const actions = result.actions ?? {};
-    const caseLabel = result.service_case ?? actions.display_reference ?? 'Service case';
-    const reopenButton = actions.can_reopen
-        ? '<button type="button" class="btn btn-outline-secondary" data-search-reopen-case>Reopen</button>'
-        : '';
-
-    return `
-        <div class="dashboard-search-result-action list-group-item px-0 py-2 border-0 border-bottom"
-             data-search-result-action
-             data-search-result-incident-id="${actions.incident_id ?? result.incident_id ?? ''}">
-            <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
-                <span class="visually-hidden">${caseLabel}</span>
-                <div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="${caseLabel} actions">
-                    <button type="button"
-                            class="btn btn-outline-primary"
-                            data-search-open-customer-360>
-                        Customer 360
-                    </button>
-                    ${reopenButton}
-                </div>
-            </div>
-            <div class="alert alert-danger py-1 px-2 small mb-0 mt-2 d-none"
-                 data-search-result-action-error
-                 role="alert"></div>
-        </div>
-    `;
-};
-
-const wireSearchResultActionItem = (item, actions, dashboardIntegration, { onReopenSuccess } = {}) => {
-    const errorElement = item.querySelector('[data-search-result-action-error]');
-
-    item.querySelector('[data-search-open-customer-360]')?.addEventListener('click', () => {
-        openCustomer360FromSearch(actions, dashboardIntegration);
-    });
-
-    item.querySelector('[data-search-reopen-case]')?.addEventListener('click', (event) => {
-        reopenServiceCaseFromSearch(
-            actions,
-            event.currentTarget,
-            errorElement,
-            dashboardIntegration,
-            { onSuccess: onReopenSuccess },
-        );
-    });
-};
-
 const buildSearchRowsUrl = (baseUrl, incidentIds) => {
     const params = new URLSearchParams();
 
@@ -348,17 +239,6 @@ export const initUniversalSearch = ({
     let lastSearchQuery = '';
     let suppressNextAutoOpen = false;
 
-    const handleReopenSuccess = async (actions) => {
-        if (lastSearchQuery) {
-            suppressNextAutoOpen = true;
-            await runUniversalSearch(lastSearchQuery);
-            suppressNextAutoOpen = false;
-        }
-
-        openCustomer360FromSearch(actions, dashboardIntegration);
-        refreshCustomer360(actions.incident_id);
-    };
-
     const setSearchLoading = (loading) => {
         if (!searchIcon) {
             return;
@@ -417,38 +297,6 @@ export const initUniversalSearch = ({
 
     const hideSearchOrderHistoryPanel = (card) => {
         card?.querySelector(SEARCH_ORDER_HISTORY_PANEL_SELECTOR)?.remove();
-    };
-
-    const showSearchResultActions = (card, results) => {
-        hideSearchResultActions(card);
-
-        const banner = card?.querySelector('[data-dashboard-search-banner]');
-        const serviceCaseResults = (results ?? []).filter((result) => result?.type === 'service_case' && result?.actions);
-
-        if (!banner || serviceCaseResults.length === 0) {
-            return;
-        }
-
-        const panel = document.createElement('div');
-        panel.className = 'dashboard-search-result-actions border-top px-3 py-2';
-        panel.dataset.dashboardSearchResultActions = '';
-
-        panel.innerHTML = `
-            <div class="list-group list-group-flush">
-                ${serviceCaseResults.map((result) => buildSearchResultActionItemHtml(result)).join('')}
-            </div>
-        `;
-
-        panel.querySelectorAll('[data-search-result-action]').forEach((item, index) => {
-            wireSearchResultActionItem(
-                item,
-                serviceCaseResults[index].actions,
-                dashboardIntegration,
-                { onReopenSuccess: handleReopenSuccess },
-            );
-        });
-
-        banner.appendChild(panel);
     };
 
     const showIntakeFallback = (card, intake, query) => {
@@ -600,7 +448,7 @@ export const initUniversalSearch = ({
             clearSearchMatchHighlight(card);
         }
 
-        showSearchResultActions(card, results);
+        hideSearchResultActions(card);
 
         return true;
     };
