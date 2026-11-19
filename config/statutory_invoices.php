@@ -120,6 +120,16 @@ return [
     */
     'worker_may_mint' => filter_var(env('STATUTORY_EINVOICE_WORKER_MAY_MINT', false), FILTER_VALIDATE_BOOLEAN),
 
+    /*
+    | Buyer GSTIN verification via WhiteBooks GST Public API (GET /public/search).
+    | Default disabled. When enabled, WhiteBooks runs only when GSTIN state and submitted
+    | billing state differ. Matching states preserve legacy Bill To behaviour with no lookup.
+    */
+    'buyer_gstin_verification' => [
+        'enabled' => filter_var(env('STATUTORY_BUYER_GSTIN_VERIFICATION_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'provider' => env('STATUTORY_BUYER_GSTIN_VERIFICATION_PROVIDER', 'whitebooks'),
+    ],
+
     'einvoice' => [
         'provider' => env('STATUTORY_EINVOICE_PROVIDER', 'none'),
         /*

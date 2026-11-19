@@ -170,6 +170,10 @@ class StatutoryMintEligibility
             $errors[] = GstSplitService::PLACE_OF_SUPPLY_UNRECOGNISED;
         }
 
+        if ($serviceGstDecision?->requiresGstReview === true) {
+            $errors[] = 'Buyer GST details require GST review before statutory invoice issuance.';
+        }
+
         $buyerGstin = BuyerGstin::normalize($order->buyer_gstin);
         $allowsServiceB2cDowngrade = $serviceGstDecision?->requiresB2cDowngrade() === true;
         if (
@@ -204,8 +208,10 @@ class StatutoryMintEligibility
 
         if ($hardwarePath) {
             $errors = array_merge($errors, $this->hardwareCommerceInvoice->blockingErrors($order));
+            $errors = array_merge($errors, app(CommerceBuyerGstMintGate::class)->blockingReasonsForOrder($order));
         } elseif ($issuerError === null && $place !== '' && GstStateCodes::codeForName($place) !== null) {
             $errors = array_merge($errors, $this->serviceGstSplitErrors($order, $place, $hsnSacs, $issuerBuyerGstin));
+            $errors = array_merge($errors, app(CommerceBuyerGstMintGate::class)->blockingReasonsForOrder($order));
         }
 
         return new StatutoryMintEligibilityResult($errors === [], array_values(array_unique($errors)));

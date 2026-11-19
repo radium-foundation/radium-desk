@@ -15,6 +15,7 @@ use App\Services\ChannelIngest\Data\ChannelOrderIngestRequest;
 use App\Services\HardwareFulfilment\HardwareFulfilmentFoundationService;
 use App\Services\HardwareFulfilment\HardwareHandoffTenderContract;
 use App\Services\HardwareFulfilment\HardwareRinIngestContract;
+use App\Services\StatutoryInvoice\CommerceOrderBuyerGstVerificationService;
 use App\Services\StatutoryInvoice\ServiceSacResolver;
 use App\Services\StatutoryInvoice\StatutoryInvoiceAccountingPolicy;
 use App\Services\StatutoryInvoice\StatutoryInvoiceNumberingService;
@@ -37,8 +38,9 @@ class ChannelIngestService
         private readonly StatutoryInvoiceAccountingPolicy $accounting,
         private readonly ServiceSacResolver $serviceSac,
         private readonly ChannelIngestBillableLinePolicy $billableLines,
-        private readonly HardwareHandoffTenderContract $tenders = new HardwareHandoffTenderContract,
-        private readonly HardwareRinIngestContract $rinHardware = new HardwareRinIngestContract,
+        private readonly HardwareHandoffTenderContract $tenders,
+        private readonly HardwareRinIngestContract $rinHardware,
+        private readonly CommerceOrderBuyerGstVerificationService $buyerGstVerification,
     ) {}
 
     /**
@@ -237,6 +239,10 @@ class ChannelIngestService
         $order->update([
             'order_no' => sprintf('CO-%06d', $order->id),
         ]);
+
+        if (trim((string) ($request->buyerGstin ?? '')) !== '') {
+            $this->buyerGstVerification->processAfterChannelIngest($order->fresh());
+        }
 
         foreach ($request->lines as $index => $line) {
             CommerceOrderItem::query()->create([
