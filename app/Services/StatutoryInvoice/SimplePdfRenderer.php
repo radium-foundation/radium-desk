@@ -1057,6 +1057,10 @@ class SimplePdfRenderer
         }
         $irnH = $payload->hasIssuedIrn() ? max(76.0, self::QR_SIZE + 18) : 12.0;
         $height += max($irnH, 58.0);
+        $remark = is_string($payload->footerRemark) ? trim($payload->footerRemark) : '';
+        if ($remark !== '') {
+            $height += 12 + (10 * count($this->wrapWidth($remark, 500, 7)));
+        }
 
         return $height;
     }
@@ -1119,6 +1123,15 @@ class SimplePdfRenderer
 
         $signX = 392.0;
         $closingTop = $y;
+        $remark = is_string($payload->footerRemark) ? trim($payload->footerRemark) : '';
+        if ($remark !== '' && ! $payload->hasIssuedIrn()) {
+            $remarkY = $closingTop + 6;
+            foreach ($this->wrapWidth($remark, 500, 7) as $line) {
+                $ops[] = $this->text(self::MARGIN, $remarkY, $line, 7, false, 0.28, 0.28, 0.28);
+                $remarkY -= 10;
+            }
+            $closingTop = $remarkY - 4;
+        }
         if ($payload->hasIssuedIrn()) {
             $this->compactIrnVerificationBlock($ops, $payload, $closingTop, $signX - 12);
         } else {

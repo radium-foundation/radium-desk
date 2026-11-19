@@ -25,6 +25,7 @@ class StatutoryDocumentService
         private readonly HardwareFulfilmentWorkflowService $hardwareWorkflow,
         private readonly StatutoryInvoicePdfPresentationValidator $presentationValidator,
         private readonly StatutoryInvoicePaymentReadService $paymentEvidence,
+        private readonly StatutoryInvoiceB2cFooterRemarkResolver $b2cFooterRemark,
     ) {}
 
     public function generate(StatutoryInvoice $invoice): StatutoryInvoiceDocument
@@ -206,6 +207,7 @@ class StatutoryDocumentService
                 $invoice->billing_address_structured,
                 $invoice->billing_address,
             ),
+            footerRemark: $this->b2cFooterRemark->forInvoice($invoice),
         );
     }
 
