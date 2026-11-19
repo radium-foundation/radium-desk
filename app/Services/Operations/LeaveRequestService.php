@@ -281,7 +281,16 @@ class LeaveRequestService
             ]);
         }
 
-        $leaveRequest = DB::transaction(function () use ($leaveRequest, $reviewer, $reviewNotes, $authorizedOverride, $overrideReason): LeaveRequest {
+        $leaveRequest->loadMissing('user');
+        $requester = $leaveRequest->user;
+
+        $this->useInnoDbReadCommittedForConcurrency();
+
+        $leaveRequest = DB::transaction(function () use ($leaveRequest, $reviewer, $reviewNotes, $authorizedOverride, $overrideReason, $requester): LeaveRequest {
+            if ($requester !== null) {
+                $this->leaveCoverageGuard->lockCoverageGroupRows($requester);
+            }
+
             $lockedLeaveRequest = $this->lockLeaveRequest($leaveRequest);
 
             $this->assertCanReview($reviewer, $lockedLeaveRequest);
@@ -297,11 +306,10 @@ class LeaveRequestService
 
             $this->payrollMonthLockService->assertLeaveWritable($effectiveStart, $effectiveEnd);
 
-            $requester = $lockedLeaveRequest->user;
+            $requester = $lockedLeaveRequest->user ?? $requester;
 
             if ($requester !== null) {
                 $this->lockActiveLeaveRequestsFor($requester);
-                $this->leaveCoverageGuard->lockCoverageGroupRows($requester);
 
                 $this->leaveManualExceptionGuard->assertManualExceptionAllowedOnApprove(
                     $lockedLeaveRequest,
@@ -313,6 +321,7 @@ class LeaveRequestService
                     $effectiveStart,
                     $effectiveEnd,
                     excludeLeaveRequestIds: [$lockedLeaveRequest->id],
+                    countPendingPeerLeaves: false,
                 );
 
                 $this->assertNoOverlappingLeave(
@@ -598,6 +607,13 @@ class LeaveRequestService
 
         return $day->gte($leaveRequest->start_date->startOfDay())
             && $day->lte($leaveRequest->end_date->endOfDay());
+    }
+
+    private function useInnoDbReadCommittedForConcurrency(): void
+    {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+        }
     }
 
     private function lockLeaveRequest(LeaveRequest $leaveRequest): LeaveRequest

@@ -134,6 +134,8 @@ class LeaveRequestAmendmentService
     {
         $this->assertReviewNotesProvided($reviewNotes);
 
+        $this->useInnoDbReadCommittedForConcurrency();
+
         $amendment = DB::transaction(function () use ($amendment, $reviewer, $reviewNotes): LeaveRequestAmendment {
             $lockedAmendment = $this->lockAmendment($amendment);
             $this->assertCanReviewAmendment($reviewer, $lockedAmendment);
@@ -233,6 +235,8 @@ class LeaveRequestAmendmentService
     public function manageDateChange(User $manager, LeaveRequest $leaveRequest, array $data): LeaveRequestAmendment
     {
         $this->assertCanManage($manager);
+
+        $this->useInnoDbReadCommittedForConcurrency();
 
         return DB::transaction(function () use ($manager, $leaveRequest, $data): LeaveRequestAmendment {
             $lockedLeave = $this->lockLeaveRequest($leaveRequest);
@@ -562,6 +566,13 @@ class LeaveRequestAmendmentService
             throw ValidationException::withMessages([
                 'reviewer' => 'You are not allowed to review this leave amendment.',
             ]);
+        }
+    }
+
+    private function useInnoDbReadCommittedForConcurrency(): void
+    {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
         }
     }
 
