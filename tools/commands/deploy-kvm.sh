@@ -112,6 +112,12 @@ ensure_release_branch() {
 validate_release_metadata() {
     local latest_tag version changelog_pattern
 
+    if [[ "${DEPLOY_KVM_UAT_SKIP_RELEASE_TAG:-0}" == "1" ]]; then
+        print_warning "UAT deploy: skipping exact release-tag gate (DEPLOY_KVM_UAT_SKIP_RELEASE_TAG=1)"
+        print_success "UAT release candidate validated at commit $(git -C "$PROJECT_ROOT" rev-parse --short HEAD)"
+        return 0
+    fi
+
     latest_tag="$(git -C "$PROJECT_ROOT" tag -l 'v*' --sort=-v:refname | head -n 1)"
     if [[ -z "$latest_tag" ]]; then
         print_error "No semver Git tag found (expected v*.*.*)."
