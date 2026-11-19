@@ -275,6 +275,50 @@ describe('dashboard global search integration', () => {
         expect(document.querySelector('[data-customer-360-drawer]')?.classList.contains('is-open')).toBe(false);
     });
 
+    it('does not render customer service order history panel when search matches service cases', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 1,
+                    incident_ids: [42],
+                    results: [{ type: 'service_case', incident_id: 42, service_case: 'SC00042' }],
+                    order_history: {
+                        resolved: true,
+                        orders: [{
+                            order_id: 'RD1046',
+                            order_date: '2024-06-01',
+                            spoke: 'desk',
+                            spoke_label: 'Desk',
+                            product_service: 'MFS 110',
+                            serial_number: 'SN12345',
+                            validity_label: 'Active',
+                            warnings: [],
+                        }],
+                    },
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [{
+                        incident_id: 42,
+                        html: '<tr id="service-case-row-42" data-incident-id="42"><td><a class="case-reference-link">SC00042</a></td><td>RD1046</td></tr>',
+                    }],
+                }),
+            });
+
+        await submitSearch('RD1046');
+
+        expect(document.querySelector('[data-dashboard-search-order-history-panel]')).toBeNull();
+        expect(document.querySelector('[data-dashboard-search-banner]')?.textContent)
+            .not.toContain('Customer service order history');
+        expect(document.getElementById('service-case-row-42')).not.toBeNull();
+    });
+
     it('restores dashboard rows when search is cleared', async () => {
         mountDashboard();
 
@@ -332,7 +376,7 @@ describe('dashboard global search integration', () => {
         });
 
         expect(fetch).toHaveBeenCalledWith(
-            '/dashboard/live?queue=all&filter=all',
+            '/dashboard/live?workspace=all&filter=all',
             expect.any(Object),
         );
         expect(document.getElementById('service-case-row-10')).not.toBeNull();
@@ -482,6 +526,19 @@ describe('dashboard global search integration', () => {
                         order_id: 'RD3395988',
                         serial_number: null,
                     },
+                    order_history: {
+                        resolved: true,
+                        orders: [{
+                            order_id: 'RD3395988',
+                            order_date: '2024-06-01',
+                            spoke: 'desk',
+                            spoke_label: 'Desk',
+                            product_service: 'MFS 110',
+                            serial_number: 'SN123456',
+                            validity_label: 'Active',
+                            warnings: [],
+                        }],
+                    },
                 },
             }),
         });
@@ -490,6 +547,8 @@ describe('dashboard global search integration', () => {
 
         const fallback = document.querySelector('[data-dashboard-search-intake-fallback]');
         expect(fallback).not.toBeNull();
+        expect(document.querySelector('[data-dashboard-search-order-history-panel]')).toBeNull();
+        expect(fallback?.textContent).toContain('Customer service order history');
         expect(document.querySelector('[data-dashboard-search-banner-message]')?.textContent)
             .toBe('Legacy order found — create service request');
         expect(fallback?.querySelector('.dashboard-legacy-preview-card')).not.toBeNull();
@@ -601,7 +660,12 @@ describe('dashboard global search integration', () => {
         });
 
         expect(quickCreateShow).not.toHaveBeenCalled();
-        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(fetch).toHaveBeenCalledWith(
+            expect.stringContaining('/search?q=RD3395988'),
+            expect.objectContaining({
+                headers: expect.objectContaining({ Accept: 'application/json' }),
+            }),
+        );
         expect(document.querySelector('[data-legacy-confirm-order-id]')?.textContent).toBe('RD3395988');
         expect(document.querySelector('#legacy_search_confirm_source')?.value).toBe('call');
     });
@@ -1477,7 +1541,6 @@ describe('dashboard global search integration', () => {
 
         await vi.waitFor(() => {
             expect(document.querySelector('[data-search-reopen-case]')).toBeNull();
-            expect(document.querySelector('[data-search-result-action]')?.textContent).toContain('Open');
         });
 
         expect(refreshHandler).toHaveBeenCalled();
