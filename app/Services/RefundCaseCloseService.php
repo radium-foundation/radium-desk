@@ -90,6 +90,10 @@ class RefundCaseCloseService
 
     private function markRefundClosed(RefundRequest $refund, User $actor, ?Request $request): void
     {
+        if ($refund->status?->isRevoked() ?? false) {
+            return;
+        }
+
         if ($refund->status->value === 'closed') {
             return;
         }
