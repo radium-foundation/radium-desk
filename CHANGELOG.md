@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.101 — 2026-11-19 — POS composite-supply shipping for e-Invoice (P-19-52)
+
+- **Statutory:** Reconcile POS header `shipping_amount` GST for e-Invoice guards/mapper; synthetic shipping IRP line when snapshot reconciles.
+- **Composite supply (gated):** `STATUTORY_POS_RETAIL_SHIPPING_COMPOSITE_SUPPLY` (default **false**); principal goods HSN/rate by highest taxable value; mixed GST rates and ambiguous principals fail closed.
+- **Override:** `STATUTORY_POS_RETAIL_SHIPPING_HSN_SAC` for approved independent freight SAC when required.
+- **Wallet:** Includes merged revoke/follow-up fix from PR **#363** (already on `main` before this squash).
+- **Migrations:** None.
+- **Out of scope until rollout:** Production flag enablement, IRN retry, invoice 23163 reprocessing.
+- Rollback target: v4.1.100 / `13c13928f`.
+- Prompts **RadiumDesk-P-19-47** through **P-19-52**; Owner approval **docs/desk-pos-composite-supply-owner-approval-p-19-52.md**.
+
 ## 4.1.99 — 2026-11-19 — Statutory service-mint outbox diagnostics (P-19-34)
 
 - **Purpose:** Read-only Customer 360 visibility for statutory service-invoice mint outbox state (`statutory-service-mint:order:{pk}`): failed / queued / in-progress / completed-without-invoice / missing record, with sanitized failure reasons.
