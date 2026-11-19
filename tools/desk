@@ -64,6 +64,10 @@ case "${1:-help}" in
         shift
         exec "$TOOLS_DIR/commands/deploy-kvm.sh" "$@"
         ;;
+    deploy-kvm-uat)
+        shift
+        exec "$TOOLS_DIR/commands/deploy-kvm-uat.sh" "$@"
+        ;;
     deploy-legacy)
         shift
         exec "$TOOLS_DIR/commands/deploy.sh" "$@"
@@ -106,7 +110,8 @@ Usage:
   desk ssh            Open an interactive SSH session on the server
   desk doctor         Verify local and remote deployment prerequisites
   desk deploy         Deploy to production (KVM rsync when DEPLOY_MODE=kvm)
-  desk deploy-kvm      Run the KVM rsync deployment script directly
+  desk deploy-kvm      Run the KVM rsync deployment script directly (production path)
+  desk deploy-kvm-uat  Deploy to /var/www/radium-desk-uat only (blocks production path)
   desk deploy-legacy   Legacy shared-hosting deploy (git pull + public_html)
   desk logs           Tail remote Laravel logs
   desk cache          Clear and rebuild remote Laravel caches

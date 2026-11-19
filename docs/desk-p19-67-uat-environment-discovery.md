@@ -98,7 +98,11 @@ No customer/order/GST table queries were executed on production.
 
 ---
 
-## P-19-68 future UAT setup (required before GST flag-on tests)
+## P-19-68 execution plan
+
+See **`docs/desk-p19-68-uat-remediation-execution-plan.md`** (numbered gates, Owner approvals). P-19-68 ended **`UAT BLOCKED`** — no live remediation executed.
+
+## P-19-68+ future UAT setup (required before GST flag-on tests)
 
 1. **Owner-authorized deploy** of `main` ≥ **`dfe82ffcf`** to `/var/www/radium-desk-uat` only (no prod rsync).
 2. **Migrate** `radium_desk_uat` only: `120000` → `130000` → `140000` (GST verification + B2C conversion).
