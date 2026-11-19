@@ -130,10 +130,7 @@
         @include('customer-360.partials.historical-invoice', [
             'historicalInvoice' => $historicalInvoice ?? null,
         ])
-        @include('customer-360.partials.statutory-invoice', [
-            'statutoryInvoices' => $statutoryInvoices ?? [],
-            'statutoryMintOutbox' => $statutoryMintOutbox ?? null,
-        ])
+        @include('customer-360.partials.statutory-invoice')
         @include('customer-360.partials.communication-section', [
             'communicationSection' => $communicationSection ?? null,
         ])
