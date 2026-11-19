@@ -30,4 +30,9 @@ esac
 
 echo "UAT deploy target locked: ${REMOTE_PROJECT} (production ${PRODUCTION_REMOTE} blocked)."
 
+# UAT deploy: explicit no DB mutations; do not restart production supervisor worker.
+export DEPLOY_RUN_MIGRATIONS=0
+export DEPLOY_RUN_ROLE_PERMISSION_SEED=0
+export DEPLOY_KVM_SKIP_SUPERVISOR_RESTART=1
+
 exec "$SCRIPT_DIR/deploy-kvm.sh" "$@"
